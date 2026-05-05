@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import asyncio
+from datetime import datetime
 import json
+import shutil
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -22,6 +24,21 @@ router = APIRouter()
 class ManagerInstallRequest(BaseModel):
     workflow: Workflow
     targets: list[str] | None = None
+
+
+class WorkspaceRootRequest(BaseModel):
+    path: str
+
+
+class WorkspaceFileOperationRequest(BaseModel):
+    source_path: str
+    target_dir: str = "."
+    operation: str
+
+
+class WorkspaceDeleteRequest(BaseModel):
+    path: str
+    trash: bool = True
 
 
 @router.get("/object_info")
@@ -161,6 +178,110 @@ async def workspace_files(request: Request, path: str = "", depth: int = 3, show
     return _file_entry(target, root=root, max_depth=max(0, min(depth, 6)), show_hidden=show_hidden)
 
 
+@router.get("/workspace/root")
+async def workspace_root(request: Request) -> dict:
+    settings = request.app.state.settings
+    return {"path": str(settings.project_root)}
+
+
+@router.post("/workspace/root")
+async def set_workspace_root(payload: WorkspaceRootRequest, request: Request) -> dict:
+    path = Path(payload.path).expanduser().resolve()
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Workspace path does not exist: {path}")
+    if not path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Workspace path is not a directory: {path}")
+    settings = request.app.state.settings
+    settings.project_root = path
+    settings.runs_dir = path / "runs"
+    settings.cache_dir = path / ".bionodulo_cache"
+    settings.custom_nodes_dir = path / "custom_nodes"
+    settings.ensure_directories()
+    return {"path": str(settings.project_root)}
+
+
+@router.get("/workspace/directories")
+async def workspace_directories(request: Request, path: str = "") -> dict:
+    settings = request.app.state.settings
+    target = Path(path).expanduser().resolve() if path else settings.project_root
+    if not target.exists() or not target.is_dir():
+        target = settings.project_root
+    entries = []
+    try:
+        for child in sorted(target.iterdir(), key=lambda value: value.name.lower()):
+            if child.is_dir() and not child.name.startswith("."):
+                entries.append({"name": child.name, "path": str(child.resolve())})
+    except OSError:
+        entries = []
+    parent = target.parent if target.parent != target else None
+    quick_roots = [{"name": "Home", "path": str(Path.home().resolve())}, {"name": "Current workspace", "path": str(settings.project_root)}]
+    if Path.cwd().anchor:
+        quick_roots.append({"name": Path.cwd().anchor, "path": Path.cwd().anchor})
+    return {
+        "path": str(target),
+        "parent": str(parent.resolve()) if parent else None,
+        "entries": entries[:300],
+        "quick_roots": quick_roots,
+    }
+
+
+@router.get("/workspace/file")
+async def workspace_file(request: Request, path: str) -> dict:
+    settings = request.app.state.settings
+    target = ensure_within(settings.project_root / path, settings.project_root)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail=f"Workspace file not found: {path}")
+    if target.stat().st_size > 8_000_000:
+        raise HTTPException(status_code=400, detail="File is too large to open in the browser.")
+    return {"path": path, "content": target.read_text(encoding="utf-8", errors="replace")}
+
+
+@router.post("/workspace/file-operation")
+async def workspace_file_operation(payload: WorkspaceFileOperationRequest, request: Request) -> dict:
+    settings = request.app.state.settings
+    root = settings.project_root
+    source = ensure_within(root / payload.source_path, root)
+    target_dir = ensure_within(root / payload.target_dir, root)
+    if not source.exists():
+        raise HTTPException(status_code=404, detail=f"Workspace item not found: {payload.source_path}")
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=400, detail=f"Paste target is not a directory: {payload.target_dir}")
+    destination = _available_destination(target_dir / source.name)
+    if payload.operation == "copy":
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+    elif payload.operation == "move":
+        shutil.move(str(source), str(destination))
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported file operation: {payload.operation}")
+    return {"ok": True, "destination": str(destination.relative_to(root)).replace("\\", "/")}
+
+
+@router.post("/workspace/delete")
+async def workspace_delete(payload: WorkspaceDeleteRequest, request: Request) -> dict:
+    settings = request.app.state.settings
+    root = settings.project_root
+    target = ensure_within(root / payload.path, root)
+    if target == root:
+        raise HTTPException(status_code=400, detail="Cannot delete the workspace root.")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"Workspace item not found: {payload.path}")
+    if payload.trash:
+        trash_dir = root / ".bionodulo_trash"
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        destination = _available_destination(trash_dir / f"{stamp}-{target.name}")
+        shutil.move(str(target), str(destination))
+        return {"ok": True, "deleted": payload.path, "trash_path": str(destination.relative_to(root)).replace("\\", "/")}
+    if target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+    return {"ok": True, "deleted": payload.path}
+
+
 @router.get("/manager/status")
 async def manager_status(request: Request) -> dict:
     return environment_status(request.app.state.node_registry, custom_nodes_dir=request.app.state.settings.custom_nodes_dir)
@@ -231,6 +352,19 @@ def _allowed_install_command(command: list[str]) -> bool:
     return executable in allowed or executable.endswith(".exe") and executable.removesuffix(".exe") in allowed
 
 
+def _available_destination(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    for index in range(1, 10_000):
+        candidate = parent / f"{stem} copy {index}{suffix}"
+        if not candidate.exists():
+            return candidate
+    raise HTTPException(status_code=409, detail=f"Could not find a free destination name for {path.name}")
+
+
 def _json_line(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
@@ -247,6 +381,7 @@ def _file_entry(path: Path, *, root: Path, max_depth: int, show_hidden: bool) ->
     item = {
         "name": "." if path == root else path.name,
         "path": relative,
+        "absolute_path": str(path.resolve()),
         "type": "directory" if path.is_dir() else "file",
     }
     if path.is_file():

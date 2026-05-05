@@ -36,3 +36,21 @@ def test_workflow_environment_defaults_to_conda():
     assert workflow.environment.type == "conda"
     assert result["environment"]["type"] == "conda"
     assert result["environment_plan"]["action"] == "create_conda_environment"
+
+
+def test_conda_tool_install_plan_targets_selected_environment(monkeypatch):
+    monkeypatch.setattr("bionodulo.manager.diagnostics.shutil.which", lambda name: None)
+    workflow = Workflow.model_validate(
+        {
+            "nodes": [{"id": "fastqc-1", "type": "fastqc", "params": {}}],
+            "edges": [],
+            "outputs": ["fastqc-1"],
+            "environment": {"type": "conda", "name": "selected-qc-env", "packages": ["fastqc"]},
+        }
+    )
+
+    result = diagnose_workflow(workflow, registry())
+    fastqc_plan = next(plan for plan in result["install_plans"] if plan["target"] == "fastqc")
+
+    assert fastqc_plan["command"][:5] == ["mamba", "install", "-y", "-n", "selected-qc-env"]
+    assert fastqc_plan["environment"]["name"] == "selected-qc-env"

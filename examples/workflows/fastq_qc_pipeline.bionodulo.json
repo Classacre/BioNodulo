@@ -13,6 +13,13 @@
           "examples/data/sample_R1.fastq.gz",
           "examples/data/sample_R2.fastq.gz"
         ]
+      },
+      "node_info": {
+        "display_name": "Input FASTQ",
+        "category": "Input",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "required_executables": []
       }
     },
     {
@@ -21,6 +28,14 @@
       "position": { "x": 380, "y": 140 },
       "params": {
         "threads": 4
+      },
+      "node_info": {
+        "display_name": "FastQC",
+        "category": "Quality Control",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "documentation_url": "https://www.bioinformatics.babraham.ac.uk/projects/fastqc/",
+        "required_executables": ["fastqc"]
       }
     },
     {
@@ -29,6 +44,14 @@
       "position": { "x": 680, "y": 220 },
       "params": {
         "threads": 4
+      },
+      "node_info": {
+        "display_name": "fastp",
+        "category": "Read preprocessing",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "documentation_url": "https://github.com/OpenGene/fastp",
+        "required_executables": ["fastp"]
       }
     },
     {
@@ -37,19 +60,42 @@
       "position": { "x": 980, "y": 220 },
       "params": {
         "threads": 4
+      },
+      "node_info": {
+        "display_name": "FastQC",
+        "category": "Quality Control",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "documentation_url": "https://www.bioinformatics.babraham.ac.uk/projects/fastqc/",
+        "required_executables": ["fastqc"]
       }
     },
     {
       "id": "collect-qc-1",
       "type": "collect_files",
       "position": { "x": 1280, "y": 155 },
-      "params": {}
+      "params": {},
+      "node_info": {
+        "display_name": "Collect Files",
+        "category": "Utility",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "required_executables": []
+      }
     },
     {
       "id": "multiqc-1",
       "type": "multiqc",
       "position": { "x": 1580, "y": 180 },
-      "params": {}
+      "params": {},
+      "node_info": {
+        "display_name": "MultiQC",
+        "category": "Quality Control",
+        "version": "0.1.0",
+        "package": "bionodulo-core",
+        "documentation_url": "https://multiqc.info/",
+        "required_executables": ["multiqc"]
+      }
     }
   ],
   "edges": [
@@ -86,5 +132,28 @@
   ],
   "outputs": [
     "multiqc-1"
-  ]
+  ],
+  "environment": {
+    "type": "conda",
+    "name": "bionodulo-fastq-qc",
+    "file": "envs/fastq-qc.yaml",
+    "image": null,
+    "channels": ["conda-forge", "bioconda"],
+    "packages": ["fastqc", "fastp", "multiqc"],
+    "pip": [],
+    "mounts": [],
+    "notes": "Mock mode works without installing these tools; real mode expects them in the selected runtime."
+  },
+  "dependencies": {
+    "schema_version": "0.1.0",
+    "node_types": ["collect_files", "fastp", "fastqc", "input_fastq", "multiqc"],
+    "node_packages": [
+      { "name": "bionodulo-core", "version": "0.1.0" }
+    ],
+    "external_tools": [
+      { "name": "fastqc", "version": "unknown", "executable": "fastqc" },
+      { "name": "fastp", "version": "unknown", "executable": "fastp" },
+      { "name": "multiqc", "version": "unknown", "executable": "multiqc" }
+    ]
+  }
 }

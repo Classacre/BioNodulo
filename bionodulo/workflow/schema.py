@@ -17,6 +17,7 @@ class WorkflowNode(BaseModel):
     type: str
     position: Position = Field(default_factory=Position)
     params: dict[str, Any] = Field(default_factory=dict)
+    node_info: dict[str, Any] = Field(default_factory=dict)
 
 
 class Endpoint(BaseModel):
@@ -30,7 +31,7 @@ class WorkflowEdge(BaseModel):
     from_: Endpoint = Field(alias="from")
     to: Endpoint
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
 
 
 class Workflow(BaseModel):
@@ -42,6 +43,7 @@ class Workflow(BaseModel):
     edges: list[WorkflowEdge] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     environment: EnvironmentSpec = Field(default_factory=EnvironmentSpec)
+    dependencies: dict[str, Any] = Field(default_factory=dict)
 
 
 class ValidationIssue(BaseModel):

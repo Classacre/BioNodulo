@@ -8,7 +8,7 @@ from typing import Any
 
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.schema import Workflow
-from bionodulo.environments.conda import conda_available, conda_create_plan
+from bionodulo.environments.conda import conda_available, conda_create_plan, conda_executable
 from bionodulo.environments.containers import apptainer_available, apptainer_plan, docker_available, docker_plan
 
 
@@ -110,17 +110,7 @@ def diagnose_workflow(workflow: Workflow, registry: NodeRegistry) -> dict[str, A
         if shutil.which(tool) is None
     ]
     install_plans = [_missing_node_plan(node_type) for node_type in missing_node_types]
-    tool_plans = [
-        {
-            "kind": "tool",
-            "target": tool["name"],
-            "status": "missing",
-            "action": "install_external_tool",
-            "command_hint": tool["install_hint"],
-            "requires_confirmation": True,
-        }
-        for tool in missing_tools
-    ]
+    tool_plans = [_tool_install_plan(tool, workflow) for tool in missing_tools]
     environment_plan = environment_install_plan(workflow)
     return {
         "missing_node_types": missing_node_types,
@@ -151,6 +141,44 @@ def _missing_node_plan(node_type: str) -> dict[str, Any]:
         "status": "unknown",
         "action": "search_or_install_custom_node",
         "command_hint": f"Search a BioNodulo node registry for a package that provides {node_type}.",
+        "requires_confirmation": True,
+    }
+
+
+def _tool_install_plan(tool: dict[str, Any], workflow: Workflow) -> dict[str, Any]:
+    spec = workflow.environment
+    if spec.type == "conda":
+        channels = [part for channel in spec.channels for part in ("-c", channel)]
+        executable = conda_executable() or "mamba"
+        return {
+            "kind": "tool",
+            "target": tool["name"],
+            "status": "missing",
+            "action": "install_external_tool",
+            "command": [executable, "install", "-y", "-n", spec.name, *channels, tool["name"]],
+            "command_hint": f"Install {tool['name']} into Conda environment {spec.name}.",
+            "environment": spec.model_dump(),
+            "requires_confirmation": True,
+        }
+    if spec.type == "docker":
+        return {
+            "kind": "tool",
+            "target": tool["name"],
+            "status": "missing",
+            "action": "install_external_tool",
+            "command": [],
+            "command_hint": f"Use a Docker image that contains {tool['name']} or rebuild {spec.image or spec.name} with that tool installed.",
+            "environment": spec.model_dump(),
+            "requires_confirmation": True,
+        }
+    return {
+        "kind": "tool",
+        "target": tool["name"],
+        "status": "missing",
+        "action": "install_external_tool",
+        "command": [],
+        "command_hint": f"Use or build an Apptainer image that contains {tool['name']} for {spec.name}.",
+        "environment": spec.model_dump(),
         "requires_confirmation": True,
     }
 

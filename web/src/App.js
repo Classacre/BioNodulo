@@ -62,6 +62,7 @@ const LEFT_RAIL_ITEMS = [
 ];
 const ICON_PATHS = {
   folder: "M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z",
+  refresh: "M20 6v5h-5M4 18v-5h5M18.2 9A7 7 0 0 0 6.4 6.2L4 8.5M5.8 15A7 7 0 0 0 17.6 17.8L20 15.5",
   nodes: "M7 7h4v4H7zM14 13h4v4h-4zM6 16h4v4H6zM11 9h2.5a2.5 2.5 0 0 1 2.5 2.5V13M10 18h2a2 2 0 0 0 2-2v-1",
   templates: "M6 3h9l3 3v15H6zM15 3v4h4M9 10h6M9 14h6M9 18h4",
   terminal: "M4 6h16v12H4zM7 10l3 2-3 2M12 15h5",
@@ -253,6 +254,10 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileTree, setFileTree] = useState(null);
   const [fileLoading, setFileLoading] = useState(false);
+  const [workspaceRoot, setWorkspaceRootState] = useState("");
+  const [workspaceDraft, setWorkspaceDraft] = useState("");
+  const [directoryBrowser, setDirectoryBrowser] = useState(null);
+  const [fileClipboard, setFileClipboard] = useState(null);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [linksHidden, setLinksHidden] = useState(false);
   const [viewportLocked, setViewportLocked] = useState(false);
@@ -266,6 +271,8 @@ function App() {
   const [strongHashing, setStrongHashing] = useState(false);
   const [tooltipsEnabled, setTooltipsEnabled] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(false);
+  const [themePreference, setThemePreference] = useState(loadThemePreference);
+  const [confirmFileDelete, setConfirmFileDelete] = useState(loadConfirmFileDelete);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiMessages, setAiMessages] = useState([{ role: "assistant", content: "Ask me to explain, debug, edit, or create a BioNodulo workflow. I can use the project docs and the active workflow as context." }]);
   const [aiBusy, setAiBusy] = useState(false);
@@ -293,7 +300,16 @@ function App() {
   }, [llmSettings]);
 
   useEffect(() => {
+    localStorage.setItem("bionodulo.theme", themePreference);
+  }, [themePreference]);
+
+  useEffect(() => {
+    localStorage.setItem("bionodulo.confirm_file_delete", confirmFileDelete ? "1" : "0");
+  }, [confirmFileDelete]);
+
+  useEffect(() => {
     fetch("/object_info").then((res) => res.json()).then(setObjectInfo);
+    fetchWorkspaceRoot();
     refreshRuns();
     refreshQueue();
   }, []);
@@ -499,17 +515,19 @@ function App() {
   }
 
   function workflowFromCanvas() {
+    const workflowNodes = nodes.map((node) => ({
+      id: node.id,
+      type: node.data.type,
+      position: node.position,
+      params: node.data.params || {},
+      node_info: nodeInfoForWorkflow(node),
+    }));
     return {
       version: "0.1.0",
       app: "bionodulo",
       name: "FASTQ QC pipeline",
       description: "Visual bioinformatics workflow created in BioNodulo.",
-      nodes: nodes.map((node) => ({
-        id: node.id,
-        type: node.data.type,
-        position: node.position,
-        params: node.data.params || {},
-      })),
+      nodes: workflowNodes,
       edges: edges.map((edge) => ({
         id: edge.id,
         from: { node: edge.source, output: edge.sourceHandle },
@@ -517,6 +535,7 @@ function App() {
       })),
       outputs: nodes.filter((node) => node.data.workflowOutput || node.data.meta?.output_node).map((node) => node.id),
       environment: environmentSpec,
+      dependencies: workflowDependencies(workflowNodes, environmentSpec),
     };
   }
 
@@ -809,8 +828,9 @@ function App() {
   }
 
   function handleDragOver(event) {
+    const types = [...(event.dataTransfer?.types || [])];
     const hasFile = [...(event.dataTransfer?.items || [])].some((item) => item.kind === "file");
-    if (hasFile) {
+    if (hasFile || types.includes("application/bionodulo-workspace-file")) {
       event.preventDefault();
       setDropActive(true);
     }
@@ -819,6 +839,16 @@ function App() {
   function handleDrop(event) {
     event.preventDefault();
     setDropActive(false);
+    const workspaceFile = event.dataTransfer?.getData("application/bionodulo-workspace-file");
+    if (workspaceFile) {
+      try {
+        const item = JSON.parse(workspaceFile);
+        if (item.name?.toLowerCase?.().endsWith(".json")) loadWorkspaceWorkflow(item);
+      } catch (error) {
+        setValidation({ valid: false, errors: [{ level: "error", code: "workspace_drop", message: `Could not import workspace item: ${error.message}` }], warnings: [] });
+      }
+      return;
+    }
     loadDroppedWorkflow(event.dataTransfer?.files?.[0]);
   }
 
@@ -826,12 +856,107 @@ function App() {
     setFileLoading(true);
     try {
       const query = new URLSearchParams({ depth: String(fileExplorerDepth), show_hidden: showHiddenFiles ? "1" : "0" });
-      setFileTree(await fetch(`/workspace/files?${query}`).then((res) => res.json()));
+      const tree = await fetch(`/workspace/files?${query}`).then((res) => res.json());
+      setFileTree(tree);
+      if (tree.absolute_path) {
+        setWorkspaceRootState(tree.absolute_path);
+        setWorkspaceDraft(tree.absolute_path);
+      }
     } catch (error) {
       setFileTree({ name: "Workspace", type: "directory", path: ".", children: [{ name: error.message, path: "", type: "file", size: 0 }] });
     } finally {
       setFileLoading(false);
     }
+  }
+
+  async function fetchWorkspaceRoot() {
+    const root = await fetch("/workspace/root").then((res) => res.json()).catch(() => null);
+    if (root?.path) {
+      setWorkspaceRootState(root.path);
+      setWorkspaceDraft(root.path);
+    }
+  }
+
+  async function applyWorkspaceRoot(path = workspaceDraft) {
+    const trimmed = String(path || "").trim();
+    if (!trimmed) return;
+    const response = await fetch("/workspace/root", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: trimmed }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setValidation({ valid: false, errors: [{ level: "error", code: "workspace_root", message: result.detail || "Could not switch workspace." }], warnings: [] });
+      return;
+    }
+    setWorkspaceRootState(result.path);
+    setWorkspaceDraft(result.path);
+    setDirectoryBrowser(null);
+    await refreshFileTree();
+  }
+
+  async function browseWorkspace(path = workspaceDraft || workspaceRoot) {
+    const query = new URLSearchParams({ path: String(path || "") });
+    const result = await fetch(`/workspace/directories?${query}`).then((res) => res.json());
+    setDirectoryBrowser(result);
+  }
+
+  async function loadWorkspaceWorkflow(item) {
+    if (!item || item.type !== "file") return;
+    try {
+      const query = new URLSearchParams({ path: item.path });
+      const result = await fetch(`/workspace/file?${query}`).then((res) => res.json());
+      const workflow = JSON.parse(result.content);
+      loadWorkflow(workflow, item.name.replace(/\.json$/i, ""));
+      setValidation({ valid: true, errors: [], warnings: [] });
+    } catch (error) {
+      setValidation({ valid: false, errors: [{ level: "error", code: "workspace_file", message: `Could not load ${item.name}: ${error.message}` }], warnings: [] });
+    }
+  }
+
+  function copyWorkspaceItem(item) {
+    setFileClipboard({ operation: "copy", item });
+  }
+
+  function cutWorkspaceItem(item) {
+    setFileClipboard({ operation: "move", item });
+  }
+
+  async function pasteWorkspaceItem(targetDirectory) {
+    if (!fileClipboard?.item) return;
+    const response = await fetch("/workspace/file-operation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_path: fileClipboard.item.path,
+        target_dir: targetDirectory?.type === "directory" ? targetDirectory.path : ".",
+        operation: fileClipboard.operation,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setValidation({ valid: false, errors: [{ level: "error", code: "workspace_file_operation", message: result.detail || "Workspace file operation failed." }], warnings: [] });
+      return;
+    }
+    if (fileClipboard.operation === "move") setFileClipboard(null);
+    await refreshFileTree();
+  }
+
+  async function deleteWorkspaceItem(item) {
+    if (!item) return;
+    if (confirmFileDelete && !window.confirm(`Move "${item.name}" to .bionodulo_trash?`)) return;
+    const response = await fetch("/workspace/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path, trash: true }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setValidation({ valid: false, errors: [{ level: "error", code: "workspace_delete", message: result.detail || "Could not delete workspace item." }], warnings: [] });
+      return;
+    }
+    await refreshFileTree();
   }
 
   function loadTemplate(template) {
@@ -872,7 +997,7 @@ function App() {
     if (item.id === "envs" && !managerStatus) {
       refreshManagerStatus();
     }
-    setRailPanel(item);
+    setRailPanel((current) => current?.id === item.id ? null : item);
   }
 
   const shellStyle = {
@@ -887,8 +1012,14 @@ function App() {
     "div",
     {
       className: "app-shell canvas-first",
+      "data-theme": themePreference,
       style: shellStyle,
-      onClick: () => { setPaletteMenu(null); setNodeMenu(null); setEdgeMenu(null); setRailPanel(null); },
+      onClick: () => {
+        setPaletteMenu(null);
+        setNodeMenu(null);
+        setEdgeMenu(null);
+        setRailPanel((current) => current && ["data", "nodes"].includes(current.id) ? current : null);
+      },
       onDragOver: handleDragOver,
       onDragLeave: () => setDropActive(false),
       onDrop: handleDrop,
@@ -1022,6 +1153,16 @@ function App() {
           groupedNodes,
           fileTree,
           fileLoading,
+          workspaceRoot,
+          workspaceDraft,
+          setWorkspaceDraft,
+          onApplyWorkspaceRoot: applyWorkspaceRoot,
+          onLoadWorkspaceWorkflow: loadWorkspaceWorkflow,
+          fileClipboard,
+          onCopyWorkspaceItem: copyWorkspaceItem,
+          onCutWorkspaceItem: cutWorkspaceItem,
+          onPasteWorkspaceItem: pasteWorkspaceItem,
+          onDeleteWorkspaceItem: deleteWorkspaceItem,
           fileExplorerDepth,
           setFileExplorerDepth,
           showHiddenFiles,
@@ -1087,6 +1228,10 @@ function App() {
       setTooltipsEnabled,
       snapToGrid,
       setSnapToGrid,
+      themePreference,
+      setThemePreference,
+      confirmFileDelete,
+      setConfirmFileDelete,
       llmSettings,
       updateLlmSettings,
       onClose: () => setSettingsOpen(false),
@@ -1295,14 +1440,15 @@ function Icon({ name }) {
   return h("svg", { viewBox: "0 0 24 24", "aria-hidden": "true" }, h("path", { d: ICON_PATHS[name] || ICON_PATHS.help }));
 }
 
-function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount, environmentSpec, updateEnvironment, managerStatus, managerDiagnostics, managerLoading, onRefreshManager, onRequestInstall, groupedNodes, fileTree, fileLoading, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, templates, onAddNode, onRefreshFiles, onLoadTemplate, onClose }) {
+function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount, environmentSpec, updateEnvironment, managerStatus, managerDiagnostics, managerLoading, onRefreshManager, onRequestInstall, groupedNodes, fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, templates, onAddNode, onRefreshFiles, onLoadTemplate, onClose }) {
   const activeRuns = runs.filter((run) => ["queued", "running", "interrupting"].includes(run.status)).length;
+  const docked = ["data", "nodes"].includes(item.id);
   return h(
     "div",
-    { className: `rail-panel rail-panel-${item.id}`, onClick: (event) => event.stopPropagation() },
+    { className: `rail-panel rail-panel-${item.id} ${docked ? "rail-drawer" : ""}`, onClick: (event) => event.stopPropagation() },
     h("div", { className: "context-head" }, h("strong", null, item.label), h("button", { onClick: onClose, title: "Close" }, "x")),
     h("p", { className: "muted" }, item.description),
-    item.id === "data" ? h(DataExplorer, { fileTree, fileLoading, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, onRefreshFiles }) : null,
+    item.id === "data" ? h(DataExplorer, { fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, onRefreshFiles }) : null,
     item.id === "nodes" ? h(NodeLibraryPanel, { groupedNodes, onAddNode }) : null,
     item.id === "templates" ? h(TemplatesPanel, { templates, onLoadTemplate }) : null,
     item.id === "envs" ? h(EnvsManagerPanel, { environmentSpec, updateEnvironment, status: managerStatus, diagnostics: managerDiagnostics, loading: managerLoading, registryCount, onRefresh: onRefreshManager, onRequestInstall }) : null,
@@ -1316,18 +1462,49 @@ function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount
   );
 }
 
-function DataExplorer({ fileTree, fileLoading, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, onRefreshFiles }) {
+function DataExplorer({ fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, onRefreshFiles }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
+  const [fileMenu, setFileMenu] = useState(null);
   const flattened = useMemo(() => flattenFiles(fileTree).filter((item) => {
     if (query && !`${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase())) return false;
     return kind === "all" || fileKind(item) === kind;
   }), [fileTree, query, kind]);
-  const recentRuns = flattened.filter((item) => item.path.startsWith("runs/")).slice(0, 8);
-  return h("div", { className: "rail-stack" },
-    h("div", { className: "data-toolbar" },
-      h("input", { className: "search", placeholder: "Search FASTQ, BAM, VCF, reports...", value: query, onChange: (event) => setQuery(event.target.value) }),
-      h("button", { onClick: onRefreshFiles }, fileLoading ? "Refreshing..." : "Refresh"),
+  function openFileMenu(event, item) {
+    event.preventDefault();
+    event.stopPropagation();
+    setFileMenu({ x: event.clientX, y: event.clientY, item });
+  }
+  function closeFileMenu() {
+    setFileMenu(null);
+  }
+  function copyPath(item) {
+    navigator.clipboard?.writeText(item.absolute_path || item.path);
+    closeFileMenu();
+  }
+  async function loadWorkflowItem(item) {
+    closeFileMenu();
+    await onLoadWorkspaceWorkflow(item);
+  }
+  async function makeWorkspace(item) {
+    closeFileMenu();
+    await onApplyWorkspaceRoot(item.absolute_path || item.path);
+  }
+  function startWorkspaceDrag(event, item) {
+    if (!item) return;
+    event.dataTransfer.effectAllowed = item.name?.toLowerCase?.().endsWith(".json") ? "copy" : "none";
+    event.dataTransfer.setData("application/bionodulo-workspace-file", JSON.stringify(item));
+    event.dataTransfer.setData("text/plain", item.absolute_path || item.path);
+  }
+  return h("div", { className: "file-explorer rail-stack", onClick: closeFileMenu },
+    h("div", { className: "explorer-toolbar" },
+      h("button", { className: "icon-button", title: "Refresh workspace", onClick: onRefreshFiles }, fileLoading ? "..." : h(Icon, { name: "refresh" })),
+      h("input", { className: "search", placeholder: "Search files, runs, FASTQ, BAM, reports...", value: query, onChange: (event) => setQuery(event.target.value) }),
+    ),
+    h("form", { className: "explorer-workspace-row", onSubmit: (event) => { event.preventDefault(); onApplyWorkspaceRoot(workspaceDraft); } },
+      h("span", null, "Workspace"),
+      h("input", { value: workspaceDraft || "", placeholder: workspaceRoot || "Type an absolute workspace path...", onChange: (event) => setWorkspaceDraft(event.target.value) }),
+      h("button", { type: "submit", title: "Use this workspace" }, "Use"),
     ),
     h("div", { className: "data-chips" },
       ["all", "sequence", "alignment", "variant", "report", "workflow"].map((value) => h("button", { key: value, className: kind === value ? "pressed" : "", onClick: () => setKind(value) }, value)),
@@ -1336,21 +1513,42 @@ function DataExplorer({ fileTree, fileLoading, fileExplorerDepth, setFileExplore
       h("label", null, "Depth", h("input", { type: "number", min: 1, max: 6, value: fileExplorerDepth, onChange: (event) => setFileExplorerDepth(clamp(Number.parseInt(event.target.value || "4", 10), 1, 6)) })),
       h("label", null, h("input", { type: "checkbox", checked: showHiddenFiles, onChange: (event) => setShowHiddenFiles(event.target.checked) }), " Hidden files"),
     ),
-    h("div", { className: "data-browser" },
-      h("section", null,
-        h("h4", null, "Workspace"),
-        fileTree ? h(FileTree, { item: fileTree, query, kind }) : h("p", { className: "muted" }, "Loading workspace files..."),
+    h("div", { className: "explorer-table" },
+      h("div", { className: "explorer-head" }, h("span", null, "Name"), h("span", null, "Kind"), h("span", null, "Size")),
+      h("div", { className: "explorer-tree" },
+        fileTree ? h(FileTree, { item: fileTree, query, kind, root: true, onContextFile: openFileMenu, onOpenFile: loadWorkflowItem, onDragFile: startWorkspaceDrag }) : h("p", { className: "muted" }, "Loading workspace files..."),
       ),
-      h("section", null,
-        h("h4", null, "Bioinformatics Assets"),
-        h("div", { className: "asset-list" }, flattened.slice(0, 60).map((item) => h(AssetRow, { key: item.path, item }))),
-        recentRuns.length ? h("div", { className: "recent-results" }, h("h4", null, "Recent Run Outputs"), recentRuns.map((item) => h(AssetRow, { key: `recent-${item.path}`, item }))) : null,
-      ),
+      query || kind !== "all" ? h("div", { className: "explorer-results" },
+        h("strong", null, `${flattened.length} matching file(s)`),
+        flattened.slice(0, 24).map((item) => h(AssetRow, { key: item.path, item, onContextFile: openFileMenu, onDragFile: startWorkspaceDrag })),
+      ) : null,
     ),
+    fileMenu ? h(FileContextMenu, { menu: fileMenu, clipboard: fileClipboard, onClose: closeFileMenu, onCopy: (item) => { onCopyWorkspaceItem(item); closeFileMenu(); }, onCut: (item) => { onCutWorkspaceItem(item); closeFileMenu(); }, onPaste: async (item) => { closeFileMenu(); await onPasteWorkspaceItem(item); }, onDelete: async (item) => { closeFileMenu(); await onDeleteWorkspaceItem(item); }, onCopyPath: copyPath, onLoadWorkflow: loadWorkflowItem, onSetWorkspace: makeWorkspace }) : null,
   );
 }
 
-function FileTree({ item, query = "", kind = "all" }) {
+function DirectoryBrowser({ browser, draft, setDraft, onBrowse, onChoose, onClose }) {
+  return h("div", { className: "directory-picker" },
+    h("div", { className: "directory-picker-head" },
+      h("strong", null, "Choose workspace"),
+      h("button", { title: "Close browser", onClick: onClose }, "x"),
+    ),
+    h("div", { className: "directory-current" },
+      h("input", { value: draft || browser.path, onChange: (event) => setDraft(event.target.value), onKeyDown: (event) => { if (event.key === "Enter") onBrowse(event.currentTarget.value); } }),
+      h("button", { onClick: () => onBrowse(draft || browser.path) }, "Go"),
+      h("button", { className: "primary", onClick: () => onChoose(draft || browser.path) }, "Use"),
+    ),
+    h("div", { className: "directory-quick" }, (browser.quick_roots || []).map((item) => h("button", { key: item.path, onClick: () => { setDraft(item.path); onBrowse(item.path); } }, item.name))),
+    browser.parent ? h("button", { className: "directory-row parent", onClick: () => { setDraft(browser.parent); onBrowse(browser.parent); } }, "..", h("span", null, browser.parent)) : null,
+    h("div", { className: "directory-list" }, (browser.entries || []).map((item) => h("button", { key: item.path, className: "directory-row", onClick: () => { setDraft(item.path); onBrowse(item.path); }, onDoubleClick: () => onChoose(item.path) },
+      h(Icon, { name: "folder" }),
+      h("span", null, item.name),
+      h("code", null, item.path),
+    ))),
+  );
+}
+
+function FileTree({ item, query = "", kind = "all", root = false, onContextFile, onOpenFile, onDragFile }) {
   if (!item) return null;
   const children = (item.children || []).filter((child) => {
     if (child.type === "directory") return true;
@@ -1358,18 +1556,26 @@ function FileTree({ item, query = "", kind = "all" }) {
     return kind === "all" || fileKind(child) === kind;
   });
   if (item.type === "directory") {
-    return h("details", { className: "file-item directory", open: item.path === "." || item.path === "runs" || item.path === "examples" },
-      h("summary", null, h("span", null, "folder"), h("code", null, item.name)),
-      children.length ? h("div", { className: "file-children" }, children.map((child) => h(FileTree, { key: child.path, item: child, query, kind }))) : h("small", { className: "muted" }, "No matching files"),
+    return h("details", { className: "file-item directory", open: root || item.path === "runs" || item.path === "examples", onContextMenu: (event) => onContextFile?.(event, item) },
+      h("summary", null,
+        h("span", { className: "file-name" }, h(Icon, { name: "folder" }), h("code", null, item.name)),
+        h("span", null, "folder"),
+        h("small", null, `${children.length} item(s)`),
+      ),
+      children.length ? h("div", { className: "file-children" }, children.map((child) => h(FileTree, { key: child.path, item: child, query, kind, onContextFile, onOpenFile, onDragFile }))) : h("small", { className: "muted" }, "No matching files"),
     );
   }
-  return h("div", { className: `file-item ${item.type}` },
-    h("div", null, h("span", null, fileKind(item)), h("code", { title: item.path }, item.name), item.size != null ? h("small", null, formatBytes(item.size)) : null),
+  return h("div", { className: `file-item ${item.type}`, draggable: item.name.toLowerCase().endsWith(".json"), onDragStart: (event) => onDragFile?.(event, item), onContextMenu: (event) => onContextFile?.(event, item), onDoubleClick: () => item.name.toLowerCase().endsWith(".json") ? onOpenFile?.(item) : null },
+    h("div", null,
+      h("span", { className: "file-name" }, h(Icon, { name: "templates" }), h("code", { title: item.path }, item.name)),
+      h("span", null, fileKind(item)),
+      item.size != null ? h("small", null, formatBytes(item.size)) : h("small", null, ""),
+    ),
   );
 }
 
-function AssetRow({ item }) {
-  return h("div", { className: `asset-row kind-${fileKind(item)}` },
+function AssetRow({ item, onContextFile, onDragFile }) {
+  return h("div", { className: `asset-row kind-${fileKind(item)}`, draggable: item.name.toLowerCase().endsWith(".json"), onDragStart: (event) => onDragFile?.(event, item), onContextMenu: (event) => onContextFile?.(event, item) },
     h("strong", null, item.name),
     h("span", null, fileKind(item)),
     h("code", null, item.path),
@@ -1377,12 +1583,41 @@ function AssetRow({ item }) {
   );
 }
 
+function FileContextMenu({ menu, clipboard, onClose, onCopy, onCut, onPaste, onDelete, onCopyPath, onLoadWorkflow, onSetWorkspace }) {
+  const item = menu.item;
+  const isWorkflow = item.type === "file" && item.name.toLowerCase().endsWith(".json");
+  const canPaste = clipboard?.item && item.type === "directory";
+  return h("div", { className: "file-menu", style: { left: menu.x, top: menu.y }, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
+    h("div", { className: "context-head" }, h("strong", null, item.name), h("button", { onClick: onClose, title: "Close" }, "x")),
+    h("button", { onClick: () => onCut(item) }, "Cut"),
+    h("button", { onClick: () => onCopy(item) }, "Copy"),
+    h("button", { disabled: !canPaste, onClick: () => onPaste(item) }, clipboard?.item ? `Paste ${clipboard.item.name}` : "Paste"),
+    h("button", { className: "danger", onClick: () => onDelete(item) }, "Delete"),
+    isWorkflow ? h("button", { onClick: () => onLoadWorkflow(item) }, "Load workflow") : null,
+    item.type === "directory" ? h("button", { onClick: () => onSetWorkspace(item) }, "Use as workspace") : null,
+    h("button", { onClick: () => onCopyPath(item) }, "Copy path"),
+    h("button", { onClick: () => onCopyPath({ ...item, absolute_path: item.path }) }, "Copy relative path"),
+    h("small", null, item.absolute_path || item.path),
+  );
+}
+
 function NodeLibraryPanel({ groupedNodes, onAddNode }) {
+  const [query, setQuery] = useState("");
+  const filteredGroups = Object.fromEntries(Object.entries(groupedNodes).map(([category, metas]) => [
+    category,
+    metas.filter((meta) => `${meta.display_name} ${meta.id} ${meta.description || ""} ${(meta.search_aliases || []).join(" ")}`.toLowerCase().includes(query.toLowerCase())),
+  ]).filter(([, metas]) => metas.length));
   return h("div", { className: "node-library-panel" },
-    Object.entries(groupedNodes).map(([category, metas]) => h("details", { key: category, open: ["Input", "Quality Control", "Read preprocessing"].includes(category) },
+    h("input", { className: "search", placeholder: "Search nodes, tools, aliases...", value: query, onChange: (event) => setQuery(event.target.value) }),
+    Object.entries(filteredGroups).map(([category, metas]) => h("details", { key: category, open: Boolean(query) || ["Input", "Quality Control", "Read preprocessing"].includes(category) },
       h("summary", null, `${category} (${metas.length})`),
-      h("div", { className: "rail-cards" }, metas.map((meta) => h("button", { key: meta.id, className: "rail-card", onClick: () => onAddNode(meta) }, h("strong", null, meta.display_name), h("small", null, meta.description || meta.id)))),
+      h("div", { className: "node-list" }, metas.map((meta) => h("button", { key: meta.id, className: "node-list-row", onClick: () => onAddNode(meta) },
+        h("strong", null, meta.display_name),
+        h("span", null, meta.id),
+        h("small", null, meta.description || meta.category),
+      ))),
     )),
+    Object.keys(filteredGroups).length ? null : h("p", { className: "muted" }, "No matching nodes."),
   );
 }
 
@@ -1394,16 +1629,18 @@ function TemplatesPanel({ templates, onLoadTemplate }) {
 
 function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnostics, loading, registryCount, onRefresh, onRequestInstall }) {
   const [tab, setTab] = useState("envs");
+  const [detailRuntime, setDetailRuntime] = useState(null);
   const tools = status?.tools || [];
   const missingTools = tools.filter((tool) => !tool.available);
   const plans = diagnostics?.install_plans || [];
   const runtime = status?.runtimes?.[environmentSpec.type];
+  const workflowTools = Array.from(new Set([...(diagnostics?.missing_tools || []).map((tool) => tool.name), ...tools.map((tool) => tool.name)])).filter(Boolean).sort();
   const runtimeCards = [
-    { type: "conda", label: "Conda / Mamba", icon: "snake", color: "conda", env: normalizeEnvironment(environmentSpec.type === "conda" ? environmentSpec : envDefaultsFor("conda")) },
+    { type: "conda", label: "Conda", icon: "snake", color: "conda", env: normalizeEnvironment(environmentSpec.type === "conda" ? environmentSpec : envDefaultsFor("conda")) },
     { type: "docker", label: "Docker", icon: "docker", color: "docker", env: normalizeEnvironment(environmentSpec.type === "docker" ? environmentSpec : envDefaultsFor("docker")) },
     { type: "apptainer", label: "Apptainer", icon: "apptainer", color: "apptainer", env: normalizeEnvironment(environmentSpec.type === "apptainer" ? environmentSpec : envDefaultsFor("apptainer")) },
   ];
-  const selected = runtimeCards.find((item) => item.type === environmentSpec.type) || runtimeCards[0];
+  const selected = detailRuntime ? runtimeCards.find((item) => item.type === detailRuntime) : null;
   const managerSections = [
     { id: "undefined", title: "Undefined Node Types", rows: (diagnostics?.missing_node_types || []).map((nodeType) => ({ name: nodeType, status: "missing", detail: "No registered BioNodulo node type provides this workflow node.", plan: plans.find((plan) => plan.target === nodeType) })) },
     { id: "tools", title: "External Tools", rows: tools.map((tool) => ({ name: tool.name, status: tool.available ? "available" : "missing", detail: tool.available ? tool.path : tool.install_hint, plan: plans.find((plan) => plan.target === tool.name) })) },
@@ -1412,23 +1649,43 @@ function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnost
     { id: "snapshots", title: "Snapshots", rows: [{ name: "Environment snapshot", status: "planned", detail: "Record node packs, runtime image/env, package hints, and custom node state before updates." }] },
   ];
   const installablePlans = plans.filter(Boolean);
+  function createEnvironment(type = environmentSpec.type || "conda") {
+    const defaults = envDefaultsFor(type);
+    updateEnvironment({
+      ...defaults,
+      name: `${type}-workflow-${Date.now().toString().slice(-4)}`,
+      packages: type === "conda" ? workflowTools : defaults.packages,
+      notes: "Created from the active workflow dependency scan.",
+    });
+    setDetailRuntime(type);
+  }
   return h("div", { className: "env-manager rail-stack" },
     h("div", { className: "env-tabs" },
       h("button", { className: tab === "envs" ? "active" : "", onClick: () => setTab("envs") }, "Envs"),
       h("button", { className: tab === "manager" ? "active" : "", onClick: () => setTab("manager") }, "Manager"),
     ),
     tab === "envs" ? h("div", { className: "envs-tab" },
+      h("div", { className: "env-header-actions" },
+        h("strong", null, "Available Environments"),
+        h("button", { title: "Create environment", className: "icon-button", onClick: () => createEnvironment("conda") }, "+"),
+      ),
       h("div", { className: "runtime-groups" }, runtimeCards.map((card) => h("button", {
         key: card.type,
         className: `runtime-card ${card.color} ${environmentSpec.type === card.type ? "selected" : ""}`,
-        onClick: () => updateEnvironment(envDefaultsFor(card.type)),
+        onClick: () => {
+          updateEnvironment(environmentSpec.type === card.type ? environmentSpec : envDefaultsFor(card.type));
+          setDetailRuntime(card.type);
+        },
       },
         h(Icon, { name: card.icon }),
         h("strong", null, card.label),
         h("span", null, card.env.name),
       ))),
-      h("section", { className: `runtime-detail ${selected.color}` },
-        h("h4", null, `${selected.label} Environment`),
+      selected ? h("section", { className: `runtime-detail ${selected.color}` },
+        h("div", { className: "runtime-detail-head" },
+          h("h4", null, `${selected.label} environment`),
+          h("button", { onClick: () => setDetailRuntime(null), title: "Hide details" }, "x"),
+        ),
         h("label", { className: "field" }, h("span", null, "Environment name"), h("input", { value: environmentSpec.name || "", onChange: (event) => updateEnvironment({ name: event.target.value }) })),
         environmentSpec.type === "conda" ? h("div", null,
           h("label", { className: "field" }, h("span", null, "Environment YAML"), h("input", { value: environmentSpec.file || "", onChange: (event) => updateEnvironment({ file: event.target.value }) })),
@@ -1446,13 +1703,14 @@ function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnost
         ) : null,
         h("label", { className: "field" }, h("span", null, "Notes"), h("textarea", { value: environmentSpec.notes || "", onChange: (event) => updateEnvironment({ notes: event.target.value }) })),
         h("p", { className: runtime?.available ? "okline" : "warnline" }, runtime ? `${environmentSpec.type} runtime: ${runtime.available ? runtime.path : "not found"}` : "Open Manager to scan runtime availability."),
-      ),
+      ) : h("p", { className: "muted" }, "Click Conda, Docker, or Apptainer to view and edit that environment."),
     ) : h("div", { className: "manager-tab rail-stack" },
       h("div", { className: "manager-actions" },
         h("button", { onClick: onRefresh }, loading ? "Scanning..." : "Scan active workflow"),
-        h("button", { className: "primary", disabled: !installablePlans.length, onClick: () => onRequestInstall(installablePlans) }, "Install all"),
+        h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("conda") }, "New env for workflow"),
+        h("button", { className: "primary", disabled: !installablePlans.length, onClick: () => onRequestInstall(installablePlans) }, "Install all to selected env"),
       ),
-      h("p", { className: "muted" }, status ? `Python ${status.python} / ${status.registered_nodes} registered node type(s)` : `${registryCount} registered node type(s)`),
+      h("p", { className: "muted" }, status ? `Selected ${environmentSpec.type}: ${environmentSpec.name}. Python ${status.python} / ${status.registered_nodes} registered node type(s)` : `${registryCount} registered node type(s)`),
       managerSections.map((section) => h("section", { key: section.id },
         h("h4", null, section.title),
         section.rows.length ? section.rows.map((row) => h("div", { key: `${section.id}-${row.name}`, className: row.status === "available" ? "tool-row ok" : "tool-row missing" },
@@ -1533,6 +1791,10 @@ function SettingsModal({
   setTooltipsEnabled,
   snapToGrid,
   setSnapToGrid,
+  themePreference,
+  setThemePreference,
+  confirmFileDelete,
+  setConfirmFileDelete,
   llmSettings,
   updateLlmSettings,
   onClose,
@@ -1548,7 +1810,11 @@ function SettingsModal({
       h("div", { className: "settings-grid" },
         h("section", null,
           h("h4", null, "Appearance"),
-          h("p", { className: "muted" }, "Theme follows your system light/dark setting."),
+          h("label", { className: "field" }, h("span", null, "Theme"), h("select", { value: themePreference, onChange: (event) => setThemePreference(event.target.value) },
+            h("option", { value: "system" }, "System"),
+            h("option", { value: "dark" }, "Dark"),
+            h("option", { value: "light" }, "Light"),
+          )),
           h("label", { className: "setting-row" }, h("span", null, "Show minimap"), h("input", { type: "checkbox", checked: showMiniMap, onChange: (event) => setShowMiniMap(event.target.checked) })),
           h("label", { className: "setting-row" }, h("span", null, "Open console dock"), h("input", { type: "checkbox", checked: consoleOpen, onChange: (event) => setConsoleOpen(event.target.checked) })),
           h("label", { className: "field" }, h("span", null, "Console height"), h("input", { type: "number", min: 140, max: 440, value: consoleHeight, onChange: (event) => setConsoleHeight(clamp(Number.parseInt(event.target.value || "220", 10), 140, 440)) })),
@@ -1578,7 +1844,15 @@ function SettingsModal({
           h("h4", null, "Data Explorer"),
           h("label", { className: "field" }, h("span", null, "Scan depth"), h("input", { type: "number", min: 1, max: 6, value: fileExplorerDepth, onChange: (event) => setFileExplorerDepth(clamp(Number.parseInt(event.target.value || "4", 10), 1, 6)) })),
           h("label", { className: "setting-row" }, h("span", null, "Show hidden files"), h("input", { type: "checkbox", checked: showHiddenFiles, onChange: (event) => setShowHiddenFiles(event.target.checked) })),
-          h("p", { className: "muted" }, "Explorer highlights sequence files, alignments, variants, reports, workflows, and run outputs."),
+          h("label", { className: "setting-row" }, h("span", null, "Confirm delete"), h("input", { type: "checkbox", checked: confirmFileDelete, onChange: (event) => setConfirmFileDelete(event.target.checked) })),
+          h("p", { className: "muted" }, "Drag workflow JSON files from Data onto the canvas to import them. Deletes move items to .bionodulo_trash."),
+        ),
+        h("section", null,
+          h("h4", null, "ComfyUI-style UX"),
+          h("label", { className: "setting-row" }, h("span", null, "Right-click canvas node search"), h("input", { type: "checkbox", checked: true, readOnly: true })),
+          h("label", { className: "setting-row" }, h("span", null, "Double-click nodes to edit"), h("input", { type: "checkbox", checked: true, readOnly: true })),
+          h("label", { className: "setting-row" }, h("span", null, "Reconnect by dragging links"), h("input", { type: "checkbox", checked: true, readOnly: true })),
+          h("label", { className: "setting-row" }, h("span", null, "Workflow tabs"), h("input", { type: "checkbox", checked: true, readOnly: true })),
         ),
         h("section", null,
           h("h4", null, "AI Assistant"),
@@ -1776,6 +2050,15 @@ function loadLlmSettings() {
   }
 }
 
+function loadThemePreference() {
+  const value = localStorage.getItem("bionodulo.theme") || "system";
+  return ["system", "dark", "light"].includes(value) ? value : "system";
+}
+
+function loadConfirmFileDelete() {
+  return localStorage.getItem("bionodulo.confirm_file_delete") !== "0";
+}
+
 function persistLlmSettings(settings) {
   try {
     const { api_key, ...safeSettings } = settings;
@@ -1911,6 +2194,45 @@ function edgeFrom(edge) {
 
 function edgeTo(edge) {
   return edge?.to || {};
+}
+
+function nodeInfoForWorkflow(node) {
+  const meta = node.data?.meta || {};
+  return {
+    display_name: meta.display_name || node.data?.type,
+    category: meta.category || "Unknown",
+    version: meta.version || "0.1.0",
+    documentation_url: meta.documentation_url || null,
+    custom_node: Boolean(meta.custom_node),
+    package: meta.package || (meta.custom_node ? meta.category : "bionodulo-core"),
+    github_url: meta.github_url || meta.source_url || null,
+    requires_external_tools: Boolean(meta.requires_external_tools),
+    required_executables: meta.required_executables || [],
+    environment: meta.environment || null,
+  };
+}
+
+function workflowDependencies(workflowNodes, environmentSpec) {
+  const tools = Array.from(new Set(workflowNodes.flatMap((node) => node.node_info?.required_executables || []))).sort();
+  const nodeTypes = Array.from(new Set(workflowNodes.map((node) => node.type))).sort();
+  const nodePackages = Array.from(new Set(workflowNodes.map((node) => node.node_info?.package).filter(Boolean))).sort();
+  return {
+    schema_version: "0.1.0",
+    node_types: nodeTypes,
+    node_packages: nodePackages.map((name) => ({ name, version: name === "bionodulo-core" ? "0.1.0" : "unknown" })),
+    external_tools: tools.map((name) => ({ name, version: "unknown", executable: name })),
+    environment: {
+      type: environmentSpec.type,
+      name: environmentSpec.name,
+      file: environmentSpec.file || null,
+      image: environmentSpec.image || null,
+      channels: environmentSpec.channels || [],
+      packages: environmentSpec.packages || [],
+      pip: environmentSpec.pip || [],
+      mounts: environmentSpec.mounts || [],
+      notes: environmentSpec.notes || "",
+    },
+  };
 }
 
 function edgeColorForSource(source, output) {
