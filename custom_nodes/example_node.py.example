@@ -1,0 +1,24 @@
+from bionodulo.nodes.base import BaseNode
+
+
+class ExampleGreetingNode(BaseNode):
+    NODE_ID = "example_greeting"
+    DISPLAY_NAME = "Example Greeting"
+    CATEGORY = "Custom"
+    DESCRIPTION = "Minimal custom node example."
+    SEARCH_ALIASES = ["example", "custom", "hello"]
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("message",)
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "name": ("STRING", {"default": "scientist"})
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+    def run(self, name="scientist", context=None):
+        return {"message": f"Hello, {name}."}

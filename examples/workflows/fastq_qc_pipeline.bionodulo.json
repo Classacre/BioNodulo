@@ -1,0 +1,90 @@
+{
+  "version": "0.1.0",
+  "app": "bionodulo",
+  "name": "FASTQ QC pipeline",
+  "description": "Run FastQC before and after trimming, then aggregate reports with MultiQC.",
+  "nodes": [
+    {
+      "id": "input-fastq-1",
+      "type": "input_fastq",
+      "position": { "x": 80, "y": 220 },
+      "params": {
+        "files": [
+          "examples/data/sample_R1.fastq.gz",
+          "examples/data/sample_R2.fastq.gz"
+        ]
+      }
+    },
+    {
+      "id": "fastqc-raw-1",
+      "type": "fastqc",
+      "position": { "x": 380, "y": 140 },
+      "params": {
+        "threads": 4
+      }
+    },
+    {
+      "id": "fastp-1",
+      "type": "fastp",
+      "position": { "x": 680, "y": 220 },
+      "params": {
+        "threads": 4
+      }
+    },
+    {
+      "id": "fastqc-trimmed-1",
+      "type": "fastqc",
+      "position": { "x": 980, "y": 220 },
+      "params": {
+        "threads": 4
+      }
+    },
+    {
+      "id": "collect-qc-1",
+      "type": "collect_files",
+      "position": { "x": 1280, "y": 155 },
+      "params": {}
+    },
+    {
+      "id": "multiqc-1",
+      "type": "multiqc",
+      "position": { "x": 1580, "y": 180 },
+      "params": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-input-fastqc",
+      "from": { "node": "input-fastq-1", "output": "reads" },
+      "to": { "node": "fastqc-raw-1", "input": "reads" }
+    },
+    {
+      "id": "edge-fastqc-fastp",
+      "from": { "node": "fastqc-raw-1", "output": "reads" },
+      "to": { "node": "fastp-1", "input": "reads" }
+    },
+    {
+      "id": "edge-fastp-fastqc",
+      "from": { "node": "fastp-1", "output": "trimmed_reads" },
+      "to": { "node": "fastqc-trimmed-1", "input": "reads" }
+    },
+    {
+      "id": "edge-raw-qc-collect",
+      "from": { "node": "fastqc-raw-1", "output": "report_dir" },
+      "to": { "node": "collect-qc-1", "input": "first" }
+    },
+    {
+      "id": "edge-trimmed-qc-collect",
+      "from": { "node": "fastqc-trimmed-1", "output": "report_dir" },
+      "to": { "node": "collect-qc-1", "input": "second" }
+    },
+    {
+      "id": "edge-collect-multiqc",
+      "from": { "node": "collect-qc-1", "output": "directory" },
+      "to": { "node": "multiqc-1", "input": "reports" }
+    }
+  ],
+  "outputs": [
+    "multiqc-1"
+  ]
+}

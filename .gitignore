@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+runs/
+.bionodulo_cache/
+server.out.log
+server.err.log
+.server.out.log
+.server.err.log
