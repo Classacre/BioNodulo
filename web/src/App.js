@@ -649,24 +649,24 @@ function App() {
     const groupChanges = changes.filter((change) => String(change.id || "").startsWith("group:"));
     if (groupChanges.length) {
       if (groupChanges.some((change) => change.type !== "select")) recordHistory();
+      let groupDx = 0, groupDy = 0, movedGroupId = null;
       setGroups((items) => {
-        let dx = 0, dy = 0, movedGroup = null;
         const updated = items.map((group) => {
           const change = groupChanges.find((item) => item.id === `group:${group.id}`);
           if (!change) return group;
           if (change.type === "position" && change.position) {
-            dx = change.position.x - (group.position?.x || 0);
-            dy = change.position.y - (group.position?.y || 0);
-            movedGroup = group.id;
+            groupDx = change.position.x - (group.position?.x || 0);
+            groupDy = change.position.y - (group.position?.y || 0);
+            movedGroupId = group.id;
             return { ...group, position: change.position };
           }
           if (change.type === "dimensions" && change.dimensions) return { ...group, width: change.dimensions.width || group.width, height: change.dimensions.height || group.height };
           return group;
         });
-        if (dx !== 0 && dy !== 0 && movedGroup) {
+        if (groupDx !== 0 || groupDy !== 0) {
           setNodes((nodeItems) => nodeItems.map((node) =>
-            node.data?.ui?.group_id === movedGroup
-              ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } }
+            node.data?.ui?.group_id === movedGroupId
+              ? { ...node, position: { x: node.position.x + groupDx, y: node.position.y + groupDy } }
               : node
           ));
         }
@@ -876,10 +876,6 @@ function App() {
   function setGroupColor(groupId, color) {
     recordHistory();
     setGroups((items) => items.map((group) => group.id === groupId ? { ...group, color } : group));
-  }
-
-  function moveGroupWithChildren(groupId, dx, dy) {
-    setNodes((items) => items.map((node) => node.data?.ui?.group_id === groupId ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } } : node));
   }
 
   function copySelectedNodes() {
@@ -2673,7 +2669,7 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
   if (!node) return null;
   const style = {
     left: clamp(menu.x, 12, window.innerWidth - 300),
-    top: clamp(menu.y, 70, window.innerHeight - 600),
+    top: clamp(menu.y, 70, window.innerHeight - 560),
   };
   const meta = node.data.meta || {};
   const isPinned = node.data.ui?.pinned;
@@ -2682,6 +2678,7 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
   const isOutput = node.data.workflowOutput;
   const currentColor = node.data.ui?.color;
   const [colorOpen, setColorOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   return h(
     "div",
@@ -2703,26 +2700,6 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
       h("button", { className: "node-menu-item", onClick: onToggleOutput },
         h(Icon, { name: "validate" }),
         h("span", null, isOutput ? "Unset Output" : "Set Output"),
-      ),
-    ),
-
-    h("div", { className: "node-menu-divider" }),
-
-    h("div", { className: "node-menu-section" },
-      h("button", { className: "node-menu-item", onClick: onTogglePinned },
-        h(Icon, { name: isPinned ? "pin-off" : "pin" }),
-        h("span", null, isPinned ? "Unpin" : "Pin"),
-        h("small", null, "P"),
-      ),
-      h("button", { className: "node-menu-item", onClick: onToggleMuted },
-        h(Icon, { name: "mute" }),
-        h("span", null, isMuted ? "Unmute" : "Mute"),
-        h("small", null, "M"),
-      ),
-      h("button", { className: "node-menu-item", onClick: onToggleBypassed },
-        h(Icon, { name: "bypass" }),
-        h("span", null, isBypassed ? "Unbypass" : "Bypass"),
-        h("small", null, "B"),
       ),
     ),
 
@@ -2755,11 +2732,26 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
     h("div", { className: "node-menu-divider" }),
 
     h("div", { className: "node-menu-section" },
-      h("button", { className: "node-menu-item", onClick: onGroupSelected },
-        h(Icon, { name: "group" }),
-        h("span", null, "Group"),
-        h("small", null, "Ctrl+G"),
+      h("button", { className: "node-menu-item", onClick: onTogglePinned },
+        h(Icon, { name: isPinned ? "pin-off" : "pin" }),
+        h("span", null, isPinned ? "Unpin" : "Pin"),
+        h("small", null, "P"),
       ),
+      h("button", { className: "node-menu-item", onClick: onToggleMuted },
+        h(Icon, { name: "mute" }),
+        h("span", null, isMuted ? "Unmute" : "Mute"),
+        h("small", null, "M"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onToggleBypassed },
+        h(Icon, { name: "bypass" }),
+        h("span", null, isBypassed ? "Unbypass" : "Bypass"),
+        h("small", null, "B"),
+      ),
+    ),
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
       h("button", { className: "node-menu-item", onClick: onForceRun },
         h(Icon, { name: "play" }),
         h("span", null, "Run From Here"),
@@ -2779,6 +2771,23 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
         ),
       ),
     ) : null,
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: () => setMoreOpen(!moreOpen) },
+        h(Icon, { name: "more-horizontal" }),
+        h("span", null, "More"),
+        h("small", null, moreOpen ? "▲" : "▼"),
+      ),
+      moreOpen ? h(React.Fragment, null,
+        h("button", { className: "node-menu-item", onClick: onGroupSelected },
+          h(Icon, { name: "group" }),
+          h("span", null, "Group"),
+          h("small", null, "Ctrl+G"),
+        ),
+      ) : null,
+    ),
 
     h("div", { className: "node-menu-divider" }),
 
