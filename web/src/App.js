@@ -1564,7 +1564,7 @@ function App() {
           onReconnectEnd,
           edgesReconnectable: true,
           defaultEdgeOptions: { type: "bioEdge", reconnectable: true, interactionWidth: 28 },
-          onPaneClick: clearSelection,
+          onPaneClick: () => { clearSelection(); setCanvasMenu(null); setGroupMenu(null); setNodeMenu(null); setEdgeMenu(null); },
           onPaneContextMenu: openCanvasMenu,
           onPaneDoubleClick: openPalette,
           onNodeClick: handleNodeClick,
@@ -2051,12 +2051,6 @@ function CanvasContextMenu({ menu, groupedNodes, hasClipboard, onToggleAdd, onAd
       h(Icon, { name: "group" }),
       h("span", null, "Add Group"),
       h("small", null, "Ctrl+G"),
-    ),
-    h("div", { className: "node-menu-divider" }),
-    h("button", { className: "context-menu-row", onClick: onClose },
-      h(Icon, { name: "help" }),
-      h("span", null, "Close"),
-      h("small", null, "Esc"),
     ),
   );
 }
