@@ -4,6 +4,7 @@ from pathlib import Path
 import asyncio
 from datetime import datetime
 import json
+import os
 import shutil
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,6 +16,7 @@ from bionodulo.api.schemas import AIChatRequest, PromptCompatibilityRequest, Run
 from bionodulo.core.paths import ensure_within
 from bionodulo.manager import diagnose_workflow, environment_status
 from bionodulo.manager.diagnostics import environment_install_plan
+from bionodulo.manager.runtime_installer import install_managed_micromamba, managed_micromamba_path, managed_micromamba_root
 from bionodulo.workflow.schema import Workflow
 from bionodulo.workflow.validation import validate_workflow
 
@@ -309,14 +311,21 @@ async def manager_install(payload: ManagerInstallRequest, request: Request) -> d
     ]
     results = []
     for plan in plans:
-        command = plan.get("command") or []
+        if plan.get("action") == "install_managed_micromamba":
+            results.append(install_managed_micromamba())
+            continue
+        command = _resolved_install_command(plan.get("command") or [])
         if not command:
             results.append({"target": plan.get("target"), "status": "skipped", "message": plan.get("command_hint", "No executable install command available yet.")})
             continue
         if not _allowed_install_command(command):
             results.append({"target": plan.get("target"), "status": "blocked", "message": "Install command is not in BioNodulo's allow-list."})
             continue
-        process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        try:
+            process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=_install_environment(command))
+        except FileNotFoundError:
+            results.append({"target": plan.get("target"), "status": "blocked", "message": f"Installer executable not found: {command[0]}"})
+            continue
         stdout, stderr = await process.communicate()
         results.append(
             {
@@ -348,8 +357,37 @@ def _allowed_install_command(command: list[str]) -> bool:
     if not command:
         return False
     executable = Path(command[0]).name.lower()
+    if executable.endswith(".exe"):
+        executable = executable.removesuffix(".exe")
     allowed = {"conda", "mamba", "micromamba", "docker", "apptainer", "singularity"}
-    return executable in allowed or executable.endswith(".exe") and executable.removesuffix(".exe") in allowed
+    if executable in allowed:
+        return True
+    if executable == "winget":
+        return command[:5] == ["winget", "install", "-e", "--id"] and command[5:] == ["Docker.DockerDesktop"]
+    if executable == "brew":
+        return command in (["brew", "install", "--cask", "docker"], ["brew", "install", "apptainer"])
+    if executable == "sudo":
+        return command in (["sudo", "apt-get", "install", "-y", "docker.io"], ["sudo", "apt-get", "install", "-y", "apptainer"])
+    return False
+
+
+def _resolved_install_command(command: list[str]) -> list[str]:
+    if not command:
+        return command
+    executable = Path(command[0]).name.lower()
+    if executable.endswith(".exe"):
+        executable = executable.removesuffix(".exe")
+    if executable in {"conda", "mamba", "micromamba"} and managed_micromamba_path().exists():
+        return [str(managed_micromamba_path()), *command[1:]]
+    return command
+
+
+def _install_environment(command: list[str]) -> dict[str, str]:
+    env = os.environ.copy()
+    if command and Path(command[0]).resolve() == managed_micromamba_path().resolve():
+        managed_micromamba_root().mkdir(parents=True, exist_ok=True)
+        env.setdefault("MAMBA_ROOT_PREFIX", str(managed_micromamba_root()))
+    return env
 
 
 def _available_destination(path: Path) -> Path:

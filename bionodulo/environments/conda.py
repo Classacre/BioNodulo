@@ -4,13 +4,17 @@ import shutil
 from typing import Any
 
 from bionodulo.environments.model import EnvironmentSpec
+from bionodulo.manager.runtime_installer import managed_micromamba_path
 
 
 def conda_available() -> bool:
-    return shutil.which("conda") is not None or shutil.which("mamba") is not None or shutil.which("micromamba") is not None
+    return conda_executable() is not None
 
 
 def conda_executable() -> str | None:
+    managed = managed_micromamba_path()
+    if managed.exists():
+        return str(managed)
     return shutil.which("mamba") or shutil.which("micromamba") or shutil.which("conda")
 
 
@@ -19,9 +23,9 @@ def conda_create_plan(spec: EnvironmentSpec) -> dict[str, Any]:
     channels = [part for channel in spec.channels for part in ("-c", channel)]
     packages = spec.packages or []
     if spec.file:
-        command = [executable, "env", "create", "-n", spec.name, "-f", spec.file]
+        command = [executable, "env", "create", "-y", "-n", spec.name, "-f", spec.file]
     else:
-      command = [executable, "create", "-y", "-n", spec.name, *channels, *packages]
+        command = [executable, "create", "-y", "-n", spec.name, *channels, *packages]
     return {
         "kind": "environment",
         "target": spec.name,

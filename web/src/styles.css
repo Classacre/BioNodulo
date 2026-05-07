@@ -906,6 +906,106 @@ details.file-item summary:hover,
   flex-wrap: wrap;
 }
 
+.setup-card {
+  border-left: 5px solid #d98022 !important;
+  background: color-mix(in srgb, var(--surface-2) 82%, #fff4d7) !important;
+}
+
+.setup-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.setup-card-head p {
+  margin: 2px 0 0;
+}
+
+.setup-status {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.setup-status.ok {
+  background: #dff5ea;
+  color: #166443;
+}
+
+.setup-status.missing {
+  background: #fff2cd;
+  color: #72510b;
+}
+
+.setup-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.setup-checklist > div {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.setup-checklist span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-actions,
+.runtime-plan-list {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.runtime-plan-list {
+  margin-top: 9px;
+}
+
+.runtime-plan-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-left: 4px solid #7c3aed;
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.runtime-plan-card.recommended {
+  border-left-color: #38a169;
+}
+
+.runtime-plan-card small,
+.runtime-plan-card button {
+  grid-column: 1 / -1;
+}
+
+.runtime-plan-card small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.runtime-plan-card button {
+  justify-self: start;
+}
+
 .tool-row,
 .manager-plan {
   display: grid;
@@ -1067,6 +1167,49 @@ details.file-item summary:hover,
   min-height: 0;
   background: var(--canvas);
   position: relative;
+}
+
+.setup-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 16;
+  width: min(780px, calc(100% - 92px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid color-mix(in srgb, #d98022 55%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 94%, #fff4d7);
+  box-shadow: 0 14px 38px rgba(24, 38, 45, 0.20);
+}
+
+.setup-banner strong,
+.setup-banner span {
+  display: block;
+}
+
+.setup-banner span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setup-banner-counts {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.setup-banner-counts b {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
 }
 
 .react-flow {

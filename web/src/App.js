@@ -283,6 +283,7 @@ function App() {
   const [managerLoading, setManagerLoading] = useState(false);
   const [installRequest, setInstallRequest] = useState(null);
   const [installResult, setInstallResult] = useState(null);
+  const [envPanelInitialTab, setEnvPanelInitialTab] = useState("envs");
   const paletteSearchRef = useRef(null);
   const suppressTabPersistRef = useRef(false);
   const reconnectSuccessfulRef = useRef(true);
@@ -313,6 +314,14 @@ function App() {
     refreshRuns();
     refreshQueue();
   }, []);
+
+  useEffect(() => {
+    if (!nodes.length || !Object.keys(objectInfo).length) return;
+    const timer = window.setTimeout(() => {
+      refreshManagerStatus().catch(() => {});
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [nodes, edges, environmentSpec, mockTools, objectInfo]);
 
   useEffect(() => {
     const protocol = location.protocol === "https:" ? "wss" : "ws";
@@ -997,7 +1006,18 @@ function App() {
     if (item.id === "envs" && !managerStatus) {
       refreshManagerStatus();
     }
+    if (item.id === "envs") {
+      setEnvPanelInitialTab("envs");
+    }
     setRailPanel((current) => current?.id === item.id ? null : item);
+  }
+
+  function openSetupManager() {
+    const envItem = LEFT_RAIL_ITEMS.find((item) => item.id === "envs");
+    setEnvPanelInitialTab("manager");
+    setRailPanel(envItem);
+    setRunPanelOpen(false);
+    refreshManagerStatus();
   }
 
   const shellStyle = {
@@ -1046,6 +1066,13 @@ function App() {
         onSelect: openRailItem,
       }),
       h("section", { className: "canvas" },
+        managerDiagnostics?.setup_required ? h(WorkflowSetupBanner, {
+          diagnostics: managerDiagnostics,
+          environmentSpec,
+          mockTools,
+          onOpenManager: openSetupManager,
+          onDismiss: () => setManagerDiagnostics(null),
+        }) : null,
         h(ReactFlow, {
           nodes,
           edges: displayEdges,
@@ -1150,6 +1177,7 @@ function App() {
           managerLoading,
           onRefreshManager: refreshManagerStatus,
           onRequestInstall: (plans) => setInstallRequest({ plans }),
+          envPanelInitialTab,
           groupedNodes,
           fileTree,
           fileLoading,
@@ -1440,7 +1468,27 @@ function Icon({ name }) {
   return h("svg", { viewBox: "0 0 24 24", "aria-hidden": "true" }, h("path", { d: ICON_PATHS[name] || ICON_PATHS.help }));
 }
 
-function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount, environmentSpec, updateEnvironment, managerStatus, managerDiagnostics, managerLoading, onRefreshManager, onRequestInstall, groupedNodes, fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, templates, onAddNode, onRefreshFiles, onLoadTemplate, onClose }) {
+function WorkflowSetupBanner({ diagnostics, environmentSpec, mockTools, onOpenManager, onDismiss }) {
+  const runtimeCount = diagnostics?.runtime_plans?.length || 0;
+  const toolCount = diagnostics?.missing_tools?.length || 0;
+  const nodeCount = diagnostics?.missing_node_types?.length || 0;
+  return h("div", { className: "setup-banner", onClick: (event) => event.stopPropagation() },
+    h("div", null,
+      h("strong", null, mockTools ? "Real-run setup available" : "Workflow setup needed"),
+      h("span", null, diagnostics?.setup_summary || "BioNodulo found workflow dependencies that can be prepared from Envs."),
+    ),
+    h("div", { className: "setup-banner-counts" },
+      runtimeCount ? h("b", null, `${runtimeCount} runtime`) : null,
+      toolCount ? h("b", null, `${toolCount} tools`) : null,
+      nodeCount ? h("b", null, `${nodeCount} nodes`) : null,
+      h("b", null, environmentSpec.type),
+    ),
+    h("button", { className: "primary", onClick: onOpenManager }, "Open Manager"),
+    h("button", { className: "icon-button", onClick: onDismiss, title: "Hide setup banner" }, "x"),
+  );
+}
+
+function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount, environmentSpec, updateEnvironment, managerStatus, managerDiagnostics, managerLoading, onRefreshManager, onRequestInstall, envPanelInitialTab, groupedNodes, fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, templates, onAddNode, onRefreshFiles, onLoadTemplate, onClose }) {
   const activeRuns = runs.filter((run) => ["queued", "running", "interrupting"].includes(run.status)).length;
   const docked = ["data", "nodes"].includes(item.id);
   return h(
@@ -1451,7 +1499,7 @@ function RailPanel({ item, nodes, edges, workflowTabs, runs, logs, registryCount
     item.id === "data" ? h(DataExplorer, { fileTree, fileLoading, workspaceRoot, workspaceDraft, setWorkspaceDraft, onApplyWorkspaceRoot, onLoadWorkspaceWorkflow, fileClipboard, onCopyWorkspaceItem, onCutWorkspaceItem, onPasteWorkspaceItem, onDeleteWorkspaceItem, fileExplorerDepth, setFileExplorerDepth, showHiddenFiles, setShowHiddenFiles, onRefreshFiles }) : null,
     item.id === "nodes" ? h(NodeLibraryPanel, { groupedNodes, onAddNode }) : null,
     item.id === "templates" ? h(TemplatesPanel, { templates, onLoadTemplate }) : null,
-    item.id === "envs" ? h(EnvsManagerPanel, { environmentSpec, updateEnvironment, status: managerStatus, diagnostics: managerDiagnostics, loading: managerLoading, registryCount, onRefresh: onRefreshManager, onRequestInstall }) : null,
+    item.id === "envs" ? h(EnvsManagerPanel, { environmentSpec, updateEnvironment, status: managerStatus, diagnostics: managerDiagnostics, loading: managerLoading, registryCount, initialTab: envPanelInitialTab, onRefresh: onRefreshManager, onRequestInstall }) : null,
     item.id === "help" ? h("ul", null,
       h("li", null, "Right-click or double-click empty canvas to add nodes."),
       h("li", null, "Double-click a node to edit its parameters."),
@@ -1627,12 +1675,18 @@ function TemplatesPanel({ templates, onLoadTemplate }) {
   );
 }
 
-function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnostics, loading, registryCount, onRefresh, onRequestInstall }) {
-  const [tab, setTab] = useState("envs");
+function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnostics, loading, registryCount, initialTab = "envs", onRefresh, onRequestInstall }) {
+  const [tab, setTab] = useState(initialTab || "envs");
   const [detailRuntime, setDetailRuntime] = useState(null);
+  useEffect(() => {
+    setTab(initialTab || "envs");
+  }, [initialTab]);
   const tools = status?.tools || [];
   const missingTools = tools.filter((tool) => !tool.available);
   const plans = diagnostics?.install_plans || [];
+  const runtimePlans = diagnostics?.runtime_plans || [];
+  const recommendedPlans = plans.filter((plan) => plan.recommended || ["environment", "tool", "custom_node"].includes(plan.kind));
+  const selectedRuntimePlan = runtimePlans.find((plan) => plan.target?.toLowerCase?.().includes(environmentSpec.type));
   const runtime = status?.runtimes?.[environmentSpec.type];
   const workflowTools = Array.from(new Set([...(diagnostics?.missing_tools || []).map((tool) => tool.name), ...tools.map((tool) => tool.name)])).filter(Boolean).sort();
   const runtimeCards = [
@@ -1705,9 +1759,37 @@ function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnost
         h("p", { className: runtime?.available ? "okline" : "warnline" }, runtime ? `${environmentSpec.type} runtime: ${runtime.available ? runtime.path : "not found"}` : "Open Manager to scan runtime availability."),
       ) : h("p", { className: "muted" }, "Click Conda, Docker, or Apptainer to view and edit that environment."),
     ) : h("div", { className: "manager-tab rail-stack" },
+      h("section", { className: "setup-card" },
+        h("div", { className: "setup-card-head" },
+          h("div", null,
+            h("h4", null, "Workflow Setup"),
+            h("p", { className: "muted" }, diagnostics?.setup_summary || "Scan the active workflow to find missing runtimes, tools, and node packages."),
+          ),
+          h("span", { className: diagnostics?.setup_required ? "setup-status missing" : "setup-status ok" }, diagnostics?.setup_required ? "setup needed" : "ready"),
+        ),
+        h("div", { className: "setup-checklist" },
+          h("div", null, h("strong", null, "Runtime"), h("span", null, runtime?.available ? `${environmentSpec.type} ready` : `${environmentSpec.type} not ready`)),
+          h("div", null, h("strong", null, "Environment"), h("span", null, environmentSpec.name || "unnamed environment")),
+          h("div", null, h("strong", null, "Tools"), h("span", null, diagnostics?.missing_tools?.length ? `${diagnostics.missing_tools.length} missing` : "all detected tools ready")),
+          h("div", null, h("strong", null, "Nodes"), h("span", null, diagnostics?.missing_node_types?.length ? `${diagnostics.missing_node_types.length} missing` : "all node types registered")),
+        ),
+        h("div", { className: "setup-actions" },
+          h("button", { onClick: onRefresh }, loading ? "Scanning..." : "Scan active workflow"),
+          h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment(environmentSpec.type || "conda") }, "New env for workflow"),
+          h("button", { className: "primary", disabled: !recommendedPlans.length, onClick: () => onRequestInstall(recommendedPlans.length ? recommendedPlans : installablePlans) }, "Auto install recommended"),
+        ),
+        runtimePlans.length ? h("div", { className: "runtime-plan-list" }, runtimePlans.map((plan) => h("div", { key: `${plan.action}-${plan.target}`, className: plan.recommended ? "runtime-plan-card recommended" : "runtime-plan-card" },
+          h("strong", null, plan.target),
+          h("span", null, plan.recommended ? "recommended" : "optional"),
+          h("small", null, plan.command?.length ? plan.command.join(" ") : plan.command_hint),
+          h("button", { onClick: () => onRequestInstall([plan]) }, plan.command?.length || plan.action === "install_managed_micromamba" ? "Install" : "Show instructions"),
+        ))) : null,
+        selectedRuntimePlan ? h("p", { className: "muted" }, `${selectedRuntimePlan.target} can be installed from this Manager after confirmation.`) : null,
+      ),
       h("div", { className: "manager-actions" },
-        h("button", { onClick: onRefresh }, loading ? "Scanning..." : "Scan active workflow"),
-        h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("conda") }, "New env for workflow"),
+        h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("conda") }, "New Conda env"),
+        h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("docker") }, "Use Docker"),
+        h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("apptainer") }, "Use Apptainer"),
         h("button", { className: "primary", disabled: !installablePlans.length, onClick: () => onRequestInstall(installablePlans) }, "Install all to selected env"),
       ),
       h("p", { className: "muted" }, status ? `Selected ${environmentSpec.type}: ${environmentSpec.name}. Python ${status.python} / ${status.registered_nodes} registered node type(s)` : `${registryCount} registered node type(s)`),

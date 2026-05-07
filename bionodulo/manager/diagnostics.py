@@ -10,6 +10,13 @@ from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.schema import Workflow
 from bionodulo.environments.conda import conda_available, conda_create_plan, conda_executable
 from bionodulo.environments.containers import apptainer_available, apptainer_plan, docker_available, docker_plan
+from bionodulo.manager.runtime_installer import (
+    apptainer_runtime_plan,
+    docker_runtime_plan,
+    managed_micromamba_available,
+    managed_micromamba_path,
+    managed_micromamba_plan,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +70,7 @@ def environment_status(registry: NodeRegistry, *, custom_nodes_dir: Path) -> dic
         for tool in required_tools
     ]
     custom_packages = _custom_packages(custom_nodes_dir)
+    managed_mamba = managed_micromamba_path()
     return {
         "python": sys.version.split()[0],
         "custom_nodes_dir": str(custom_nodes_dir),
@@ -82,7 +90,7 @@ def environment_status(registry: NodeRegistry, *, custom_nodes_dir: Path) -> dic
         ],
         "custom_packages": custom_packages,
         "runtimes": {
-            "conda": {"available": conda_available(), "path": shutil.which("mamba") or shutil.which("micromamba") or shutil.which("conda")},
+            "conda": {"available": conda_available(), "path": conda_executable(), "managed": managed_micromamba_available(), "managed_path": str(managed_mamba)},
             "docker": {"available": docker_available(), "path": shutil.which("docker")},
             "apptainer": {"available": apptainer_available(), "path": shutil.which("apptainer") or shutil.which("singularity")},
         },
@@ -90,6 +98,8 @@ def environment_status(registry: NodeRegistry, *, custom_nodes_dir: Path) -> dic
             "mode": "install-with-confirmation",
             "install_requires_confirmation": True,
             "security_note": "BioNodulo can detect missing node packs and tools and run generated install commands after explicit in-app confirmation.",
+            "recommended_runtime": "conda",
+            "recommended_setup": "Install BioNodulo-managed micromamba, then create a workflow-specific environment from the workflow JSON.",
         },
     }
 
@@ -109,16 +119,25 @@ def diagnose_workflow(workflow: Workflow, registry: NodeRegistry) -> dict[str, A
         for tool in required_tools
         if shutil.which(tool) is None
     ]
+    runtime_plans = _runtime_plans_for(workflow)
     install_plans = [_missing_node_plan(node_type) for node_type in missing_node_types]
     tool_plans = [_tool_install_plan(tool, workflow) for tool in missing_tools]
     environment_plan = environment_install_plan(workflow)
+    all_plans = [*runtime_plans]
+    if environment_plan:
+        all_plans.append(environment_plan)
+    all_plans.extend(install_plans)
+    all_plans.extend(tool_plans)
     return {
         "missing_node_types": missing_node_types,
         "used_node_types": used_node_types,
         "missing_tools": missing_tools,
         "environment": workflow.environment.model_dump(),
         "environment_plan": environment_plan,
-        "install_plans": [environment_plan] + install_plans + tool_plans if environment_plan else install_plans + tool_plans,
+        "runtime_plans": runtime_plans,
+        "install_plans": all_plans,
+        "setup_required": bool(missing_node_types or missing_tools or runtime_plans),
+        "setup_summary": _setup_summary(missing_node_types, missing_tools, runtime_plans),
         "safe_to_run_in_mock_mode": not missing_node_types,
     }
 
@@ -143,6 +162,36 @@ def _missing_node_plan(node_type: str) -> dict[str, Any]:
         "command_hint": f"Search a BioNodulo node registry for a package that provides {node_type}.",
         "requires_confirmation": True,
     }
+
+
+def _runtime_plans_for(workflow: Workflow) -> list[dict[str, Any]]:
+    plans: list[dict[str, Any]] = []
+    if workflow.environment.type == "conda" and not conda_available():
+        plan = managed_micromamba_plan()
+        if plan:
+            plans.append(plan)
+    if workflow.environment.type == "docker" and not docker_available():
+        plan = docker_runtime_plan()
+        if plan:
+            plans.append(plan)
+    if workflow.environment.type == "apptainer" and not apptainer_available():
+        plan = apptainer_runtime_plan()
+        if plan:
+            plans.append(plan)
+    return plans
+
+
+def _setup_summary(missing_node_types: list[str], missing_tools: list[dict[str, Any]], runtime_plans: list[dict[str, Any]]) -> str:
+    if not missing_node_types and not missing_tools and not runtime_plans:
+        return "Workflow dependencies look ready for real execution."
+    parts = []
+    if runtime_plans:
+        parts.append(f"{len(runtime_plans)} runtime setup step(s)")
+    if missing_tools:
+        parts.append(f"{len(missing_tools)} missing external tool(s)")
+    if missing_node_types:
+        parts.append(f"{len(missing_node_types)} missing node type(s)")
+    return "Setup needed: " + ", ".join(parts) + "."
 
 
 def _tool_install_plan(tool: dict[str, Any], workflow: Workflow) -> dict[str, Any]:
