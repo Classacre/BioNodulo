@@ -7,6 +7,7 @@ import {
   Position,
   BaseEdge,
   MiniMap,
+  NodeResizer,
   addEdge,
   getBezierPath,
   reconnectEdge,
@@ -27,12 +28,14 @@ const STATUS_LABELS = {
   failed: "failed",
   blocked: "blocked",
   interrupted: "interrupted",
+  muted: "muted",
+  bypassed: "bypassed",
 };
 
 const COMMON_NODE_IDS = ["input_fastq", "fastqc", "fastp", "collect_files", "multiqc"];
 const NODE_WIDTH = 235;
 const NODE_HEIGHT = 136;
-const EMPTY_WORKFLOW = { nodes: [], edges: [] };
+const EMPTY_WORKFLOW = { nodes: [], edges: [], groups: [] };
 const DEFAULT_ENVIRONMENT = {
   type: "conda",
   name: "bionodulo-workflow",
@@ -75,6 +78,29 @@ const ICON_PATHS = {
   help: "M12 18h.01M9.5 9a2.6 2.6 0 1 1 4.5 1.75c-.8.7-1.9 1.1-1.9 2.5v.35M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
   console: "M4 5h16v14H4zM7 9l3 3-3 3M12 15h5",
   settings: "M12 8.4a3.6 3.6 0 1 1 0 7.2 3.6 3.6 0 0 1 0-7.2M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a7 7 0 0 0-1.8 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a7 7 0 0 0 1.8-1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1",
+  edit: "M16.5 4.5l3 3L7.5 19.5H4.5v-3L16.5 4.5z",
+  copy: "M8 4h9a2 2 0 0 1 2 2v9M6 8H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-1",
+  pin: "M14 14l-4 4M10 10l-2.5-2.5a2 2 0 0 1 0-2.83l.17-.17a2 2 0 0 1 2.83 0L13 7l-3 3 4 4zM12 12l4-4 2 2-4 4",
+  "pin-off": "M14 14l-4 4M10 10l-2.5-2.5a2 2 0 0 1 0-2.83l.17-.17a2 2 0 0 1 2.83 0L13 7l-3 3 4 4zM12 12l4-4 2 2-4 4M3 3l18 18",
+  mute: "M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6",
+  bypass: "M5 12l5-5v3h4l5-5v10l-5-5h-4v3l-5-5z",
+  group: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  play: "M8 5.5v13l11-6.5z",
+  validate: "M9 12l2 2 4-4M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+  trash: "M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3",
+  palette: "M12 3a9 9 0 0 0 0 18 2 2 0 0 0 2-2c0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.2a2 2 0 0 1 2-2h2.5a6.5 6.5 0 0 0 6.5-6.5C24 6.8 18.5 3 12 3z",
+  "more-vertical": "M12 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+  "more-horizontal": "M6 12a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0zM13.5 12a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0zM21 12a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0z",
+  paste: "M16 4h-2a2 2 0 0 0-4 0H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM12 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2z",
+  "chevron-right": "M9 6l6 6-6 6",
+  "move-to-group": "M4 4h16v16H4zM8 8h8v2H8zM8 12h8v2H8zM8 16h5v2H8z",
+  "align-top": "M4 4h16v2H4zM7 8h10v10H7z",
+  "align-bottom": "M4 18h16v2H7M7 4h10v10H7z",
+  "align-left": "M4 4h2v16H4zM8 7h10v10H8z",
+  "align-right": "M20 4h-2v16h2zM6 7h10v10H6z",
+  "info-circle": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1",
+  "zoom-in": "M11 8v6M8 11h6M15 15l5 5",
+  "zoom-out": "M8 11h6M15 15l5 5",
 };
 const WORKFLOW_TEMPLATES = [
   {
@@ -174,15 +200,18 @@ function BioNode({ id, data, selected }) {
   const inputs = Object.entries({ ...(meta.inputs?.required || {}), ...(meta.inputs?.optional || {}) });
   const outputs = meta.outputs || [];
   const status = data.status || "idle";
+  const ui = data.ui || {};
   const paramSummary = Object.entries(data.params || {})
     .slice(0, 4)
     .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.length + " files" : value}`)
     .join(" / ");
+  const rowCount = Math.max(inputs.length, outputs.length, 1);
 
   return h(
     "div",
     {
-      className: `bio-node ${selected ? "selected" : ""} status-${status}`,
+      className: `bio-node ${selected ? "selected" : ""} ${data.workflowOutput || meta.output_node ? "output-node" : ""} ${ui.pinned ? "is-pinned" : ""} ${ui.muted ? "is-muted" : ""} ${ui.bypassed ? "is-bypassed" : ""} status-${status}`,
+      title: meta.description || data.type,
       onDoubleClick: (event) => {
         event.stopPropagation();
         window.dispatchEvent(new CustomEvent("bionodulo:edit-node", { detail: { nodeId: id } }));
@@ -193,47 +222,73 @@ function BioNode({ id, data, selected }) {
         window.dispatchEvent(new CustomEvent("bionodulo:node-menu", { detail: { nodeId: id, x: event.clientX, y: event.clientY } }));
       },
     },
-    inputs.map(([name, spec], index) =>
-      h(Handle, {
-        key: `in-${name}`,
-        type: "target",
-        id: name,
-        position: Position.Left,
-        style: { top: 52 + index * 22 },
-        title: `${name}: ${spec.type}`,
-      }),
-    ),
-    outputs.map((output, index) =>
-      h(Handle, {
-        key: `out-${output.name}`,
-        type: "source",
-        id: output.name,
-        position: Position.Right,
-        style: { top: 52 + index * 22 },
-        title: `${output.name}: ${output.type}`,
-      }),
-    ),
-    h("div", { className: "node-title-row" }, h("strong", null, meta.display_name || data.type), h("span", { className: "status-pill" }, STATUS_LABELS[status] || status)),
+    h("div", { className: "node-title-row" }, h("strong", null, meta.display_name || data.type), h("span", { className: "status-pill" }, ui.muted ? "muted" : ui.bypassed ? "bypass" : STATUS_LABELS[status] || status)),
     h("div", { className: "node-type" }, data.workflowOutput ? `${data.type} / output` : data.type),
+    data.previews?.length ? h("div", { className: "node-preview-chip", title: "Preview artifacts are available" }, `${data.previews.length} preview(s)`) : null,
     paramSummary ? h("div", { className: "node-params" }, paramSummary) : null,
     h(
       "div",
       { className: "socket-list" },
-      h("div", null, inputs.map(([name]) => h("span", { key: name }, name))),
-      h("div", null, outputs.map((output) => h("span", { key: output.name }, output.name))),
+      Array.from({ length: rowCount }).map((_, index) => {
+        const input = inputs[index];
+        const output = outputs[index];
+        return h("div", { key: `socket-row-${index}`, className: "socket-row" },
+          h("span", { className: "socket-cell input-cell" },
+            input ? h(React.Fragment, null,
+              h(Handle, { type: "target", id: input[0], position: Position.Left, className: "socket-handle", title: `${input[0]}: ${input[1].type}` }),
+              h("span", null, input[0]),
+            ) : null,
+          ),
+          h("span", { className: "socket-cell output-cell" },
+            output ? h(React.Fragment, null,
+              h("span", null, output.name),
+              h(Handle, { type: "source", id: output.name, position: Position.Right, className: "socket-handle", title: `${output.name}: ${output.type}` }),
+            ) : null,
+          ),
+        );
+      }),
     ),
   );
 }
 
-const nodeTypes = { bioNode: BioNode };
+const GROUP_COLORS = ["#38bdf8", "#a78bfa", "#f59e0b", "#22c55e", "#fb7185", "#14b8a6", "#f97316", "#60a5fa"];
+
+function GroupNode({ id, data, selected }) {
+  return h("div", {
+    className: "bio-group-node",
+    onContextMenu: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      window.dispatchEvent(new CustomEvent("bionodulo:group-menu", {
+        detail: { groupId: data.groupId, x: event.clientX, y: event.clientY },
+      }));
+    },
+  },
+    h(NodeResizer, {
+      isVisible: selected,
+      minWidth: 180,
+      minHeight: 100,
+      lineClassName: "group-resize-line",
+      handleClassName: "group-resize-handle",
+      onResize: (_, params) => window.dispatchEvent(new CustomEvent("bionodulo:resize-group", { detail: { groupId: data.groupId, width: params.width, height: params.height } })),
+    }),
+    h("div", { className: "bio-group-header" },
+      h("span", { className: "bio-group-title" }, data.label || "Group"),
+    ),
+  );
+}
+
+const nodeTypes = { bioNode: BioNode, group: GroupNode };
 
 function App() {
   const [objectInfo, setObjectInfo] = useState({});
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [groups, setGroups] = useState([]);
   const [workflowTabs, setWorkflowTabs] = useState([{ id: "workflow-1", name: "FASTQ QC", ...EMPTY_WORKFLOW, environment: DEFAULT_ENVIRONMENT }]);
   const [activeTabId, setActiveTabId] = useState("workflow-1");
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [paletteSearch, setPaletteSearch] = useState("");
   const [mockTools, setMockTools] = useState(true);
   const [environmentSpec, setEnvironmentSpec] = useState(DEFAULT_ENVIRONMENT);
@@ -244,9 +299,12 @@ function App() {
   const [currentRunId, setCurrentRunId] = useState(null);
   const [reactFlow, setReactFlow] = useState(null);
   const [paletteMenu, setPaletteMenu] = useState(null);
+  const [canvasMenu, setCanvasMenu] = useState(null);
+  const [groupMenu, setGroupMenu] = useState(null);
   const [nodeMenu, setNodeMenu] = useState(null);
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [runPanelOpen, setRunPanelOpen] = useState(false);
+  const [runPanelTab, setRunPanelTab] = useState("queue");
   const [runPanelWidth, setRunPanelWidth] = useState(380);
   const [edgeMenu, setEdgeMenu] = useState(null);
   const [dropActive, setDropActive] = useState(false);
@@ -283,18 +341,23 @@ function App() {
   const [managerLoading, setManagerLoading] = useState(false);
   const [installRequest, setInstallRequest] = useState(null);
   const [installResult, setInstallResult] = useState(null);
+  const [exportResult, setExportResult] = useState(null);
   const [envPanelInitialTab, setEnvPanelInitialTab] = useState("envs");
   const paletteSearchRef = useRef(null);
   const suppressTabPersistRef = useRef(false);
   const reconnectSuccessfulRef = useRef(true);
+  const historyRef = useRef([]);
+  const redoRef = useRef([]);
+  const historyPausedRef = useRef(false);
+  const nodeClipboardRef = useRef(null);
 
   useEffect(() => {
     if (suppressTabPersistRef.current) {
       suppressTabPersistRef.current = false;
       return;
     }
-    setWorkflowTabs((tabs) => tabs.map((tab) => tab.id === activeTabId ? { ...tab, nodes, edges, environment: environmentSpec } : tab));
-  }, [nodes, edges, environmentSpec, activeTabId]);
+    setWorkflowTabs((tabs) => tabs.map((tab) => tab.id === activeTabId ? { ...tab, nodes, edges, groups, environment: environmentSpec } : tab));
+  }, [nodes, edges, groups, environmentSpec, activeTabId]);
 
   useEffect(() => {
     persistLlmSettings(llmSettings);
@@ -332,6 +395,10 @@ function App() {
       if (event.type === "node_log") {
         setLogs((items) => [...items.slice(-500), event.data]);
       }
+      if (event.type === "preview_available") {
+        setRuns((items) => items.map((run) => run.run_id === event.data.run_id ? { ...run, previews: { ...(run.previews || {}), [event.data.node_id]: [...(run.previews?.[event.data.node_id] || []), event.data] } } : run));
+        setNodes((items) => items.map((node) => node.id === event.data.node_id ? { ...node, data: { ...node.data, previews: [...(node.data.previews || []), event.data] } } : node));
+      }
       if (["node_queued", "executing", "executed", "execution_cached", "execution_error", "execution_interrupted"].includes(event.type)) {
         const nodeId = event.data.node_id;
         const status =
@@ -361,6 +428,8 @@ function App() {
     function onKeyDown(event) {
       if (event.key === "Escape") {
         setPaletteMenu(null);
+        setCanvasMenu(null);
+        setGroupMenu(null);
         setNodeMenu(null);
         setEdgeMenu(null);
         setEditingNodeId(null);
@@ -373,37 +442,68 @@ function App() {
       setEditingNodeId(event.detail.nodeId);
       setNodeMenu(null);
       setPaletteMenu(null);
+      setCanvasMenu(null);
     }
     function onNodeMenu(event) {
       setPaletteMenu(null);
-      setSelectedNodeId(event.detail.nodeId);
+      setCanvasMenu(null);
+      setGroupMenu(null);
+      setSelection([event.detail.nodeId]);
       setNodeMenu({ x: event.detail.x, y: event.detail.y, nodeId: event.detail.nodeId });
+    }
+    function onGroupMenu(event) {
+      setPaletteMenu(null);
+      setCanvasMenu(null);
+      setNodeMenu(null);
+      setEdgeMenu(null);
+      setGroupMenu({ x: event.detail.x, y: event.detail.y, groupId: event.detail.groupId });
     }
     function onEdgeMenu(event) {
       setPaletteMenu(null);
+      setCanvasMenu(null);
+      setGroupMenu(null);
       setNodeMenu(null);
       setSelectedNodeId(null);
       setEdgeMenu({ x: event.detail.x, y: event.detail.y, edgeId: event.detail.edgeId });
     }
-    function onNativeEdgeContext(event) {
+  function onNativeEdgeContext(event) {
       const target = event.target?.closest?.(".edge-menu-dot, .bio-edge-hitbox");
       if (!target) return;
       event.preventDefault();
       event.stopPropagation();
       setPaletteMenu(null);
+      setCanvasMenu(null);
+      setGroupMenu(null);
       setNodeMenu(null);
       setSelectedNodeId(null);
       setEdgeMenu({ x: event.clientX, y: event.clientY, edgeId: target.dataset.edgeId });
     }
+    function onToggleGroup(event) {
+      toggleGroupCollapsed(event.detail.groupId);
+    }
+    function onResizeGroup(event) {
+      resizeGroup(event.detail.groupId, event.detail);
+    }
+    function onDeleteGroup(event) {
+      deleteGroup(event.detail.groupId);
+    }
     window.addEventListener("bionodulo:edit-node", onEditNode);
     window.addEventListener("bionodulo:node-menu", onNodeMenu);
+    window.addEventListener("bionodulo:group-menu", onGroupMenu);
     window.addEventListener("bionodulo:edge-menu", onEdgeMenu);
+    window.addEventListener("bionodulo:toggle-group", onToggleGroup);
+    window.addEventListener("bionodulo:resize-group", onResizeGroup);
+    window.addEventListener("bionodulo:delete-group", onDeleteGroup);
     document.addEventListener("contextmenu", onNativeEdgeContext, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("bionodulo:edit-node", onEditNode);
       window.removeEventListener("bionodulo:node-menu", onNodeMenu);
+      window.removeEventListener("bionodulo:group-menu", onGroupMenu);
       window.removeEventListener("bionodulo:edge-menu", onEdgeMenu);
+      window.removeEventListener("bionodulo:toggle-group", onToggleGroup);
+      window.removeEventListener("bionodulo:resize-group", onResizeGroup);
+      window.removeEventListener("bionodulo:delete-group", onDeleteGroup);
       document.removeEventListener("contextmenu", onNativeEdgeContext, true);
     };
   }, []);
@@ -414,7 +514,49 @@ function App() {
     }
   }, [paletteMenu]);
 
+  useEffect(() => {
+    function onShortcut(event) {
+      const target = event.target?.tagName?.toLowerCase?.();
+      const typing = ["input", "textarea", "select"].includes(target);
+      if (typing) return;
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "z") {
+        event.preventDefault();
+        event.shiftKey ? redoCanvas() : undoCanvas();
+      } else if ((event.ctrlKey || event.metaKey) && key === "y") {
+        event.preventDefault();
+        redoCanvas();
+      } else if ((event.ctrlKey || event.metaKey) && key === "g") {
+        event.preventDefault();
+        groupSelectedNodes();
+      } else if ((event.ctrlKey || event.metaKey) && key === "a") {
+        event.preventDefault();
+        setSelection(nodes.map((node) => node.id));
+      } else if ((event.ctrlKey || event.metaKey) && key === "c") {
+        event.preventDefault();
+        copySelectedNodes();
+      } else if ((event.ctrlKey || event.metaKey) && key === "v") {
+        event.preventDefault();
+        pasteCopiedNodes();
+      } else if ((event.ctrlKey || event.metaKey) && key === "f") {
+        event.preventDefault();
+        openPalette({ preventDefault() {}, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+      } else if (key === "delete" || key === "backspace") {
+        if (selectedNodeIds.length) {
+          event.preventDefault();
+          deleteSelectedNodes();
+        }
+      } else if (key === "r" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        runWorkflow(false);
+      }
+    }
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, [nodes, edges, groups, selectedNodeId, selectedNodeIds, paletteMenu, mockTools]);
+
   const editingNode = nodes.find((node) => node.id === editingNodeId);
+  const selectedNodes = useMemo(() => nodes.filter((node) => selectedNodeIds.includes(node.id) || node.selected), [nodes, selectedNodeIds]);
   const paletteNodes = useMemo(() => filterNodes(Object.values(objectInfo), paletteSearch), [objectInfo, paletteSearch]);
   const commonNodes = useMemo(() => COMMON_NODE_IDS.map((id) => objectInfo[id]).filter(Boolean), [objectInfo]);
   const groupedNodes = useMemo(() => groupNodesByCategory(Object.values(objectInfo)), [objectInfo]);
@@ -424,7 +566,128 @@ function App() {
       return { ...edge, style: { ...(edge.style || {}), stroke: color, strokeWidth: 2.7 }, data: { ...(edge.data || {}), color } };
     });
   }, [edges]);
-  const displayEdges = useMemo(() => linksHidden ? coloredEdges.map((edge) => ({ ...edge, hidden: true })) : coloredEdges, [coloredEdges, linksHidden]);
+  const collapsedGroupIds = useMemo(() => new Set(groups.filter((group) => group.collapsed).map((group) => group.id)), [groups]);
+  const hiddenNodeIds = useMemo(() => new Set(nodes.filter((node) => collapsedGroupIds.has(node.data?.ui?.group_id)).map((node) => node.id)), [nodes, collapsedGroupIds]);
+  const displayEdges = useMemo(() => {
+    const withGroupHiding = coloredEdges.map((edge) => ({ ...edge, hidden: linksHidden || hiddenNodeIds.has(edge.source) || hiddenNodeIds.has(edge.target) }));
+    return withGroupHiding;
+  }, [coloredEdges, linksHidden, hiddenNodeIds]);
+  const displayNodes = useMemo(() => [
+    ...groups.map((group) => ({
+      id: `group:${group.id}`,
+      type: "group",
+      position: group.position || { x: 0, y: 0 },
+      selectable: true,
+      draggable: true,
+      zIndex: 0,
+      style: {
+        width: group.width || 360,
+        height: group.height || 240,
+        border: `2px solid ${group.color || "#38bdf8"}`,
+        background: "color-mix(in srgb, var(--surface) 72%, transparent)",
+        borderRadius: 8,
+        color: "var(--muted)",
+        fontWeight: 800,
+        padding: 8,
+      },
+      data: { label: group.name || "Group", groupId: group.id, collapsed: Boolean(group.collapsed) },
+    })),
+    ...nodes.map((node) => ({ ...node, hidden: hiddenNodeIds.has(node.id), zIndex: 1, draggable: !node.data?.ui?.pinned })),
+  ], [nodes, groups, hiddenNodeIds]);
+
+  function snapshotCanvas() {
+    return { nodes, edges, groups };
+  }
+
+  function restoreCanvas(snapshot) {
+    if (!snapshot) return;
+    historyPausedRef.current = true;
+    setNodes(snapshot.nodes || []);
+    setEdges(snapshot.edges || []);
+    setGroups(snapshot.groups || []);
+    window.setTimeout(() => { historyPausedRef.current = false; }, 0);
+  }
+
+  function recordHistory() {
+    if (historyPausedRef.current) return;
+    historyRef.current = [...historyRef.current.slice(-40), snapshotCanvas()];
+    redoRef.current = [];
+  }
+
+  function undoCanvas() {
+    const previous = historyRef.current.pop();
+    if (!previous) return;
+    redoRef.current = [...redoRef.current.slice(-40), snapshotCanvas()];
+    restoreCanvas(previous);
+  }
+
+  function redoCanvas() {
+    const next = redoRef.current.pop();
+    if (!next) return;
+    historyRef.current = [...historyRef.current.slice(-40), snapshotCanvas()];
+    restoreCanvas(next);
+  }
+
+  function handleNodesChange(changes) {
+    const groupChanges = changes.filter((change) => String(change.id || "").startsWith("group:"));
+    if (groupChanges.length) {
+      if (groupChanges.some((change) => change.type !== "select")) recordHistory();
+      setGroups((items) => items.map((group) => {
+        const change = groupChanges.find((item) => item.id === `group:${group.id}`);
+        if (!change) return group;
+        if (change.type === "position" && change.position) {
+          const dx = change.position.x - (group.position?.x || 0);
+          const dy = change.position.y - (group.position?.y || 0);
+          if (dx !== 0 || dy !== 0) {
+            moveGroupWithChildren(group.id, dx, dy);
+          }
+          return { ...group, position: change.position };
+        }
+        if (change.type === "dimensions" && change.dimensions) return { ...group, width: change.dimensions.width || group.width, height: change.dimensions.height || group.height };
+        return group;
+      }));
+    }
+    const realChanges = changes.filter((change) => !String(change.id || "").startsWith("group:"));
+    if (realChanges.some((change) => change.type !== "select")) recordHistory();
+    const selectionChanges = realChanges.filter((change) => change.type === "select");
+    if (selectionChanges.length) {
+      const next = new Set(selectedNodeIds);
+      for (const change of selectionChanges) {
+        if (change.selected) next.add(change.id);
+        else next.delete(change.id);
+      }
+      const ids = [...next].filter((id) => nodes.some((node) => node.id === id));
+      setSelectedNodeIds(ids);
+      setSelectedNodeId(ids.at(-1) || null);
+    }
+    onNodesChangeBase(realChanges);
+  }
+
+  function setSelection(ids) {
+    const clean = [...new Set(ids)].filter((id) => nodes.some((node) => node.id === id));
+    setSelectedNodeIds(clean);
+    setSelectedNodeId(clean.at(-1) || null);
+    setNodes((items) => items.map((node) => ({ ...node, selected: clean.includes(node.id) })));
+  }
+
+  function clearSelection() {
+    setSelectedNodeIds([]);
+    setSelectedNodeId(null);
+    setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
+  }
+
+  function handleNodeClick(event, node) {
+    if (event.ctrlKey || event.metaKey) {
+      const next = selectedNodeIds.includes(node.id) ? selectedNodeIds.filter((id) => id !== node.id) : [...selectedNodeIds, node.id];
+      setSelection(next);
+      return;
+    }
+    if (event.shiftKey && selectedNodeIds.length) {
+      setSelection([...selectedNodeIds, node.id]);
+      return;
+    }
+    setSelection([node.id]);
+  }
   const paletteGroups = useMemo(() => groupNodesByCategory(paletteNodes), [paletteNodes]);
 
   const onConnect = useCallback((connection) => {
@@ -452,10 +715,11 @@ function App() {
   }
 
   function addNode(meta, position = null) {
+    recordHistory();
     const id = `${meta.id}-${Date.now().toString().slice(-5)}`;
     const params = defaultsFor(meta);
     setNodes((items) => [
-      ...items,
+      ...items.map((node) => ({ ...node, selected: false })),
       {
         id,
         type: "bioNode",
@@ -463,20 +727,23 @@ function App() {
         height: NODE_HEIGHT,
         initialWidth: NODE_WIDTH,
         initialHeight: NODE_HEIGHT,
+        selected: true,
         position: position || { x: 120 + items.length * 40, y: 120 + items.length * 30 },
-        data: { type: meta.id, meta, params, status: "idle", workflowOutput: Boolean(meta.output_node) },
+        data: { type: meta.id, meta, params, ui: {}, status: "idle", workflowOutput: Boolean(meta.output_node) },
       },
     ]);
     setSelectedNodeId(id);
+    setSelectedNodeIds([id]);
     setPaletteMenu(null);
   }
 
   function duplicateNode(nodeId) {
     const original = nodes.find((node) => node.id === nodeId);
     if (!original) return;
+    recordHistory();
     const id = `${original.data.type}-${Date.now().toString().slice(-5)}`;
     setNodes((items) => [
-      ...items,
+      ...items.map((node) => ({ ...node, selected: false })),
       {
         ...original,
         id,
@@ -490,23 +757,134 @@ function App() {
       },
     ]);
     setSelectedNodeId(id);
+    setSelectedNodeIds([id]);
     setNodeMenu(null);
   }
 
   function deleteNode(nodeId) {
-    setNodes((items) => items.filter((node) => node.id !== nodeId));
-    setEdges((items) => items.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-    if (selectedNodeId === nodeId) setSelectedNodeId(null);
-    if (editingNodeId === nodeId) setEditingNodeId(null);
+    deleteNodes([nodeId]);
+  }
+
+  function deleteSelectedNodes() {
+    deleteNodes(selectedNodeIds);
+  }
+
+  function deleteNodes(nodeIds) {
+    const remove = new Set(nodeIds);
+    if (!remove.size) return;
+    recordHistory();
+    setNodes((items) => items.filter((node) => !remove.has(node.id)));
+    setEdges((items) => items.filter((edge) => !remove.has(edge.source) && !remove.has(edge.target)));
+    setSelectedNodeIds((ids) => ids.filter((id) => !remove.has(id)));
+    if (selectedNodeId && remove.has(selectedNodeId)) setSelectedNodeId(null);
+    if (editingNodeId && remove.has(editingNodeId)) setEditingNodeId(null);
     setNodeMenu(null);
   }
 
   function toggleWorkflowOutput(nodeId) {
+    recordHistory();
     setNodes((items) => items.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, workflowOutput: !node.data.workflowOutput } } : node));
     setNodeMenu(null);
   }
 
+  function updateNodeUi(nodeId, patch) {
+    updateNodesUi([nodeId], patch);
+  }
+
+  function updateSelectedNodesUi(patch) {
+    updateNodesUi(selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [], patch);
+  }
+
+  function updateNodesUi(nodeIds, patch) {
+    const ids = new Set(nodeIds);
+    if (!ids.size) return;
+    recordHistory();
+    setNodes((items) => items.map((node) => ids.has(node.id) ? { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), ...patch } } } : node));
+    setNodeMenu(null);
+  }
+
+  function groupSelectedNodes() {
+    const selected = selectedNodes.length ? selectedNodes : nodes.filter((node) => node.id === selectedNodeId);
+    if (!selected.length) return;
+    recordHistory();
+    const minX = Math.min(...selected.map((node) => node.position.x)) - 32;
+    const minY = Math.min(...selected.map((node) => node.position.y)) - 52;
+    const maxX = Math.max(...selected.map((node) => node.position.x + NODE_WIDTH)) + 32;
+    const maxY = Math.max(...selected.map((node) => node.position.y + NODE_HEIGHT)) + 32;
+    const id = `group-${Date.now().toString().slice(-5)}`;
+    setGroups((items) => [...items, { id, name: "Group", position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY, color: EDGE_PALETTE[items.length % EDGE_PALETTE.length], collapsed: false }]);
+    setNodes((items) => items.map((node) => selected.some((item) => item.id === node.id) ? { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), group_id: id } } } : node));
+  }
+
+  function toggleGroupCollapsed(groupId) {
+    recordHistory();
+    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, collapsed: !group.collapsed } : group));
+  }
+
+  function resizeGroup(groupId, patch) {
+    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, width: patch.width || group.width, height: patch.height || group.height } : group));
+  }
+
+  function deleteGroup(groupId) {
+    recordHistory();
+    setGroups((items) => items.filter((group) => group.id !== groupId));
+    setNodes((items) => items.map((node) => node.data?.ui?.group_id === groupId ? { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), group_id: null } } } : node));
+  }
+
+  function renameGroup(groupId, name) {
+    recordHistory();
+    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, name } : group));
+  }
+
+  function setGroupColor(groupId, color) {
+    recordHistory();
+    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, color } : group));
+  }
+
+  function moveGroupWithChildren(groupId, dx, dy) {
+    setNodes((items) => items.map((node) => node.data?.ui?.group_id === groupId ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } } : node));
+  }
+
+  function copySelectedNodes() {
+    const selected = selectedNodes.length ? selectedNodes : nodes.filter((node) => node.id === selectedNodeId);
+    if (!selected.length) return;
+    const ids = new Set(selected.map((node) => node.id));
+    nodeClipboardRef.current = {
+      nodes: selected.map((node) => ({ ...node, selected: false })),
+      edges: edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
+    };
+  }
+
+  function pasteCopiedNodes(position = null) {
+    const clip = nodeClipboardRef.current;
+    if (!clip?.nodes?.length) return;
+    recordHistory();
+    const stamp = Date.now().toString().slice(-5);
+    const idMap = new Map(clip.nodes.map((node, index) => [node.id, `${node.data.type}-${stamp}-${index + 1}`]));
+    const minX = Math.min(...clip.nodes.map((node) => node.position.x));
+    const minY = Math.min(...clip.nodes.map((node) => node.position.y));
+    const offset = position ? { x: position.x - minX, y: position.y - minY } : { x: 48, y: 48 };
+    const pastedNodes = clip.nodes.map((node) => ({
+      ...node,
+      id: idMap.get(node.id),
+      selected: true,
+      position: { x: node.position.x + offset.x, y: node.position.y + offset.y },
+      data: { ...node.data, params: { ...(node.data.params || {}) }, status: "idle" },
+    }));
+    const pastedEdges = (clip.edges || []).map((edge, index) => ({
+      ...edge,
+      id: `edge-${stamp}-${index + 1}`,
+      source: idMap.get(edge.source),
+      target: idMap.get(edge.target),
+    }));
+    setNodes((items) => [...items.map((node) => ({ ...node, selected: false })), ...pastedNodes]);
+    setEdges((items) => [...items, ...pastedEdges]);
+    setSelectedNodeIds(pastedNodes.map((node) => node.id));
+    setSelectedNodeId(pastedNodes.at(-1)?.id || null);
+  }
+
   function updateNodeParams(nodeId, name, value, spec) {
+    recordHistory();
     setNodes((items) => items.map((node) => {
       if (node.id !== nodeId) return node;
       return { ...node, data: { ...node.data, params: { ...(node.data.params || {}), [name]: parseParamValue(value, spec) } } };
@@ -530,6 +908,7 @@ function App() {
       position: node.position,
       params: node.data.params || {},
       node_info: nodeInfoForWorkflow(node),
+      ui: node.data.ui || {},
     }));
     return {
       version: "0.1.0",
@@ -542,6 +921,7 @@ function App() {
         from: { node: edge.source, output: edge.sourceHandle },
         to: { node: edge.target, input: edge.targetHandle },
       })),
+      groups,
       outputs: nodes.filter((node) => node.data.workflowOutput || node.data.meta?.output_node).map((node) => node.id),
       environment: environmentSpec,
       dependencies: workflowDependencies(workflowNodes, environmentSpec),
@@ -549,7 +929,9 @@ function App() {
   }
 
   function loadWorkflow(workflow, nameHint = null) {
+    recordHistory();
     const outputSet = new Set(workflow.outputs || []);
+    const workflowGroups = workflow.groups || [];
     setEnvironmentSpec(normalizeEnvironment(workflow.environment));
     const nextNodes = workflow.nodes.map((node) => {
       const meta = objectInfo[node.type] || { id: node.type, display_name: node.type };
@@ -561,7 +943,7 @@ function App() {
         initialWidth: NODE_WIDTH,
         initialHeight: NODE_HEIGHT,
         position: node.position || { x: 0, y: 0 },
-        data: { type: node.type, meta, params: node.params || {}, status: "idle", workflowOutput: outputSet.has(node.id) || Boolean(meta.output_node) },
+        data: { type: node.type, meta, params: node.params || {}, ui: node.ui || {}, status: "idle", workflowOutput: outputSet.has(node.id) || Boolean(meta.output_node) },
       };
     });
     const nextEdges = workflow.edges.map((edge) => {
@@ -578,8 +960,10 @@ function App() {
     });
     setNodes(nextNodes);
     setEdges(nextEdges);
-    setWorkflowTabs((tabs) => tabs.map((tab) => tab.id === activeTabId ? { ...tab, name: workflow.name || nameHint || tab.name, nodes: nextNodes, edges: nextEdges, environment: normalizeEnvironment(workflow.environment) } : tab));
+    setGroups(workflowGroups);
+    setWorkflowTabs((tabs) => tabs.map((tab) => tab.id === activeTabId ? { ...tab, name: workflow.name || nameHint || tab.name, nodes: nextNodes, edges: nextEdges, groups: workflowGroups, environment: normalizeEnvironment(workflow.environment) } : tab));
     setSelectedNodeId(nextNodes[0]?.id || null);
+    setSelectedNodeIds(nextNodes[0]?.id ? [nextNodes[0].id] : []);
     setLogs([]);
     setPaletteMenu(null);
     setNodeMenu(null);
@@ -607,7 +991,7 @@ function App() {
     const run = await fetch("/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workflow: workflowFromCanvas(), mock_tools: mockTools, force, force_nodes: forceNodes }),
+      body: JSON.stringify({ workflow: workflowFromCanvas(), mock_tools: mockTools, force, force_nodes: forceNodes, options: { reuse_cache: true, strong_hashing: strongHashing, stop_on_error: true } }),
     }).then((res) => res.json());
     setCurrentRunId(run.run_id);
     refreshRuns();
@@ -625,6 +1009,19 @@ function App() {
 
   async function refreshQueue() {
     setQueue(await fetch("/queue").then((res) => res.json()).catch(() => ({})));
+  }
+
+  async function clearQueue() {
+    await fetch("/queue/clear", { method: "POST" });
+    refreshQueue();
+  }
+
+  async function loadRunSnapshot(runId) {
+    const run = await fetch(`/runs/${runId}`).then((res) => res.json());
+    if (!run.run_dir) return;
+    const path = `${run.run_dir.replace(/\\/g, "/").split("/").slice(-1)[0]}/workflow.json`;
+    const snapshot = await fetch(`/workspace/file?${new URLSearchParams({ path: `runs/${path}` })}`).then((res) => res.json());
+    loadWorkflow(JSON.parse(snapshot.content), run.workflow_name || runId);
   }
 
   async function refreshManagerStatus() {
@@ -650,6 +1047,16 @@ function App() {
     }).then((res) => res.json());
     setInstallResult(result);
     await refreshManagerStatus();
+  }
+
+  async function exportActiveWorkflow(format = "snakemake") {
+    const response = await fetch("/workflow/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workflow: workflowFromCanvas(), format }),
+    });
+    const result = await response.json();
+    setExportResult(result);
   }
 
   async function sendAIMessage(content) {
@@ -722,17 +1129,59 @@ function App() {
   function openPalette(event) {
     event.preventDefault();
     setNodeMenu(null);
+    setGroupMenu(null);
     setEdgeMenu(null);
     setRailPanel(null);
     setPaletteSearch("");
     setPaletteMenu({ x: event.clientX, y: event.clientY, flowPosition: flowPositionFromEvent(event) });
   }
 
+  function openCanvasMenu(event) {
+    event.preventDefault();
+    setNodeMenu(null);
+    setGroupMenu(null);
+    setEdgeMenu(null);
+    setPaletteMenu(null);
+    setRailPanel(null);
+    setCanvasMenu({ x: event.clientX, y: event.clientY, flowPosition: flowPositionFromEvent(event), addOpen: false });
+  }
+
+  function openAddNodeFromCanvasMenu() {
+    setCanvasMenu((current) => current ? { ...current, addOpen: !current.addOpen } : current);
+  }
+
+  function addNodeFromCanvasMenu(meta) {
+    addNode(meta, canvasMenu?.flowPosition || null);
+    setCanvasMenu(null);
+  }
+
+  function pasteAt(position = null) {
+    pasteCopiedNodes(position);
+    setCanvasMenu(null);
+  }
+
+  function createGroupAt(position = null) {
+    recordHistory();
+    const id = `group-${Date.now().toString().slice(-5)}`;
+    setGroups((items) => [...items, {
+      id,
+      name: "Group",
+      position: position || { x: 80, y: 80 },
+      width: 420,
+      height: 260,
+      color: EDGE_PALETTE[items.length % EDGE_PALETTE.length],
+      collapsed: false,
+    }]);
+    setCanvasMenu(null);
+  }
+
   function openNodeMenu(event, node) {
     event.preventDefault();
     event.stopPropagation();
     setPaletteMenu(null);
-    setSelectedNodeId(node.id);
+    setCanvasMenu(null);
+    setGroupMenu(null);
+    setSelection([node.id]);
     setNodeMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
   }
 
@@ -740,8 +1189,11 @@ function App() {
     event.preventDefault();
     event.stopPropagation();
     setPaletteMenu(null);
+    setCanvasMenu(null);
+    setGroupMenu(null);
     setNodeMenu(null);
     setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     setEdgeMenu({ x: event.clientX, y: event.clientY, edgeId: edge.id });
   }
 
@@ -772,8 +1224,10 @@ function App() {
     setActiveTabId(tabId);
     setNodes(tab.nodes || []);
     setEdges(tab.edges || []);
+    setGroups(tab.groups || []);
     setEnvironmentSpec(normalizeEnvironment(tab.environment));
     setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     setPaletteMenu(null);
     setNodeMenu(null);
     setEdgeMenu(null);
@@ -781,12 +1235,13 @@ function App() {
 
   function addWorkflowTab() {
     const id = `workflow-${Date.now().toString().slice(-6)}`;
-    const tab = { id, name: `Workflow ${workflowTabs.length + 1}`, nodes: [], edges: [], environment: DEFAULT_ENVIRONMENT };
+    const tab = { id, name: `Workflow ${workflowTabs.length + 1}`, nodes: [], edges: [], groups: [], environment: DEFAULT_ENVIRONMENT };
     setWorkflowTabs((tabs) => [...tabs, tab]);
     suppressTabPersistRef.current = true;
     setActiveTabId(id);
     setNodes([]);
     setEdges([]);
+    setGroups([]);
     setEnvironmentSpec(DEFAULT_ENVIRONMENT);
     setSelectedNodeId(null);
   }
@@ -796,9 +1251,11 @@ function App() {
     if (workflowTabs.length === 1) {
       setNodes([]);
       setEdges([]);
-      setWorkflowTabs([{ id: "workflow-1", name: "Workflow 1", nodes: [], edges: [], environment: DEFAULT_ENVIRONMENT }]);
+      setWorkflowTabs([{ id: "workflow-1", name: "Workflow 1", nodes: [], edges: [], groups: [], environment: DEFAULT_ENVIRONMENT }]);
       setActiveTabId("workflow-1");
       setEnvironmentSpec(DEFAULT_ENVIRONMENT);
+      setGroups([]);
+      setSelectedNodeIds([]);
       return;
     }
     const closingIndex = workflowTabs.findIndex((tab) => tab.id === tabId);
@@ -810,27 +1267,36 @@ function App() {
       setActiveTabId(nextTab.id);
       setNodes(nextTab.nodes || []);
       setEdges(nextTab.edges || []);
+      setGroups(nextTab.groups || []);
       setEnvironmentSpec(normalizeEnvironment(nextTab.environment));
+      setSelectedNodeIds([]);
     }
   }
 
   async function loadDroppedWorkflow(file) {
-    if (!file || !file.name.toLowerCase().endsWith(".json")) {
+    if (!file) {
       setValidation({
         valid: false,
-        errors: [{ level: "error", code: "unsupported_drop", message: "Drop a BioNodulo workflow .json file." }],
+        errors: [{ level: "error", code: "unsupported_drop", message: "Drop a workflow JSON or output file with embedded BioNodulo metadata." }],
         warnings: [],
       });
       return;
     }
     try {
-      const workflow = JSON.parse(await file.text());
+      const text = await file.text();
+      const workflow = file.name.toLowerCase().endsWith(".json")
+        ? JSON.parse(text)
+        : (await fetch("/workflow/extract", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: file.name, content: text }),
+          }).then((res) => res.json())).workflow;
       loadWorkflow(workflow, file.name.replace(/\.json$/i, ""));
       setValidation({ valid: true, errors: [], warnings: [] });
     } catch (error) {
       setValidation({
         valid: false,
-        errors: [{ level: "error", code: "bad_json", message: `Could not load workflow JSON: ${error.message}` }],
+        errors: [{ level: "error", code: "bad_workflow_drop", message: `Could not load embedded workflow: ${error.message}` }],
         warnings: [],
       });
     }
@@ -914,9 +1380,18 @@ function App() {
   async function loadWorkspaceWorkflow(item) {
     if (!item || item.type !== "file") return;
     try {
-      const query = new URLSearchParams({ path: item.path });
-      const result = await fetch(`/workspace/file?${query}`).then((res) => res.json());
-      const workflow = JSON.parse(result.content);
+      let workflow;
+      if (item.name.toLowerCase().endsWith(".json")) {
+        const query = new URLSearchParams({ path: item.path });
+        const result = await fetch(`/workspace/file?${query}`).then((res) => res.json());
+        workflow = JSON.parse(result.content);
+      } else {
+        workflow = (await fetch("/workspace/workflow/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: item.path, filename: item.name }),
+        }).then((res) => res.json())).workflow;
+      }
       loadWorkflow(workflow, item.name.replace(/\.json$/i, ""));
       setValidation({ valid: true, errors: [], warnings: [] });
     } catch (error) {
@@ -1037,6 +1512,7 @@ function App() {
       onClick: () => {
         setPaletteMenu(null);
         setNodeMenu(null);
+        setGroupMenu(null);
         setEdgeMenu(null);
         setRailPanel((current) => current && ["data", "nodes"].includes(current.id) ? current : null);
       },
@@ -1050,6 +1526,7 @@ function App() {
         h("div", { className: "run-cluster" },
         h("span", { className: validation.valid ? "validation ok" : "validation bad", title: "Validation status" }, validation.valid ? "Valid" : `${validation.errors.length} issue(s)`),
         h("button", { className: "primary run-button", onClick: () => runWorkflow(false), title: "Queue workflow run" }, "Run"),
+        h("button", { onClick: () => exportActiveWorkflow("snakemake"), title: "Export workflow" }, "Export"),
         h("button", { className: "stop-button", onClick: stopRun, title: "Stop active run" }, "x"),
         h("span", { className: activeCount ? "active-count live" : "active-count" }, `${activeCount} active`),
         h("button", { className: runPanelOpen ? "pressed icon-button" : "icon-button", title: "Open runs panel", onClick: (event) => { event.stopPropagation(); setRunPanelOpen((value) => !value); } }, h(Icon, { name: "templates" })),
@@ -1074,12 +1551,12 @@ function App() {
           onDismiss: () => setManagerDiagnostics(null),
         }) : null,
         h(ReactFlow, {
-          nodes,
+          nodes: displayNodes,
           edges: displayEdges,
           nodeTypes,
           edgeTypes,
           onInit: setReactFlow,
-          onNodesChange,
+          onNodesChange: handleNodesChange,
           onEdgesChange,
           onConnect,
           onReconnectStart,
@@ -1087,10 +1564,10 @@ function App() {
           onReconnectEnd,
           edgesReconnectable: true,
           defaultEdgeOptions: { type: "bioEdge", reconnectable: true, interactionWidth: 28 },
-          onPaneClick: () => setSelectedNodeId(null),
-          onPaneContextMenu: openPalette,
+          onPaneClick: clearSelection,
+          onPaneContextMenu: openCanvasMenu,
           onPaneDoubleClick: openPalette,
-          onNodeClick: (_, node) => setSelectedNodeId(node.id),
+          onNodeClick: handleNodeClick,
           onNodeDoubleClick: (_, node) => { setEditingNodeId(node.id); setNodeMenu(null); setPaletteMenu(null); },
           onNodeContextMenu: openNodeMenu,
           onEdgeContextMenu: openEdgeMenu,
@@ -1127,6 +1604,42 @@ function App() {
           zoomPercent,
           onAI: () => setAiOpen(true),
         }),
+        selectedNodes.length ? h(SelectionToolbox, {
+          selectedNodes,
+          reactFlow,
+          onDelete: deleteSelectedNodes,
+          onBypass: () => updateSelectedNodesUi({ bypassed: true, muted: false }),
+          onMute: () => updateSelectedNodesUi({ muted: true, bypassed: false }),
+          onUnmute: () => updateSelectedNodesUi({ muted: false, bypassed: false }),
+          onPin: () => updateSelectedNodesUi({ pinned: true }),
+          onUnpin: () => updateSelectedNodesUi({ pinned: false }),
+          onGroup: groupSelectedNodes,
+          onCopy: copySelectedNodes,
+          onMoreOptions: (event) => {
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            setNodeMenu({ x: rect.left, y: rect.bottom + 4, nodeId: selectedNodes[0]?.id });
+          },
+        }) : null,
+        groupMenu ? h(GroupContextMenu, {
+          menu: groupMenu,
+          group: groups.find((g) => g.id === groupMenu.groupId),
+          onRename: (name) => renameGroup(groupMenu.groupId, name),
+          onSetColor: (color) => setGroupColor(groupMenu.groupId, color),
+          onToggleCollapsed: toggleGroupCollapsed,
+          onDelete: () => { deleteGroup(groupMenu.groupId); setGroupMenu(null); },
+          onClose: () => setGroupMenu(null),
+        }) : null,
+        canvasMenu ? h(CanvasContextMenu, {
+          menu: canvasMenu,
+          groupedNodes,
+          hasClipboard: Boolean(nodeClipboardRef.current?.nodes?.length),
+          onToggleAdd: openAddNodeFromCanvasMenu,
+          onAddNode: addNodeFromCanvasMenu,
+          onPaste: () => pasteAt(canvasMenu.flowPosition),
+          onAddGroup: () => createGroupAt(canvasMenu.flowPosition),
+          onClose: () => setCanvasMenu(null),
+        }) : null,
         paletteMenu ? h(NodePalette, {
           menu: paletteMenu,
           search: paletteSearch,
@@ -1145,6 +1658,10 @@ function App() {
           onDuplicate: () => duplicateNode(nodeMenu.nodeId),
           onDelete: () => deleteNode(nodeMenu.nodeId),
           onToggleOutput: () => toggleWorkflowOutput(nodeMenu.nodeId),
+          onTogglePinned: () => updateNodeUi(nodeMenu.nodeId, { pinned: !nodes.find((node) => node.id === nodeMenu.nodeId)?.data?.ui?.pinned }),
+          onToggleMuted: () => updateNodeUi(nodeMenu.nodeId, { muted: !nodes.find((node) => node.id === nodeMenu.nodeId)?.data?.ui?.muted }),
+          onToggleBypassed: () => updateNodeUi(nodeMenu.nodeId, { bypassed: !nodes.find((node) => node.id === nodeMenu.nodeId)?.data?.ui?.bypassed }),
+          onGroupSelected: groupSelectedNodes,
           onForceRun: () => runWorkflow(false, [nodeMenu.nodeId]),
           onValidate: validate,
           onClose: () => setNodeMenu(null),
@@ -1213,10 +1730,31 @@ function App() {
       ),
       runPanelOpen ? h("div", { className: "resize-handle vertical", title: "Drag to resize runs panel", onPointerDown: startRunPanelResize }) : null,
       runPanelOpen ? h("aside", { className: "run-drawer", onClick: (event) => event.stopPropagation() },
-        h("div", { className: "panel-title" }, h("strong", null, "Active Runs"), h("button", { title: "Close run panel", onClick: () => setRunPanelOpen(false) }, "x")),
-        h("p", null, `Current: ${queue.current || "none"} / Pending: ${(queue.pending || []).length}`),
-        h("div", { className: "runs" }, runs.slice(0, 5).map((run) => h("button", { key: run.run_id, onClick: () => setCurrentRunId(run.run_id) }, `${run.run_id} / ${run.status}`))),
-        h("div", { className: "drawer-section" }, h("h3", null, "Validation"), [...(validation.errors || []), ...(validation.warnings || [])].slice(0, 8).map((issue, idx) => h("p", { key: idx, className: issue.level === "warning" ? "warn" : "err" }, `${issue.node_id || "workflow"}: ${issue.message}`))),
+        h("div", { className: "panel-title" }, h("strong", null, "Runs"), h("button", { title: "Close run panel", onClick: () => setRunPanelOpen(false) }, "x")),
+        h("div", { className: "env-tabs" }, ["queue", "history", "logs", "previews"].map((tab) => h("button", { key: tab, className: runPanelTab === tab ? "active" : "", onClick: () => setRunPanelTab(tab) }, tab))),
+        runPanelTab === "queue" ? h("div", { className: "drawer-section" },
+          h("p", null, `Current: ${queue.current || "none"} / Pending: ${(queue.pending || []).length}`),
+          h("div", { className: "manager-actions" }, h("button", { onClick: refreshQueue }, "Refresh"), h("button", { onClick: clearQueue }, "Clear pending"), h("button", { onClick: stopRun }, "Interrupt current")),
+          h("div", { className: "runs" }, runs.filter((run) => ["queued", "running", "interrupting"].includes(run.status)).map((run) => h("button", { key: run.run_id, onClick: () => setCurrentRunId(run.run_id) }, `${run.run_id} / ${run.status}`))),
+          h("div", { className: "drawer-section" }, h("h3", null, "Validation"), [...(validation.errors || []), ...(validation.warnings || [])].slice(0, 8).map((issue, idx) => h("p", { key: idx, className: issue.level === "warning" ? "warn" : "err" }, `${issue.node_id || "workflow"}: ${issue.message}`))),
+        ) : null,
+        runPanelTab === "history" ? h("div", { className: "drawer-section" },
+          h("div", { className: "runs" }, runs.slice(0, queueHistorySize).map((run) => h("div", { key: run.run_id, className: "asset-row" },
+            h("strong", null, `${run.run_id} / ${run.status}`),
+            h("span", null, run.workflow_name),
+            h("small", null, run.error || `${Object.keys(run.node_statuses || {}).length} node(s)`),
+            h("button", { onClick: () => runWorkflow(false, []) }, "Rerun active workflow"),
+            h("button", { onClick: () => loadRunSnapshot(run.run_id) }, "Load snapshot"),
+          ))),
+        ) : null,
+        runPanelTab === "logs" ? h("div", { className: "drawer-section logs" }, logs.slice(-120).map((line, idx) => h("pre", { key: idx }, `[${line.node_id}] ${line.stream}: ${line.line}`))) : null,
+        runPanelTab === "previews" ? h("div", { className: "drawer-section" },
+          runs.slice(0, 10).flatMap((run) => Object.entries(run.previews || {}).flatMap(([nodeId, previews]) => previews.map((preview, index) => h("div", { key: `${run.run_id}-${nodeId}-${index}`, className: "asset-row" },
+            h("strong", null, preview.label || nodeId),
+            h("span", null, run.run_id),
+            h("code", null, preview.path),
+          )))),
+        ) : null,
       ) : null,
     ),
     settingsOpen ? h(SettingsModal, {
@@ -1264,7 +1802,7 @@ function App() {
       updateLlmSettings,
       onClose: () => setSettingsOpen(false),
     }) : null,
-    dropActive ? h("div", { className: "drop-overlay" }, h("div", null, h("strong", null, "Drop workflow JSON"), h("span", null, "Load this workflow into the active tab"))) : null,
+    dropActive ? h("div", { className: "drop-overlay" }, h("div", null, h("strong", null, "Drop workflow or output"), h("span", null, "Load workflow JSON or embedded BioNodulo metadata"))) : null,
     aiOpen ? h(AIWorkflowModal, {
       messages: aiMessages,
       busy: aiBusy,
@@ -1287,6 +1825,11 @@ function App() {
       onConfirm: async () => { await installPlans(installRequest.plans || []); },
       onClose: () => { setInstallRequest(null); setInstallResult(null); },
     }) : null,
+    exportResult ? h(ExportModal, {
+      result: exportResult,
+      onExport: exportActiveWorkflow,
+      onClose: () => setExportResult(null),
+    }) : null,
   );
 }
 
@@ -1299,7 +1842,7 @@ function NodePalette({ menu, search, setSearch, searchRef, nodes, commonNodes, g
     "div",
     { className: "canvas-menu", style, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
     h("div", { className: "context-head" }, h("strong", null, "Add Node"), h("button", { onClick: onClose, title: "Close menu" }, "x")),
-    h("input", { ref: searchRef, className: "search", placeholder: "Search FastQC, trim, bam, quality...", value: search, onChange: (event) => setSearch(event.target.value) }),
+    h("input", { ref: searchRef, className: "search", placeholder: "Search FastQC, trim, bam, quality...", value: search, onChange: (event) => setSearch(event.target.value), onKeyDown: (event) => { if (event.key === "Enter" && nodes[0]) onAdd(nodes[0], menu.flowPosition); } }),
     !search ? h("div", { className: "context-section" },
       h("span", null, "Common"),
       commonNodes.map((meta) => h("button", { key: meta.id, className: "context-node", onClick: () => onAdd(meta, menu.flowPosition) }, h("strong", null, meta.display_name), h("small", null, meta.category))),
@@ -1447,6 +1990,93 @@ function InstallConfirmModal({ plans, result, onConfirm, onClose }) {
         (result.results || []).map((item, index) => h("pre", { key: index }, `${item.target}: ${item.status}\n${item.stderr || item.stdout || item.message || ""}`)),
       ) : null,
       h("div", { className: "editor-actions" }, h("button", { onClick: onClose }, "Cancel"), h("button", { className: "primary", onClick: onConfirm }, "Confirm install")),
+    ),
+  );
+}
+
+function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute, onUnmute, onPin, onUnpin, onGroup, onCopy, onMoreOptions }) {
+  const bounds = selectedNodes.reduce((acc, node) => ({
+    minX: Math.min(acc.minX, node.position.x),
+    minY: Math.min(acc.minY, node.position.y),
+    maxX: Math.max(acc.maxX, node.position.x + NODE_WIDTH),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity });
+  const anchor = reactFlow?.flowToScreenPosition
+    ? reactFlow.flowToScreenPosition({ x: (bounds.minX + bounds.maxX) / 2, y: bounds.minY })
+    : { x: window.innerWidth / 2, y: 112 };
+  const style = {
+    left: clamp(anchor.x - 220, 72, window.innerWidth - 460),
+    top: clamp(anchor.y - 52, 86, window.innerHeight - 90),
+  };
+  return h("div", { className: "selection-toolbox", style, onClick: (event) => event.stopPropagation() },
+    h("span", { className: "selection-toolbox-count" }, `${selectedNodes.length} selected`),
+    h("button", { className: "selection-toolbox-icon", title: "Copy (Ctrl+C)", onClick: onCopy }, h(Icon, { name: "copy" })),
+    h("button", { className: "selection-toolbox-icon", title: "Group (Ctrl+G)", onClick: onGroup }, h(Icon, { name: "group" })),
+    h("button", { className: "selection-toolbox-icon", title: "Bypass (Ctrl+B)", onClick: onBypass }, h(Icon, { name: "bypass" })),
+    h("button", { className: "selection-toolbox-icon", title: "Pin", onClick: onPin }, h(Icon, { name: "pin" })),
+    h("button", { className: "selection-toolbox-icon danger", title: "Delete (Del)", onClick: onDelete }, h(Icon, { name: "trash" })),
+    h("button", { className: "selection-toolbox-icon selection-toolbox-more", title: "More Options", onClick: onMoreOptions }, h(Icon, { name: "more-vertical" })),
+  );
+}
+
+function CanvasContextMenu({ menu, groupedNodes, hasClipboard, onToggleAdd, onAddNode, onPaste, onAddGroup, onClose }) {
+  const style = {
+    left: clamp(menu.x, 12, window.innerWidth - 260),
+    top: clamp(menu.y, 70, window.innerHeight - 400),
+  };
+  const submenuStyle = {
+    left: clamp(menu.x + 246, 12, window.innerWidth - 340),
+    top: clamp(menu.y + 6, 70, window.innerHeight - 520),
+  };
+  return h("div", { className: "canvas-context-menu", style, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
+    h("button", { className: menu.addOpen ? "context-menu-row active" : "context-menu-row", onMouseEnter: () => !menu.addOpen && onToggleAdd(), onClick: onToggleAdd },
+      h(Icon, { name: "nodes" }),
+      h("span", null, "Add Node"),
+      h("b", null, ">"),
+    ),
+    menu.addOpen ? h("div", { className: "context-submenu", style: submenuStyle },
+      Object.entries(groupedNodes).map(([category, metas]) => h("details", { key: category, open: ["Input", "Quality Control", "example"].includes(category) },
+        h("summary", null, category),
+        metas.map((meta) => h("button", { key: meta.id, className: "context-node", onClick: () => onAddNode(meta) },
+          h("strong", null, meta.display_name),
+          h("small", null, meta.id),
+        )),
+      )),
+    ) : null,
+    h("button", { className: "context-menu-row", disabled: !hasClipboard, onClick: onPaste },
+      h(Icon, { name: "paste" }),
+      h("span", null, "Paste"),
+      h("small", null, "Ctrl+V"),
+    ),
+    h("button", { className: "context-menu-row", onClick: onAddGroup },
+      h(Icon, { name: "group" }),
+      h("span", null, "Add Group"),
+      h("small", null, "Ctrl+G"),
+    ),
+    h("div", { className: "node-menu-divider" }),
+    h("button", { className: "context-menu-row", onClick: onClose },
+      h(Icon, { name: "help" }),
+      h("span", null, "Close"),
+      h("small", null, "Esc"),
+    ),
+  );
+}
+
+function ExportModal({ result, onExport, onClose }) {
+  return h("div", { className: "modal-backdrop", onClick: onClose },
+    h("div", { className: "install-modal", onClick: (event) => event.stopPropagation() },
+      h("div", { className: "editor-head" },
+        h("div", null, h("strong", null, `Export: ${result.format || "workflow"}`), h("span", null, result.filename || "Generated workflow file")),
+        h("button", { onClick: onClose, title: "Close export" }, "x"),
+      ),
+      h("div", { className: "manager-actions" },
+        ["snakemake", "nextflow", "cwl", "wdl"].map((format) => h("button", { key: format, className: result.format === format ? "pressed" : "", onClick: () => onExport(format) }, format)),
+      ),
+      result.warnings?.length ? h("div", { className: "drawer-section" },
+        h("h3", null, "Warnings"),
+        result.warnings.map((warning, index) => h("p", { key: index, className: "warn" }, warning)),
+      ) : null,
+      h("pre", { className: "env-json" }, result.content || result.detail || "No export content returned."),
+      h("div", { className: "editor-actions" }, h("button", { className: "primary", onClick: onClose }, "Done")),
     ),
   );
 }
@@ -1633,7 +2263,7 @@ function AssetRow({ item, onContextFile, onDragFile }) {
 
 function FileContextMenu({ menu, clipboard, onClose, onCopy, onCut, onPaste, onDelete, onCopyPath, onLoadWorkflow, onSetWorkspace }) {
   const item = menu.item;
-  const isWorkflow = item.type === "file" && item.name.toLowerCase().endsWith(".json");
+  const isWorkflow = item.type === "file";
   const canPaste = clipboard?.item && item.type === "directory";
   return h("div", { className: "file-menu", style: { left: menu.x, top: menu.y }, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
     h("div", { className: "context-head" }, h("strong", null, item.name), h("button", { onClick: onClose, title: "Close" }, "x")),
@@ -1678,9 +2308,15 @@ function TemplatesPanel({ templates, onLoadTemplate }) {
 function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnostics, loading, registryCount, initialTab = "envs", onRefresh, onRequestInstall }) {
   const [tab, setTab] = useState(initialTab || "envs");
   const [detailRuntime, setDetailRuntime] = useState(null);
+  const [registry, setRegistry] = useState([]);
+  const [gitUrl, setGitUrl] = useState("");
+  const [managerResult, setManagerResult] = useState(null);
   useEffect(() => {
     setTab(initialTab || "envs");
   }, [initialTab]);
+  useEffect(() => {
+    if (tab === "manager") fetch("/manager/registry").then((res) => res.json()).then((data) => setRegistry(data.registry || [])).catch(() => setRegistry([]));
+  }, [tab]);
   const tools = status?.tools || [];
   const missingTools = tools.filter((tool) => !tool.available);
   const plans = diagnostics?.install_plans || [];
@@ -1712,6 +2348,22 @@ function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnost
       notes: "Created from the active workflow dependency scan.",
     });
     setDetailRuntime(type);
+  }
+  async function installGitPackage() {
+    const trimmed = gitUrl.trim();
+    if (!trimmed) return;
+    const result = await fetch("/manager/install-git", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: trimmed }),
+    }).then((res) => res.json());
+    setManagerResult(result);
+    onRefresh();
+  }
+  async function reloadCustomNodes() {
+    const result = await fetch("/manager/reload", { method: "POST" }).then((res) => res.json());
+    setManagerResult(result);
+    onRefresh();
   }
   return h("div", { className: "env-manager rail-stack" },
     h("div", { className: "env-tabs" },
@@ -1790,7 +2442,19 @@ function EnvsManagerPanel({ environmentSpec, updateEnvironment, status, diagnost
         h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("conda") }, "New Conda env"),
         h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("docker") }, "Use Docker"),
         h("button", { disabled: !workflowTools.length, onClick: () => createEnvironment("apptainer") }, "Use Apptainer"),
+        h("button", { onClick: reloadCustomNodes }, "Reload nodes"),
         h("button", { className: "primary", disabled: !installablePlans.length, onClick: () => onRequestInstall(installablePlans) }, "Install all to selected env"),
+      ),
+      h("section", null,
+        h("h4", null, "Custom Node Registry"),
+        h("label", { className: "field" }, h("span", null, "Git URL"), h("input", { value: gitUrl, onChange: (event) => setGitUrl(event.target.value), placeholder: "https://github.com/org/bionodulo-nodes.git" })),
+        h("div", { className: "manager-actions" }, h("button", { className: "primary", disabled: !gitUrl.trim(), onClick: installGitPackage }, "Install Git package")),
+        managerResult ? h("pre", { className: "env-json" }, JSON.stringify(managerResult, null, 2)) : null,
+        registry.length ? h("div", { className: "rail-cards" }, registry.map((entry) => h("div", { key: entry.id || entry.url, className: "tool-row" },
+          h("strong", null, entry.name || entry.id),
+          h("span", null, entry.status || "registry"),
+          h("small", null, entry.description || entry.url),
+        ))) : h("p", { className: "muted" }, "No registry entries configured."),
       ),
       h("p", { className: "muted" }, status ? `Selected ${environmentSpec.type}: ${environmentSpec.name}. Python ${status.python} / ${status.registered_nodes} registered node type(s)` : `${registryCount} registered node type(s)`),
       managerSections.map((section) => h("section", { key: section.id },
@@ -1973,24 +2637,98 @@ function SettingsModal({
   );
 }
 
-function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOutput, onForceRun, onValidate, onClose }) {
+function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOutput, onTogglePinned, onToggleMuted, onToggleBypassed, onGroupSelected, onForceRun, onValidate, onClose }) {
   if (!node) return null;
   const style = {
     left: clamp(menu.x, 12, window.innerWidth - 300),
-    top: clamp(menu.y, 70, window.innerHeight - 360),
+    top: clamp(menu.y, 70, window.innerHeight - 520),
   };
   const meta = node.data.meta || {};
+  const isPinned = node.data.ui?.pinned;
+  const isMuted = node.data.ui?.muted;
+  const isBypassed = node.data.ui?.bypassed;
+  const isOutput = node.data.workflowOutput;
+
   return h(
     "div",
     { className: "node-menu", style, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
-    h("div", { className: "context-head" }, h("strong", null, meta.display_name || node.data.type), h("button", { onClick: onClose, title: "Close menu" }, "x")),
-    h("button", { onClick: onEdit }, "Edit Parameters"),
-    h("button", { onClick: onDuplicate }, "Duplicate Node"),
-    h("button", { onClick: onToggleOutput }, node.data.workflowOutput ? "Unset Workflow Output" : "Set Workflow Output"),
-    h("button", { onClick: onForceRun }, "Rerun From This Node"),
-    h("button", { onClick: onValidate }, "Validate Workflow"),
-    meta.documentation_url ? h("a", { href: meta.documentation_url, target: "_blank", rel: "noreferrer" }, "Open Documentation") : null,
-    h("button", { className: "danger", onClick: onDelete }, "Delete Node"),
+    h("div", { className: "context-head" },
+      h("strong", null, meta.display_name || node.data.type),
+      h("button", { onClick: onClose, title: "Close menu" }, "x"),
+    ),
+
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: onEdit },
+        h(Icon, { name: "edit" }),
+        h("span", null, "Edit Parameters"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onDuplicate },
+        h(Icon, { name: "copy" }),
+        h("span", null, "Duplicate"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onToggleOutput },
+        h(Icon, { name: "validate" }),
+        h("span", null, isOutput ? "Unset Output" : "Set as Output"),
+      ),
+    ),
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: onTogglePinned },
+        h(Icon, { name: isPinned ? "pin-off" : "pin" }),
+        h("span", null, isPinned ? "Unpin" : "Pin"),
+        h("small", null, "P"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onToggleMuted },
+        h(Icon, { name: "mute" }),
+        h("span", null, isMuted ? "Unmute" : "Mute"),
+        h("small", null, "M"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onToggleBypassed },
+        h(Icon, { name: "bypass" }),
+        h("span", null, isBypassed ? "Disable Bypass" : "Bypass"),
+        h("small", null, "B"),
+      ),
+    ),
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: onGroupSelected },
+        h(Icon, { name: "group" }),
+        h("span", null, "Group Selection"),
+        h("small", null, "Ctrl+G"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onForceRun },
+        h(Icon, { name: "play" }),
+        h("span", null, "Run From Here"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onValidate },
+        h(Icon, { name: "validate" }),
+        h("span", null, "Validate"),
+      ),
+    ),
+
+    meta.documentation_url ? h(React.Fragment, null,
+      h("div", { className: "node-menu-divider" }),
+      h("div", { className: "node-menu-section" },
+        h("a", { className: "node-menu-item node-menu-link", href: meta.documentation_url, target: "_blank", rel: "noreferrer" },
+          h(Icon, { name: "info-circle" }),
+          h("span", null, "Documentation"),
+        ),
+      ),
+    ) : null,
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item node-menu-danger", onClick: onDelete },
+        h(Icon, { name: "trash" }),
+        h("span", null, "Delete"),
+        h("small", null, "Del"),
+      ),
+    ),
   );
 }
 
@@ -2051,6 +2789,13 @@ function renderInput(name, value, spec, onParam) {
     return h("input", { type: "checkbox", checked: Boolean(value), onChange: (event) => onParam(name, event.target.checked, spec) });
   }
   if (spec.type === "INT" || spec.type === "FLOAT") {
+    if (spec.widget === "slider") {
+      const current = value ?? spec.default ?? spec.min ?? 0;
+      return h("div", { className: "range-field" },
+        h("input", { type: "range", min: spec.min, max: spec.max, step: spec.step || 1, value: current, onChange: (event) => onParam(name, event.target.value, spec) }),
+        h("input", { type: "number", min: spec.min, max: spec.max, step: spec.step || 1, value: current, onChange: (event) => onParam(name, event.target.value, spec) }),
+      );
+    }
     return h("input", { type: "number", min: spec.min, max: spec.max, value: value ?? "", onChange: (event) => onParam(name, event.target.value, spec) });
   }
   if (Array.isArray(value) || spec.type.endsWith("_LIST")) {
@@ -2391,6 +3136,79 @@ function formatBytes(bytes) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function GroupContextMenu({ menu, group, onRename, onSetColor, onDelete, onToggleCollapsed, onClose }) {
+  if (!group) return null;
+  const style = {
+    left: clamp(menu.x, 12, window.innerWidth - 300),
+    top: clamp(menu.y, 70, window.innerHeight - 400),
+  };
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(group.name);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (renaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [renaming]);
+
+  function commitRename() {
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== group.name) {
+      onRename(trimmed);
+    }
+    setRenaming(false);
+  }
+
+  return h("div", { className: "node-menu group-menu", style, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
+    h("div", { className: "context-head" },
+      renaming ? h("input", {
+        ref: inputRef,
+        className: "group-rename-input",
+        value: nameDraft,
+        onChange: (event) => setNameDraft(event.target.value),
+        onBlur: commitRename,
+        onKeyDown: (event) => {
+          if (event.key === "Enter") commitRename();
+          if (event.key === "Escape") { setNameDraft(group.name); setRenaming(false); }
+        },
+      }) : h("strong", null, group.name),
+      h("button", { onClick: onClose, title: "Close menu" }, "x"),
+    ),
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: () => { setRenaming(true); setNameDraft(group.name); } },
+        h(Icon, { name: "edit" }),
+        h("span", null, "Rename"),
+      ),
+      h("button", { className: "node-menu-item", onClick: () => { onToggleCollapsed(group.id); onClose(); } },
+        h(Icon, { name: group.collapsed ? "fit" : "nodes" }),
+        h("span", null, group.collapsed ? "Expand Group" : "Collapse Group"),
+      ),
+    ),
+    h("div", { className: "node-menu-divider" }),
+    h("div", { className: "group-color-picker" },
+      h("span", { className: "group-color-label" }, "Color"),
+      h("div", { className: "group-color-swatches" },
+        GROUP_COLORS.map((color) => h("button", {
+          key: color,
+          className: `group-color-swatch ${group.color === color ? "active" : ""}`,
+          style: { background: color },
+          onClick: () => onSetColor(color),
+          title: color,
+        })),
+      ),
+    ),
+    h("div", { className: "node-menu-divider" }),
+    h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item node-menu-danger", onClick: onDelete },
+        h(Icon, { name: "trash" }),
+        h("span", null, "Remove Group"),
+      ),
+    ),
+  );
 }
 
 createRoot(document.getElementById("root")).render(h(App));
