@@ -206,12 +206,15 @@ function BioNode({ id, data, selected }) {
     .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.length + " files" : value}`)
     .join(" / ");
   const rowCount = Math.max(inputs.length, outputs.length, 1);
+  const nodeColor = ui.color;
+  const nodeBgColor = ui.bgcolor;
 
   return h(
     "div",
     {
       className: `bio-node ${selected ? "selected" : ""} ${data.workflowOutput || meta.output_node ? "output-node" : ""} ${ui.pinned ? "is-pinned" : ""} ${ui.muted ? "is-muted" : ""} ${ui.bypassed ? "is-bypassed" : ""} status-${status}`,
       title: meta.description || data.type,
+      style: nodeColor ? { borderTopColor: nodeColor, background: nodeBgColor || undefined } : undefined,
       onDoubleClick: (event) => {
         event.stopPropagation();
         window.dispatchEvent(new CustomEvent("bionodulo:edit-node", { detail: { nodeId: id } }));
@@ -222,7 +225,10 @@ function BioNode({ id, data, selected }) {
         window.dispatchEvent(new CustomEvent("bionodulo:node-menu", { detail: { nodeId: id, x: event.clientX, y: event.clientY } }));
       },
     },
-    h("div", { className: "node-title-row" }, h("strong", null, meta.display_name || data.type), h("span", { className: "status-pill" }, ui.muted ? "muted" : ui.bypassed ? "bypass" : STATUS_LABELS[status] || status)),
+    h("div", { className: "node-title-row" },
+      h("strong", null, meta.display_name || data.type),
+      h("span", { className: "status-pill" }, ui.muted ? "muted" : ui.bypassed ? "bypass" : STATUS_LABELS[status] || status),
+    ),
     h("div", { className: "node-type" }, data.workflowOutput ? `${data.type} / output` : data.type),
     data.previews?.length ? h("div", { className: "node-preview-chip", title: "Preview artifacts are available" }, `${data.previews.length} preview(s)`) : null,
     paramSummary ? h("div", { className: "node-params" }, paramSummary) : null,
@@ -252,6 +258,17 @@ function BioNode({ id, data, selected }) {
 }
 
 const GROUP_COLORS = ["#38bdf8", "#a78bfa", "#f59e0b", "#22c55e", "#fb7185", "#14b8a6", "#f97316", "#60a5fa"];
+const NODE_COLORS = [
+  { name: "red", title: "#6b2020", body: "#4a1515" },
+  { name: "orange", title: "#6b3a10", body: "#4a2808" },
+  { name: "yellow", title: "#6b5a10", body: "#4a3c08" },
+  { name: "green", title: "#1a4a20", body: "#0f3014" },
+  { name: "teal", title: "#104a4a", body: "#083030" },
+  { name: "blue", title: "#103060", body: "#081840" },
+  { name: "purple", title: "#3a1060", body: "#280840" },
+  { name: "pink", title: "#601040", body: "#400828" },
+  { name: "gray", title: "#3a3a3a", body: "#282828" },
+];
 
 function GroupNode({ id, data, selected }) {
   return h("div", {
@@ -632,20 +649,29 @@ function App() {
     const groupChanges = changes.filter((change) => String(change.id || "").startsWith("group:"));
     if (groupChanges.length) {
       if (groupChanges.some((change) => change.type !== "select")) recordHistory();
-      setGroups((items) => items.map((group) => {
-        const change = groupChanges.find((item) => item.id === `group:${group.id}`);
-        if (!change) return group;
-        if (change.type === "position" && change.position) {
-          const dx = change.position.x - (group.position?.x || 0);
-          const dy = change.position.y - (group.position?.y || 0);
-          if (dx !== 0 || dy !== 0) {
-            moveGroupWithChildren(group.id, dx, dy);
+      setGroups((items) => {
+        let dx = 0, dy = 0, movedGroup = null;
+        const updated = items.map((group) => {
+          const change = groupChanges.find((item) => item.id === `group:${group.id}`);
+          if (!change) return group;
+          if (change.type === "position" && change.position) {
+            dx = change.position.x - (group.position?.x || 0);
+            dy = change.position.y - (group.position?.y || 0);
+            movedGroup = group.id;
+            return { ...group, position: change.position };
           }
-          return { ...group, position: change.position };
+          if (change.type === "dimensions" && change.dimensions) return { ...group, width: change.dimensions.width || group.width, height: change.dimensions.height || group.height };
+          return group;
+        });
+        if (dx !== 0 && dy !== 0 && movedGroup) {
+          setNodes((nodeItems) => nodeItems.map((node) =>
+            node.data?.ui?.group_id === movedGroup
+              ? { ...node, position: { x: node.position.x + dx, y: node.position.y + dy } }
+              : node
+          ));
         }
-        if (change.type === "dimensions" && change.dimensions) return { ...group, width: change.dimensions.width || group.width, height: change.dimensions.height || group.height };
-        return group;
-      }));
+        return updated;
+      });
     }
     const realChanges = changes.filter((change) => !String(change.id || "").startsWith("group:"));
     if (realChanges.some((change) => change.type !== "select")) recordHistory();
@@ -801,6 +827,17 @@ function App() {
     recordHistory();
     setNodes((items) => items.map((node) => ids.has(node.id) ? { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), ...patch } } } : node));
     setNodeMenu(null);
+  }
+
+  function setNodeColor(nodeId, color) {
+    recordHistory();
+    setNodes((items) => items.map((node) => {
+      if (node.id !== nodeId) return node;
+      if (!color) {
+        return { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), color: null, bgcolor: null } } };
+      }
+      return { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), color: color.title, bgcolor: color.body } } };
+    }));
   }
 
   function groupSelectedNodes() {
@@ -1664,6 +1701,7 @@ function App() {
           onGroupSelected: groupSelectedNodes,
           onForceRun: () => runWorkflow(false, [nodeMenu.nodeId]),
           onValidate: validate,
+          onSetColor: (color) => setNodeColor(nodeMenu.nodeId, color),
           onClose: () => setNodeMenu(null),
         }) : null,
         edgeMenu ? h(EdgeContextMenu, {
@@ -2631,17 +2669,19 @@ function SettingsModal({
   );
 }
 
-function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOutput, onTogglePinned, onToggleMuted, onToggleBypassed, onGroupSelected, onForceRun, onValidate, onClose }) {
+function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOutput, onTogglePinned, onToggleMuted, onToggleBypassed, onGroupSelected, onForceRun, onValidate, onSetColor, onClose }) {
   if (!node) return null;
   const style = {
     left: clamp(menu.x, 12, window.innerWidth - 300),
-    top: clamp(menu.y, 70, window.innerHeight - 520),
+    top: clamp(menu.y, 70, window.innerHeight - 600),
   };
   const meta = node.data.meta || {};
   const isPinned = node.data.ui?.pinned;
   const isMuted = node.data.ui?.muted;
   const isBypassed = node.data.ui?.bypassed;
   const isOutput = node.data.workflowOutput;
+  const currentColor = node.data.ui?.color;
+  const [colorOpen, setColorOpen] = useState(false);
 
   return h(
     "div",
@@ -2654,7 +2694,7 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
     h("div", { className: "node-menu-section" },
       h("button", { className: "node-menu-item", onClick: onEdit },
         h(Icon, { name: "edit" }),
-        h("span", null, "Edit Parameters"),
+        h("span", null, "Edit"),
       ),
       h("button", { className: "node-menu-item", onClick: onDuplicate },
         h(Icon, { name: "copy" }),
@@ -2662,7 +2702,7 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
       ),
       h("button", { className: "node-menu-item", onClick: onToggleOutput },
         h(Icon, { name: "validate" }),
-        h("span", null, isOutput ? "Unset Output" : "Set as Output"),
+        h("span", null, isOutput ? "Unset Output" : "Set Output"),
       ),
     ),
 
@@ -2681,7 +2721,7 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
       ),
       h("button", { className: "node-menu-item", onClick: onToggleBypassed },
         h(Icon, { name: "bypass" }),
-        h("span", null, isBypassed ? "Disable Bypass" : "Bypass"),
+        h("span", null, isBypassed ? "Unbypass" : "Bypass"),
         h("small", null, "B"),
       ),
     ),
@@ -2689,9 +2729,35 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
     h("div", { className: "node-menu-divider" }),
 
     h("div", { className: "node-menu-section" },
+      h("button", { className: "node-menu-item", onClick: () => setColorOpen(!colorOpen) },
+        h(Icon, { name: "palette" }),
+        h("span", null, "Color"),
+        currentColor ? h("span", { className: "node-color-dot", style: { background: currentColor } }) : null,
+        h("small", null, ">"),
+      ),
+      colorOpen ? h("div", { className: "node-color-popup" },
+        h("div", { className: "node-color-swatches" },
+          NODE_COLORS.map((c) => h("button", {
+            key: c.name,
+            className: `node-color-swatch-btn ${currentColor === c.title ? "active" : ""}`,
+            style: { background: `linear-gradient(135deg, ${c.title} 50%, ${c.body} 50%)` },
+            onClick: () => { onSetColor(c); setColorOpen(false); onClose(); },
+            title: c.name,
+          })),
+        ),
+        currentColor ? h("button", { className: "node-menu-item node-color-clear", onClick: () => { onSetColor(null); setColorOpen(false); onClose(); } },
+          h("span", null, "✕"),
+          h("span", null, "No Color"),
+        ) : null,
+      ) : null,
+    ),
+
+    h("div", { className: "node-menu-divider" }),
+
+    h("div", { className: "node-menu-section" },
       h("button", { className: "node-menu-item", onClick: onGroupSelected },
         h(Icon, { name: "group" }),
-        h("span", null, "Group Selection"),
+        h("span", null, "Group"),
         h("small", null, "Ctrl+G"),
       ),
       h("button", { className: "node-menu-item", onClick: onForceRun },
