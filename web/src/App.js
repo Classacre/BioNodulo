@@ -1653,6 +1653,7 @@ function App() {
             const rect = event.currentTarget.getBoundingClientRect();
             setNodeMenu({ x: rect.left, y: rect.bottom + 4, nodeId: selectedNodes[0]?.id });
           },
+          onSetColor: (nodeId, color) => nodeId && setNodeColor(nodeId, color),
         }) : null,
         groupMenu ? h(GroupContextMenu, {
           menu: groupMenu,
@@ -2028,7 +2029,7 @@ function InstallConfirmModal({ plans, result, onConfirm, onClose }) {
   );
 }
 
-function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute, onUnmute, onPin, onUnpin, onGroup, onCopy, onMoreOptions }) {
+function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute, onUnmute, onPin, onUnpin, onGroup, onCopy, onMoreOptions, onSetColor }) {
   const bounds = selectedNodes.reduce((acc, node) => ({
     minX: Math.min(acc.minX, node.position.x),
     minY: Math.min(acc.minY, node.position.y),
@@ -2041,10 +2042,15 @@ function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute
     left: clamp(anchor.x - 220, 72, window.innerWidth - 460),
     top: clamp(anchor.y - 52, 86, window.innerHeight - 90),
   };
+  const firstNode = selectedNodes[0];
+  const currentColor = firstNode?.data?.ui?.color;
   return h("div", { className: "selection-toolbox", style, onClick: (event) => event.stopPropagation() },
     h("span", { className: "selection-toolbox-count" }, `${selectedNodes.length} selected`),
     h("button", { className: "selection-toolbox-icon", title: "Copy (Ctrl+C)", onClick: onCopy }, h(Icon, { name: "copy" })),
-    h("button", { className: "selection-toolbox-icon", title: "Group (Ctrl+G)", onClick: onGroup }, h(Icon, { name: "group" })),
+    h("button", { className: "selection-toolbox-icon", title: "Color", onClick: () => onSetColor(firstNode?.id, NODE_COLORS[(selectedNodes.indexOf(firstNode) + 1) % NODE_COLORS.length]) },
+      h(Icon, { name: "palette" }),
+      currentColor ? h("span", { className: "selection-toolbox-color-dot", style: { background: currentColor } }) : null,
+    ),
     h("button", { className: "selection-toolbox-icon", title: "Bypass (Ctrl+B)", onClick: onBypass }, h(Icon, { name: "bypass" })),
     h("button", { className: "selection-toolbox-icon", title: "Pin", onClick: onPin }, h(Icon, { name: "pin" })),
     h("button", { className: "selection-toolbox-icon danger", title: "Delete (Del)", onClick: onDelete }, h(Icon, { name: "trash" })),
@@ -2678,7 +2684,6 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
   const isOutput = node.data.workflowOutput;
   const currentColor = node.data.ui?.color;
   const [colorOpen, setColorOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
 
   return h(
     "div",
@@ -2747,46 +2752,6 @@ function NodeContextMenu({ menu, node, onEdit, onDuplicate, onDelete, onToggleOu
         h("span", null, isBypassed ? "Unbypass" : "Bypass"),
         h("small", null, "B"),
       ),
-    ),
-
-    h("div", { className: "node-menu-divider" }),
-
-    h("div", { className: "node-menu-section" },
-      h("button", { className: "node-menu-item", onClick: onForceRun },
-        h(Icon, { name: "play" }),
-        h("span", null, "Run From Here"),
-      ),
-      h("button", { className: "node-menu-item", onClick: onValidate },
-        h(Icon, { name: "validate" }),
-        h("span", null, "Validate"),
-      ),
-    ),
-
-    meta.documentation_url ? h(React.Fragment, null,
-      h("div", { className: "node-menu-divider" }),
-      h("div", { className: "node-menu-section" },
-        h("a", { className: "node-menu-item node-menu-link", href: meta.documentation_url, target: "_blank", rel: "noreferrer" },
-          h(Icon, { name: "info-circle" }),
-          h("span", null, "Documentation"),
-        ),
-      ),
-    ) : null,
-
-    h("div", { className: "node-menu-divider" }),
-
-    h("div", { className: "node-menu-section" },
-      h("button", { className: "node-menu-item", onClick: () => setMoreOpen(!moreOpen) },
-        h(Icon, { name: "more-horizontal" }),
-        h("span", null, "More"),
-        h("small", null, moreOpen ? "▲" : "▼"),
-      ),
-      moreOpen ? h(React.Fragment, null,
-        h("button", { className: "node-menu-item", onClick: onGroupSelected },
-          h(Icon, { name: "group" }),
-          h("span", null, "Group"),
-          h("small", null, "Ctrl+G"),
-        ),
-      ) : null,
     ),
 
     h("div", { className: "node-menu-divider" }),

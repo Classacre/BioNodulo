@@ -1861,6 +1861,16 @@ details.file-item summary:hover,
   background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
 }
 
+.selection-toolbox-color-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+}
+
 .selection-toolbox-more {
   margin-left: 2px;
   color: var(--muted);
