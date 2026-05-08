@@ -10,12 +10,35 @@ class RunCreateRequest(BaseModel):
     mock_tools: bool | None = None
     force: bool = False
     force_nodes: list[str] = Field(default_factory=list)
+    options: dict = Field(default_factory=dict)
 
 
 class PromptCompatibilityRequest(BaseModel):
     prompt: Workflow | dict
     mock_tools: bool | None = None
     force: bool = False
+    options: dict = Field(default_factory=dict)
+
+
+class WorkflowExtractRequest(BaseModel):
+    path: str | None = None
+    content: str | None = None
+    content_encoding: str | None = None
+    filename: str = "workflow-output"
+
+
+class WorkflowExportRequest(BaseModel):
+    workflow: Workflow
+    format: str = "snakemake"
+
+
+class ManagerGitRequest(BaseModel):
+    url: str
+    name: str | None = None
+
+
+class ManagerPackageRequest(BaseModel):
+    package: str
 
 
 class ValidationRequest(BaseModel):

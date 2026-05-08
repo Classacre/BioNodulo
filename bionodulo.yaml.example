@@ -1,0 +1,14 @@
+project_root: .
+runs_dir: runs
+cache_dir: .bionodulo_cache
+custom_nodes_dir: custom_nodes
+data_roots:
+  - examples/data
+registries:
+  - custom_nodes/registry.json
+tool_paths: {}
+api_secrets: {}
+execution:
+  reuse_cache: true
+  strong_hashing: false
+  stop_on_error: true

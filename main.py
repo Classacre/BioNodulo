@@ -12,6 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the BioNodulo local web app.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--config", default="", help="Optional bionodulo.yaml config path.")
     parser.add_argument("--mock-tools", action="store_true", help="Default new runs to mock tool execution.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the browser automatically.")
     return parser.parse_args()
@@ -23,6 +24,10 @@ def main() -> None:
         import os
 
         os.environ["BIONODULO_MOCK_TOOLS"] = "1"
+    if args.config:
+        import os
+
+        os.environ["BIONODULO_CONFIG"] = args.config
 
     url = f"http://{args.host}:{args.port}"
     if not args.no_browser:

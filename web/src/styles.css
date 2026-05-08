@@ -1216,6 +1216,68 @@ details.file-item summary:hover,
   background: var(--canvas);
 }
 
+.litegraph-workflow-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.litegraph-workflow-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--canvas);
+}
+
+.litegraph-links-hidden {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 12;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.litegraph-minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 82px;
+  z-index: 14;
+  width: 220px;
+  height: 150px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.litegraph-minimap-bg {
+  fill: var(--surface);
+}
+
+.litegraph-minimap-group {
+  fill-opacity: 0.24;
+  stroke-opacity: 0.9;
+  stroke-width: 2.5;
+}
+
+.litegraph-minimap-link {
+  stroke: color-mix(in srgb, var(--muted) 72%, transparent);
+  stroke-width: 0.7;
+}
+
+.litegraph-minimap-node {
+  opacity: 0.9;
+  stroke: color-mix(in srgb, var(--surface) 85%, var(--line));
+  stroke-width: 0.5;
+}
+
 .react-flow__background {
   background-color: var(--canvas);
 }
@@ -1261,6 +1323,24 @@ details.file-item summary:hover,
   background: var(--surface);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
   z-index: 4;
+}
+
+.canvas-minimap .minimap-group-node {
+  opacity: 0.34;
+  stroke-width: 4px;
+}
+
+.canvas-group-minimap-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.canvas-group-minimap-overlay rect {
+  fill-opacity: 0.30;
+  stroke-opacity: 0.95;
+  stroke-width: 3;
+  paint-order: stroke fill;
 }
 
 .react-flow__attribution a {
@@ -1351,6 +1431,17 @@ details.file-item summary:hover,
   width: 100%;
   height: 100%;
   pointer-events: auto;
+  cursor: grab;
+}
+
+.bio-group-node.selected {
+  outline: 3px solid color-mix(in srgb, var(--brand) 72%, white);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 1px var(--surface);
+}
+
+.bio-group-node:active {
+  cursor: grabbing;
 }
 
 .bio-group-header {
@@ -1365,7 +1456,9 @@ details.file-item summary:hover,
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   border-bottom: 1px solid var(--line-soft);
   border-radius: 8px 8px 0 0;
-  cursor: default;
+  cursor: grab;
+  user-select: none;
+  min-height: 34px;
 }
 
 .bio-group-title {
@@ -1375,6 +1468,21 @@ details.file-item summary:hover,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bio-group-chip {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0;
+  opacity: 0;
+}
+
+.bio-group-node.selected .bio-group-chip,
+.bio-group-header:hover .bio-group-chip {
+  opacity: 0.78;
 }
 
 .node-color-popup {
@@ -1647,16 +1755,16 @@ details.file-item summary:hover,
 
 .context-submenu {
   position: fixed;
-  width: 320px;
+  width: 340px;
   max-height: min(74vh, 500px);
   overflow: auto;
   display: grid;
-  gap: 5px;
+  gap: 7px;
   margin: 0;
-  padding: 6px;
+  padding: 8px;
   border: 1px solid var(--line-soft);
   border-radius: 7px;
-  background: var(--surface-2);
+  background: var(--surface);
   z-index: 21;
   box-shadow: 0 18px 50px rgba(24, 38, 45, 0.20);
 }
@@ -1670,6 +1778,92 @@ details.file-item summary:hover,
   font-weight: 800;
   font-size: 12px;
   color: var(--muted);
+}
+
+.add-node-flyout {
+  align-content: start;
+}
+
+.add-node-search-row {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.add-node-search-row svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.add-node-search-row input {
+  border: 0;
+  outline: 0;
+  min-width: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.add-node-section {
+  display: grid;
+  gap: 3px;
+}
+
+.add-node-category {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.add-node-category small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.add-node-row {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.add-node-row:hover,
+.add-node-row:focus {
+  background: var(--surface-2);
+}
+
+.add-node-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-node-empty {
+  padding: 14px 10px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 13px;
 }
 
 .node-menu,
@@ -1871,6 +2065,49 @@ details.file-item summary:hover,
   border: 1px solid var(--line);
 }
 
+.selection-color-control {
+  position: relative;
+}
+
+.selection-color-dropdown {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 190px;
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(24, 38, 45, 0.20);
+}
+
+.selection-color-clear-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  text-align: left;
+  color: var(--muted);
+}
+
+.selection-color-clear-row:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.selection-color-empty {
+  width: 18px;
+  height: 18px;
+  border: 1px dashed var(--muted);
+  border-radius: 4px;
+}
+
 .selection-toolbox-more {
   margin-left: 2px;
   color: var(--muted);
@@ -1936,6 +2173,8 @@ details.file-item summary:hover,
   gap: 2px;
   text-align: left;
   padding: 8px 9px;
+  font: inherit;
+  font-size: 13px;
 }
 
 .context-node small {

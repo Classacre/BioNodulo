@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 import asyncio
 from datetime import datetime
@@ -8,16 +9,19 @@ import os
 import shutil
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from bionodulo.ai import chat_with_assistant
-from bionodulo.api.schemas import AIChatRequest, PromptCompatibilityRequest, RunCreateRequest, ValidationRequest
+from bionodulo.api.schemas import AIChatRequest, ManagerGitRequest, ManagerPackageRequest, PromptCompatibilityRequest, RunCreateRequest, ValidationRequest, WorkflowExportRequest, WorkflowExtractRequest
 from bionodulo.core.paths import ensure_within
 from bionodulo.manager import diagnose_workflow, environment_status
+from bionodulo.manager.custom_nodes import install_git, registry_entries, remove_package, update_package
 from bionodulo.manager.diagnostics import environment_install_plan
 from bionodulo.manager.runtime_installer import install_managed_micromamba, managed_micromamba_path, managed_micromamba_root
 from bionodulo.workflow.schema import Workflow
+from bionodulo.provenance.workflow_embed import extract_workflow
+from bionodulo.workflow.export import export_workflow
 from bionodulo.workflow.validation import validate_workflow
 
 router = APIRouter()
@@ -96,7 +100,7 @@ async def ai_chat_stream(payload: AIChatRequest, request: Request) -> StreamingR
 @router.post("/runs")
 async def create_run(payload: RunCreateRequest, request: Request) -> dict:
     run_queue = request.app.state.run_queue
-    record = await run_queue.submit(payload.workflow, mock_tools=payload.mock_tools, force=payload.force, force_nodes=payload.force_nodes)
+    record = await run_queue.submit(payload.workflow, mock_tools=payload.mock_tools, force=payload.force, force_nodes=payload.force_nodes, options=payload.options)
     return record.as_dict()
 
 
@@ -104,8 +108,44 @@ async def create_run(payload: RunCreateRequest, request: Request) -> dict:
 async def prompt_compat(payload: PromptCompatibilityRequest, request: Request) -> dict:
     workflow = payload.prompt if isinstance(payload.prompt, Workflow) else Workflow.model_validate(payload.prompt)
     run_queue = request.app.state.run_queue
-    record = await run_queue.submit(workflow, mock_tools=payload.mock_tools, force=payload.force)
+    record = await run_queue.submit(workflow, mock_tools=payload.mock_tools, force=payload.force, options=payload.options)
     return {"prompt_id": record.run_id, "number": request.app.state.run_queue.queue_state()["queue_remaining"], "run": record.as_dict()}
+
+
+@router.post("/workflow/extract")
+async def workflow_extract(payload: WorkflowExtractRequest, request: Request) -> dict:
+    try:
+        path = Path(payload.path).expanduser().resolve() if payload.path else Path(payload.filename)
+        if payload.path:
+            path = ensure_within(path, request.app.state.settings.project_root)
+        content_bytes = base64.b64decode(payload.content) if payload.content and payload.content_encoding == "base64" else None
+        return extract_workflow(path, content=payload.content if content_bytes is None else None, content_bytes=content_bytes)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/workspace/workflow/extract")
+async def workspace_workflow_extract(payload: WorkflowExtractRequest, request: Request) -> dict:
+    if not payload.path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        path = ensure_within(request.app.state.settings.project_root / payload.path, request.app.state.settings.project_root)
+        return extract_workflow(path)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/workflow/export")
+async def workflow_export(payload: WorkflowExportRequest, request: Request) -> dict:
+    try:
+        return export_workflow(payload.workflow, request.app.state.node_registry, payload.format)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/config/effective")
+async def effective_config(request: Request) -> dict:
+    return request.app.state.settings.as_effective_config()
 
 
 @router.get("/runs")
@@ -119,6 +159,38 @@ async def get_run(run_id: str, request: Request) -> dict:
     if record is None:
         raise HTTPException(status_code=404, detail=f"Unknown run: {run_id}")
     return record.as_dict()
+
+
+@router.get("/runs/{run_id}/execution-plan")
+async def get_execution_plan(run_id: str, request: Request) -> dict:
+    record = request.app.state.run_queue.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id}")
+    return {"run_id": run_id, "execution_plan": record.execution_plan}
+
+
+@router.get("/runs/{run_id}/previews")
+async def get_run_previews(run_id: str, request: Request) -> dict:
+    record = request.app.state.run_queue.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id}")
+    return {"run_id": run_id, "previews": record.previews}
+
+
+@router.get("/runs/{run_id}/nodes/{node_id}/previews")
+async def get_node_previews(run_id: str, node_id: str, request: Request) -> dict:
+    record = request.app.state.run_queue.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id}")
+    return {"run_id": run_id, "node_id": node_id, "previews": record.previews.get(node_id, [])}
+
+
+@router.get("/runs/{run_id}/artifacts")
+async def get_run_artifacts(run_id: str, request: Request) -> dict:
+    record = request.app.state.run_queue.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Unknown run: {run_id}")
+    return {"run_id": run_id, "artifacts": record.artifacts}
 
 
 @router.post("/runs/{run_id}/interrupt")
@@ -199,6 +271,8 @@ async def set_workspace_root(payload: WorkspaceRootRequest, request: Request) ->
     settings.cache_dir = path / ".bionodulo_cache"
     settings.custom_nodes_dir = path / "custom_nodes"
     settings.ensure_directories()
+    request.app.state.run_queue.executor.runs_dir = settings.runs_dir
+    request.app.state.run_queue.executor.cache = request.app.state.run_queue.executor.cache.__class__(settings.cache_dir)
     return {"path": str(settings.project_root)}
 
 
@@ -287,6 +361,52 @@ async def workspace_delete(payload: WorkspaceDeleteRequest, request: Request) ->
 @router.get("/manager/status")
 async def manager_status(request: Request) -> dict:
     return environment_status(request.app.state.node_registry, custom_nodes_dir=request.app.state.settings.custom_nodes_dir)
+
+
+@router.get("/manager/registry")
+async def manager_registry(request: Request) -> dict:
+    settings = request.app.state.settings
+    return {"registry": registry_entries(settings.registries), "custom_nodes_dir": str(settings.custom_nodes_dir)}
+
+
+@router.post("/manager/install-git")
+async def manager_install_git(payload: ManagerGitRequest, request: Request) -> dict:
+    result = install_git(payload.url, request.app.state.settings.custom_nodes_dir, name=payload.name)
+    if result.get("ok"):
+        request.app.state.node_registry.load_custom_nodes(request.app.state.settings.custom_nodes_dir)
+    return result
+
+
+@router.post("/manager/update")
+async def manager_update(payload: ManagerPackageRequest, request: Request) -> dict:
+    result = update_package(payload.package, request.app.state.settings.custom_nodes_dir)
+    if result.get("ok"):
+        request.app.state.node_registry.load_custom_nodes(request.app.state.settings.custom_nodes_dir)
+    return result
+
+
+@router.post("/manager/remove")
+async def manager_remove(payload: ManagerPackageRequest, request: Request) -> dict:
+    result = remove_package(payload.package, request.app.state.settings.custom_nodes_dir)
+    if result.get("ok"):
+        registry = request.app.state.node_registry.__class__()
+        registry.load_builtin_nodes()
+        registry.load_custom_nodes(request.app.state.settings.custom_nodes_dir)
+        request.app.state.node_registry = registry
+        request.app.state.run_queue.registry = registry
+        request.app.state.run_queue.executor.registry = registry
+    return result
+
+
+@router.post("/manager/reload")
+async def manager_reload(request: Request) -> dict:
+    registry = request.app.state.node_registry.__class__()
+    registry.load_builtin_nodes()
+    registry.load_custom_nodes(request.app.state.settings.custom_nodes_dir)
+    request.app.state.node_registry = registry
+    request.app.state.run_queue.registry = registry
+    request.app.state.run_queue.executor.registry = registry
+    return {"ok": True, "registered_nodes": len(registry.all()), "import_warnings": registry.import_warnings}
 
 
 @router.post("/manager/diagnose")

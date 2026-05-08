@@ -32,3 +32,26 @@ def test_cache_hit_uses_marker_outputs(tmp_path: Path):
     store.write_marker("abc", {"outputs": {"file": str(output)}})
 
     assert store.is_hit("abc", {"file": str(tmp_path / "runs" / "run-2" / "node" / "out.txt")})
+
+
+def test_cache_key_uses_is_changed_fingerprint():
+    first = cache_key_for_node(
+        node_type="example",
+        node_version="0.1.0",
+        command_template=None,
+        params={},
+        inputs={},
+        upstream_cache_keys=[],
+        change_fingerprint={"mtime": 1},
+    )
+    second = cache_key_for_node(
+        node_type="example",
+        node_version="0.1.0",
+        command_template=None,
+        params={},
+        inputs={},
+        upstream_cache_keys=[],
+        change_fingerprint={"mtime": 2},
+    )
+
+    assert first != second

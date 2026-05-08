@@ -1,24 +1,159 @@
-from bionodulo.nodes.base import BaseNode
+from __future__ import annotations
+
+import gzip
+import json
+from pathlib import Path
+from typing import Any
+
+from bionodulo.nodes.schema_api import BioNoduloExtension, io, ui
 
 
-class ExampleGreetingNode(BaseNode):
-    NODE_ID = "example_greeting"
-    DISPLAY_NAME = "Example Greeting"
-    CATEGORY = "Custom"
-    DESCRIPTION = "Minimal custom node example."
-    SEARCH_ALIASES = ["example", "custom", "hello"]
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("message",)
+class ExampleFastqSummaryNode(io.SchemaNode):
+    """BioNodulo schema-style FASTQ summary node.
+
+    Example:
+        Keep this file in BioNodulo's custom_nodes directory. It uses a
+        ComfyUI-inspired schema/execute shape, but imports only BioNodulo's
+        standalone schema API and does not require ComfyUI to be installed.
+    """
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "name": ("STRING", {"default": "scientist"})
-            },
-            "optional": {},
-            "hidden": {},
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="example_fastq_summary",
+            display_name="Example FASTQ Summary",
+            category="example",
+            description="Read FASTQ/FASTQ.GZ files, count reads and bases, and write summary artifacts.",
+            is_output_node=True,
+            inputs=[
+                io.String.Input(
+                    "reads",
+                    multiline=True,
+                    default="",
+                    description="FASTQ or FASTQ.GZ paths, one per line.",
+                ),
+                io.String.Input(
+                    "output_dir",
+                    default="runs/comfy_example_fastq_summary",
+                    description="Directory where summary artifacts will be written.",
+                ),
+                io.Int.Input(
+                    "max_records",
+                    default=100000,
+                    min=1,
+                    max=10000000,
+                    step=1000,
+                    display_mode=io.NumberDisplay.slider,
+                    description="Maximum records to inspect per file.",
+                ),
+                io.Boolean.Input(
+                    "fail_on_missing",
+                    default=True,
+                    description="Fail when an input path does not exist.",
+                ),
+            ],
+            outputs=[
+                io.String.Output("summary_txt"),
+                io.String.Output("summary_json"),
+                io.String.Output("per_file_reports"),
+                io.Int.Output("read_count"),
+                io.Int.Output("base_count"),
+            ],
+        )
 
-    def run(self, name="scientist", context=None):
-        return {"message": f"Hello, {name}."}
+    @classmethod
+    def execute(cls, reads: str, output_dir: str, max_records: int, fail_on_missing: bool) -> io.NodeOutput:
+        read_paths = _parse_reads(reads)
+        if not read_paths:
+            raise ValueError("At least one FASTQ path is required.")
+        if int(max_records or 0) <= 0:
+            raise ValueError("max_records must be greater than zero.")
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        per_file_dir = output_path / "per_file_reports"
+        per_file_dir.mkdir(exist_ok=True)
+
+        summaries = []
+        total_reads = 0
+        total_bases = 0
+        for fastq in read_paths:
+            path = Path(fastq)
+            if not path.exists():
+                if fail_on_missing:
+                    raise FileNotFoundError(f"FASTQ file not found: {fastq}")
+                summaries.append({"path": fastq, "exists": False, "reads": 0, "bases": 0})
+                continue
+            read_count, base_count = _count_fastq(path, max_records=int(max_records))
+            summary = {"path": fastq, "exists": True, "reads": read_count, "bases": base_count}
+            summaries.append(summary)
+            total_reads += read_count
+            total_bases += base_count
+            (per_file_dir / f"{_safe_stem(fastq)}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+        summary_txt = output_path / "fastq_summary.txt"
+        summary_json = output_path / "fastq_summary.json"
+        summary_txt.write_text(_render_text_summary(summaries, total_reads, total_bases), encoding="utf-8")
+        summary_json.write_text(json.dumps({"files": summaries, "read_count": total_reads, "base_count": total_bases}, indent=2), encoding="utf-8")
+        preview = ui.PreviewText(str(summary_txt), label="FASTQ summary") if hasattr(ui, "PreviewText") else {"path": str(summary_txt)}
+        return io.NodeOutput(
+            summary_txt=str(summary_txt),
+            summary_json=str(summary_json),
+            per_file_reports=str(per_file_dir),
+            read_count=total_reads,
+            base_count=total_bases,
+            ui=preview,
+        )
+
+
+class ExampleFastqSummaryExtension(BioNoduloExtension):
+    async def get_node_list(self) -> list[type[io.SchemaNode]]:
+        return [ExampleFastqSummaryNode]
+
+
+async def bionodulo_entrypoint() -> ExampleFastqSummaryExtension:
+    return ExampleFastqSummaryExtension()
+
+
+def _parse_reads(reads: str | list[str]) -> list[str]:
+    if isinstance(reads, list):
+        return [str(item).strip() for item in reads if str(item).strip()]
+    return [item.strip() for item in str(reads).replace(",", "\n").splitlines() if item.strip()]
+
+
+def _count_fastq(path: Path, *, max_records: int) -> tuple[int, int]:
+    opener = gzip.open if "".join(path.suffixes).lower().endswith(".gz") else open
+    reads = 0
+    bases = 0
+    with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
+        while reads < max_records:
+            header = handle.readline()
+            sequence = handle.readline()
+            plus = handle.readline()
+            quality = handle.readline()
+            if not header:
+                break
+            if not sequence or not plus or not quality:
+                raise ValueError(f"Malformed FASTQ record near read {reads + 1} in {path}")
+            if not header.startswith("@") or not plus.startswith("+"):
+                raise ValueError(f"Malformed FASTQ structure near read {reads + 1} in {path}")
+            reads += 1
+            bases += len(sequence.strip())
+    return reads, bases
+
+
+def _render_text_summary(summaries: list[dict[str, Any]], total_reads: int, total_bases: int) -> str:
+    lines = ["BioNodulo FASTQ summary", "", f"Total reads: {total_reads}", f"Total bases: {total_bases}", ""]
+    for item in summaries:
+        status = "ok" if item.get("exists") else "missing"
+        lines.append(f"{item['path']}\t{status}\t{item['reads']} reads\t{item['bases']} bases")
+    return "\n".join(lines) + "\n"
+
+
+def _safe_stem(value: str) -> str:
+    name = Path(value).name or "missing"
+    for suffix in (".gz", ".fastq", ".fq"):
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in name)
+    return cleaned or "fastq"

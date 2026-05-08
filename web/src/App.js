@@ -1,19 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import {
-  ReactFlow,
-  Background,
-  Handle,
-  Position,
-  BaseEdge,
-  MiniMap,
-  NodeResizer,
-  addEdge,
-  getBezierPath,
-  reconnectEdge,
-  useEdgesState,
-  useNodesState,
-} from "https://esm.sh/@xyflow/react@12.6.0?deps=react@18.3.1,react-dom@18.3.1";
+  LiteGraph,
+  LGraph,
+  LGraphCanvas,
+  LGraphGroup,
+  LGraphNode,
+} from "https://esm.sh/@comfyorg/litegraph@0.17.2";
 
 const h = React.createElement;
 const EDGE_PALETTE = ["#38bdf8", "#a78bfa", "#f59e0b", "#22c55e", "#fb7185", "#14b8a6", "#f97316", "#60a5fa"];
@@ -35,6 +28,9 @@ const STATUS_LABELS = {
 const COMMON_NODE_IDS = ["input_fastq", "fastqc", "fastp", "collect_files", "multiqc"];
 const NODE_WIDTH = 235;
 const NODE_HEIGHT = 136;
+const GROUP_PADDING_X = 32;
+const GROUP_PADDING_TOP = 52;
+const GROUP_PADDING_BOTTOM = 32;
 const EMPTY_WORKFLOW = { nodes: [], edges: [], groups: [] };
 const DEFAULT_ENVIRONMENT = {
   type: "conda",
@@ -101,6 +97,7 @@ const ICON_PATHS = {
   "info-circle": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8h.01M11 12h1v4h1",
   "zoom-in": "M11 8v6M8 11h6M15 15l5 5",
   "zoom-out": "M8 11h6M15 15l5 5",
+  search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM16 16l4 4",
 };
 const WORKFLOW_TEMPLATES = [
   {
@@ -208,13 +205,17 @@ function BioNode({ id, data, selected }) {
   const rowCount = Math.max(inputs.length, outputs.length, 1);
   const nodeColor = ui.color;
   const nodeBgColor = ui.bgcolor;
+  const nodeStyle = nodeColor ? {
+    borderTopColor: nodeColor,
+    background: nodeBgColor ? `color-mix(in srgb, ${nodeBgColor} 18%, var(--surface))` : undefined,
+  } : undefined;
 
   return h(
     "div",
     {
       className: `bio-node ${selected ? "selected" : ""} ${data.workflowOutput || meta.output_node ? "output-node" : ""} ${ui.pinned ? "is-pinned" : ""} ${ui.muted ? "is-muted" : ""} ${ui.bypassed ? "is-bypassed" : ""} status-${status}`,
       title: meta.description || data.type,
-      style: nodeColor ? { borderTopColor: nodeColor, background: nodeBgColor || undefined } : undefined,
+      style: nodeStyle,
       onDoubleClick: (event) => {
         event.stopPropagation();
         window.dispatchEvent(new CustomEvent("bionodulo:edit-node", { detail: { nodeId: id } }));
@@ -259,20 +260,66 @@ function BioNode({ id, data, selected }) {
 
 const GROUP_COLORS = ["#38bdf8", "#a78bfa", "#f59e0b", "#22c55e", "#fb7185", "#14b8a6", "#f97316", "#60a5fa"];
 const NODE_COLORS = [
-  { name: "red", title: "#6b2020", body: "#4a1515" },
-  { name: "orange", title: "#6b3a10", body: "#4a2808" },
-  { name: "yellow", title: "#6b5a10", body: "#4a3c08" },
-  { name: "green", title: "#1a4a20", body: "#0f3014" },
-  { name: "teal", title: "#104a4a", body: "#083030" },
-  { name: "blue", title: "#103060", body: "#081840" },
-  { name: "purple", title: "#3a1060", body: "#280840" },
-  { name: "pink", title: "#601040", body: "#400828" },
-  { name: "gray", title: "#3a3a3a", body: "#282828" },
+  { name: "red", title: "#b91c1c", body: "#fee2e2" },
+  { name: "orange", title: "#c2410c", body: "#ffedd5" },
+  { name: "yellow", title: "#a16207", body: "#fef9c3" },
+  { name: "green", title: "#15803d", body: "#dcfce7" },
+  { name: "teal", title: "#0f766e", body: "#ccfbf1" },
+  { name: "blue", title: "#1d4ed8", body: "#dbeafe" },
+  { name: "purple", title: "#7e22ce", body: "#f3e8ff" },
+  { name: "pink", title: "#be185d", body: "#fce7f3" },
+  { name: "gray", title: "#475569", body: "#e2e8f0" },
 ];
 
+function addEdge(connection, existing) {
+  return [...existing, connection];
+}
+
+function reconnectEdge(oldEdge, newConnection, existing) {
+  return existing.map((edge) => edge.id === oldEdge.id ? {
+    ...edge,
+    source: newConnection.source,
+    sourceHandle: newConnection.sourceHandle,
+    target: newConnection.target,
+    targetHandle: newConnection.targetHandle,
+  } : edge);
+}
+
+function applyLiteGraphNodeStateChanges(items, changes) {
+  return changes.reduce((current, change) => {
+    if (change.type === "remove") return current.filter((item) => item.id !== change.id);
+    if (change.type === "select") return current.map((item) => item.id === change.id ? { ...item, selected: change.selected } : item);
+    if (change.type === "position" && change.position) return current.map((item) => item.id === change.id ? { ...item, position: change.position } : item);
+    return current;
+  }, items);
+}
+
+function applyLiteGraphEdgeStateChanges(items, changes) {
+  return changes.reduce((current, change) => {
+    if (change.type === "remove") return current.filter((item) => item.id !== change.id);
+    if (change.type === "select") return current.map((item) => item.id === change.id ? { ...item, selected: change.selected } : item);
+    return current;
+  }, items);
+}
+
 function GroupNode({ id, data, selected }) {
+  const isSelected = selected || data.selected;
+  function startGroupDrag(event) {
+    if (event.button !== 0) return;
+    if (event.target?.closest?.(".group-resize-handle, .group-resize-line")) return;
+    data.onStartDrag?.(data.groupId, event);
+  }
+  function selectGroup(event) {
+    event.stopPropagation();
+    window.dispatchEvent(new CustomEvent("bionodulo:select-group", {
+      detail: { groupId: data.groupId },
+    }));
+  }
   return h("div", {
-    className: "bio-group-node",
+    className: `bio-group-node bio-group-drag-surface ${isSelected ? "selected" : ""}`,
+    "data-group-id": data.groupId,
+    onPointerDown: startGroupDrag,
+    onClick: selectGroup,
     onContextMenu: (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -289,8 +336,12 @@ function GroupNode({ id, data, selected }) {
       handleClassName: "group-resize-handle",
       onResize: (_, params) => window.dispatchEvent(new CustomEvent("bionodulo:resize-group", { detail: { groupId: data.groupId, width: params.width, height: params.height } })),
     }),
-    h("div", { className: "bio-group-header" },
+    h("div", {
+      className: "bio-group-header bio-group-drag-surface",
+      style: data.groupColor ? { background: `color-mix(in srgb, ${data.groupColor} 24%, var(--surface))` } : undefined,
+    },
       h("span", { className: "bio-group-title" }, data.label || "Group"),
+      h("span", { className: "bio-group-chip" }, data.collapsed ? "collapsed" : "drag"),
     ),
   );
 }
@@ -299,13 +350,24 @@ const nodeTypes = { bioNode: BioNode, group: GroupNode };
 
 function App() {
   const [objectInfo, setObjectInfo] = useState({});
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const onNodesChangeBase = useCallback((changes) => {
+    setNodes((items) => applyLiteGraphNodeStateChanges(items, changes));
+  }, []);
+  const onEdgesChange = useCallback((changes) => {
+    setEdges((items) => applyLiteGraphEdgeStateChanges(items, changes));
+  }, []);
   const [groups, setGroups] = useState([]);
+  const nodesRef = useRef([]);
+  const edgesRef = useRef([]);
+  const groupsRef = useRef([]);
+  const reactFlowRef = useRef(null);
   const [workflowTabs, setWorkflowTabs] = useState([{ id: "workflow-1", name: "FASTQ QC", ...EMPTY_WORKFLOW, environment: DEFAULT_ENVIRONMENT }]);
   const [activeTabId, setActiveTabId] = useState("workflow-1");
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [paletteSearch, setPaletteSearch] = useState("");
   const [mockTools, setMockTools] = useState(true);
   const [environmentSpec, setEnvironmentSpec] = useState(DEFAULT_ENVIRONMENT);
@@ -333,7 +395,7 @@ function App() {
   const [workspaceDraft, setWorkspaceDraft] = useState("");
   const [directoryBrowser, setDirectoryBrowser] = useState(null);
   const [fileClipboard, setFileClipboard] = useState(null);
-  const [showMiniMap, setShowMiniMap] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(true);
   const [linksHidden, setLinksHidden] = useState(false);
   const [viewportLocked, setViewportLocked] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -358,6 +420,11 @@ function App() {
   const [managerLoading, setManagerLoading] = useState(false);
   const [installRequest, setInstallRequest] = useState(null);
   const [installResult, setInstallResult] = useState(null);
+
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+  groupsRef.current = groups;
+  reactFlowRef.current = reactFlow;
   const [exportResult, setExportResult] = useState(null);
   const [envPanelInitialTab, setEnvPanelInitialTab] = useState("envs");
   const paletteSearchRef = useRef(null);
@@ -473,7 +540,91 @@ function App() {
       setCanvasMenu(null);
       setNodeMenu(null);
       setEdgeMenu(null);
+      setSelectedGroupId(event.detail.groupId);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
       setGroupMenu({ x: event.detail.x, y: event.detail.y, groupId: event.detail.groupId });
+    }
+    function onSelectGroup(event) {
+      setPaletteMenu(null);
+      setCanvasMenu(null);
+      setNodeMenu(null);
+      setEdgeMenu(null);
+      setGroupMenu(null);
+      setSelectedGroupId(event.detail.groupId);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
+    }
+    function onNativeGroupClick(event) {
+      if (event.button !== 0) return;
+      if (event.target?.closest?.(".group-resize-handle, .group-resize-line")) return;
+      const groupElement = event.target?.closest?.(".bio-group-node");
+      const groupId = groupElement?.dataset?.groupId;
+      if (!groupId) return;
+      event.stopPropagation();
+      setPaletteMenu(null);
+      setCanvasMenu(null);
+      setNodeMenu(null);
+      setEdgeMenu(null);
+      setGroupMenu(null);
+      setSelectedGroupId(groupId);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
+    }
+    function onNativeGroupPointerDown(event) {
+      if (event.button !== 0) return;
+      if (event.target?.closest?.(".group-resize-handle, .group-resize-line")) return;
+      const groupElement = event.target?.closest?.(".bio-group-node");
+      const groupId = groupElement?.dataset?.groupId;
+      const flow = reactFlowRef.current;
+      if (!groupId || !flow?.screenToFlowPosition) return;
+      const group = groupsRef.current.find((item) => item.id === groupId);
+      if (!group || group.collapsed) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedGroupId(groupId);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
+
+      const startPoint = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const groupStart = { ...(group.position || { x: 0, y: 0 }) };
+      const memberStarts = findNodesInGroup(nodesRef.current, group).map((node) => ({
+        id: node.id,
+        position: { ...node.position },
+      }));
+      let capturedHistory = false;
+
+      function moveGroup(pointerEvent) {
+        const point = flow.screenToFlowPosition({ x: pointerEvent.clientX, y: pointerEvent.clientY });
+        const dx = point.x - startPoint.x;
+        const dy = point.y - startPoint.y;
+        if (!capturedHistory && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
+          historyRef.current = [...historyRef.current.slice(-40), { nodes: nodesRef.current, edges: edgesRef.current, groups: groupsRef.current }];
+          redoRef.current = [];
+          capturedHistory = true;
+        }
+        setGroups((items) => items.map((item) => item.id === groupId ? { ...item, position: { x: groupStart.x + dx, y: groupStart.y + dy } } : item));
+        setNodes((items) => items.map((node) => {
+          const member = memberStarts.find((item) => item.id === node.id);
+          return member ? { ...node, position: { x: member.position.x + dx, y: member.position.y + dy } } : node;
+        }));
+      }
+
+      function endGroupDrag() {
+        document.removeEventListener("pointermove", moveGroup, true);
+        document.removeEventListener("pointerup", endGroupDrag, true);
+        setGroups((items) => {
+          setNodes((nodeItems) => syncNodesToGroups(nodeItems, items));
+          return items;
+        });
+      }
+
+      document.addEventListener("pointermove", moveGroup, true);
+      document.addEventListener("pointerup", endGroupDrag, true);
     }
     function onEdgeMenu(event) {
       setPaletteMenu(null);
@@ -507,20 +658,26 @@ function App() {
     window.addEventListener("bionodulo:edit-node", onEditNode);
     window.addEventListener("bionodulo:node-menu", onNodeMenu);
     window.addEventListener("bionodulo:group-menu", onGroupMenu);
+    window.addEventListener("bionodulo:select-group", onSelectGroup);
     window.addEventListener("bionodulo:edge-menu", onEdgeMenu);
     window.addEventListener("bionodulo:toggle-group", onToggleGroup);
     window.addEventListener("bionodulo:resize-group", onResizeGroup);
     window.addEventListener("bionodulo:delete-group", onDeleteGroup);
+    document.addEventListener("pointerdown", onNativeGroupPointerDown, true);
+    document.addEventListener("click", onNativeGroupClick, true);
     document.addEventListener("contextmenu", onNativeEdgeContext, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("bionodulo:edit-node", onEditNode);
       window.removeEventListener("bionodulo:node-menu", onNodeMenu);
       window.removeEventListener("bionodulo:group-menu", onGroupMenu);
+      window.removeEventListener("bionodulo:select-group", onSelectGroup);
       window.removeEventListener("bionodulo:edge-menu", onEdgeMenu);
       window.removeEventListener("bionodulo:toggle-group", onToggleGroup);
       window.removeEventListener("bionodulo:resize-group", onResizeGroup);
       window.removeEventListener("bionodulo:delete-group", onDeleteGroup);
+      document.removeEventListener("pointerdown", onNativeGroupPointerDown, true);
+      document.removeEventListener("click", onNativeGroupClick, true);
       document.removeEventListener("contextmenu", onNativeEdgeContext, true);
     };
   }, []);
@@ -594,23 +751,25 @@ function App() {
       id: `group:${group.id}`,
       type: "group",
       position: group.position || { x: 0, y: 0 },
+      dragHandle: ".bio-group-drag-surface",
       selectable: true,
       draggable: true,
+      selected: selectedGroupId === group.id,
       zIndex: 0,
       style: {
         width: group.width || 360,
         height: group.height || 240,
         border: `2px solid ${group.color || "#38bdf8"}`,
-        background: "color-mix(in srgb, var(--surface) 72%, transparent)",
+        background: `color-mix(in srgb, ${group.color || "#38bdf8"} 12%, transparent)`,
         borderRadius: 8,
         color: "var(--muted)",
         fontWeight: 800,
         padding: 8,
       },
-      data: { label: group.name || "Group", groupId: group.id, collapsed: Boolean(group.collapsed) },
+      data: { label: group.name || "Group", groupId: group.id, collapsed: Boolean(group.collapsed), groupColor: group.color || "#38bdf8", selected: selectedGroupId === group.id, onStartDrag: startGroupDrag },
     })),
     ...nodes.map((node) => ({ ...node, hidden: hiddenNodeIds.has(node.id), zIndex: 1, draggable: !node.data?.ui?.pinned })),
-  ], [nodes, groups, hiddenNodeIds]);
+  ], [nodes, groups, hiddenNodeIds, selectedGroupId]);
 
   function snapshotCanvas() {
     return { nodes, edges, groups };
@@ -645,36 +804,103 @@ function App() {
     restoreCanvas(next);
   }
 
+  function startGroupDrag(groupId, event) {
+    if (!reactFlow?.screenToFlowPosition) return;
+    const group = groups.find((item) => item.id === groupId);
+    if (!group || group.collapsed) return;
+    event.preventDefault();
+    event.stopPropagation();
+    recordHistory();
+    setSelectedGroupId(groupId);
+    setSelectedNodeIds([]);
+    setSelectedNodeId(null);
+    setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
+
+    const startPoint = reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const groupStart = { ...(group.position || { x: 0, y: 0 }) };
+    const memberStarts = findNodesInGroup(nodes, group).map((node) => ({
+      id: node.id,
+      position: { ...node.position },
+    }));
+
+    function moveGroup(pointerEvent) {
+      const point = reactFlow.screenToFlowPosition({ x: pointerEvent.clientX, y: pointerEvent.clientY });
+      const dx = point.x - startPoint.x;
+      const dy = point.y - startPoint.y;
+      setGroups((items) => items.map((item) => item.id === groupId ? { ...item, position: { x: groupStart.x + dx, y: groupStart.y + dy } } : item));
+      setNodes((items) => items.map((node) => {
+        const member = memberStarts.find((item) => item.id === node.id);
+        return member ? { ...node, position: { x: member.position.x + dx, y: member.position.y + dy } } : node;
+      }));
+    }
+
+    function endGroupDrag() {
+      document.removeEventListener("pointermove", moveGroup);
+      document.removeEventListener("pointerup", endGroupDrag);
+      setGroups((items) => {
+        setNodes((nodeItems) => syncNodesToGroups(nodeItems, items));
+        return items;
+      });
+    }
+
+    document.addEventListener("pointermove", moveGroup);
+    document.addEventListener("pointerup", endGroupDrag, { once: true });
+  }
+
   function handleNodesChange(changes) {
     const groupChanges = changes.filter((change) => String(change.id || "").startsWith("group:"));
     if (groupChanges.length) {
-      if (groupChanges.some((change) => change.type !== "select")) recordHistory();
-      let groupDx = 0, groupDy = 0, movedGroupId = null;
+      if (groupChanges.some((change) => change.type !== "select" && !change.dragging)) recordHistory();
+      const selectedGroupChange = groupChanges.find((change) => change.type === "select" && change.selected);
+      if (selectedGroupChange) {
+        setSelectedGroupId(String(selectedGroupChange.id).slice("group:".length));
+        setSelectedNodeIds([]);
+        setSelectedNodeId(null);
+      } else if (groupChanges.some((change) => change.type === "select" && !change.selected && change.id === `group:${selectedGroupId}`)) {
+        setSelectedGroupId(null);
+      }
+      let groupMoves = [];
+      let nextGroupsSnapshot = null;
       setGroups((items) => {
         const updated = items.map((group) => {
           const change = groupChanges.find((item) => item.id === `group:${group.id}`);
           if (!change) return group;
+          if (change.type === "select") return group;
           if (change.type === "position" && change.position) {
-            groupDx = change.position.x - (group.position?.x || 0);
-            groupDy = change.position.y - (group.position?.y || 0);
-            movedGroupId = group.id;
+            if (group.collapsed) return { ...group, position: change.position };
+            groupMoves.push({
+              group,
+              dx: change.position.x - (group.position?.x || 0),
+              dy: change.position.y - (group.position?.y || 0),
+            });
             return { ...group, position: change.position };
           }
           if (change.type === "dimensions" && change.dimensions) return { ...group, width: change.dimensions.width || group.width, height: change.dimensions.height || group.height };
           return group;
         });
-        if (groupDx !== 0 || groupDy !== 0) {
-          setNodes((nodeItems) => nodeItems.map((node) =>
-            node.data?.ui?.group_id === movedGroupId
-              ? { ...node, position: { x: node.position.x + groupDx, y: node.position.y + groupDy } }
-              : node
-          ));
+        nextGroupsSnapshot = updated;
+        if (groupMoves.length) {
+          setNodes((nodeItems) => {
+            let movedNodes = nodeItems;
+            for (const move of groupMoves) {
+              if (move.dx === 0 && move.dy === 0) continue;
+              const memberIds = new Set(findNodesInGroup(nodeItems, move.group).map((node) => node.id));
+              movedNodes = movedNodes.map((node) =>
+                memberIds.has(node.id)
+                  ? { ...node, position: { x: node.position.x + move.dx, y: node.position.y + move.dy } }
+                  : node
+              );
+            }
+            return syncNodesToGroups(movedNodes, updated);
+          });
+        } else if (groupChanges.some((change) => change.type === "dimensions")) {
+          setNodes((nodeItems) => syncNodesToGroups(nodeItems, updated));
         }
         return updated;
       });
     }
     const realChanges = changes.filter((change) => !String(change.id || "").startsWith("group:"));
-    if (realChanges.some((change) => change.type !== "select")) recordHistory();
+    if (realChanges.some((change) => change.type !== "select" && !change.dragging)) recordHistory();
     const selectionChanges = realChanges.filter((change) => change.type === "select");
     if (selectionChanges.length) {
       const next = new Set(selectedNodeIds);
@@ -687,22 +913,45 @@ function App() {
       setSelectedNodeId(ids.at(-1) || null);
     }
     onNodesChangeBase(realChanges);
+    if (realChanges.some((change) => change.type === "position" && !change.dragging)) {
+      window.setTimeout(() => {
+        setNodes((items) => syncNodesToGroups(items, nextGroupsSnapshot || groups));
+      }, 0);
+    }
   }
 
   function setSelection(ids) {
     const clean = [...new Set(ids)].filter((id) => nodes.some((node) => node.id === id));
+    setSelectedGroupId(null);
     setSelectedNodeIds(clean);
     setSelectedNodeId(clean.at(-1) || null);
     setNodes((items) => items.map((node) => ({ ...node, selected: clean.includes(node.id) })));
   }
 
   function clearSelection() {
+    setSelectedGroupId(null);
     setSelectedNodeIds([]);
     setSelectedNodeId(null);
     setNodes((items) => items.map((node) => node.selected ? { ...node, selected: false } : node));
   }
 
+  function handlePaneClick() {
+    clearSelection();
+    setCanvasMenu(null);
+    setGroupMenu(null);
+    setNodeMenu(null);
+    setEdgeMenu(null);
+  }
+
   function handleNodeClick(event, node) {
+    if (String(node.id || "").startsWith("group:")) {
+      const groupId = String(node.id).slice("group:".length);
+      setSelectedGroupId(groupId);
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setNodes((items) => items.map((item) => item.selected ? { ...item, selected: false } : item));
+      return;
+    }
     if (event.ctrlKey || event.metaKey) {
       const next = selectedNodeIds.includes(node.id) ? selectedNodeIds.filter((id) => id !== node.id) : [...selectedNodeIds, node.id];
       setSelection(next);
@@ -830,36 +1079,48 @@ function App() {
   }
 
   function setNodeColor(nodeId, color) {
+    if (!nodeId) return;
     recordHistory();
-    setNodes((items) => items.map((node) => {
-      if (node.id !== nodeId) return node;
-      if (!color) {
-        return { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), color: null, bgcolor: null } } };
-      }
-      return { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), color: color.title, bgcolor: color.body } } };
-    }));
+    setNodes((items) => applyColorToNodes(items, [nodeId], color));
+  }
+
+  function setSelectedNodeColor(color) {
+    const ids = selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
+    if (!ids.length) return;
+    recordHistory();
+    setNodes((items) => applyColorToNodes(items, ids, color));
   }
 
   function groupSelectedNodes() {
     const selected = selectedNodes.length ? selectedNodes : nodes.filter((node) => node.id === selectedNodeId);
     if (!selected.length) return;
     recordHistory();
-    const minX = Math.min(...selected.map((node) => node.position.x)) - 32;
-    const minY = Math.min(...selected.map((node) => node.position.y)) - 52;
-    const maxX = Math.max(...selected.map((node) => node.position.x + NODE_WIDTH)) + 32;
-    const maxY = Math.max(...selected.map((node) => node.position.y + NODE_HEIGHT)) + 32;
+    const minX = Math.min(...selected.map((node) => node.position.x)) - GROUP_PADDING_X;
+    const minY = Math.min(...selected.map((node) => node.position.y)) - GROUP_PADDING_TOP;
+    const maxX = Math.max(...selected.map((node) => node.position.x + NODE_WIDTH)) + GROUP_PADDING_X;
+    const maxY = Math.max(...selected.map((node) => node.position.y + NODE_HEIGHT)) + GROUP_PADDING_BOTTOM;
     const id = `group-${Date.now().toString().slice(-5)}`;
     setGroups((items) => [...items, { id, name: "Group", position: { x: minX, y: minY }, width: maxX - minX, height: maxY - minY, color: EDGE_PALETTE[items.length % EDGE_PALETTE.length], collapsed: false }]);
-    setNodes((items) => items.map((node) => selected.some((item) => item.id === node.id) ? { ...node, data: { ...node.data, ui: { ...(node.data.ui || {}), group_id: id } } } : node));
+    setNodes((items) => items.map((node) => selected.some((item) => item.id === node.id) ? { ...node, selected: false, data: { ...node.data, ui: { ...(node.data.ui || {}), group_id: id } } } : node.selected ? { ...node, selected: false } : node));
+    setSelectedGroupId(id);
+    setSelectedNodeIds([]);
+    setSelectedNodeId(null);
   }
 
   function toggleGroupCollapsed(groupId) {
     recordHistory();
-    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, collapsed: !group.collapsed } : group));
+    setGroups((items) => {
+      const nextGroups = items.map((group) => group.id === groupId ? { ...group, collapsed: !group.collapsed } : group);
+      setNodes((nodeItems) => syncNodesToGroups(nodeItems, nextGroups));
+      return nextGroups;
+    });
   }
 
   function resizeGroup(groupId, patch) {
-    setGroups((items) => items.map((group) => group.id === groupId ? { ...group, width: patch.width || group.width, height: patch.height || group.height } : group));
+    setGroups((items) => {
+      const nextGroups = items.map((group) => group.id === groupId ? { ...group, width: patch.width || group.width, height: patch.height || group.height } : group);
+      return nextGroups;
+    });
   }
 
   function deleteGroup(groupId) {
@@ -876,6 +1137,23 @@ function App() {
   function setGroupColor(groupId, color) {
     recordHistory();
     setGroups((items) => items.map((group) => group.id === groupId ? { ...group, color } : group));
+  }
+
+  function fitGroupToNodes(groupId) {
+    const childNodes = nodes.filter((node) => node.data?.ui?.group_id === groupId);
+    if (!childNodes.length) return;
+    recordHistory();
+    const minX = Math.min(...childNodes.map((node) => node.position.x)) - GROUP_PADDING_X;
+    const minY = Math.min(...childNodes.map((node) => node.position.y)) - GROUP_PADDING_TOP;
+    const maxX = Math.max(...childNodes.map((node) => node.position.x + NODE_WIDTH)) + GROUP_PADDING_X;
+    const maxY = Math.max(...childNodes.map((node) => node.position.y + NODE_HEIGHT)) + GROUP_PADDING_BOTTOM;
+    setGroups((items) => items.map((group) => group.id === groupId ? {
+      ...group,
+      position: { x: minX, y: minY },
+      width: maxX - minX,
+      height: maxY - minY,
+    } : group));
+    setGroupMenu(null);
   }
 
   function copySelectedNodes() {
@@ -1316,13 +1594,16 @@ function App() {
       return;
     }
     try {
-      const text = await file.text();
-      const workflow = file.name.toLowerCase().endsWith(".json")
-        ? JSON.parse(text)
+      const lowerName = file.name.toLowerCase();
+      const isJson = lowerName.endsWith(".json");
+      const isImage = /\.(png|jpg|jpeg|webp)$/i.test(lowerName) || file.type.startsWith("image/");
+      const content = isImage ? await fileToBase64(file) : await file.text();
+      const workflow = isJson
+        ? JSON.parse(content)
         : (await fetch("/workflow/extract", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: file.name, content: text }),
+            body: JSON.stringify({ filename: file.name, content, content_encoding: isImage ? "base64" : null }),
           }).then((res) => res.json())).workflow;
       loadWorkflow(workflow, file.name.replace(/\.json$/i, ""));
       setValidation({ valid: true, errors: [], warnings: [] });
@@ -1544,6 +1825,7 @@ function App() {
       style: shellStyle,
       onClick: () => {
         setPaletteMenu(null);
+        setCanvasMenu(null);
         setNodeMenu(null);
         setGroupMenu(null);
         setEdgeMenu(null);
@@ -1583,49 +1865,34 @@ function App() {
           onOpenManager: openSetupManager,
           onDismiss: () => setManagerDiagnostics(null),
         }) : null,
-        h(ReactFlow, {
-          nodes: displayNodes,
-          edges: displayEdges,
-          nodeTypes,
-          edgeTypes,
-          onInit: setReactFlow,
-          onNodesChange: handleNodesChange,
-          onEdgesChange,
-          onConnect,
-          onReconnectStart,
-          onReconnect,
-          onReconnectEnd,
-          edgesReconnectable: true,
-          defaultEdgeOptions: { type: "bioEdge", reconnectable: true, interactionWidth: 28 },
-          onPaneClick: () => { clearSelection(); setCanvasMenu(null); setGroupMenu(null); setNodeMenu(null); setEdgeMenu(null); },
-          onPaneContextMenu: openCanvasMenu,
-          onPaneDoubleClick: openPalette,
-          onNodeClick: handleNodeClick,
-          onNodeDoubleClick: (_, node) => { setEditingNodeId(node.id); setNodeMenu(null); setPaletteMenu(null); },
-          onNodeContextMenu: openNodeMenu,
-          onEdgeContextMenu: openEdgeMenu,
-          onMove: (_, viewport) => setZoomPercent(Math.round(viewport.zoom * 100)),
-          nodesDraggable: !viewportLocked,
-          nodesConnectable: !viewportLocked,
-          panOnDrag: !viewportLocked,
-          zoomOnScroll: !viewportLocked,
-          zoomOnPinch: !viewportLocked,
+        h(LiteGraphWorkflowCanvas, {
+          nodes,
+          edges: displayEdges.filter((edge) => !edge.hidden),
+          groups,
+          objectInfo,
+          themePreference,
+          linksHidden,
+          viewportLocked,
           snapToGrid,
-          snapGrid: [20, 20],
-          fitView: true,
-        },
-          h(Background, null),
-          showMiniMap ? h(MiniMap, {
-            className: "canvas-minimap",
-            style: { width: 220, height: 150, right: 16, bottom: 82 },
-            nodeColor: (node) => miniMapNodeColor(node, selectedNodeId),
-            nodeStrokeColor: (node) => miniMapNodeStrokeColor(node, selectedNodeId),
-            nodeBorderRadius: 4,
-            maskColor: "rgba(20, 29, 34, 0.12)",
-            pannable: true,
-            zoomable: true,
-          }) : null,
-        ),
+          selectedNodeIds,
+          selectedGroupId,
+          setSelectedGroupId,
+          setSelectedNodeId,
+          setSelectedNodeIds,
+          setNodes,
+          setEdges,
+          setGroups,
+          setEditingNodeId,
+          setNodeMenu,
+          setGroupMenu,
+          setEdgeMenu,
+          setCanvasMenu,
+          setPaletteMenu,
+          setZoomPercent,
+          recordHistory,
+          onReady: setReactFlow,
+        }),
+        showMiniMap ? h(LiteGraphMiniMap, { nodes, edges: displayEdges.filter((edge) => !edge.hidden), groups }) : null,
         h(CanvasControlIsland, {
           reactFlow,
           showMiniMap,
@@ -1653,13 +1920,14 @@ function App() {
             const rect = event.currentTarget.getBoundingClientRect();
             setNodeMenu({ x: rect.left, y: rect.bottom + 4, nodeId: selectedNodes[0]?.id });
           },
-          onSetColor: (nodeId, color) => nodeId && setNodeColor(nodeId, color),
+          onSetColor: setSelectedNodeColor,
         }) : null,
         groupMenu ? h(GroupContextMenu, {
           menu: groupMenu,
           group: groups.find((g) => g.id === groupMenu.groupId),
           onRename: (name) => renameGroup(groupMenu.groupId, name),
           onSetColor: (color) => setGroupColor(groupMenu.groupId, color),
+          onFitToNodes: () => fitGroupToNodes(groupMenu.groupId),
           onToggleCollapsed: toggleGroupCollapsed,
           onDelete: () => { deleteGroup(groupMenu.groupId); setGroupMenu(null); },
           onClose: () => setGroupMenu(null),
@@ -1907,6 +2175,833 @@ function CanvasControlIsland({ reactFlow, showMiniMap, setShowMiniMap, linksHidd
   );
 }
 
+function LiteGraphWorkflowCanvas({
+  nodes,
+  edges,
+  groups,
+  objectInfo,
+  themePreference,
+  linksHidden,
+  viewportLocked,
+  snapToGrid,
+  selectedNodeIds,
+  selectedGroupId,
+  setSelectedGroupId,
+  setSelectedNodeId,
+  setSelectedNodeIds,
+  setNodes,
+  setEdges,
+  setGroups,
+  setEditingNodeId,
+  setNodeMenu,
+  setGroupMenu,
+  setEdgeMenu,
+  setCanvasMenu,
+  setPaletteMenu,
+  setZoomPercent,
+  recordHistory,
+  onReady,
+}) {
+  const hostRef = useRef(null);
+  const canvasRef = useRef(null);
+  const graphRef = useRef(null);
+  const canvasControllerRef = useRef(null);
+  const syncingRef = useRef(false);
+  const stateRef = useRef({ nodes, edges, groups, selectedNodeIds, selectedGroupId, viewportLocked });
+  const didFitRef = useRef(false);
+  stateRef.current = { nodes, edges, groups, selectedNodeIds, selectedGroupId, viewportLocked };
+
+  useEffect(() => {
+    LiteGraph.use_uuids = true;
+    LiteGraph.alwaysSnapToGrid = Boolean(snapToGrid);
+  }, [snapToGrid]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const host = hostRef.current;
+    if (!canvas || !host) return undefined;
+
+    const previousLeftMouseBehavior = LiteGraph.leftMouseClickBehavior;
+    LiteGraph.leftMouseClickBehavior = "panning";
+
+    const graph = new LGraph();
+    const graphCanvas = new LGraphCanvas(canvas, graph, {
+      skip_render: false,
+      autoresize: true,
+    });
+    graphRef.current = graph;
+    canvasControllerRef.current = graphCanvas;
+    graphCanvas.allow_searchbox = false;
+    graphCanvas.allow_interaction = !viewportLocked;
+    graphCanvas.allow_dragnodes = !viewportLocked;
+    graphCanvas.allow_dragcanvas = !viewportLocked;
+    graphCanvas.groupSelectChildren = true;
+    graphCanvas.show_info = false;
+    graphCanvas.render_shadows = false;
+    graphCanvas.render_only_selected = false;
+    graphCanvas.render_canvas_border = false;
+    applyLiteGraphTheme(graphCanvas, host, themePreference);
+
+    function resizeCanvas() {
+      const rect = host.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * scale));
+      canvas.height = Math.max(1, Math.floor(rect.height * scale));
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      graphCanvas.resize();
+      graphCanvas.setDirty(true, true);
+    }
+
+    const observer = new ResizeObserver(resizeCanvas);
+    observer.observe(host);
+    resizeCanvas();
+    syncLiteGraphFromState(graph, graphCanvas, stateRef.current, objectInfo);
+    requestAnimationFrame(() => {
+      if (!didFitRef.current && stateRef.current.nodes.length) {
+        fitLiteGraphView(graph, graphCanvas, canvas);
+        didFitRef.current = true;
+        setZoomPercent(Math.round(graphCanvas.ds.scale * 100));
+      }
+    });
+
+    const commit = () => exportLiteGraphToState(graph, {
+      graphCanvas,
+      nodes: stateRef.current.nodes,
+      setNodes,
+      setEdges,
+      setGroups,
+      setSelectedNodeId,
+      setSelectedNodeIds,
+      setSelectedGroupId,
+    });
+    graphCanvas.onSelectionChange = () => syncLiteGraphSelection(graphCanvas, {
+      setSelectedNodeId,
+      setSelectedNodeIds,
+      setSelectedGroupId,
+    });
+    let activeManualDrag = false;
+    const startGroupBodyDrag = (event) => {
+      if (activeManualDrag || event.button !== 0 || stateRef.current.viewportLocked) return;
+      const node = findLiteGraphNodeAtEvent(graphCanvas, graph, event);
+      if (node) return;
+      const group = findLiteGraphGroupAtEvent(graphCanvas, graph, event);
+      if (!group) return;
+      activeManualDrag = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      group.recomputeInsideNodes?.();
+      for (const item of graphCanvas.selectedItems || []) item.selected = false;
+      for (const item of graph.nodes || []) item.selected = false;
+      graphCanvas.selected_nodes = {};
+      graphCanvas.selectedItems?.clear?.();
+      group.selected = true;
+      graphCanvas.selectedItems?.add?.(group);
+      setSelectedGroupId(String(group.id));
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      let last = { x: event.clientX, y: event.clientY };
+      let moved = false;
+      const moveGroup = (moveEvent) => {
+        const scale = graphCanvas.ds.scale || 1;
+        const dx = (moveEvent.clientX - last.x) / scale;
+        const dy = (moveEvent.clientY - last.y) / scale;
+        if (Math.abs(dx) + Math.abs(dy) > 0.5) {
+          group.move(dx, dy);
+          moved = true;
+          graphCanvas.setDirty(true, true);
+        }
+        last = { x: moveEvent.clientX, y: moveEvent.clientY };
+      };
+      const endGroupDrag = () => {
+        document.removeEventListener("pointermove", moveGroup, true);
+        document.removeEventListener("pointerup", endGroupDrag, true);
+        document.removeEventListener("mousemove", moveGroup, true);
+        document.removeEventListener("mouseup", endGroupDrag, true);
+        activeManualDrag = false;
+        if (moved) commit();
+        else graphCanvas.setDirty(true, true);
+      };
+      document.addEventListener("pointermove", moveGroup, true);
+      document.addEventListener("pointerup", endGroupDrag, true);
+      document.addEventListener("mousemove", moveGroup, true);
+      document.addEventListener("mouseup", endGroupDrag, true);
+    };
+    host.addEventListener("pointerdown", startGroupBodyDrag, true);
+    host.addEventListener("mousedown", startGroupBodyDrag, true);
+
+    const handleCanvasPointerDown = (event) => {
+      if (activeManualDrag || event.button !== 0) return;
+      setPaletteMenu(null);
+      setCanvasMenu(null);
+      setNodeMenu(null);
+      setGroupMenu(null);
+      setEdgeMenu(null);
+      if (findLiteGraphNodeAtEvent(graphCanvas, graph, event) || findLiteGraphGroupAtEvent(graphCanvas, graph, event)) return;
+      if (stateRef.current.viewportLocked || !graphCanvas.allow_dragcanvas) return;
+      activeManualDrag = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      let last = { x: event.clientX, y: event.clientY };
+      let moved = false;
+      const panCanvas = (moveEvent) => {
+        const scale = graphCanvas.ds.scale || 1;
+        const dx = moveEvent.clientX - last.x;
+        const dy = moveEvent.clientY - last.y;
+        if (Math.abs(dx) + Math.abs(dy) > 0) {
+          graphCanvas.ds.offset[0] += dx / scale;
+          graphCanvas.ds.offset[1] += dy / scale;
+          graphCanvas.setDirty(true, true);
+          moved = true;
+        }
+        last = { x: moveEvent.clientX, y: moveEvent.clientY };
+      };
+      const endCanvasPan = () => {
+        document.removeEventListener("pointermove", panCanvas, true);
+        document.removeEventListener("pointerup", endCanvasPan, true);
+        document.removeEventListener("mousemove", panCanvas, true);
+        document.removeEventListener("mouseup", endCanvasPan, true);
+        activeManualDrag = false;
+        if (moved) setZoomPercent(Math.round(graphCanvas.ds.scale * 100));
+      };
+      document.addEventListener("pointermove", panCanvas, true);
+      document.addEventListener("pointerup", endCanvasPan, true);
+      document.addEventListener("mousemove", panCanvas, true);
+      document.addEventListener("mouseup", endCanvasPan, true);
+    };
+    const handleCanvasDoubleClick = (event) => {
+      const item = graphCanvas.node_over;
+      if (item?.id != null) {
+        setEditingNodeId(String(item.id));
+        return;
+      }
+      const [x, y] = graphCanvas.convertEventToCanvasOffset(event);
+      setCanvasMenu(null);
+      setNodeMenu(null);
+      setGroupMenu(null);
+      setEdgeMenu(null);
+      setPaletteMenu({ x: event.clientX, y: event.clientY, flowPosition: { x, y } });
+    };
+    const handleCanvasContextMenu = (event) => {
+      event.preventDefault();
+      const [x, y] = graphCanvas.convertEventToCanvasOffset(event);
+      const node = graphCanvas.node_over || findLiteGraphNodeAtEvent(graphCanvas, graph, event) || graph.getNodeOnPos?.(x, y, graphCanvas.visible_nodes);
+      if (node?.id != null) {
+        setPaletteMenu(null);
+        setCanvasMenu(null);
+        setGroupMenu(null);
+        setEdgeMenu(null);
+        setSelectedNodeId(String(node.id));
+        setSelectedNodeIds([String(node.id)]);
+        setNodeMenu({ x: event.clientX, y: event.clientY, nodeId: String(node.id) });
+        return;
+      }
+      const group = findLiteGraphGroupAtEvent(graphCanvas, graph, event) || graph.getGroupOnPos?.(x, y);
+      if (group) {
+        setPaletteMenu(null);
+        setCanvasMenu(null);
+        setNodeMenu(null);
+        setEdgeMenu(null);
+        setSelectedGroupId(String(group.id));
+        setSelectedNodeIds([]);
+        setSelectedNodeId(null);
+        setGroupMenu({ x: event.clientX, y: event.clientY, groupId: String(group.id) });
+        return;
+      }
+      setPaletteMenu(null);
+      setNodeMenu(null);
+      setGroupMenu(null);
+      setEdgeMenu(null);
+      setCanvasMenu({
+        x: event.clientX,
+        y: event.clientY,
+        addOpen: true,
+        flowPosition: { x, y },
+      });
+    };
+    canvas.addEventListener("pointerdown", handleCanvasPointerDown, true);
+    canvas.addEventListener("mousedown", handleCanvasPointerDown, true);
+    canvas.addEventListener("pointerup", commit);
+    canvas.addEventListener("dblclick", handleCanvasDoubleClick);
+    canvas.addEventListener("contextmenu", handleCanvasContextMenu);
+
+    onReady?.({
+      zoomIn: () => {
+        graphCanvas.ds.changeScale(graphCanvas.ds.scale * 1.1);
+        setZoomPercent(Math.round(graphCanvas.ds.scale * 100));
+        graphCanvas.setDirty(true, true);
+      },
+      zoomOut: () => {
+        graphCanvas.ds.changeScale(graphCanvas.ds.scale * 0.9);
+        setZoomPercent(Math.round(graphCanvas.ds.scale * 100));
+        graphCanvas.setDirty(true, true);
+      },
+      fitView: () => {
+        fitLiteGraphView(graph, graphCanvas, canvas);
+        setZoomPercent(Math.round(graphCanvas.ds.scale * 100));
+      },
+      screenToFlowPosition: ({ x, y }) => {
+        const rect = canvas.getBoundingClientRect();
+        const point = graphCanvas.convertCanvasToOffset?.([x - rect.left, y - rect.top]) || [0, 0];
+        return { x: point[0], y: point[1] };
+      },
+      flowToScreenPosition: ({ x, y }) => {
+        const offset = graphCanvas.convertOffsetToCanvas?.([x, y]) || [x, y];
+        const rect = canvas.getBoundingClientRect();
+        return { x: rect.left + offset[0], y: rect.top + offset[1] };
+      },
+    });
+
+    return () => {
+      observer.disconnect();
+      host.removeEventListener("pointerdown", startGroupBodyDrag, true);
+      host.removeEventListener("mousedown", startGroupBodyDrag, true);
+      canvas.removeEventListener("pointerdown", handleCanvasPointerDown, true);
+      canvas.removeEventListener("mousedown", handleCanvasPointerDown, true);
+      canvas.removeEventListener("pointerup", commit);
+      canvas.removeEventListener("dblclick", handleCanvasDoubleClick);
+      canvas.removeEventListener("contextmenu", handleCanvasContextMenu);
+      LiteGraph.leftMouseClickBehavior = previousLeftMouseBehavior;
+      graphCanvas.clear?.();
+      graph.stop();
+      graphRef.current = null;
+      canvasControllerRef.current = null;
+      onReady?.(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    const graph = graphRef.current;
+    const graphCanvas = canvasControllerRef.current;
+    if (!graph || !graphCanvas || syncingRef.current) return;
+    syncLiteGraphFromState(graph, graphCanvas, { nodes, edges, groups, selectedNodeIds, selectedGroupId }, objectInfo);
+  }, [nodes, edges, groups, selectedNodeIds, selectedGroupId, objectInfo]);
+
+  useEffect(() => {
+    const graphCanvas = canvasControllerRef.current;
+    const host = hostRef.current;
+    if (!graphCanvas || !host) return;
+    applyLiteGraphTheme(graphCanvas, host, themePreference);
+  }, [themePreference]);
+
+  useEffect(() => {
+    const graphCanvas = canvasControllerRef.current;
+    if (!graphCanvas) return;
+    graphCanvas.allow_interaction = !viewportLocked;
+    graphCanvas.allow_dragnodes = !viewportLocked;
+    graphCanvas.allow_dragcanvas = !viewportLocked;
+  }, [viewportLocked]);
+
+  useEffect(() => {
+    const graphCanvas = canvasControllerRef.current;
+    const graph = graphRef.current;
+    if (!graphCanvas || !graph) return;
+    LiteGraph.alwaysSnapToGrid = Boolean(snapToGrid);
+    graphCanvas.setDirty(true, true);
+  }, [snapToGrid]);
+
+  useEffect(() => {
+    const graphCanvas = canvasControllerRef.current;
+    const graph = graphRef.current;
+    if (!graphCanvas || !graph) return;
+    for (const group of graph.groups || []) group.selected = String(group.id) === selectedGroupId;
+    graphCanvas.setDirty(true, true);
+  }, [selectedGroupId]);
+
+  return h("div", { ref: hostRef, className: "litegraph-workflow-host" },
+    h("canvas", {
+      ref: canvasRef,
+      className: "litegraph-workflow-canvas",
+      onClick: () => {
+        setPaletteMenu(null);
+        setNodeMenu(null);
+        setGroupMenu(null);
+        setEdgeMenu(null);
+      },
+    }),
+    linksHidden ? h("div", { className: "litegraph-links-hidden" }, "Links hidden") : null,
+  );
+}
+
+function LiteGraphMiniMap({ nodes, edges, groups }) {
+  const model = buildCanvasOverview(nodes, groups, 220, 150);
+  if (!model.items.length) return null;
+  return h("svg", { className: "litegraph-minimap", viewBox: "0 0 220 150", role: "img", "aria-label": "Workflow minimap" },
+    h("rect", { x: 0, y: 0, width: 220, height: 150, rx: 8, className: "litegraph-minimap-bg" }),
+    groups.map((group) => {
+      const rect = model.rectFor(groupBounds(group));
+      return h("rect", {
+        key: `group-${group.id}`,
+        className: "litegraph-minimap-group",
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        rx: 3,
+        style: { fill: group.color || "#38bdf8", stroke: group.color || "#38bdf8" },
+      });
+    }),
+    edges.map((edge) => {
+      const source = nodes.find((node) => node.id === edge.source);
+      const target = nodes.find((node) => node.id === edge.target);
+      if (!source || !target) return null;
+      const a = model.rectFor({ x: source.position.x, y: source.position.y, width: NODE_WIDTH, height: NODE_HEIGHT });
+      const b = model.rectFor({ x: target.position.x, y: target.position.y, width: NODE_WIDTH, height: NODE_HEIGHT });
+      return h("line", {
+        key: edge.id,
+        className: "litegraph-minimap-link",
+        x1: a.x + a.width,
+        y1: a.y + a.height / 2,
+        x2: b.x,
+        y2: b.y + b.height / 2,
+      });
+    }),
+    nodes.map((node) => {
+      const rect = model.rectFor({ x: node.position.x, y: node.position.y, width: NODE_WIDTH, height: NODE_HEIGHT });
+      return h("rect", {
+        key: node.id,
+        className: "litegraph-minimap-node",
+        x: rect.x,
+        y: rect.y,
+        width: Math.max(rect.width, 4),
+        height: Math.max(rect.height, 3),
+        rx: 2,
+        style: { fill: node.data?.ui?.color || miniMapNodeColor(node) },
+      });
+    }),
+  );
+}
+
+function buildCanvasOverview(nodes, groups, width, height) {
+  const items = [
+    ...nodes.map((node) => ({ x: node.position.x, y: node.position.y, width: NODE_WIDTH, height: NODE_HEIGHT })),
+    ...groups.map((group) => groupBounds(group)),
+  ];
+  if (!items.length) return { items, rectFor: () => ({ x: 0, y: 0, width: 0, height: 0 }) };
+  const bounds = items.reduce((acc, item) => ({
+    minX: Math.min(acc.minX, item.x),
+    minY: Math.min(acc.minY, item.y),
+    maxX: Math.max(acc.maxX, item.x + item.width),
+    maxY: Math.max(acc.maxY, item.y + item.height),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+  const padding = 14;
+  const graphWidth = Math.max(bounds.maxX - bounds.minX, 1);
+  const graphHeight = Math.max(bounds.maxY - bounds.minY, 1);
+  const scale = Math.min((width - padding * 2) / graphWidth, (height - padding * 2) / graphHeight);
+  const offsetX = (width - graphWidth * scale) / 2;
+  const offsetY = (height - graphHeight * scale) / 2;
+  return {
+    items,
+    rectFor: (item) => ({
+      x: (item.x - bounds.minX) * scale + offsetX,
+      y: (item.y - bounds.minY) * scale + offsetY,
+      width: item.width * scale,
+      height: item.height * scale,
+    }),
+  };
+}
+
+function applyLiteGraphTheme(graphCanvas, host, themePreference = "system") {
+  const shell = host.closest?.(".app-shell") || host;
+  const styles = getComputedStyle(shell);
+  const canvasColor = readCssVar(styles, "--canvas", "#eef3f4");
+  const surfaceColor = readCssVar(styles, "--surface", "#ffffff");
+  const surface2Color = readCssVar(styles, "--surface-2", "#f3f6f7");
+  const textColor = readCssVar(styles, "--text", "#1d2930");
+  const mutedColor = readCssVar(styles, "--muted", "#43535d");
+  const lineColor = readCssVar(styles, "--line-soft", "#d9e1e5");
+  const isDark = themePreference === "dark" || (themePreference === "system" && window.matchMedia?.("(prefers-color-scheme: dark)")?.matches);
+
+  LiteGraph.NODE_TITLE_COLOR = "#ffffff";
+  LiteGraph.NODE_SELECTED_TITLE_COLOR = "#ffffff";
+  LiteGraph.NODE_TEXT_COLOR = textColor;
+  LiteGraph.NODE_TEXT_HIGHLIGHT_COLOR = textColor;
+  LiteGraph.NODE_DEFAULT_COLOR = isDark ? "#334155" : "#475569";
+  LiteGraph.NODE_DEFAULT_BGCOLOR = surfaceColor;
+  LiteGraph.NODE_DEFAULT_BOXCOLOR = isDark ? "#94a3b8" : "#64748b";
+  LiteGraph.WIDGET_BGCOLOR = surface2Color;
+  LiteGraph.WIDGET_OUTLINE_COLOR = lineColor;
+  LiteGraph.WIDGET_TEXT_COLOR = textColor;
+  LiteGraph.WIDGET_SECONDARY_TEXT_COLOR = mutedColor;
+  LiteGraph.LINK_COLOR = isDark ? "#7dd3fc" : "#0f766e";
+  LiteGraph.GROUP_TEXT_SIZE = 18;
+  LiteGraph.nodeOpacity = 1;
+
+  LGraphCanvas.node_colors = Object.fromEntries(NODE_COLORS.map((color) => [
+    color.name,
+    { color: color.title, bgcolor: color.body, groupcolor: color.title },
+  ]));
+
+  graphCanvas.background_image = "";
+  graphCanvas._pattern = null;
+  graphCanvas._pattern_img = null;
+  graphCanvas.clear_background = true;
+  graphCanvas.clear_background_color = canvasColor;
+  graphCanvas.node_title_color = "#ffffff";
+  graphCanvas.default_link_color = LiteGraph.LINK_COLOR;
+  graphCanvas.default_connection_color = {
+    input_off: isDark ? "#64748b" : "#94a3b8",
+    input_on: LiteGraph.LINK_COLOR,
+    output_off: isDark ? "#64748b" : "#94a3b8",
+    output_on: LiteGraph.LINK_COLOR,
+  };
+  graphCanvas.render_only_selected = false;
+  graphCanvas.render_canvas_border = false;
+  graphCanvas.onRenderBackground = (canvas, ctx) => {
+    const dpi = Math.max(window.devicePixelRatio || 1, 1);
+    const width = canvas.width / dpi;
+    const height = canvas.height / dpi;
+    ctx.save();
+    ctx.setTransform(dpi, 0, 0, dpi, 0, 0);
+    ctx.fillStyle = canvasColor;
+    ctx.fillRect(0, 0, width, height);
+    drawLiteGraphGrid(ctx, width, height, graphCanvas.ds.scale, lineColor, isDark);
+    ctx.restore();
+    return true;
+  };
+  graphCanvas.setDirty(true, true);
+}
+
+function drawLiteGraphGrid(ctx, width, height, scale, lineColor, isDark) {
+  const major = Math.max(24, Math.round(80 * Math.max(scale, 0.35)));
+  const minor = Math.max(8, Math.round(20 * Math.max(scale, 0.35)));
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = isDark ? "rgba(255,255,255,0.035)" : "rgba(15,23,42,0.035)";
+  ctx.beginPath();
+  for (let x = 0; x <= width; x += minor) {
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, height);
+  }
+  for (let y = 0; y <= height; y += minor) {
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(width, y + 0.5);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = lineColor;
+  ctx.globalAlpha = isDark ? 0.22 : 0.42;
+  ctx.beginPath();
+  for (let x = 0; x <= width; x += major) {
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, height);
+  }
+  for (let y = 0; y <= height; y += major) {
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(width, y + 0.5);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function readCssVar(styles, name, fallback) {
+  return styles.getPropertyValue(name).trim() || fallback;
+}
+
+function normalizeLiteGraphColor(color, fallback, themePreference, role) {
+  if (!color) return fallback;
+  const hex = parseHexColor(color);
+  if (!hex) return color;
+  const isLightTheme = themePreference === "light" || (themePreference === "system" && !window.matchMedia?.("(prefers-color-scheme: dark)")?.matches);
+  if (!isLightTheme) return color;
+  const luminance = colorLuminance(hex);
+  if (role === "body" && luminance < 0.55) return mixHex(hex, "#ffffff", 0.84);
+  if (role === "title" && luminance < 0.22) return mixHex(hex, "#ffffff", 0.35);
+  return color;
+}
+
+function parseHexColor(color) {
+  const value = String(color || "").trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  if (!match) return null;
+  const raw = match[1].length === 3 ? match[1].split("").map((ch) => ch + ch).join("") : match[1];
+  return {
+    r: Number.parseInt(raw.slice(0, 2), 16),
+    g: Number.parseInt(raw.slice(2, 4), 16),
+    b: Number.parseInt(raw.slice(4, 6), 16),
+  };
+}
+
+function colorLuminance({ r, g, b }) {
+  const channels = [r, g, b].map((value) => {
+    const srgb = value / 255;
+    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function mixHex(color, target, amount) {
+  const other = parseHexColor(target);
+  if (!other) return target;
+  const mix = (a, b) => Math.round(a + (b - a) * amount);
+  return `#${[mix(color.r, other.r), mix(color.g, other.g), mix(color.b, other.b)].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function syncLiteGraphFromState(graph, graphCanvas, state, objectInfo) {
+  graph.clear();
+  graphCanvas.selected_nodes = {};
+  graphCanvas.selectedItems?.clear?.();
+  const nodeMap = new Map();
+  const byId = Object.fromEntries(Object.entries(objectInfo || {}));
+  const selectedIds = new Set(state.selectedNodeIds || []);
+  const selectedGroupId = state.selectedGroupId ? String(state.selectedGroupId) : null;
+  const styles = graphCanvas.canvas ? getComputedStyle(graphCanvas.canvas.closest?.(".app-shell") || graphCanvas.canvas) : null;
+  const surfaceColor = styles ? readCssVar(styles, "--surface", "#ffffff") : "#ffffff";
+  const sortedNodes = [...(state.nodes || [])];
+  for (const item of sortedNodes) {
+    const meta = item.data?.meta || byId[item.data?.type] || byId[item.type] || {};
+    const nodeType = item.data?.type || item.type || item.id;
+    const title = meta.display_name || nodeType;
+    const node = new LGraphNode(title, nodeType);
+    node.id = item.id;
+    node.title = title;
+    node.pos = [item.position?.x || 0, item.position?.y || 0];
+    node.size = [NODE_WIDTH, Math.max(NODE_HEIGHT, 80)];
+    node.properties = { ...(item.data?.params || {}) };
+    node.bioNode = item;
+    node.color = normalizeLiteGraphColor(item.data?.ui?.color, undefined, document.querySelector(".app-shell")?.dataset?.theme || "system", "title") || undefined;
+    node.bgcolor = normalizeLiteGraphColor(item.data?.ui?.bgcolor, surfaceColor, document.querySelector(".app-shell")?.dataset?.theme || "system", "body");
+    node.flags = { ...(node.flags || {}), pinned: item.data?.ui?.pinned || undefined };
+    node.selected = selectedIds.has(String(item.id)) || Boolean(item.selected);
+    const inputs = Object.entries({ ...(meta.inputs?.required || {}), ...(meta.inputs?.optional || {}) });
+    for (const [name, spec] of inputs) node.addInput(name, spec?.type || "*");
+    for (const output of meta.outputs || []) node.addOutput(output.name, output.type || "*");
+    graph.add(node);
+    if (node.selected) {
+      graphCanvas.selected_nodes[String(node.id)] = node;
+      graphCanvas.selectedItems?.add?.(node);
+    }
+    nodeMap.set(item.id, node);
+  }
+  for (const groupData of state.groups || []) {
+    const group = new LGraphGroup(groupData.name || "Group");
+    group.configure({
+      id: groupData.id,
+      title: groupData.name || "Group",
+      bounding: [
+        groupData.position?.x || 0,
+        groupData.position?.y || 0,
+        groupData.width || 360,
+        groupData.height || 240,
+      ],
+      color: groupData.color || "#38bdf8",
+      flags: {},
+    });
+    group.selected = selectedGroupId === String(groupData.id);
+    graph.add(group);
+    group.recomputeInsideNodes?.();
+    if (group.selected) graphCanvas.selectedItems?.add?.(group);
+  }
+  for (const edge of state.edges || []) {
+    const source = nodeMap.get(edge.source);
+    const target = nodeMap.get(edge.target);
+    if (!source || !target) continue;
+    const sourceSlot = liteGraphSlotIndex(source.outputs, edge.sourceHandle);
+    const targetSlot = liteGraphSlotIndex(target.inputs, edge.targetHandle);
+    const color = edge.data?.color || edge.style?.stroke || edgeColorForSource(edge.source, source.outputs?.[sourceSlot]?.name || edge.sourceHandle);
+    const link = source.connect(sourceSlot, target, targetSlot);
+    const linkObject = resolveLiteGraphLink(graph, link, source, target, sourceSlot, targetSlot);
+    if (linkObject) linkObject.type = source.outputs?.[sourceSlot]?.type || target.inputs?.[targetSlot]?.type || "*";
+    setLiteGraphLinkColor(graph, link, source, target, sourceSlot, targetSlot, color);
+  }
+  graphCanvas.setDirty(true, true);
+}
+
+function liteGraphSlotIndex(slots, handle) {
+  if (!slots?.length) return 0;
+  if (handle == null) return 0;
+  if (typeof handle === "number" && slots[handle]) return handle;
+  const numeric = Number.parseInt(String(handle), 10);
+  if (String(numeric) === String(handle) && slots[numeric]) return numeric;
+  const byName = slots.findIndex((slot) => slot?.name === handle);
+  return byName >= 0 ? byName : 0;
+}
+
+function resolveLiteGraphLink(graph, connectResult, source, target, sourceSlot, targetSlot) {
+  let link = Array.isArray(connectResult) ? connectResult[0] : connectResult;
+  if (typeof link === "number" || typeof link === "string") {
+    link = graph._links?.get?.(link) || graph._links?.get?.(Number(link)) || graph.links?.[link] || graph.links?.[Number(link)];
+  }
+  if (!link?.id) {
+    const outputLinks = source.outputs?.[sourceSlot]?.links || [];
+    for (const id of outputLinks) {
+      const candidate = graph._links?.get?.(id) || graph._links?.get?.(Number(id)) || graph.links?.[id] || graph.links?.[Number(id)];
+      if (String(candidate?.target_id) === String(target.id) && Number(candidate?.target_slot) === Number(targetSlot)) {
+        link = candidate;
+        break;
+      }
+    }
+  }
+  return link || null;
+}
+
+function setLiteGraphLinkColor(graph, connectResult, source, target, sourceSlot, targetSlot, color) {
+  if (!color) return;
+  const link = resolveLiteGraphLink(graph, connectResult, source, target, sourceSlot, targetSlot);
+  if (!link) return;
+  link.color = color;
+  link._color = color;
+}
+
+function syncLiteGraphSelection(graphCanvas, ctx) {
+  const selectedNodeIds = Object.keys(graphCanvas.selected_nodes || {});
+  const selectedGroup = [...(graphCanvas.selectedItems || [])].find((item) => item instanceof LGraphGroup);
+  ctx.setSelectedNodeIds(selectedNodeIds);
+  ctx.setSelectedNodeId(selectedNodeIds.at(-1) || null);
+  ctx.setSelectedGroupId(selectedGroup ? String(selectedGroup.id) : null);
+}
+
+function findLiteGraphNodeAt(graph, x, y) {
+  return [...(graph.nodes || [])].reverse().find((node) => x >= node.pos[0]
+    && x <= node.pos[0] + (node.size?.[0] || NODE_WIDTH)
+    && y >= node.pos[1]
+    && y <= node.pos[1] + (node.size?.[1] || NODE_HEIGHT)) || null;
+}
+
+function findLiteGraphNodeAtEvent(graphCanvas, graph, event) {
+  const [x, y] = graphCanvas.convertEventToCanvasOffset(event);
+  return findLiteGraphNodeAt(graph, x, y) || findLiteGraphNodeAtScreen(graphCanvas, graph, event);
+}
+
+function findLiteGraphNodeAtScreen(graphCanvas, graph, event) {
+  return [...(graph.nodes || [])].reverse().find((node) => {
+    const rect = liteGraphItemScreenRect(graphCanvas, node.pos, node.size || [NODE_WIDTH, NODE_HEIGHT]);
+    return rect && event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  }) || null;
+}
+
+function findLiteGraphGroupAt(graph, x, y) {
+  return [...(graph.groups || [])].reverse().find((group) => x >= group.pos[0]
+    && x <= group.pos[0] + group.size[0]
+    && y >= group.pos[1]
+    && y <= group.pos[1] + group.size[1]) || null;
+}
+
+function findLiteGraphGroupAtEvent(graphCanvas, graph, event) {
+  const [x, y] = graphCanvas.convertEventToCanvasOffset(event);
+  return findLiteGraphGroupAt(graph, x, y) || findLiteGraphGroupAtScreen(graphCanvas, graph, event);
+}
+
+function findLiteGraphGroupAtScreen(graphCanvas, graph, event) {
+  return [...(graph.groups || [])].reverse().find((group) => {
+    const rect = liteGraphItemScreenRect(graphCanvas, group.pos, group.size);
+    return rect && event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+  }) || null;
+}
+
+function liteGraphItemScreenRect(graphCanvas, pos, size) {
+  const canvas = graphCanvas?.canvas;
+  if (!canvas || !pos || !size) return null;
+  const canvasRect = canvas.getBoundingClientRect();
+  const topLeft = graphCanvas.convertOffsetToCanvas?.([pos[0], pos[1]]);
+  const bottomRight = graphCanvas.convertOffsetToCanvas?.([pos[0] + size[0], pos[1] + size[1]]);
+  if (!topLeft || !bottomRight) return null;
+  const dpi = canvasRect.width ? canvas.width / canvasRect.width : 1;
+  const scale = dpi || 1;
+  return {
+    left: canvasRect.left + Math.min(topLeft[0], bottomRight[0]) / scale,
+    right: canvasRect.left + Math.max(topLeft[0], bottomRight[0]) / scale,
+    top: canvasRect.top + Math.min(topLeft[1], bottomRight[1]) / scale,
+    bottom: canvasRect.top + Math.max(topLeft[1], bottomRight[1]) / scale,
+  };
+}
+
+function exportLiteGraphToState(graph, ctx) {
+  const previousById = new Map((ctx.nodes || []).map((node) => [String(node.id), node]));
+  const selectedNodeIds = Object.keys(ctx.graphCanvas?.selected_nodes || {});
+  const selectedNodeSet = new Set(selectedNodeIds);
+  const nextNodes = (graph.nodes || []).map((node) => {
+    const previous = previousById.get(String(node.id));
+    const group = findLiteGraphParentGroup(graph, node);
+    return previous ? {
+      ...previous,
+      position: { x: node.pos[0], y: node.pos[1] },
+      selected: selectedNodeSet.has(String(node.id)),
+      data: {
+        ...previous.data,
+        ui: {
+          ...(previous.data?.ui || {}),
+          group_id: group ? String(group.id) : null,
+        },
+      },
+    } : {
+      id: String(node.id),
+      type: node.type || node.title,
+      position: { x: node.pos[0], y: node.pos[1] },
+      selected: selectedNodeSet.has(String(node.id)),
+      data: { type: node.type || node.title, params: {}, ui: { group_id: group ? String(group.id) : null } },
+    };
+  });
+  const nodeById = new Map((graph.nodes || []).map((node) => [String(node.id), node]));
+  const nextEdges = [...(graph._links?.values?.() || [])].map((link) => {
+    const source = nodeById.get(String(link.origin_id));
+    const target = nodeById.get(String(link.target_id));
+    const sourceHandle = source?.outputs?.[link.origin_slot]?.name || String(link.origin_slot);
+    const targetHandle = target?.inputs?.[link.target_slot]?.name || String(link.target_slot);
+    const color = link.color || edgeColorForSource(String(link.origin_id), sourceHandle);
+    return {
+      id: `edge-${link.id}`,
+      source: String(link.origin_id),
+      target: String(link.target_id),
+      sourceHandle,
+      targetHandle,
+      type: "bioEdge",
+      style: { stroke: color, strokeWidth: 2.7 },
+      data: { color },
+    };
+  });
+  const nextGroups = (graph.groups || []).map((group) => ({
+    id: String(group.id),
+    name: group.title || "Group",
+    position: { x: group.pos[0], y: group.pos[1] },
+    width: group.size[0],
+    height: group.size[1],
+    color: group.color || "#38bdf8",
+    collapsed: false,
+  }));
+  ctx.setNodes(nextNodes);
+  ctx.setEdges(nextEdges);
+  ctx.setGroups(nextGroups);
+  ctx.setSelectedNodeIds(selectedNodeIds);
+  ctx.setSelectedNodeId(selectedNodeIds.at(-1) || null);
+  const selectedGroup = [...(ctx.graphCanvas?.selectedItems || [])].find((item) => item instanceof LGraphGroup);
+  ctx.setSelectedGroupId(selectedGroup ? String(selectedGroup.id) : null);
+}
+
+function findLiteGraphParentGroup(graph, node) {
+  const groups = graph.groups || [];
+  return groups
+    .filter((group) => {
+      const centerX = node.pos[0] + (node.size?.[0] || NODE_WIDTH) / 2;
+      const centerY = node.pos[1] + (node.size?.[1] || NODE_HEIGHT) / 2;
+      return centerX >= group.pos[0]
+        && centerX <= group.pos[0] + group.size[0]
+        && centerY >= group.pos[1]
+        && centerY <= group.pos[1] + group.size[1];
+    })
+    .sort((a, b) => (a.size[0] * a.size[1]) - (b.size[0] * b.size[1]))[0] || null;
+}
+
+function fitLiteGraphView(graph, graphCanvas, canvas) {
+  const nodes = graph.nodes || [];
+  if (!nodes.length) return;
+  const bounds = nodes.reduce((acc, node) => ({
+    minX: Math.min(acc.minX, node.pos[0]),
+    minY: Math.min(acc.minY, node.pos[1]),
+    maxX: Math.max(acc.maxX, node.pos[0] + (node.size?.[0] || NODE_WIDTH)),
+    maxY: Math.max(acc.maxY, node.pos[1] + (node.size?.[1] || NODE_HEIGHT)),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+  const width = Math.max(bounds.maxX - bounds.minX, 1);
+  const height = Math.max(bounds.maxY - bounds.minY, 1);
+  const scale = Math.min(1, (canvas.clientWidth - 96) / width, (canvas.clientHeight - 96) / height);
+  graphCanvas.ds.scale = Number.isFinite(scale) ? Math.max(0.25, scale) : 1;
+  graphCanvas.ds.offset = [
+    -bounds.minX * graphCanvas.ds.scale + 64,
+    -bounds.minY * graphCanvas.ds.scale + 96,
+  ];
+  graphCanvas.setDirty(true, true);
+}
+
 function AIWorkflowModal({ messages, busy, settings, onSend, onApplyWorkflow, onClose }) {
   const [draft, setDraft] = useState("");
   const messagesRef = useRef(null);
@@ -2007,6 +3102,30 @@ function WorkflowOverviewMap({ preview }) {
   );
 }
 
+function GroupMiniMapOverlay({ groups, nodes, width, height, right, bottom }) {
+  const model = buildCanvasGroupOverview(groups, nodes, width, height);
+  if (!model.groups.length) return null;
+  return h("svg", {
+    className: "canvas-group-minimap-overlay",
+    width,
+    height,
+    viewBox: `0 0 ${width} ${height}`,
+    style: { width, height, right, bottom },
+    "aria-hidden": "true",
+  },
+    model.groups.map((group) => h("rect", {
+      key: group.id,
+      x: group.x,
+      y: group.y,
+      width: group.width,
+      height: group.height,
+      rx: 3,
+      fill: group.color,
+      stroke: group.color,
+    })),
+  );
+}
+
 function InstallConfirmModal({ plans, result, onConfirm, onClose }) {
   return h("div", { className: "modal-backdrop", onClick: onClose },
     h("div", { className: "install-modal", onClick: (event) => event.stopPropagation() },
@@ -2030,6 +3149,7 @@ function InstallConfirmModal({ plans, result, onConfirm, onClose }) {
 }
 
 function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute, onUnmute, onPin, onUnpin, onGroup, onCopy, onMoreOptions, onSetColor }) {
+  const [colorOpen, setColorOpen] = useState(false);
   const bounds = selectedNodes.reduce((acc, node) => ({
     minX: Math.min(acc.minX, node.position.x),
     minY: Math.min(acc.minY, node.position.y),
@@ -2044,12 +3164,34 @@ function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute
   };
   const firstNode = selectedNodes[0];
   const currentColor = firstNode?.data?.ui?.color;
+  function applyToolbarColor(color) {
+    onSetColor(color);
+    setColorOpen(false);
+  }
   return h("div", { className: "selection-toolbox", style, onClick: (event) => event.stopPropagation() },
     h("span", { className: "selection-toolbox-count" }, `${selectedNodes.length} selected`),
     h("button", { className: "selection-toolbox-icon", title: "Copy (Ctrl+C)", onClick: onCopy }, h(Icon, { name: "copy" })),
-    h("button", { className: "selection-toolbox-icon", title: "Color", onClick: () => onSetColor(firstNode?.id, NODE_COLORS[(selectedNodes.indexOf(firstNode) + 1) % NODE_COLORS.length]) },
-      h(Icon, { name: "palette" }),
-      currentColor ? h("span", { className: "selection-toolbox-color-dot", style: { background: currentColor } }) : null,
+    h("button", { className: "selection-toolbox-icon", title: "Group selection", onClick: onGroup }, h(Icon, { name: "group" })),
+    h("div", { className: "selection-color-control" },
+      h("button", { className: colorOpen ? "selection-toolbox-icon pressed" : "selection-toolbox-icon", title: "Color", onClick: () => setColorOpen((value) => !value) },
+        h(Icon, { name: "palette" }),
+        currentColor ? h("span", { className: "selection-toolbox-color-dot", style: { background: currentColor } }) : null,
+      ),
+      colorOpen ? h("div", { className: "selection-color-dropdown", onClick: (event) => event.stopPropagation() },
+        h("button", { className: "selection-color-clear-row", onClick: () => applyToolbarColor(null) },
+          h("span", { className: "selection-color-empty" }),
+          h("span", null, "No Color"),
+        ),
+        h("div", { className: "node-color-swatches" },
+          NODE_COLORS.map((color) => h("button", {
+            key: color.name,
+            className: `node-color-swatch-btn ${currentColor === color.title ? "active" : ""}`,
+            style: { background: `linear-gradient(135deg, ${color.title} 50%, ${color.body} 50%)` },
+            onClick: () => applyToolbarColor(color),
+            title: color.name,
+          })),
+        ),
+      ) : null,
     ),
     h("button", { className: "selection-toolbox-icon", title: "Bypass (Ctrl+B)", onClick: onBypass }, h(Icon, { name: "bypass" })),
     h("button", { className: "selection-toolbox-icon", title: "Pin", onClick: onPin }, h(Icon, { name: "pin" })),
@@ -2059,25 +3201,76 @@ function SelectionToolbox({ selectedNodes, reactFlow, onDelete, onBypass, onMute
 }
 
 function CanvasContextMenu({ menu, groupedNodes, hasClipboard, onToggleAdd, onAddNode, onPaste, onAddGroup, onClose }) {
+  const [query, setQuery] = useState("");
+  const menuLeft = clamp(menu.x, 12, window.innerWidth - 260);
+  const menuTop = clamp(menu.y, 70, window.innerHeight - 400);
+  const submenuWidth = 340;
+  const submenuOpensLeft = menuLeft + 246 + submenuWidth > window.innerWidth - 12;
   const style = {
-    left: clamp(menu.x, 12, window.innerWidth - 260),
-    top: clamp(menu.y, 70, window.innerHeight - 400),
+    left: menuLeft,
+    top: menuTop,
   };
   const submenuStyle = {
-    left: clamp(menu.x + 246, 12, window.innerWidth - 340),
-    top: clamp(menu.y + 6, 70, window.innerHeight - 520),
+    left: submenuOpensLeft ? Math.max(12, menuLeft - submenuWidth - 8) : menuLeft + 246,
+    top: clamp(menuTop + 6, 70, window.innerHeight - 520),
   };
-  return h("div", { className: "canvas-context-menu", style, onClick: (event) => event.stopPropagation(), onContextMenu: (event) => event.preventDefault() },
+  const flatNodes = useMemo(() => Object.entries(groupedNodes || {}).flatMap(([category, metas]) => metas.map((meta) => ({ ...meta, category }))), [groupedNodes]);
+  const q = query.trim().toLowerCase();
+  const visibleNodes = useMemo(() => {
+    if (!q) return flatNodes;
+    return flatNodes.filter((meta) => `${meta.display_name || ""} ${meta.id || ""} ${meta.category || ""}`.toLowerCase().includes(q));
+  }, [flatNodes, q]);
+  const visibleGroups = useMemo(() => {
+    if (q) return { Results: visibleNodes };
+    return Object.fromEntries(Object.entries(groupedNodes || {}).filter(([, metas]) => metas?.length));
+  }, [groupedNodes, q, visibleNodes]);
+  const submitFirst = () => {
+    if (visibleNodes[0]) onAddNode(visibleNodes[0]);
+  };
+  return h("div", {
+    className: "canvas-context-menu",
+    style,
+    onMouseDown: (event) => event.stopPropagation(),
+    onClick: (event) => event.stopPropagation(),
+    onContextMenu: (event) => event.preventDefault(),
+  },
     h("button", { className: menu.addOpen ? "context-menu-row active" : "context-menu-row", onMouseEnter: () => !menu.addOpen && onToggleAdd(), onClick: onToggleAdd },
       h(Icon, { name: "nodes" }),
       h("span", null, "Add Node"),
       h("b", null, ">"),
     ),
-    menu.addOpen ? h("div", { className: "context-submenu", style: submenuStyle },
-      Object.entries(groupedNodes).map(([category, metas]) => h("details", { key: category, open: ["Input", "Quality Control", "example"].includes(category) },
-        h("summary", null, category),
-        metas.map((meta) => h("button", { key: meta.id, className: "context-node", onClick: () => onAddNode(meta) },
-          h("strong", null, meta.display_name),
+    menu.addOpen ? h("div", {
+      className: "context-submenu add-node-flyout",
+      style: submenuStyle,
+      onMouseDown: (event) => event.stopPropagation(),
+      onClick: (event) => event.stopPropagation(),
+    },
+      h("div", { className: "add-node-search-row" },
+        h(Icon, { name: "search" }),
+        h("input", {
+          value: query,
+          autoFocus: true,
+          placeholder: "Search nodes",
+          onChange: (event) => setQuery(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              submitFirst();
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              onClose?.();
+            }
+          },
+        }),
+      ),
+      q && !visibleNodes.length ? h("div", { className: "add-node-empty" }, "No nodes found") : null,
+      Object.entries(visibleGroups).map(([category, metas]) => h("section", { key: category, className: "add-node-section" },
+        h("div", { className: "add-node-category" }, h("span", null, category), h("small", null, metas.length)),
+        metas.map((meta) => h("button", { key: meta.id, className: "context-node add-node-row", onClick: () => onAddNode(meta) },
+          h("span", { className: "add-node-name" }, meta.display_name || meta.id),
           h("small", null, meta.id),
         )),
       )),
@@ -2916,6 +4109,17 @@ function loadThemePreference() {
   return ["system", "dark", "light"].includes(value) ? value : "system";
 }
 
+async function fileToBase64(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
 function loadConfirmFileDelete() {
   return localStorage.getItem("bionodulo.confirm_file_delete") !== "0";
 }
@@ -3103,7 +4307,124 @@ function edgeColorForSource(source, output) {
   return EDGE_PALETTE[hash % EDGE_PALETTE.length];
 }
 
+function applyColorToNodes(nodes, nodeIds, color) {
+  const ids = new Set(nodeIds.filter(Boolean));
+  if (!ids.size) return nodes;
+  return nodes.map((node) => {
+    if (!ids.has(node.id)) return node;
+    const ui = { ...(node.data?.ui || {}) };
+    if (!color) {
+      ui.color = null;
+      ui.bgcolor = null;
+    } else {
+      ui.color = color.title;
+      ui.bgcolor = color.body;
+    }
+    return { ...node, data: { ...node.data, ui } };
+  });
+}
+
+function groupBounds(group) {
+  const position = group.position || { x: 0, y: 0 };
+  return {
+    x: position.x,
+    y: position.y,
+    width: group.width || 360,
+    height: group.height || 240,
+  };
+}
+
+function nodeCenter(node) {
+  return {
+    x: node.position.x + NODE_WIDTH / 2,
+    y: node.position.y + NODE_HEIGHT / 2,
+  };
+}
+
+function groupContainsNode(group, node) {
+  if (!group) return false;
+  const bounds = groupBounds(group);
+  const center = nodeCenter(node);
+  return center.x >= bounds.x
+    && center.x <= bounds.x + bounds.width
+    && center.y >= bounds.y
+    && center.y <= bounds.y + bounds.height;
+}
+
+function findNodesInGroup(nodes, group) {
+  return nodes.filter((node) => node.data?.ui?.group_id === group.id || groupContainsNode(group, node));
+}
+
+function findContainingGroup(node, groups) {
+  return groups
+    .filter((group) => !group.collapsed)
+    .filter((group) => groupContainsNode(group, node))
+    .sort((a, b) => (a.width || 360) * (a.height || 240) - (b.width || 360) * (b.height || 240))[0] || null;
+}
+
+function syncNodesToGroups(nodes, groups) {
+  if (!groups.length) return nodes;
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    const group = findContainingGroup(node, groups);
+    const nextGroupId = group?.id || null;
+    const currentGroupId = node.data?.ui?.group_id || null;
+    if (nextGroupId === currentGroupId) return node;
+    changed = true;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        ui: { ...(node.data?.ui || {}), group_id: nextGroupId },
+      },
+    };
+  });
+  return changed ? nextNodes : nodes;
+}
+
+function buildCanvasGroupOverview(groups, nodes, width, height) {
+  const visibleGroups = (groups || []).filter((group) => group.position);
+  if (!visibleGroups.length) return { groups: [] };
+  const items = [
+    ...nodes.map((node) => ({
+      x: node.position.x,
+      y: node.position.y,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    })),
+    ...visibleGroups.map((group) => groupBounds(group)),
+  ];
+  const graphBounds = items.reduce((acc, item) => ({
+    minX: Math.min(acc.minX, item.x),
+    minY: Math.min(acc.minY, item.y),
+    maxX: Math.max(acc.maxX, item.x + item.width),
+    maxY: Math.max(acc.maxY, item.y + item.height),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+  const padding = 18;
+  const graphWidth = Math.max(graphBounds.maxX - graphBounds.minX, 1);
+  const graphHeight = Math.max(graphBounds.maxY - graphBounds.minY, 1);
+  const scale = Math.min((width - padding * 2) / graphWidth, (height - padding * 2) / graphHeight);
+  const offsetX = (width - graphWidth * scale) / 2;
+  const offsetY = (height - graphHeight * scale) / 2;
+  return {
+    groups: visibleGroups.map((group) => {
+      const bounds = groupBounds(group);
+      return {
+        id: group.id,
+        x: (bounds.x - graphBounds.minX) * scale + offsetX,
+        y: (bounds.y - graphBounds.minY) * scale + offsetY,
+        width: bounds.width * scale,
+        height: bounds.height * scale,
+        color: group.color || "#38bdf8",
+      };
+    }),
+  };
+}
+
 function miniMapNodeColor(node, selectedNodeId = null) {
+  if (String(node.id || "").startsWith("group:")) {
+    return node.data?.groupColor || "#38bdf8";
+  }
   const status = selectedNodeId && node.id === selectedNodeId ? "selected" : node.data?.status || "idle";
   return {
     selected: "#38bdf8",
@@ -3122,6 +4443,9 @@ function miniMapNodeColor(node, selectedNodeId = null) {
 }
 
 function miniMapNodeStrokeColor(node, selectedNodeId = null) {
+  if (String(node.id || "").startsWith("group:")) {
+    return "#f8fafc";
+  }
   const status = selectedNodeId && node.id === selectedNodeId ? "selected" : node.data?.status || "idle";
   return {
     selected: "#e0f2fe",
@@ -3172,7 +4496,7 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function GroupContextMenu({ menu, group, onRename, onSetColor, onDelete, onToggleCollapsed, onClose }) {
+function GroupContextMenu({ menu, group, onRename, onSetColor, onFitToNodes, onDelete, onToggleCollapsed, onClose }) {
   if (!group) return null;
   const style = {
     left: clamp(menu.x, 12, window.innerWidth - 300),
@@ -3220,6 +4544,10 @@ function GroupContextMenu({ menu, group, onRename, onSetColor, onDelete, onToggl
       h("button", { className: "node-menu-item", onClick: () => { onToggleCollapsed(group.id); onClose(); } },
         h(Icon, { name: group.collapsed ? "fit" : "nodes" }),
         h("span", null, group.collapsed ? "Expand Group" : "Collapse Group"),
+      ),
+      h("button", { className: "node-menu-item", onClick: onFitToNodes },
+        h(Icon, { name: "fit" }),
+        h("span", null, "Fit to Nodes"),
       ),
     ),
     h("div", { className: "node-menu-divider" }),

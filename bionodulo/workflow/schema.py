@@ -12,12 +12,32 @@ class Position(BaseModel):
     y: float = 0
 
 
+class NodeUiState(BaseModel):
+    pinned: bool = False
+    muted: bool = False
+    bypassed: bool = False
+    group_id: str | None = None
+    color: str | None = None
+    bgcolor: str | None = None
+
+
 class WorkflowNode(BaseModel):
     id: str
     type: str
     position: Position = Field(default_factory=Position)
     params: dict[str, Any] = Field(default_factory=dict)
     node_info: dict[str, Any] = Field(default_factory=dict)
+    ui: NodeUiState = Field(default_factory=NodeUiState)
+
+
+class WorkflowGroup(BaseModel):
+    id: str
+    name: str = "Group"
+    position: Position = Field(default_factory=Position)
+    width: float = 360
+    height: float = 240
+    color: str = "#38bdf8"
+    collapsed: bool = False
 
 
 class Endpoint(BaseModel):
@@ -41,6 +61,7 @@ class Workflow(BaseModel):
     description: str = ""
     nodes: list[WorkflowNode] = Field(default_factory=list)
     edges: list[WorkflowEdge] = Field(default_factory=list)
+    groups: list[WorkflowGroup] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     environment: EnvironmentSpec = Field(default_factory=EnvironmentSpec)
     dependencies: dict[str, Any] = Field(default_factory=dict)

@@ -27,7 +27,11 @@ def validate_workflow(
             errors.append(ValidationIssue(node_id=node.id, code="unknown_node_type", message=f"Unknown node type: {node.type}"))
 
     edge_inputs: dict[tuple[str, str], str] = {}
+    incoming_by_node: dict[str, list] = {}
+    outgoing_by_node: dict[str, list] = {}
     for edge in workflow.edges:
+        incoming_by_node.setdefault(edge.to.node, []).append(edge)
+        outgoing_by_node.setdefault(edge.from_.node, []).append(edge)
         if edge.from_.node not in nodes_by_id:
             errors.append(ValidationIssue(edge_id=edge.id, code="missing_source", message=f"Missing source node {edge.from_.node}"))
             continue
@@ -66,7 +70,14 @@ def validate_workflow(
     for node in workflow.nodes:
         if not registry.has(node.type):
             continue
+        if node.ui.muted:
+            if outgoing_by_node.get(node.id):
+                warnings.append(ValidationIssue(node_id=node.id, level="warning", code="muted_node_blocks_downstream", message="Muted node will be skipped and downstream connected nodes may be blocked."))
+            continue
         node_cls = registry.get(node.type)
+        if node.ui.bypassed:
+            _validate_bypass(node.id, workflow, registry, nodes_by_id, incoming_by_node.get(node.id, []), outgoing_by_node.get(node.id, []), errors)
+            continue
         inputs = node_cls.INPUT_TYPES()
         for input_name, (_, options) in inputs.get("required", {}).items():
             if (node.id, input_name) not in edge_inputs and input_name not in node.params and "default" not in options:
@@ -109,3 +120,27 @@ def _input_types(inputs: dict) -> dict[str, str]:
         for name, (typ, _) in inputs.get(section, {}).items():
             result[name] = typ
     return result
+
+
+def _validate_bypass(node_id: str, workflow: Workflow, registry: NodeRegistry, nodes_by_id: dict, incoming: list, outgoing: list, errors: list[ValidationIssue]) -> None:
+    incoming_types: list[str] = []
+    for edge in incoming:
+        source = nodes_by_id.get(edge.from_.node)
+        if not source or not registry.has(source.type) or edge.from_.output is None:
+            continue
+        source_cls = registry.get(source.type)
+        outputs = {name: typ for name, typ in zip(source_cls.RETURN_NAMES, source_cls.RETURN_TYPES, strict=False)}
+        source_type = outputs.get(edge.from_.output)
+        if source_type:
+            incoming_types.append(source_type)
+    if not incoming_types and outgoing:
+        errors.append(ValidationIssue(node_id=node_id, code="bypass_without_input", message="Bypassed node needs at least one compatible upstream input to pass through."))
+        return
+    for edge in outgoing:
+        target = nodes_by_id.get(edge.to.node)
+        if not target or not registry.has(target.type) or edge.to.input is None:
+            continue
+        target_cls = registry.get(target.type)
+        target_type = _input_types(target_cls.INPUT_TYPES()).get(edge.to.input)
+        if target_type and not any(is_compatible(source_type, target_type) for source_type in incoming_types):
+            errors.append(ValidationIssue(edge_id=edge.id, node_id=node_id, code="bypass_type_mismatch", message=f"Bypassed node cannot pass any upstream value into {target_type}."))

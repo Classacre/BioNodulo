@@ -53,6 +53,7 @@ class BaseNode:
             "description": cls.DESCRIPTION,
             "inputs": _serialize_inputs(inputs),
             "outputs": outputs,
+            "function": cls.FUNCTION,
             "search_aliases": cls.SEARCH_ALIASES,
             "experimental": cls.EXPERIMENTAL,
             "output_node": cls.OUTPUT_NODE,

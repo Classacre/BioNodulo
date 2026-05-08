@@ -21,6 +21,9 @@ class RunRecord:
     run_dir: str | None = None
     node_statuses: dict[str, str] = field(default_factory=dict)
     node_outputs: dict[str, Any] = field(default_factory=dict)
+    execution_plan: dict[str, Any] = field(default_factory=dict)
+    previews: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
@@ -35,5 +38,8 @@ class RunRecord:
             "run_dir": self.run_dir,
             "node_statuses": self.node_statuses,
             "node_outputs": self.node_outputs,
+            "execution_plan": self.execution_plan,
+            "previews": self.previews,
+            "artifacts": self.artifacts,
             "error": self.error,
         }

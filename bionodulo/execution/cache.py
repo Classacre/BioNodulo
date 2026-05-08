@@ -45,26 +45,29 @@ def cache_key_for_node(
     params: dict[str, Any],
     inputs: dict[str, Any],
     upstream_cache_keys: list[str],
+    change_fingerprint: Any | None = None,
+    strong_hashing: bool = False,
 ) -> str:
     payload = {
         "node_type": node_type,
         "node_version": node_version,
         "command_template": command_template,
         "params": params,
-        "inputs": fingerprint_value(inputs),
+        "inputs": fingerprint_value(inputs, strong_hashing=strong_hashing),
+        "change_fingerprint": fingerprint_value(change_fingerprint, strong_hashing=strong_hashing),
         "upstream_cache_keys": upstream_cache_keys,
     }
     encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()[:24]
 
 
-def fingerprint_value(value: Any) -> Any:
+def fingerprint_value(value: Any, *, strong_hashing: bool = False) -> Any:
     if isinstance(value, dict):
-        return {key: fingerprint_value(val) for key, val in sorted(value.items())}
+        return {key: fingerprint_value(val, strong_hashing=strong_hashing) for key, val in sorted(value.items())}
     if isinstance(value, list):
-        return [fingerprint_value(item) for item in value]
+        return [fingerprint_value(item, strong_hashing=strong_hashing) for item in value]
     if isinstance(value, tuple):
-        return [fingerprint_value(item) for item in value]
+        return [fingerprint_value(item, strong_hashing=strong_hashing) for item in value]
     if isinstance(value, str) and _looks_like_path(value):
         if _looks_like_generated_path(value):
             path = Path(value)
@@ -77,7 +80,7 @@ def fingerprint_value(value: Any) -> Any:
                 "size": stat.st_size,
                 "mtime": stat.st_mtime,
             }
-            if stat.st_size <= SMALL_FILE_HASH_LIMIT:
+            if strong_hashing or stat.st_size <= SMALL_FILE_HASH_LIMIT:
                 result["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
             return result
         return {"path": value, "exists": False}

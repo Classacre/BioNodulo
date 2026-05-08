@@ -62,3 +62,18 @@ def upstream_nodes(workflow: Workflow, output_ids: list[str]) -> set[str]:
                 wanted.add(parent)
                 stack.append(parent)
     return wanted
+
+
+def downstream_nodes(workflow: Workflow, start_ids: list[str]) -> set[str]:
+    children: dict[str, list[str]] = defaultdict(list)
+    for edge in workflow.edges:
+        children[edge.from_.node].append(edge.to.node)
+    wanted = set(start_ids)
+    stack = list(start_ids)
+    while stack:
+        node_id = stack.pop()
+        for child in children.get(node_id, []):
+            if child not in wanted:
+                wanted.add(child)
+                stack.append(child)
+    return wanted

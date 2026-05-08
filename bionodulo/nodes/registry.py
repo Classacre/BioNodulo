@@ -9,6 +9,7 @@ from types import ModuleType
 from typing import Iterable
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.comfy_v3_adapter import adapt_comfy_v3_node
 
 
 class NodeRegistry:
@@ -41,6 +42,7 @@ class NodeRegistry:
             "bionodulo.nodes.builtin.trimming",
             "bionodulo.nodes.builtin.alignment",
             "bionodulo.nodes.builtin.generic",
+            "bionodulo.api_nodes.base",
         ]
         for module_name in modules:
             module = importlib.import_module(module_name)
@@ -70,6 +72,10 @@ def iter_node_classes(module: ModuleType) -> Iterable[type[BaseNode]]:
             continue
         if issubclass(value, BaseNode) and getattr(value, "NODE_ID", ""):
             yield value
+            continue
+        adapted = adapt_comfy_v3_node(value)
+        if adapted is not None:
+            yield adapted
 
 
 def _load_module_from_path(path: Path) -> ModuleType:

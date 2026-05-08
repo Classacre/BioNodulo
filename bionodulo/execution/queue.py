@@ -20,6 +20,7 @@ class RunRequest:
     mock_tools: bool
     force: bool = False
     force_nodes: list[str] = field(default_factory=list)
+    options: dict[str, Any] = field(default_factory=dict)
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
 
 
@@ -40,6 +41,7 @@ class RunQueue:
             registry=registry,
             runs_dir=settings.runs_dir,
             cache_dir=settings.cache_dir,
+            api_secrets=settings.api_secrets,
             emit=event_hub.emit,
         )
 
@@ -56,13 +58,13 @@ class RunQueue:
             except asyncio.CancelledError:
                 pass
 
-    async def submit(self, workflow: Workflow, *, mock_tools: bool | None = None, force: bool = False, force_nodes: list[str] | None = None) -> RunRecord:
+    async def submit(self, workflow: Workflow, *, mock_tools: bool | None = None, force: bool = False, force_nodes: list[str] | None = None, options: dict[str, Any] | None = None) -> RunRecord:
         run_id = self._new_run_id()
         use_mock = self.settings.mock_tools_default if mock_tools is None else mock_tools
         record = RunRecord(run_id=run_id, status="queued", workflow_name=workflow.name, mock_tools=use_mock)
         self.records[run_id] = record
         self.pending.append(run_id)
-        await self.queue.put(RunRequest(run_id=run_id, workflow=workflow, mock_tools=use_mock, force=force, force_nodes=force_nodes or []))
+        await self.queue.put(RunRequest(run_id=run_id, workflow=workflow, mock_tools=use_mock, force=force, force_nodes=force_nodes or [], options=options or {}))
         await self._emit_queue()
         return record
 
@@ -126,6 +128,7 @@ class RunQueue:
                     mock_tools=item.mock_tools,
                     force=item.force,
                     force_nodes=item.force_nodes,
+                    options=item.options,
                     cancel_event=item.cancel_event,
                 )
             finally:
