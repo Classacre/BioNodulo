@@ -83,3 +83,27 @@ class SamtoolsIndexNode(CommandNode):
     @classmethod
     def PLAN_OUTPUTS(cls, node_dir: Path, params: dict, inputs: dict) -> dict:
         return {"bai": str(node_dir / "alignment.bam.bai")}
+
+
+class SamtoolsViewNode(CommandNode):
+    NODE_ID = "samtools_view"
+    DISPLAY_NAME = "samtools view"
+    CATEGORY = "Alignment"
+    DESCRIPTION = "Convert SAM to BAM or filter BAM by region/flags."
+    SEARCH_ALIASES = ["samtools", "view", "sam to bam", "convert", "bam", "sam", "filter"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    COMMAND = ["samtools", "view", "-b", "-@", "{params.threads}", "-o", "{outputs.bam}", "{inputs.alignment}"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict:
+        return {
+            "required": {"alignment": ("SAM", {"description": "SAM or unsorted BAM file"})},
+            "optional": {"threads": ("INT", {"default": 4, "min": 1, "max": 64})},
+            "hidden": {},
+        }
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, node_dir: Path, params: dict, inputs: dict) -> dict:
+        return {"bam": str(node_dir / "alignment.bam")}

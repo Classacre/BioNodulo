@@ -5,6 +5,50 @@ from pathlib import Path
 from bionodulo.nodes.command_node import CommandNode
 
 
+class CutadaptNode(CommandNode):
+    NODE_ID = "cutadapt"
+    DISPLAY_NAME = "cutadapt"
+    CATEGORY = "Read preprocessing"
+    DESCRIPTION = "Trim adapter sequences from FASTQ reads using cutadapt."
+    SEARCH_ALIASES = ["cutadapt", "trim", "adapter", "adapter trimming", "read trimming"]
+    RETURN_TYPES = ("FASTQ_LIST", "HTML_REPORT", "QC_REPORT_DIR")
+    RETURN_NAMES = ("trimmed_reads", "report", "report_dir")
+    REQUIRED_EXECUTABLES = ["cutadapt"]
+    DOCUMENTATION_URL = "https://cutadapt.readthedocs.io/"
+    COMMAND = [
+        "cutadapt",
+        "-a", "{params.adapter_fwd}",
+        "-A", "{params.adapter_rev}",
+        "-o", "{outputs.trimmed_reads[0]}",
+        "-p", "{outputs.trimmed_reads[1]}",
+        "--report", "full",
+        "--cores", "{params.threads}",
+        "{inputs.reads[0]}",
+        "{inputs.reads[1]}",
+        ">", "{outputs.report}",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict:
+        return {
+            "required": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ files"}),
+                "adapter_fwd": ("STRING", {"default": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA", "description": "Forward adapter sequence"}),
+                "adapter_rev": ("STRING", {"default": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT", "description": "Reverse adapter sequence"}),
+            },
+            "optional": {"threads": ("INT", {"default": 4, "min": 1, "max": 64})},
+            "hidden": {},
+        }
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, node_dir: Path, params: dict, inputs: dict) -> dict:
+        return {
+            "trimmed_reads": [str(node_dir / "trimmed_R1.fastq.gz"), str(node_dir / "trimmed_R2.fastq.gz")],
+            "report": str(node_dir / "cutadapt.txt"),
+            "report_dir": str(node_dir),
+        }
+
+
 class FastpNode(CommandNode):
     NODE_ID = "fastp"
     DISPLAY_NAME = "fastp"
