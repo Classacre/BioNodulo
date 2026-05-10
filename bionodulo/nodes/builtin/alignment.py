@@ -89,7 +89,7 @@ class SamtoolsViewNode(CommandNode):
     NODE_ID = "samtools_view"
     DISPLAY_NAME = "samtools view"
     CATEGORY = "Alignment"
-    DESCRIPTION = "Convert SAM to BAM or filter BAM by region/flags."
+    DESCRIPTION = "Convert SAM to BAM format."
     SEARCH_ALIASES = ["samtools", "view", "sam to bam", "convert", "bam", "sam", "filter"]
     RETURN_TYPES = ("BAM",)
     RETURN_NAMES = ("bam",)

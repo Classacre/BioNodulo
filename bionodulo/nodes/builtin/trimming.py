@@ -11,7 +11,7 @@ class CutadaptNode(CommandNode):
     CATEGORY = "Read preprocessing"
     DESCRIPTION = "Trim adapter sequences from FASTQ reads using cutadapt."
     SEARCH_ALIASES = ["cutadapt", "trim", "adapter", "adapter trimming", "read trimming"]
-    RETURN_TYPES = ("FASTQ_LIST", "HTML_REPORT", "QC_REPORT_DIR")
+    RETURN_TYPES = ("FASTQ_LIST", "FILE", "QC_REPORT_DIR")
     RETURN_NAMES = ("trimmed_reads", "report", "report_dir")
     REQUIRED_EXECUTABLES = ["cutadapt"]
     DOCUMENTATION_URL = "https://cutadapt.readthedocs.io/"
