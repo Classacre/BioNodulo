@@ -1,0 +1,159 @@
+"""Graph algorithms for BioNodulo workflows.
+
+Provides topological sort, edge mapping, and upstream/downstream
+queries on the workflow DAG.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict, deque
+from typing import Any
+
+
+def incoming_edges(workflow: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Build a map of node_id -> list of incoming edges."""
+    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for edge in workflow.get("edges", []):
+        if isinstance(edge, dict):
+            target = edge.get("to_node") or edge.get("target_node", "")
+        else:
+            target = getattr(edge, "target_node", "")
+        if target:
+            d = edge if isinstance(edge, dict) else edge.model_dump()
+            result[target].append(d)
+    return dict(result)
+
+
+def outgoing_edges(workflow: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Build a map of node_id -> list of outgoing edges."""
+    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for edge in workflow.get("edges", []):
+        if isinstance(edge, dict):
+            source = edge.get("from_node") or edge.get("source_node", "")
+        else:
+            source = getattr(edge, "source_node", "")
+        if source:
+            d = edge if isinstance(edge, dict) else edge.model_dump()
+            result[source].append(d)
+    return dict(result)
+
+
+def _get_all_node_ids(workflow: dict[str, Any]) -> set[str]:
+    """Extract all node IDs from a workflow dictionary."""
+    nodes = workflow.get("nodes", {})
+    if isinstance(nodes, dict):
+        return set(nodes.keys())
+    if isinstance(nodes, list):
+        return {n["id"] if isinstance(n, dict) else getattr(n, "id", "") for n in nodes}
+    return set()
+
+
+def _build_adjacency(workflow: dict[str, Any]) -> dict[str, list[str]]:
+    """Build adjacency list: node -> list of downstream node IDs."""
+    adj: dict[str, list[str]] = defaultdict(list)
+    for edge in workflow.get("edges", []):
+        if isinstance(edge, dict):
+            src = edge.get("from_node") or edge.get("source_node", "")
+            dst = edge.get("to_node") or edge.get("target_node", "")
+        else:
+            src = getattr(edge, "source_node", "")
+            dst = getattr(edge, "target_node", "")
+        if src and dst:
+            adj[src].append(dst)
+    return dict(adj)
+
+
+def _build_indegree(workflow: dict[str, Any]) -> dict[str, int]:
+    """Build indegree map for topological sort."""
+    node_ids = _get_all_node_ids(workflow)
+    indegree = {nid: 0 for nid in node_ids}
+    for edge in workflow.get("edges", []):
+        if isinstance(edge, dict):
+            dst = edge.get("to_node") or edge.get("target_node", "")
+        else:
+            dst = getattr(edge, "target_node", "")
+        if dst in indegree:
+            indegree[dst] += 1
+    return indegree
+
+
+def topological_sort(workflow: dict[str, Any]) -> list[str]:
+    """Return a topologically sorted list of node IDs using Kahn's algorithm.
+
+    Raises ValueError if the graph contains a cycle.
+    """
+    node_ids = _get_all_node_ids(workflow)
+    if not node_ids:
+        return []
+
+    adj = _build_adjacency(workflow)
+    indegree = _build_indegree(workflow)
+
+    queue = deque([nid for nid in node_ids if indegree.get(nid, 0) == 0])
+    result: list[str] = []
+
+    while queue:
+        node = queue.popleft()
+        result.append(node)
+        for neighbor in adj.get(node, []):
+            indegree[neighbor] = indegree.get(neighbor, 0) - 1
+            if indegree[neighbor] == 0:
+                queue.append(neighbor)
+
+    if len(result) != len(node_ids):
+        remaining = node_ids - set(result)
+        raise ValueError(f"Workflow contains a cycle. Remaining nodes: {remaining}")
+
+    return result
+
+
+def downstream_nodes(
+    workflow: dict[str, Any],
+    start_node_ids: list[str],
+) -> list[str]:
+    """Find all nodes downstream of the given start nodes (BFS)."""
+    adj = _build_adjacency(workflow)
+    visited: set[str] = set(start_node_ids)
+    queue = deque(start_node_ids)
+    result: list[str] = []
+
+    while queue:
+        current = queue.popleft()
+        for neighbor in adj.get(current, []):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                result.append(neighbor)
+                queue.append(neighbor)
+
+    return result
+
+
+def upstream_nodes(
+    workflow: dict[str, Any],
+    start_node_ids: list[str],
+) -> list[str]:
+    """Find all nodes upstream of the given start nodes (reverse BFS)."""
+    reverse_adj: dict[str, list[str]] = defaultdict(list)
+    for edge in workflow.get("edges", []):
+        if isinstance(edge, dict):
+            src = edge.get("from_node") or edge.get("source_node", "")
+            dst = edge.get("to_node") or edge.get("target_node", "")
+        else:
+            src = getattr(edge, "source_node", "")
+            dst = getattr(edge, "target_node", "")
+        if src and dst:
+            reverse_adj[dst].append(src)
+
+    visited: set[str] = set(start_node_ids)
+    queue = deque(start_node_ids)
+    result: list[str] = []
+
+    while queue:
+        current = queue.popleft()
+        for neighbor in reverse_adj.get(current, []):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                result.append(neighbor)
+                queue.append(neighbor)
+
+    return result

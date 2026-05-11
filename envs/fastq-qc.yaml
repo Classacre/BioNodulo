@@ -1,0 +1,13 @@
+name: fastq-qc
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - fastqc=0.12.1
+  - multiqc=1.14
+  - samtools=1.17
+  - bwa=0.7.17
+  - picard=3.1
+  - trimmomatic=0.39

@@ -1,0 +1,13 @@
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+web/node_modules/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.log
+runs/
+cache/

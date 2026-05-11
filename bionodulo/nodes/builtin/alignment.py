@@ -1,0 +1,518 @@
+"""Sequence alignment nodes for BioNodulo.
+
+Provides nodes for BWA, Bowtie2, Minimap2, HISAT2, and STAR alignment
+tools including index building and read mapping.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from bionodulo.nodes.command_node import CommandNode
+
+
+# ── BWA ────────────────────────────────────────────────────────────
+
+class BWAIndexNode(CommandNode):
+    """Build BWA index for a reference genome."""
+    NODE_ID = "bwa_index"
+    DISPLAY_NAME = "BWA Index"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build BWA MEM index for a reference FASTA"
+    SEARCH_ALIASES = ["bwa", "index", "reference index"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("indexed_reference",)
+    REQUIRED_EXECUTABLES = ["bwa"]
+    DOCUMENTATION_URL = "https://bio-bwa.sourceforge.net/"
+    VERSION = "0.7.17"
+    COMMAND = [
+        "bwa", "index",
+        "{inputs.reference}",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA to index"}),
+            },
+            "optional": {
+                "algorithm": ("STRING", {"default": "bwtsw"}),
+            },
+            "hidden": {},
+        }
+
+
+class BWAMemNode(CommandNode):
+    """Align reads with BWA-MEM."""
+    NODE_ID = "bwa_mem"
+    DISPLAY_NAME = "BWA-MEM Align"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align paired-end reads to a reference using BWA-MEM"
+    SEARCH_ALIASES = ["bwa", "mem", "align", "mapper", "map"]
+    RETURN_TYPES = ("SAM",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["bwa"]
+    DOCUMENTATION_URL = "https://bio-bwa.sourceforge.net/"
+    VERSION = "0.7.17"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
+        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        rg = f"@RG\\tID:{inputs.get('rg_id', '1')}\\tSM:{inputs.get('rg_sample', 'sample')}\\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
+        cmd = [
+            "bwa", "mem",
+            "-t", str(inputs.get("threads", 8)),
+            "-R", rg,
+            str(inputs.get("reference", "")),
+            str(r1),
+        ]
+        if r2:
+            cmd.append(str(r2))
+        if inputs.get("mark_shorter_splits") is not False:
+            cmd.append("-M")
+        cmd.extend([">", f"{inputs.get('output', '.')}/aligned.sam"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "reference": ("FASTA", {"description": "Indexed reference FASTA"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
+                "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
+                "rg_platform": ("STRING", {"default": "ILLUMINA", "options": ["ILLUMINA", "PACBIO", "ONT", "IONTORRENT"], "label": "Platform"}),
+                "mark_shorter_splits": ("BOOLEAN", {"default": True, "label": "Mark Shorter Splits", "advanced": True}),
+                "min_score": ("INT", {"default": 30, "min": 1, "label": "Min Score", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class BWAIndexDirNode(CommandNode):
+    """Wrap BWA index directory for passing between nodes."""
+    NODE_ID = "bwa_index_dir"
+    DISPLAY_NAME = "BWA Index Directory"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Reference index directory output from BWA index"
+    SEARCH_ALIASES = ["bwa index dir", "index directory"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index_dir",)
+    REQUIRES_EXTERNAL_TOOLS = False
+    COMMAND = ["cp", "-r", "{inputs.index_dir}", "{output}"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "index_dir": ("INDEX_DIR", {"description": "BWA index directory"}),
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+
+# ── Bowtie2 ────────────────────────────────────────────────────────
+
+class Bowtie2BuildNode(CommandNode):
+    """Build Bowtie2 index."""
+    NODE_ID = "bowtie2_build"
+    DISPLAY_NAME = "Bowtie2 Build"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build Bowtie2 index from a reference FASTA"
+    SEARCH_ALIASES = ["bowtie2", "build", "index"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["bowtie2-build"]
+    DOCUMENTATION_URL = "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
+    VERSION = "2.5.3"
+    COMMAND = [
+        "bowtie2-build",
+        "--threads", "{inputs.threads}",
+        "{inputs.reference}",
+        "{output}/bt2_index",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class Bowtie2AlignNode(CommandNode):
+    """Align reads with Bowtie2."""
+    NODE_ID = "bowtie2_align"
+    DISPLAY_NAME = "Bowtie2 Align"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align paired-end reads with Bowtie2"
+    SEARCH_ALIASES = ["bowtie2", "align", "mapper"]
+    RETURN_TYPES = ("SAM",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["bowtie2"]
+    DOCUMENTATION_URL = "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
+    VERSION = "2.5.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bowtie2",
+            "-p", str(inputs.get("threads", 8)),
+            "-x", str(inputs.get("index", "")),
+        ]
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
+        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        if r1 and r2:
+            cmd.extend(["-1", str(r1), "-2", str(r2)])
+        elif r1:
+            cmd.extend(["-U", str(r1)])
+        if inputs.get("rg_id"):
+            cmd.extend(["--rg-id", str(inputs["rg_id"])])
+        if inputs.get("rg_sample"):
+            cmd.extend(["--rg", f"SM:{inputs['rg_sample']}"])
+        if inputs.get("very_sensitive"):
+            cmd.append("--very-sensitive")
+        if inputs.get("no_mixed"):
+            cmd.append("--no-mixed")
+        cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
+                "index": ("INDEX_DIR", {"description": "Bowtie2 index prefix"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
+                "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
+                "very_sensitive": ("BOOLEAN", {"default": False, "label": "Very Sensitive", "advanced": True}),
+                "no_mixed": ("BOOLEAN", {"default": False, "label": "No Mixed", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class Bowtie2IndexNode(CommandNode):
+    """Inspect Bowtie2 index."""
+    NODE_ID = "bowtie2_inspect"
+    DISPLAY_NAME = "Bowtie2 Inspect"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Inspect a Bowtie2 index and extract reference sequences"
+    SEARCH_ALIASES = ["bowtie2", "inspect", "index"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("reference",)
+    REQUIRED_EXECUTABLES = ["bowtie2-inspect"]
+    VERSION = "2.5.3"
+    SHELL = True
+    COMMAND = [
+        "bowtie2-inspect",
+        "{inputs.index}",
+        ">", "{output}/reference.fa",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "index": ("INDEX_DIR", {"description": "Bowtie2 index prefix"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── Minimap2 ───────────────────────────────────────────────────────
+
+class Minimap2IndexNode(CommandNode):
+    """Build Minimap2 index."""
+    NODE_ID = "minimap2_index"
+    DISPLAY_NAME = "Minimap2 Index"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build Minimap2 index for long-read alignment"
+    SEARCH_ALIASES = ["minimap2", "index", "long reads"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["minimap2"]
+    DOCUMENTATION_URL = "https://lh3.github.io/minimap2/"
+    VERSION = "2.28"
+    COMMAND = [
+        "minimap2",
+        "-d", "{output}/index.mmi",
+        "{inputs.reference}",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+            },
+            "optional": {
+                "preset": ("STRING", {"default": "map-ont"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class Minimap2AlignNode(CommandNode):
+    """Align reads with Minimap2."""
+    NODE_ID = "minimap2_align"
+    DISPLAY_NAME = "Minimap2 Align"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align reads to a reference with Minimap2 (long or short reads)"
+    SEARCH_ALIASES = ["minimap2", "align", "long read", "pacbio", "ont"]
+    RETURN_TYPES = ("SAM",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["minimap2"]
+    DOCUMENTATION_URL = "https://lh3.github.io/minimap2/"
+    VERSION = "2.28"
+    SHELL = True
+    COMMAND = [
+        "minimap2",
+        "-ax", "{inputs.preset}",
+        "-t", "{inputs.threads}",
+        "{inputs.reference}",
+        "{inputs.reads}",
+        ">", "{output}/aligned.sam",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("FASTQ", {"description": "FASTQ reads (single-end or long reads)"}),
+                "reference": ("FASTA", {"description": "Reference FASTA or Minimap2 index"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "preset": ("STRING", {"default": "sr"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── HISAT2 ─────────────────────────────────────────────────────────
+
+class HISAT2BuildNode(CommandNode):
+    """Build HISAT2 index."""
+    NODE_ID = "hisat2_build"
+    DISPLAY_NAME = "HISAT2 Build"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build HISAT2 spliced alignment index"
+    SEARCH_ALIASES = ["hisat2", "index", "spliced", "rna"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["hisat2-build"]
+    DOCUMENTATION_URL = "https://daehwankimlab.github.io/hisat2/"
+    VERSION = "2.2.1"
+    COMMAND = [
+        "hisat2-build",
+        "-p", "{inputs.threads}",
+        "{inputs.reference}",
+        "{output}/hisat2_index",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class HISAT2AlignNode(CommandNode):
+    """Align RNA-seq reads with HISAT2."""
+    NODE_ID = "hisat2_align"
+    DISPLAY_NAME = "HISAT2 Align"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align RNA-seq reads with splice-aware HISAT2"
+    SEARCH_ALIASES = ["hisat2", "align", "rna-seq", "spliced"]
+    RETURN_TYPES = ("SAM",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["hisat2"]
+    DOCUMENTATION_URL = "https://daehwankimlab.github.io/hisat2/"
+    VERSION = "2.2.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "hisat2",
+            "-p", str(inputs.get("threads", 8)),
+            "-x", str(inputs.get("index", "")),
+        ]
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
+        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        if r1 and r2:
+            cmd.extend(["-1", str(r1), "-2", str(r2)])
+        elif r1:
+            cmd.extend(["-U", str(r1)])
+        if inputs.get("rg_id"):
+            cmd.extend(["--rg-id", str(inputs["rg_id"])])
+        if inputs.get("rg_sample"):
+            cmd.extend(["--rg", f"SM:{inputs['rg_sample']}"])
+        if inputs.get("dta"):
+            cmd.append("--dta")
+        if inputs.get("no_softclip"):
+            cmd.append("--no-softclip")
+        cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
+                "index": ("INDEX_DIR", {"description": "HISAT2 index prefix"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
+                "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
+                "dta": ("BOOLEAN", {"default": True, "description": "Report alignments for StringTie", "advanced": True}),
+                "no_softclip": ("BOOLEAN", {"default": False, "label": "No Softclip", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── STAR ───────────────────────────────────────────────────────────
+
+class STARIndexNode(CommandNode):
+    """Build STAR genome index."""
+    NODE_ID = "star_index"
+    DISPLAY_NAME = "STAR Index"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build STAR splice-aware genome index for RNA-seq"
+    SEARCH_ALIASES = ["star", "index", "genome", "rna-seq"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["STAR"]
+    DOCUMENTATION_URL = "https://github.com/alexdobin/STAR"
+    VERSION = "2.7.11b"
+    COMMAND = [
+        "STAR",
+        "--runMode", "genomeGenerate",
+        "--genomeDir", "{output}",
+        "--genomeFastaFiles", "{inputs.reference}",
+        "--sjdbGTFfile", "{inputs.gtf}",
+        "--runThreadN", "{inputs.threads}",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference genome FASTA"}),
+                "gtf": ("GTF", {"description": "Gene annotation GTF"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "genome_sa_index_nbases": ("INT", {"default": 14}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class STARAlignNode(CommandNode):
+    """Align RNA-seq reads with STAR."""
+    NODE_ID = "star_align"
+    DISPLAY_NAME = "STAR Align"
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align RNA-seq reads with 2-pass STAR"
+    SEARCH_ALIASES = ["star", "align", "rna-seq"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["STAR"]
+    DOCUMENTATION_URL = "https://github.com/alexdobin/STAR"
+    VERSION = "2.7.11b"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
+        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        cmd = [
+            "STAR",
+            "--genomeDir", str(inputs.get("index", "")),
+            "--readFilesIn", str(r1),
+        ]
+        if r2:
+            cmd.append(str(r2))
+        cmd.extend([
+            "--readFilesCommand", "zcat",
+            "--outFileNamePrefix", f"{inputs.get('output', '.')}/",
+            "--outSAMtype", "BAM", "SortedByCoordinate",
+            "--runThreadN", str(inputs.get("threads", 8)),
+        ])
+        if inputs.get("two_pass"):
+            cmd.append("--twopassMode", "Basic")
+        if inputs.get("chim_segment_min"):
+            cmd.extend(["--chimSegmentMin", str(inputs["chim_segment_min"])])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "index": ("INDEX_DIR", {"description": "STAR genome index directory"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "two_pass": ("BOOLEAN", {"default": True, "description": "Enable 2-pass mode", "advanced": True}),
+                "chim_segment_min": ("INT", {"default": 0, "min": 0, "label": "Chimera Min Segment", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

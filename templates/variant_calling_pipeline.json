@@ -1,0 +1,280 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Variant Calling Pipeline",
+  "description": "GATK-based germline variant calling from FASTQ to filtered VCF",
+  "nodes": [
+    {
+      "id": "note_variant_calling_pipeline",
+      "type": "note",
+      "position": [
+        50,
+        10
+      ],
+      "params": {
+        "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [
+        50,
+        50
+      ],
+      "params": {
+        "sample_name": "sample1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "ref_001",
+      "type": "input_fasta",
+      "position": [
+        50,
+        180
+      ],
+      "params": {
+        "file_path": "reference.fa"
+      },
+      "ui": {
+        "title": "Reference FASTA"
+      }
+    },
+    {
+      "id": "bwa_001",
+      "type": "bwa_mem",
+      "position": [
+        300,
+        50
+      ],
+      "params": {
+        "threads": 8,
+        "mark_shorter_splits": true
+      },
+      "ui": {
+        "title": "BWA-MEM"
+      }
+    },
+    {
+      "id": "sort_001",
+      "type": "samtools_sort",
+      "position": [
+        550,
+        50
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "samtools sort"
+      }
+    },
+    {
+      "id": "index_001",
+      "type": "samtools_index",
+      "position": [
+        550,
+        200
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools index"
+      }
+    },
+    {
+      "id": "flagstat_001",
+      "type": "samtools_flagstat",
+      "position": [
+        550,
+        350
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools flagstat"
+      }
+    },
+    {
+      "id": "gatk_001",
+      "type": "gatk_haplotypecaller",
+      "position": [
+        800,
+        50
+      ],
+      "params": {
+        "emit_conf": 30,
+        "call_conf": 30
+      },
+      "ui": {
+        "title": "GATK HaplotypeCaller"
+      }
+    },
+    {
+      "id": "filter_001",
+      "type": "bcftools_filter",
+      "position": [
+        1050,
+        50
+      ],
+      "params": {
+        "expr": "QUAL>30 && DP>10"
+      },
+      "ui": {
+        "title": "bcftools filter"
+      }
+    },
+    {
+      "id": "qc_001",
+      "type": "fastqc",
+      "position": [
+        300,
+        350
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        800,
+        350
+      ],
+      "params": {
+        "title": "Variant Calling QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "bwa_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "bwa_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "bwa_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "index_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "index_001",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "gatk_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "gatk_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "gatk_001",
+        "output": "variants"
+      },
+      "to": {
+        "node": "filter_001",
+        "input": "vcf"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "index_001",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "flagstat_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "qc_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "vcf": "filter_001",
+    "flagstat": "flagstat_001",
+    "report": "mqc_001"
+  }
+}

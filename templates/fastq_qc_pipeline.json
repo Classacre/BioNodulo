@@ -1,0 +1,94 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "FASTQ QC Pipeline",
+  "description": "Quality control pipeline for sequencing reads using FastQC and MultiQC",
+  "nodes": [
+    {
+      "id": "note_fastq_qc_pipeline",
+      "type": "note",
+      "position": [
+        100,
+        20
+      ],
+      "params": {
+        "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "input_fastq_001",
+      "type": "input_fastq",
+      "position": [
+        100,
+        100
+      ],
+      "params": {
+        "sample_name": "sample1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "fastqc_001",
+      "type": "fastqc",
+      "position": [
+        400,
+        100
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    },
+    {
+      "id": "multiqc_001",
+      "type": "multiqc",
+      "position": [
+        700,
+        100
+      ],
+      "params": {
+        "title": "QC Report"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "input_fastq_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "fastqc_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "fastqc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "multiqc_001",
+        "input": "reports"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "report": "multiqc_001"
+  }
+}

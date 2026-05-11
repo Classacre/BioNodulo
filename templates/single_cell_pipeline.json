@@ -1,0 +1,119 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Single Cell RNA-Seq",
+  "description": "10x Genomics single cell RNA sequencing analysis with Cell Ranger",
+  "nodes": [
+    {
+      "id": "note_single_cell_pipeline",
+      "type": "note",
+      "position": [
+        100,
+        20
+      ],
+      "params": {
+        "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "fastq_001",
+      "type": "input_directory",
+      "position": [
+        100,
+        100
+      ],
+      "params": {
+        "path": "fastq_dir"
+      },
+      "ui": {
+        "title": "FASTQ Directory"
+      }
+    },
+    {
+      "id": "ref_001",
+      "type": "input_directory",
+      "position": [
+        100,
+        300
+      ],
+      "params": {
+        "path": "refdata-gex-GRCh38"
+      },
+      "ui": {
+        "title": "Cell Ranger Reference"
+      }
+    },
+    {
+      "id": "cr_count_001",
+      "type": "cellranger_count",
+      "position": [
+        400,
+        100
+      ],
+      "params": {
+        "sample": "sample1",
+        "expect_cells": 3000
+      },
+      "ui": {
+        "title": "Cell Ranger Count"
+      }
+    },
+    {
+      "id": "qc_001",
+      "type": "fastqc",
+      "position": [
+        400,
+        400
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "fastq_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "cr_count_001",
+        "input": "fastq_dir"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "ref_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "cr_count_001",
+        "input": "transcriptome"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "fastq_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "qc_001",
+        "input": "directory"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "counts": "cr_count_001"
+  }
+}

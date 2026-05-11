@@ -1,0 +1,173 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Genome Assembly",
+  "description": "De novo genome assembly with quality assessment",
+  "nodes": [
+    {
+      "id": "note_assembly_pipeline",
+      "type": "note",
+      "position": [
+        100,
+        20
+      ],
+      "params": {
+        "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [
+        100,
+        100
+      ],
+      "params": {
+        "sample_name": "genome1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "fastp_001",
+      "type": "fastp",
+      "position": [
+        380,
+        100
+      ],
+      "params": {
+        "threads": 4,
+        "adapter_sequence": "auto"
+      },
+      "ui": {
+        "title": "fastp Trim"
+      }
+    },
+    {
+      "id": "spades_001",
+      "type": "spades",
+      "position": [
+        660,
+        100
+      ],
+      "params": {
+        "threads": 8,
+        "mode": "--isolate"
+      },
+      "ui": {
+        "title": "SPAdes Assembly"
+      }
+    },
+    {
+      "id": "ref_001",
+      "type": "input_fasta",
+      "position": [
+        380,
+        350
+      ],
+      "params": {
+        "file_path": ""
+      },
+      "ui": {
+        "title": "Reference (optional)"
+      }
+    },
+    {
+      "id": "quast_001",
+      "type": "quast",
+      "position": [
+        940,
+        100
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "Quast Assessment"
+      }
+    },
+    {
+      "id": "prokka_001",
+      "type": "prokka",
+      "position": [
+        940,
+        350
+      ],
+      "params": {
+        "kingdom": "Bacteria"
+      },
+      "ui": {
+        "title": "Prokka Annotation"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "fastp_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "spades_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "spades_001",
+        "output": "assembly"
+      },
+      "to": {
+        "node": "quast_001",
+        "input": "assembly"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "quast_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "spades_001",
+        "output": "assembly"
+      },
+      "to": {
+        "node": "prokka_001",
+        "input": "assembly"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "assembly": "spades_001",
+    "quast": "quast_001",
+    "annotation": "prokka_001"
+  }
+}

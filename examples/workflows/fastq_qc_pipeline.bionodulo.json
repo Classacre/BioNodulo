@@ -1,0 +1,35 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "FASTQ QC Example",
+  "description": "Example QC workflow for demonstration",
+  "nodes": [
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [200, 200],
+      "params": { "sample_name": "demo", "paired_end": true },
+      "ui": { "title": "Demo FASTQ" }
+    },
+    {
+      "id": "fastqc_001",
+      "type": "fastqc",
+      "position": [500, 150],
+      "params": { "threads": 4 },
+      "ui": { "title": "FastQC" }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [800, 150],
+      "params": { "title": "Demo QC Report" },
+      "ui": { "title": "MultiQC" }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": { "node": "reads_001", "output": "reads" }, "to": { "node": "fastqc_001", "input": "reads" } },
+    { "id": "e2", "from": { "node": "fastqc_001", "output": "report_dir" }, "to": { "node": "mqc_001", "input": "reports" } }
+  ],
+  "groups": [],
+  "outputs": { "report": "mqc_001" }
+}

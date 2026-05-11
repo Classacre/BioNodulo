@@ -1,0 +1,195 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "ChIP-Seq Pipeline",
+  "description": "Chromatin immunoprecipitation sequencing analysis",
+  "nodes": [
+    {
+      "id": "note_chip_seq_pipeline",
+      "type": "note",
+      "position": [
+        80,
+        10
+      ],
+      "params": {
+        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "treat_001",
+      "type": "input_fastq",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "sample_name": "treatment",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Treatment FASTQ"
+      }
+    },
+    {
+      "id": "idx_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        300
+      ],
+      "params": {
+        "path": "bowtie2_index"
+      },
+      "ui": {
+        "title": "Bowtie2 Index"
+      }
+    },
+    {
+      "id": "bt2_001",
+      "type": "bowtie2_align",
+      "position": [
+        380,
+        80
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Bowtie2 Align"
+      }
+    },
+    {
+      "id": "sort_001",
+      "type": "samtools_sort",
+      "position": [
+        660,
+        80
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "samtools sort"
+      }
+    },
+    {
+      "id": "macs2_001",
+      "type": "macs2_callpeak",
+      "position": [
+        940,
+        80
+      ],
+      "params": {
+        "format": "AUTO"
+      },
+      "ui": {
+        "title": "MACS2 CallPeak"
+      }
+    },
+    {
+      "id": "qc_001",
+      "type": "fastqc",
+      "position": [
+        380,
+        300
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        660,
+        300
+      ],
+      "params": {
+        "title": "ChIP-Seq QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "treat_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "bt2_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "idx_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "bt2_001",
+        "input": "index"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "bt2_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "macs2_001",
+        "input": "treatment"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "treat_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "qc_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "peaks": "macs2_001",
+    "report": "mqc_001"
+  }
+}

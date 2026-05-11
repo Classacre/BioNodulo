@@ -1,0 +1,117 @@
+"""Example custom node for BioNodulo.
+
+This file demonstrates how to create a custom node that integrates with
+BioNodulo. To use it, remove the .example extension and restart BioNodulo.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from bionodulo.nodes.command_node import CommandNode
+
+
+class ExampleCustomNode(CommandNode):
+    """An example custom node that runs a simple bioinformatics command.
+
+    This node demonstrates:
+    - Defining a NODE_ID and metadata
+    - Specifying INPUT_TYPES with required and optional parameters
+    - Using RETURN_TYPES and RETURN_NAMES for outputs
+    - Defining a COMMAND template
+    - Adding SEARCH_ALIASES for discovery
+    """
+
+    # ── Node Identity ────────────────────────────────────────────────
+    NODE_ID = "example_custom"
+    DISPLAY_NAME = "Example Custom"
+    CATEGORY = "custom"
+    DESCRIPTION = "An example custom node for BioNodulo"
+    SEARCH_ALIASES = ["example", "custom", "demo", "template"]
+
+    # ── I/O ──────────────────────────────────────────────────────────
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_file",)
+
+    # ── Execution ────────────────────────────────────────────────────
+    REQUIRED_EXECUTABLES = ["echo"]  # This node just echoes for demo
+    REQUIRES_EXTERNAL_TOOLS = True
+
+    # Command template - uses {inputs.NAME} placeholders
+    COMMAND = [
+        "echo",
+        "Processing", "{inputs.input_file}",
+        "with", "threads={inputs.threads}",
+        ">", "{output}/result.txt",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("FILE", {
+                    "description": "Input file to process",
+                }),
+                "threads": ("INT", {
+                    "default": 4,
+                    "min": 1,
+                    "max": 64,
+                    "description": "Number of threads",
+                }),
+            },
+            "optional": {
+                "extra_option": ("STRING", {
+                    "default": "",
+                    "description": "An optional parameter",
+                }),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── Advanced Example: Python-only node ─────────────────────────────
+
+from bionodulo.nodes.base import BaseNode
+
+
+class ExamplePythonNode(BaseNode):
+    """An example pure-Python node (no external tools).
+
+    This node performs its computation entirely in Python, useful for
+data transformation, calculation, or file manipulation tasks.
+    """
+
+    NODE_ID = "example_python"
+    DISPLAY_NAME = "Example Python Transform"
+    CATEGORY = "custom"
+    DESCRIPTION = "Pure-Python data transformation example"
+    SEARCH_ALIASES = ["python", "transform", "custom python"]
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("result",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "text": ("STRING", {"description": "Text to transform"}),
+            },
+            "optional": {
+                "uppercase": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple:
+        """Execute the Python transformation."""
+        text = kwargs.get("text", "")
+        if kwargs.get("uppercase", False):
+            text = text.upper()
+        return (text,)
+
+
+# ── Registration ───────────────────────────────────────────────────
+# Nodes are auto-discovered when this module is imported.
+# Just define them as CommandNode/BaseNode subclasses with NODE_ID set.
+# The NodeRegistry will find and register them automatically.

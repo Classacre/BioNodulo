@@ -1,0 +1,258 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Metagenomics Profiling",
+  "description": "Taxonomic and functional profiling of microbial communities",
+  "nodes": [
+    {
+      "id": "note_metagenomics_pipeline",
+      "type": "note",
+      "position": [
+        80,
+        10
+      ],
+      "params": {
+        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "sample_name": "sample1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "db_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        280
+      ],
+      "params": {
+        "path": "kraken2_db"
+      },
+      "ui": {
+        "title": "Kraken2 DB"
+      }
+    },
+    {
+      "id": "fastp_001",
+      "type": "fastp",
+      "position": [
+        360,
+        80
+      ],
+      "params": {
+        "threads": 4,
+        "adapter_sequence": "auto"
+      },
+      "ui": {
+        "title": "fastp Trim"
+      }
+    },
+    {
+      "id": "kraken2_001",
+      "type": "kraken2",
+      "position": [
+        640,
+        80
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Kraken2"
+      }
+    },
+    {
+      "id": "bracken_001",
+      "type": "bracken",
+      "position": [
+        920,
+        80
+      ],
+      "params": {
+        "level": "S"
+      },
+      "ui": {
+        "title": "Bracken"
+      }
+    },
+    {
+      "id": "metaphlan_001",
+      "type": "metaphlan",
+      "position": [
+        640,
+        280
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "MetaPhlAn"
+      }
+    },
+    {
+      "id": "humann_001",
+      "type": "humann",
+      "position": [
+        920,
+        280
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "HUMAnN"
+      }
+    },
+    {
+      "id": "qc_001",
+      "type": "fastqc",
+      "position": [
+        360,
+        450
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        640,
+        450
+      ],
+      "params": {
+        "title": "Metagenomics QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "fastp_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "kraken2_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "db_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "kraken2_001",
+        "input": "db"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "kraken2_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "bracken_001",
+        "input": "report"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "db_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "bracken_001",
+        "input": "db"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "metaphlan_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "humann_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "qc_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "taxonomy": "bracken_001",
+    "metaphlan": "metaphlan_001",
+    "pathways": "humann_001"
+  }
+}

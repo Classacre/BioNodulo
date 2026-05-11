@@ -1,0 +1,279 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "WGS Variant Pipeline",
+  "description": "Whole genome sequencing variant calling with BWA and FreeBayes",
+  "nodes": [
+    {
+      "id": "note_wgs_variant_pipeline",
+      "type": "note",
+      "position": [
+        80,
+        10
+      ],
+      "params": {
+        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [
+        80,
+        60
+      ],
+      "params": {
+        "sample_name": "wgs1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "ref_001",
+      "type": "input_fasta",
+      "position": [
+        80,
+        220
+      ],
+      "params": {
+        "file_path": "reference.fa"
+      },
+      "ui": {
+        "title": "Reference FASTA"
+      }
+    },
+    {
+      "id": "fastp_001",
+      "type": "fastp",
+      "position": [
+        340,
+        60
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "fastp Trim"
+      }
+    },
+    {
+      "id": "bwa_001",
+      "type": "bwa_mem",
+      "position": [
+        600,
+        60
+      ],
+      "params": {
+        "threads": 16
+      },
+      "ui": {
+        "title": "BWA-MEM"
+      }
+    },
+    {
+      "id": "sort_001",
+      "type": "samtools_sort",
+      "position": [
+        860,
+        60
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "samtools sort"
+      }
+    },
+    {
+      "id": "idx_001",
+      "type": "samtools_index",
+      "position": [
+        860,
+        220
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools index"
+      }
+    },
+    {
+      "id": "fb_001",
+      "type": "freebayes",
+      "position": [
+        1120,
+        60
+      ],
+      "params": {
+        "ploidy": 2
+      },
+      "ui": {
+        "title": "FreeBayes"
+      }
+    },
+    {
+      "id": "filter_001",
+      "type": "bcftools_filter",
+      "position": [
+        1380,
+        60
+      ],
+      "params": {
+        "expr": "QUAL>20 && DP>5"
+      },
+      "ui": {
+        "title": "bcftools filter"
+      }
+    },
+    {
+      "id": "qc_001",
+      "type": "fastqc",
+      "position": [
+        340,
+        400
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "FastQC"
+      }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        860,
+        400
+      ],
+      "params": {
+        "title": "WGS QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "fastp_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "bwa_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "bwa_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "bwa_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "idx_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "idx_001",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "fb_001",
+        "output": "variants"
+      },
+      "to": {
+        "node": "filter_001",
+        "input": "vcf"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "qc_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "vcf": "filter_001",
+    "report": "mqc_001"
+  }
+}

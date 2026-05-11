@@ -1,0 +1,70 @@
+# BioNodulo Configuration File
+# Copy this to bionodulo.yaml and customize for your environment.
+
+project_root: ./bionodulo_workspace
+runs_dir: ./runs
+cache_dir: ./cache
+custom_nodes_dir: ./custom_nodes
+data_roots: ["./data"]
+
+# External tool paths (leave empty to use PATH)
+tool_paths:
+  bwa: /usr/bin/bwa
+  samtools: /usr/bin/samtools
+  fastqc: /usr/bin/fastqc
+  multiqc: /usr/bin/multiqc
+  gatk: /opt/gatk/gatk
+  bcftools: /usr/bin/bcftools
+  bowtie2: /usr/bin/bowtie2
+  minimap2: /usr/bin/minimap2
+  star: /usr/bin/STAR
+  hisat2: /usr/bin/hisat2
+  spades: /usr/bin/spades.py
+  megahit: /usr/bin/megahit
+  kraken2: /usr/bin/kraken2
+  macs2: /usr/bin/macs2
+  cellranger: /opt/cellranger/cellranger
+
+# Conda/Mamba configuration
+conda:
+  executable: micromamba  # conda, mamba, or micromamba
+  channels: [bioconda, conda-forge]
+
+# Container configuration
+containers:
+  default_runtime: apptainer  # docker or apptainer
+  default_image: null
+
+# HPC configuration
+hpc:
+  enabled: false
+  backend: slurm  # slurm, pbs, sge
+  partition: normal
+  account: null
+  walltime: "01:00:00"
+  cpus_per_task: 4
+  mem_per_cpu: "4G"
+  modules: []
+  extra_args: ""
+
+# API configuration
+api:
+  host: "127.0.0.1"
+  port: 8000
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  base_url: ""
+  api_key: ""
+  temperature: 0.2
+
+# Execution settings
+execution:
+  mock_tools_default: false
+  stop_on_error: true
+  max_parallel_jobs: 4
+
+# Security
+api_secrets: {}

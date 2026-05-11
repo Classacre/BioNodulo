@@ -1,0 +1,177 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Differential Expression",
+  "description": "Transcript quantification and differential expression analysis",
+  "nodes": [
+    {
+      "id": "note_differential_expression",
+      "type": "note",
+      "position": [
+        100,
+        20
+      ],
+      "params": {
+        "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "reads_001",
+      "type": "input_fastq",
+      "position": [
+        100,
+        100
+      ],
+      "params": {
+        "sample_name": "ctrl_rep1",
+        "paired_end": true
+      },
+      "ui": {
+        "title": "Control FASTQ"
+      }
+    },
+    {
+      "id": "tx_001",
+      "type": "input_fasta",
+      "position": [
+        100,
+        280
+      ],
+      "params": {
+        "file_path": "transcripts.fa"
+      },
+      "ui": {
+        "title": "Transcriptome FASTA"
+      }
+    },
+    {
+      "id": "salmon_idx_001",
+      "type": "salmon_index",
+      "position": [
+        380,
+        280
+      ],
+      "params": {},
+      "ui": {
+        "title": "Salmon Index"
+      }
+    },
+    {
+      "id": "salmon_quant_001",
+      "type": "salmon_quant",
+      "position": [
+        660,
+        100
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Salmon Quant"
+      }
+    },
+    {
+      "id": "kallisto_idx_001",
+      "type": "kallisto_index",
+      "position": [
+        380,
+        450
+      ],
+      "params": {},
+      "ui": {
+        "title": "Kallisto Index"
+      }
+    },
+    {
+      "id": "kallisto_quant_001",
+      "type": "kallisto_quant",
+      "position": [
+        660,
+        280
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Kallisto Quant"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "tx_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "salmon_idx_001",
+        "input": "transcripts"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "salmon_quant_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "salmon_idx_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "salmon_quant_001",
+        "input": "index"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "tx_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "kallisto_idx_001",
+        "input": "transcripts"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "kallisto_quant_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "kallisto_idx_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "kallisto_quant_001",
+        "input": "index"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "salmon": "salmon_quant_001",
+    "kallisto": "kallisto_quant_001"
+  }
+}

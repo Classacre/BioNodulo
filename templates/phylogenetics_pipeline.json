@@ -1,0 +1,97 @@
+{
+  "version": "Alpha 1.0",
+  "app": "bionodulo",
+  "name": "Phylogenetics Pipeline",
+  "description": "Multiple sequence alignment and phylogenetic tree construction",
+  "nodes": [
+    {
+      "id": "note_phylogenetics_pipeline",
+      "type": "note",
+      "position": [
+        100,
+        70
+      ],
+      "params": {
+        "text": "Phylogenetics pipeline: aligns sequences with MAFFT and builds trees with IQ-TREE."
+      },
+      "ui": {
+        "title": "Description",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "seqs_001",
+      "type": "input_fasta",
+      "position": [
+        100,
+        150
+      ],
+      "params": {
+        "file_path": "sequences.fasta"
+      },
+      "ui": {
+        "title": "Input Sequences"
+      }
+    },
+    {
+      "id": "mafft_001",
+      "type": "mafft",
+      "position": [
+        400,
+        150
+      ],
+      "params": {
+        "threads": 4,
+        "strategy": "auto"
+      },
+      "ui": {
+        "title": "MAFFT Alignment"
+      }
+    },
+    {
+      "id": "iqtree_001",
+      "type": "iqtree",
+      "position": [
+        700,
+        150
+      ],
+      "params": {
+        "threads": 4,
+        "model": "MFP",
+        "bootstrap": 1000
+      },
+      "ui": {
+        "title": "IQ-TREE"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "seqs_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "mafft_001",
+        "input": "sequences"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "mafft_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "iqtree_001",
+        "input": "alignment"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "tree": "iqtree_001",
+    "alignment": "mafft_001"
+  }
+}
