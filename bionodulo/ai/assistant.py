@@ -1,240 +1,397 @@
-"""
-AI chat assistant for BioNodulo.
+"""AI chat assistant for BioNodulo with tool-use capabilities.
 
-Provides workflow-aware chat capabilities supporting multiple LLM providers:
-- OpenAI (GPT-4, GPT-3.5)
-- Anthropic (Claude)
-- Custom / self-hosted providers (OpenAI-compatible API)
-"""
+Supports a reAct-style loop where the LLM can call tools to inspect
+and modify workflows, environments, and settings.
 
+File attachment handling:
+- Images (PNG, JPEG, WEBP, GIF) are passed through native vision APIs.
+- PDFs are sent as native document blocks to Anthropic; for OpenAI Chat
+  Completions they are decoded to text where possible.
+- Text/code files are decoded and included inline.
+- Other binary files are described by metadata.
+"""
 from __future__ import annotations
 
 import json
 import os
 import re as re_mod
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
+
+from bionodulo.ai.tools import (
+    ALL_TOOLS,
+    ToolContext,
+    execute_tool,
+    format_tools_for_prompt,
+)
 
 
-BIONODULO_SYSTEM_PROMPT = '''You are the BioNodulo AI Assistant, an expert bioinformatics workflow advisor.
+BIONODULO_SYSTEM_PROMPT = '''You are BioNodulo AI, an expert bioinformatics workflow assistant integrated into the BioNodulo visual workbench.
 
-BioNodulo is a visual node-based bioinformatics workbench. Users build workflows by connecting nodes on a canvas.
+BioNodulo is a node-based visual editor for building bioinformatics pipelines. Users drag nodes onto a canvas and connect them with edges. Each node represents a tool (e.g., FastQC, BWA, GATK) or data input. Nodes have typed inputs and outputs that must match when connected.
 
-NODE LIBRARY (built-in nodes):
+When helping users:
+- Ask clarifying questions if the request is vague
+- Use tools to fetch context rather than guessing
+- Explain your reasoning with <thinking> tags
+- Propose concrete, step-by-step workflow changes
+- Warn about common bioinformatics pitfalls (missing QC, wrong reference format, etc.)
+- If the user attaches files, analyze their contents and reference them in your answer
 
-Quality Control:
-- fastqc: Generate quality control reports for FASTQ files
-- multiqc: Aggregate QC reports from multiple tools
-- qualimap: BAM QC and coverage analysis
+{tools_text}
 
-Trimming:
-- fastp: Ultra-fast all-in-one FASTQ preprocessor
-- trimmomatic: Flexible read trimming tool
-- cutadapt: Adapter removal tool
-
-Alignment:
-- bowtie2: Fast gapped read alignment
-- bwa_mem: Burrows-Wheeler aligner (MEM algorithm)
-- minimap2: Versatile sequence alignment
-- star_align: Spliced read aligner for RNA-seq
-- hisat2: Hierarchical indexing for spliced alignment
-
-SAM/BAM Processing:
-- samtools_sort: Sort BAM files
-- samtools_index: Index BAM files
-- samtools_flagstat: Alignment statistics
-- samtools_view: Convert/filter SAM/BAM
-- samtools_merge: Merge multiple BAM files
-
-Variant Calling:
-- bcftools_mpileup: Generate VCF/BCF variant calls
-- gatk_haplotypecaller: GATK germline SNP/indel caller
-
-Assembly:
-- spades: Genome assembler for small genomes
-- megahit: Ultra-fast metagenome assembler
-- canu: Long-read assembler
-
-Annotation:
-- prokka: Rapid prokaryotic genome annotation
-- eggnog: Functional annotation via orthology
-- interproscan: Protein domain analysis
-
-RNA-Seq:
-- salmon_quant: Transcript quantification
-- kallisto: Pseudoalignment-based quantification
-- featurecounts: Read counting for genomic features
-
-Metagenomics:
-- kraken2: Taxonomic classification
-- bracken: Species abundance estimation
-- metaphlan: Microbial community profiling
-- humann: Functional profiling
-
-Phylogenetics:
-- iqtree: Efficient phylogenomic tree inference
-- fasttree: Approximately maximum-likelihood trees
-- raxml: Maximum likelihood phylogeny
-
-Utility:
-- file_input: Input file/folder node
-- command: Generic shell command wrapper
-- collect_files: Gather multiple files into a list
-- view_text: Display text content
-
-WORKFLOW HELP:
-- When users ask for workflow advice, suggest specific nodes and connections
-- Consider tool compatibility (output types must match input types)
-- Suggest QC steps before and after major operations
-- Recommend appropriate parameters for common use cases
-- Warn about common pitfalls (e.g., reference genome format, read groups)
-
-You can also modify workflows by returning a JSON node_blueprint. Users may upload workflow JSON for analysis.
+Response format rules:
+1. When you need information, use a <tool_call>.
+2. Show your reasoning in <thinking> tags BEFORE each tool call.
+3. After gathering information, you may propose changes with <propose_changes>.
+4. For your final response to the user, write plain text (no tags needed).
+5. You can make multiple tool calls in sequence; wait for each result before the next.
 '''
 
 
 @dataclass
-class ChatMessage:
-    """A single chat message."""
+class ChatStep:
+    """A single step in the AI reasoning chain."""
 
-    role: str
-    content: str
+    type: str  # thinking, tool_call, tool_result, propose_changes, reply
+    content: str = ""
+    name: str = ""  # for tool_call: tool name
+    arguments: dict[str, Any] = field(default_factory=dict)
+    result: dict[str, Any] = field(default_factory=dict)
+    workflow: dict[str, Any] | None = None
+    description: str = ""
 
 
 @dataclass
 class ChatResponse:
-    """Response from the AI assistant."""
+    """Full response from the AI assistant."""
 
-    reply: str
-    workflow: dict[str, Any] | None = None
-    node_blueprint: dict[str, Any] | None = None
-    validation: dict[str, Any] | None = None
+    steps: list[ChatStep]
+    reply: str = ""
+    proposed_workflow: dict[str, Any] | None = None
+    proposed_description: str = ""
 
 
-async def chat_with_assistant(
-    messages: list[dict[str, str]] | list[ChatMessage],
-    workflow: dict[str, Any] | None = None,
-    provider: str = "openai",
-    model: str | None = None,
-    api_key: str | None = None,
-    api_base: str | None = None,
-    stream: bool = False,
-    system_prompt: str | None = None,
-    temperature: float = 0.7,
-    max_tokens: int = 4096,
-) -> ChatResponse | AsyncIterator[str]:
-    """Send messages to an LLM and get a BioNodulo-aware response.
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
 
-    Args:
-        messages: List of message dicts with ``role`` and ``content`` keys,
-            or list of :class:`ChatMessage` objects.
-        workflow: Optional current workflow dict for context.
-        provider: LLM provider (``"openai"``, ``"anthropic"``, ``"custom"``).
-        model: Model name (defaults to provider-specific default).
-        api_key: API key for the provider.
-        api_base: Custom API base URL (for custom/self-hosted providers).
-        stream: If *True*, return an async iterator of response chunks.
-        system_prompt: Override the default BioNodulo system prompt.
-        temperature: Sampling temperature.
-        max_tokens: Maximum response tokens.
+_TOOL_CALL_RE = re_mod.compile(r'<tool_call\s+name="([^"]+)">\s*(.*?)\s*</tool_call>', re_mod.DOTALL)
+_THINKING_RE = re_mod.compile(r'<thinking>\s*(.*?)\s*</thinking>', re_mod.DOTALL)
+_PROPOSE_RE = re_mod.compile(r'<propose_changes>\s*(.*?)\s*</propose_changes>', re_mod.DOTALL)
 
-    Returns:
-        A :class:`ChatResponse` if ``stream=False``, or an async iterator
-        of response text chunks if ``stream=True``.
 
-    Raises:
-        ValueError: If provider is unsupported or API key is missing.
-        RuntimeError: If the API request fails.
+def _extract_tool_calls(text: str) -> list[dict[str, Any]]:
+    calls = []
+    for match in _TOOL_CALL_RE.finditer(text):
+        name = match.group(1)
+        args_str = match.group(2).strip()
+        try:
+            args = json.loads(args_str) if args_str else {}
+        except json.JSONDecodeError:
+            args = {}
+        calls.append({"name": name, "arguments": args})
+    return calls
+
+
+def _extract_thinking(text: str) -> str:
+    parts = []
+    for match in _THINKING_RE.finditer(text):
+        parts.append(match.group(1).strip())
+    return "\n\n".join(parts)
+
+
+def _extract_propose_changes(text: str) -> dict[str, Any] | None:
+    for match in _PROPOSE_RE.finditer(text):
+        try:
+            data = json.loads(match.group(1).strip())
+            return data
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _strip_tags(text: str) -> str:
+    text = _TOOL_CALL_RE.sub("", text)
+    text = _THINKING_RE.sub("", text)
+    text = _PROPOSE_RE.sub("", text)
+    text = re_mod.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
+
+
+# ---------------------------------------------------------------------------
+# File handling helpers
+# ---------------------------------------------------------------------------
+
+def _parse_data_url(data_url: str) -> tuple[str, str]:
+    """Parse a data URL into (mime_type, base64_data).
+
+    Returns (application/octet-stream, raw_string) if not a data URL.
     """
-    # Normalize messages
-    norm_messages: list[dict[str, str]] = []
-    for msg in messages:
-        if isinstance(msg, ChatMessage):
-            norm_messages.append({"role": msg.role, "content": msg.content})
+    if data_url.startswith("data:"):
+        try:
+            header, data = data_url.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "")
+            return mime, data
+        except ValueError:
+            pass
+    return "application/octet-stream", data_url
+
+
+# MIME types that each provider can handle natively as vision/images
+_OPENAI_IMAGE_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+
+
+def _decode_text_file(data_url: str) -> str | None:
+    """Decode a data URL to UTF-8 text. Returns None on failure."""
+    try:
+        import base64
+        _, b64 = _parse_data_url(data_url)
+        return base64.b64decode(b64).decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+
+def _extract_pdf_text(data_url: str, max_chars: int = 8000) -> str | None:
+    """Best-effort PDF text extraction. Returns None if no extractor available."""
+    try:
+        import base64
+        from io import BytesIO
+
+        _, b64 = _parse_data_url(data_url)
+        pdf_bytes = base64.b64decode(b64)
+
+        # Try PyPDF2 first
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(BytesIO(pdf_bytes))
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
+                if len(text) >= max_chars:
+                    break
+            return text[:max_chars]
+        except Exception:
+            pass
+
+        # Try pymupdf / fitz
+        try:
+            import fitz  # type: ignore
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+                if len(text) >= max_chars:
+                    break
+            doc.close()
+            return text[:max_chars]
+        except Exception:
+            pass
+
+        return None
+    except Exception:
+        return None
+
+
+def _build_openai_content(
+    user_message: str,
+    files: list[dict[str, str]] | None,
+) -> str | list[dict[str, Any]]:
+    """Build OpenAI Chat Completions compatible message content.
+
+    Images are sent as image_url blocks for native vision processing.
+    Text files are decoded and inlined.
+    PDFs undergo best-effort text extraction.
+    """
+    if not files:
+        return user_message
+
+    content: list[dict[str, Any]] = [{"type": "text", "text": user_message}]
+    for f in files:
+        name = f.get("name", "unknown")
+        mime = f.get("mime_type", "application/octet-stream")
+        data_url = f.get("content", "")
+
+        if mime in _OPENAI_IMAGE_MIMES:
+            content.append({"type": "image_url", "image_url": {"url": data_url}})
+        elif mime == "application/pdf":
+            pdf_text = _extract_pdf_text(data_url)
+            if pdf_text:
+                content.append({
+                    "type": "text",
+                    "text": f"\n--- PDF: {name} ---\n{pdf_text}\n--- End of PDF ---\n",
+                })
+            else:
+                content.append({
+                    "type": "text",
+                    "text": f"\n[PDF file attached: {name}. Text extraction not available — install PyPDF2 or pymupdf for PDF support.]\n",
+                })
+        elif mime.startswith("text/") or mime in (
+            "application/json",
+            "application/yaml",
+            "application/x-yaml",
+            "application/javascript",
+            "application/typescript",
+            "application/x-sql",
+            "application/xml",
+        ):
+            decoded = _decode_text_file(data_url)
+            if decoded is not None:
+                content.append({
+                    "type": "text",
+                    "text": f"\n--- File: {name} ({mime}) ---\n{decoded}\n--- End of {name} ---\n",
+                })
+            else:
+                content.append({"type": "text", "text": f"\n[File: {name} — could not decode]\n"})
         else:
-            norm_messages.append(dict(msg))
+            content.append({
+                "type": "text",
+                "text": f"\n[Binary file attached: {name} ({mime})]\n",
+            })
+    return content
 
-    # Add system prompt if not present
-    if not any(m.get("role") == "system" for m in norm_messages):
-        norm_messages.insert(
-            0, {"role": "system", "content": system_prompt or BIONODULO_SYSTEM_PROMPT}
-        )
 
-    # Inject workflow context if provided
-    if workflow:
-        wf_summary = _summarize_workflow(workflow)
-        norm_messages.append(
-            {"role": "system", "content": "Current workflow context:\n" + wf_summary}
-        )
+def _build_anthropic_content(
+    user_message: str,
+    files: list[dict[str, str]] | None,
+) -> list[dict[str, Any]]:
+    """Build Anthropic Messages API compatible content blocks.
 
-    if provider == "openai":
-        return await _chat_openai(
-            messages=norm_messages,
-            model=model or "gpt-4",
-            api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
-            api_base=api_base,
-            stream=stream,
-            temperature=temperature,
-            max_tokens=max_tokens,
+    Images are sent as native image blocks.
+    PDFs are sent as native document blocks.
+    Text files are decoded and inlined.
+    """
+    content: list[dict[str, Any]] = [{"type": "text", "text": user_message}]
+    if not files:
+        return content
+
+    for f in files:
+        name = f.get("name", "unknown")
+        mime = f.get("mime_type", "application/octet-stream")
+        data_url = f.get("content", "")
+
+        if mime.startswith("image/"):
+            media_type, b64 = _parse_data_url(data_url)
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type or mime, "data": b64},
+            })
+        elif mime == "application/pdf":
+            _, b64 = _parse_data_url(data_url)
+            content.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": b64},
+            })
+        elif mime.startswith("text/") or mime in (
+            "application/json",
+            "application/yaml",
+            "application/x-yaml",
+            "application/javascript",
+            "application/typescript",
+            "application/x-sql",
+            "application/xml",
+        ):
+            decoded = _decode_text_file(data_url)
+            if decoded is not None:
+                content.append({
+                    "type": "text",
+                    "text": f"\n--- File: {name} ({mime}) ---\n{decoded}\n--- End of {name} ---\n",
+                })
+            else:
+                content.append({"type": "text", "text": f"\n[File: {name} — could not decode]\n"})
+        else:
+            content.append({
+                "type": "text",
+                "text": f"\n[Binary file attached: {name} ({mime})]\n",
+            })
+    return content
+
+
+def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
+    """Convert a single message from OpenAI-format content to Anthropic format.
+
+    Anthropic uses slightly different block types for images.
+    """
+    raw_content = msg.get("content")
+    if isinstance(raw_content, str):
+        return msg
+
+    new_content: list[dict[str, Any]] = []
+    for part in raw_content:
+        ptype = part.get("type")
+        if ptype == "text":
+            new_content.append({"type": "text", "text": part.get("text", "")})
+        elif ptype == "image_url":
+            url = part.get("image_url", {}).get("url", "")
+            if url.startswith("data:"):
+                media_type, b64 = _parse_data_url(url)
+                new_content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media_type or "image/png", "data": b64},
+                })
+            else:
+                new_content.append({
+                    "type": "image",
+                    "source": {"type": "url", "url": url},
+                })
+        elif ptype == "document":
+            # Already in Anthropic format
+            new_content.append(part)
+        else:
+            # Fallback: stringify unknown parts
+            new_content.append({"type": "text", "text": str(part)})
+    return {**msg, "content": new_content}
+
+
+# ---------------------------------------------------------------------------
+# LLM backend
+# ---------------------------------------------------------------------------
+
+async def _call_llm(
+    messages: list[dict[str, Any]],
+    provider: str,
+    model: str | None,
+    api_key: str | None,
+    api_base: str | None,
+    temperature: float,
+    max_tokens: int,
+) -> str:
+    if provider in ("openai", "custom"):
+        return await _call_openai(
+            messages, model or "gpt-4", api_key, api_base, temperature, max_tokens
         )
     elif provider == "anthropic":
-        return await _chat_anthropic(
-            messages=norm_messages,
-            model=model or "claude-3-sonnet-20240229",
-            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
-            api_base=api_base,
-            stream=stream,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-    elif provider == "custom":
-        return await _chat_openai(
-            messages=norm_messages,
-            model=model or "gpt-4",
-            api_key=api_key or "",
-            api_base=api_base,
-            stream=stream,
-            temperature=temperature,
-            max_tokens=max_tokens,
+        return await _call_anthropic(
+            messages, model or "claude-3-sonnet-20240229", api_key, api_base, temperature, max_tokens
         )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
 
-async def _chat_openai(
-    messages: list[dict[str, str]],
+async def _call_openai(
+    messages: list[dict[str, Any]],
     model: str,
     api_key: str,
     api_base: str | None,
-    stream: bool,
     temperature: float,
     max_tokens: int,
-) -> ChatResponse | AsyncIterator[str]:
-    """Chat via OpenAI API."""
+) -> str:
     if not api_key:
-        raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY env var or pass api_key.")
-
+        raise ValueError("OpenAI API key is required.")
     try:
         import httpx
     except ImportError:
-        raise RuntimeError("httpx is required for AI assistant. Install with: pip install httpx")
+        raise RuntimeError("httpx is required. pip install httpx")
 
     base_url = api_base or "https://api.openai.com/v1"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "stream": stream,
+        "stream": False,
     }
-
-    if stream:
-        return _stream_openai(base_url, headers, payload)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -243,73 +400,34 @@ async def _chat_openai(
             json=payload,
             timeout=120.0,
         )
-
         if response.status_code != 200:
             raise RuntimeError(f"OpenAI API error {response.status_code}: {response.text}")
-
         data = response.json()
-        content = data["choices"][0]["message"]["content"]
-        return _parse_response(content)
+        return data["choices"][0]["message"]["content"]
 
 
-async def _stream_openai(
-    base_url: str,
-    headers: dict[str, str],
-    payload: dict[str, Any],
-) -> AsyncIterator[str]:
-    """Stream OpenAI response chunks."""
-    import httpx
-    async with httpx.AsyncClient() as ac:
-        async with ac.stream(
-            "POST",
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        ) as response:
-            if response.status_code != 200:
-                text = await response.aread()
-                raise RuntimeError(f"OpenAI API error {response.status_code}: {text.decode()}")
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if not line or line == "data: [DONE]":
-                    continue
-                if line.startswith("data: "):
-                    try:
-                        chunk = json.loads(line[6:])
-                        delta = chunk["choices"][0].get("delta", {})
-                        if "content" in delta and delta["content"]:
-                            yield delta["content"]
-                    except (json.JSONDecodeError, KeyError):
-                        continue
-
-
-async def _chat_anthropic(
-    messages: list[dict[str, str]],
+async def _call_anthropic(
+    messages: list[dict[str, Any]],
     model: str,
     api_key: str,
     api_base: str | None,
-    stream: bool,
     temperature: float,
     max_tokens: int,
-) -> ChatResponse | AsyncIterator[str]:
-    """Chat via Anthropic Claude API."""
+) -> str:
     if not api_key:
-        raise ValueError("Anthropic API key is required. Set ANTHROPIC_API_KEY env var or pass api_key.")
-
+        raise ValueError("Anthropic API key is required.")
     try:
         import httpx
     except ImportError:
-        raise RuntimeError("httpx is required for AI assistant. Install with: pip install httpx")
+        raise RuntimeError("httpx is required. pip install httpx")
 
-    # Separate system message from conversation
     system_content = ""
-    conversation: list[dict[str, str]] = []
+    conversation: list[dict[str, Any]] = []
     for msg in messages:
-        if msg["role"] == "system":
-            system_content += msg["content"] + "\n"
+        if msg.get("role") == "system":
+            system_content += (msg.get("content") or "") + "\n"
         else:
-            conversation.append(msg)
+            conversation.append(_convert_message_for_anthropic(msg))
 
     base_url = api_base or "https://api.anthropic.com"
     headers = {
@@ -317,19 +435,15 @@ async def _chat_anthropic(
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
     }
-
     payload: dict[str, Any] = {
         "model": model,
         "messages": conversation,
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "stream": stream,
+        "stream": False,
     }
     if system_content:
         payload["system"] = system_content.strip()
-
-    if stream:
-        return _stream_anthropic(base_url, headers, payload)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -338,98 +452,138 @@ async def _chat_anthropic(
             json=payload,
             timeout=120.0,
         )
-
         if response.status_code != 200:
             raise RuntimeError(f"Anthropic API error {response.status_code}: {response.text}")
-
         data = response.json()
-        content = data["content"][0]["text"]
-        return _parse_response(content)
+        return data["content"][0]["text"]
 
 
-async def _stream_anthropic(
-    base_url: str,
-    headers: dict[str, str],
-    payload: dict[str, Any],
-) -> AsyncIterator[str]:
-    """Stream Anthropic response chunks."""
-    import httpx
-    async with httpx.AsyncClient() as ac:
-        async with ac.stream(
-            "POST",
-            f"{base_url}/v1/messages",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        ) as response:
-            if response.status_code != 200:
-                text = await response.aread()
-                raise RuntimeError(f"Anthropic API error {response.status_code}: {text.decode()}")
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if not line or not line.startswith("data: "):
-                    continue
-                try:
-                    chunk = json.loads(line[6:])
-                    if chunk.get("type") == "content_block_delta":
-                        delta = chunk.get("delta", {})
-                        if delta.get("type") == "text_delta" and "text" in delta:
-                            yield delta["text"]
-                except (json.JSONDecodeError, KeyError):
-                    continue
+# ---------------------------------------------------------------------------
+# Main chat loop
+# ---------------------------------------------------------------------------
+
+MAX_TOOL_ROUNDS = 6
 
 
-def _parse_response(content: str) -> ChatResponse:
-    """Parse LLM response content into a structured ChatResponse."""
-    reply = content
-    workflow = None
-    node_blueprint = None
-    validation = None
+async def chat_with_tools(
+    user_message: str,
+    workflow: dict[str, Any] | None,
+    history: list[dict[str, str]],
+    provider: str = "openai",
+    model: str | None = None,
+    api_key: str | None = None,
+    api_base: str | None = None,
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
+    registry: Any = None,
+    settings: Any = None,
+    files: list[dict[str, str]] | None = None,
+) -> ChatResponse:
+    """Run the AI chat with a tool-use loop.
 
-    json_blocks = _extract_json_blocks(content)
-    for block in json_blocks:
+    Returns a ChatResponse containing all reasoning steps, tool calls,
+    and optionally a proposed workflow change for user confirmation.
+    """
+    ctx = ToolContext(workflow=workflow, registry=registry, settings=settings)
+    tools_text = format_tools_for_prompt(ALL_TOOLS)
+    system_prompt = BIONODULO_SYSTEM_PROMPT.format(tools_text=tools_text)
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system_prompt},
+    ]
+    # Add history (skip system messages)
+    for msg in history:
+        if msg.get("role") != "system":
+            messages.append(dict(msg))
+
+    # Build provider-specific user message content
+    if provider == "anthropic":
+        user_content = _build_anthropic_content(user_message, files)
+    else:
+        user_content = _build_openai_content(user_message, files)
+
+    messages.append({"role": "user", "content": user_content})
+
+    steps: list[ChatStep] = []
+    proposed_workflow: dict[str, Any] | None = None
+    proposed_description: str = ""
+
+    for _round in range(MAX_TOOL_ROUNDS):
         try:
-            parsed = json.loads(block)
-            if "node_type" in parsed and "inputs" in parsed:
-                node_blueprint = parsed
-            elif "nodes" in parsed and "edges" in parsed:
-                workflow = parsed
-            elif "valid" in parsed or "errors" in parsed:
-                validation = parsed
-        except json.JSONDecodeError:
-            continue
+            content = await _call_llm(
+                messages=messages,
+                provider=provider,
+                model=model,
+                api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
+                api_base=api_base,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as exc:
+            steps.append(ChatStep(type="reply", content=f"Sorry, I encountered an error: {exc}"))
+            return ChatResponse(steps=steps, reply=f"Sorry, I encountered an error: {exc}")
 
-    if json_blocks:
-        reply = re_mod.sub(r"```json\n.*?\n```", "", reply, flags=re_mod.DOTALL).strip()
-        reply = re_mod.sub(r"\n{3,}", "\n\n", reply)
+        thinking = _extract_thinking(content)
+        if thinking:
+            steps.append(ChatStep(type="thinking", content=thinking))
 
+        tool_calls = _extract_tool_calls(content)
+        if not tool_calls:
+            # No tool calls — check for proposed changes
+            propose = _extract_propose_changes(content)
+            if propose:
+                proposed_workflow = propose.get("workflow")
+                proposed_description = propose.get("description", "")
+                steps.append(ChatStep(
+                    type="propose_changes",
+                    workflow=proposed_workflow,
+                    description=proposed_description,
+                ))
+            reply = _strip_tags(content)
+            if reply:
+                steps.append(ChatStep(type="reply", content=reply))
+            return ChatResponse(
+                steps=steps,
+                reply=reply,
+                proposed_workflow=proposed_workflow,
+                proposed_description=proposed_description,
+            )
+
+        # Execute tool calls
+        for tc in tool_calls:
+            tool_name = tc["name"]
+            args = tc.get("arguments", {})
+            steps.append(ChatStep(
+                type="tool_call",
+                name=tool_name,
+                arguments=args,
+            ))
+
+            result = execute_tool(tool_name, args, ctx)
+            steps.append(ChatStep(
+                type="tool_result",
+                name=tool_name,
+                result=result,
+            ))
+
+            # If a mutating tool returns a workflow, update context
+            if result.get("status") == "ok":
+                inner = result.get("result", {})
+                if "workflow" in inner:
+                    ctx.workflow = inner["workflow"]
+
+            # Feed result back to LLM
+            result_text = json.dumps(result, default=str, indent=2)
+            messages.append({"role": "assistant", "content": content})
+            messages.append({
+                "role": "user",
+                "content": f"Tool result for {tool_name}:\n{result_text}",
+            })
+            break  # One tool call per LLM round for simplicity
+
+    # Max rounds reached
+    steps.append(ChatStep(type="reply", content="I reached the maximum number of tool calls. Please simplify your request."))
     return ChatResponse(
-        reply=reply,
-        workflow=workflow,
-        node_blueprint=node_blueprint,
-        validation=validation,
+        steps=steps,
+        reply="I reached the maximum number of tool calls. Please simplify your request.",
     )
-
-
-def _extract_json_blocks(content: str) -> list[str]:
-    """Extract JSON blocks from markdown-formatted content."""
-    blocks: list[str] = []
-    for match in re_mod.finditer(r"```json\n(.*?)\n```", content, re_mod.DOTALL):
-        blocks.append(match.group(1))
-    return blocks
-
-
-def _summarize_workflow(workflow: dict[str, Any]) -> str:
-    """Create a text summary of a workflow for LLM context."""
-    nodes = workflow.get("nodes", [])
-    edges = workflow.get("edges", [])
-    name = workflow.get("name", "Untitled Workflow")
-
-    lines = [f"Workflow: {name}", f"Nodes: {len(nodes)}", f"Edges: {len(edges)}", ""]
-    for node in nodes:
-        nid = node.get("id", "?")
-        ntype = node.get("type", "?")
-        widgets = node.get("widgets", {})
-        widget_summary = ", ".join(f"{k}={v}" for k, v in list(widgets.items())[:3])
-        lines.append(f"  - {nid}: {ntype} ({widget_summary})")
-    return "\n".join(lines)

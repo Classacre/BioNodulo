@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.1",
+  "version": "Alpha 1.2",
   "app": "bionodulo",
   "name": "Variant Calling Pipeline",
   "description": "GATK-based germline variant calling from FASTQ to filtered VCF",

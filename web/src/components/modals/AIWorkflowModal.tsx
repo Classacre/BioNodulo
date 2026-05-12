@@ -1,71 +1,489 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../ui/Icon';
+import type { Workflow } from '../../types';
 
 interface AIWorkflowModalProps {
+  workflow: Workflow;
   onClose: () => void;
+  onApplyWorkflow: (wf: Workflow) => void;
 }
 
-interface ChatMsg {
-  role: 'user' | 'assistant';
+interface ChatStep {
+  type: 'thinking' | 'tool_call' | 'tool_result' | 'propose_changes' | 'reply';
   content: string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  workflow?: Workflow;
+  description?: string;
 }
 
-export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?' },
-  ]);
+interface ChatTurn {
+  role: 'user' | 'assistant';
+  content?: string;
+  steps?: ChatStep[];
+  model?: string;
+  files?: AttachedFile[];
+}
+
+interface AttachedFile {
+  name: string;
+  mime_type: string;
+  content: string; // base64
+}
+
+interface ChatSession {
+  id: string;
+  name: string;
+  turns: ChatTurn[];
+  createdAt: number;
+}
+
+const STORAGE_KEY = 'bionodulo-ai-sessions';
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+function loadSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveSessions(sessions: ChatSession[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  } catch { /* ignore */ }
+}
+
+function makeId() {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createSession(name = 'New Chat'): ChatSession {
+  return {
+    id: makeId(),
+    name,
+    turns: [
+      {
+        role: 'assistant',
+        content: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?',
+      },
+    ],
+    createdAt: Date.now(),
+  };
+}
+
+export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    const saved = loadSessions();
+    return saved.length > 0 ? saved : [createSession()];
+  });
+  const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || '');
+  const [showMenu, setShowMenu] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  const turns = activeSession?.turns || [];
 
-  const send = async () => {
-    if (!input.trim() || sending) return;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, sending]);
+
+  useEffect(() => {
+    saveSessions(sessions);
+  }, [sessions]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+    if (showMenu) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showMenu]);
+
+  const createNewSession = useCallback(() => {
+    const s = createSession();
+    setSessions(prev => [s, ...prev]);
+    setActiveSessionId(s.id);
+    setShowMenu(false);
+  }, []);
+
+  const switchSession = useCallback((id: string) => {
+    setActiveSessionId(id);
+    setShowMenu(false);
+  }, []);
+
+  const deleteSession = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessions(prev => {
+      const next = prev.filter(s => s.id !== id);
+      if (next.length === 0) next.push(createSession());
+      return next;
+    });
+    setActiveSessionId(prev => {
+      if (prev === id) {
+        const remaining = sessions.filter(s => s.id !== id);
+        return remaining[0]?.id || createSession().id;
+      }
+      return prev;
+    });
+  }, [sessions]);
+
+  const startRename = useCallback((s: ChatSession, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingId(s.id);
+    setRenameValue(s.name);
+  }, []);
+
+  const commitRename = useCallback(() => {
+    if (!renamingId || !renameValue.trim()) {
+      setRenamingId(null);
+      return;
+    }
+    setSessions(prev =>
+      prev.map(s => (s.id === renamingId ? { ...s, name: renameValue.trim() } : s))
+    );
+    setRenamingId(null);
+  }, [renamingId, renameValue]);
+
+  const readFileAsAttachment = useCallback(async (file: File): Promise<AttachedFile | null> => {
+    if (file.size > MAX_FILE_SIZE) return null;
+    const content = await new Promise<string>(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    return {
+      name: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      content,
+    };
+  }, []);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newAttachments: AttachedFile[] = [];
+    for (const file of Array.from(files)) {
+      const att = await readFileAsAttachment(file);
+      if (att) newAttachments.push(att);
+    }
+    setAttachments(prev => [...prev, ...newAttachments]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [readFileAsAttachment]);
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData.items;
+    const text = e.clipboardData.getData('text');
+
+    // Check for pasted canvas nodes (bionodulo_clipboard:...)
+    if (text && text.startsWith('bionodulo_clipboard:')) {
+      e.preventDefault();
+      try {
+        const payload = JSON.parse(text.slice('bionodulo_clipboard:'.length));
+        const nodeCount = payload.nodes?.length || 0;
+        const edgeCount = payload.edges?.length || 0;
+        const nodeNames = payload.nodes?.map((n: any) => n.type || n.id).join(', ') || '';
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const file = new File([blob], `selected_nodes_${nodeCount}.json`, { type: 'application/json' });
+        const att = await readFileAsAttachment(file);
+        if (att) {
+          setAttachments(prev => [...prev, att]);
+          if (!input.trim()) {
+            setInput(`Here are my selected nodes (${nodeCount} nodes${edgeCount > 0 ? `, ${edgeCount} edges` : ''}): ${nodeNames}`);
+          }
+        }
+      } catch { /* ignore malformed clipboard */ }
+      return;
+    }
+
+    // Check for pasted image files
+    if (items) {
+      const imageFiles: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        const newAttachments: AttachedFile[] = [];
+        for (const file of imageFiles) {
+          const att = await readFileAsAttachment(file);
+          if (att) newAttachments.push(att);
+        }
+        setAttachments(prev => [...prev, ...newAttachments]);
+      }
+    }
+  }, [readFileAsAttachment, input]);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const send = useCallback(async () => {
+    if ((!input.trim() && attachments.length === 0) || sending) return;
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    const currentAttachments = attachments;
+    setAttachments([]);
+
+    const userTurn: ChatTurn = {
+      role: 'user',
+      content: userMsg,
+      files: currentAttachments.length > 0 ? currentAttachments : undefined,
+    };
+
+    setSessions(prev =>
+      prev.map(s =>
+        s.id === activeSessionId ? { ...s, turns: [...s.turns, userTurn] } : s
+      )
+    );
     setSending(true);
 
     try {
+      const history = turns.map(t => ({
+        role: t.role,
+        content: t.content || t.steps?.map(s => s.content).join('\n') || '',
+      }));
+
       const r = await fetch('/api/ai/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, history: messages }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg,
+          workflow,
+          history,
+          files: currentAttachments,
+        }),
       });
+
       if (r.ok) {
         const data = await r.json();
-        setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'I can help with that! Let me know if you need more details.' }]);
+        const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
+          ...s,
+          workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>) : undefined,
+        }));
+        const assistantTurn: ChatTurn = {
+          role: 'assistant',
+          steps,
+          model: data.model || 'unknown',
+        };
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === activeSessionId
+              ? { ...s, turns: [...s.turns, assistantTurn] }
+              : s
+          )
+        );
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: getLocalResponse(userMsg) }]);
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === activeSessionId
+              ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+              : s
+          )
+        );
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: getLocalResponse(userMsg) }]);
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            : s
+        )
+      );
     }
     setSending(false);
-  };
+  }, [input, attachments, sending, turns, workflow, activeSessionId]);
+
+  const handleApply = useCallback(
+    (proposed: Workflow) => {
+      onApplyWorkflow(proposed);
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? {
+                ...s,
+                turns: [
+                  ...s.turns,
+                  { role: 'assistant', content: 'Workflow applied successfully! Let me know if you need any adjustments.' },
+                ],
+              }
+            : s
+        )
+      );
+    },
+    [onApplyWorkflow, activeSessionId]
+  );
 
   return (
     <div className="ai-drawer" onClick={e => e.stopPropagation()}>
+      {/* Header */}
       <div className="ai-drawer-header">
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className="btn btn-icon btn-sm"
+            onClick={() => setShowMenu(!showMenu)}
+            title="Sessions"
+          >
+            <Icon name="menu" size={16} />
+          </button>
           <Icon name="wand" size={16} /> AI Workflow Assistant
         </span>
         <button className="btn btn-icon btn-sm" onClick={onClose} title="Close">
           <Icon name="close" size={14} />
         </button>
       </div>
+
+      {/* Session Menu Dropdown */}
+      {showMenu && (
+        <div className="ai-session-menu" ref={menuRef}>
+          <div className="ai-session-menu-header">
+            <strong>Chat Sessions</strong>
+            <button className="btn btn-primary btn-sm" onClick={createNewSession}>
+              <Icon name="plus" size={12} /> New
+            </button>
+          </div>
+          <div className="ai-session-list">
+            {sessions.map(s => (
+              <div
+                key={s.id}
+                className={`ai-session-item ${s.id === activeSessionId ? 'active' : ''}`}
+                onClick={() => switchSession(s.id)}
+              >
+                {renamingId === s.id ? (
+                  <input
+                    className="text-input text-input-sm"
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    onBlur={commitRename}
+                    autoFocus
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <>
+                    <span className="ai-session-name">{s.name}</span>
+                    <span className="ai-session-meta">{s.turns.length} msgs</span>
+                  </>
+                )}
+                {renamingId !== s.id && (
+                  <div className="ai-session-actions">
+                    <button
+                      className="btn btn-icon btn-xs"
+                      title="Rename"
+                      onClick={e => startRename(s, e)}
+                    >
+                      <Icon name="edit" size={10} />
+                    </button>
+                    <button
+                      className="btn btn-icon btn-xs"
+                      title="Delete"
+                      onClick={e => deleteSession(s.id, e)}
+                    >
+                      <Icon name="trash" size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Body */}
       <div className="ai-drawer-body">
         <div className="ai-chat-scroll">
-          {messages.map((m, i) => (
-            <div key={i} className={`ai-msg ${m.role}`} style={m.role === 'user' ? { alignSelf: 'flex-end' } : {}}>
-              {m.content}
+          {turns.map((turn, i) => (
+            <div key={i} className={`ai-turn ${turn.role}`}>
+              {turn.role === 'user' ? (
+                <div className="ai-msg user">
+                  {turn.content}
+                  {turn.files && turn.files.length > 0 && (
+                    <div className="ai-file-chips">
+                      {turn.files.map((f, fi) => (
+                        <span key={fi} className="ai-file-chip">
+                          <Icon name="file" size={10} /> {f.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ai-msg assistant">
+                  {turn.steps ? (
+                    <div className="ai-steps">
+                      {turn.steps.map((step, si) => (
+                        <StepRenderer key={si} step={step} onApply={handleApply} />
+                      ))}
+                      {turn.model && <div className="ai-model-badge">{turn.model}</div>}
+                    </div>
+                  ) : (
+                    <div>{turn.content}</div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
+          {sending && (
+            <div className="ai-turn assistant">
+              <div className="ai-msg assistant">
+                <div className="ai-thinking-inline">
+                  <span className="ai-spinner" />
+                  Thinking...
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
+
+      {/* Footer */}
       <div className="ai-drawer-footer">
+        {attachments.length > 0 && (
+          <div className="ai-attachments-row">
+            {attachments.map((f, i) => (
+              <span key={i} className="ai-attachment-chip">
+                <Icon name="file" size={10} /> {f.name}
+                <button className="ai-attachment-remove" onClick={() => removeAttachment(i)}>
+                  <Icon name="close" size={8} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="ai-input-row">
+          <button
+            className="btn btn-icon btn-sm"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach file"
+          >
+            <Icon name="paperclip" size={14} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            multiple
+            onChange={handleFileSelect}
+          />
           <input
             type="text"
             className="text-input"
@@ -73,7 +491,8 @@ export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Ask about workflows..."
+            onPaste={handlePaste}
+            placeholder="Ask about workflows... (Paste images directly)"
             disabled={sending}
           />
           <button className="btn btn-primary" onClick={send} disabled={sending}>
@@ -83,6 +502,106 @@ export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
       </div>
     </div>
   );
+}
+
+function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflow) => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  switch (step.type) {
+    case 'thinking':
+      return (
+        <div className="ai-step-thinking">
+          <button className="ai-step-toggle" onClick={() => setExpanded(!expanded)}>
+            <Icon name="lightbulb" size={12} />
+            {expanded ? 'Hide reasoning' : 'Show reasoning'}
+          </button>
+          {expanded && <pre className="ai-step-pre">{step.content}</pre>}
+        </div>
+      );
+
+    case 'tool_call':
+      return (
+        <div className="ai-step-tool-call">
+          <div className="ai-step-header">
+            <Icon name="terminal" size={12} />
+            <span className="ai-step-name">{step.name}</span>
+          </div>
+          <pre className="ai-step-pre">{JSON.stringify(step.arguments, null, 2)}</pre>
+        </div>
+      );
+
+    case 'tool_result':
+      return (
+        <div className="ai-step-tool-result">
+          <div className="ai-step-header">
+            <Icon name="check" size={12} />
+            <span className="ai-step-name">{step.name} result</span>
+          </div>
+          <pre className="ai-step-pre">{JSON.stringify(step.result, null, 2)}</pre>
+        </div>
+      );
+
+    case 'propose_changes':
+      return (
+        <div className="ai-step-propose">
+          <div className="ai-step-propose-header">
+            <Icon name="edit" size={14} />
+            <strong>Proposed changes</strong>
+          </div>
+          <p className="ai-step-propose-desc">{step.description || 'The AI suggests modifying the workflow.'}</p>
+          {step.workflow && (
+            <div className="ai-step-propose-actions">
+              <button className="btn btn-primary btn-sm" onClick={() => onApply(step.workflow!)}>
+                Apply Changes
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={async () => {
+                  const payload = JSON.stringify({
+                    nodes: step.workflow?.nodes || [],
+                    edges: step.workflow?.edges || [],
+                  });
+                  const text = `bionodulo_clipboard:${payload}`;
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    setExpanded(true);
+                  } catch { /* ignore */ }
+                }}
+              >
+                <Icon name="copy" size={10} /> Copy to Canvas
+              </button>
+              <button className="btn btn-sm" onClick={() => setExpanded(true)}>
+                Preview JSON
+              </button>
+            </div>
+          )}
+          {expanded && step.workflow && (
+            <pre className="ai-step-pre" style={{ maxHeight: 300, overflow: 'auto' }}>
+              {JSON.stringify(step.workflow, null, 2)}
+            </pre>
+          )}
+        </div>
+      );
+
+    case 'reply':
+    default:
+      return <div className="ai-step-reply">{step.content}</div>;
+  }
+}
+
+function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
+  return {
+    version: (raw.version as string) || 'Alpha 1.2',
+    app: (raw.app as string) || 'bionodulo',
+    name: (raw.name as string) || 'Untitled',
+    description: (raw.description as string) || '',
+    nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
+    edges: Array.isArray(raw.edges) ? raw.edges : [],
+    groups: Array.isArray(raw.groups) ? raw.groups : [],
+    outputs: (raw.outputs as Record<string, string>) || {},
+    environment: (raw.environment as Record<string, unknown>) || undefined,
+    dependencies: (raw.dependencies as Record<string, string>) || undefined,
+  } as Workflow;
 }
 
 function getLocalResponse(msg: string): string {

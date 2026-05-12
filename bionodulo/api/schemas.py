@@ -80,6 +80,14 @@ class ManagerPackageRequest(BaseModel):
 # AI assistant requests
 # ---------------------------------------------------------------------------
 
+class AIChatFile(BaseModel):
+    """An attached file sent with an AI chat message."""
+
+    name: str = Field(..., description="Original file name")
+    mime_type: str = Field(..., description="MIME type")
+    content: str = Field(..., description="Base64-encoded file content")
+
+
 class AIChatRequest(BaseModel):
     """Request body for POST /ai/chat."""
 
@@ -90,6 +98,21 @@ class AIChatRequest(BaseModel):
         description="Previous conversation messages",
     )
     stream: bool = Field(False, description="Whether to stream the response")
+    provider: str | None = Field(None, description="LLM provider override")
+    model: str | None = Field(None, description="Model name override")
+    files: list[AIChatFile] = Field(default_factory=list, description="Attached files")
+
+
+class AIChatResponseStep(BaseModel):
+    """A single step in the AI reasoning chain."""
+
+    type: str = Field(..., description="thinking, tool_call, tool_result, propose_changes, reply")
+    content: str = Field("", description="Text content for thinking/reply")
+    name: str = Field("", description="Tool name for tool_call/tool_result")
+    arguments: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+    result: dict[str, Any] = Field(default_factory=dict, description="Tool execution result")
+    workflow: dict[str, Any] | None = Field(None, description="Proposed workflow")
+    description: str = Field("", description="Human-readable description of proposed changes")
 
 
 # ---------------------------------------------------------------------------

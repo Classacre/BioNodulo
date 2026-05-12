@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import type { WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import Icon from '../ui/Icon';
@@ -258,13 +258,17 @@ function createGroupFromNodes(nodes: GraphNode[]): WorkflowGroup {
   };
 }
 
-export default function LiteGraphCanvas({
+export interface LiteGraphCanvasRef {
+  fitView: () => void;
+}
+
+const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(function LiteGraphCanvas({
   nodes, edges, groups, objectInfo,
   onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, onUndo, onRedo,
   snapToGrid, showMinimap, viewportLocked, linksHidden,
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
-}: LiteGraphCanvasProps) {
+}, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -871,9 +875,27 @@ export default function LiteGraphCanvas({
         try {
           if (!navigator.clipboard || !navigator.clipboard.readText) return;
           const text = await navigator.clipboard.readText();
-          if (!text.startsWith('bionodulo_clipboard:')) return;
-          const payload = JSON.parse(text.slice('bionodulo_clipboard:'.length));
-          if (!payload.nodes || !Array.isArray(payload.nodes)) return;
+          if (!text) return;
+
+          let payload: { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] } | null = null;
+
+          if (text.startsWith('bionodulo_clipboard:')) {
+            payload = JSON.parse(text.slice('bionodulo_clipboard:'.length));
+          } else if (text.trim().startsWith('{')) {
+            // Try parsing as a raw workflow JSON object
+            const raw = JSON.parse(text);
+            if (raw.nodes && Array.isArray(raw.nodes)) {
+              payload = { nodes: raw.nodes, edges: raw.edges || [] };
+            }
+          } else if (text.trim().startsWith('[')) {
+            // Try parsing as a raw node array
+            const raw = JSON.parse(text);
+            if (Array.isArray(raw) && raw.length > 0 && raw[0].type) {
+              payload = { nodes: raw, edges: [] };
+            }
+          }
+
+          if (!payload || !payload.nodes || !Array.isArray(payload.nodes)) return;
 
           const currentNodes = nodesRef.current;
           const timestamp = Date.now();
@@ -1676,6 +1698,10 @@ export default function LiteGraphCanvas({
     });
   }, [graphNodes]);
 
+  useImperativeHandle(ref, () => ({
+    fitView,
+  }), [fitView]);
+
   const handleContextAction = useCallback((action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
     if (action === 'delete') {
@@ -2026,7 +2052,9 @@ export default function LiteGraphCanvas({
       )}
     </div>
   );
-}
+});
+
+export default LiteGraphCanvas;
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | Record<string, number>) {
   if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };

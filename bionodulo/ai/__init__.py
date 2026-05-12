@@ -1,13 +1,13 @@
 from bionodulo.ai.assistant import (
     BIONODULO_SYSTEM_PROMPT,
-    ChatMessage,
     ChatResponse,
-    chat_with_assistant,
+    ChatStep,
+    chat_with_tools,
 )
 
 __all__ = [
     "BIONODULO_SYSTEM_PROMPT",
-    "ChatMessage",
     "ChatResponse",
-    "chat_with_assistant",
+    "ChatStep",
+    "chat_with_tools",
 ]

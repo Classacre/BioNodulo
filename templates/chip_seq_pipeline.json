@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.1",
+  "version": "Alpha 1.2",
   "app": "bionodulo",
   "name": "ChIP-Seq Pipeline",
   "description": "Chromatin immunoprecipitation sequencing analysis",

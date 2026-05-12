@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.1",
+  "version": "Alpha 1.2",
   "app": "bionodulo",
   "name": "FASTQ QC Pipeline",
   "description": "Quality control pipeline for sequencing reads using FastQC and MultiQC",

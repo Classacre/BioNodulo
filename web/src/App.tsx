@@ -3,7 +3,7 @@ import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
-import LiteGraphCanvas from './components/canvas/LiteGraphCanvas';
+import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
 import HardwareMonitor from './components/canvas/HardwareMonitor';
 import SettingsPanel from './components/panels/SettingsPanel';
 import HelpWikiPanel from './components/panels/HelpWikiPanel';
@@ -113,12 +113,13 @@ export default function App() {
   const { get, getBool, set } = useSettings();
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
-    updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
+    setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     validate, resolve, clearResolveReport, submitRun,
   } = useWorkflow();
   useTheme();
 
   // History stack for undo/redo
+  const canvasRef = useRef<LiteGraphCanvasRef>(null);
   const historyRef = useRef<{ nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups'] }[]>([]);
   const historyIndexRef = useRef(-1);
   const pendingStateRef = useRef<Partial<Workflow>>({});
@@ -240,11 +241,19 @@ export default function App() {
     }
     console.log('[Template] loaded, nodes:', wf.nodes.length);
     addWorkflow(wf);
+    // Auto-fit view after nodes render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => canvasRef.current?.fitView());
+    });
     // Resolve is auto-triggered by the activeWorkflow useEffect
   }, [addWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     addWorkflow(wf);
+    // Auto-fit view after nodes render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => canvasRef.current?.fitView());
+    });
     // Resolve is auto-triggered by the activeWorkflow useEffect
   }, [addWorkflow]);
 
@@ -352,6 +361,7 @@ export default function App() {
           />
         )}
         <LiteGraphCanvas
+          ref={canvasRef}
           nodes={activeWorkflow.nodes}
           edges={activeWorkflow.edges}
           groups={activeWorkflow.groups}
@@ -422,7 +432,13 @@ export default function App() {
       {/* Modals */}
       {showExport && <ExportModal workflow={activeWorkflow} onClose={() => setShowExport(false)} />}
       {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />}
-      {showAI && <AIWorkflowModal onClose={() => setShowAI(false)} />}
+      {showAI && (
+        <AIWorkflowModal
+          workflow={activeWorkflow}
+          onClose={() => setShowAI(false)}
+          onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => wf)}
+        />
+      )}
 
     </div>
   );

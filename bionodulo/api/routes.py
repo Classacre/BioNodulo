@@ -67,6 +67,7 @@ from bionodulo.environments.manager import (
     list_conda_envs,
     workflow_dependency_tree,
 )
+from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.installer import InstallJob
 from bionodulo.manager.resolver import build_node_manifest, resolve_workflow
 from bionodulo.workflow.validation import validate_workflow
@@ -326,25 +327,54 @@ async def set_setting(
 
 @router.post("/ai/chat")
 async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
-    """Send a message to the AI assistant and get a response."""
-    # Check if AI assistant is available in app state
-    ai = getattr(request.app.state, "ai_assistant", None)
-    if ai is not None and hasattr(ai, "chat"):
-        response = await ai.chat(
-            message=body.message,
+    """Send a message to the AI assistant and get a tool-aware response."""
+    settings = _get_settings(request)
+    registry = _get_registry(request)
+
+    provider = body.provider or getattr(settings, "ai_provider", None) or "openai"
+    model = body.model or getattr(settings, "ai_model", None)
+    api_key = getattr(settings, "ai_api_key", None) or os.environ.get("OPENAI_API_KEY", "")
+    api_base = getattr(settings, "ai_base_url", None)
+    temperature = getattr(settings, "ai_temperature", 0.3)
+
+    try:
+        response = await chat_with_tools(
+            user_message=body.message,
             workflow=body.workflow,
             history=body.history,
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            temperature=temperature,
+            registry=registry,
+            settings=settings,
+            files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
         )
-        return {"response": response, "model": getattr(ai, "model", "default")}
+    except Exception as exc:
+        return {
+            "steps": [{"type": "reply", "content": f"AI error: {exc}"}],
+            "reply": f"AI error: {exc}",
+            "model": model or provider,
+        }
 
-    # Fallback: return a helpful mock response
     return {
-        "response": (
-            f"AI assistant received: \\\'{body.message}\\\'. "
-            "(AI module not configured - responses are simulated.)"
-        ),
-        "model": "mock",
-        "note": "Install and configure the AI assistant module for real responses.",
+        "steps": [
+            {
+                "type": s.type,
+                "content": s.content,
+                "name": s.name,
+                "arguments": s.arguments,
+                "result": s.result,
+                "workflow": s.workflow,
+                "description": s.description,
+            }
+            for s in response.steps
+        ],
+        "reply": response.reply,
+        "proposed_workflow": response.proposed_workflow,
+        "proposed_description": response.proposed_description,
+        "model": model or provider,
     }
 
 
@@ -357,7 +387,7 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
         chunks = [
             "AI assistant (streaming mode): ",
             "Analyzing your request... ",
-            f"Message was: \\\'{body.message}\\\'. ",
+            f"Message was: '{body.message}'. ",
             "Configure a real AI backend (OpenAI, Ollama, etc.) for production use.",
         ]
         for chunk in chunks:
