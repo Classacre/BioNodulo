@@ -3,7 +3,7 @@ import type { Workflow, RunRecord, ResolveReport } from '../types';
 
 function emptyWorkflow(): Workflow {
   return {
-    version: 'Alpha 1.0', app: 'bionodulo', name: 'Untitled', description: '',
+    version: 'Alpha 1.1', app: 'bionodulo', name: 'Untitled', description: '',
     nodes: [], edges: [], groups: [], outputs: {},
   };
 }

@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.0",
+  "version": "Alpha 1.1",
   "app": "bionodulo",
   "name": "Differential Expression",
   "description": "Transcript quantification and differential expression analysis",

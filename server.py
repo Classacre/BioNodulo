@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
-        version="Alpha 1.0",
+        version="Alpha 1.1",
     )
 
     # CORS

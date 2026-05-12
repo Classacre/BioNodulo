@@ -147,7 +147,7 @@ class BioNoduloExtension:
     """
 
     name: str = "bionodulo"
-    version: str = "Alpha 1.0"
+    version: str = "Alpha 1.1"
     display_name: str = "BioNodulo"
     description: str = "Visual bioinformatics pipelines, node by node."
     author: str = "BioNodulo Team"

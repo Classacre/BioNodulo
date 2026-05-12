@@ -12,7 +12,7 @@ interface ChatMsg {
 
 export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: 'Hello! I can help you build bioinformatics workflows. Describe what you want to achieve, and I will suggest nodes and connections. For example: "I want to do RNA-Seq analysis starting from FASTQ files" or "Build a variant calling pipeline for human WGS data".' },
+    { role: 'assistant', content: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?' },
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -30,11 +30,11 @@ export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
     try {
       const r = await fetch('/api/ai/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, { role: 'user', content: userMsg }] }),
+        body: JSON.stringify({ message: userMsg, history: messages }),
       });
       if (r.ok) {
         const data = await r.json();
-        setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'I can help with that! Try using the RNA-Seq template or add individual nodes from the node palette.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'I can help with that! Let me know if you need more details.' }]);
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: getLocalResponse(userMsg) }]);
       }
@@ -45,38 +45,40 @@ export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 600, height: 500, display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="wand" size={16} /> AI Workflow Assistant</span>
-          <button className="btn btn-icon btn-sm" onClick={onClose}><Icon name="close" size={14} /></button>
+    <div className="ai-drawer" onClick={e => e.stopPropagation()}>
+      <div className="ai-drawer-header">
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="wand" size={16} /> AI Workflow Assistant
+        </span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title="Close">
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+      <div className="ai-drawer-body">
+        <div className="ai-chat-scroll">
+          {messages.map((m, i) => (
+            <div key={i} className={`ai-msg ${m.role}`} style={m.role === 'user' ? { alignSelf: 'flex-end' } : {}}>
+              {m.content}
+            </div>
+          ))}
+          <div ref={bottomRef} />
         </div>
-        <div className="modal-body" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {messages.map((m, i) => (
-              <div key={i} className={`ai-msg ${m.role}`} style={m.role === 'user' ? { alignSelf: 'flex-end' } : {}}>
-                {m.content}
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        </div>
-        <div className="modal-footer" style={{ borderTop: '1px solid var(--border)' }}>
-          <div className="ai-input-row" style={{ flex: 1, display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              className="text-input"
-              style={{ flex: 1 }}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && send()}
-              placeholder="Ask about workflows..."
-              disabled={sending}
-            />
-            <button className="btn btn-primary" onClick={send} disabled={sending}>
-              {sending ? '...' : 'Send'}
-            </button>
-          </div>
+      </div>
+      <div className="ai-drawer-footer">
+        <div className="ai-input-row">
+          <input
+            type="text"
+            className="text-input"
+            style={{ flex: 1 }}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && send()}
+            placeholder="Ask about workflows..."
+            disabled={sending}
+          />
+          <button className="btn btn-primary" onClick={send} disabled={sending}>
+            {sending ? '...' : 'Send'}
+          </button>
         </div>
       </div>
     </div>
@@ -86,19 +88,31 @@ export default function AIWorkflowModal({ onClose }: AIWorkflowModalProps) {
 function getLocalResponse(msg: string): string {
   const lower = msg.toLowerCase();
   if (lower.includes('rna') || lower.includes('transcript')) {
-    return 'For RNA-Seq analysis, I recommend this pipeline:\n1. Input FASTQ files → HISAT2 or STAR for alignment\n2. Aligned reads → featureCounts for quantification\n3. Run FastQC on raw reads and MultiQC for summary\n\nYou can also use Salmon or Kallisto for pseudo-alignment. Load the RNA-Seq template from the Templates panel for a complete setup!';
+    return 'For RNA-Seq, I recommend: input_fastq → fastp (trim) → STAR or HISAT2 (align) → featureCounts (quantify). Add a Sample Sheet node for multi-sample runs. The RNA-Seq template has this wired up for you!';
   }
-  if (lower.includes('variant') || lower.includes('vcf') || lower.includes('snp')) {
-    return 'For variant calling, try this approach:\n1. Input FASTQ → BWA-MEM for alignment\n2. Sort and index BAM with samtools\n3. Run GATK HaplotypeCaller or bcftools mpileup → VCF\n4. Filter variants with bcftools filter\n\nLoad the Variant Calling template for a complete pipeline!';
+  if (lower.includes('variant') || lower.includes('snp') || lower.includes('vcf')) {
+    return 'For variant calling: input_fastq → fastp → BWA-MEM → samtools sort/index → GATK HaplotypeCaller → bcftools filter. The Variant Calling template includes BAM QC with samtools flagstat too.';
   }
-  if (lower.includes('assemble') || lower.includes('genome')) {
-    return 'For genome assembly:\n1. Input FASTQ reads → SPAdes (small genomes) or MEGAHIT (metagenomes)\n2. Evaluate with Quast\n3. Annotate with Prokka or Bakta\n\nFor long reads, consider Flye (Nanopore) or Canu (PacBio). Check the Assembly template!';
+  if (lower.includes('assembly') || lower.includes('spades') || lower.includes('megahit')) {
+    return 'For assembly: input_fastq → fastp → SPAdes (or MEGAHIT for metagenomes) → QUAST (quality assessment). If you have a reference, add it to QUAST for comparative metrics.';
   }
-  if (lower.includes('meta') || lower.includes('microbiome') || lower.includes('taxon')) {
-    return 'For metagenomics:\n1. Input FASTQ → Kraken2 for taxonomic classification\n2. Bracken for abundance estimation\n3. MetaPhlAn as alternative classifier\n4. HUMAnN for functional profiling\n\nThe Metagenomics template has this all set up!';
+  if (lower.includes('meta') || lower.includes('kraken') || lower.includes('humann')) {
+    return 'For metagenomics: input_fastq → Kraken2 (taxonomic classification) → Bracken (abundance estimation) → MetaPhlAn (profile) → HUMAnN (functional profiling). The Metagenomics template has the full pipeline.';
   }
   if (lower.includes('chip') || lower.includes('peak')) {
-    return 'For ChIP-Seq:\n1. Input FASTQ → Bowtie2 for alignment\n2. MACS2 for peak calling\n3. deepTools for coverage visualization\n\nLoad the ChIP-Seq template for the full pipeline.';
+    return 'For ChIP-Seq: input_fastq → Bowtie2 → samtools sort → MACS2 CallPeak. Add a control BAM to the MACS2 node for proper peak calling.';
   }
-  return 'I can help you build that! Try browsing the Templates panel for pre-built workflows, or use the Node Library to add individual tools. You can also ask me about specific tools or categories.';
+  if (lower.includes('qc') || lower.includes('quality') || lower.includes('fastqc')) {
+    return 'For QC: input_fastq → FastQC (per-sample reports) → MultiQC (aggregated report). This is the simplest pipeline and a great starting point!';
+  }
+  if (lower.includes('phylo') || lower.includes('tree')) {
+    return 'For phylogenetics: input_fasta → MAFFT (alignment) → IQ-TREE (tree inference). You can also try FastTree for quick exploratory trees.';
+  }
+  if (lower.includes('single cell') || lower.includes('scRNA') || lower.includes('cellranger')) {
+    return 'For single-cell: input_directory (FASTQs) + reference_transcriptome → Cell Ranger Count. The Single Cell template is pre-configured for 10x Genomics data.';
+  }
+  if (lower.includes('plot') || lower.includes('r ') || lower.includes('ggplot')) {
+    return 'For plotting: use the R Plot node. Connect a DataFrame Builder node with your x/y columns, choose scatter/line/bar/boxplot, and set optional color/title parameters.';
+  }
+  return 'I can help you design bioinformatics workflows! Try asking about RNA-Seq, variant calling, assembly, metagenomics, ChIP-Seq, QC, phylogenetics, or single-cell analysis.';
 }

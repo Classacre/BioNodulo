@@ -1,4 +1,4 @@
-# BioNodulo Alpha 1.0
+# BioNodulo Alpha 1.1
 
 **Visual bioinformatics pipelines, node by node.**
 

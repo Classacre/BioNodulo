@@ -315,7 +315,7 @@ export default function App() {
   const tabNames = workflows.map(w => w.name || 'Untitled');
 
   return (
-    <div className="app-shell">
+    <div className={showAI ? 'app-shell ai-open' : 'app-shell'}>
       <TopBar
         validationValid={validation.valid}
         validationErrors={validation.errors}

@@ -72,8 +72,8 @@ export default function HardwareMonitor() {
         onClick={() => setVisible(true)}
         style={{
           position: 'absolute',
-          top: 10,
-          right: 10,
+          bottom: 10,
+          left: 10,
           zIndex: 60,
           padding: '4px 8px',
           borderRadius: 6,
@@ -96,8 +96,8 @@ export default function HardwareMonitor() {
     <div
       style={{
         position: 'absolute',
-        top: 10,
-        right: 10,
+        bottom: 10,
+        left: 10,
         zIndex: 60,
         width: 220,
         padding: 10,
