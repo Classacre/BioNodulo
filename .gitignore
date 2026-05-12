@@ -9,5 +9,6 @@ web/node_modules/
 .ruff_cache/
 .mypy_cache/
 *.log
+.venv/
 runs/
 cache/
