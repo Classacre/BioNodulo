@@ -36,6 +36,12 @@ class ExampleCustomNode(CommandNode):
     REQUIRED_EXECUTABLES = ["echo"]  # This node just echoes for demo
     REQUIRES_EXTERNAL_TOOLS = True
 
+    # ── Source Repository (required for custom nodes) ────────────────
+    # All custom nodes MUST declare a git repository URL so that
+    # BioNodulo can resolve and install missing nodes automatically.
+    GIT_URL = "https://github.com/yourusername/your-bionodulo-nodes.git"
+    GIT_COMMIT = ""  # Optional: pin to a specific commit hash
+
     # Command template - uses {inputs.NAME} placeholders
     COMMAND = [
         "echo",
@@ -90,6 +96,7 @@ data transformation, calculation, or file manipulation tasks.
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("result",)
     REQUIRES_EXTERNAL_TOOLS = False
+    GIT_URL = "https://github.com/yourusername/your-bionodulo-nodes.git"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

@@ -189,6 +189,57 @@ class ManagerDiagnoseRequest(BaseModel):
     workflow: dict[str, Any] = Field(..., description="Workflow to diagnose")
 
 
+class ManagerResolveRequest(BaseModel):
+    """Request body for POST /manager/resolve."""
+
+    workflow: dict[str, Any] = Field(..., description="Workflow to resolve dependencies for")
+
+
+class ManagerInstallDepsRequest(BaseModel):
+    """Request body for POST /manager/install-deps."""
+
+    report: dict[str, Any] = Field(..., description="Resolution report from /manager/resolve")
+
+
+# ---------------------------------------------------------------------------
+# Environment requests
+# ---------------------------------------------------------------------------
+
+class EnvironmentCreateRequest(BaseModel):
+    """Request body for POST /manager/environments."""
+
+    name: str = Field(..., description="Environment name")
+    packages: list[str] = Field(default_factory=list, description="Conda packages to install")
+    channels: list[str] = Field(
+        default_factory=lambda: ["bioconda", "conda-forge", "defaults"],
+        description="Conda channels",
+    )
+    pip_packages: list[str] = Field(default_factory=list, description="Pip packages to install")
+
+
+class EnvironmentInstallRequest(BaseModel):
+    """Request body for installing packages into an existing environment."""
+
+    packages: list[str] = Field(..., description="Conda packages to install")
+    channels: list[str] = Field(
+        default_factory=lambda: ["bioconda", "conda-forge", "defaults"],
+        description="Conda channels",
+    )
+
+
+class WorkflowEnvironmentRequest(BaseModel):
+    """Request body for setting a workflow's execution environment."""
+
+    workflow: dict[str, Any] = Field(..., description="Workflow JSON")
+    environment: dict[str, Any] = Field(..., description="Environment spec")
+
+
+class DependencyTreeRequest(BaseModel):
+    """Request body for POST /manager/dependency-tree."""
+
+    workflow: dict[str, Any] = Field(..., description="Workflow to analyze")
+
+
 # ---------------------------------------------------------------------------
 # Generic
 # ---------------------------------------------------------------------------

@@ -147,6 +147,28 @@ export interface EnvironmentSpec {
   notes?: string;
 }
 
+export interface CondaEnvironment {
+  name: string;
+  path: string;
+  active: boolean;
+}
+
+export interface EnvPackage {
+  name: string;
+  version: string;
+  channel: string;
+  build: string;
+}
+
+export interface DependencyStatus {
+  name: string;
+  type: 'node' | 'executable' | 'package';
+  status: 'installed' | 'missing' | 'installing' | 'error';
+  source: string;
+  message: string;
+  envs: string[];
+}
+
 export interface HPCConfig {
   enabled: boolean;
   backend: 'slurm' | 'pbs' | 'sge';
@@ -168,6 +190,49 @@ export interface ExportRequest {
 export interface ImportRequest {
   source: string;
   format: 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
+}
+
+export interface MissingNode {
+  node_type: string;
+  git_url: string;
+  git_commit: string;
+  requirements: string[];
+  message: string;
+}
+
+export interface MissingExecutable {
+  name: string;
+  conda_package: string;
+  node_types: string[];
+  message: string;
+}
+
+export interface MissingPackage {
+  name: string;
+  source: string;
+  node_types: string[];
+  message: string;
+}
+
+export interface ResolveReport {
+  missing_nodes: MissingNode[];
+  missing_executables: MissingExecutable[];
+  missing_packages: MissingPackage[];
+  installable: boolean;
+  errors: string[];
+  has_issues: boolean;
+  summary: string;
+}
+
+export interface InstallJobStatus {
+  job_id: string;
+  status: string;
+  total_steps: number;
+  completed_steps: number;
+  current_step: string;
+  message: string;
+  errors: string[];
+  percent: number;
 }
 
 export interface TemplateInfo {

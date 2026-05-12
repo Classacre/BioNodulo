@@ -15,11 +15,12 @@ import WorkspacePanel from './components/panels/WorkspacePanel';
 import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
+import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import { useSettings } from './hooks/useSettings';
 import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
 import { defaultsFor } from './utils';
-import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry } from './types';
+import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport } from './types';
 
 // Built-in node definitions for offline use
 const BUILTIN_NODES: Record<string, NodeMetadata> = {
@@ -111,9 +112,9 @@ async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow |
 export default function App() {
   const { get, getBool, set } = useSettings();
   const {
-    workflows, activeIndex, activeWorkflow, validation, runs,
+    workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
     updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
-    validate, submitRun,
+    validate, resolve, clearResolveReport, submitRun,
   } = useWorkflow();
   useTheme();
 
@@ -174,6 +175,7 @@ export default function App() {
   const [showAI, setShowAI] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [logs] = useState<LogEntry[]>([]);
+  const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
 
   const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
 
@@ -230,16 +232,20 @@ export default function App() {
   }, [consoleVisible, railTab]);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
+    console.log('[Template] loading:', template.filename);
     const wf = await fetchTemplateWorkflow(template);
     if (!wf) {
       console.error('Failed to load template:', template.filename);
       return;
     }
+    console.log('[Template] loaded, nodes:', wf.nodes.length);
     addWorkflow(wf);
+    // Resolve is auto-triggered by the activeWorkflow useEffect
   }, [addWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     addWorkflow(wf);
+    // Resolve is auto-triggered by the activeWorkflow useEffect
   }, [addWorkflow]);
 
   const handleRenameTab = useCallback((index: number, name: string) => {
@@ -286,11 +292,25 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleRun]);
 
-  // Auto-validate on workflow change
+  // Auto-validate and resolve on workflow change
   useEffect(() => {
-    const timer = setTimeout(() => { validate(activeWorkflow); }, 500);
+    console.log('[AutoResolve] workflow changed:', activeWorkflow.name, 'nodes:', activeWorkflow.nodes.length);
+    const timer = setTimeout(() => {
+      console.log('[AutoResolve] running resolve...');
+      validate(activeWorkflow);
+      resolve(activeWorkflow).then((report) => {
+        console.log('[AutoResolve] resolve result:', report?.has_issues, report?.summary);
+      });
+    }, 300);
     return () => clearTimeout(timer);
-  }, [activeWorkflow, validate]);
+  }, [activeWorkflow, validate, resolve]);
+
+  // Reset banners when workflow changes
+  useEffect(() => {
+    console.log('[BannerReset] activeIndex changed to', activeIndex);
+    setDismissedReport(null);
+    clearResolveReport();
+  }, [activeIndex, clearResolveReport]);
 
   const tabNames = workflows.map(w => w.name || 'Untitled');
 
@@ -325,6 +345,12 @@ export default function App() {
       <LeftRail active={railTab} onChange={setRailTab} />
 
       <div className="main-canvas">
+        {resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
+          <MissingDependenciesBanner
+            report={resolveReport}
+            onDismiss={() => setDismissedReport(resolveReport)}
+          />
+        )}
         <LiteGraphCanvas
           nodes={activeWorkflow.nodes}
           edges={activeWorkflow.edges}
@@ -349,7 +375,9 @@ export default function App() {
         {railTab === 'settings' && <SettingsPanel onClose={() => setRailTab(null)} />}
         {railTab === 'help' && <HelpWikiPanel onClose={() => setRailTab(null)} />}
         {railTab === 'templates' && <TemplatesPanel onClose={() => setRailTab(null)} onLoadTemplate={handleLoadTemplate} />}
-        {railTab === 'environments' && <EnvironmentPanel onClose={() => setRailTab(null)} />}
+        {railTab === 'environments' && (
+          <EnvironmentPanel onClose={() => setRailTab(null)} currentWorkflow={activeWorkflow} />
+        )}
         {railTab === 'hpc' && (
           <HPCPanel
             config={hpcConfig}

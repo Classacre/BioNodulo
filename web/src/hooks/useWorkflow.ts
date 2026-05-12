@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Workflow, RunRecord } from '../types';
+import type { Workflow, RunRecord, ResolveReport } from '../types';
 
 function emptyWorkflow(): Workflow {
   return {
@@ -12,6 +12,11 @@ export function useWorkflow() {
   const [workflows, setWorkflows] = useState<Workflow[]>([emptyWorkflow()]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
+  const [resolveReport, setResolveReport] = useState<ResolveReport | null>(null);
+
+  const clearResolveReport = useCallback(() => {
+    setResolveReport(null);
+  }, []);
   const [runs, setRuns] = useState<RunRecord[]>([]);
 
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();
@@ -74,6 +79,26 @@ export function useWorkflow() {
     return { valid: true, errors: [] };
   }, []);
 
+  const resolve = useCallback(async (wf: Workflow) => {
+    try {
+      const r = await fetch('/api/manager/resolve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflow: wf }),
+      });
+      if (r.ok) {
+        const data = await r.json() as ResolveReport;
+        console.log('[useWorkflow.resolve] got report:', data.summary, 'has_issues:', data.has_issues);
+        setResolveReport(data);
+        return data;
+      }
+      console.warn('[useWorkflow.resolve] server returned', r.status, await r.text());
+    } catch (err) {
+      console.error('[useWorkflow.resolve] fetch failed:', err);
+    }
+    setResolveReport(null);
+    return null;
+  }, []);
+
   const submitRun = useCallback(async (wf: Workflow, options?: Record<string, unknown>) => {
     try {
       const r = await fetch('/api/runs', {
@@ -130,6 +155,6 @@ export function useWorkflow() {
   return {
     workflows, activeIndex, activeWorkflow, validation, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
-    validate, submitRun, exportWorkflow, importWorkflow,
+    validate, resolve, resolveReport, clearResolveReport, submitRun, exportWorkflow, importWorkflow,
   };
 }

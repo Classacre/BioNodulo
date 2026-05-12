@@ -30,6 +30,8 @@ class BaseNode(abc.ABC):
     DOCUMENTATION_URL: ClassVar[str] = ""
     VERSION: ClassVar[str] = "1.0.0"
     ENVIRONMENT: ClassVar[dict[str, Any]] = {}
+    GIT_URL: ClassVar[str] = ""  # Required for custom nodes: source repository
+    GIT_COMMIT: ClassVar[str] = ""  # Optional: pinned commit hash
     _SUBCLASSES: ClassVar[list[type[BaseNode]]] = []
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -97,6 +99,8 @@ class BaseNode(abc.ABC):
             "documentation_url": cls.DOCUMENTATION_URL,
             "version": cls.VERSION,
             "environment": cls.ENVIRONMENT,
+            "git_url": cls.GIT_URL,
+            "git_commit": cls.GIT_COMMIT,
             "input_types": cls.INPUT_TYPES(),
         }
 

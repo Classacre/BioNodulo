@@ -154,6 +154,7 @@ class NodeRegistry:
             return 0
 
         count = 0
+        before_custom = set(self._nodes.keys())
         sys.path.insert(0, str(custom_path.parent))
 
         for entry in sorted(custom_path.iterdir()):
@@ -175,6 +176,17 @@ class NodeRegistry:
                         count += self.register_from_module(module)
             except Exception as exc:
                 logger.warning("Failed to load custom node %s: %s", entry.name, exc)
+
+        # Validate custom nodes have GIT_URL
+        for node_id, node_class in self._nodes.items():
+            if node_id in before_custom:
+                continue
+            if not node_class.GIT_URL:
+                logger.warning(
+                    "Custom node '%s' (%s) is missing GIT_URL. "
+                    "All custom nodes should declare a git repository for dependency resolution.",
+                    node_id, node_class.__name__
+                )
 
         logger.info("Loaded %d nodes from custom_nodes", count)
         return count
@@ -284,6 +296,8 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "version": node_class.VERSION,
         "builtin": node_class.__module__.startswith("bionodulo.nodes.builtin"),
         "python_class": f"{node_class.__module__}.{node_class.__name__}",
+        "git_url": node_class.GIT_URL,
+        "git_commit": node_class.GIT_COMMIT,
     }
 
 

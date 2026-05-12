@@ -5,6 +5,7 @@ References app.state for registry, settings, queue, and event_hub.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -21,20 +22,26 @@ from bionodulo.api.previews import router as previews_router
 from bionodulo.api.schemas import (
     AIChatRequest,
     DeleteFilesRequest,
+    DependencyTreeRequest,
+    EnvironmentCreateRequest,
+    EnvironmentInstallRequest,
     FileOperationRequest,
     HPCConfigureRequest,
     HPCSubmitRequest,
     ImportWorkflowRequest,
     ManagerDiagnoseRequest,
     ManagerGitRequest,
+    ManagerInstallDepsRequest,
     ManagerInstallPlanRequest,
     ManagerInstallRequest,
     ManagerPackageRequest,
+    ManagerResolveRequest,
     RunCreateRequest,
     SettingsSaveRequest,
     SettingsSetRequest,
     ValidationRequest,
     WorkspaceRootRequest,
+    WorkflowEnvironmentRequest,
     WorkflowExportRequest,
     WorkflowExtractRequest,
 )
@@ -49,6 +56,19 @@ from bionodulo.workflow.graph import (
     upstream_nodes,
 )
 from bionodulo.workflow.serialization import load_workflow, save_workflow
+from bionodulo.environments.manager import (
+    create_conda_env,
+    create_workflow_env,
+    delete_conda_env,
+    env_exists,
+    executable_in_env,
+    get_env_packages,
+    install_into_env,
+    list_conda_envs,
+    workflow_dependency_tree,
+)
+from bionodulo.manager.installer import InstallJob
+from bionodulo.manager.resolver import build_node_manifest, resolve_workflow
 from bionodulo.workflow.validation import validate_workflow
 
 logger = logging.getLogger(__name__)
@@ -690,32 +710,64 @@ async def manager_diagnose(
     """Diagnose a workflow (find missing tools, type mismatches)."""
     registry = _get_registry(request)
     result = validate_workflow(body.workflow, registry)
+    report = resolve_workflow(body.workflow, registry)
 
-    diagnostics: dict[str, Any] = {
+    return {
         "valid": result.valid,
         "errors": result.errors,
         "warnings": result.warnings,
-        "missing_nodes": [],
-        "missing_tools": [],
-        "type_mismatches": [],
+        "missing_nodes": [n.node_type for n in report.missing_nodes],
+        "missing_tools": [e.name for e in report.missing_executables],
+        "missing_packages": [p.name for p in report.missing_packages],
+        "resolution": report.to_dict(),
     }
 
-    # Identify missing nodes
-    nodes = body.workflow.get("nodes", {})
-    if isinstance(nodes, dict):
-        for node_id, node in nodes.items():
-            node_type = node.get("type", "") if isinstance(node, dict) else node.type
-            if not registry.has(node_type):
-                diagnostics["missing_nodes"].append(node_type)
 
-    return diagnostics
+@router.post("/manager/resolve")
+async def manager_resolve(
+    request: Request, body: ManagerResolveRequest
+) -> dict[str, Any]:
+    """Resolve dependencies for a workflow.
+
+    Returns a report of missing nodes, executables, and packages
+    with installation information where available.
+    """
+    registry = _get_registry(request)
+    report = resolve_workflow(body.workflow, registry)
+    return report.to_dict()
+
+
+@router.post("/manager/install-deps")
+async def manager_install_deps(
+    request: Request, body: ManagerInstallDepsRequest
+) -> dict[str, Any]:
+    """Start an async install job for missing dependencies.
+
+    Returns a job_id that can be polled via /manager/status/{job_id}.
+    """
+    settings = _get_settings(request)
+    job = InstallJob.create(body.report, settings.custom_nodes_dir)
+
+    # Start install in background
+    asyncio.create_task(job.run())
+
+    return {"job_id": job.job_id, "status": "started"}
+
+
+@router.get("/manager/status/{job_id}")
+async def manager_status(job_id: str) -> dict[str, Any]:
+    """Get the status of an async install job."""
+    job = InstallJob.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    return job.progress.to_dict()
 
 
 @router.post("/manager/install-plan")
 async def manager_install_plan(
     request: Request, body: ManagerInstallPlanRequest
 ) -> dict[str, Any]:
-    """Get an install plan for requested nodes."""
+    """Get an install plan for requested nodes (legacy endpoint)."""
     registry = _get_registry(request)
     plan: list[dict[str, Any]] = []
     for node_name in body.nodes:
@@ -724,7 +776,7 @@ async def manager_install_plan(
             plan.append({
                 "node": node_name,
                 "action": "install",
-                "source": "git",  # Could be conda, pip, etc.
+                "source": "git",
                 "estimated_size": "unknown",
             })
         else:
@@ -740,7 +792,7 @@ async def manager_install_plan(
 async def manager_install(
     request: Request, body: ManagerInstallRequest
 ) -> dict[str, Any]:
-    """Execute an install plan."""
+    """Execute an install plan (legacy endpoint)."""
     if not body.confirm:
         return {"status": "pending", "message": "Set confirm=true to execute"}
 
@@ -767,6 +819,121 @@ async def manager_install(
         registry.load_custom_nodes(settings.custom_nodes_dir)
 
     return {"status": "completed", "results": results}
+
+
+# ---------------------------------------------------------------------------
+# Environment Manager
+# ---------------------------------------------------------------------------
+
+@router.get("/manager/environments")
+async def list_environments() -> dict[str, Any]:
+    """List all Conda/Mamba/Micromamba environments."""
+    envs = list_conda_envs()
+    return {"environments": envs, "count": len(envs)}
+
+
+@router.post("/manager/environments")
+async def create_environment(body: EnvironmentCreateRequest) -> dict[str, Any]:
+    """Create a new Conda environment with specified packages."""
+    success, message = create_conda_env(
+        name=body.name,
+        packages=body.packages,
+        channels=body.channels,
+        pip_packages=body.pip_packages,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"success": True, "message": message, "name": body.name}
+
+
+@router.get("/manager/environments/{name}")
+async def get_environment(name: str) -> dict[str, Any]:
+    """Get details for a specific environment including installed packages."""
+    if not env_exists(name):
+        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
+    packages = get_env_packages(name)
+    return {"name": name, "packages": packages, "package_count": len(packages)}
+
+
+@router.delete("/manager/environments/{name}")
+async def delete_environment(name: str) -> dict[str, Any]:
+    """Remove a Conda environment."""
+    if not env_exists(name):
+        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
+    success, message = delete_conda_env(name)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"success": True, "message": message}
+
+
+@router.post("/manager/environments/{name}/install")
+async def install_into_environment(name: str, body: EnvironmentInstallRequest) -> dict[str, Any]:
+    """Install packages into an existing environment."""
+    if not env_exists(name):
+        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
+    success, message = install_into_env(name, body.packages, body.channels)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"success": True, "message": message}
+
+
+@router.post("/manager/dependency-tree")
+async def get_dependency_tree(
+    request: Request, body: DependencyTreeRequest
+) -> dict[str, Any]:
+    """Get the dependency status tree for a workflow.
+
+    Returns each dependency with its status (installed, missing, etc.)
+    and where it is available.
+    """
+    registry = _get_registry(request)
+    tree = workflow_dependency_tree(body.workflow, registry)
+    return {
+        "dependencies": [
+            {
+                "name": d.name,
+                "type": d.type,
+                "status": d.status,
+                "source": d.source,
+                "message": d.message,
+                "envs": d.envs,
+            }
+            for d in tree
+        ],
+        "count": len(tree),
+        "missing_count": sum(1 for d in tree if d.status == "missing"),
+    }
+
+
+@router.post("/manager/create-workflow-env")
+async def manager_create_workflow_env(
+    request: Request, body: WorkflowEnvironmentRequest
+) -> dict[str, Any]:
+    """Create a dedicated environment for a workflow.
+
+    Extracts required executables from the workflow's nodes and creates
+    a conda environment with those packages.
+    """
+    registry = _get_registry(request)
+    report = resolve_workflow(body.workflow, registry)
+
+    deps: list[str] = []
+    for exe in report.missing_executables:
+        pkg = exe.conda_package or exe.name
+        if pkg and pkg not in deps:
+            deps.append(pkg)
+    for pkg in report.missing_packages:
+        if pkg.name not in deps:
+            deps.append(pkg.name)
+
+    if not deps:
+        return {"success": True, "message": "No dependencies to install", "env_name": ""}
+
+    wf_id = body.workflow.get("name", "untitled").replace(" ", "-").lower()[:20]
+    success, message, env_name = create_workflow_env(wf_id, deps)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"success": True, "message": message, "env_name": env_name}
 
 
 # ---------------------------------------------------------------------------

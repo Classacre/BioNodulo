@@ -82,14 +82,17 @@ bionodulo-v2/
 │   │   └── local.py                # Local execution fallback
 │   ├── environments/
 │   │   ├── __init__.py
-│   │   ├── conda.py                # Conda/Mamba/Micromamba
+│   │   ├── conda.py                # Conda/Mamba/Micromamba prefix generation
 │   │   ├── containers.py           # Docker/Apptainer/Singularity
-│   │   └── model.py                # Environment spec dataclass
+│   │   ├── model.py                # Environment spec dataclass
+│   │   └── manager.py              # Environment CRUD, dependency tree, workflow env creation
 │   ├── manager/
 │   │   ├── __init__.py
 │   │   ├── custom_nodes.py         # Custom node install/remove
 │   │   ├── diagnostics.py          # Environment diagnostics
-│   │   └── runtime_installer.py    # Auto-install missing tools
+│   │   ├── runtime_installer.py    # Auto-install missing tools
+│   │   ├── resolver.py             # Workflow dependency resolution engine
+│   │   └── installer.py            # Async install jobs with progress tracking
 │   ├── provenance/
 │   │   ├── __init__.py
 │   │   ├── workflow_embed.py       # Embed workflow in outputs

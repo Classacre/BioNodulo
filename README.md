@@ -14,8 +14,9 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **Settings System** — ComfyUI-inspired per-user settings with categories (Appearance, Canvas, Execution, LLM, Files)
 - **Help / Wiki System** — Built-in searchable documentation panel (Ctrl+6)
 - **AI Assistant** — Chat-based workflow builder assistant
-- **Environment Manager** — Conda, Mamba, Micromamba, Docker, and Apptainer support
-- **Custom Nodes** — Extensible plugin system for adding new tools
+- **Environment Manager** — Auto-detect missing dependencies, one-click install, Conda/Mamba/Micromamba env CRUD, Docker/Apptainer support, per-workflow isolation
+- **Dependency Resolution** — Scans workflows on open for missing nodes, executables, and Python packages with a top-center banner + Auto Install
+- **Custom Nodes** — Extensible plugin system; nodes declare `GIT_URL` for automatic source discovery and installation
 - **Dark/Light Theme** — Full theme support with system detection
 - **Multi-tab Workflows** — Work on multiple workflows simultaneously with top tabs
 - **Undo/Redo** — Full history support
@@ -83,7 +84,18 @@ Click the **Import** button in the top bar (Ctrl+I) and paste workflow code from
 
 1. Copy `custom_nodes/example_node.py.example` to `custom_nodes/my_node.py`
 2. Edit the node class with your tool's parameters
-3. Restart BioNodulo — your node appears in the palette automatically
+3. Set `GIT_URL` (and optionally `GIT_COMMIT`) so BioNodulo can auto-install your node when it's missing
+4. Restart BioNodulo — your node appears in the palette automatically
+
+### Managing Environments
+
+BioNodulo automatically checks for missing dependencies every time you open or load a workflow:
+
+1. **Auto-detect** — Open any template or workflow. If nodes or tools are missing, a top-center banner appears
+2. **Auto Install** — Click **Auto Install** in the banner to clone custom nodes and `conda install` missing executables automatically
+3. **Environment Panel** (Ctrl+4) — Browse existing Conda environments, create new ones, delete old ones, and view installed packages
+4. **Dependency Tree** — See per-workflow dependency status (installed / missing / available in which env)
+5. **Isolate Workflow** — Create a dedicated Conda environment containing only the tools your current workflow needs
 
 ## Project Structure
 
@@ -110,8 +122,16 @@ bionodulo-v2/
 │   ├── workflow/              # Workflow validation, serialization
 │   ├── converter/             # SnakeMake, NextFlow, CWL, Galaxy
 │   ├── hpc/                   # SLURM, PBS, SGE backends
-│   ├── environments/          # Conda, Docker, Apptainer
-│   ├── manager/               # Custom nodes, diagnostics
+│   ├── environments/          # Conda, Docker, Apptainer, env CRUD
+│   │   ├── conda.py
+│   │   ├── containers.py
+│   │   ├── model.py
+│   │   └── manager.py         # Environment lifecycle management
+│   ├── manager/               # Custom nodes, diagnostics, dependency resolution
+│   │   ├── resolver.py        # Workflow dependency resolution engine
+│   │   ├── installer.py       # Async install jobs with progress tracking
+│   │   ├── custom_nodes.py
+│   │   └── diagnostics.py
 │   ├── provenance/            # Workflow embedding, reports
 │   └── ai/                    # AI assistant
 ├── custom_nodes/              # Your custom nodes
