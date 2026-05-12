@@ -8,14 +8,14 @@
       "id": "note_metagenomics_pipeline",
       "type": "note",
       "position": [
-        80,
-        10
+        -240,
+        265
       ],
       "params": {
         "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

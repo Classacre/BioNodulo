@@ -8,14 +8,14 @@
       "id": "note_fastq_qc_pipeline",
       "type": "note",
       "position": [
-        100,
-        20
+        -220,
+        100
       ],
       "params": {
         "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

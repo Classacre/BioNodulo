@@ -8,14 +8,14 @@
       "id": "note_assembly_pipeline",
       "type": "note",
       "position": [
-        100,
-        20
+        -220,
+        225
       ],
       "params": {
         "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

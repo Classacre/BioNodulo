@@ -8,14 +8,14 @@
       "id": "note_differential_expression",
       "type": "note",
       "position": [
-        100,
-        20
+        -220,
+        275
       ],
       "params": {
         "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

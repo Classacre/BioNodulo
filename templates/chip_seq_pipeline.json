@@ -8,14 +8,14 @@
       "id": "note_chip_seq_pipeline",
       "type": "note",
       "position": [
-        80,
-        10
+        -240,
+        190
       ],
       "params": {
         "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

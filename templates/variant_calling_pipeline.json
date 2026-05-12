@@ -8,14 +8,14 @@
       "id": "note_variant_calling_pipeline",
       "type": "note",
       "position": [
-        50,
-        10
+        -270,
+        200
       ],
       "params": {
         "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

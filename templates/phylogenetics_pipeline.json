@@ -8,14 +8,14 @@
       "id": "note_phylogenetics_pipeline",
       "type": "note",
       "position": [
-        100,
-        70
+        -220,
+        150
       ],
       "params": {
         "text": "Phylogenetics pipeline: aligns sequences with MAFFT and builds trees with IQ-TREE."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

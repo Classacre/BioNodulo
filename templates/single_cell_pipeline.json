@@ -8,14 +8,14 @@
       "id": "note_single_cell_pipeline",
       "type": "note",
       "position": [
-        100,
-        20
+        -220,
+        250
       ],
       "params": {
         "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices."
       },
       "ui": {
-        "title": "Description",
+        "title": "Notes",
         "color": "#f59e0b"
       }
     },

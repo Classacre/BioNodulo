@@ -219,10 +219,10 @@ class RerouteNode(CommandNode):
 class NoteNode(CommandNode):
     """A text note node for workflow annotations."""
     NODE_ID = "note"
-    DISPLAY_NAME = "Note"
+    DISPLAY_NAME = "Notes"
     CATEGORY = "Utility"
-    DESCRIPTION = "Add a text note or description to the workflow"
-    SEARCH_ALIASES = ["note", "text", "comment", "description", "annotation"]
+    DESCRIPTION = "Add a text note or annotation to the workflow"
+    SEARCH_ALIASES = ["notes", "note", "text", "comment", "description", "annotation"]
     RETURN_TYPES = ()
     RETURN_NAMES = ()
     REQUIRES_EXTERNAL_TOOLS = False

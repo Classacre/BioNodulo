@@ -69,12 +69,19 @@ function nodeColor(meta: NodeMetadata | null): string {
   return COLORS[meta?.category || ''] || '#64748b';
 }
 
-function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: Record<string, unknown>): number {
+function calcNoteHeight(text: string, width: number): number {
+  const maxCharsPerLine = Math.floor((width - 20) / 6.5);
+  const lines = text.split('\n').reduce((total, line) => {
+    return total + Math.max(1, Math.ceil(line.length / maxCharsPerLine));
+  }, 0);
+  return NODE_HEADER_H + Math.max(40, lines * 15 + 20);
+}
+
+function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: Record<string, unknown>, width?: number): number {
   if (collapsed) return NODE_HEADER_H;
   if (meta?.id === 'note') {
     const text = String(params?.text || '');
-    const lines = Math.max(1, text.split('\n').length);
-    return NODE_HEADER_H + Math.max(40, lines * 16 + 20);
+    return calcNoteHeight(text, width || NODE_NOTE_WIDTH);
   }
   const ins = Object.keys(meta?.input_types?.required || {}).length + Object.keys(meta?.input_types?.optional || {}).length;
   const outs = (meta?.return_types || []).length;
@@ -347,7 +354,7 @@ export default function LiteGraphCanvas({
           x: wn.position[0],
           y: wn.position[1],
           width: isNote ? NODE_NOTE_WIDTH : (isReroute ? 20 : (existing?.width || NODE_WIDTH)),
-          height: isReroute ? 20 : calcNodeHeight(meta, collapsed, wn.params),
+          height: isReroute ? 20 : calcNodeHeight(meta, collapsed, wn.params, isNote ? (existing?.width || NODE_NOTE_WIDTH) : undefined),
           inputs: meta ? [
             ...Object.entries(meta.input_types?.required || {}).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
@@ -797,7 +804,7 @@ export default function LiteGraphCanvas({
       }
 
       // Resize handle (bottom-right corner)
-      if (!isNote) {
+      if (!isReroute) {
         ctx.fillStyle = isDark ? '#475569' : '#cbd5e1';
         ctx.fillRect(node.x + nw - 6, node.y + nh - 6, 6, 6);
         ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
@@ -1130,7 +1137,7 @@ export default function LiteGraphCanvas({
       }
 
       // Check node resize handle
-      if (clicked.type !== 'note' && world.x >= clicked.x + clicked.width - 10 && world.y >= clicked.y + clicked.height - 10) {
+      if (world.x >= clicked.x + clicked.width - 10 && world.y >= clicked.y + clicked.height - 10) {
         setResizingNode(clicked.id);
         setDragStart({ x: e.clientX, y: e.clientY });
         return;
@@ -1363,7 +1370,12 @@ export default function LiteGraphCanvas({
       setDragStart({ x: e.clientX, y: e.clientY });
       setGraphNodes(prev => prev.map(n => {
         if (n.id !== resizingNode) return n;
-        return { ...n, width: Math.max(140, n.width + dx), height: Math.max(NODE_HEADER_H + 20, n.height + dy) };
+        const newWidth = Math.max(140, n.width + dx);
+        if (n.type === 'note') {
+          const newHeight = calcNoteHeight(String(n.params?.text || ''), newWidth);
+          return { ...n, width: newWidth, height: newHeight };
+        }
+        return { ...n, width: newWidth, height: Math.max(NODE_HEADER_H + 20, n.height + dy) };
       }));
       return;
     }
