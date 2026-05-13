@@ -12,7 +12,7 @@
         275
       ],
       "params": {
-        "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR."
+        "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR.\nData: S. cerevisiae RNA-seq reads SRR6357071 (subsampled) from nf-core/test-datasets GSE110004. Transcriptome from Ensembl Saccharomyces_cerevisiae.R64-1-1.cdna.all.\nSources: https://github.com/nf-core/test-datasets | https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/"
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "ctrl_rep1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/differential_expression/SRR6357071_1.fastq",
+          "examples/data/differential_expression/SRR6357071_2.fastq"
+        ]
       },
       "ui": {
         "title": "Control FASTQ"
@@ -42,7 +46,7 @@
         280
       ],
       "params": {
-        "file_path": "transcripts.fa"
+        "file_path": "examples/data/differential_expression/transcriptome.fa"
       },
       "ui": {
         "title": "Transcriptome FASTA"

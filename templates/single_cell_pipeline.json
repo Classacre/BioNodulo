@@ -12,7 +12,7 @@
         250
       ],
       "params": {
-        "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices."
+        "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices.\n\nData source: 10x Genomics cellranger-tiny-fastq test dataset (via GitHub/minoda-lab/universc).\nSample: tinygex (2 lanes: L001 + L002, I1/R1/R2 reads).\nURL: https://github.com/minoda-lab/universc/tree/master/test/shared/cellranger-tiny-fastq\nNote: Cell Ranger reference directory is a placeholder. Provide your own reference (e.g. refdata-gex-GRCh38 from 10x Genomics)."
       },
       "ui": {
         "title": "Notes",
@@ -27,7 +27,7 @@
         100
       ],
       "params": {
-        "path": "fastq_dir"
+        "path": "examples/data/single_cell"
       },
       "ui": {
         "title": "FASTQ Directory"
@@ -55,8 +55,8 @@
         100
       ],
       "params": {
-        "sample": "sample1",
-        "expect_cells": 3000
+        "sample": "tinygex",
+        "expect_cells": 100
       },
       "ui": {
         "title": "Cell Ranger Count"

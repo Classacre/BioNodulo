@@ -12,7 +12,7 @@
         200
       ],
       "params": {
-        "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools."
+        "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools.\n\nData source:\n- Reads: Staphylococcus aureus mutant paired-end WGS (12,480 read pairs)\n  Zenodo: https://zenodo.org/record/582600\n  Files: mutant_R1.fastq (3.9M), mutant_R2.fastq (3.9M)\n- Reference: S. aureus wildtype genome (200,684 bp, 1 contig)\n  Zenodo: https://zenodo.org/record/582600\n  File: wildtype.fna (196K)\n- Galaxy Training Material: Microbial Variant Calling tutorial\n  https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/microbial-variants/tutorial.html\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/variant_calling/mutant_R1.fastq",
+          "examples/data/variant_calling/mutant_R2.fastq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"
@@ -42,7 +46,8 @@
         180
       ],
       "params": {
-        "file_path": "reference.fa"
+        "file_path": "examples/data/variant_calling/wildtype.fna",
+        "reference": "examples/data/variant_calling/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA"

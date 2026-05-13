@@ -12,7 +12,7 @@
         225
       ],
       "params": {
-        "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast."
+        "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast.\n\nReads: shovill test data (https://github.com/tseemann/shovill/tree/master/test). Paired-end bacterial Illumina reads (~50,000 reads each).\nReference: E. coli K-12 substr. MG1655 (NCBI GCF_000005845.2_ASM584v2, https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/)."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "genome1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/assembly/R1.fq",
+          "examples/data/assembly/R2.fq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"
@@ -72,7 +76,8 @@
         350
       ],
       "params": {
-        "file_path": ""
+        "file_path": "examples/data/assembly/ecoli_reference.fna",
+        "reference": "examples/data/assembly/ecoli_reference.fna"
       },
       "ui": {
         "title": "Reference (optional)"

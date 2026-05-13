@@ -12,7 +12,7 @@
         220
       ],
       "params": {
-        "text": "RNA-Seq pipeline: aligns reads with HISAT2, sorts BAM, and counts features with featureCounts."
+        "text": "RNA-Seq pipeline: aligns reads with HISAT2, sorts BAM, and counts features with featureCounts.\nData: S. cerevisiae RNA-seq reads SRR6357070 (subsampled) from nf-core/test-datasets GSE110004. Reference genome + GFF from NCBI RefSeq GCF_000146045.2 (R64).\nSources: https://github.com/nf-core/test-datasets | https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000146045.2/"
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/rna_seq/SRR6357070_1.fastq",
+          "examples/data/rna_seq/SRR6357070_2.fastq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"
@@ -42,7 +46,7 @@
         220
       ],
       "params": {
-        "file_path": "reference.fa"
+        "file_path": "examples/data/rna_seq/genome.fa"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -99,7 +103,7 @@
         280
       ],
       "params": {
-        "file_path": "annotation.gff"
+        "file_path": "examples/data/rna_seq/annotation.gff"
       },
       "ui": {
         "title": "Annotation GFF"

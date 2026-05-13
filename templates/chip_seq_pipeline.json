@@ -12,7 +12,7 @@
         190
       ],
       "params": {
-        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles."
+        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles.\n\nData source: Zenodo record 1324070 (Galaxy Training Material).\nwt_H3K4me3_read1.fastq (8.5M), wt_H3K4me3_read2.fastq (8.5M).\nMouse H3K4me3 ChIP-seq from 'Formation of the Super-Structures on the Inactive X' tutorial.\nURL: https://zenodo.org/record/1324070\nNote: Bowtie2 index directory is a placeholder. Provide your own index."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "treatment",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/chip_seq/wt_H3K4me3_read1.fastq",
+          "examples/data/chip_seq/wt_H3K4me3_read2.fastq"
+        ]
       },
       "ui": {
         "title": "Treatment FASTQ"

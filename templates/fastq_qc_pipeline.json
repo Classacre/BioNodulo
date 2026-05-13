@@ -12,7 +12,7 @@
         100
       ],
       "params": {
-        "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC."
+        "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/fastq_qc/R1.fq",
+          "examples/data/fastq_qc/R2.fq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"

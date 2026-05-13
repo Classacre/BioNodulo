@@ -12,7 +12,7 @@
         150
       ],
       "params": {
-        "text": "Phylogenetics pipeline: aligns sequences with MAFFT and builds trees with IQ-TREE."
+        "text": "Phylogenetics pipeline: aligns sequences with MAFFT and builds trees with IQ-TREE.\n\nData source: NCBI RefSeq 16S ribosomal RNA sequences fetched via E-utilities (https://eutils.ncbi.nlm.nih.gov/).\nSequences:\n- NR_024570.1 Escherichia coli\n- NR_027552.1 Bacillus subtilis\n- NR_036781.1 Staphylococcus aureus\n- NR_026078.1 Pseudomonas aeruginosa\n- NR_028747.1 Salmonella enterica\nFile: 16s_sequences.fasta (~8 KB, 5 sequences)."
       },
       "ui": {
         "title": "Notes",
@@ -27,7 +27,8 @@
         150
       ],
       "params": {
-        "file_path": "sequences.fasta"
+        "file_path": "examples/data/phylogenetics/16s_sequences.fasta",
+        "reference": "examples/data/phylogenetics/16s_sequences.fasta"
       },
       "ui": {
         "title": "Input Sequences"

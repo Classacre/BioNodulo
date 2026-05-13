@@ -12,7 +12,7 @@
         230
       ],
       "params": {
-        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data."
+        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data.\n\nData source: ENA PRJEB2138 (E. coli K-12 Illumina paired-end) + NCBI RefSeq E. coli K-12 MG1655.\nFiles: R1.fq (18M), R2.fq (18M), ecoli_k12_mg1655.fna (4.5M reference).\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "wgs1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/assembly/R1.fq",
+          "examples/data/assembly/R2.fq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"
@@ -42,7 +46,8 @@
         220
       ],
       "params": {
-        "file_path": "reference.fa"
+        "file_path": "examples/data/wgs_variant/ecoli_k12_mg1655.fna",
+        "reference": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
       },
       "ui": {
         "title": "Reference FASTA"

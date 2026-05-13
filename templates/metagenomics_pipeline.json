@@ -12,7 +12,7 @@
         265
       ],
       "params": {
-        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN."
+        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN.\n\nData source: Zenodo record 17661262 (Galaxy Training Network).\nreads_forward.fastq (3.0M), reads_reverse.fastq (3.0M).\nCoffee fermentation metagenome subset for assembly tutorial.\nURL: https://zenodo.org/records/17661262\nNote: Kraken2 database directory is a placeholder. Provide your own database."
       },
       "ui": {
         "title": "Notes",
@@ -28,7 +28,11 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true
+        "paired_end": true,
+        "reads": [
+          "examples/data/metagenomics/reads_forward.fastq",
+          "examples/data/metagenomics/reads_reverse.fastq"
+        ]
       },
       "ui": {
         "title": "Input FASTQ"
