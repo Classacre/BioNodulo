@@ -1,0 +1,136 @@
+{
+  "version": "Alpha 1.2",
+  "app": "bionodulo",
+  "name": "R Visualization Pipeline",
+  "description": "Create publication-quality plots using R and ggplot2 from workflow data",
+  "nodes": [
+    {
+      "id": "note_r_viz",
+      "type": "note",
+      "position": [
+        -220,
+        100
+      ],
+      "params": {
+        "text": "R Visualization Pipeline\n\nDemonstrates BioNodulo's R integration using ggplot2.\n\nChain 1: Build a QC metrics DataFrame and plot a grouped bar chart of read counts per sample.\nChain 2: Build an expression DataFrame and plot a colored scatter plot (log2 fold-change vs mean expression).\n\nRequires: R + ggplot2 installed."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "qc_df_001",
+      "type": "r_dataframe_builder",
+      "position": [
+        100,
+        50
+      ],
+      "params": {
+        "x_column": "Sample",
+        "x_values": "Sample_A,Sample_B,Sample_C,Sample_D,Sample_A,Sample_B,Sample_C,Sample_D",
+        "y_column": "Reads_Million",
+        "y_values": "12.5,15.2,8.7,19.3,12.1,14.9,8.5,18.8",
+        "group_column": "Lane",
+        "group_values": "L001,L001,L001,L001,L002,L002,L002,L002"
+      },
+      "ui": {
+        "title": "QC DataFrame"
+      }
+    },
+    {
+      "id": "qc_plot_001",
+      "type": "r_plot",
+      "position": [
+        450,
+        50
+      ],
+      "params": {
+        "data_csv": "",
+        "plot_type": "bar",
+        "x_axis": "Sample",
+        "y_axis": "Reads_Million",
+        "color_column": "Lane",
+        "title": "Sequencing Depth by Sample",
+        "x_label": "Sample",
+        "y_label": "Reads (Million)",
+        "width": 900,
+        "height": 600
+      },
+      "ui": {
+        "title": "QC Bar Plot"
+      }
+    },
+    {
+      "id": "expr_df_001",
+      "type": "r_dataframe_builder",
+      "position": [
+        100,
+        350
+      ],
+      "params": {
+        "x_column": "Mean_Expression",
+        "x_values": "1250,890,3420,560,2100,780,4500,1200,980,3200,670,1540,210,3890,1100",
+        "y_column": "Log2_FC",
+        "y_values": "-1.2,0.5,2.8,-0.3,1.5,-0.8,3.2,0.1,-0.5,2.1,0.3,1.8,-1.5,2.9,0.7",
+        "group_column": "Significant",
+        "group_values": "No,No,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,Yes,No"
+      },
+      "ui": {
+        "title": "Expr DataFrame"
+      }
+    },
+    {
+      "id": "expr_plot_001",
+      "type": "r_plot",
+      "position": [
+        450,
+        350
+      ],
+      "params": {
+        "data_csv": "",
+        "plot_type": "scatter",
+        "x_axis": "Mean_Expression",
+        "y_axis": "Log2_FC",
+        "color_column": "Significant",
+        "title": "Differential Expression (MA-style)",
+        "x_label": "Mean Expression (TPM)",
+        "y_label": "Log2 Fold Change",
+        "width": 900,
+        "height": 600
+      },
+      "ui": {
+        "title": "Expression Scatter Plot"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "qc_df_001",
+        "output": "csv"
+      },
+      "to": {
+        "node": "qc_plot_001",
+        "input": "data_csv"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "expr_df_001",
+        "output": "csv"
+      },
+      "to": {
+        "node": "expr_plot_001",
+        "input": "data_csv"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "qc_plot": "qc_plot_001",
+    "expr_plot": "expr_plot_001"
+  }
+}

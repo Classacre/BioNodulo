@@ -1,0 +1,210 @@
+{
+  "version": "Alpha 1.2",
+  "app": "bionodulo",
+  "name": "Biopython Analysis Pipeline",
+  "description": "Sequence parsing, statistics, translation, and local BLAST using Biopython",
+  "nodes": [
+    {
+      "id": "note_biopython",
+      "type": "note",
+      "position": [
+        -220,
+        80
+      ],
+      "params": {
+        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython integration nodes.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight per sequence.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein (uses Bacterial codon table).\n5. SeqIO Write: Convert the parsed sequences to GenBank format.\n\nData: NCBI 16S rRNA sequences (phylogenetics) + synthetic bacterial gene fragments for translation."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "seqs_001",
+      "type": "input_fasta",
+      "position": [
+        100,
+        80
+      ],
+      "params": {
+        "file_path": "examples/data/phylogenetics/16s_sequences.fasta",
+        "reference": "examples/data/phylogenetics/16s_sequences.fasta"
+      },
+      "ui": {
+        "title": "Input FASTA"
+      }
+    },
+    {
+      "id": "seqio_read_001",
+      "type": "bp_seqio_read",
+      "position": [
+        400,
+        50
+      ],
+      "params": {
+        "input_file": "",
+        "format": "fasta"
+      },
+      "ui": {
+        "title": "SeqIO Read"
+      }
+    },
+    {
+      "id": "seq_stats_001",
+      "type": "bp_seq_stats",
+      "position": [
+        400,
+        200
+      ],
+      "params": {
+        "input_file": "",
+        "format": "fasta"
+      },
+      "ui": {
+        "title": "Sequence Stats"
+      }
+    },
+    {
+      "id": "blast_001",
+      "type": "bp_blast",
+      "position": [
+        700,
+        50
+      ],
+      "params": {
+        "query": "",
+        "subject": "",
+        "program": "blastn",
+        "evalue": 0.001,
+        "max_hits": 10,
+        "outfmt": "5"
+      },
+      "ui": {
+        "title": "BLAST Search"
+      }
+    },
+    {
+      "id": "seqio_write_001",
+      "type": "bp_seqio_write",
+      "position": [
+        700,
+        200
+      ],
+      "params": {
+        "sequences_json": "",
+        "output_format": "genbank",
+        "output_name": "sequences.gb"
+      },
+      "ui": {
+        "title": "SeqIO Write (GenBank)"
+      }
+    },
+    {
+      "id": "coding_001",
+      "type": "input_fasta",
+      "position": [
+        100,
+        400
+      ],
+      "params": {
+        "file_path": "examples/data/biopython/coding_sequences.fasta",
+        "reference": "examples/data/biopython/coding_sequences.fasta"
+      },
+      "ui": {
+        "title": "Coding DNA FASTA"
+      }
+    },
+    {
+      "id": "translate_001",
+      "type": "bp_translate",
+      "position": [
+        400,
+        400
+      ],
+      "params": {
+        "input_file": "",
+        "table": "Bacterial",
+        "to_stop": true
+      },
+      "ui": {
+        "title": "Translate DNA"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "seqs_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "seqio_read_001",
+        "input": "input_file"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "seqs_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "seq_stats_001",
+        "input": "input_file"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "seqs_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "blast_001",
+        "input": "query"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "seqs_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "blast_001",
+        "input": "subject"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "seqio_read_001",
+        "output": "sequences_json"
+      },
+      "to": {
+        "node": "seqio_write_001",
+        "input": "sequences_json"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "coding_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "translate_001",
+        "input": "input_file"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "sequences_json": "seqio_read_001",
+    "stats_json": "seq_stats_001",
+    "blast_xml": "blast_001",
+    "genbank": "seqio_write_001",
+    "protein_fasta": "translate_001"
+  }
+}
