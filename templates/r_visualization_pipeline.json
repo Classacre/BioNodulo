@@ -12,7 +12,7 @@
         100
       ],
       "params": {
-        "text": "R Visualization Pipeline\n\nDemonstrates BioNodulo's R integration using ggplot2.\n\nChain 1: Build a QC metrics DataFrame and plot a grouped bar chart of read counts per sample.\nChain 2: Build an expression DataFrame and plot a colored scatter plot (log2 fold-change vs mean expression).\n\nRequires: R + ggplot2 installed."
+        "text": "R Visualization Pipeline\n\nDemonstrates BioNodulo's R integration using ggplot2 and pheatmap.\n\nChain 1: Build a QC metrics DataFrame and plot a grouped bar chart.\nChain 2: Build an expression DataFrame and plot a colored scatter plot.\nChain 3: Load a gene expression matrix and generate a clustered heatmap with pheatmap.\n\nRequires: R + ggplot2 + pheatmap + RColorBrewer installed."
       },
       "ui": {
         "title": "Notes",
@@ -102,6 +102,43 @@
       "ui": {
         "title": "Expression Scatter Plot"
       }
+    },
+    {
+      "id": "heatmap_data_001",
+      "type": "input_file",
+      "position": [
+        100,
+        650
+      ],
+      "params": {
+        "file": "examples/data/biopython/heatmap_data.csv"
+      },
+      "ui": {
+        "title": "Heatmap Data"
+      }
+    },
+    {
+      "id": "pheatmap_001",
+      "type": "r_pheatmap",
+      "position": [
+        450,
+        650
+      ],
+      "params": {
+        "data_csv": "",
+        "scale": "row",
+        "annotation_csv": "examples/data/biopython/heatmap_annotation.csv",
+        "cluster_rows": true,
+        "cluster_cols": true,
+        "show_rownames": true,
+        "show_colnames": true,
+        "fontsize": 10,
+        "width": 900,
+        "height": 700
+      },
+      "ui": {
+        "title": "pheatmap"
+      }
     }
   ],
   "edges": [
@@ -126,11 +163,23 @@
         "node": "expr_plot_001",
         "input": "data_csv"
       }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "heatmap_data_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "pheatmap_001",
+        "input": "data_csv"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "qc_plot": "qc_plot_001",
-    "expr_plot": "expr_plot_001"
+    "expr_plot": "expr_plot_001",
+    "heatmap": "pheatmap_001"
   }
 }

@@ -27,6 +27,7 @@ class BaseNode(abc.ABC):
     EXPERIMENTAL: ClassVar[bool] = False
     REQUIRES_EXTERNAL_TOOLS: ClassVar[bool] = True
     REQUIRED_EXECUTABLES: ClassVar[list[str]] = []
+    REQUIRED_R_PACKAGES: ClassVar[list[str]] = []
     DOCUMENTATION_URL: ClassVar[str] = ""
     VERSION: ClassVar[str] = "1.0.0"
     ENVIRONMENT: ClassVar[dict[str, Any]] = {}
@@ -96,6 +97,7 @@ class BaseNode(abc.ABC):
             "experimental": cls.EXPERIMENTAL,
             "requires_external_tools": cls.REQUIRES_EXTERNAL_TOOLS,
             "required_executables": cls.REQUIRED_EXECUTABLES,
+            "required_r_packages": cls.REQUIRED_R_PACKAGES,
             "documentation_url": cls.DOCUMENTATION_URL,
             "version": cls.VERSION,
             "environment": cls.ENVIRONMENT,

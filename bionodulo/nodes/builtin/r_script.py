@@ -83,6 +83,7 @@ class RPlotNode(BaseNode):
     OUTPUT_NODE = True
     REQUIRES_EXTERNAL_TOOLS = True
     REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_R_PACKAGES = ["ggplot2", "readr"]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -177,6 +178,8 @@ class RPlotNode(BaseNode):
         fill_aes = f'fill = {color_col}' if color_col else ""
 
         base = textwrap.dedent(f"""\
+            if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Package 'ggplot2' is required but not installed. Install it with: install.packages('ggplot2')")
+            if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed. Install it with: install.packages('readr')")
             library(ggplot2)
             library(readr)
             data <- read_csv("{Path(data_csv).as_posix()}")
@@ -218,6 +221,7 @@ class RScriptNode(BaseNode):
     RETURN_NAMES = ("output_dir",)
     REQUIRES_EXTERNAL_TOOLS = True
     REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_R_PACKAGES = []
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

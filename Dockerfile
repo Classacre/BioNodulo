@@ -12,8 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     r-base-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install common R packages for plotting
-RUN R -e "install.packages(c('ggplot2','dplyr','tidyr','readr','reshape2','patchwork'), repos='https://cloud.r-project.org/')"
+# Install common R packages for plotting and bioinformatics
+RUN R -e "install.packages(c('ggplot2','dplyr','tidyr','readr','reshape2','patchwork','pheatmap','RColorBrewer','ape','vegan'), repos='https://cloud.r-project.org/')"
+
+# Install Bioconductor packages
+RUN R -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org/'); BiocManager::install(c('DESeq2','edgeR','limma','Biostrings','GenomicRanges','rtracklayer','SummarizedExperiment','tximport','ComplexHeatmap'), ask=FALSE)"
 
 # Install BioPython
 RUN pip install --no-cache-dir biopython

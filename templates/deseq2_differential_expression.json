@@ -1,0 +1,135 @@
+{
+  "version": "Alpha 1.2",
+  "app": "bionodulo",
+  "name": "DESeq2 Differential Expression",
+  "description": "End-to-end differential expression analysis with DESeq2 and visualization",
+  "nodes": [
+    {
+      "id": "note_deseq2",
+      "type": "note",
+      "position": [
+        -220,
+        150
+      ],
+      "params": {
+        "text": "DESeq2 Differential Expression Pipeline\n\nDemonstrates BioNodulo's Bioconductor integration.\n\n1. Input: Count matrix (genes x samples) + sample metadata\n2. DESeq2: Normalization, dispersion estimation, Wald test\n3. Output: Results table, MA plot, normalized counts\n\nData: Simulated yeast RNA-seq count data (60 genes, 6 samples: 3 control + 3 treated).\nRequires: R + DESeq2 + ggplot2 + readr"
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "counts_001",
+      "type": "input_file",
+      "position": [
+        100,
+        100
+      ],
+      "params": {
+        "file": "examples/data/biopython/deseq2_counts.csv"
+      },
+      "ui": {
+        "title": "Count Matrix"
+      }
+    },
+    {
+      "id": "samples_001",
+      "type": "input_file",
+      "position": [
+        100,
+        280
+      ],
+      "params": {
+        "file": "examples/data/biopython/deseq2_sample_info.csv"
+      },
+      "ui": {
+        "title": "Sample Info"
+      }
+    },
+    {
+      "id": "deseq2_001",
+      "type": "deseq2_analysis",
+      "position": [
+        400,
+        100
+      ],
+      "params": {
+        "count_matrix": "",
+        "sample_info": "",
+        "design_formula": "~ condition",
+        "contrast": "condition,treated,control",
+        "min_counts": 10,
+        "lfc_threshold": 0.0,
+        "padj_threshold": 0.05
+      },
+      "ui": {
+        "title": "DESeq2 Analysis"
+      }
+    },
+    {
+      "id": "heatmap_001",
+      "type": "r_pheatmap",
+      "position": [
+        750,
+        100
+      ],
+      "params": {
+        "data_csv": "",
+        "scale": "row",
+        "annotation_csv": "examples/data/biopython/heatmap_annotation.csv",
+        "cluster_rows": true,
+        "cluster_cols": true,
+        "show_rownames": true,
+        "show_colnames": true,
+        "fontsize": 10,
+        "width": 900,
+        "height": 700
+      },
+      "ui": {
+        "title": "DE Heatmap"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "counts_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "deseq2_001",
+        "input": "count_matrix"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "samples_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "deseq2_001",
+        "input": "sample_info"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "deseq2_001",
+        "output": "normalized_counts_csv"
+      },
+      "to": {
+        "node": "heatmap_001",
+        "input": "data_csv"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "deseq2_results": "deseq2_001",
+    "ma_plot": "deseq2_001",
+    "heatmap": "heatmap_001"
+  }
+}

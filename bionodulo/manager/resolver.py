@@ -46,12 +46,23 @@ class MissingPackage:
 
 
 @dataclass
+class MissingRPackage:
+    """An R package that needs installation."""
+
+    name: str
+    source: str = "cran"  # cran or bioconductor
+    node_types: list[str] = field(default_factory=list)
+    message: str = ""
+
+
+@dataclass
 class ResolutionReport:
     """Complete resolution report for a workflow."""
 
     missing_nodes: list[MissingNode] = field(default_factory=list)
     missing_executables: list[MissingExecutable] = field(default_factory=list)
     missing_packages: list[MissingPackage] = field(default_factory=list)
+    missing_r_packages: list[MissingRPackage] = field(default_factory=list)
     installable: bool = True
     errors: list[str] = field(default_factory=list)
 
@@ -61,6 +72,7 @@ class ResolutionReport:
             self.missing_nodes
             or self.missing_executables
             or self.missing_packages
+            or self.missing_r_packages
             or self.errors
         )
 
@@ -72,7 +84,9 @@ class ResolutionReport:
         if self.missing_executables:
             parts.append(f"{len(self.missing_executables)} tool(s)")
         if self.missing_packages:
-            parts.append(f"{len(self.missing_packages)} package(s)")
+            parts.append(f"{len(self.missing_packages)} Python package(s)")
+        if self.missing_r_packages:
+            parts.append(f"{len(self.missing_r_packages)} R package(s)")
         return ", ".join(parts) if parts else "All dependencies satisfied"
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,6 +118,15 @@ class ResolutionReport:
                     "message": p.message,
                 }
                 for p in self.missing_packages
+            ],
+            "missing_r_packages": [
+                {
+                    "name": p.name,
+                    "source": p.source,
+                    "node_types": p.node_types,
+                    "message": p.message,
+                }
+                for p in self.missing_r_packages
             ],
             "installable": self.installable,
             "errors": self.errors,
@@ -149,6 +172,9 @@ def build_node_manifest(
                 entry["required_executables"] = getattr(
                     node_class, "REQUIRED_EXECUTABLES", []
                 )
+                entry["required_r_packages"] = getattr(
+                    node_class, "REQUIRED_R_PACKAGES", []
+                )
                 entry["builtin"] = getattr(node_class, "__module__", "").startswith(
                     "bionodulo.nodes.builtin"
                 )
@@ -166,6 +192,9 @@ def build_node_manifest(
                     entry["git_commit"] = node_info.get("git_commit", "")
                     entry["required_executables"] = node_info.get(
                         "required_executables", []
+                    )
+                    entry["required_r_packages"] = node_info.get(
+                        "required_r_packages", []
                     )
                     entry["builtin"] = node_info.get("builtin", False)
 
@@ -204,6 +233,9 @@ def resolve_workflow(
 
     # Use manifest if available, otherwise build from registry
     manifest = workflow.get("node_manifest", {})
+
+    # Collect R packages to check
+    r_packages_to_check: dict[str, list[str]] = {}
 
     for node_type, node_ids in node_type_usages.items():
         # 1. Check if node is registered
@@ -251,7 +283,12 @@ def resolve_workflow(
                     )
                 )
 
-        # 3. Check for requirements.txt in custom node package
+        # 3. Check required R packages
+        r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
+        for pkg in r_packages:
+            r_packages_to_check.setdefault(pkg, []).append(node_type)
+
+        # 4. Check for requirements.txt in custom node package
         module_name = getattr(node_class, "__module__", "")
         if not module_name.startswith("bionodulo.nodes.builtin"):
             # Try to find requirements.txt in the custom node directory
@@ -282,6 +319,68 @@ def resolve_workflow(
             except Exception as exc:
                 logger.debug("Could not check requirements for %s: %s", node_type, exc)
 
+    # Check R packages via Rscript
+    if r_packages_to_check:
+        try:
+            import subprocess
+            r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in r_packages_to_check) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
+            result = subprocess.run(
+                ["Rscript", "-e", r_script],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    if ":" in line:
+                        pkg_name, available = line.strip().rsplit(":", 1)
+                        if available.strip().lower() != "true":
+                            source = "bioconductor" if pkg_name.lower() in {
+                                "deseq2", "edger", "limma", "biostrings", "genomicranges",
+                                "rtracklayer", "complexheatmap", "summarizedexperiment",
+                                "tximport", "ape", "phyloseq", "variantannotation",
+                            } else "cran"
+                            report.missing_r_packages.append(
+                                MissingRPackage(
+                                    name=pkg_name,
+                                    source=source,
+                                    node_types=r_packages_to_check.get(pkg_name, []),
+                                    message=f"R package '{pkg_name}' required by {', '.join(r_packages_to_check.get(pkg_name, []))} is not installed",
+                                )
+                            )
+            else:
+                # Rscript not available — report all R packages as missing
+                for pkg, node_types in r_packages_to_check.items():
+                    source = "bioconductor" if pkg.lower() in {
+                        "deseq2", "edger", "limma", "biostrings", "genomicranges",
+                        "rtracklayer", "complexheatmap", "summarizedexperiment",
+                        "tximport", "ape", "phyloseq", "variantannotation",
+                    } else "cran"
+                    report.missing_r_packages.append(
+                        MissingRPackage(
+                            name=pkg,
+                            source=source,
+                            node_types=node_types,
+                            message=f"R package '{pkg}' required by {', '.join(node_types)} — Rscript not available or check failed",
+                        )
+                    )
+        except Exception as exc:
+            logger.debug("Could not check R packages: %s", exc)
+            for pkg, node_types in r_packages_to_check.items():
+                source = "bioconductor" if pkg.lower() in {
+                    "deseq2", "edger", "limma", "biostrings", "genomicranges",
+                    "rtracklayer", "complexheatmap", "summarizedexperiment",
+                    "tximport", "ape", "phyloseq", "variantannotation",
+                } else "cran"
+                report.missing_r_packages.append(
+                    MissingRPackage(
+                        name=pkg,
+                        source=source,
+                        node_types=node_types,
+                        message=f"R package '{pkg}' required by {', '.join(node_types)} — could not verify: {exc}",
+                    )
+                )
+
     # Deduplicate missing executables and packages
     seen_exes: dict[str, MissingExecutable] = {}
     for exe in report.missing_executables:
@@ -298,5 +397,13 @@ def resolve_workflow(
         else:
             seen_pkgs[pkg.name] = pkg
     report.missing_packages = list(seen_pkgs.values())
+
+    seen_r_pkgs: dict[str, MissingRPackage] = {}
+    for pkg in report.missing_r_packages:
+        if pkg.name in seen_r_pkgs:
+            seen_r_pkgs[pkg.name].node_types.extend(pkg.node_types)
+        else:
+            seen_r_pkgs[pkg.name] = pkg
+    report.missing_r_packages = list(seen_r_pkgs.values())
 
     return report

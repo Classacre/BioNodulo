@@ -99,9 +99,10 @@ class InstallJob:
         missing_nodes = self.plan.get("missing_nodes", [])
         missing_executables = self.plan.get("missing_executables", [])
         missing_packages = self.plan.get("missing_packages", [])
+        missing_r_packages = self.plan.get("missing_r_packages", [])
 
         self.progress.total_steps = (
-            len(missing_nodes) + len(missing_executables) + len(missing_packages)
+            len(missing_nodes) + len(missing_executables) + len(missing_packages) + len(missing_r_packages)
         )
 
         try:
@@ -173,6 +174,23 @@ class InstallJob:
                     self.progress.errors.append(f"Failed to install {pkg_name}")
                 self.progress.completed_steps += 1
 
+            # 4. Install missing R packages
+            for pkg in missing_r_packages:
+                if self._cancelled:
+                    self.progress.status = "cancelled"
+                    return self.progress
+
+                pkg_name = pkg["name"]
+                source = pkg.get("source", "cran")
+                self.progress.current_step = f"Installing R package {pkg_name} ({source})"
+
+                success = await self._install_r_package(pkg_name, source)
+                if success:
+                    self.progress.message = f"Installed {pkg_name}"
+                else:
+                    self.progress.errors.append(f"Failed to install R package {pkg_name}")
+                self.progress.completed_steps += 1
+
             self.progress.status = "completed" if not self.progress.errors else "failed"
             if self.progress.errors:
                 self.progress.message = (
@@ -231,4 +249,33 @@ class InstallJob:
             return False
         except Exception as exc:
             logger.error("Failed to install %s: %s", package, exc)
+            return False
+
+    async def _install_r_package(self, package: str, source: str = "cran") -> bool:
+        """Install an R package via CRAN or Bioconductor."""
+        try:
+            if source.lower() == "bioconductor":
+                r_cmd = (
+                    f"if (!requireNamespace('BiocManager', quietly=TRUE)) "
+                    f"install.packages('BiocManager', repos='https://cloud.r-project.org/'); "
+                    f"BiocManager::install('{package}', ask=FALSE)"
+                )
+            else:
+                r_cmd = (
+                    f"install.packages('{package}', repos='https://cloud.r-project.org/', "
+                    f"dependencies=TRUE)"
+                )
+
+            proc = await asyncio.create_subprocess_exec(
+                "Rscript", "-e", r_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                return True
+            logger.error("R install failed: %s", stderr.decode())
+            return False
+        except Exception as exc:
+            logger.error("Failed to install R package %s: %s", package, exc)
             return False

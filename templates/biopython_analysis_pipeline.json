@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython integration nodes.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight per sequence.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein (uses Bacterial codon table).\n5. SeqIO Write: Convert the parsed sequences to GenBank format.\n\nData: NCBI 16S rRNA sequences (phylogenetics) + synthetic bacterial gene fragments for translation."
+        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython and Biostrings integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
       },
       "ui": {
         "title": "Notes",
@@ -129,6 +129,22 @@
       "ui": {
         "title": "Translate DNA"
       }
+    },
+    {
+      "id": "biostrings_001",
+      "type": "r_biostrings_stats",
+      "position": [
+        700,
+        400
+      ],
+      "params": {
+        "input_fasta": "",
+        "min_orf_length": 100,
+        "genetic_code": "Bacterial"
+      },
+      "ui": {
+        "title": "Biostrings Stats"
+      }
     }
   ],
   "edges": [
@@ -197,6 +213,17 @@
         "node": "translate_001",
         "input": "input_file"
       }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "coding_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "biostrings_001",
+        "input": "input_fasta"
+      }
     }
   ],
   "groups": [],
@@ -205,6 +232,9 @@
     "stats_json": "seq_stats_001",
     "blast_xml": "blast_001",
     "genbank": "seqio_write_001",
-    "protein_fasta": "translate_001"
+    "protein_fasta": "translate_001",
+    "orf_table": "biostrings_001",
+    "revcomp": "biostrings_001",
+    "six_frame": "biostrings_001"
   }
 }

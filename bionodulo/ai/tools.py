@@ -328,18 +328,18 @@ ALL_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="list_available_nodes",
-        description="List all available node types. Optionally filter by category.",
+        description="List all available node types. Optionally filter by category. Categories include: 'input', 'qc', 'alignment', 'rna_seq', 'variant', 'assembly', 'phylogeny', 'r' (R visualization), 'biopython' (sequence analysis), 'metagenomics', 'chip_seq', 'single_cell'.",
         parameters=[
-            ToolParameter("category", "string", "Filter by category (e.g., 'RNA-Seq', 'Alignment')", required=False, default=None),
+            ToolParameter("category", "string", "Filter by category (e.g., 'RNA-Seq', 'Alignment', 'r', 'biopython')", required=False, default=None),
         ],
         mutates=False,
         execute=_list_available_nodes,
     ),
     ToolDefinition(
         name="get_node_info",
-        description="Get detailed metadata about a specific node type (inputs, outputs, required tools).",
+        description="Get detailed metadata about a specific node type (inputs, outputs, required tools, required R packages).",
         parameters=[
-            ToolParameter("node_type", "string", "Node type ID (e.g., 'fastqc', 'star_align')"),
+            ToolParameter("node_type", "string", "Node type ID (e.g., 'fastqc', 'star_align', 'r_plot', 'deseq2_analysis', 'bp_seq_stats')"),
         ],
         mutates=False,
         execute=_get_node_info,
@@ -446,17 +446,17 @@ ALL_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="resolve_dependencies",
-        description="Run dependency resolution to find missing tools/packages.",
+        description="Run dependency resolution to find missing tools, Python packages, and R packages for the current workflow.",
         parameters=[],
         mutates=False,
         execute=_resolve_dependencies,
     ),
     ToolDefinition(
         name="create_environment",
-        description="Create a new Conda environment with specified packages.",
+        description="Create a new Conda environment with specified packages. Can include bioinformatics tools, Python packages, and R packages (e.g., ['bwa', 'samtools', 'r-base', 'r-ggplot2', 'bioconductor-deseq2']).",
         parameters=[
             ToolParameter("name", "string", "Environment name"),
-            ToolParameter("packages", "array", "List of package names (e.g., ['bwa', 'samtools'])"),
+            ToolParameter("packages", "array", "List of package names (e.g., ['bwa', 'samtools', 'r-base', 'bioconductor-deseq2'])"),
         ],
         mutates=True,
         execute=_create_environment,
