@@ -375,7 +375,29 @@ export default function App() {
 
       <LeftRail active={railTab} onChange={setRailTab} />
 
-      <div className="main-canvas">
+      <div
+        className="main-canvas"
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('application/bionodulo-workflow-path')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          const path = e.dataTransfer.getData('application/bionodulo-workflow-path');
+          if (!path) return;
+          try {
+            const r = await fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`);
+            if (!r.ok) return;
+            const text = await r.text();
+            const wf = JSON.parse(text);
+            if (wf && (wf.nodes || Array.isArray(wf))) {
+              handleImport(wf);
+            }
+          } catch { /* ignore */ }
+        }}
+      >
         {resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
           <MissingDependenciesBanner
             report={resolveReport}
@@ -439,7 +461,13 @@ export default function App() {
           handleNodesChange([...activeWorkflow.nodes, newNode]);
           pushHistory();
         }} onClose={() => setRailTab(null)} />}
-        {railTab === 'data' && <WorkspacePanel onClose={() => setRailTab(null)} />}
+        {railTab === 'data' && (
+          <WorkspacePanel
+            onClose={() => setRailTab(null)}
+            onOpenSettings={() => setRailTab('settings')}
+            onImportWorkflow={handleImport}
+          />
+        )}
 
         <HardwareMonitor />
         <BottomConsole
@@ -465,3 +493,5 @@ export default function App() {
     </div>
   );
 }
+
+

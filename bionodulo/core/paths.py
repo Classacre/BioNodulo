@@ -55,7 +55,11 @@ def ensure_within(path: Path, root: Path) -> Path:
         ValueError: If the path is outside the root directory.
     """
     resolved_root = root.resolve()
-    resolved_path = (resolved_root / path).resolve()
+    # Strip leading slash so absolute-looking paths are treated as relative to root
+    path_str = str(path)
+    if path_str.startswith('/'):
+        path_str = path_str[1:]
+    resolved_path = (resolved_root / path_str).resolve()
 
     # Check path containment
     try:

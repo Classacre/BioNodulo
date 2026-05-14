@@ -1111,3 +1111,173 @@ input[type="range"]::-moz-range-thumb {
   .template-grid { grid-template-columns: 1fr; }
   .ai-drawer { width: 100%; }
 }
+/* ... existing CSS above ... */
+
+/* Workspace Panel Styles */
+.workspace-root-controls {
+  padding: 0 4px 8px;
+}
+
+.workspace-root-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.workspace-root-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.workspace-root-input {
+  flex: 1;
+  font-size: 12px !important;
+  padding: 5px 8px !important;
+}
+
+.workspace-root-error {
+  color: #ef4444;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.workspace-separator {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0 10px;
+}
+
+.workspace-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  min-height: 26px;
+}
+
+.workspace-breadcrumb-parent {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.workspace-breadcrumb-parent:hover {
+  background: var(--surface);
+}
+
+.workspace-breadcrumb-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.workspace-selection-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  background: var(--surface);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.workspace-loading {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.workspace-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 20px;
+  text-align: center;
+  font-style: italic;
+}
+
+.workspace-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  user-select: none;
+}
+
+.workspace-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.workspace-file-row:hover {
+  background: var(--surface-2);
+}
+
+.workspace-file-row.selected {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.workspace-file-row.selected:hover {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.workspace-file-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--accent-dark);
+  flex-shrink: 0;
+}
+
+.workspace-file-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+}
+
+.workspace-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.workspace-file-size {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Drag-and-drop highlight on canvas */
+.main-canvas.drag-over {
+  outline: 3px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(59, 130, 246, 0.05);
+}
