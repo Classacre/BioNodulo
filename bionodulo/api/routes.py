@@ -1134,14 +1134,36 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
 
 @router.get("/hpc/status")
 async def hpc_status(request: Request) -> dict[str, Any]:
-    """Get HPC connection and job status."""
+    """Get HPC connection and job status.
+
+    Returns a 'status' field for frontend badge: 'off', 'error', or 'on'.
+    """
     hpc = getattr(request.app.state, "hpc_backend", None)
+    config = getattr(request.app.state, "hpc_config", None)
+
     if hpc is not None and hasattr(hpc, "status"):
-        return await hpc.status()
+        try:
+            result = await hpc.status()
+            # Normalize status badge
+            if result.get("connected"):
+                result["status"] = "on"
+            else:
+                result["status"] = "error"
+            return result
+        except Exception as exc:
+            return {
+                "status": "error",
+                "connected": False,
+                "backend": config.get("backend") if config else None,
+                "pending_jobs": 0,
+                "running_jobs": 0,
+                "message": f"HPC status check failed: {exc}",
+            }
 
     return {
+        "status": "off",
         "connected": False,
-        "backend": None,
+        "backend": config.get("backend") if config else None,
         "pending_jobs": 0,
         "running_jobs": 0,
         "message": "HPC backend not configured",
@@ -1172,8 +1194,8 @@ async def hpc_configure(
     try:
         backend_class = None
         if body.backend == "slurm":
-            from bionodulo.hpc.slurm import SlurmBackend
-            backend_class = SlurmBackend
+            from bionodulo.hpc.slurm import SLURMBackend
+            backend_class = SLURMBackend
         elif body.backend == "pbs":
             from bionodulo.hpc.pbs import PBSBackend
             backend_class = PBSBackend

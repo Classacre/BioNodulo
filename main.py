@@ -28,15 +28,20 @@ def main() -> None:
     parser.set_defaults(mock_tools=None)
     args = parser.parse_args()
 
+    project_dir = Path(__file__).resolve().parent
     if args.project_root:
         os.environ["BIONODULO_ROOT"] = str(args.project_root.resolve())
+    else:
+        # Default to workspace/ inside the project directory
+        default_root = (project_dir / "workspace").resolve()
+        os.environ["BIONODULO_ROOT"] = str(default_root)
     if args.config:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
     if args.mock_tools is not None:
         os.environ["BIONODULO_MOCK_TOOLS"] = "1" if args.mock_tools else "0"
 
     # Ensure project root exists
-    root = Path(os.environ.get("BIONODULO_ROOT", Path.cwd())).resolve()
+    root = Path(os.environ.get("BIONODULO_ROOT", str(project_dir / "workspace"))).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
     print(f"""

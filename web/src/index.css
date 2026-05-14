@@ -156,6 +156,37 @@ body {
 .dark .validation-badge.ok { background: #14532d; color: #86efac; }
 .dark .validation-badge.err { background: #450a0a; color: #fca5a5; }
 
+.hpc-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid transparent;
+}
+.hpc-badge.hpc-off {
+  background: #f3f4f6; color: #6b7280;
+  border-color: #e5e7eb;
+}
+.hpc-badge.hpc-error {
+  background: #fee2e2; color: #b91c1c;
+  border-color: #fca5a5;
+}
+.hpc-badge.hpc-on {
+  background: #dcfce7; color: #15803d;
+  border-color: #86efac;
+}
+.dark .hpc-badge.hpc-off {
+  background: #374151; color: #9ca3af;
+  border-color: #4b5563;
+}
+.dark .hpc-badge.hpc-error {
+  background: #450a0a; color: #fca5a5;
+  border-color: #7f1d1d;
+}
+.dark .hpc-badge.hpc-on {
+  background: #14532d; color: #86efac;
+  border-color: #166534;
+}
+
 /* Tabs */
 .wf-tab {
   padding: 6px 14px; border-radius: 6px 6px 0 0;

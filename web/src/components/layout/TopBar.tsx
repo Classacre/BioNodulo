@@ -1,5 +1,7 @@
 import Icon from '../ui/Icon';
 
+export type HPCStatus = 'off' | 'error' | 'on';
+
 interface TopBarProps {
   validationValid: boolean;
   validationErrors: string[];
@@ -7,8 +9,7 @@ interface TopBarProps {
   onExport: () => void;
   onImport: () => void;
   onAI: () => void;
-  hpcEnabled: boolean;
-  onToggleHPC: () => void;
+  hpcStatus: HPCStatus;
   isRunning: boolean;
   queueCount: number;
   onToggleQueue: () => void;
@@ -16,8 +17,18 @@ interface TopBarProps {
 
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport, onImport,
-  onAI, hpcEnabled, onToggleHPC, isRunning, queueCount, onToggleQueue,
+  onAI, hpcStatus, isRunning, queueCount, onToggleQueue,
 }: TopBarProps) {
+  const hpcBadgeClass =
+    hpcStatus === 'on' ? 'hpc-badge hpc-on' :
+    hpcStatus === 'error' ? 'hpc-badge hpc-error' :
+    'hpc-badge hpc-off';
+
+  const hpcLabel =
+    hpcStatus === 'on' ? 'HPC ON' :
+    hpcStatus === 'error' ? 'HPC ERROR' :
+    'HPC OFF';
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -35,13 +46,9 @@ export default function TopBar({
 
       <div className="topbar-spacer" />
 
-      <button
-        className={`btn ${hpcEnabled ? 'btn-primary' : ''} btn-sm`}
-        onClick={onToggleHPC}
-        title={hpcEnabled ? 'HPC Enabled' : 'HPC Disabled'}
-      >
-        <Icon name="server" size={14} /> HPC {hpcEnabled ? 'ON' : 'OFF'}
-      </button>
+      <span className={hpcBadgeClass} title={`HPC ${hpcStatus.toUpperCase()}`}>
+        <Icon name="server" size={14} /> {hpcLabel}
+      </span>
 
       <div className="run-cluster">
         <button className="btn btn-sm" onClick={onToggleQueue} title="Show queue">

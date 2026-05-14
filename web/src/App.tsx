@@ -21,6 +21,7 @@ import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
 import { defaultsFor } from './utils';
 import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport } from './types';
+import type { HPCStatus } from './components/layout/TopBar';
 
 // Built-in node definitions for offline use
 const BUILTIN_NODES: Record<string, NodeMetadata> = {
@@ -177,6 +178,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [logs] = useState<LogEntry[]>([]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
+  const [hpcStatus, setHpcStatus] = useState<HPCStatus>('off');
 
   const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
 
@@ -192,6 +194,27 @@ export default function App() {
     cpus_per_task: (get('bionodulo.hpc.cpus_per_task') as number) || 4,
     mem_per_cpu: (get('bionodulo.hpc.mem_per_cpu') as string) || '4G',
   };
+
+  // Fetch HPC status from backend
+  useEffect(() => {
+    const checkHpcStatus = async () => {
+      try {
+        const r = await fetch('/api/hpc/status');
+        if (r.ok) {
+          const data = await r.json() as { status?: HPCStatus; connected?: boolean };
+          setHpcStatus(data.status || (data.connected ? 'on' : 'off'));
+        } else {
+          setHpcStatus('off');
+        }
+      } catch {
+        setHpcStatus('off');
+      }
+    };
+    checkHpcStatus();
+    // Poll every 30 seconds
+    const interval = setInterval(checkHpcStatus, 30000);
+    return () => clearInterval(interval);
+  }, [hpcEnabled, hpcConfig.backend, hpcConfig.partition]);
 
   const updateActive = useCallback((partial: Partial<Workflow>) => {
     updateWorkflow(activeIndex, partial);
@@ -333,8 +356,7 @@ export default function App() {
         onImport={() => setShowImport(true)}
 
         onAI={() => setShowAI(true)}
-        hpcEnabled={hpcEnabled}
-        onToggleHPC={() => set('bionodulo.hpc.enabled', !hpcEnabled)}
+        hpcStatus={hpcStatus}
         isRunning={isRunning}
         queueCount={queueCount}
         onToggleQueue={handleToggleQueue}

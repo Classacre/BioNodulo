@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useSettings } from '../../hooks/useSettings';
 
 interface SettingsPanelProps {
@@ -6,8 +7,42 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps) {
   const { get, set } = useSettings();
+  const [workspaceRoot, setWorkspaceRoot] = useState('');
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/workspace/root')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.root) setWorkspaceRoot(data.root);
+      })
+      .catch(() => {});
+  }, []);
 
   const toggle = (key: string) => set(key, !get(key));
+
+  const handleChangeWorkspace = async () => {
+    setWorkspaceError('');
+    if (!workspaceRoot.trim()) return;
+    setWorkspaceLoading(true);
+    try {
+      const r = await fetch('/api/workspace/root', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspaceRoot.trim() }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setWorkspaceError(data.detail || 'Failed to change workspace');
+      } else {
+        setWorkspaceRoot(data.root);
+      }
+    } catch {
+      setWorkspaceError('Network error');
+    }
+    setWorkspaceLoading(false);
+  };
 
   return (
     <div className="rail-panel">
@@ -26,6 +61,34 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
           <SettingRow label="Tooltips" desc="Show tooltips on hover">
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
+        </div>
+
+        {/* Workspace */}
+        <div className="settings-group">
+          <div className="settings-group-title">Workspace</div>
+          <SettingRow label="Workspace Root" desc="Directory where runs, cache, and data are stored">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="text"
+                className="text-input"
+                style={{ flex: 1, fontSize: 12 }}
+                value={workspaceRoot}
+                onChange={e => setWorkspaceRoot(e.target.value)}
+                placeholder="/path/to/workspace"
+              />
+              <button
+                className="btn btn-sm"
+                onClick={handleChangeWorkspace}
+                disabled={workspaceLoading}
+                title="Set workspace root"
+              >
+                {workspaceLoading ? '...' : 'Set'}
+              </button>
+            </div>
+          </SettingRow>
+          {workspaceError && (
+            <div style={{ color: '#ef4444', fontSize: 11, marginTop: 4, marginLeft: 8 }}>{workspaceError}</div>
+          )}
         </div>
 
         {/* Canvas */}

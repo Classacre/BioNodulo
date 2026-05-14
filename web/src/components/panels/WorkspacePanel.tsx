@@ -15,6 +15,7 @@ export default function WorkspacePanel({ onClose }: WorkspacePanelProps) {
   const [path, setPath] = useState('/');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [rootPath, setRootPath] = useState('');
 
   const loadFiles = async (p: string) => {
     setLoading(true);
@@ -39,7 +40,15 @@ export default function WorkspacePanel({ onClose }: WorkspacePanelProps) {
     setLoading(false);
   };
 
-  useEffect(() => { loadFiles('/'); }, []);
+  useEffect(() => {
+    loadFiles('/');
+    fetch('/api/workspace/root')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.root) setRootPath(data.root);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="rail-panel">
@@ -48,6 +57,11 @@ export default function WorkspacePanel({ onClose }: WorkspacePanelProps) {
         <button className="btn btn-icon btn-sm" onClick={onClose}>✕</button>
       </div>
       <div className="rail-panel-body">
+        {rootPath && (
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, padding: '2px 8px' }} title="Workspace root">
+            Root: {rootPath}
+          </div>
+        )}
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, padding: '4px 8px', background: 'var(--surface-2)', borderRadius: 4 }}>
           {path}
         </div>

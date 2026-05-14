@@ -12,3 +12,5 @@ web/node_modules/
 .venv/
 runs/
 cache/
+workspace/*
+!workspace/.gitkeep

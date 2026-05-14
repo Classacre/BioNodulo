@@ -21,6 +21,12 @@ from bionodulo.nodes.registry import NodeRegistry
 
 
 def create_app() -> FastAPI:
+    # Default workspace to project_dir/workspace if not overridden
+    if "BIONODULO_ROOT" not in os.environ:
+        project_dir = Path(__file__).resolve().parent
+        default_root = (project_dir / "workspace").resolve()
+        os.environ["BIONODULO_ROOT"] = str(default_root)
+
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
