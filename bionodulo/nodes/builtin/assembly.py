@@ -5,6 +5,7 @@ Canu, Flye, Unicycler, and assembly quality assessment with QUAST.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -14,11 +15,12 @@ class SPAdesNode(CommandNode):
     """De novo genome assembly with SPAdes."""
     NODE_ID = "spades"
     DISPLAY_NAME = "SPAdes"
+    REQUIRED_CONDA_PACKAGES = ['spades']
     CATEGORY = "assembly"
     DESCRIPTION = "De novo genome assembler for single-cell and isolate data"
     SEARCH_ALIASES = ["spades", "assemble", "de novo", "genome"]
     RETURN_TYPES = ("ASSEMBLY", "CONTIGS")
-    RETURN_NAMES = ("scaffolds", "contigs")
+    RETURN_NAMES = ("assembly", "contigs")
     REQUIRED_EXECUTABLES = ["spades.py"]
     DOCUMENTATION_URL = "https://cab.spbu.ru/software/spades/"
     VERSION = "3.15.5"
@@ -48,10 +50,18 @@ class SPAdesNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for SPAdes."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [
             od / "scaffolds.fasta",
             od / "contigs.fasta",
@@ -62,6 +72,7 @@ class MEGAHITNode(CommandNode):
     """De novo assembly with MEGAHIT (metagenomics)."""
     NODE_ID = "megahit"
     DISPLAY_NAME = "MEGAHIT"
+    REQUIRED_CONDA_PACKAGES = ['megahit']
     CATEGORY = "assembly"
     DESCRIPTION = "Ultra-fast metagenome assembler via succinct de Bruijn graph"
     SEARCH_ALIASES = ["megahit", "assemble", "metagenome", "macro"]
@@ -95,10 +106,18 @@ class MEGAHITNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for MEGAHIT."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [od / "final.contigs.fa"]
 
 
@@ -106,6 +125,7 @@ class CanuNode(CommandNode):
     """De novo assembly with Canu (long reads)."""
     NODE_ID = "canu"
     DISPLAY_NAME = "Canu"
+    REQUIRED_CONDA_PACKAGES = ['canu']
     CATEGORY = "assembly"
     DESCRIPTION = "Long-read assembler for PacBio and Oxford Nanopore"
     SEARCH_ALIASES = ["canu", "assemble", "long reads", "pacbio", "ont"]
@@ -159,6 +179,7 @@ class FlyeNode(CommandNode):
     """De novo assembly with Flye (long reads)."""
     NODE_ID = "flye"
     DISPLAY_NAME = "Flye"
+    REQUIRED_CONDA_PACKAGES = ['flye']
     CATEGORY = "assembly"
     DESCRIPTION = "De novo assembly for single-molecule sequencing reads"
     SEARCH_ALIASES = ["flye", "assemble", "long reads", "nanopore", "repeat graph"]
@@ -208,7 +229,7 @@ class FlyeNode(CommandNode):
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [od / "assembly.fasta"]
 
 
@@ -216,6 +237,7 @@ class UnicyclerNode(CommandNode):
     """Bacterial genome assembly with Unicycler."""
     NODE_ID = "unicycler"
     DISPLAY_NAME = "Unicycler"
+    REQUIRED_CONDA_PACKAGES = ['unicycler']
     CATEGORY = "assembly"
     DESCRIPTION = "Bacterial genome assembly from Illumina reads with optional long reads"
     SEARCH_ALIASES = ["unicycler", "assemble", "bacteria", "hybrid"]
@@ -249,6 +271,14 @@ class UnicyclerNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for Unicycler."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         cmd = [
@@ -266,7 +296,7 @@ class UnicyclerNode(CommandNode):
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [od / "assembly.fasta"]
 
 
@@ -274,6 +304,7 @@ class QuastNode(CommandNode):
     """Assess assembly quality with QUAST."""
     NODE_ID = "quast"
     DISPLAY_NAME = "QUAST"
+    REQUIRED_CONDA_PACKAGES = ['quast']
     CATEGORY = "assembly"
     DESCRIPTION = "Quality Assessment Tool for Genome Assemblies"
     SEARCH_ALIASES = ["quast", "quality", "assembly qc", "assess"]

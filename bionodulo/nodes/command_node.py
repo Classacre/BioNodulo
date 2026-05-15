@@ -56,13 +56,16 @@ class CommandNode(BaseNode):
 
         rendered: list[str] = []
         for token in cls.COMMAND:
-            rendered_token = cls._render_token(token, inputs)
-            if rendered_token is not None:
-                rendered.append(str(rendered_token))
+            rendered_tokens = cls._render_token(token, inputs)
+            if rendered_tokens is not None:
+                if isinstance(rendered_tokens, list):
+                    rendered.extend(rendered_tokens)
+                else:
+                    rendered.append(str(rendered_tokens))
         return rendered
 
     @classmethod
-    def _render_token(cls, token: str, inputs: dict[str, Any]) -> Any:
+    def _render_token(cls, token: str, inputs: dict[str, Any]) -> list[str] | str | None:
         """Render a single command token, replacing placeholders.
 
         Supports placeholders:
@@ -77,24 +80,49 @@ class CommandNode(BaseNode):
             inputs: Input values dictionary.
 
         Returns:
-            Rendered value or None to skip this token.
+            Rendered string, list of strings (for multi-value inputs), or None.
         """
         # Match {namespace.name} or {name} patterns
         pattern = re.compile(r"\{([^}]+)\}")
 
+        # Track whether any placeholder expanded to a list
+        list_expansion: list[str] | None = None
+
         def _replace(match: re.Match) -> str:
+            nonlocal list_expansion
             key = match.group(1).strip()
+
+            # Helper to resolve a name with optional bracket index
+            def _resolve(name: str) -> Any:
+                # Handle bracket indexing: reads[0] → inputs["reads"][0]
+                bracket_match = re.match(r"^(\w+)\[(\d+)\]$", name)
+                if bracket_match:
+                    base_name = bracket_match.group(1)
+                    idx = int(bracket_match.group(2))
+                    base_val = inputs.get(base_name)
+                    if isinstance(base_val, (list, tuple)) and idx < len(base_val):
+                        return base_val[idx]
+                    return None
+                return inputs.get(name)
 
             # Namespace-qualified lookups
             if key.startswith("inputs."):
                 name = key[7:]
-                val = inputs.get(name)
-                return cls._format_value(val)
+                val = _resolve(name)
+                formatted = cls._format_value(val)
+                if isinstance(formatted, list):
+                    list_expansion = formatted
+                    return match.group(0)  # placeholder replaced later
+                return formatted
 
             if key.startswith("params."):
                 name = key[7:]
-                val = inputs.get(name)
-                return cls._format_value(val)
+                val = _resolve(name)
+                formatted = cls._format_value(val)
+                if isinstance(formatted, list):
+                    list_expansion = formatted
+                    return match.group(0)
+                return formatted
 
             # Direct lookups
             if key in ("output", "output_dir"):
@@ -103,35 +131,56 @@ class CommandNode(BaseNode):
             if key == "threads":
                 return str(inputs.get("threads", inputs.get("params.threads", 1)))
 
-            # Fallback: try direct input lookup
-            if key in inputs:
-                return cls._format_value(inputs[key])
+            # Fallback: try direct input lookup (including bracket indexing)
+            val = _resolve(key)
+            if val is not None:
+                formatted = cls._format_value(val)
+                if isinstance(formatted, list):
+                    list_expansion = formatted
+                    return match.group(0)
+                return formatted
 
             # Unknown placeholder - return as-is for shell variable substitution
             return match.group(0)
 
         rendered = pattern.sub(_replace, token)
+
+        # If a list value was expanded, the token must be a plain placeholder
+        # like "{inputs.reads}" — return the list directly so each element
+        # becomes its own subprocess argument.
+        if list_expansion is not None and rendered == token:
+            return list_expansion
+
+        if rendered == "":
+            return None
         return rendered
 
     @classmethod
-    def _format_value(cls, value: Any) -> str:
+    def _format_value(cls, value: Any) -> list[str] | str:
         """Format a Python value for command-line use.
 
         Args:
             value: The value to format.
 
         Returns:
-            String representation suitable for command-line.
+            String representation suitable for command-line, or a list of
+            strings for multi-value inputs (e.g. FASTQ file pairs).
+
+        Note:
+            We do NOT use shlex.quote() here because the rendered tokens are
+            passed directly to asyncio.create_subprocess_exec(), where each
+            list element is already a separate argument. Quoting would insert
+            literal quote characters into the argument strings.
         """
         if value is None:
             return ""
         if isinstance(value, bool):
             return "true" if value else "false"
         if isinstance(value, (list, tuple)):
-            return " ".join(shlex.quote(str(v)) for v in value)
+            return [str(v) for v in value]
         if isinstance(value, Path):
-            return shlex.quote(str(value))
-        return shlex.quote(str(value))
+            return str(value)
+        return str(value)
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
@@ -165,55 +214,76 @@ class CommandNode(BaseNode):
             Tuple or dict of output values matching RETURN_TYPES.
         """
         # Resolve context from kwargs
-        context = kwargs.pop("_context", None)
-        output_dir = kwargs.pop("_output_dir", ".")
+        context = kwargs.pop("context", None)
+        output_dir = kwargs.pop("output_dir", None)
+        if output_dir is None and context is not None:
+            output_dir = getattr(context, "node_dir", ".")
 
-        # Validate inputs
-        validation = self.__class__.VALIDATE_INPUTS(kwargs)
-        if validation is not True:
-            raise ValueError(f"Input validation failed: {validation}")
+        real_output_dir = output_dir
+        symlink = None
+        # Some bioinformatics tools crash when paths contain spaces.
+        # Create a temporary symlink to a space-free path for command execution,
+        # while keeping the real output_dir for planning returns.
+        if output_dir is not None and " " in str(output_dir):
+            import os
+            import tempfile
+            symlink = tempfile.mktemp(prefix=f"{self.__class__.NODE_ID}_")
+            os.symlink(str(output_dir), symlink)
+            output_dir = symlink
 
-        # Render command
-        cmd = self.__class__.render_command(kwargs)
-        if not cmd:
-            raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
+        # Inject back so render_command sees {output} and {output_dir}
+        kwargs["output"] = output_dir
+        kwargs["output_dir"] = output_dir
 
-        logger.info("[%s] Executing: %s", self.__class__.NODE_ID, " ".join(cmd))
+        try:
+            # Validate inputs
+            validation = self.__class__.VALIDATE_INPUTS(kwargs)
+            if validation is not True:
+                raise ValueError(f"Input validation failed: {validation}")
 
-        # Plan outputs
-        outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            # Render command
+            cmd = self.__class__.render_command(kwargs)
+            if not cmd:
+                raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
 
-        # Execute via context if available
-        if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(
-                cmd,
-                env=self.__class__.ENV_VARS or None,
-                cwd=self.__class__.WORKING_DIR,
-                shell=self.__class__.SHELL,
-                node_id=self.__class__.NODE_ID,
-            )
-        else:
-            # Fallback: direct subprocess execution
-            import asyncio
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
-            result = {
-                "returncode": proc.returncode,
-                "stdout": stdout.decode(),
-                "stderr": stderr.decode(),
-            }
+            logger.info("[%s] Executing: %s", self.__class__.NODE_ID, " ".join(cmd))
 
-        if result.get("returncode", 0) != 0:
-            stderr = result.get("stderr", "")
-            raise RuntimeError(
-                f"Command failed (exit {result.get('returncode')}): {stderr[:500]}"
-            )
+            # Plan outputs using the REAL output dir so returned paths are stable
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
 
-        # Return output paths as tuple
-        if len(outputs) == 1:
-            return (str(outputs[0]),)
-        return tuple(str(p) for p in outputs)
+            # Execute via context if available
+            if context is not None and hasattr(context, "run_command"):
+                result = await context.run_command(
+                    cmd,
+                    env=self.__class__.ENV_VARS or None,
+                    cwd=self.__class__.WORKING_DIR,
+                )
+            else:
+                # Fallback: direct subprocess execution
+                import asyncio
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+                result = {
+                    "returncode": proc.returncode,
+                    "stdout": stdout.decode(),
+                    "stderr": stderr.decode(),
+                }
+
+            if result.get("returncode", 0) != 0:
+                stderr = result.get("stderr", "")
+                raise RuntimeError(
+                    f"Command failed (exit {result.get('returncode')}): {stderr[:500]}"
+                )
+
+            # Return output paths as tuple
+            if len(outputs) == 1:
+                return (str(outputs[0]),)
+            return tuple(str(p) for p in outputs)
+        finally:
+            if symlink is not None:
+                import os
+                os.unlink(symlink)

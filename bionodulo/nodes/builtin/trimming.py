@@ -5,6 +5,7 @@ fastp, Trimmomatic, and Cutadapt.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -14,6 +15,7 @@ class FastpNode(CommandNode):
     """Adapter trimming and quality filtering with fastp."""
     NODE_ID = "fastp"
     DISPLAY_NAME = "fastp Trim"
+    REQUIRED_CONDA_PACKAGES = ['fastp']
     CATEGORY = "trimming"
     DESCRIPTION = "Ultra-fast all-in-one FASTQ preprocessor: trim adapters, filter by quality"
     SEARCH_ALIASES = ["fastp", "trim", "adapter", "quality filter"]
@@ -51,11 +53,32 @@ class FastpNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run fastp and return paired trimmed reads as a list."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        raw = await super().run(**kwargs)
+        out = Path(output_dir)
+        return {
+            "outputs": {
+                "trimmed_reads": [
+                    str(out / "trimmed_R1.fastq.gz"),
+                    str(out / "trimmed_R2.fastq.gz"),
+                ],
+                "report": str(out / "fastp_report.html"),
+            }
+        }
+
 
 class TrimmomaticNode(CommandNode):
     """Adapter trimming with Trimmomatic."""
     NODE_ID = "trimmomatic"
     DISPLAY_NAME = "Trimmomatic"
+    REQUIRED_CONDA_PACKAGES = ['trimmomatic']
     CATEGORY = "trimming"
     DESCRIPTION = "Flexible read trimming tool for Illumina NGS data"
     SEARCH_ALIASES = ["trimmomatic", "trim", "adapter removal"]
@@ -110,6 +133,7 @@ class CutadaptNode(CommandNode):
     RETURN_TYPES = ("FASTQ",)
     RETURN_NAMES = ("trimmed_reads",)
     REQUIRED_EXECUTABLES = ["cutadapt"]
+    REQUIRED_CONDA_PACKAGES = ['cutadapt']
     DOCUMENTATION_URL = "https://cutadapt.readthedocs.io/"
     VERSION = "4.9"
     COMMAND = [

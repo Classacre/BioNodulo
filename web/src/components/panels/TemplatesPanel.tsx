@@ -1,34 +1,54 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { TemplateInfo } from '../../types';
-
+import Icon from '../ui/Icon';
 
 interface TemplatesPanelProps {
   onClose: () => void;
   onLoadTemplate: (template: TemplateInfo) => void;
 }
 
-const TEMPLATES: TemplateInfo[] = [
-  { id: 'fastq-qc', name: 'FASTQ QC Pipeline', description: 'Quality control pipeline for sequencing reads using FastQC and MultiQC', category: 'QC', tags: ['qc', 'fastq'], tools: ['FastQC', 'MultiQC'], node_count: 3, filename: 'fastq_qc_pipeline.json' },
-  { id: 'rna-seq', name: 'RNA-Seq Pipeline', description: 'Complete RNA sequencing analysis from reads to counts', category: 'RNA-Seq', tags: ['rna', 'expression'], tools: ['HISAT2', 'featureCounts', 'MultiQC'], node_count: 5, filename: 'rna_seq_pipeline.json' },
-  { id: 'variant-calling', name: 'Variant Calling Pipeline', description: 'GATK-based germline variant calling from FASTQ to VCF', category: 'Variant', tags: ['variant', 'gatk'], tools: ['BWA', 'GATK', 'bcftools'], node_count: 7, filename: 'variant_calling_pipeline.json' },
-  { id: 'metagenomics', name: 'Metagenomics Pipeline', description: 'Taxonomic profiling of microbial communities', category: 'Metagenomics', tags: ['meta', 'taxonomy'], tools: ['Kraken2', 'Bracken', 'MetaPhlAn'], node_count: 4, filename: 'metagenomics_pipeline.json' },
-  { id: 'assembly', name: 'Genome Assembly', description: 'De novo assembly and quality assessment', category: 'Assembly', tags: ['assembly', 'genome'], tools: ['SPAdes', 'Quast'], node_count: 3, filename: 'assembly_pipeline.json' },
-  { id: 'phylogenetics', name: 'Phylogenetics Pipeline', description: 'Multiple sequence alignment and phylogenetic tree construction', category: 'Phylogenetics', tags: ['phylo', 'msa'], tools: ['MAFFT', 'IQ-TREE'], node_count: 3, filename: 'phylogenetics_pipeline.json' },
-  { id: 'chip-seq', name: 'ChIP-Seq Pipeline', description: 'Chromatin immunoprecipitation sequencing analysis', category: 'ChIP-Seq', tags: ['chip', 'epigenetics'], tools: ['Bowtie2', 'MACS2'], node_count: 4, filename: 'chip_seq_pipeline.json' },
-  { id: 'diff-expression', name: 'Differential Expression', description: 'Differential gene expression analysis pipeline', category: 'RNA-Seq', tags: ['de', 'deseq2'], tools: ['Salmon', 'DESeq2'], node_count: 4, filename: 'differential_expression.json' },
-  { id: 'wgs-variant', name: 'WGS Variant Pipeline', description: 'Whole genome sequencing variant calling with BWA and FreeBayes', category: 'Variant', tags: ['wgs', 'variant'], tools: ['BWA', 'FreeBayes', 'bcftools'], node_count: 6, filename: 'wgs_variant_pipeline.json' },
-  { id: 'sc-rna', name: 'Single Cell RNA-Seq', description: 'Single cell RNA sequencing with Cell Ranger', category: 'Single Cell', tags: ['sc', '10x'], tools: ['Cell Ranger'], node_count: 3, filename: 'single_cell_pipeline.json' },
-];
-
 export default function TemplatesPanel({ onClose, onLoadTemplate }: TemplatesPanelProps) {
+  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [catFilter, setCatFilter] = useState<string>('All');
 
-  const categories = ['All', ...Array.from(new Set(TEMPLATES.map(t => t.category)))];
-  const filtered = TEMPLATES.filter(t => {
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/workflow_templates')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        const items: TemplateInfo[] = (data.templates || []).map((t: any) => ({
+          id: t.id || t.filename.replace('.json', ''),
+          name: t.name || t.filename.replace('.json', '').replace(/_/g, ' '),
+          description: t.description || '',
+          category: t.category || 'Other',
+          tags: t.tags || [],
+          tools: t.tools || [],
+          node_count: t.node_count || 0,
+          filename: t.filename,
+        }));
+        setTemplates(items);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err.message);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const categories = ['All', ...Array.from(new Set(templates.map(t => t.category)))];
+  const filtered = templates.filter(t => {
     const matchCat = catFilter === 'All' || t.category === catFilter;
     const q = filter.toLowerCase();
-    const matchFilter = !q || t.name.toLowerCase().includes(q) || t.tags.some(tag => tag.includes(q)) || t.tools.some(tool => tool.toLowerCase().includes(q));
+    const matchFilter = !q || t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.tags.some(tag => tag.includes(q)) || t.tools.some(tool => tool.toLowerCase().includes(q));
     return matchCat && matchFilter;
   });
 
@@ -47,21 +67,24 @@ export default function TemplatesPanel({ onClose, onLoadTemplate }: TemplatesPan
             </button>
           ))}
         </div>
-        <div className="template-grid">
-          {filtered.map(t => (
-            <div key={t.id} className="template-card" onClick={() => onLoadTemplate(t)}>
-              <h4>{t.name}</h4>
-              <p>{t.description}</p>
-              <div className="tags">
-                {t.tools.map(tool => <span key={tool} className="template-tag">{tool}</span>)}
-                <span className="template-tag" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>{t.node_count} nodes</span>
+        {loading && <div style={{ color: 'var(--muted)', fontSize: 12, padding: 12 }}>Loading templates...</div>}
+        {error && <div style={{ color: '#ef4444', fontSize: 12, padding: 12 }}>Error: {error}</div>}
+        {!loading && !error && (
+          <div className="template-grid">
+            {filtered.map(t => (
+              <div key={t.id} className="template-card" onClick={() => onLoadTemplate(t)}>
+                <h4>{t.name}</h4>
+                <p>{t.description}</p>
+                <div className="tags">
+                  {t.tools.slice(0, 4).map(tool => <span key={tool} className="template-tag">{tool}</span>)}
+                  <span className="template-tag" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>{t.node_count} nodes</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+            {filtered.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>No templates match your search.</div>}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-import Icon from '../ui/Icon';

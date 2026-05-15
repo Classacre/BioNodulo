@@ -14,6 +14,7 @@ class FastQCNode(CommandNode):
     """Run FastQC quality control on FASTQ reads."""
     NODE_ID = "fastqc"
     DISPLAY_NAME = "FastQC"
+    REQUIRED_CONDA_PACKAGES = ['fastqc']
     CATEGORY = "qc"
     DESCRIPTION = "Run FastQC to generate per-base quality plots and reports"
     SEARCH_ALIASES = ["fastqc", "quality control", "qc", "reads qc"]
@@ -59,11 +60,23 @@ class FastQCNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run FastQC and return the output directory."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        await super().run(**kwargs)
+        return {"outputs": {"report_dir": str(output_dir)}}
+
 
 class MultiQCNode(CommandNode):
     """Aggregate QC reports with MultiQC."""
     NODE_ID = "multiqc"
     DISPLAY_NAME = "MultiQC"
+    REQUIRED_CONDA_PACKAGES = ['multiqc']
     CATEGORY = "qc"
     DESCRIPTION = "Aggregate multiple QC reports into a single HTML report"
     SEARCH_ALIASES = ["multiqc", "aggregate qc", "report", "summary"]
@@ -104,6 +117,19 @@ class MultiQCNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run MultiQC and return the report path."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        await super().run(**kwargs)
+        from pathlib import Path
+        report = Path(output_dir) / "multiqc_report.html"
+        return {"outputs": {"report": str(report)}}
+
 
 class QualiMapNode(CommandNode):
     """Run QualiMap BAM QC analysis."""
@@ -115,6 +141,7 @@ class QualiMapNode(CommandNode):
     RETURN_TYPES = ("HTML_REPORT",)
     RETURN_NAMES = ("report",)
     REQUIRED_EXECUTABLES = ["qualimap"]
+    REQUIRED_CONDA_PACKAGES = ['qualimap']
     DOCUMENTATION_URL = "http://qualimap.conesalab.org/"
     VERSION = "2.3"
     @classmethod

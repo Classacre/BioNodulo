@@ -11,10 +11,13 @@ import logging
 import os
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 from bionodulo.api.system_stats import router as system_stats_router
@@ -68,11 +71,72 @@ from bionodulo.environments.manager import (
     workflow_dependency_tree,
 )
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.installer import InstallJob
 from bionodulo.manager.resolver import build_node_manifest, resolve_workflow
 from bionodulo.workflow.validation import validate_workflow
 
 logger = logging.getLogger(__name__)
+
+
+def _derive_category(name: str, description: str, tools: list[str]) -> str:
+    text = (name + " " + description).lower()
+    tool_text = " ".join(tools).lower()
+    combined = text + " " + tool_text
+    if any(k in combined for k in ("single cell", "cell ranger", "cellranger", "10x")):
+        return "Single Cell"
+    if any(k in combined for k in ("rna-seq", "rnaseq", "expression", "deseq2", "salmon", "kallisto", "featurecounts", "stringtie")):
+        return "RNA-Seq"
+    if any(k in combined for k in ("variant", "vcf", "gatk", "freebayes", "bcftools", "haplotypecaller")):
+        return "Variant"
+    if any(k in combined for k in ("metagenom", "microbial", "kraken", "metaphlan", "bracken", "humann")):
+        return "Metagenomics"
+    if any(k in combined for k in ("assembly", "spades", "megahit", "quast")):
+        return "Assembly"
+    if any(k in combined for k in ("phylo", "tree", "iq-tree", "mafft")):
+        return "Phylogenetics"
+    if any(k in combined for k in ("chip", "atac", "macs2")):
+        return "ChIP-Seq"
+    if any(k in combined for k in ("fastq", "qc", "fastqc", "multiqc", "fastp", "trimmomatic")):
+        return "QC"
+    if any(k in combined for k in ("visualization", "ggplot", "plot", "heatmap", "image_preview", "r_plot", "r_pheatmap")):
+        return "Visualization"
+    if any(k in combined for k in ("biopython", "blast", "sequence", "seqio", "translate", "biostrings")):
+        return "Sequence"
+    if any(k in combined for k in ("wgs", "whole genome")):
+        return "WGS"
+    if any(k in combined for k in ("align", "bwa", "bowtie", "minimap", "star", "hisat")):
+        return "Alignment"
+    return "Other"
+
+
+def _derive_tags(name: str, description: str, tools: list[str]) -> list[str]:
+    text = (name + " " + description).lower()
+    tags: set[str] = set()
+    keywords = [
+        (["qc", "fastq", "quality", "fastqc", "multiqc"], "qc"),
+        (["rna", "expression", "deseq2", "salmon", "kallisto"], "rna"),
+        (["variant", "vcf", "snp", "gatk", "freebayes"], "variant"),
+        (["assembly", "genome", "spades", "megahit"], "assembly"),
+        (["phylo", "tree", "alignment", "mafft", "iqtree"], "phylo"),
+        (["chip", "epigenetics", "peak", "macs2"], "chip"),
+        (["meta", "taxonomy", "microbiome", "kraken", "metaphlan"], "meta"),
+        (["sc", "10x", "single cell", "cell ranger", "cellranger"], "sc"),
+        (["visualization", "plot", "ggplot", "heatmap", "image"], "viz"),
+        (["sequence", "blast", "biopython", "seqio", "translate"], "sequence"),
+        (["r", "ggplot2", "pheatmap", "deseq2"], "r"),
+        (["wgs", "whole genome"], "wgs"),
+        (["align", "bwa", "bowtie", "minimap", "star"], "align"),
+    ]
+    for group, tag in keywords:
+        for kw in group:
+            if kw in text:
+                tags.add(tag)
+                break
+    for tool in tools:
+        tags.add(tool.lower())
+    return sorted(tags)
+
 
 router = APIRouter()
 router.include_router(system_stats_router)
@@ -149,13 +213,25 @@ async def workflow_validate(request: Request, body: ValidationRequest) -> dict[s
 # Runs / Execution
 # ---------------------------------------------------------------------------
 
+def _generate_run_id(workflow_name: str) -> str:
+    """Generate a human-readable run ID.
+
+    Format: {sanitized_workflow_name}_{YYYYMMDD}_{HHMMSS}_{short_uuid}
+    """
+    safe_name = "".join(c if c.isalnum() or c in "_-" else "_" for c in workflow_name)[:30]
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    short_uuid = uuid.uuid4().hex[:6]
+    return f"{safe_name}_{ts}_{short_uuid}"
+
+
 @router.post("/runs")
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
     """Submit a workflow for execution."""
     queue = _get_queue(request)
     event_hub = _get_event_hub(request)
 
-    run_id = str(uuid.uuid4())
+    wf_name = body.workflow.get("name", body.name or "Untitled")
+    run_id = _generate_run_id(str(wf_name))
     await event_hub.emit_typed(
         "execution.run_submitted",
         {"run_id": run_id, "name": body.name},
@@ -167,9 +243,8 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         await queue.submit(
             run_id=run_id,
             workflow=body.workflow,
-            name=body.name,
-            mock=body.mock,
-            environment=body.environment,
+            metadata={"name": body.name, "environment": body.environment},
+            force=body.no_cache,
         )
     else:
         # Fallback: store in app state
@@ -182,7 +257,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         }
         request.app.state.runs = runs
 
-    return {"run_id": run_id, "status": "queued", "name": body.name}
+    return {"run_id": run_id, "status": "queued", "name": body.name, "workflow_name": wf_name}
 
 
 @router.post("/prompt")
@@ -195,7 +270,8 @@ async def comfyui_prompt(request: Request) -> dict[str, Any]:
     queue = _get_queue(request)
     event_hub = _get_event_hub(request)
 
-    run_id = str(uuid.uuid4())
+    wf_name = body.get("name", "prompt-run")
+    run_id = _generate_run_id(str(wf_name))
     await event_hub.emit_typed(
         "execution.prompt_submitted",
         {"run_id": run_id},
@@ -206,9 +282,7 @@ async def comfyui_prompt(request: Request) -> dict[str, Any]:
         await queue.submit(
             run_id=run_id,
             workflow=body,
-            name="prompt-run",
-            mock=None,
-            environment=None,
+            metadata={"name": "prompt-run"},
         )
 
     return {"prompt_id": run_id, "number": 0, "node_errors": {}}
@@ -244,9 +318,10 @@ async def clear_queue(request: Request) -> dict[str, str]:
 async def get_history(request: Request) -> dict[str, Any]:
     """Get execution history of completed runs."""
     queue = _get_queue(request)
-    if hasattr(queue, "get_history"):
-        return await queue.get_history()
-    return {}
+    if hasattr(queue, "list_history"):
+        history = queue.list_history()
+        return {"history": history, "count": len(history)}
+    return {"history": [], "count": 0}
 
 
 @router.get("/runs/{run_id}")
@@ -254,7 +329,7 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     """Get details for a specific run."""
     queue = _get_queue(request)
     if hasattr(queue, "get_run"):
-        run = await queue.get_run(run_id)
+        run = queue.get_run(run_id)
         if run is None:
             raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
         return run
@@ -263,6 +338,16 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     if run_id in runs:
         return runs[run_id]
     raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
+
+
+@router.post("/cache/clear")
+async def clear_cache(request: Request) -> dict[str, Any]:
+    """Clear all cached workflow node execution results."""
+    executor = getattr(request.app.state.run_queue, "executor", None)
+    if executor is None or not hasattr(executor, "cache"):
+        raise HTTPException(status_code=500, detail="Executor or cache not available")
+    count = executor.cache.clear()
+    return {"status": "cleared", "entries_deleted": count}
 
 
 # ---------------------------------------------------------------------------
@@ -733,6 +818,51 @@ async def manager_reload(request: Request) -> dict[str, str]:
     return {"status": "reloaded"}
 
 
+@router.get("/host_status")
+async def api_host_status() -> dict[str, Any]:
+    """Return host-level prerequisite diagnostics.
+
+    Checks for python3, micromamba, node/npm, and Rscript.
+    Micromamba can be auto-installed; everything else must be
+    present on the host PATH.
+    """
+    return host_diagnostics()
+
+
+@router.post("/host_status/install-micromamba")
+async def api_install_micromamba(request: Request) -> dict[str, Any]:
+    """Trigger automatic installation of micromamba.
+
+    Downloads and installs micromamba to the managed location
+    (~/.local/share/bionodulo by default).
+    Emits progress events via the WebSocket event hub so the
+    frontend can stream logs in real-time.
+    """
+    from bionodulo.manager.runtime_installer import (
+        install_managed_micromamba,
+        is_micromamba_installed,
+    )
+
+    if is_micromamba_installed():
+        return {"success": True, "message": "micromamba is already installed", "already_installed": True}
+
+    event_hub = request.app.state.event_hub
+
+    def emit(level: str, data: dict[str, Any]) -> None:
+        asyncio.create_task(
+            event_hub.emit_typed(
+                "install.log",
+                {**data, "level": level, "timestamp": datetime.now().isoformat()},
+                source="micromamba-installer",
+            )
+        )
+
+    success = install_managed_micromamba(emit=emit)
+    if success:
+        return {"success": True, "message": "micromamba installed successfully", "already_installed": False}
+    return {"success": False, "message": "micromamba installation failed. Check server logs for details.", "already_installed": False}
+
+
 @router.post("/manager/diagnose")
 async def manager_diagnose(
     request: Request, body: ManagerDiagnoseRequest
@@ -749,6 +879,10 @@ async def manager_diagnose(
         "missing_nodes": [n.node_type for n in report.missing_nodes],
         "missing_tools": [e.name for e in report.missing_executables],
         "missing_packages": [p.name for p in report.missing_packages],
+        "compatibility_issues": [
+            {"name": c.name, "path": c.path, "error": c.error}
+            for c in report.compatibility_issues
+        ],
         "resolution": report.to_dict(),
     }
 
@@ -774,9 +908,23 @@ async def manager_install_deps(
     """Start an async install job for missing dependencies.
 
     Returns a job_id that can be polled via /manager/status/{job_id}.
+    Emits real-time progress events via the WebSocket event hub.
     """
     settings = _get_settings(request)
-    job = InstallJob.create(body.report, settings.custom_nodes_dir)
+    event_hub = request.app.state.event_hub
+
+    def emit(level: str, data: dict[str, Any]) -> None:
+        asyncio.create_task(
+            event_hub.emit_typed(
+                "install.progress",
+                {**data, "level": level, "timestamp": datetime.now().isoformat()},
+                source="dependency-installer",
+            )
+        )
+
+    plan = dict(body.report)
+    plan["env_strategy"] = body.env_strategy
+    job = InstallJob.create(plan, settings.custom_nodes_dir, emit=emit)
 
     # Start install in background
     asyncio.create_task(job.run())
@@ -974,7 +1122,7 @@ async def manager_create_workflow_env(
 async def list_workflow_templates(request: Request) -> dict[str, Any]:
     """List available workflow templates."""
     settings = _get_settings(request)
-    templates_dir = settings.project_root / "templates"
+    templates_dir = REPO_ROOT / "templates"
     templates: list[dict[str, Any]] = []
 
     if templates_dir.exists():
@@ -982,20 +1130,46 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
             if entry.suffix.lower() == ".json":
                 try:
                     data = json.loads(entry.read_text(encoding="utf-8"))
+                    nodes = data.get("nodes", []) or []
+                    if isinstance(nodes, dict):
+                        nodes = list(nodes.values())
+
+                    name = data.get("name", entry.stem.replace("_", " ").title())
+                    description = data.get("description", "")
+
+                    # Use explicit metadata if provided, otherwise auto-derive
+                    tools = data.get("tools")
+                    if tools is None:
+                        tools = sorted({n.get("type", "") for n in nodes if n.get("type") and n.get("type") != "note"})
+
+                    category = data.get("category")
+                    if category is None:
+                        category = _derive_category(name, description, tools)
+
+                    tags = data.get("tags")
+                    if tags is None:
+                        tags = _derive_tags(name, description, tools)
+
                     templates.append({
-                        "name": entry.stem,
+                        "id": entry.stem,
+                        "name": name,
                         "filename": entry.name,
-                        "description": data.get("description", ""),
-                        "node_count": len(data.get("nodes", {}))
-                        if isinstance(data.get("nodes"), dict)
-                        else len(data.get("nodes", [])),
+                        "description": description,
+                        "node_count": len(nodes),
+                        "tools": tools,
+                        "category": category,
+                        "tags": tags,
                     })
                 except (json.JSONDecodeError, OSError):
                     templates.append({
-                        "name": entry.stem,
+                        "id": entry.stem,
+                        "name": entry.stem.replace("_", " ").title(),
                         "filename": entry.name,
                         "description": "",
                         "node_count": 0,
+                        "tools": [],
+                        "category": "Other",
+                        "tags": [],
                     })
 
     return {"templates": templates, "count": len(templates)}
@@ -1005,7 +1179,7 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
 async def get_workflow_template(request: Request, filename: str) -> dict[str, Any]:
     """Return a specific workflow template JSON."""
     settings = _get_settings(request)
-    templates_dir = settings.project_root / "templates"
+    templates_dir = REPO_ROOT / "templates"
     target = templates_dir / filename
 
     if not target.exists() or not target.is_file():

@@ -54,6 +54,18 @@
       }
     },
     {
+      "id": "bwa_idx_001",
+      "type": "bwa_index",
+      "position": [
+        340,
+        220
+      ],
+      "params": {},
+      "ui": {
+        "title": "BWA Index"
+      }
+    },
+    {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
@@ -192,6 +204,17 @@
       "from": {
         "node": "ref_001",
         "output": "reference"
+      },
+      "to": {
+        "node": "bwa_idx_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e3b",
+      "from": {
+        "node": "bwa_idx_001",
+        "output": "indexed_reference"
       },
       "to": {
         "node": "bwa_001",

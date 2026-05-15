@@ -7,7 +7,7 @@ BioNodulo v2 is a visual bioinformatics workflow workbench inspired by ComfyUI's
 - **Backend**: Python 3.11+ / FastAPI / Uvicorn
 - **Frontend**: React 19 / TypeScript / Vite / LiteGraph (via npm @comfyorg/litegraph)
 - **Communication**: REST API + WebSocket for real-time execution updates
-- **Execution**: Async queue-based with caching, mock mode, environment isolation
+- **Execution**: Async queue-based with caching and environment isolation
 
 ## Project Structure
 ```
@@ -57,7 +57,6 @@ bionodulo-v2/
 │   │   ├── executor.py             # WorkflowExecutor with context
 │   │   ├── queue.py                # RunQueue (async queue)
 │   │   ├── cache.py                # CacheStore for result caching
-│   │   ├── mock_runner.py          # Mock execution for testing
 │   │   ├── subprocess_runner.py    # Real subprocess execution
 │   │   └── run_metadata.py         # RunRecord dataclass
 │   ├── workflow/

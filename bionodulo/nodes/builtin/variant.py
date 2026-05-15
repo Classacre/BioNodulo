@@ -14,6 +14,7 @@ class BcftoolsMpileupNode(CommandNode):
     """Call variants with bcftools mpileup + call."""
     NODE_ID = "bcftools_mpileup"
     DISPLAY_NAME = "bcftools mpileup + call"
+    REQUIRED_CONDA_PACKAGES = ['bcftools']
     CATEGORY = "variant"
     DESCRIPTION = "Generate VCF variant calls from a BAM alignment using bcftools"
     SEARCH_ALIASES = ["bcftools", "mpileup", "variant call", "snp calling"]
@@ -72,14 +73,19 @@ class BcftoolsIndexNode(CommandNode):
     RETURN_TYPES = ("VCF_GZ", "VCF_INDEX")
     RETURN_NAMES = ("vcf", "index")
     REQUIRED_EXECUTABLES = ["bcftools"]
+    REQUIRED_CONDA_PACKAGES = ['bcftools']
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
     VERSION = "1.20"
-    COMMAND = [
-        "bcftools", "index",
-        "--tbi" if "{inputs.tbi}" == "True" else "--csi",
-        "-f",
-        "{inputs.vcf}",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bcftools", "index",
+            "--tbi" if inputs.get("tbi", True) else "--csi",
+            "-f",
+            str(inputs.get("vcf", "")),
+        ]
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -106,6 +112,7 @@ class BcftoolsStatsNode(CommandNode):
     RETURN_TYPES = ("STATS_FILE",)
     RETURN_NAMES = ("stats",)
     REQUIRED_EXECUTABLES = ["bcftools"]
+    REQUIRED_CONDA_PACKAGES = ['bcftools']
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
     VERSION = "1.20"
     SHELL = True
@@ -134,6 +141,7 @@ class BcftoolsFilterNode(CommandNode):
     """Filter variants with bcftools."""
     NODE_ID = "bcftools_filter"
     DISPLAY_NAME = "bcftools Filter"
+    REQUIRED_CONDA_PACKAGES = ['bcftools']
     CATEGORY = "variant"
     DESCRIPTION = "Filter VCF variants using bcftools expressions"
     SEARCH_ALIASES = ["bcftools", "filter", "variant filter"]
@@ -170,6 +178,7 @@ class GatkHaplotypeCallerNode(CommandNode):
     """Call variants with GATK HaplotypeCaller."""
     NODE_ID = "gatk_haplotype_caller"
     DISPLAY_NAME = "GATK HaplotypeCaller"
+    REQUIRED_CONDA_PACKAGES = ['gatk4']
     CATEGORY = "variant"
     DESCRIPTION = "Call germline SNPs and indels with GATK HaplotypeCaller"
     SEARCH_ALIASES = ["gatk", "haplotypecaller", "variant", "snp", "indel"]
@@ -222,6 +231,7 @@ class GatkBaseRecalibratorNode(CommandNode):
     """Base quality score recalibration with GATK."""
     NODE_ID = "gatk_base_recalibrator"
     DISPLAY_NAME = "GATK BaseRecalibrator"
+    REQUIRED_CONDA_PACKAGES = ['gatk4']
     CATEGORY = "variant"
     DESCRIPTION = "Recalibrate base quality scores using known variants"
     SEARCH_ALIASES = ["gatk", "bqsr", "recalibrate", "base quality"]
@@ -263,6 +273,7 @@ class GatkApplyBQSRNode(CommandNode):
     RETURN_TYPES = ("BAM",)
     RETURN_NAMES = ("recalibrated_bam",)
     REQUIRED_EXECUTABLES = ["gatk"]
+    REQUIRED_CONDA_PACKAGES = ['gatk4']
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037055952-ApplyBQSR"
     VERSION = "4.5.0"
     COMMAND = [
@@ -292,6 +303,7 @@ class FreeBayesNode(CommandNode):
     """Call variants with FreeBayes."""
     NODE_ID = "freebayes"
     DISPLAY_NAME = "FreeBayes"
+    REQUIRED_CONDA_PACKAGES = ['freebayes']
     CATEGORY = "variant"
     DESCRIPTION = "Bayesian haplotype-based variant caller"
     SEARCH_ALIASES = ["freebayes", "variant caller", "bayesian", "snp"]
@@ -347,6 +359,7 @@ class VcfToolsFilterNode(CommandNode):
     RETURN_TYPES = ("VCF",)
     RETURN_NAMES = ("filtered_vcf",)
     REQUIRED_EXECUTABLES = ["vcftools"]
+    REQUIRED_CONDA_PACKAGES = ['vcftools']
     DOCUMENTATION_URL = "https://vcftools.github.io/index.html"
     VERSION = "0.1.16"
     @classmethod

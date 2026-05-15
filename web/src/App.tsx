@@ -15,12 +15,15 @@ import WorkspacePanel from './components/panels/WorkspacePanel';
 import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
+import ImageLightbox from './components/modals/ImageLightbox';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
+import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import { useSettings } from './hooks/useSettings';
 import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
+import { useWebSocket } from './hooks/useWebSocket';
 import { defaultsFor } from './utils';
-import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport } from './types';
+import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord } from './types';
 import type { HPCStatus } from './components/layout/TopBar';
 
 // Built-in node definitions for offline use
@@ -73,6 +76,7 @@ const BUILTIN_NODES: Record<string, NodeMetadata> = {
   'note': { id: 'note', display_name: 'Note', category: 'Utility', description: 'Add a text note or description to the workflow', search_aliases: ['note', 'text', 'comment', 'description'], input_types: { required: { text: { type: 'STRING', default: '', multiline: true, label: 'Text' } } } },
   'reroute': { id: 'reroute', display_name: 'Reroute', category: 'Utility', description: 'Pass a connection through a routing point', search_aliases: ['reroute', 'pass', 'junction', 'connection'], input_types: { required: { input: { type: 'STRING', label: 'Input' } } }, return_types: ['STRING'], return_names: ['output'] },
   'view_text': { id: 'view_text', display_name: 'View Text', category: 'Utility', description: 'View text file contents', output_node: true, return_types: ['STRING'], return_names: ['text'], input_types: { required: { file: { type: 'FILE', label: 'File' } } } },
+  'image_preview': { id: 'image_preview', display_name: 'Image Preview', category: 'Utility', description: 'Preview an image file in the canvas', output_node: true, return_types: [], return_names: [], input_types: { required: { file: { type: 'FILE', label: 'Image File' } } } },
   'collect_files': { id: 'collect_files', display_name: 'Collect Files', category: 'Utility', description: 'Collect multiple files into a list', return_types: ['FILE'], return_names: ['files'], input_types: { required: { directory: { type: 'DIRECTORY', label: 'Directory' } }, optional: { pattern: { type: 'STRING', default: '*', label: 'Pattern' } } } },
   'merge_vcf': { id: 'merge_vcf', display_name: 'Merge VCF', category: 'Utility', description: 'Merge multiple VCF files', return_types: ['VCF'], return_names: ['merged'], input_types: { required: { vcfs: { type: 'VCF', label: 'VCF Files' } } }, requires_external_tools: ['bcftools'] },
   'hpc_submit': { id: 'hpc_submit', display_name: 'HPC Submit', category: 'HPC', description: 'Submit job to HPC cluster', return_types: ['FILE'], return_names: ['job_status'], input_types: { required: { workflow_json: { type: 'STRING', label: 'Workflow JSON' } }, optional: { partition: { type: 'STRING', default: '', label: 'Partition' }, walltime: { type: 'STRING', default: '01:00:00', label: 'Walltime' } } } },
@@ -115,9 +119,46 @@ export default function App() {
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
-    validate, resolve, clearResolveReport, submitRun,
+    validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
   } = useWorkflow();
   useTheme();
+
+  // Host prerequisite status
+  const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
+  const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
+
+  useEffect(() => {
+    fetch('/api/host_status')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setHostStatus(data as HostStatus);
+      })
+      .catch(() => { /* offline */ });
+  }, []);
+
+  // Load execution history from backend on startup
+  useEffect(() => {
+    fetch('/api/history')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.history)) {
+          const historyRuns: RunRecord[] = data.history.map((h: Record<string, unknown>) => ({
+            run_id: String(h.run_id),
+            status: String(h.status) as RunRecord['status'],
+            workflow_name: String(h.workflow_name || 'Untitled'),
+            node_statuses: [],
+            node_outputs: {},
+            execution_plan: [],
+            previews: {},
+            artifacts: {},
+            start_time: h.started_at ? new Date(Number(h.started_at) * 1000).toISOString() : undefined,
+            end_time: h.finished_at ? new Date(Number(h.finished_at) * 1000).toISOString() : undefined,
+          }));
+          setRuns(historyRuns);
+        }
+      })
+      .catch(() => { /* offline */ });
+  }, [setRuns]);
 
   // History stack for undo/redo
   const canvasRef = useRef<LiteGraphCanvasRef>(null);
@@ -175,13 +216,158 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
+
+  // Image lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<{ src: string; alt: string; filename: string }[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = useCallback((images: { src: string; alt: string; filename: string }[], index: number) => {
+    setLightboxImages(images);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }, []);
   const [isRunning, setIsRunning] = useState(false);
-  const [logs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
+
+  const addLog = useCallback((entry: LogEntry) => {
+    setLogs(prev => [...prev, entry]);
+  }, []);
+
+  // WebSocket connection for real-time logs
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+  const { onMessage } = useWebSocket(wsUrl);
+
+  useEffect(() => {
+    const unsub = onMessage((msg: unknown) => {
+      const data = msg as Record<string, unknown>;
+      const payload = (typeof data.data === 'object' && data.data !== null) ? data.data as Record<string, unknown> : {};
+      const ts = String(payload.timestamp || new Date().toISOString());
+
+      // --- Install events (micromamba + dependency installer) ---
+      if (data.type === 'install.log') {
+        addLog({
+          run_id: 'install-micromamba',
+          node_id: 'host',
+          level: (payload.level as LogEntry['level']) || 'info',
+          message: String(payload.message || ''),
+          timestamp: ts,
+        });
+        return;
+      }
+      if (data.type === 'install.progress') {
+        addLog({
+          run_id: String(payload.job_id || 'dependency-install'),
+          node_id: 'host',
+          level: (payload.level as LogEntry['level']) || 'info',
+          message: String(payload.message || ''),
+          timestamp: ts,
+        });
+        return;
+      }
+
+      // --- Workflow execution logs ---
+      if (data.type === 'log' && payload.message) {
+        addLog({
+          run_id: String(payload.run_id || data.source || 'workflow'),
+          node_id: String(payload.node_id || 'engine'),
+          level: (payload.level as LogEntry['level']) || 'info',
+          message: String(payload.message),
+          timestamp: ts,
+        });
+        return;
+      }
+
+      // --- Execution lifecycle events ---
+      const runId = String(payload.run_id || data.source || 'workflow');
+      if (data.type === 'start') {
+        addLog({ run_id: runId, node_id: 'engine', level: 'info', message: `Workflow started (${payload.total_nodes} nodes)`, timestamp: ts });
+      } else if (data.type === 'node_start') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Node start [${payload.progress}] ${payload.node_type}`, timestamp: ts });
+      } else if (data.type === 'node_complete') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'success', message: `Node completed`, timestamp: ts });
+      } else if (data.type === 'node_error') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'error', message: `Node error: ${payload.error}`, timestamp: ts });
+      } else if (data.type === 'node_skip') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node skipped (${payload.reason})`, timestamp: ts });
+      } else if (data.type === 'node_bypass') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node bypassed`, timestamp: ts });
+      } else if (data.type === 'node_cache_hit') {
+        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Cache hit — skipping execution`, timestamp: ts });
+      } else if (data.type === 'complete') {
+        addLog({ run_id: runId, node_id: 'engine', level: payload.status === 'completed' ? 'success' : 'error', message: `Workflow ${payload.status}`, timestamp: ts });
+      } else if (data.type === 'error') {
+        addLog({ run_id: runId, node_id: 'engine', level: 'error', message: `Workflow error: ${payload.message}`, timestamp: ts });
+      } else if (data.type === 'cancelled') {
+        addLog({ run_id: runId, node_id: String(payload.node_id || 'engine'), level: 'warn', message: `Workflow cancelled`, timestamp: ts });
+      }
+
+      // --- Preview events ---
+      else if (data.type === 'preview') {
+        const previewRunId = String(payload.run_id || data.source || '');
+        const nodeId = String(payload.node_id || '');
+        const path = String(payload.path || '');
+        if (previewRunId && nodeId && path) {
+          updateRun(previewRunId, {
+            previews: {
+              ...(runs.find(r => r.run_id === previewRunId)?.previews || {}),
+              [nodeId]: path,
+            },
+          });
+        }
+      }
+
+      // --- Queue events ---
+      else if (data.type === 'queue_submit') {
+        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'info', message: `Run submitted`, timestamp: ts });
+      } else if (data.type === 'queue_start') {
+        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'info', message: `Run started`, timestamp: ts });
+        updateRun(String(payload.run_id), { status: 'running', start_time: ts });
+      } else if (data.type === 'queue_finish') {
+        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'success', message: `Run finished (${payload.status})`, timestamp: ts });
+        const finalStatus = payload.status === 'completed' ? 'completed' : payload.status === 'failed' ? 'error' : 'cancelled';
+        const finishedRunId = String(payload.run_id);
+        updateRun(finishedRunId, { status: finalStatus, end_time: ts });
+        // Fetch full run details to populate previews/artifacts
+        fetch(`/api/runs/${finishedRunId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then((runData: Record<string, unknown> | null) => {
+            if (!runData) return;
+            const result = runData.result as Record<string, unknown> | undefined;
+            if (!result) return;
+            const previews: Record<string, string> = {};
+            const previewList = result.previews as Array<{ node_id?: string; path?: string }> | undefined;
+            if (previewList) {
+              for (const p of previewList) {
+                if (p.node_id && p.path) previews[p.node_id] = p.path;
+              }
+            }
+            const artifacts: Record<string, string> = {};
+            const artifactList = result.artifacts as Array<{ node_id?: string; path?: string }> | undefined;
+            if (artifactList) {
+              for (const a of artifactList) {
+                if (a.node_id && a.path) artifacts[a.node_id] = a.path;
+              }
+            }
+            updateRun(finishedRunId, { previews, artifacts });
+          })
+          .catch(() => { /* ignore */ });
+      } else if (data.type === 'queue_error') {
+        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'error', message: `Run error: ${payload.error}`, timestamp: ts });
+        updateRun(String(payload.run_id), { status: 'error', end_time: ts });
+      } else if (data.type === 'queue_interrupt') {
+        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'warn', message: `Run interrupted`, timestamp: ts });
+        updateRun(String(payload.run_id), { status: 'cancelled', end_time: ts });
+      }
+    });
+    return unsub;
+  }, [onMessage, addLog, runs, updateRun]);
   const [hpcStatus, setHpcStatus] = useState<HPCStatus>('off');
 
   const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
 
+  const cacheEnabled = getBool('bionodulo.cacheEnabled');
   const hpcEnabled = getBool('bionodulo.hpc.enabled');
   const hpcConfig: HPCConfig = {
     enabled: hpcEnabled,
@@ -239,10 +425,34 @@ export default function App() {
     setIsRunning(true);
     try {
       await validate(activeWorkflow);
-      await submitRun(activeWorkflow, { hpc: hpcEnabled, hpc_config: hpcConfig });
-    } catch { /* ignore */ }
+      const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled });
+      // Add to local runs so it appears in console immediately
+      addRun({
+        run_id: result.run_id,
+        status: 'pending',
+        workflow_name: result.workflow_name || activeWorkflow.name || 'Untitled',
+        node_statuses: [],
+        node_outputs: {},
+        execution_plan: [],
+        previews: {},
+        artifacts: {},
+        start_time: new Date().toISOString(),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog({
+        run_id: 'workflow',
+        node_id: 'engine',
+        level: 'error',
+        message: `Run failed: ${msg}`,
+        timestamp: new Date().toISOString(),
+      });
+      // Auto-open console so the user sees the error
+      setConsoleVisible(true);
+      setRailTab('console');
+    }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, hpcEnabled, hpcConfig]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun]);
 
   const handleToggleQueue = useCallback(() => {
     const isVisible = consoleVisible || railTab === 'console';
@@ -398,10 +608,23 @@ export default function App() {
           } catch { /* ignore */ }
         }}
       >
+        {hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
+          <HostPrerequisitesBanner
+            status={hostStatus}
+            onDismiss={() => setDismissedHostStatus(hostStatus)}
+            onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
+            onRecheck={async () => {
+              const r = await fetch('/api/host_status');
+              if (r.ok) setHostStatus(await r.json() as HostStatus);
+            }}
+          />
+        )}
         {resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
           <MissingDependenciesBanner
             report={resolveReport}
             onDismiss={() => setDismissedReport(resolveReport)}
+            onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
+            onResolve={() => { resolve(activeWorkflow); }}
           />
         )}
         <LiteGraphCanvas
@@ -422,7 +645,26 @@ export default function App() {
           linksHidden={getBool('bionodulo.linksHidden')}
           onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
-          nodeStatusMap={new Map(runs.length > 0 ? runs[runs.length - 1].node_statuses.map(ns => [ns.node_id, ns.status]) : [])}
+          nodeStatusMap={new Map(runs.length > 0 ? runs[0].node_statuses.map(ns => [ns.node_id, ns.status]) : [])}
+          nodePreviewsMap={(() => {
+            if (runs.length === 0) return undefined;
+            const latest = runs[0];
+            const map = new Map<string, string>();
+            // Map previews to image_preview nodes (show preview on the viewer, not the producer)
+            for (const node of activeWorkflow.nodes) {
+              if (node.type === 'image_preview') {
+                const incoming = activeWorkflow.edges.find(e => e.to.node === node.id);
+                if (incoming) {
+                  const sourceNodeId = incoming.from.node;
+                  const path = latest.previews?.[sourceNodeId];
+                  if (path) {
+                    map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
+                  }
+                }
+              }
+            }
+            return map;
+          })()}
         />
 
         {/* Rail panels */}
@@ -476,6 +718,7 @@ export default function App() {
           queue={runs.filter(r => r.status === 'pending' || r.status === 'running')}
           history={runs}
           onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
+          onOpenLightbox={openLightbox}
         />
       </div>
 
@@ -489,6 +732,12 @@ export default function App() {
           onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => wf)}
         />
       )}
+      <ImageLightbox
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
 
     </div>
   );

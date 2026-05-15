@@ -3,29 +3,23 @@
   "app": "bionodulo",
   "name": "R Visualization Pipeline",
   "description": "Create publication-quality plots using R and ggplot2 from workflow data",
+  "category": "Visualization",
+  "tags": ["r", "ggplot2", "pheatmap", "visualization", "plot"],
+  "tools": ["r_dataframe_builder", "r_plot", "r_pheatmap", "input_file", "image_preview"],
   "nodes": [
     {
       "id": "note_r_viz",
       "type": "note",
-      "position": [
-        -220,
-        100
-      ],
+      "position": [-220, 100],
       "params": {
         "text": "R Visualization Pipeline\n\nDemonstrates BioNodulo's R integration using ggplot2 and pheatmap.\n\nChain 1: Build a QC metrics DataFrame and plot a grouped bar chart.\nChain 2: Build an expression DataFrame and plot a colored scatter plot.\nChain 3: Load a gene expression matrix and generate a clustered heatmap with pheatmap.\n\nRequires: R + ggplot2 + pheatmap + RColorBrewer installed."
       },
-      "ui": {
-        "title": "Notes",
-        "color": "#f59e0b"
-      }
+      "ui": { "title": "Notes", "color": "#f59e0b" }
     },
     {
       "id": "qc_df_001",
       "type": "r_dataframe_builder",
-      "position": [
-        100,
-        50
-      ],
+      "position": [100, 50],
       "params": {
         "x_column": "Sample",
         "x_values": "Sample_A,Sample_B,Sample_C,Sample_D,Sample_A,Sample_B,Sample_C,Sample_D",
@@ -34,17 +28,12 @@
         "group_column": "Lane",
         "group_values": "L001,L001,L001,L001,L002,L002,L002,L002"
       },
-      "ui": {
-        "title": "QC DataFrame"
-      }
+      "ui": { "title": "QC DataFrame" }
     },
     {
       "id": "qc_plot_001",
       "type": "r_plot",
-      "position": [
-        450,
-        50
-      ],
+      "position": [450, 50],
       "params": {
         "data_csv": "",
         "plot_type": "bar",
@@ -57,17 +46,19 @@
         "width": 900,
         "height": 600
       },
-      "ui": {
-        "title": "QC Bar Plot"
-      }
+      "ui": { "title": "QC Bar Plot" }
+    },
+    {
+      "id": "qc_preview_001",
+      "type": "image_preview",
+      "position": [750, 50],
+      "params": { "file": "" },
+      "ui": { "title": "QC Plot Preview" }
     },
     {
       "id": "expr_df_001",
       "type": "r_dataframe_builder",
-      "position": [
-        100,
-        350
-      ],
+      "position": [100, 350],
       "params": {
         "x_column": "Mean_Expression",
         "x_values": "1250,890,3420,560,2100,780,4500,1200,980,3200,670,1540,210,3890,1100",
@@ -76,17 +67,12 @@
         "group_column": "Significant",
         "group_values": "No,No,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,Yes,No"
       },
-      "ui": {
-        "title": "Expr DataFrame"
-      }
+      "ui": { "title": "Expr DataFrame" }
     },
     {
       "id": "expr_plot_001",
       "type": "r_plot",
-      "position": [
-        450,
-        350
-      ],
+      "position": [450, 350],
       "params": {
         "data_csv": "",
         "plot_type": "scatter",
@@ -99,31 +85,26 @@
         "width": 900,
         "height": 600
       },
-      "ui": {
-        "title": "Expression Scatter Plot"
-      }
+      "ui": { "title": "Expression Scatter Plot" }
+    },
+    {
+      "id": "expr_preview_001",
+      "type": "image_preview",
+      "position": [750, 350],
+      "params": { "file": "" },
+      "ui": { "title": "Expr Plot Preview" }
     },
     {
       "id": "heatmap_data_001",
       "type": "input_file",
-      "position": [
-        100,
-        650
-      ],
-      "params": {
-        "file": "examples/data/biopython/heatmap_data.csv"
-      },
-      "ui": {
-        "title": "Heatmap Data"
-      }
+      "position": [100, 650],
+      "params": { "file": "examples/data/biopython/heatmap_data.csv" },
+      "ui": { "title": "Heatmap Data" }
     },
     {
       "id": "pheatmap_001",
       "type": "r_pheatmap",
-      "position": [
-        450,
-        650
-      ],
+      "position": [450, 650],
       "params": {
         "data_csv": "",
         "scale": "row",
@@ -136,50 +117,24 @@
         "width": 900,
         "height": 700
       },
-      "ui": {
-        "title": "pheatmap"
-      }
+      "ui": { "title": "pheatmap" }
+    },
+    {
+      "id": "heatmap_preview_001",
+      "type": "image_preview",
+      "position": [750, 650],
+      "params": { "file": "" },
+      "ui": { "title": "Heatmap Preview" }
     }
   ],
   "edges": [
-    {
-      "id": "e1",
-      "from": {
-        "node": "qc_df_001",
-        "output": "csv"
-      },
-      "to": {
-        "node": "qc_plot_001",
-        "input": "data_csv"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "expr_df_001",
-        "output": "csv"
-      },
-      "to": {
-        "node": "expr_plot_001",
-        "input": "data_csv"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "heatmap_data_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "pheatmap_001",
-        "input": "data_csv"
-      }
-    }
+    { "id": "e1", "from": { "node": "qc_df_001", "output": "csv" }, "to": { "node": "qc_plot_001", "input": "data_csv" } },
+    { "id": "e2", "from": { "node": "qc_plot_001", "output": "plot_png" }, "to": { "node": "qc_preview_001", "input": "file" } },
+    { "id": "e3", "from": { "node": "expr_df_001", "output": "csv" }, "to": { "node": "expr_plot_001", "input": "data_csv" } },
+    { "id": "e4", "from": { "node": "expr_plot_001", "output": "plot_png" }, "to": { "node": "expr_preview_001", "input": "file" } },
+    { "id": "e5", "from": { "node": "heatmap_data_001", "output": "file" }, "to": { "node": "pheatmap_001", "input": "data_csv" } },
+    { "id": "e6", "from": { "node": "pheatmap_001", "output": "plot_png" }, "to": { "node": "heatmap_preview_001", "input": "file" } }
   ],
   "groups": [],
-  "outputs": {
-    "qc_plot": "qc_plot_001",
-    "expr_plot": "expr_plot_001",
-    "heatmap": "pheatmap_001"
-  }
+  "outputs": {}
 }

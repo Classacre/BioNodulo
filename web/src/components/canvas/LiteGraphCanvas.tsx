@@ -28,6 +28,7 @@ interface LiteGraphCanvasProps {
   onToggleMinimap: () => void;
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
+  nodePreviewsMap?: Map<string, string>;
 }
 
 export interface GraphNode {
@@ -96,7 +97,9 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
     else if ((s?.type === 'INT' || s?.type === 'FLOAT') && s?.display === 'slider') widgetCount++;
   }
   const widgetHeight = widgetCount > 0 ? widgetCount * 20 + 6 : 0;
-  return NODE_HEADER_H + ioHeight + widgetHeight + 12;
+  const base = NODE_HEADER_H + ioHeight + widgetHeight + 12;
+  if (meta?.id === 'image_preview') return base + 120;
+  return base;
 }
 
 function getNodesInGroup(group: WorkflowGroup, graphNodes: GraphNode[]): string[] {
@@ -268,6 +271,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   snapToGrid, showMinimap, viewportLocked, linksHidden,
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
+  nodePreviewsMap,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -357,8 +361,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           category: meta?.category || 'Utility',
           x: wn.position[0],
           y: wn.position[1],
-          width: isNote ? NODE_NOTE_WIDTH : (isReroute ? 20 : (existing?.width || NODE_WIDTH)),
-          height: isReroute ? 20 : calcNodeHeight(meta, collapsed, wn.params, isNote ? (existing?.width || NODE_NOTE_WIDTH) : undefined),
+          width: isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : (isReroute ? 20 : (wn.ui?.width ?? existing?.width ?? NODE_WIDTH)),
+          height: isReroute ? 20 : (collapsed ? calcNodeHeight(meta, true, wn.params) : (wn.ui?.height ?? existing?.height ?? calcNodeHeight(meta, false, wn.params, isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : undefined))),
           inputs: meta ? [
             ...Object.entries(meta.input_types?.required || {}).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
@@ -1805,6 +1809,42 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
       />
+
+      {/* Image preview DOM overlays */}
+      {nodePreviewsMap && graphNodes.filter(n => nodePreviewsMap.has(n.id) && !n.collapsed).map(node => {
+        const previewUrl = nodePreviewsMap.get(node.id)!;
+        const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
+        const pad = 4 * scale;
+        const left = node.x * scale + offset.x + pad;
+        const top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        const width = (node.width - 8) * scale;
+        const height = (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        if (width <= 0 || height <= 0) return null;
+        return (
+          <div
+            key={node.id}
+            style={{
+              position: 'absolute',
+              left,
+              top,
+              width,
+              height,
+              zIndex: 5,
+              pointerEvents: 'none',
+              borderRadius: Math.max(2, 4 * scale),
+              overflow: 'hidden',
+              background: 'var(--surface)',
+            }}
+          >
+            <img
+              src={previewUrl}
+              alt="Preview"
+              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+        );
+      })}
 
       <SelectionToolbox
         graphNodes={graphNodes}

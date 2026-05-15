@@ -36,7 +36,6 @@ class RunRequest:
     run_id: str
     workflow: dict[str, Any]
     options: dict[str, Any] = field(default_factory=dict)
-    mock_tools: bool = False
     force: bool = False
     force_nodes: set[str] = field(default_factory=set)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -81,7 +80,6 @@ class RunQueue:
         workflow: dict[str, Any],
         run_id: str | None = None,
         options: dict[str, Any] | None = None,
-        mock_tools: bool = False,
         force: bool = False,
         force_nodes: set[str] | None = None,
         metadata: dict[str, Any] | None = None,
@@ -96,7 +94,6 @@ class RunQueue:
             run_id=rid,
             workflow=workflow,
             options=options or {},
-            mock_tools=mock_tools,
             force=force,
             force_nodes=force_nodes or set(),
             metadata=metadata or {},
@@ -183,15 +180,27 @@ class RunQueue:
         """Get the current queue state."""
         return {
             "pending": [
-                {"run_id": r.run_id, "status": r.status.value}
+                {
+                    "run_id": r.run_id,
+                    "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
+                }
                 for r in self._queue_items()
             ],
             "running": [
-                {"run_id": r.run_id, "status": r.status.value}
+                {
+                    "run_id": r.run_id,
+                    "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
+                }
                 for r in self._running.values()
             ],
             "max_concurrent": self.max_concurrent,
         }
+
+    async def get_state(self) -> dict[str, Any]:
+        """Async wrapper for queue_state."""
+        return self.queue_state()
 
     def list_runs(self) -> list[dict[str, Any]]:
         """List all runs (pending + running)."""
@@ -201,8 +210,8 @@ class RunQueue:
                 {
                     "run_id": r.run_id,
                     "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
                     "created_at": r.created_at,
-                    "mock_tools": r.mock_tools,
                 }
             )
         for r in self._running.values():
@@ -210,9 +219,9 @@ class RunQueue:
                 {
                     "run_id": r.run_id,
                     "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
                     "created_at": r.created_at,
                     "started_at": r.started_at,
-                    "mock_tools": r.mock_tools,
                 }
             )
         return runs
@@ -224,6 +233,7 @@ class RunQueue:
                 return {
                     "run_id": r.run_id,
                     "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
                     "created_at": r.created_at,
                     "result": r.result,
                 }
@@ -232,6 +242,7 @@ class RunQueue:
             return {
                 "run_id": r.run_id,
                 "status": r.status.value,
+                "workflow_name": r.metadata.get("name", "Untitled"),
                 "created_at": r.created_at,
                 "started_at": r.started_at,
                 "result": r.result,
@@ -241,6 +252,7 @@ class RunQueue:
                 return {
                     "run_id": r.run_id,
                     "status": r.status.value,
+                    "workflow_name": r.metadata.get("name", "Untitled"),
                     "created_at": r.created_at,
                     "started_at": r.started_at,
                     "finished_at": r.finished_at,
@@ -250,17 +262,35 @@ class RunQueue:
 
     def list_history(self) -> list[dict[str, Any]]:
         """List completed (historic) runs."""
-        return [
-            {
+        history = []
+        for r in reversed(self._history):
+            entry: dict[str, Any] = {
                 "run_id": r.run_id,
                 "status": r.status.value,
+                "workflow_name": r.metadata.get("name", "Untitled"),
                 "created_at": r.created_at,
                 "started_at": r.started_at,
                 "finished_at": r.finished_at,
-                "mock_tools": r.mock_tools,
             }
-            for r in reversed(self._history)
-        ]
+            if r.result:
+                # Extract previews as a node_id -> path mapping
+                previews: dict[str, str] = {}
+                for p in r.result.get("previews", []):
+                    nid = p.get("node_id", "")
+                    if nid:
+                        previews[nid] = p.get("path", "")
+                if previews:
+                    entry["previews"] = previews
+                # Extract artifacts as a node_id -> path mapping
+                artifacts: dict[str, str] = {}
+                for a in r.result.get("artifacts", []):
+                    nid = a.get("node_id", "")
+                    if nid:
+                        artifacts[nid] = a.get("path", "")
+                if artifacts:
+                    entry["artifacts"] = artifacts
+            history.append(entry)
+        return history
 
     async def shutdown(self) -> None:
         """Gracefully shut down the queue worker."""
@@ -307,7 +337,6 @@ class RunQueue:
                 result = await self.executor.execute(
                     run_id=request.run_id,
                     workflow=request.workflow,
-                    mock_tools=request.mock_tools,
                     force=request.force,
                     force_nodes=request.force_nodes,
                     options=request.options,

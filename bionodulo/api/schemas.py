@@ -26,8 +26,8 @@ class RunCreateRequest(BaseModel):
 
     workflow: dict[str, Any] = Field(..., description="Workflow JSON object to execute")
     name: str = Field("Untitled", description="Human-readable run name")
-    mock: bool | None = Field(None, description="Override mock mode for this run")
     environment: str | None = Field(None, description="Conda env or container to use")
+    no_cache: bool = Field(False, description="Force re-execution by bypassing cache")
 
 
 class WorkflowExportRequest(BaseModel):
@@ -222,6 +222,7 @@ class ManagerInstallDepsRequest(BaseModel):
     """Request body for POST /manager/install-deps."""
 
     report: dict[str, Any] = Field(..., description="Resolution report from /manager/resolve")
+    env_strategy: str = Field("shared", description="Install strategy: 'shared' or 'isolated'")
 
 
 # ---------------------------------------------------------------------------

@@ -54,6 +54,18 @@
       }
     },
     {
+      "id": "bwa_idx_001",
+      "type": "bwa_index",
+      "position": [
+        300,
+        180
+      ],
+      "params": {},
+      "ui": {
+        "title": "BWA Index"
+      }
+    },
+    {
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
@@ -181,6 +193,17 @@
       "from": {
         "node": "ref_001",
         "output": "reference"
+      },
+      "to": {
+        "node": "bwa_idx_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e2b",
+      "from": {
+        "node": "bwa_idx_001",
+        "output": "indexed_reference"
       },
       "to": {
         "node": "bwa_001",

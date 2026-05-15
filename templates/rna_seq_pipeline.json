@@ -53,6 +53,20 @@
       }
     },
     {
+      "id": "hisat2_build_001",
+      "type": "hisat2_build",
+      "position": [
+        340,
+        220
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "HISAT2 Build"
+      }
+    },
+    {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
@@ -183,8 +197,19 @@
         "output": "reference"
       },
       "to": {
-        "node": "hisat2_001",
+        "node": "hisat2_build_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e3b",
+      "from": {
+        "node": "hisat2_build_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "hisat2_001",
+        "input": "index"
       }
     },
     {

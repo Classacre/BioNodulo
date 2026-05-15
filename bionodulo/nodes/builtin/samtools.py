@@ -14,6 +14,7 @@ class SamtoolsSortNode(CommandNode):
     """Sort BAM file by coordinate."""
     NODE_ID = "samtools_sort"
     DISPLAY_NAME = "Samtools Sort"
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     CATEGORY = "samtools"
     DESCRIPTION = "Sort a SAM/BAM file by genomic coordinate"
     SEARCH_ALIASES = ["samtools", "sort", "bam sort", "coordinate"]
@@ -50,6 +51,7 @@ class SamtoolsIndexNode(CommandNode):
     """Index a BAM file."""
     NODE_ID = "samtools_index"
     DISPLAY_NAME = "Samtools Index"
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     CATEGORY = "samtools"
     DESCRIPTION = "Create a .bai index for a sorted BAM file"
     SEARCH_ALIASES = ["samtools", "index", "bai"]
@@ -84,6 +86,7 @@ class SamtoolsFlagstatNode(CommandNode):
     """Generate flagstat statistics for a BAM file."""
     NODE_ID = "samtools_flagstat"
     DISPLAY_NAME = "Samtools Flagstat"
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     CATEGORY = "samtools"
     DESCRIPTION = "Generate alignment statistics with samtools flagstat"
     SEARCH_ALIASES = ["samtools", "flagstat", "stats", "alignment stats"]
@@ -118,6 +121,7 @@ class SamtoolsViewNode(CommandNode):
     """Convert SAM to BAM or filter alignments."""
     NODE_ID = "samtools_view"
     DISPLAY_NAME = "Samtools View"
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     CATEGORY = "samtools"
     DESCRIPTION = "Convert SAM to BAM, filter by flags, or extract regions"
     SEARCH_ALIASES = ["samtools", "view", "sam to bam", "convert", "filter"]
@@ -156,6 +160,7 @@ class SamtoolsMergeNode(CommandNode):
     """Merge multiple BAM files."""
     NODE_ID = "samtools_merge"
     DISPLAY_NAME = "Samtools Merge"
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     CATEGORY = "samtools"
     DESCRIPTION = "Merge multiple sorted BAM files into one"
     SEARCH_ALIASES = ["samtools", "merge", "combine", "bam"]
@@ -207,6 +212,7 @@ class SamtoolsStatsNode(CommandNode):
     RETURN_TYPES = ("STATS_FILE",)
     RETURN_NAMES = ("stats",)
     REQUIRED_EXECUTABLES = ["samtools"]
+    REQUIRED_CONDA_PACKAGES = ['samtools']
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-stats.html"
     VERSION = "1.20"
     SHELL = True

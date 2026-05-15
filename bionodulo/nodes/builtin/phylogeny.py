@@ -14,6 +14,7 @@ class MAFFTNode(CommandNode):
     """Multiple sequence alignment with MAFFT."""
     NODE_ID = "mafft"
     DISPLAY_NAME = "MAFFT"
+    REQUIRED_CONDA_PACKAGES = ['mafft']
     CATEGORY = "phylogeny"
     DESCRIPTION = "Multiple sequence alignment with MAFFT (fast FFT-based)"
     SEARCH_ALIASES = ["mafft", "align", "msa", "multiple alignment"]
@@ -66,6 +67,7 @@ class ClustalONode(CommandNode):
     RETURN_TYPES = ("ALIGNMENT",)
     RETURN_NAMES = ("alignment",)
     REQUIRED_EXECUTABLES = ["clustalo"]
+    REQUIRED_CONDA_PACKAGES = ['clustal-omega']
     DOCUMENTATION_URL = "http://www.clustal.org/omega/"
     VERSION = "1.2.4"
     COMMAND = [
@@ -96,6 +98,7 @@ class IQTREENode(CommandNode):
     """Phylogenetic tree inference with IQ-TREE."""
     NODE_ID = "iqtree"
     DISPLAY_NAME = "IQ-TREE"
+    REQUIRED_CONDA_PACKAGES = ['iqtree']
     CATEGORY = "phylogeny"
     DESCRIPTION = "Efficient phylogenomic inference with maximum likelihood"
     SEARCH_ALIASES = ["iqtree", "maximum likelihood", "tree", "phylogeny"]
@@ -155,6 +158,7 @@ class FastTreeNode(CommandNode):
     RETURN_TYPES = ("PHYLOGENY_TREE",)
     RETURN_NAMES = ("tree",)
     REQUIRED_EXECUTABLES = ["FastTree"]
+    REQUIRED_CONDA_PACKAGES = ['fasttree']
     DOCUMENTATION_URL = "http://www.microbesonline.org/fasttree/"
     VERSION = "2.1.11"
     SHELL = True
@@ -203,6 +207,7 @@ class RAxMLNode(CommandNode):
     RETURN_TYPES = ("PHYLOGENY_TREE",)
     RETURN_NAMES = ("tree",)
     REQUIRED_EXECUTABLES = ["raxmlHPC"]
+    REQUIRED_CONDA_PACKAGES = ['raxml']
     DOCUMENTATION_URL = "https://github.com/stamatak/standard-RAxML"
     VERSION = "8.2.12"
     COMMAND = [

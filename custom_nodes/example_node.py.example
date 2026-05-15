@@ -2,13 +2,29 @@
 
 This file demonstrates how to create a custom node that integrates with
 BioNodulo. To use it, remove the .example extension and restart BioNodulo.
+
+Custom nodes are auto-discovered when BioNodulo starts. Any Python file in
+the custom_nodes/ directory that defines CommandNode or BaseNode subclasses
+with a NODE_ID will be registered automatically.
+
+For package-based custom nodes, create a subdirectory with an __init__.py:
+    custom_nodes/my_package/
+        __init__.py
+        nodes.py
+        requirements.txt
+
+The __init__.py can import your nodes so they get registered on load.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 
+
+# ── Example 1: Simple CommandNode wrapper ──────────────────────────
 
 class ExampleCustomNode(CommandNode):
     """An example custom node that runs a simple bioinformatics command.
@@ -76,16 +92,110 @@ class ExampleCustomNode(CommandNode):
         }
 
 
-# ── Advanced Example: Python-only node ─────────────────────────────
+# ── Example 2: Practical bioinformatics tool wrapper ───────────────
 
-from bionodulo.nodes.base import BaseNode
+class ExampleSeqtkNode(CommandNode):
+    """Example wrapper for seqtk (sequence toolkit).
 
+    This demonstrates a more realistic custom node wrapping a real
+    bioinformatics tool with proper input validation and output planning.
+    """
+
+    NODE_ID = "example_seqtk_subseq"
+    DISPLAY_NAME = "Seqtk Subseq"
+    CATEGORY = "sequence"
+    DESCRIPTION = "Extract sequences from FASTA by name list using seqtk"
+    SEARCH_ALIASES = ["seqtk", "subseq", "extract", "filter"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("sequences",)
+    REQUIRED_EXECUTABLES = ["seqtk"]
+    REQUIRES_EXTERNAL_TOOLS = True
+    REQUIRED_CONDA_PACKAGES = ["seqtk"]
+    GIT_URL = "https://github.com/yourusername/your-bionodulo-nodes.git"
+
+    # Override PLAN_OUTPUTS to declare exactly what files are produced
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: Any) -> list[Path]:
+        return [Path(output_dir) / "subset.fa"]
+
+    COMMAND = [
+        "seqtk", "subseq",
+        "{inputs.fasta}",
+        "{inputs.name_list}",
+        ">", "{output}/subset.fa",
+    ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fasta": ("FASTA", {"description": "Input FASTA file"}),
+                "name_list": ("FILE", {"description": "Text file with sequence IDs (one per line)"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── Example 3: Advanced CommandNode with custom render_command ─────
+
+class ExampleFastaStatsNode(CommandNode):
+    """Calculate basic FASTA statistics with custom command rendering.
+
+    Shows how to override render_command for dynamic argument building.
+    """
+
+    NODE_ID = "example_fasta_stats"
+    DISPLAY_NAME = "FASTA Statistics"
+    CATEGORY = "sequence"
+    DESCRIPTION = "Compute GC content, N50, and length stats for a FASTA"
+    SEARCH_ALIASES = ["fasta", "stats", "gc", "n50", "length"]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("stats",)
+    REQUIRED_EXECUTABLES = ["python3"]
+    REQUIRES_EXTERNAL_TOOLS = True
+    GIT_URL = "https://github.com/yourusername/your-bionodulo-nodes.git"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        fasta = str(inputs.get("fasta", ""))
+        output = str(inputs.get("output", "."))
+        # Build a small inline Python script
+        script = (
+            "import json,sys;\n"
+            "from pathlib import Path;\n"
+            f"seq = Path('{fasta}').read_text();\n"
+            "lines = seq.split('>');\n"
+            "records = [l.splitlines() for l in lines[1:]];\n"
+            "lengths = [sum(len(l) for l in r[1:]) for r in records];\n"
+            "gc = sum((s.upper().count('G') + s.upper().count('C')) for r in records for s in r[1:]);\n"
+            "total = sum(lengths);\n"
+            f"json.dump({{'total_bases': total, 'num_sequences': len(records), 'gc_content': round(gc/total*100,2) if total else 0, 'n50': sorted(lengths)[len(lengths)//2] if lengths else 0}}, open('{output}/stats.json','w'))"
+        )
+        return ["python3", "-c", script]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fasta": ("FASTA", {"description": "Input FASTA file"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+# ── Example 4: Pure-Python node (no external tools) ────────────────
 
 class ExamplePythonNode(BaseNode):
     """An example pure-Python node (no external tools).
 
     This node performs its computation entirely in Python, useful for
-data transformation, calculation, or file manipulation tasks.
+    data transformation, calculation, or file manipulation tasks.
     """
 
     NODE_ID = "example_python"
@@ -118,7 +228,53 @@ data transformation, calculation, or file manipulation tasks.
         return (text,)
 
 
+# ── Example 5: Python node with file I/O ───────────────────────────
+
+class ExampleLineCountNode(BaseNode):
+    """Count lines in a text file (pure Python, no external tools)."""
+
+    NODE_ID = "example_line_count"
+    DISPLAY_NAME = "Line Count"
+    CATEGORY = "custom"
+    DESCRIPTION = "Count lines in a text or FASTQ file"
+    SEARCH_ALIASES = ["count", "lines", "wc", "statistics"]
+    RETURN_TYPES = ("INT", "STRING")
+    RETURN_NAMES = ("count", "summary")
+    REQUIRES_EXTERNAL_TOOLS = False
+    GIT_URL = "https://github.com/yourusername/your-bionodulo-nodes.git"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "file_path": ("FILE", {"description": "File to count lines in"}),
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple:
+        file_path = kwargs.get("file_path", "")
+        try:
+            with open(file_path, "r") as f:
+                count = sum(1 for _ in f)
+            summary = f"{count} lines in {Path(file_path).name}"
+            return (count, summary)
+        except Exception as exc:
+            return (0, f"Error: {exc}")
+
+
 # ── Registration ───────────────────────────────────────────────────
 # Nodes are auto-discovered when this module is imported.
 # Just define them as CommandNode/BaseNode subclasses with NODE_ID set.
 # The NodeRegistry will find and register them automatically.
+#
+# For package-based custom nodes (subdirectories), create:
+#   custom_nodes/my_package/__init__.py
+#   custom_nodes/my_package/nodes.py
+#   custom_nodes/my_package/requirements.txt
+#
+# The __init__.py should import your nodes:
+#   from .nodes import MyCustomNode
+#
+# BioNodulo will load the package and register all nodes found.

@@ -28,7 +28,7 @@ class ExecutionSettings:
     max_workers: int = 4
     cache_enabled: bool = True
     cache_ttl_seconds: int = 86400
-    mock_tools: bool = False
+    env_isolation: str = "auto"
     timeout_seconds: int = 3600
     env_isolation: str = "auto"
 
@@ -41,12 +41,13 @@ class Settings:
     runs_dir: Path = field(default_factory=lambda: Path("runs"))
     cache_dir: Path = field(default_factory=lambda: Path("cache"))
     custom_nodes_dir: Path = field(default_factory=lambda: Path("custom_nodes"))
+    env_root: Path = field(default_factory=lambda: Path("environments"))
     data_roots: list[Path] = field(default_factory=list)
     tool_paths: dict[str, str] = field(default_factory=dict)
     registries: dict[str, str] = field(default_factory=lambda: dict(_DEFAULT_REGISTRIES))
     api_secrets: dict[str, str] = field(default_factory=dict)
     execution: ExecutionSettings = field(default_factory=ExecutionSettings)
-    mock_tools_default: bool = False
+    env_isolation_default: bool = True
     settings_file: Path = field(default_factory=lambda: Path("bionodulo.settings.json"))
 
     def __post_init__(self) -> None:
@@ -63,6 +64,8 @@ class Settings:
             self.cache_dir = self.project_root / self.cache_dir
         if not self.custom_nodes_dir.is_absolute():
             self.custom_nodes_dir = self.project_root / self.custom_nodes_dir
+        if not self.env_root.is_absolute():
+            self.env_root = self.project_root / self.env_root
         if not self.settings_file.is_absolute():
             self.settings_file = self.project_root / self.settings_file
         self.data_roots = [
@@ -103,15 +106,16 @@ class Settings:
         runs_dir = Path(config_data.pop("runs_dir", "runs"))
         cache_dir = Path(config_data.pop("cache_dir", "cache"))
         custom_nodes_dir = Path(config_data.pop("custom_nodes_dir", "custom_nodes"))
+        env_root = Path(config_data.pop("env_root", "environments"))
         settings_file = Path(
             config_data.pop("settings_file", str(project_root / "bionodulo.settings.json"))
         )
         tool_paths = config_data.pop("tool_paths", {})
         registries = config_data.pop("registries", dict(_DEFAULT_REGISTRIES))
         api_secrets = config_data.pop("api_secrets", {})
-        mock_tools_default = config_data.pop(
-            "mock_tools_default",
-            os.environ.get("BIONODULO_MOCK_TOOLS", "0").lower() in ("1", "true", "yes"),
+        env_isolation_default = config_data.pop(
+            "env_isolation_default",
+            os.environ.get("BIONODULO_ENV_ISOLATION", "1").lower() not in ("0", "false", "no"),
         )
 
         return cls(
@@ -119,12 +123,13 @@ class Settings:
             runs_dir=runs_dir,
             cache_dir=cache_dir,
             custom_nodes_dir=custom_nodes_dir,
+            env_root=env_root,
             data_roots=data_roots,
             tool_paths=tool_paths,
             registries=registries,
             api_secrets=api_secrets,
             execution=execution,
-            mock_tools_default=mock_tools_default,
+            env_isolation_default=env_isolation_default,
             settings_file=settings_file,
         )
 
@@ -133,6 +138,7 @@ class Settings:
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.custom_nodes_dir.mkdir(parents=True, exist_ok=True)
+        self.env_root.mkdir(parents=True, exist_ok=True)
         for dr in self.data_roots:
             dr.mkdir(parents=True, exist_ok=True)
 
@@ -171,7 +177,7 @@ def _collect_env_overrides() -> dict[str, Any]:
     overrides: dict[str, Any] = {}
     prefix = "BIONODULO_"
     for key, value in os.environ.items():
-        if key.startswith(prefix) and key not in ("BIONODULO_CONFIG", "BIONODULO_MOCK_TOOLS"):
+        if key.startswith(prefix) and key != "BIONODULO_CONFIG":
             stripped = key[len(prefix):].lower()
             parts = stripped.split("__")
             target = overrides
@@ -223,7 +229,8 @@ class SettingsManager:
             "node_library_sort": "category",
             "console_log_level": "info",
             "max_concurrent_runs": 4,
-            "default_mock_mode": False,
+            "default_env_isolation": True,
+            "cache_enabled": True,
             "editor_settings": {
                 "font_size": 14,
                 "line_numbers": True,

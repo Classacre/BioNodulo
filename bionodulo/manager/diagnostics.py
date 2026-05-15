@@ -14,6 +14,53 @@ from bionodulo.nodes.base import BaseNode
 
 logger = logging.getLogger(__name__)
 
+
+def _check_r_packages_env_aware(packages: list[str]) -> dict[str, dict[str, Any]]:
+    """Check R package availability across conda envs and system PATH."""
+    r_script = "cat(paste(sapply(c(" + ",".join('{p}' for p in packages) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse=\"\\n\"))"
+    available_anywhere: dict[str, bool] = {}
+
+    def _check(cmd: list[str]) -> None:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            for line in result.stdout.strip().split("\n"):
+                if ":" in line:
+                    pkg_name, available = line.strip().rsplit(":", 1)
+                    if available.strip().lower() == "true":
+                        available_anywhere[pkg_name] = True
+
+    # Try conda envs
+    try:
+        from bionodulo.manager.runtime_installer import get_micromamba_path
+        mamba = get_micromamba_path()
+        if mamba:
+            for env_name in ["bionodulo-r", "bionodulo-tools"]:
+                try:
+                    check = subprocess.run(
+                        [str(mamba), "run", "-n", env_name, "Rscript", "--version"],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    if check.returncode == 0:
+                        _check([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script])
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Fallback to system PATH
+    try:
+        _check(["Rscript", "-e", r_script])
+    except Exception:
+        pass
+
+    results: dict[str, dict[str, Any]] = {}
+    for pkg in packages:
+        if available_anywhere.get(pkg):
+            results[pkg] = {"available": True}
+        else:
+            results[pkg] = {"available": False, "error": "Not installed in any R environment"}
+    return results
+
 # Known bioinformatics executables with their package names
 KNOWN_EXECUTABLES: dict[str, str] = {
     "bwa": "bwa",
@@ -97,35 +144,15 @@ def diagnose_workflow(nodes: list[type[BaseNode]]) -> dict[str, Any]:
         if not available:
             all_available = False
 
-    # Check R packages
+    # Check R packages across all R environments
     r_results: dict[str, dict[str, Any]] = {}
     r_available = True
     if required_r:
-        try:
-            import subprocess
-            r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in sorted(required_r)) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
-            result = subprocess.run(
-                ["Rscript", "-e", r_script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
-                    if ":" in line:
-                        pkg_name, available_str = line.strip().rsplit(":", 1)
-                        available = available_str.strip().lower() == "true"
-                        r_results[pkg_name] = {"available": available}
-                        if not available:
-                            r_available = False
-            else:
+        r_results = _check_r_packages_env_aware(list(required_r))
+        for info in r_results.values():
+            if not info.get("available"):
                 r_available = False
-                for pkg in sorted(required_r):
-                    r_results[pkg] = {"available": False, "error": "Rscript not available"}
-        except Exception as exc:
-            r_available = False
-            for pkg in sorted(required_r):
-                r_results[pkg] = {"available": False, "error": str(exc)}
+                break
 
     return {
         "all_available": all_available and r_available,
@@ -158,37 +185,14 @@ def environment_status() -> dict[str, Any]:
             "conda_package": package,
         }
 
-    # Check common bioinformatics R packages
+    # Check common bioinformatics R packages across all environments
     r_packages_check = [
         "ggplot2", "dplyr", "tidyr", "readr", "pheatmap",
         "DESeq2", "edgeR", "limma", "Biostrings", "GenomicRanges",
         "ape", "vegan", "ComplexHeatmap",
     ]
-    r_results: dict[str, dict[str, Any]] = {}
-    r_available_count = 0
-    try:
-        import subprocess
-        r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in r_packages_check) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
-        result = subprocess.run(
-            ["Rscript", "-e", r_script],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            for line in result.stdout.strip().split("\n"):
-                if ":" in line:
-                    pkg_name, available_str = line.strip().rsplit(":", 1)
-                    available = available_str.strip().lower() == "true"
-                    if available:
-                        r_available_count += 1
-                    r_results[pkg_name] = {"available": available}
-        else:
-            for pkg in r_packages_check:
-                r_results[pkg] = {"available": False, "error": "Rscript failed"}
-    except Exception as exc:
-        for pkg in r_packages_check:
-            r_results[pkg] = {"available": False, "error": str(exc)}
+    r_results = _check_r_packages_env_aware(r_packages_check)
+    r_available_count = sum(1 for info in r_results.values() if info.get("available"))
 
     total_available = available_count + r_available_count
     total_known = len(KNOWN_EXECUTABLES) + len(r_packages_check)
@@ -227,3 +231,29 @@ def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
         f"micromamba install -c bioconda -c conda-forge "
         f"{' '.join(sorted(missing_packages))}"
     )
+
+
+def host_diagnostics() -> dict[str, Any]:
+    """Return host-level diagnostics: system info and tool availability."""
+    import platform
+    import psutil
+
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    env_status = environment_status()
+
+    return {
+        "platform": platform.platform(),
+        "cpu_count": psutil.cpu_count(),
+        "memory": {
+            "total_gb": round(mem.total / (1024 ** 3), 2),
+            "available_gb": round(mem.available / (1024 ** 3), 2),
+            "percent_used": mem.percent,
+        },
+        "disk": {
+            "total_gb": round(disk.total / (1024 ** 3), 2),
+            "free_gb": round(disk.free / (1024 ** 3), 2),
+            "percent_used": round((disk.used / disk.total) * 100, 2),
+        },
+        "tools": env_status,
+    }

@@ -14,6 +14,7 @@ class Kraken2Node(CommandNode):
     """Taxonomic classification with Kraken2."""
     NODE_ID = "kraken2"
     DISPLAY_NAME = "Kraken2"
+    REQUIRED_CONDA_PACKAGES = ['kraken2']
     CATEGORY = "metagenomics"
     DESCRIPTION = "Ultra-fast taxonomic classification of metagenomic reads"
     SEARCH_ALIASES = ["kraken2", "classify", "taxonomy", "metagenomics"]
@@ -79,6 +80,7 @@ class Kraken2BuildNode(CommandNode):
     RETURN_TYPES = ("DIRECTORY",)
     RETURN_NAMES = ("db",)
     REQUIRED_EXECUTABLES = ["kraken2-build"]
+    REQUIRED_CONDA_PACKAGES = ['kraken2']
     DOCUMENTATION_URL = "https://ccb.jhu.edu/software/kraken2/"
     VERSION = "2.1.3"
     COMMAND = [
@@ -106,6 +108,7 @@ class BrackenNode(CommandNode):
     """Abundance estimation with Bracken."""
     NODE_ID = "bracken"
     DISPLAY_NAME = "Bracken"
+    REQUIRED_CONDA_PACKAGES = ['bracken']
     CATEGORY = "metagenomics"
     DESCRIPTION = "Bayesian Re-estimation of Abundance after classification with Kraken"
     SEARCH_ALIASES = ["bracken", "abundance", "kraken", "metagenomics"]
@@ -144,6 +147,7 @@ class MetaPhlAnNode(CommandNode):
     """Taxonomic profiling with MetaPhlAn."""
     NODE_ID = "metaphlan"
     DISPLAY_NAME = "MetaPhlAn"
+    REQUIRED_CONDA_PACKAGES = ['metaphlan']
     CATEGORY = "metagenomics"
     DESCRIPTION = "Metagenomic Phylogenetic Analysis for taxonomic profiling"
     SEARCH_ALIASES = ["metaphlan", "profile", "taxonomy", "metagenomics"]
@@ -193,6 +197,7 @@ class HUMAnNNode(CommandNode):
     """Functional profiling with HUMAnN."""
     NODE_ID = "humann"
     DISPLAY_NAME = "HUMAnN"
+    REQUIRED_CONDA_PACKAGES = ['humann']
     CATEGORY = "metagenomics"
     DESCRIPTION = "Functional profiling of microbial communities"
     SEARCH_ALIASES = ["humann", "functional", "pathway", "gene family"]
@@ -236,6 +241,7 @@ class MaxBinNode(CommandNode):
     RETURN_TYPES = ("BINS",)
     RETURN_NAMES = ("bins",)
     REQUIRED_EXECUTABLES = ["run_MaxBin.pl"]
+    REQUIRED_CONDA_PACKAGES = ['maxbin2']
     DOCUMENTATION_URL = "https://sourceforge.net/projects/maxbin/"
     VERSION = "2.2.7"
     COMMAND = [
@@ -274,6 +280,7 @@ class CheckMNode(CommandNode):
     RETURN_TYPES = ("STATS_FILE",)
     RETURN_NAMES = ("quality_report",)
     REQUIRED_EXECUTABLES = ["checkm"]
+    REQUIRED_CONDA_PACKAGES = ['checkm-genome']
     DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
     VERSION = "1.2.2"
     COMMAND = [

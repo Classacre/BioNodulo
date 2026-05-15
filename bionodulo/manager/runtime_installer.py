@@ -8,11 +8,15 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
+
+# Type alias for progress emit callback
+EmitCallback = Callable[[str, dict[str, Any]], Any]
 
 # Default paths for managed micromamba installation
 _DEFAULT_ROOT = Path.home() / ".local" / "share" / "bionodulo"
@@ -40,20 +44,46 @@ def managed_micromamba_path() -> Path:
     return managed_micromamba_root() / _MICROMAMBA_BIN
 
 
+def get_micromamba_path() -> Path | None:
+    """Get the path to the micromamba executable to use.
+
+    Prefers the system installation on PATH, then falls back to the
+    managed installation in ~/.local/share/bionodulo.
+
+    Returns:
+        Path to the executable, or None if not found anywhere.
+    """
+    sys_path = shutil.which("micromamba") or shutil.which("mamba") or shutil.which("conda")
+    if sys_path:
+        return Path(sys_path)
+    managed = managed_micromamba_path()
+    if managed.exists():
+        return managed
+    return None
+
+
 def is_micromamba_installed() -> bool:
     """Check if micromamba is already installed (system or managed).
 
     Returns:
         True if micromamba is available on PATH or in the managed location.
     """
-    if shutil.which("micromamba") is not None:
-        return True
-    return managed_micromamba_path().exists()
+    return get_micromamba_path() is not None
+
+
+def _emit_log(emit: EmitCallback | None, level: str, message: str) -> None:
+    """Emit a log event if a callback is provided."""
+    if emit is not None:
+        try:
+            emit(level, {"message": message, "source": "micromamba-installer"})
+        except Exception:
+            pass
 
 
 def install_managed_micromamba(
     prefix: Path | None = None,
     force: bool = False,
+    emit: EmitCallback | None = None,
 ) -> bool:
     """Automatically install micromamba to a managed location.
 
@@ -62,20 +92,21 @@ def install_managed_micromamba(
     Args:
         prefix: Override the installation prefix.
         force: Re-install even if already present.
+        emit: Optional callback for progress events. Called with (level, data).
 
     Returns:
         True if installation succeeded or was already present.
     """
-    import shutil
-
     root = prefix or managed_micromamba_root()
     bin_path = root / _MICROMAMBA_BIN
 
     if bin_path.exists() and not force:
         logger.info("micromamba already installed at %s", bin_path)
+        _emit_log(emit, "info", f"micromamba already installed at {bin_path}")
         return True
 
     logger.info("Installing micromamba to %s", root)
+    _emit_log(emit, "info", f"Starting micromamba installation to {root}")
     root.mkdir(parents=True, exist_ok=True)
 
     # Determine platform for download URL
@@ -86,31 +117,35 @@ def install_managed_micromamba(
     elif system == "Darwin":
         plat = "osx-64" if machine != "arm64" else "osx-arm64"
     else:
-        logger.error("Unsupported platform: %s %s", system, machine)
+        err = f"Unsupported platform: {system} {machine}"
+        logger.error(err)
+        _emit_log(emit, "error", err)
         return False
 
     url = f"https://micro.mamba.pm/api/micromamba/{plat}/latest"
 
     try:
-        # Download and extract micromamba
         import tarfile
         import urllib.request
 
         tar_path = root / "micromamba.tar.bz2"
         logger.info("Downloading micromamba from %s", url)
+        _emit_log(emit, "info", f"Downloading micromamba from {url} ...")
         urllib.request.urlretrieve(url, tar_path)
 
+        _emit_log(emit, "info", "Download complete. Extracting archive...")
         with tarfile.open(tar_path, "r:bz2") as tf:
             tf.extractall(root)
 
         tar_path.unlink(missing_ok=True)
 
         if bin_path.exists():
-            # Make executable
             bin_path.chmod(0o755)
-            logger.info("micromamba installed successfully at %s", bin_path)
+            msg = f"micromamba installed successfully at {bin_path}"
+            logger.info(msg)
+            _emit_log(emit, "success", msg)
 
-            # Initialize shell
+            _emit_log(emit, "info", "Initializing shell integration...")
             init_result = subprocess.run(
                 [str(bin_path), "shell", "init", "-s", "bash", "-r", str(root)],
                 capture_output=True,
@@ -118,14 +153,21 @@ def install_managed_micromamba(
             )
             if init_result.returncode != 0:
                 logger.warning("Shell init output: %s", init_result.stderr)
+                _emit_log(emit, "warn", f"Shell init warning: {init_result.stderr[:200]}")
+            else:
+                _emit_log(emit, "info", "Shell integration initialized.")
 
             return True
         else:
-            logger.error("micromamba binary not found after extraction: %s", bin_path)
+            err = f"micromamba binary not found after extraction: {bin_path}"
+            logger.error(err)
+            _emit_log(emit, "error", err)
             return False
 
     except Exception as exc:
-        logger.error("Failed to install micromamba: %s", exc)
+        err = f"Failed to install micromamba: {exc}"
+        logger.error(err)
+        _emit_log(emit, "error", err)
         return False
 
 

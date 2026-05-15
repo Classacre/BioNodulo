@@ -13,6 +13,7 @@ class HPCSubmitJobNode(CommandNode):
     """Submit a job to an HPC cluster."""
     NODE_ID = "hpc_submit_job"
     DISPLAY_NAME = "HPC Submit Job"
+    REQUIRED_CONDA_PACKAGES = []
     CATEGORY = "hpc"
     DESCRIPTION = "Submit a workflow job to a configured HPC cluster (SLURM, PBS, SGE)"
     SEARCH_ALIASES = ["hpc", "submit", "slurm", "pbs", "sge", "cluster", "batch"]
@@ -41,7 +42,7 @@ class HPCSubmitJobNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> tuple:
         """Override to submit via HPC adapter if available."""
-        context = kwargs.get("_context")
+        context = kwargs.get("context")
         if context and hasattr(context, "hpc_adapter"):
             adapter = context.hpc_adapter
             job_id = await adapter.submit(
@@ -55,9 +56,11 @@ class HPCSubmitJobNode(CommandNode):
                 account=kwargs.get("account"),
             )
             return (job_id,)
-        # Fallback: return a mock job ID
-        import uuid
-        return (f"mock-job-{uuid.uuid4().hex[:8]}",)
+        raise RuntimeError(
+            "HPC submission failed: could not connect to any job scheduler. "
+            "Please verify that you are on a cluster node with a supported "
+            "scheduler (Slurm, PBS/Torque, SGE)."
+        )
 
 
 class HPCCheckStatusNode(CommandNode):
@@ -85,7 +88,7 @@ class HPCCheckStatusNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> tuple:
         """Override to check status via HPC adapter if available."""
-        context = kwargs.get("_context")
+        context = kwargs.get("context")
         if context and hasattr(context, "hpc_adapter"):
             adapter = context.hpc_adapter
             status = await adapter.status(

@@ -49,6 +49,35 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
           </SettingRow>
         </div>
 
+        {/* Cache */}
+        <div className="settings-group">
+          <div className="settings-group-title">Cache</div>
+          <SettingRow label="Enable Cache" desc="Cache workflow node results between runs">
+            <div className={`toggle ${get('bionodulo.cacheEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.cacheEnabled')} />
+          </SettingRow>
+          <SettingRow label="Clear Cache" desc="Delete all cached execution results">
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '4px 12px', fontSize: 12 }}
+              onClick={async () => {
+                try {
+                  const r = await fetch('/api/cache/clear', { method: 'POST' });
+                  if (r.ok) {
+                    const data = await r.json();
+                    alert(`Cache cleared (${data.entries_deleted || 0} entries deleted)`);
+                  } else {
+                    alert('Failed to clear cache');
+                  }
+                } catch {
+                  alert('Failed to clear cache (server unreachable)');
+                }
+              }}
+            >
+              Clear
+            </button>
+          </SettingRow>
+        </div>
+
         {/* Execution */}
         <div className="settings-group">
           <div className="settings-group-title">Execution</div>

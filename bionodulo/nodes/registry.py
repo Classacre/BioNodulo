@@ -298,6 +298,8 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "python_class": f"{node_class.__module__}.{node_class.__name__}",
         "git_url": node_class.GIT_URL,
         "git_commit": node_class.GIT_COMMIT,
+        "required_executables": getattr(node_class, "REQUIRED_EXECUTABLES", []),
+        "required_conda_packages": getattr(node_class, "REQUIRED_CONDA_PACKAGES", []),
         "required_r_packages": getattr(node_class, "REQUIRED_R_PACKAGES", []),
     }
 

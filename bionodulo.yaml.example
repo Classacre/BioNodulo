@@ -62,7 +62,6 @@ llm:
 
 # Execution settings
 execution:
-  mock_tools_default: false
   stop_on_error: true
   max_parallel_jobs: 4
 

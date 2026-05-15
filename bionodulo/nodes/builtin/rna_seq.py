@@ -14,6 +14,7 @@ class SalmonIndexNode(CommandNode):
     """Build Salmon transcriptome index."""
     NODE_ID = "salmon_index"
     DISPLAY_NAME = "Salmon Index"
+    REQUIRED_CONDA_PACKAGES = ['salmon']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Build Salmon quasi-mapping index for transcripts"
     SEARCH_ALIASES = ["salmon", "index", "transcriptome", "quant"]
@@ -49,6 +50,7 @@ class SalmonQuantNode(CommandNode):
     """Quantify transcripts with Salmon."""
     NODE_ID = "salmon_quant"
     DISPLAY_NAME = "Salmon Quant"
+    REQUIRED_CONDA_PACKAGES = ['salmon']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Transcript-level quantification with Salmon"
     SEARCH_ALIASES = ["salmon", "quant", "expression", "tpm", "counts"]
@@ -107,7 +109,7 @@ class SalmonQuantNode(CommandNode):
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [od / "quant.sf"]
 
 
@@ -115,6 +117,7 @@ class KallistoIndexNode(CommandNode):
     """Build Kallisto transcriptome index."""
     NODE_ID = "kallisto_index"
     DISPLAY_NAME = "Kallisto Index"
+    REQUIRED_CONDA_PACKAGES = ['kallisto']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Build Kallisto k-mer index for transcriptome"
     SEARCH_ALIASES = ["kallisto", "index", "transcriptome", "pseudoalign"]
@@ -148,6 +151,7 @@ class KallistoQuantNode(CommandNode):
     """Quantify transcripts with Kallisto."""
     NODE_ID = "kallisto_quant"
     DISPLAY_NAME = "Kallisto Quant"
+    REQUIRED_CONDA_PACKAGES = ['kallisto']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Pseudoalignment-based transcript quantification"
     SEARCH_ALIASES = ["kallisto", "quant", "expression", "pseudoalign"]
@@ -182,10 +186,18 @@ class KallistoQuantNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for Kallisto."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [od / "abundance.tsv"]
 
 
@@ -193,6 +205,7 @@ class FeatureCountsNode(CommandNode):
     """Count reads per gene with featureCounts."""
     NODE_ID = "featurecounts"
     DISPLAY_NAME = "featureCounts"
+    REQUIRED_CONDA_PACKAGES = ['subread']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Count reads mapped to genomic features"
     SEARCH_ALIASES = ["featurecounts", "counts", "gene counts", "subread"]
@@ -203,9 +216,11 @@ class FeatureCountsNode(CommandNode):
     VERSION = "2.0.6"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        # Templates may connect annotation via "annotation" or "gtf"
+        gtf = inputs.get("gtf") or inputs.get("annotation", "")
         cmd = [
             "featureCounts",
-            "-a", str(inputs.get("gtf", "")),
+            "-a", str(gtf),
             "-o", f"{inputs.get('output', '.')}/counts.txt",
             "-T", str(inputs.get("threads", 8)),
         ]
@@ -248,6 +263,7 @@ class StringTieNode(CommandNode):
     """Transcript assembly and quantification with StringTie."""
     NODE_ID = "stringtie"
     DISPLAY_NAME = "StringTie"
+    REQUIRED_CONDA_PACKAGES = ['stringtie']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Transcript assembly and quantification from RNA-seq alignments"
     SEARCH_ALIASES = ["stringtie", "assemble", "transcript", "expression"]

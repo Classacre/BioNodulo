@@ -14,6 +14,7 @@ class ProkkaNode(CommandNode):
     """Prokaryotic genome annotation with Prokka."""
     NODE_ID = "prokka"
     DISPLAY_NAME = "Prokka"
+    REQUIRED_CONDA_PACKAGES = ['prokka']
     CATEGORY = "annotation"
     DESCRIPTION = "Rapid prokaryotic genome annotation"
     SEARCH_ALIASES = ["prokka", "annotate", "bacteria", "archaea", "genome"]
@@ -28,6 +29,7 @@ class ProkkaNode(CommandNode):
         "--prefix", "{inputs.prefix}",
         "--cpus", "{inputs.threads}",
         "--kingdom", "{inputs.kingdom}",
+        "--force",
         "{inputs.assembly}",
     ]
 
@@ -54,7 +56,7 @@ class ProkkaNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         prefix = inputs.get("prefix", "genome")
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [
             od / f"{prefix}.gff",
             od / f"{prefix}.gbk",
@@ -72,6 +74,7 @@ class BaktaNode(CommandNode):
     RETURN_TYPES = ("GFF", "FAA")
     RETURN_NAMES = ("gff", "proteins")
     REQUIRED_EXECUTABLES = ["bakta"]
+    REQUIRED_CONDA_PACKAGES = ['bakta']
     DOCUMENTATION_URL = "https://github.com/oschwengers/bakta"
     VERSION = "1.9.3"
     COMMAND = [
@@ -103,7 +106,7 @@ class BaktaNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         prefix = inputs.get("prefix", "genome")
-        od = Path(output_dir) / cls.NODE_ID
+        od = Path(output_dir)
         return [
             od / f"{prefix}.gff3",
             od / f"{prefix}.faa",
@@ -120,6 +123,7 @@ class EggNOGMapperNode(CommandNode):
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("annotations",)
     REQUIRED_EXECUTABLES = ["emapper.py"]
+    REQUIRED_CONDA_PACKAGES = ['eggnog-mapper']
     DOCUMENTATION_URL = "https://github.com/eggnogdb/eggnog-mapper"
     VERSION = "2.1.12"
     COMMAND = [

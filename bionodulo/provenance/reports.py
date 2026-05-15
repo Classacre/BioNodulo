@@ -35,7 +35,6 @@ def generate_execution_report(
     nodes = run_metadata.get("nodes", {})
     failed = run_metadata.get("failed_nodes", [])
     skipped = run_metadata.get("skipped_nodes", [])
-    mock = run_metadata.get("mock", False)
     artifacts = run_metadata.get("artifacts", []) if include_artifacts else []
 
     status_color = {
@@ -85,8 +84,6 @@ def generate_execution_report(
             + (artifact_rows if artifact_rows else '<tr><td colspan="4" style="text-align:center;color:#888;">No artifacts</td></tr>')
             + "</tbody></table></div>"
         )
-
-    mock_badge = ' <span style="margin-left:8px;font-size:12px;">(MOCK MODE)</span>' if mock else ""
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -207,7 +204,6 @@ def generate_execution_report(
             <p>Run ID: <code>{html_mod.escape(run_id)}</code></p>
             <p style="margin-top: 8px;">
                 <span class="status">{html_mod.escape(status.upper())}</span>
-                {mock_badge}
             </p>
         </div>
 
@@ -292,7 +288,6 @@ def generate_provenance_report(
         "execution": {
             "run_id": run_metadata.get("run_id", ""),
             "status": run_metadata.get("status", ""),
-            "mock_execution": run_metadata.get("mock", False),
             "forced": run_metadata.get("forced", False),
             "start_time": run_metadata.get("start_time"),
             "end_time": run_metadata.get("end_time"),

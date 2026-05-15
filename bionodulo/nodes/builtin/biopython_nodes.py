@@ -42,7 +42,8 @@ class SeqIOReadNode(BaseNode):
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
         from Bio import SeqIO
 
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -111,7 +112,8 @@ class SeqIOWriteNode(BaseNode):
         from Bio.Seq import Seq
         from Bio.SeqRecord import SeqRecord
 
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -166,7 +168,8 @@ class SequenceTranslateNode(BaseNode):
         from Bio import SeqIO
         from Bio.SeqRecord import SeqRecord
 
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -219,7 +222,8 @@ class SequenceStatsNode(BaseNode):
         from Bio import SeqIO
         from Bio.SeqUtils import molecular_weight, gc_fraction
 
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -251,6 +255,7 @@ class BLASTSearchNode(BaseNode):
 
     NODE_ID = "bp_blast"
     DISPLAY_NAME = "BLAST Search"
+    REQUIRED_CONDA_PACKAGES = ['blast']
     CATEGORY = "biopython"
     DESCRIPTION = "Run local BLAST (requires blast+ installed)"
     RETURN_TYPES = ("FILE",)
@@ -278,7 +283,8 @@ class BLASTSearchNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -301,9 +307,9 @@ class BLASTSearchNode(BaseNode):
             "-out", str(out_path),
         ]
 
-        context = kwargs.pop("_context", None)
+        context = kwargs.pop("context", None)
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)
@@ -346,7 +352,8 @@ class MSAViewNode(BaseNode):
         from Bio.Seq import Seq
         from Bio.SeqRecord import SeqRecord
 
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 

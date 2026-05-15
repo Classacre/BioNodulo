@@ -16,6 +16,7 @@ class BWAIndexNode(CommandNode):
     """Build BWA index for a reference genome."""
     NODE_ID = "bwa_index"
     DISPLAY_NAME = "BWA Index"
+    REQUIRED_CONDA_PACKAGES = ['bwa']
     CATEGORY = "alignment"
     DESCRIPTION = "Build BWA MEM index for a reference FASTA"
     SEARCH_ALIASES = ["bwa", "index", "reference index"]
@@ -46,6 +47,7 @@ class BWAMemNode(CommandNode):
     """Align reads with BWA-MEM."""
     NODE_ID = "bwa_mem"
     DISPLAY_NAME = "BWA-MEM Align"
+    REQUIRED_CONDA_PACKAGES = ['bwa']
     CATEGORY = "alignment"
     DESCRIPTION = "Align paired-end reads to a reference using BWA-MEM"
     SEARCH_ALIASES = ["bwa", "mem", "align", "mapper", "map"]
@@ -103,6 +105,7 @@ class BWAIndexDirNode(CommandNode):
     """Wrap BWA index directory for passing between nodes."""
     NODE_ID = "bwa_index_dir"
     DISPLAY_NAME = "BWA Index Directory"
+    REQUIRED_CONDA_PACKAGES = ['bwa']
     CATEGORY = "alignment"
     DESCRIPTION = "Reference index directory output from BWA index"
     SEARCH_ALIASES = ["bwa index dir", "index directory"]
@@ -128,6 +131,7 @@ class Bowtie2BuildNode(CommandNode):
     """Build Bowtie2 index."""
     NODE_ID = "bowtie2_build"
     DISPLAY_NAME = "Bowtie2 Build"
+    REQUIRED_CONDA_PACKAGES = ['bowtie2']
     CATEGORY = "alignment"
     DESCRIPTION = "Build Bowtie2 index from a reference FASTA"
     SEARCH_ALIASES = ["bowtie2", "build", "index"]
@@ -161,6 +165,7 @@ class Bowtie2AlignNode(CommandNode):
     """Align reads with Bowtie2."""
     NODE_ID = "bowtie2_align"
     DISPLAY_NAME = "Bowtie2 Align"
+    REQUIRED_CONDA_PACKAGES = ['bowtie2']
     CATEGORY = "alignment"
     DESCRIPTION = "Align paired-end reads with Bowtie2"
     SEARCH_ALIASES = ["bowtie2", "align", "mapper"]
@@ -223,6 +228,7 @@ class Bowtie2IndexNode(CommandNode):
     """Inspect Bowtie2 index."""
     NODE_ID = "bowtie2_inspect"
     DISPLAY_NAME = "Bowtie2 Inspect"
+    REQUIRED_CONDA_PACKAGES = ['bowtie2']
     CATEGORY = "alignment"
     DESCRIPTION = "Inspect a Bowtie2 index and extract reference sequences"
     SEARCH_ALIASES = ["bowtie2", "inspect", "index"]
@@ -256,6 +262,7 @@ class Minimap2IndexNode(CommandNode):
     """Build Minimap2 index."""
     NODE_ID = "minimap2_index"
     DISPLAY_NAME = "Minimap2 Index"
+    REQUIRED_CONDA_PACKAGES = ['minimap2']
     CATEGORY = "alignment"
     DESCRIPTION = "Build Minimap2 index for long-read alignment"
     SEARCH_ALIASES = ["minimap2", "index", "long reads"]
@@ -289,6 +296,7 @@ class Minimap2AlignNode(CommandNode):
     """Align reads with Minimap2."""
     NODE_ID = "minimap2_align"
     DISPLAY_NAME = "Minimap2 Align"
+    REQUIRED_CONDA_PACKAGES = ['minimap2']
     CATEGORY = "alignment"
     DESCRIPTION = "Align reads to a reference with Minimap2 (long or short reads)"
     SEARCH_ALIASES = ["minimap2", "align", "long read", "pacbio", "ont"]
@@ -336,6 +344,7 @@ class HISAT2BuildNode(CommandNode):
     RETURN_TYPES = ("INDEX_DIR",)
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["hisat2-build"]
+    REQUIRED_CONDA_PACKAGES = ['hisat2']
     DOCUMENTATION_URL = "https://daehwankimlab.github.io/hisat2/"
     VERSION = "2.2.1"
     COMMAND = [
@@ -363,6 +372,7 @@ class HISAT2AlignNode(CommandNode):
     """Align RNA-seq reads with HISAT2."""
     NODE_ID = "hisat2_align"
     DISPLAY_NAME = "HISAT2 Align"
+    REQUIRED_CONDA_PACKAGES = ['hisat2']
     CATEGORY = "alignment"
     DESCRIPTION = "Align RNA-seq reads with splice-aware HISAT2"
     SEARCH_ALIASES = ["hisat2", "align", "rna-seq", "spliced"]
@@ -427,6 +437,7 @@ class STARIndexNode(CommandNode):
     """Build STAR genome index."""
     NODE_ID = "star_index"
     DISPLAY_NAME = "STAR Index"
+    REQUIRED_CONDA_PACKAGES = ['star']
     CATEGORY = "alignment"
     DESCRIPTION = "Build STAR splice-aware genome index for RNA-seq"
     SEARCH_ALIASES = ["star", "index", "genome", "rna-seq"]
@@ -465,6 +476,7 @@ class STARAlignNode(CommandNode):
     """Align RNA-seq reads with STAR."""
     NODE_ID = "star_align"
     DISPLAY_NAME = "STAR Align"
+    REQUIRED_CONDA_PACKAGES = ['star']
     CATEGORY = "alignment"
     DESCRIPTION = "Align RNA-seq reads with 2-pass STAR"
     SEARCH_ALIASES = ["star", "align", "rna-seq"]

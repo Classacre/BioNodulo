@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -25,7 +26,17 @@ def create_app() -> FastAPI:
     if "BIONODULO_ROOT" not in os.environ:
         project_dir = Path(__file__).resolve().parent
         default_root = (project_dir / "workspace").resolve()
+        # Many bioinformatics tools cannot handle spaces in paths.
+        # Use a space-free fallback under the home directory.
+        if " " in str(default_root):
+            default_root = (Path.home() / ".bionodulo" / "workspace").resolve()
         os.environ["BIONODULO_ROOT"] = str(default_root)
+        # Symlink examples into the workspace so templates can resolve them
+        examples_src = project_dir / "examples"
+        examples_dst = default_root / "examples"
+        if examples_src.exists() and not examples_dst.exists():
+            default_root.mkdir(parents=True, exist_ok=True)
+            os.symlink(str(examples_src), str(examples_dst))
 
     app = FastAPI(
         title="BioNodulo",
@@ -58,11 +69,17 @@ def create_app() -> FastAPI:
     executor = WorkflowExecutor(
         workspace_dir=settings.project_root,
         cache_dir=settings.cache_dir,
+        registry=registry,
+        settings=settings,
     )
+
+    def _emit_to_hub(event_type: str, data: dict[str, Any]) -> None:
+        asyncio.create_task(event_hub.emit_typed(event_type, data))
+
     run_queue = RunQueue(
         executor=executor,
         max_concurrent=settings.execution.max_workers,
-        emit=event_hub.emit,
+        emit=_emit_to_hub,
     )
 
     # Settings manager
@@ -77,7 +94,10 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def startup() -> None:
-        pass  # RunQueue worker auto-starts on first submit
+        # Note: micromamba installation is surfaced via /api/host_status
+        # and handled by the frontend so the user is aware of it.
+        # RunQueue worker auto-starts on first submit
+        pass
 
     @app.on_event("shutdown")
     async def shutdown() -> None:

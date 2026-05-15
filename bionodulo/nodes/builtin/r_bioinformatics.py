@@ -18,6 +18,7 @@ class DESeq2Node(BaseNode):
 
     NODE_ID = "deseq2_analysis"
     DISPLAY_NAME = "DESeq2 Analysis"
+    REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-deseq2', 'r-ggplot2', 'r-readr']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Differential expression analysis using DESeq2 (requires count matrix + sample metadata)"
     RETURN_TYPES = ("FILE", "FILE", "FILE")
@@ -44,8 +45,8 @@ class DESeq2Node(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,7 +110,7 @@ class DESeq2Node(BaseNode):
 
         cmd = ["Rscript", str(script_path)]
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)
@@ -130,6 +131,7 @@ class PheatmapNode(BaseNode):
 
     NODE_ID = "r_pheatmap"
     DISPLAY_NAME = "R Heatmap (pheatmap)"
+    REQUIRED_CONDA_PACKAGES = ['r-base', 'r-pheatmap', 'r-rcolorbrewer', 'r-readr']
     CATEGORY = "r"
     DESCRIPTION = "Generate publication-quality clustered heatmaps with pheatmap"
     RETURN_TYPES = ("FILE",)
@@ -163,8 +165,8 @@ class PheatmapNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -214,7 +216,7 @@ class PheatmapNode(BaseNode):
 
         cmd = ["Rscript", str(script_path)]
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)
@@ -235,6 +237,7 @@ class BiostringsStatsNode(BaseNode):
 
     NODE_ID = "r_biostrings_stats"
     DISPLAY_NAME = "Biostrings Stats"
+    REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-biostrings', 'r-readr']
     CATEGORY = "biopython"
     DESCRIPTION = "Advanced sequence stats with Biostrings: ORF finding, reverse complement, 6-frame translation"
     RETURN_TYPES = ("FILE", "FILE", "FILE")
@@ -261,8 +264,8 @@ class BiostringsStatsNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -361,7 +364,7 @@ class BiostringsStatsNode(BaseNode):
 
         cmd = ["Rscript", str(script_path)]
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)

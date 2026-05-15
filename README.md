@@ -25,8 +25,15 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 20+ (for frontend development only — pre-built frontend included)
+**Required on host PATH:**
+- **Python 3.11+** — runs the FastAPI backend
+- **micromamba** — creates isolated per-category conda environments for bioinformatics tools (auto-installed on first startup if missing)
+
+**Required only for frontend development:**
+- **Node.js 20+ + npm** — the pre-built frontend in `web/dist/` works out of the box; Node is only needed if you modify frontend code
+
+**Required only for R-based workflows:**
+- **Rscript** — needed by nodes such as DESeq2, ggplot2, pheatmap, edgeR, etc.
 
 ### Installation
 
@@ -53,9 +60,6 @@ python main.py --host 0.0.0.0 --port 8000 --project-root ./workspace
 
 # Development mode with auto-reload
 python main.py --dev
-
-# Safe mode (mock tool execution)
-python main.py --mock-tools
 
 # With custom config
 python main.py --config bionodulo.yaml
@@ -256,7 +260,6 @@ llm:
 
 # Execution settings
 execution:
-  mock_tools_default: false
   stop_on_error: true
   max_parallel_jobs: 4
 

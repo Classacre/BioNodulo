@@ -14,6 +14,7 @@ class MACS2CallpeakNode(CommandNode):
     """Call peaks from ChIP-seq data with MACS2."""
     NODE_ID = "macs2_callpeak"
     DISPLAY_NAME = "MACS2 Callpeak"
+    REQUIRED_CONDA_PACKAGES = ['macs2']
     CATEGORY = "chip_seq"
     DESCRIPTION = "Model-based Analysis of ChIP-Seq: identify transcription factor binding sites"
     SEARCH_ALIASES = ["macs2", "peak calling", "chip-seq", "binding sites"]
@@ -62,6 +63,7 @@ class BEDToolsIntersectNode(CommandNode):
     RETURN_TYPES = ("BED",)
     RETURN_NAMES = ("intersection",)
     REQUIRED_EXECUTABLES = ["bedtools"]
+    REQUIRED_CONDA_PACKAGES = ['bedtools']
     DOCUMENTATION_URL = "https://bedtools.readthedocs.io/"
     VERSION = "2.31.1"
     SHELL = True
@@ -100,6 +102,7 @@ class BEDToolsCoverageNode(CommandNode):
     RETURN_TYPES = ("BED",)
     RETURN_NAMES = ("coverage",)
     REQUIRED_EXECUTABLES = ["bedtools"]
+    REQUIRED_CONDA_PACKAGES = ['bedtools']
     DOCUMENTATION_URL = "https://bedtools.readthedocs.io/"
     VERSION = "2.31.1"
     SHELL = True
@@ -134,6 +137,7 @@ class DeepToolsBamCoverageNode(CommandNode):
     RETURN_TYPES = ("BIGWIG",)
     RETURN_NAMES = ("bigwig",)
     REQUIRED_EXECUTABLES = ["bamCoverage"]
+    REQUIRED_CONDA_PACKAGES = ['deeptools']
     DOCUMENTATION_URL = "https://deeptools.readthedocs.io/"
     VERSION = "3.5.4"
     COMMAND = [

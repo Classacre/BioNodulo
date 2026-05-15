@@ -18,14 +18,11 @@ def main() -> None:
     parser.add_argument("--project-root", type=Path, default=None, help="Project/workspace root directory")
     parser.add_argument("--config", type=Path, default=None, help="Path to config YAML file")
     parser.add_argument("--dev", action="store_true", help="Enable development mode with auto-reload")
-    parser.add_argument("--mock-tools", action="store_true", help="Mock external tool execution (safe mode)")
-    parser.add_argument("--no-mock-tools", action="store_false", dest="mock_tools", help="Execute real tools")
     parser.add_argument("--frontend-dev", action="store_true", help="Proxy frontend from vite dev server")
     parser.add_argument("--tls-keyfile", type=Path, default=None, help="Path to TLS key file for HTTPS")
     parser.add_argument("--tls-certfile", type=Path, default=None, help="Path to TLS certificate file for HTTPS")
     parser.add_argument("--cors-origins", type=str, default="*", help="CORS allowed origins (comma-separated, default: *)")
     parser.add_argument("--multi-user", action="store_true", help="Enable per-user storage isolation")
-    parser.set_defaults(mock_tools=None)
     args = parser.parse_args()
 
     project_dir = Path(__file__).resolve().parent
@@ -37,8 +34,6 @@ def main() -> None:
         os.environ["BIONODULO_ROOT"] = str(default_root)
     if args.config:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
-    if args.mock_tools is not None:
-        os.environ["BIONODULO_MOCK_TOOLS"] = "1" if args.mock_tools else "0"
 
     # Ensure project root exists
     root = Path(os.environ.get("BIONODULO_ROOT", str(project_dir / "workspace"))).resolve()
@@ -51,7 +46,7 @@ def main() -> None:
     =========================================
      Host:    {args.host}:{args.port}
      Root:    {root}
-     Mode:    {'mock (safe)' if args.mock_tools else 'real tools'}
+     Mode:    real execution with isolated environments
     =========================================
     Open http://{args.host}:{args.port} in your browser
     """)

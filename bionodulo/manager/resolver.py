@@ -14,6 +14,52 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+class _ResolverCache:
+    """Fast in-memory cache for executable checks during a single resolve call.
+
+    The resolver's main performance bottleneck is spawning subprocesses
+    (``shutil.which`` is fast, but ``executable_in_env`` shells out to
+    conda).  Many nodes share the same executables, and many envs do not
+    exist at all, so caching per-resolve eliminates redundant work.
+    """
+
+    def __init__(self) -> None:
+        self._which: dict[str, str | None] = {}
+        self._env_check: dict[tuple[str, str], bool] = {}
+        self._env_list: list[dict[str, Any]] | None = None
+
+    def which(self, exe: str) -> str | None:
+        if exe not in self._which:
+            self._which[exe] = shutil.which(exe)
+        return self._which[exe]
+
+    def _list_envs(self) -> list[dict[str, Any]]:
+        if self._env_list is None:
+            try:
+                from bionodulo.environments.manager import list_conda_envs
+                self._env_list = list_conda_envs()
+            except Exception:
+                self._env_list = []
+        return self._env_list
+
+    def env_exists(self, env_name: str) -> bool:
+        return any(e.get("name") == env_name for e in self._list_envs())
+
+    def in_env(self, exe: str, env_name: str) -> bool:
+        key = (exe, env_name)
+        if key not in self._env_check:
+            # Fast-path: if env does not exist, skip the subprocess call
+            if not self.env_exists(env_name):
+                self._env_check[key] = False
+            else:
+                try:
+                    from bionodulo.environments.manager import executable_in_env
+                    self._env_check[key] = executable_in_env(exe, env_name)
+                except Exception:
+                    self._env_check[key] = False
+        return self._env_check[key]
+
+
 @dataclass
 class MissingNode:
     """A custom node type that is not currently registered."""
@@ -27,13 +73,15 @@ class MissingNode:
 
 @dataclass
 class MissingExecutable:
-    """An external tool executable that is not on PATH."""
+    """An external tool executable that is not on PATH or incompatible."""
 
     name: str
     conda_package: str = ""
     node_types: list[str] = field(default_factory=list)
     message: str = ""
-
+    compatibility_error: str = ""
+    recommended_env: str = "bionodulo-tools"
+    category: str = "general"
 
 @dataclass
 class MissingPackage:
@@ -53,6 +101,19 @@ class MissingRPackage:
     source: str = "cran"  # cran or bioconductor
     node_types: list[str] = field(default_factory=list)
     message: str = ""
+    recommended_env: str = "bionodulo-tools"
+
+
+@dataclass
+class CompatibilityIssue:
+    """An executable that exists but cannot run on the host."""
+
+    name: str
+    path: str = ""
+    error: str = ""
+    node_types: list[str] = field(default_factory=list)
+    conda_package: str = ""
+    message: str = ""
 
 
 @dataclass
@@ -63,8 +124,10 @@ class ResolutionReport:
     missing_executables: list[MissingExecutable] = field(default_factory=list)
     missing_packages: list[MissingPackage] = field(default_factory=list)
     missing_r_packages: list[MissingRPackage] = field(default_factory=list)
+    compatibility_issues: list[CompatibilityIssue] = field(default_factory=list)
     installable: bool = True
     errors: list[str] = field(default_factory=list)
+    env_strategy: str = "shared"  # "shared" | "isolated"
 
     @property
     def has_issues(self) -> bool:
@@ -73,6 +136,7 @@ class ResolutionReport:
             or self.missing_executables
             or self.missing_packages
             or self.missing_r_packages
+            or self.compatibility_issues
             or self.errors
         )
 
@@ -107,8 +171,22 @@ class ResolutionReport:
                     "conda_package": e.conda_package,
                     "node_types": e.node_types,
                     "message": e.message,
+                    "compatibility_error": e.compatibility_error,
+                    "recommended_env": e.recommended_env,
+                    "category": e.category,
                 }
                 for e in self.missing_executables
+            ],
+            "compatibility_issues": [
+                {
+                    "name": c.name,
+                    "path": c.path,
+                    "error": c.error,
+                    "node_types": c.node_types,
+                    "conda_package": c.conda_package,
+                    "message": c.message,
+                }
+                for c in self.compatibility_issues
             ],
             "missing_packages": [
                 {
@@ -125,6 +203,7 @@ class ResolutionReport:
                     "source": p.source,
                     "node_types": p.node_types,
                     "message": p.message,
+                    "recommended_env": p.recommended_env,
                 }
                 for p in self.missing_r_packages
             ],
@@ -132,6 +211,7 @@ class ResolutionReport:
             "errors": self.errors,
             "has_issues": self.has_issues,
             "summary": self.summary,
+            "env_strategy": self.env_strategy,
         }
 
 
@@ -215,6 +295,7 @@ def resolve_workflow(
     3. Python requirements from custom node packages.
     """
     report = ResolutionReport()
+    cache = _ResolverCache()
     nodes = workflow.get("nodes", [])
     if isinstance(nodes, dict):
         nodes = list(nodes.values())
@@ -268,20 +349,40 @@ def resolve_workflow(
             )
             continue
 
-        # 2. Check required executables
+        # 2. Check required executables (fast-path first)
         executables = getattr(node_class, "REQUIRED_EXECUTABLES", [])
+        conda_packages = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
+        category = getattr(node_class, "CATEGORY", "general")
+        isolated_env_name = f"bionodulo-{category.lower().replace(' ', '_').replace('/', '_')}"
+
         for exe in executables:
-            if shutil.which(exe) is None:
-                # Guess conda package name (usually same as executable)
-                conda_pkg = exe
-                report.missing_executables.append(
-                    MissingExecutable(
-                        name=exe,
-                        conda_package=conda_pkg,
-                        node_types=[node_type],
-                        message=f"Executable '{exe}' required by '{node_type}' is not on PATH",
-                    )
+            exe_path = cache.which(exe)
+            if exe_path is not None:
+                # Found on PATH — assume OK for resolve (compatibility is checked at runtime)
+                continue
+            # Check if available in the node's isolated environment
+            if cache.in_env(exe, isolated_env_name):
+                continue
+            # Fallback: check the shared bionodulo-tools environment
+            if cache.in_env(exe, "bionodulo-tools"):
+                continue
+            # Use explicit conda package if declared, otherwise use KNOWN_EXECUTABLES mapping
+            conda_pkg = ""
+            if conda_packages:
+                conda_pkg = conda_packages[0]
+            else:
+                from bionodulo.manager.diagnostics import KNOWN_EXECUTABLES
+                conda_pkg = KNOWN_EXECUTABLES.get(exe, exe)
+            report.missing_executables.append(
+                MissingExecutable(
+                    name=exe,
+                    conda_package=conda_pkg,
+                    node_types=[node_type],
+                    message=f"Executable '{exe}' required by '{node_type}' is not on PATH or in its isolated environment",
+                    recommended_env=isolated_env_name,
+                    category=category,
                 )
+            )
 
         # 3. Check required R packages
         r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
@@ -319,51 +420,71 @@ def resolve_workflow(
             except Exception as exc:
                 logger.debug("Could not check requirements for %s: %s", node_type, exc)
 
-    # Check R packages via Rscript
+    # Check R packages via Rscript — check ALL candidate envs and consider
+    # a package available if it is found in ANY environment.
     if r_packages_to_check:
         try:
             import subprocess
-            r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in r_packages_to_check) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
-            result = subprocess.run(
-                ["Rscript", "-e", r_script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
-                    if ":" in line:
-                        pkg_name, available = line.strip().rsplit(":", 1)
-                        if available.strip().lower() != "true":
-                            source = "bioconductor" if pkg_name.lower() in {
-                                "deseq2", "edger", "limma", "biostrings", "genomicranges",
-                                "rtracklayer", "complexheatmap", "summarizedexperiment",
-                                "tximport", "ape", "phyloseq", "variantannotation",
-                            } else "cran"
-                            report.missing_r_packages.append(
-                                MissingRPackage(
-                                    name=pkg_name,
-                                    source=source,
-                                    node_types=r_packages_to_check.get(pkg_name, []),
-                                    message=f"R package '{pkg_name}' required by {', '.join(r_packages_to_check.get(pkg_name, []))} is not installed",
-                                )
-                            )
-            else:
-                # Rscript not available — report all R packages as missing
-                for pkg, node_types in r_packages_to_check.items():
-                    source = "bioconductor" if pkg.lower() in {
-                        "deseq2", "edger", "limma", "biostrings", "genomicranges",
-                        "rtracklayer", "complexheatmap", "summarizedexperiment",
-                        "tximport", "ape", "phyloseq", "variantannotation",
-                    } else "cran"
-                    report.missing_r_packages.append(
-                        MissingRPackage(
-                            name=pkg,
-                            source=source,
-                            node_types=node_types,
-                            message=f"R package '{pkg}' required by {', '.join(node_types)} — Rscript not available or check failed",
+            from bionodulo.manager.runtime_installer import get_micromamba_path
+
+            mamba = get_micromamba_path()
+            r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in r_packages_to_check) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\n'))"
+
+            # Collect available packages across all candidate envs + system PATH
+            available_anywhere: dict[str, bool] = {}
+
+            def _check_r_in_env(cmd: list[str]) -> None:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split("\n"):
+                        if ":" in line:
+                            pkg_name, available = line.strip().rsplit(":", 1)
+                            if available.strip().lower() == "true":
+                                available_anywhere[pkg_name] = True
+
+            # Check conda envs
+            if mamba:
+                for env_name in ["bionodulo-r", "bionodulo-tools"]:
+                    try:
+                        check = subprocess.run(
+                            [str(mamba), "run", "-n", env_name, "Rscript", "--version"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
                         )
+                        if check.returncode == 0:
+                            _check_r_in_env([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script])
+                    except Exception:
+                        pass
+
+            # Check system PATH as fallback
+            try:
+                _check_r_in_env(["Rscript", "-e", r_script])
+            except Exception:
+                pass
+
+            for pkg, node_types in r_packages_to_check.items():
+                if available_anywhere.get(pkg):
+                    continue
+                source = "bioconductor" if pkg.lower() in {
+                    "deseq2", "edger", "limma", "biostrings", "genomicranges",
+                    "rtracklayer", "complexheatmap", "summarizedexperiment",
+                    "tximport", "ape", "phyloseq", "variantannotation",
+                } else "cran"
+                report.missing_r_packages.append(
+                    MissingRPackage(
+                        name=pkg,
+                        source=source,
+                        node_types=node_types,
+                        message=f"R package '{pkg}' required by {', '.join(node_types)} is not installed",
+                        recommended_env="bionodulo-r",
                     )
+                )
         except Exception as exc:
             logger.debug("Could not check R packages: %s", exc)
             for pkg, node_types in r_packages_to_check.items():
@@ -378,6 +499,7 @@ def resolve_workflow(
                         source=source,
                         node_types=node_types,
                         message=f"R package '{pkg}' required by {', '.join(node_types)} — could not verify: {exc}",
+                        recommended_env="bionodulo-r",
                     )
                 )
 

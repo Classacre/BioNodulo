@@ -26,10 +26,15 @@ async def get_preview(request: Request, run_id: str, node_id: str, path: str = "
         queue = getattr(request.app.state, "run_queue", None)
         run = None
         if queue and hasattr(queue, "get_run"):
-            run = await queue.get_run(run_id)
-        if run and "previews" in run and node_id in run["previews"]:
-            path = run["previews"][node_id]
-        else:
+            run = queue.get_run(run_id)
+        if run and run.get("result"):
+            result = run["result"]
+            previews = result.get("previews", []) if isinstance(result.get("previews"), list) else []
+            for p in previews:
+                if p.get("node_id") == node_id:
+                    path = p.get("path", "")
+                    break
+        if not path:
             raise HTTPException(status_code=404, detail="Preview path not found")
 
     file_path = Path(path)

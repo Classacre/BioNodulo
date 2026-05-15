@@ -19,11 +19,20 @@ logger = logging.getLogger(__name__)
 
 
 def _find_conda_executable() -> str | None:
-    """Find micromamba, mamba, or conda executable."""
+    """Find micromamba, mamba, or conda executable.
+
+    Prefers the system PATH, then falls back to the managed micromamba
+    installation that BioNodulo can bootstrap automatically.
+    """
     for exe in ("micromamba", "mamba", "conda"):
         path = shutil.which(exe)
         if path:
             return path
+    # Fallback to managed installation
+    from bionodulo.manager.runtime_installer import get_micromamba_path
+    managed = get_micromamba_path()
+    if managed is not None:
+        return str(managed)
     return None
 
 
@@ -163,7 +172,11 @@ def delete_conda_env(name: str) -> tuple[bool, str]:
     if not exe:
         return False, "No conda executable found"
 
-    cmd = [exe, "remove", "-y", "-n", name, "--all"]
+    # Use 'env remove' for micromamba/mamba, fallback to 'remove --all' for conda
+    if "micromamba" in exe or "mamba" in exe:
+        cmd = [exe, "env", "remove", "-y", "-n", name]
+    else:
+        cmd = [exe, "remove", "-y", "-n", name, "--all"]
     try:
         result = subprocess.run(
             cmd,
@@ -314,9 +327,22 @@ def workflow_dependency_tree(
             execs = meta.get("requires_external_tools", [])
             for exe in execs:
                 on_path = shutil.which(exe) is not None
-                # Check conda envs
+                # Check node's default isolated environment
+                in_isolated_env = False
+                isolated_env_name = ""
+                try:
+                    node_cls = registry.get(node_type)
+                    if node_cls is not None:
+                        category = getattr(node_cls, "CATEGORY", "general")
+                        isolated_env_name = f"bionodulo-{category.lower().replace(' ', '_').replace('/', '_')}"
+                        if executable_in_env(exe, isolated_env_name):
+                            in_isolated_env = True
+                except Exception:
+                    pass
+
+                # Check all conda envs as fallback
                 envs_with_tool: list[str] = []
-                if not on_path:
+                if not on_path and not in_isolated_env:
                     for env in list_conda_envs():
                         if executable_in_env(exe, env["name"]):
                             envs_with_tool.append(env["name"])
@@ -327,6 +353,14 @@ def workflow_dependency_tree(
                         type="executable",
                         status="installed",
                         message="Available on PATH",
+                    ))
+                elif in_isolated_env:
+                    statuses.append(DependencyStatus(
+                        name=exe,
+                        type="executable",
+                        status="installed",
+                        message=f"Available in isolated env: {isolated_env_name}",
+                        envs=[isolated_env_name],
                     ))
                 elif envs_with_tool:
                     statuses.append(DependencyStatus(

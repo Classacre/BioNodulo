@@ -40,8 +40,8 @@ class DataFrameBuilderNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_path = output_dir / self.NODE_ID / "data.csv"
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -83,6 +83,7 @@ class RPlotNode(BaseNode):
     OUTPUT_NODE = True
     REQUIRES_EXTERNAL_TOOLS = True
     REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_CONDA_PACKAGES = ['r-base']
     REQUIRED_R_PACKAGES = ["ggplot2", "readr"]
 
     @classmethod
@@ -110,8 +111,8 @@ class RPlotNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
         png_path = out_dir / "plot.png"
@@ -129,6 +130,28 @@ class RPlotNode(BaseNode):
         height = kwargs.get("height", 600)
         custom_script = kwargs.get("custom_script", "") or ""
 
+        # Validate that configured columns exist in the CSV
+        if not custom_script.strip() and data_csv:
+            try:
+                import csv
+                with open(data_csv, newline="", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    header = next(reader, [])
+                missing = []
+                for col in [x_axis, y_axis, color_col]:
+                    if col and col not in header:
+                        missing.append(col)
+                if missing:
+                    available = ", ".join(header) if header else "(no columns found)"
+                    raise ValueError(
+                        f"Column(s) not found in data: {', '.join(missing)}. "
+                        f"Available columns: {available}"
+                    )
+            except ValueError:
+                raise
+            except Exception:
+                pass  # If we can't read the CSV, let R handle the error
+
         if custom_script.strip():
             script = custom_script
         else:
@@ -142,7 +165,7 @@ class RPlotNode(BaseNode):
         cmd = ["Rscript", str(script_path)]
 
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)
@@ -171,42 +194,55 @@ class RPlotNode(BaseNode):
         height: int,
         png_path: Path,
     ) -> str:
+        def r_name(name: str) -> str:
+            """Quote column names for R so non-syntactic names (spaces, dashes) work."""
+            return f"`{name}`" if name and not name.isidentifier() else name
+
         safe_title = title.replace('"', '\\"')
         safe_x = x_label.replace('"', '\\"') or x_axis
         safe_y = y_label.replace('"', '\\"') or y_axis
-        color_aes = f'color = {color_col}' if color_col else ""
-        fill_aes = f'fill = {color_col}' if color_col else ""
+        rx = r_name(x_axis)
+        ry = r_name(y_axis)
+        rc = r_name(color_col) if color_col else ""
 
-        base = textwrap.dedent(f"""\
-            if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Package 'ggplot2' is required but not installed. Install it with: install.packages('ggplot2')")
-            if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed. Install it with: install.packages('readr')")
-            library(ggplot2)
-            library(readr)
-            data <- read_csv("{Path(data_csv).as_posix()}")
-            p <- ggplot(data, aes(x = {x_axis}, y = {y_axis}))
-        """)
+        # Plot types that only need an x aesthetic
+        x_only_types = {"histogram", "density"}
+
+        if plot_type in x_only_types:
+            base_aes = f"aes(x = {rx})"
+        elif plot_type == "heatmap":
+            base_aes = f"aes(x = {rx}, y = {ry}, fill = {rc})" if rc else f"aes(x = {rx}, y = {ry})"
+        else:
+            base_aes = f"aes(x = {rx}, y = {ry})"
 
         if plot_type == "scatter":
-            layer = f"geom_point({f'aes(color = {color_col})' if color_col else ''})"
+            layer = f"geom_point({f'aes(color = {rc})' if rc else ''})"
         elif plot_type == "line":
-            layer = f"geom_line({f'aes(color = {color_col})' if color_col else ''}) + geom_point()"
+            layer = f"geom_line({f'aes(color = {rc})' if rc else ''}) + geom_point()"
         elif plot_type == "bar":
-            layer = f"geom_bar(stat = 'identity'{f', aes(fill = {color_col})' if color_col else ''})"
+            layer = f"geom_bar(stat = 'identity'{f', aes(fill = {rc})' if rc else ''})"
         elif plot_type == "histogram":
-            layer = f"geom_histogram(bins = 30{color_aes and f', aes({color_aes})' or ''})"
+            layer = f"geom_histogram(bins = 30{f', aes(fill = {rc})' if rc else ''})"
         elif plot_type == "boxplot":
-            layer = f"geom_boxplot({f'aes(fill = {color_col})' if color_col else ''})"
+            layer = f"geom_boxplot({f'aes(fill = {rc})' if rc else ''})"
         elif plot_type == "density":
-            layer = f"geom_density({f'aes({color_aes})' if color_col else ''})"
+            layer = f"geom_density({f'aes(color = {rc})' if rc else ''})"
         elif plot_type == "heatmap":
             layer = "geom_tile()"
         else:
             layer = "geom_point()"
 
-        script = f"""{base}p + {layer} + labs(title = "{safe_title}", x = "{safe_x}", y = "{safe_y}") +
-            theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
-ggsave("{png_path.as_posix()}", plot = p, width = {width / 100}, height = {height / 100}, dpi = 100, units = "in")
-"""
+        script = textwrap.dedent(f"""\
+            if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Package 'ggplot2' is required but not installed. Install it with: install.packages('ggplot2')")
+            if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed. Install it with: install.packages('readr')")
+            library(ggplot2)
+            library(readr)
+            data <- read_csv("{Path(data_csv).as_posix()}")
+            p <- ggplot(data, {base_aes}) + {layer} +
+                labs(title = "{safe_title}", x = "{safe_x}", y = "{safe_y}") +
+                theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+            ggsave("{png_path.as_posix()}", plot = p, width = {width / 100}, height = {height / 100}, dpi = 100, units = "in")
+        """)
         return script
 
 
@@ -215,6 +251,7 @@ class RScriptNode(BaseNode):
 
     NODE_ID = "r_script"
     DISPLAY_NAME = "R Script"
+    REQUIRED_CONDA_PACKAGES = ['r-base']
     CATEGORY = "r"
     DESCRIPTION = "Execute an arbitrary R script"
     RETURN_TYPES = ("FILE",)
@@ -235,8 +272,8 @@ class RScriptNode(BaseNode):
         }
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
-        context = kwargs.pop("_context", None)
-        output_dir = Path(kwargs.pop("_output_dir", "."))
+        context = kwargs.pop("context", None)
+        output_dir = Path(getattr(context, "node_dir", ".") if context else ".")
         out_dir = output_dir / self.NODE_ID
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -248,7 +285,7 @@ class RScriptNode(BaseNode):
             cmd.extend(args.split())
 
         if context is not None and hasattr(context, "run_command"):
-            result = await context.run_command(cmd, cwd=str(out_dir), node_id=self.NODE_ID)
+            result = await context.run_command(cmd, cwd=str(out_dir))
         else:
             import asyncio
             proc = await asyncio.create_subprocess_exec(*cmd)

@@ -56,6 +56,8 @@ export interface WorkflowNode {
     pinned?: boolean;
     muted?: boolean;
     bypassed?: boolean;
+    width?: number;
+    height?: number;
   };
 }
 
@@ -125,6 +127,7 @@ export interface LogEntry {
   level: 'info' | 'warn' | 'error' | 'success';
   message: string;
   timestamp: string;
+  detail?: string;
 }
 
 export interface ManagerStatus {
@@ -205,6 +208,8 @@ export interface MissingExecutable {
   conda_package: string;
   node_types: string[];
   message: string;
+  recommended_env?: string;
+  category?: string;
 }
 
 export interface MissingPackage {
@@ -214,14 +219,24 @@ export interface MissingPackage {
   message: string;
 }
 
+export interface MissingRPackage {
+  name: string;
+  source: string;
+  node_types: string[];
+  message: string;
+  recommended_env?: string;
+}
+
 export interface ResolveReport {
   missing_nodes: MissingNode[];
   missing_executables: MissingExecutable[];
   missing_packages: MissingPackage[];
+  missing_r_packages: MissingRPackage[];
   installable: boolean;
   errors: string[];
   has_issues: boolean;
   summary: string;
+  env_strategy?: string;
 }
 
 export interface InstallJobStatus {
@@ -244,4 +259,20 @@ export interface TemplateInfo {
   tools: string[];
   node_count: number;
   filename: string;
+}
+
+export interface HostCheck {
+  available: boolean;
+  path: string | null;
+  required: boolean;
+  auto_installable: boolean;
+  description: string;
+}
+
+export interface HostStatus {
+  ready: boolean;
+  checks: Record<string, HostCheck>;
+  missing_required: string[];
+  missing_optional: string[];
+  message: string;
 }

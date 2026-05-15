@@ -13,6 +13,7 @@ class CellRangerCountNode(CommandNode):
     """Run Cell Ranger count for 10x Genomics scRNA-seq."""
     NODE_ID = "cellranger_count"
     DISPLAY_NAME = "Cell Ranger Count"
+    REQUIRED_CONDA_PACKAGES = ['cellranger']
     CATEGORY = "single_cell"
     DESCRIPTION = "Align 10x Genomics scRNA-seq reads and generate feature-barcode matrix"
     SEARCH_ALIASES = ["cellranger", "10x", "scrna", "count", "single cell"]
@@ -53,6 +54,7 @@ class CellRangerMkrefNode(CommandNode):
     """Build Cell Ranger reference transcriptome."""
     NODE_ID = "cellranger_mkref"
     DISPLAY_NAME = "Cell Ranger mkref"
+    REQUIRED_CONDA_PACKAGES = ['cellranger']
     CATEGORY = "single_cell"
     DESCRIPTION = "Build a Cell Ranger compatible reference transcriptome"
     SEARCH_ALIASES = ["cellranger", "mkref", "reference", "transcriptome", "10x"]

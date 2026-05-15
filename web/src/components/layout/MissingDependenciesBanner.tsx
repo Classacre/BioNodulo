@@ -5,26 +5,46 @@ import type { ResolveReport, InstallJobStatus } from '../../types';
 interface Props {
   report: ResolveReport;
   onDismiss: () => void;
+  onOpenConsole: () => void;
+  onResolve: () => void;
 }
 
-export default function MissingDependenciesBanner({ report, onDismiss }: Props) {
+type EnvStrategy = 'shared' | 'isolated';
+
+export default function MissingDependenciesBanner({ report, onDismiss, onOpenConsole, onResolve }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [jobStatus, setJobStatus] = useState<InstallJobStatus | null>(null);
+  const [strategy, setStrategy] = useState<EnvStrategy>('shared');
+  const [showStrategyMenu, setShowStrategyMenu] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const totalMissing =
     report.missing_nodes.length +
     report.missing_executables.length +
-    report.missing_packages.length;
+    report.missing_packages.length +
+    report.missing_r_packages.length;
+
+  // Close strategy menu on outside click
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowStrategyMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   const startInstall = useCallback(async () => {
     setInstalling(true);
+    onOpenConsole();
     try {
       const r = await fetch('/api/manager/install-deps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ report }),
+        body: JSON.stringify({ report, env_strategy: strategy }),
       });
       if (!r.ok) {
         setInstalling(false);
@@ -44,6 +64,8 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
               if (pollRef.current) clearInterval(pollRef.current);
               pollRef.current = null;
               setInstalling(false);
+              // Small delay so the filesystem / conda index has time to settle
+              setTimeout(() => onResolve(), 1000);
             }
           }
         } catch { /* ignore */ }
@@ -51,7 +73,7 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
     } catch {
       setInstalling(false);
     }
-  }, [report]);
+  }, [report, onOpenConsole, onResolve, strategy]);
 
   useEffect(() => {
     return () => {
@@ -60,6 +82,10 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
   }, []);
 
   const summary = report.summary || `${totalMissing} missing`;
+
+  const strategyLabel = strategy === 'shared'
+    ? 'Install to bionodulo-tools'
+    : 'Create isolated environments';
 
   return (
     <div className="dep-banner">
@@ -72,9 +98,38 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
         </span>
         <div className="dep-banner-actions">
           {report.installable && !installing && (
-            <button className="btn btn-primary btn-sm" onClick={startInstall}>
-              <Icon name="download" size={12} /> Auto Install
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} ref={menuRef}>
+              <button className="btn btn-primary btn-sm" onClick={startInstall}>
+                <Icon name="download" size={12} /> Auto Install
+              </button>
+              <button
+                className="btn btn-sm btn-ghost"
+                style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setShowStrategyMenu(v => !v)}
+                title={strategyLabel}
+              >
+                <span style={{ fontSize: 11 }}>{strategyLabel}</span>
+                <Icon name="chevronDown" size={12} />
+              </button>
+              {showStrategyMenu && (
+                <div className="dropdown-menu" style={{ right: 0, top: '100%', marginTop: 4, minWidth: 220 }}>
+                  <div
+                    className={`dropdown-item ${strategy === 'shared' ? 'active' : ''}`}
+                    onClick={() => { setStrategy('shared'); setShowStrategyMenu(false); }}
+                  >
+                    <div style={{ fontWeight: 500 }}>Install to bionodulo-tools</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Shared environment (faster for single tools)</div>
+                  </div>
+                  <div
+                    className={`dropdown-item ${strategy === 'isolated' ? 'active' : ''}`}
+                    onClick={() => { setStrategy('isolated'); setShowStrategyMenu(false); }}
+                  >
+                    <div style={{ fontWeight: 500 }}>Create isolated environments</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>One env per category (avoids conflicts)</div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {installing && jobStatus && (
             <div className="dep-banner-progress">
@@ -124,6 +179,9 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
                     {e.conda_package && e.conda_package !== e.name && (
                       <span className="dep-banner-source"> (conda: {e.conda_package})</span>
                     )}
+                    {e.recommended_env && e.recommended_env !== 'bionodulo-tools' && (
+                      <span className="dep-banner-msg"> → {e.recommended_env}</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -137,6 +195,22 @@ export default function MissingDependenciesBanner({ report, onDismiss }: Props) 
                   <li key={p.name}>
                     <code>{p.name}</code>
                     <span className="dep-banner-source"> ({p.source})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {report.missing_r_packages.length > 0 && (
+            <div className="dep-banner-section">
+              <h4>Missing R Packages ({report.missing_r_packages.length})</h4>
+              <ul>
+                {report.missing_r_packages.map(p => (
+                  <li key={p.name}>
+                    <code>{p.name}</code>
+                    <span className="dep-banner-source"> ({p.source})</span>
+                    {p.recommended_env && p.recommended_env !== 'bionodulo-tools' && (
+                      <span className="dep-banner-msg"> → {p.recommended_env}</span>
+                    )}
                   </li>
                 ))}
               </ul>

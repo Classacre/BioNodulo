@@ -19,6 +19,14 @@ export function useWorkflow() {
   }, []);
   const [runs, setRuns] = useState<RunRecord[]>([]);
 
+  const addRun = useCallback((run: RunRecord) => {
+    setRuns(prev => [run, ...prev]);
+  }, []);
+
+  const updateRun = useCallback((runId: string, patch: Partial<RunRecord>) => {
+    setRuns(prev => prev.map(r => r.run_id === runId ? { ...r, ...patch } : r));
+  }, []);
+
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();
 
   const setWorkflow = useCallback((index: number, updater: (w: Workflow) => Workflow) => {
@@ -99,28 +107,22 @@ export function useWorkflow() {
     return null;
   }, []);
 
-  const submitRun = useCallback(async (wf: Workflow, options?: Record<string, unknown>) => {
-    try {
-      const r = await fetch('/api/runs', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: wf, options: options || {} }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        return data as RunRecord;
-      }
-    } catch {
-      // Create mock run record
-      const run: RunRecord = {
-        run_id: `mock-${Date.now()}`, status: 'completed',
-        workflow_name: wf.name || 'Untitled', node_statuses: [],
-        node_outputs: {}, execution_plan: [], previews: {}, artifacts: {},
-        start_time: new Date().toISOString(),
-        end_time: new Date().toISOString(),
-      };
-      setRuns(prev => [run, ...prev]);
-      return run;
+  const submitRun = useCallback(async (wf: Workflow, options?: { no_cache?: boolean; name?: string; environment?: string }) => {
+    const r = await fetch('/api/runs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflow: wf,
+        name: options?.name || wf.name || 'Untitled',
+        no_cache: options?.no_cache || false,
+        environment: options?.environment || null,
+      }),
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      throw new Error(`Run submission failed: ${r.status} ${text}`);
     }
+    const data = await r.json();
+    return data as RunRecord;
   }, []);
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
@@ -156,5 +158,6 @@ export function useWorkflow() {
     workflows, activeIndex, activeWorkflow, validation, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     validate, resolve, resolveReport, clearResolveReport, submitRun, exportWorkflow, importWorkflow,
+    addRun, updateRun, setRuns,
   };
 }

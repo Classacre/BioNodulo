@@ -81,6 +81,16 @@ export const icons: Record<string, (props: { size?: number }) => JSX.Element> = 
       <polyline points="18 15 12 9 6 15" />
     </svg>
   ),
+  chevronLeft: ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  ),
+  chevronRight: ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  ),
   minus: ({ size = 16 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12" />

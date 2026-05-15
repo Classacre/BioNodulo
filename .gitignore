@@ -3,14 +3,33 @@
 *$py.class
 *.egg-info/
 .eggs/
-web/node_modules/
 *.egg
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 *.log
 .venv/
+
+# Frontend build artifacts (hashed filenames change every build)
+web/node_modules/
+web/dist/assets/
+
+# Runtime data
 runs/
 cache/
 workspace/*
 !workspace/.gitkeep
+envs/
+environments/*
+!environments/.gitkeep
+
+# User custom nodes (keep only examples)
+custom_nodes/*/
+!custom_nodes/example_node.py.example
+
+# Test data / generated files
+*.fq
+*.fastq
+*.fna
+*.fasta
+r_plot/
