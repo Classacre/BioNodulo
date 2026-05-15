@@ -5,13 +5,55 @@ then resolves what's missing and how to install it.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Module-level TTL caches for expensive subprocess operations that rarely
+# change during normal operation.
+_ENV_LIST_CACHE: list[dict[str, Any]] | None = None
+_ENV_LIST_TIMESTAMP = 0.0
+_ENV_LIST_TTL = 30.0  # seconds
+
+_IN_ENV_CACHE: dict[tuple[str, str], bool] = {}
+_IN_ENV_TIMESTAMP = 0.0
+_IN_ENV_TTL = 60.0  # seconds
+
+
+def _get_cached_env_list() -> list[dict[str, Any]] | None:
+    """Return the cached conda env list if still within TTL."""
+    global _ENV_LIST_CACHE, _ENV_LIST_TIMESTAMP
+    if _ENV_LIST_CACHE is not None and (time.time() - _ENV_LIST_TIMESTAMP) < _ENV_LIST_TTL:
+        return _ENV_LIST_CACHE
+    return None
+
+
+def _set_cached_env_list(envs: list[dict[str, Any]]) -> None:
+    """Store the conda env list and reset the TTL timestamp."""
+    global _ENV_LIST_CACHE, _ENV_LIST_TIMESTAMP
+    _ENV_LIST_CACHE = envs
+    _ENV_LIST_TIMESTAMP = time.time()
+
+
+def _get_cached_in_env(exe: str, env_name: str) -> bool | None:
+    """Return cached executable-in-env result if still within TTL."""
+    global _IN_ENV_CACHE, _IN_ENV_TIMESTAMP
+    if _IN_ENV_TIMESTAMP and (time.time() - _IN_ENV_TIMESTAMP) < _IN_ENV_TTL:
+        return _IN_ENV_CACHE.get((exe, env_name))
+    return None
+
+
+def _set_cached_in_env(exe: str, env_name: str, result: bool) -> None:
+    """Store an executable-in-env result and update the TTL timestamp."""
+    global _IN_ENV_CACHE, _IN_ENV_TIMESTAMP
+    _IN_ENV_CACHE[(exe, env_name)] = result
+    _IN_ENV_TIMESTAMP = time.time()
 
 
 class _ResolverCache:
@@ -35,11 +77,17 @@ class _ResolverCache:
 
     def _list_envs(self) -> list[dict[str, Any]]:
         if self._env_list is None:
-            try:
-                from bionodulo.environments.manager import list_conda_envs
-                self._env_list = list_conda_envs()
-            except Exception:
-                self._env_list = []
+            cached = _get_cached_env_list()
+            if cached is not None:
+                self._env_list = cached
+            else:
+                try:
+                    from bionodulo.environments.manager import list_conda_envs
+
+                    self._env_list = list_conda_envs()
+                    _set_cached_env_list(self._env_list)
+                except Exception:
+                    self._env_list = []
         return self._env_list
 
     def env_exists(self, env_name: str) -> bool:
@@ -48,15 +96,23 @@ class _ResolverCache:
     def in_env(self, exe: str, env_name: str) -> bool:
         key = (exe, env_name)
         if key not in self._env_check:
-            # Fast-path: if env does not exist, skip the subprocess call
-            if not self.env_exists(env_name):
-                self._env_check[key] = False
+            # Check module-level TTL cache first
+            cached = _get_cached_in_env(exe, env_name)
+            if cached is not None:
+                self._env_check[key] = cached
             else:
-                try:
-                    from bionodulo.environments.manager import executable_in_env
-                    self._env_check[key] = executable_in_env(exe, env_name)
-                except Exception:
+                # Fast-path: if env does not exist, skip the subprocess call
+                if not self.env_exists(env_name):
                     self._env_check[key] = False
+                else:
+                    try:
+                        from bionodulo.environments.manager import executable_in_env
+
+                        result = executable_in_env(exe, env_name)
+                        self._env_check[key] = result
+                        _set_cached_in_env(exe, env_name, result)
+                    except Exception:
+                        self._env_check[key] = False
         return self._env_check[key]
 
 
@@ -283,16 +339,132 @@ def build_node_manifest(
     return manifest
 
 
-def resolve_workflow(
+async def _resolve_node_type(
+    node_type: str,
+    node_ids: list[str],
+    registry: Any,
+    manifest: dict[str, Any],
+    cache: _ResolverCache,
+) -> tuple[
+    list[MissingNode],
+    list[MissingExecutable],
+    list[MissingPackage],
+    dict[str, list[str]],
+]:
+    """Resolve dependencies for a single node type.
+
+    Returns any missing nodes, executables, packages, and a map of
+    R packages to the node types that require them.
+    """
+    missing_nodes: list[MissingNode] = []
+    missing_executables: list[MissingExecutable] = []
+    missing_packages: list[MissingPackage] = []
+    r_packages_to_check: dict[str, list[str]] = {}
+
+    node_class = None
+    if registry is not None and hasattr(registry, "get"):
+        node_class = registry.get(node_type)
+
+    if node_class is None:
+        manifest_entry = manifest.get(node_type, {})
+        git_url = manifest_entry.get("git_url", "")
+        git_commit = manifest_entry.get("git_commit", "")
+
+        if git_url:
+            msg = f"Custom node '{node_type}' is not installed. Source: {git_url}"
+        else:
+            msg = (
+                f"Custom node '{node_type}' is not installed and no git URL "
+                f"was recorded in the workflow manifest."
+            )
+
+        missing_nodes.append(
+            MissingNode(
+                node_type=node_type,
+                git_url=git_url,
+                git_commit=git_commit,
+                message=msg,
+            )
+        )
+        return missing_nodes, missing_executables, missing_packages, r_packages_to_check
+
+    # Check required executables (fast-path first)
+    executables = getattr(node_class, "REQUIRED_EXECUTABLES", [])
+    conda_packages = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
+    category = getattr(node_class, "CATEGORY", "general")
+    isolated_env_name = f"bionodulo-{category.lower().replace(' ', '_').replace('/', '_')}"
+
+    for exe in executables:
+        exe_path = cache.which(exe)
+        if exe_path is not None:
+            continue
+        if cache.in_env(exe, isolated_env_name):
+            continue
+        if cache.in_env(exe, "bionodulo-tools"):
+            continue
+
+        conda_pkg = ""
+        if conda_packages:
+            conda_pkg = conda_packages[0]
+        else:
+            from bionodulo.manager.diagnostics import KNOWN_EXECUTABLES
+
+            conda_pkg = KNOWN_EXECUTABLES.get(exe, exe)
+
+        missing_executables.append(
+            MissingExecutable(
+                name=exe,
+                conda_package=conda_pkg,
+                node_types=[node_type],
+                message=f"Executable '{exe}' required by '{node_type}' is not on PATH or in its isolated environment",
+                recommended_env=isolated_env_name,
+                category=category,
+            )
+        )
+
+    # Collect required R packages for later batch check
+    r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
+    for pkg in r_packages:
+        r_packages_to_check.setdefault(pkg, []).append(node_type)
+
+    # Check for requirements.txt in custom node package
+    module_name = getattr(node_class, "__module__", "")
+    if not module_name.startswith("bionodulo.nodes.builtin"):
+        try:
+            module = __import__(module_name, fromlist=[""])
+            module_file = getattr(module, "__file__", None)
+            if module_file:
+                module_dir = Path(module_file).parent
+                req_file = module_dir / "requirements.txt"
+                if req_file.exists():
+                    reqs = [
+                        line.strip()
+                        for line in req_file.read_text().splitlines()
+                        if line.strip() and not line.startswith("#")
+                    ]
+                    for req in reqs:
+                        pkg_name = req.split("==")[0].split(">=")[0].strip()
+                        missing_packages.append(
+                            MissingPackage(
+                                name=pkg_name,
+                                source="pip",
+                                node_types=[node_type],
+                                message=f"Python package '{pkg_name}' from {node_type} requirements",
+                            )
+                        )
+        except Exception as exc:
+            logger.debug("Could not check requirements for %s: %s", node_type, exc)
+
+    return missing_nodes, missing_executables, missing_packages, r_packages_to_check
+
+
+async def _resolve_workflow_async(
     workflow: dict[str, Any],
     registry: Any,
 ) -> ResolutionReport:
-    """Resolve dependencies for a workflow.
+    """Async implementation of dependency resolution.
 
-    Checks:
-    1. All node types are registered (missing custom nodes).
-    2. Required executables are on PATH.
-    3. Python requirements from custom node packages.
+    Node-type checks run concurrently via ``asyncio.gather``.
     """
     report = ResolutionReport()
     cache = _ResolverCache()
@@ -312,125 +484,51 @@ def resolve_workflow(
         if node_type:
             node_type_usages.setdefault(node_type, []).append(node_id)
 
-    # Use manifest if available, otherwise build from registry
     manifest = workflow.get("node_manifest", {})
 
-    # Collect R packages to check
+    # Run checks for each node type concurrently
+    coros = [
+        _resolve_node_type(node_type, node_ids, registry, manifest, cache)
+        for node_type, node_ids in node_type_usages.items()
+    ]
+
+    results = await asyncio.gather(*coros, return_exceptions=True)
+
     r_packages_to_check: dict[str, list[str]] = {}
 
-    for node_type, node_ids in node_type_usages.items():
-        # 1. Check if node is registered
-        node_class = None
-        if registry is not None and hasattr(registry, "get"):
-            node_class = registry.get(node_type)
-
-        if node_class is None:
-            # Missing node — try to resolve from manifest
-            manifest_entry = manifest.get(node_type, {})
-            git_url = manifest_entry.get("git_url", "")
-            git_commit = manifest_entry.get("git_commit", "")
-
-            if git_url:
-                msg = f"Custom node '{node_type}' is not installed. Source: {git_url}"
-            else:
-                msg = (
-                    f"Custom node '{node_type}' is not installed and no git URL "
-                    f"was recorded in the workflow manifest."
-                )
-                report.installable = False
-
-            report.missing_nodes.append(
-                MissingNode(
-                    node_type=node_type,
-                    git_url=git_url,
-                    git_commit=git_commit,
-                    message=msg,
-                )
-            )
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning("Node-type resolution failed: %s", result)
+            report.errors.append(str(result))
             continue
 
-        # 2. Check required executables (fast-path first)
-        executables = getattr(node_class, "REQUIRED_EXECUTABLES", [])
-        conda_packages = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
-        category = getattr(node_class, "CATEGORY", "general")
-        isolated_env_name = f"bionodulo-{category.lower().replace(' ', '_').replace('/', '_')}"
+        missing_nodes, missing_executables, missing_packages, node_r_pkgs = result
+        report.missing_nodes.extend(missing_nodes)
+        report.missing_executables.extend(missing_executables)
+        report.missing_packages.extend(missing_packages)
 
-        for exe in executables:
-            exe_path = cache.which(exe)
-            if exe_path is not None:
-                # Found on PATH — assume OK for resolve (compatibility is checked at runtime)
-                continue
-            # Check if available in the node's isolated environment
-            if cache.in_env(exe, isolated_env_name):
-                continue
-            # Fallback: check the shared bionodulo-tools environment
-            if cache.in_env(exe, "bionodulo-tools"):
-                continue
-            # Use explicit conda package if declared, otherwise use KNOWN_EXECUTABLES mapping
-            conda_pkg = ""
-            if conda_packages:
-                conda_pkg = conda_packages[0]
-            else:
-                from bionodulo.manager.diagnostics import KNOWN_EXECUTABLES
-                conda_pkg = KNOWN_EXECUTABLES.get(exe, exe)
-            report.missing_executables.append(
-                MissingExecutable(
-                    name=exe,
-                    conda_package=conda_pkg,
-                    node_types=[node_type],
-                    message=f"Executable '{exe}' required by '{node_type}' is not on PATH or in its isolated environment",
-                    recommended_env=isolated_env_name,
-                    category=category,
-                )
-            )
+        for pkg, node_types in node_r_pkgs.items():
+            r_packages_to_check.setdefault(pkg, []).extend(node_types)
 
-        # 3. Check required R packages
-        r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
-        for pkg in r_packages:
-            r_packages_to_check.setdefault(pkg, []).append(node_type)
-
-        # 4. Check for requirements.txt in custom node package
-        module_name = getattr(node_class, "__module__", "")
-        if not module_name.startswith("bionodulo.nodes.builtin"):
-            # Try to find requirements.txt in the custom node directory
-            try:
-                module = __import__(module_name, fromlist=[""])
-                module_file = getattr(module, "__file__", None)
-                if module_file:
-                    module_dir = Path(module_file).parent
-                    req_file = module_dir / "requirements.txt"
-                    if req_file.exists():
-                        reqs = [
-                            line.strip()
-                            for line in req_file.read_text().splitlines()
-                            if line.strip() and not line.startswith("#")
-                        ]
-                        for req in reqs:
-                            # Simple check: just report them as potentially missing
-                            # A more robust check would try import, but that's fragile
-                            pkg_name = req.split("==")[0].split(">=")[0].strip()
-                            report.missing_packages.append(
-                                MissingPackage(
-                                    name=pkg_name,
-                                    source="pip",
-                                    node_types=[node_type],
-                                    message=f"Python package '{pkg_name}' from {node_type} requirements",
-                                )
-                            )
-            except Exception as exc:
-                logger.debug("Could not check requirements for %s: %s", node_type, exc)
+    # If any node was missing without a git URL, mark as not installable
+    if any(not n.git_url for n in report.missing_nodes):
+        report.installable = False
 
     # Check R packages via Rscript — check ALL candidate envs and consider
     # a package available if it is found in ANY environment.
     if r_packages_to_check:
         try:
             import subprocess
+
             from bionodulo.manager.runtime_installer import get_micromamba_path
 
             mamba = get_micromamba_path()
-            r_script = "cat(paste(sapply(c(" + ",".join(f"'{p}'" for p in r_packages_to_check) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\n'))"
+            r_script = (
+                "cat(paste(sapply(c("
+                + ",".join(f"'{p}'" for p in r_packages_to_check)
+                + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
+            )
 
-            # Collect available packages across all candidate envs + system PATH
             available_anywhere: dict[str, bool] = {}
 
             def _check_r_in_env(cmd: list[str]) -> None:
@@ -458,7 +556,9 @@ def resolve_workflow(
                             timeout=10,
                         )
                         if check.returncode == 0:
-                            _check_r_in_env([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script])
+                            _check_r_in_env(
+                                [str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script]
+                            )
                     except Exception:
                         pass
 
@@ -471,11 +571,25 @@ def resolve_workflow(
             for pkg, node_types in r_packages_to_check.items():
                 if available_anywhere.get(pkg):
                     continue
-                source = "bioconductor" if pkg.lower() in {
-                    "deseq2", "edger", "limma", "biostrings", "genomicranges",
-                    "rtracklayer", "complexheatmap", "summarizedexperiment",
-                    "tximport", "ape", "phyloseq", "variantannotation",
-                } else "cran"
+                source = (
+                    "bioconductor"
+                    if pkg.lower()
+                    in {
+                        "deseq2",
+                        "edger",
+                        "limma",
+                        "biostrings",
+                        "genomicranges",
+                        "rtracklayer",
+                        "complexheatmap",
+                        "summarizedexperiment",
+                        "tximport",
+                        "ape",
+                        "phyloseq",
+                        "variantannotation",
+                    }
+                    else "cran"
+                )
                 report.missing_r_packages.append(
                     MissingRPackage(
                         name=pkg,
@@ -488,11 +602,25 @@ def resolve_workflow(
         except Exception as exc:
             logger.debug("Could not check R packages: %s", exc)
             for pkg, node_types in r_packages_to_check.items():
-                source = "bioconductor" if pkg.lower() in {
-                    "deseq2", "edger", "limma", "biostrings", "genomicranges",
-                    "rtracklayer", "complexheatmap", "summarizedexperiment",
-                    "tximport", "ape", "phyloseq", "variantannotation",
-                } else "cran"
+                source = (
+                    "bioconductor"
+                    if pkg.lower()
+                    in {
+                        "deseq2",
+                        "edger",
+                        "limma",
+                        "biostrings",
+                        "genomicranges",
+                        "rtracklayer",
+                        "complexheatmap",
+                        "summarizedexperiment",
+                        "tximport",
+                        "ape",
+                        "phyloseq",
+                        "variantannotation",
+                    }
+                    else "cran"
+                )
                 report.missing_r_packages.append(
                     MissingRPackage(
                         name=pkg,
@@ -529,3 +657,21 @@ def resolve_workflow(
     report.missing_r_packages = list(seen_r_pkgs.values())
 
     return report
+
+
+def resolve_workflow(
+    workflow: dict[str, Any],
+    registry: Any,
+) -> ResolutionReport:
+    """Resolve dependencies for a workflow.
+
+    Checks:
+    1. All node types are registered (missing custom nodes).
+    2. Required executables are on PATH.
+    3. Python requirements from custom node packages.
+
+    This is a synchronous wrapper around the async implementation.
+    Callers inside an async context (e.g. FastAPI handlers) should
+    ``await _resolve_workflow_async(...)`` directly.
+    """
+    return asyncio.run(_resolve_workflow_async(workflow, registry))

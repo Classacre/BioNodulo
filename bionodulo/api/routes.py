@@ -73,7 +73,7 @@ from bionodulo.environments.manager import (
 from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.installer import InstallJob
-from bionodulo.manager.resolver import build_node_manifest, resolve_workflow
+from bionodulo.manager.resolver import build_node_manifest, resolve_workflow, _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
 
 logger = logging.getLogger(__name__)
@@ -870,7 +870,7 @@ async def manager_diagnose(
     """Diagnose a workflow (find missing tools, type mismatches)."""
     registry = _get_registry(request)
     result = validate_workflow(body.workflow, registry)
-    report = resolve_workflow(body.workflow, registry)
+    report = await _resolve_workflow_async(body.workflow, registry)
 
     return {
         "valid": result.valid,
@@ -897,7 +897,7 @@ async def manager_resolve(
     with installation information where available.
     """
     registry = _get_registry(request)
-    report = resolve_workflow(body.workflow, registry)
+    report = await _resolve_workflow_async(body.workflow, registry)
     return report.to_dict()
 
 
@@ -1093,7 +1093,7 @@ async def manager_create_workflow_env(
     a conda environment with those packages.
     """
     registry = _get_registry(request)
-    report = resolve_workflow(body.workflow, registry)
+    report = await _resolve_workflow_async(body.workflow, registry)
 
     deps: list[str] = []
     for exe in report.missing_executables:

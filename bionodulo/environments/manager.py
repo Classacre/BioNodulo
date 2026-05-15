@@ -295,9 +295,9 @@ def workflow_dependency_tree(
     2. System PATH (is the executable available?)
     3. Conda environments (is the executable available in any env?)
     """
-    from bionodulo.manager.resolver import resolve_workflow
+    from bionodulo.manager.resolver import _resolve_workflow_async
 
-    report = resolve_workflow(workflow, registry)
+    report = await _resolve_workflow_async(workflow, registry)
     statuses: list[DependencyStatus] = []
 
     # Add missing nodes

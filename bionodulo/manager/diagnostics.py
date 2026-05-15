@@ -14,34 +14,73 @@ from bionodulo.nodes.base import BaseNode
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache for R package checks.
+# Key: (tuple(sorted(packages)), env_name)
+# Value: dict[str, bool]  — {package_name: available}
+_R_PACKAGE_CACHE: dict[tuple[tuple[str, ...], str], dict[str, bool]] = {}
 
-def _check_r_packages_env_aware(packages: list[str]) -> dict[str, dict[str, Any]]:
-    """Check R package availability across conda envs and system PATH."""
-    r_script = "cat(paste(sapply(c(" + ",".join('{p}' for p in packages) + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse=\"\\n\"))"
+
+def _check_r_packages_env_aware(
+    packages: list[str],
+    _cache: dict[tuple[tuple[str, ...], str], dict[str, bool]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Check R package availability across conda envs and system PATH.
+
+    Args:
+        packages: List of R package names to check.
+        _cache: Optional mutable cache dict.  If provided, results for the
+            same set of packages in the same environment are reused.
+
+    Returns:
+        Dict mapping each package name to ``{"available": bool}`` (or
+        ``{"available": False, "error": "..."}`` when missing).
+    """
+    if _cache is None:
+        _cache = _R_PACKAGE_CACHE
+
+    sorted_pkgs = tuple(sorted(packages))
+    r_script = (
+        "cat(paste(sapply(c("
+        + ",".join(f"'{p}'" for p in packages)
+        + "), function(p) paste(p, requireNamespace(p, quietly=TRUE), sep=':')), collapse='\\n'))"
+    )
     available_anywhere: dict[str, bool] = {}
 
-    def _check(cmd: list[str]) -> None:
+    def _check(cmd: list[str], env_name: str) -> None:
+        cache_key = (sorted_pkgs, env_name)
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            available_anywhere.update(cached)
+            return
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        env_results: dict[str, bool] = {}
         if result.returncode == 0:
             for line in result.stdout.strip().split("\n"):
                 if ":" in line:
                     pkg_name, available = line.strip().rsplit(":", 1)
-                    if available.strip().lower() == "true":
+                    is_avail = available.strip().lower() == "true"
+                    env_results[pkg_name] = is_avail
+                    if is_avail:
                         available_anywhere[pkg_name] = True
+        _cache[cache_key] = env_results
 
     # Try conda envs
     try:
         from bionodulo.manager.runtime_installer import get_micromamba_path
+
         mamba = get_micromamba_path()
         if mamba:
             for env_name in ["bionodulo-r", "bionodulo-tools"]:
                 try:
                     check = subprocess.run(
                         [str(mamba), "run", "-n", env_name, "Rscript", "--version"],
-                        capture_output=True, text=True, timeout=10,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
                     )
                     if check.returncode == 0:
-                        _check([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script])
+                        _check([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script], env_name)
                 except Exception:
                     pass
     except Exception:
@@ -49,7 +88,7 @@ def _check_r_packages_env_aware(packages: list[str]) -> dict[str, dict[str, Any]
 
     # Fallback to system PATH
     try:
-        _check(["Rscript", "-e", r_script])
+        _check(["Rscript", "-e", r_script], "__system__")
     except Exception:
         pass
 
@@ -60,6 +99,7 @@ def _check_r_packages_env_aware(packages: list[str]) -> dict[str, dict[str, Any]
         else:
             results[pkg] = {"available": False, "error": "Not installed in any R environment"}
     return results
+
 
 # Known bioinformatics executables with their package names
 KNOWN_EXECUTABLES: dict[str, str] = {
@@ -111,7 +151,6 @@ KNOWN_EXECUTABLES: dict[str, str] = {
     "bedtools": "bedtools",
     "bamCoverage": "deeptools",
     "cellranger": "cellranger",
-    "run_MaxBin.pl": "maxbin2",
     "Rscript": "r-base",
 }
 
@@ -236,6 +275,7 @@ def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
 def host_diagnostics() -> dict[str, Any]:
     """Return host-level diagnostics: system info and tool availability."""
     import platform
+
     import psutil
 
     mem = psutil.virtual_memory()
