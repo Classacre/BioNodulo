@@ -8,8 +8,12 @@ import asyncio
 import os
 from pathlib import Path
 
-import uvloop
 import uvicorn
+
+try:
+    import uvloop
+except ImportError:
+    uvloop = None  # type: ignore
 
 
 def main() -> None:
@@ -41,7 +45,8 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
 
     # Install uvloop for faster asyncio event loop (2-4x I/O throughput)
-    uvloop.install()
+    if uvloop is not None:
+        uvloop.install()
 
     print(f"""
     =========================================

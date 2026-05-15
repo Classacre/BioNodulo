@@ -1065,7 +1065,7 @@ async def get_dependency_tree(
     and where it is available.
     """
     registry = _get_registry(request)
-    tree = workflow_dependency_tree(body.workflow, registry)
+    tree = await workflow_dependency_tree(body.workflow, registry)
     return {
         "dependencies": [
             {

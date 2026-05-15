@@ -284,7 +284,7 @@ class DependencyStatus:
     envs: list[str] = field(default_factory=list)  # envs where this is available
 
 
-def workflow_dependency_tree(
+async def workflow_dependency_tree(
     workflow: dict[str, Any],
     registry: Any,
 ) -> list[DependencyStatus]:
