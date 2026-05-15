@@ -45,7 +45,7 @@ class ExecutionContext:
         emit: Callback for emitting WebSocket events.
         cancel_event: Asyncio event that signals cancellation.
         env_prefix: Optional command prefix for environment isolation
-            (e.g. ["micromamba", "run", "-n", "bionodulo-qc", "--"]).
+            (e.g. ["pixi", "run", "-e", "qc", "--"]).
     """
 
     run_id: str
@@ -831,18 +831,18 @@ class WorkflowExecutor:
             if env_name:
                 return self._command_prefix_list(env_type, env_name)
 
-        # Default: per-category isolated environment
-        env_name = f"bionodulo-{category.lower().replace(' ', '_').replace('/', '_')}"
+        # Default: per-category isolated environment (pixi naming)
+        env_name = category.lower().replace(' ', '-').replace('/', '-').replace('_', '-')
 
-        # Fallback to bionodulo-tools if the per-category env does not exist
+        # Fallback to tools if the per-category env does not exist
         try:
             from bionodulo.environments.manager import env_exists
             if not env_exists(env_name):
-                env_name = "bionodulo-tools"
+                env_name = "tools"
         except Exception:
             pass
 
-        return self._command_prefix_list("micromamba", env_name)
+        return self._command_prefix_list("pixi", env_name)
 
     def _command_prefix_list(
         self,
@@ -854,27 +854,17 @@ class WorkflowExecutor:
             return []
 
         # Resolve the actual executable path (system or managed)
-        exe = env_type or "micromamba"
-        if exe == "micromamba":
-            from bionodulo.manager.runtime_installer import get_micromamba_path
-            mamba_path = get_micromamba_path()
-            if mamba_path is not None:
-                exe = str(mamba_path)
+        exe = env_type or "pixi"
+        if exe == "pixi":
+            from bionodulo.manager.runtime_installer import get_pixi_path
+            pixi_path = get_pixi_path()
+            if pixi_path is not None:
+                exe = str(pixi_path)
             else:
-                exe = "micromamba"
-        elif exe == "mamba":
-            import shutil
-            mamba_path = shutil.which("mamba")
-            if mamba_path:
-                exe = mamba_path
-        elif exe == "conda":
-            import shutil
-            conda_path = shutil.which("conda")
-            if conda_path:
-                exe = conda_path
+                exe = "pixi"
 
-        if env_type in ("conda", "mamba", "micromamba"):
-            return [exe, "run", "-n", env_name, "--"]
+        if env_type in ("pixi", "conda", "mamba", "micromamba"):
+            return [exe, "run", "-e", env_name, "--"]
         return []
 
     def _change_fingerprint(

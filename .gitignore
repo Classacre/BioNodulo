@@ -33,3 +33,4 @@ custom_nodes/*/
 *.fna
 *.fasta
 r_plot/
+.pixi/

@@ -72,22 +72,22 @@ def _check_r_packages_env_aware(
                         available_anywhere[pkg_name] = True
         _cache[cache_key] = env_results
 
-    # Try conda envs
+    # Try pixi envs
     try:
-        from bionodulo.manager.runtime_installer import get_micromamba_path
+        from bionodulo.manager.runtime_installer import get_pixi_path
 
-        mamba = get_micromamba_path()
-        if mamba:
-            for env_name in ["bionodulo-r", "bionodulo-tools"]:
+        pixi = get_pixi_path()
+        if pixi:
+            for env_name in ["r", "tools"]:
                 try:
                     check = subprocess.run(
-                        [str(mamba), "run", "-n", env_name, "Rscript", "--version"],
+                        [str(pixi), "run", "-e", env_name, "Rscript", "--version"],
                         capture_output=True,
                         text=True,
                         timeout=10,
                     )
                     if check.returncode == 0:
-                        _check([str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script], env_name)
+                        _check([str(pixi), "run", "-e", env_name, "Rscript", "-e", r_script], env_name)
                 except Exception:
                     pass
     except Exception:
@@ -267,7 +267,7 @@ def environment_status() -> dict[str, Any]:
 
 
 def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
-    """Generate a micromamba install command for missing packages.
+    """Generate a pixi install command for missing packages.
 
     Args:
         results: Diagnostic results dictionary.
@@ -284,7 +284,7 @@ def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
         return "# All required tools are already installed"
 
     return (
-        f"micromamba install -c bioconda -c conda-forge "
+        f"pixi add "
         f"{' '.join(sorted(missing_packages))}"
     )
 

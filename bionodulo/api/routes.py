@@ -143,6 +143,12 @@ router.include_router(system_stats_router)
 router.include_router(previews_router)
 
 
+@router.get("/health")
+async def health_check() -> dict[str, str]:
+    """Liveness probe for container orchestration."""
+    return {"status": "ok"}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -822,29 +828,29 @@ async def manager_reload(request: Request) -> dict[str, str]:
 async def api_host_status() -> dict[str, Any]:
     """Return host-level prerequisite diagnostics.
 
-    Checks for python3, micromamba, node/npm, and Rscript.
-    Micromamba can be auto-installed; everything else must be
+    Checks for python3, pixi, node/npm, and Rscript.
+    Pixi can be auto-installed; everything else must be
     present on the host PATH.
     """
     return host_diagnostics()
 
 
-@router.post("/host_status/install-micromamba")
-async def api_install_micromamba(request: Request) -> dict[str, Any]:
-    """Trigger automatic installation of micromamba.
+@router.post("/host_status/install-pixi")
+async def api_install_pixi(request: Request) -> dict[str, Any]:
+    """Trigger automatic installation of pixi.
 
-    Downloads and installs micromamba to the managed location
-    (~/.local/share/bionodulo by default).
+    Downloads and installs pixi to the managed location
+    (~/.pixi by default).
     Emits progress events via the WebSocket event hub so the
     frontend can stream logs in real-time.
     """
     from bionodulo.manager.runtime_installer import (
-        install_managed_micromamba,
-        is_micromamba_installed,
+        install_managed_pixi,
+        is_pixi_installed,
     )
 
-    if is_micromamba_installed():
-        return {"success": True, "message": "micromamba is already installed", "already_installed": True}
+    if is_pixi_installed():
+        return {"success": True, "message": "pixi is already installed", "already_installed": True}
 
     event_hub = request.app.state.event_hub
 
@@ -853,14 +859,14 @@ async def api_install_micromamba(request: Request) -> dict[str, Any]:
             event_hub.emit_typed(
                 "install.log",
                 {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="micromamba-installer",
+                source="pixi-installer",
             )
         )
 
-    success = install_managed_micromamba(emit=emit)
+    success = install_managed_pixi(emit=emit)
     if success:
-        return {"success": True, "message": "micromamba installed successfully", "already_installed": False}
-    return {"success": False, "message": "micromamba installation failed. Check server logs for details.", "already_installed": False}
+        return {"success": True, "message": "pixi installed successfully", "already_installed": False}
+    return {"success": False, "message": "pixi installation failed. Check server logs for details.", "already_installed": False}
 
 
 @router.post("/manager/diagnose")

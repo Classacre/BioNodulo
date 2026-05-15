@@ -15,33 +15,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from bionodulo.environments.pixi import _to_pixi_env_name
 from bionodulo.manager.custom_nodes import install_git, _install_requirements
 
 logger = logging.getLogger(__name__)
 
 EmitCallback = Callable[[str, dict[str, Any]], Any]
-
-# Keywords that indicate a conda solver / compatibility error (retry-worthy)
-_SOLVER_ERROR_KEYWORDS = [
-    "could not solve",
-    "incompatible",
-    "unsatisfiable",
-    "conflicts",
-    "no viable options",
-    "nothing provides",
-    "requires",
-    "not installable",
-]
-
-
-def _is_solver_error(stderr: str) -> bool:
-    """Check if stderr indicates a solver/compatibility error.
-
-    Returns True if the error looks like a package resolution failure
-    that might be fixed by constraining Python.
-    """
-    text = stderr.lower()
-    return any(kw in text for kw in _SOLVER_ERROR_KEYWORDS)
 
 
 @dataclass
@@ -181,13 +160,13 @@ class InstallJob:
                     self._send_log("error", err)
                 self.progress.completed_steps += 1
 
-            # 2. Install missing executables via micromamba
+            # 2. Install missing executables via pixi
             # Group by target env when using isolated strategy
             if env_strategy == "isolated" and missing_executables:
                 from collections import defaultdict
                 env_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
                 for exe in missing_executables:
-                    env_name = exe.get("recommended_env", "bionodulo-tools")
+                    env_name = exe.get("recommended_env", "tools")
                     env_groups[env_name].append(exe)
 
                 for env_name, exes in env_groups.items():
@@ -198,9 +177,9 @@ class InstallJob:
 
                     packages = [e.get("conda_package") or e["name"] for e in exes]
                     self.progress.current_step = f"Installing {len(packages)} package(s) into {env_name}"
-                    self._send_log("info", f"Creating isolated env '{env_name}' with {', '.join(packages)}...")
+                    self._send_log("info", f"Adding packages to pixi env '{env_name}': {', '.join(packages)}...")
 
-                    success = await self._install_conda_packages(packages, env_name=env_name)
+                    success = await self._install_pixi_packages(packages, env_name=env_name)
                     if success:
                         self.progress.message = f"Installed into {env_name}"
                         self._send_log("success", f"Installed {len(packages)} package(s) into {env_name}")
@@ -217,14 +196,14 @@ class InstallJob:
                         return self.progress
 
                     pkg = exe.get("conda_package") or exe["name"]
-                    env_name = exe.get("recommended_env", "bionodulo-tools") if env_strategy == "isolated" else "bionodulo-tools"
+                    env_name = exe.get("recommended_env", "tools") if env_strategy == "isolated" else "tools"
                     self.progress.current_step = f"Installing {pkg}"
-                    self._send_log("info", f"Installing conda package {pkg}...")
+                    self._send_log("info", f"Installing package {pkg} via pixi...")
 
-                    success = await self._install_conda_package(pkg, env_name=env_name)
+                    success = await self._install_pixi_package(pkg, env_name=env_name)
                     if success:
                         self.progress.message = f"Installed {pkg}"
-                        self._send_log("success", f"Installed conda package {pkg}")
+                        self._send_log("success", f"Installed package {pkg}")
                     else:
                         err = f"Failed to install {pkg}"
                         self.progress.errors.append(err)
@@ -240,7 +219,7 @@ class InstallJob:
 
                 pkg_name = pkg["name"]
                 self.progress.current_step = f"Installing Python package {pkg_name}"
-                self._send_log("info", f"Installing Python package {pkg_name} via pip...")
+                self._send_log("info", f"Installing Python package {pkg_name} via pixi...")
 
                 success = await self._install_pip_package(pkg_name)
                 if success:
@@ -253,9 +232,7 @@ class InstallJob:
                 self.progress.completed_steps += 1
 
             # 4. Install missing R packages
-            # In isolated mode, R packages always go into bionodulo-r (matching
-            # the env name derived from CATEGORY='r').
-            r_env = "bionodulo-r" if env_strategy == "isolated" else "bionodulo-tools"
+            r_env = "r" if env_strategy == "isolated" else "tools"
 
             for pkg in missing_r_packages:
                 if self._cancelled:
@@ -299,153 +276,101 @@ class InstallJob:
 
         return self.progress
 
-    async def _install_conda_package(self, package: str, env_name: str = "bionodulo-tools") -> bool:
-        """Install a single package via micromamba/conda into a specific env.
+    async def _install_pixi_package(self, package: str, env_name: str = "tools") -> bool:
+        """Install a single package via pixi into a specific env."""
+        return await self._install_pixi_packages([package], env_name=env_name)
 
-        Optimisations:
-        1. Checks if the package is already installed before calling the solver.
-        2. For existing envs, tries the env's current Python version FIRST
-           instead of an unconstrained solve (much faster).
-        3. Uses ``--freeze-installed`` to avoid re-solving the whole env.
-        4. 5-minute timeout per attempt for complex environments.
+    async def _install_pixi_packages(self, packages: list[str], env_name: str = "tools") -> bool:
+        """Install multiple packages via pixi into a specific env.
+
+        Pixi automatically handles the lockfile and environment updates.
         """
-        return await self._install_conda_packages([package], env_name=env_name)
+        from bionodulo.manager.runtime_installer import get_pixi_path
 
-    async def _install_conda_packages(self, packages: list[str], env_name: str = "bionodulo-tools") -> bool:
-        """Install multiple packages via micromamba/conda into a specific env.
-
-        Streams subprocess stdout/stderr to the frontend so users can see
-        what the solver is doing in real time.
-        """
-        from bionodulo.manager.runtime_installer import get_micromamba_path
-        from bionodulo.environments.manager import env_exists
-
-        mamba = get_micromamba_path()
-        if mamba is None:
-            err = "No micromamba/mamba/conda executable found"
+        pixi = get_pixi_path()
+        if pixi is None:
+            err = "No pixi executable found"
             logger.error(err)
             self._send_log("error", err)
             return False
 
-        mamba_str = str(mamba)
-        channels = ["-c", "bioconda", "-c", "conda-forge"]
-        exists = env_exists(env_name)
+        pixi_name = _to_pixi_env_name(env_name)
+        pixi_str = str(pixi)
+        project_root = Path(__file__).resolve().parent.parent.parent
 
         # Fast-path: all already installed?
-        if exists:
-            all_installed = True
-            for pkg in packages:
-                if not self._is_package_installed(mamba_str, env_name, pkg):
-                    all_installed = False
-                    break
-            if all_installed:
-                self._send_log("info", f"All packages already installed in '{env_name}' — skipping solver")
-                return True
+        all_installed = True
+        for pkg in packages:
+            if not self._is_pixi_package_installed(pixi_str, pixi_name, pkg):
+                all_installed = False
+                break
+        if all_installed:
+            self._send_log("info", f"All packages already installed in '{pixi_name}' — skipping")
+            return True
 
-        # Detect the env's Python version so we can try it first
-        py_major_minor = self._detect_env_python(mamba_str, env_name) if exists else None
-
-        if exists:
-            base_cmd = [
-                mamba_str, "install", "-n", env_name, "-y",
-                "--freeze-installed",
-            ] + channels
-            attempts: list[tuple[str, list[str]]] = []
-
-            if py_major_minor is not None:
-                py_ver = f"{py_major_minor[0]}.{py_major_minor[1]}"
-                attempts.append(
-                    (f"Installing into '{env_name}' with Python {py_ver}...",
-                     [*packages, f"python={py_ver}"])
-                )
-            else:
-                attempts.append(
-                    (f"Installing into existing env '{env_name}'...", packages)
-                )
-
-            if py_major_minor is None or py_major_minor >= (3, 13):
-                attempts.append((f"Retrying with Python <3.13...", [*packages, "python<3.13"]))
-            if py_major_minor is None or py_major_minor >= (3, 12):
-                attempts.append((f"Retrying with Python 3.11...", [*packages, "python=3.11"]))
-            if py_major_minor is None or py_major_minor >= (3, 11):
-                attempts.append((f"Retrying with Python 3.10...", [*packages, "python=3.10"]))
-        else:
-            base_cmd = [mamba_str, "create", "-n", env_name, "-y"] + channels
-            attempts = [
-                (f"Creating env '{env_name}' and installing {len(packages)} package(s)...", packages),
-                (f"Retrying with Python <3.13...", [*packages, "python<3.13"]),
-                (f"Retrying with Python 3.12...", [*packages, "python=3.12"]),
-                (f"Retrying with Python 3.11...", [*packages, "python=3.11"]),
-                (f"Retrying with Python 3.10...", [*packages, "python=3.10"]),
-            ]
+        cmd = [pixi_str, "add", "-e", pixi_name] + packages
+        self._send_log("info", f"Running: {' '.join(cmd)}")
 
         last_stderr = ""
         ATTEMPT_TIMEOUT = 300
-        for desc, extra in attempts:
-            self._send_log("info", desc)
-            cmd = base_cmd + extra
-            proc: asyncio.subprocess.Process | None = None
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                # Stream stdout/stderr in real time so the frontend sees solver progress.
-                # Micromamba writes solver progress to stdout; errors go to stderr.
-                stdout_chunks: list[str] = []
-                stderr_chunks: list[str] = []
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(project_root),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_chunks: list[str] = []
+            stderr_chunks: list[str] = []
 
-                async def _drain_stream(stream, chunks, label):
-                    if stream is None:
-                        return
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        text = line.decode("utf-8", errors="replace").rstrip()
-                        if text:
-                            chunks.append(text)
-                            # Throttle: only send every 5th line to avoid WS flood
-                            if len(chunks) % 5 == 0:
-                                self._send_log("info", f"[solver] {text}")
+            async def _drain_stream(stream, chunks, label):
+                if stream is None:
+                    return
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    text = line.decode("utf-8", errors="replace").rstrip()
+                    if text:
+                        chunks.append(text)
+                        if len(chunks) % 5 == 0:
+                            self._send_log("info", f"[{label}] {text}")
 
-                await asyncio.wait_for(
-                    asyncio.gather(
-                        _drain_stream(proc.stdout, stdout_chunks, "stdout"),
-                        _drain_stream(proc.stderr, stderr_chunks, "stderr"),
-                        proc.wait(),
-                    ),
-                    timeout=ATTEMPT_TIMEOUT,
-                )
-                if proc.returncode == 0:
-                    return True
-                last_stderr = "\n".join(stderr_chunks + stdout_chunks)
-                if not _is_solver_error(last_stderr):
-                    break
-            except asyncio.TimeoutError:
-                self._send_log("warn", f"Solver timed out after {ATTEMPT_TIMEOUT}s, trying next constraint...")
-                last_stderr = f"Solver timed out after {ATTEMPT_TIMEOUT}s"
-                if proc is not None and proc.returncode is None:
-                    try:
-                        proc.kill()
-                        await proc.wait()
-                    except Exception:
-                        pass
-            except Exception as exc:
-                last_stderr = str(exc)
-                break
+            await asyncio.wait_for(
+                asyncio.gather(
+                    _drain_stream(proc.stdout, stdout_chunks, "stdout"),
+                    _drain_stream(proc.stderr, stderr_chunks, "stderr"),
+                    proc.wait(),
+                ),
+                timeout=ATTEMPT_TIMEOUT,
+            )
+            if proc.returncode == 0:
+                return True
+            last_stderr = "\n".join(stderr_chunks + stdout_chunks)
+        except asyncio.TimeoutError:
+            self._send_log("warn", f"pixi add timed out after {ATTEMPT_TIMEOUT}s")
+            last_stderr = f"pixi add timed out after {ATTEMPT_TIMEOUT}s"
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
+        except Exception as exc:
+            last_stderr = str(exc)
 
-        err = f"conda install failed for {packages}: {last_stderr[:800]}"
+        err = f"pixi add failed for {packages}: {last_stderr[:800]}"
         logger.error(err)
         self._send_log("error", err)
         return False
 
-    def _is_package_installed(self, mamba: str, env_name: str, package: str) -> bool:
-        """Fast check whether *package* is already in the conda env."""
+    def _is_pixi_package_installed(self, pixi: str, env_name: str, package: str) -> bool:
+        """Fast check whether *package* is already in the pixi env."""
+        project_root = Path(__file__).resolve().parent.parent.parent
         try:
             result = subprocess.run(
-                [mamba, "list", "-n", env_name, package, "--json"],
+                [pixi, "list", "-e", env_name, "--json"],
+                cwd=str(project_root),
                 capture_output=True,
                 text=True,
                 timeout=15,
@@ -453,49 +378,31 @@ class InstallJob:
             if result.returncode == 0 and result.stdout.strip():
                 import json
                 data = json.loads(result.stdout)
-                # data is a list of package dicts
-                if isinstance(data, list) and len(data) > 0:
-                    return True
+                if isinstance(data, list):
+                    for pkg in data:
+                        if pkg.get("name", "").lower() == package.lower():
+                            return True
         except Exception:
             pass
         return False
 
-    def _detect_env_python(self, mamba: str, env_name: str) -> tuple[int, int] | None:
-        """Detect the Python version in a conda env. Returns (major, minor) or None."""
-        try:
-            result = subprocess.run(
-                [mamba, "run", "-n", env_name, "python", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if result.returncode != 0:
-                return None
-            # Output is like "Python 3.14.4"
-            parts = result.stdout.strip().split()
-            if len(parts) >= 2:
-                ver_parts = parts[1].split(".")
-                return (int(ver_parts[0]), int(ver_parts[1]))
-        except Exception:
-            pass
-        return None
-
     async def _install_pip_package(self, package: str) -> bool:
-        """Install a package via pip inside the bionodulo-tools env."""
-        from bionodulo.manager.runtime_installer import get_micromamba_path
+        """Install a package via pip inside the default pixi environment."""
+        from bionodulo.manager.runtime_installer import get_pixi_path
 
         try:
-            mamba = get_micromamba_path()
-            if mamba is None:
-                err = "No micromamba found — cannot install pip packages"
+            pixi = get_pixi_path()
+            if pixi is None:
+                err = "No pixi found — cannot install pip packages"
                 logger.error(err)
                 self._send_log("error", err)
                 return False
 
-            env_name = "bionodulo-tools"
-            cmd = [str(mamba), "run", "-n", env_name, "python", "-m", "pip", "install", package]
+            project_root = Path(__file__).resolve().parent.parent.parent
+            cmd = [str(pixi), "run", "-e", "default", "python", "-m", "pip", "install", package]
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                cwd=str(project_root),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -513,17 +420,20 @@ class InstallJob:
             self._send_log("error", err)
             return False
 
-    async def _install_r_package(self, package: str, source: str = "cran", env_name: str = "bionodulo-tools") -> bool:
-        """Install an R package via conda (preferred) or R package manager fallback."""
-        from bionodulo.manager.runtime_installer import get_micromamba_path
+    async def _install_r_package(self, package: str, source: str = "cran", env_name: str = "tools") -> bool:
+        """Install an R package via pixi (conda preferred) or R package manager fallback."""
+        from bionodulo.manager.runtime_installer import get_pixi_path
 
         try:
-            mamba = get_micromamba_path()
-            if mamba is None:
-                err = "No micromamba found — cannot install R packages"
+            pixi = get_pixi_path()
+            if pixi is None:
+                err = "No pixi found — cannot install R packages"
                 logger.error(err)
                 self._send_log("error", err)
                 return False
+
+            project_root = Path(__file__).resolve().parent.parent.parent
+            pixi_name = _to_pixi_env_name(env_name)
 
             # Map common R packages to conda equivalents for faster, more reliable installs
             CONDA_R_MAP: dict[str, str] = {
@@ -543,31 +453,30 @@ class InstallJob:
                 "RColorBrewer": "r-rcolorbrewer",
             }
 
-            # Try conda install first when we have a mapping
+            # Try pixi add first when we have a mapping
             conda_pkg = CONDA_R_MAP.get(package)
             if conda_pkg:
-                self._send_log("info", f"Trying conda install for {package} ({conda_pkg}) into {env_name}...")
+                self._send_log("info", f"Trying pixi add for {package} ({conda_pkg}) into {pixi_name}...")
                 conda_cmd = [
-                    str(mamba), "install", "-n", env_name, "-y",
-                    "-c", "conda-forge", "-c", "bioconda",
-                    conda_pkg,
+                    str(pixi), "add", "-e", pixi_name, conda_pkg,
                 ]
                 proc = await asyncio.create_subprocess_exec(
                     *conda_cmd,
+                    cwd=str(project_root),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
                 try:
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
                     if proc.returncode == 0:
-                        self._send_log("success", f"Installed {package} via conda ({conda_pkg})")
+                        self._send_log("success", f"Installed {package} via pixi ({conda_pkg})")
                         return True
                     stderr_text = stderr.decode() if stderr else ""
-                    self._send_log("warn", f"Conda install failed for {conda_pkg}: {stderr_text[:300]}. Falling back to R package manager...")
+                    self._send_log("warn", f"pixi add failed for {conda_pkg}: {stderr_text[:300]}. Falling back to R package manager...")
                 except asyncio.TimeoutError:
                     proc.kill()
                     await proc.wait()
-                    self._send_log("warn", f"Conda install timed out for {conda_pkg}. Falling back to R package manager...")
+                    self._send_log("warn", f"pixi add timed out for {conda_pkg}. Falling back to R package manager...")
 
             # Fallback: install via R's package manager
             if source.lower() == "bioconductor":
@@ -582,9 +491,10 @@ class InstallJob:
                     f"dependencies=TRUE)"
                 )
 
-            cmd = [str(mamba), "run", "-n", env_name, "Rscript", "-e", r_cmd]
+            cmd = [str(pixi), "run", "-e", pixi_name, "Rscript", "-e", r_cmd]
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                cwd=str(project_root),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

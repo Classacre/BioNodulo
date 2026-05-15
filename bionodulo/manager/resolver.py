@@ -520,9 +520,10 @@ async def _resolve_workflow_async(
         try:
             import subprocess
 
-            from bionodulo.manager.runtime_installer import get_micromamba_path
+            from bionodulo.manager.runtime_installer import get_pixi_path
+            from bionodulo.environments.pixi import _to_pixi_env_name
 
-            mamba = get_micromamba_path()
+            pixi = get_pixi_path()
             r_script = (
                 "cat(paste(sapply(c("
                 + ",".join(f"'{p}'" for p in r_packages_to_check)
@@ -545,19 +546,19 @@ async def _resolve_workflow_async(
                             if available.strip().lower() == "true":
                                 available_anywhere[pkg_name] = True
 
-            # Check conda envs
-            if mamba:
-                for env_name in ["bionodulo-r", "bionodulo-tools"]:
+            # Check pixi envs
+            if pixi:
+                for env_name in ["r", "tools"]:
                     try:
                         check = subprocess.run(
-                            [str(mamba), "run", "-n", env_name, "Rscript", "--version"],
+                            [str(pixi), "run", "-e", env_name, "Rscript", "--version"],
                             capture_output=True,
                             text=True,
                             timeout=10,
                         )
                         if check.returncode == 0:
                             _check_r_in_env(
-                                [str(mamba), "run", "-n", env_name, "Rscript", "-e", r_script]
+                                [str(pixi), "run", "-e", env_name, "Rscript", "-e", r_script]
                             )
                     except Exception:
                         pass
