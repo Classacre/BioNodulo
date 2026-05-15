@@ -7,6 +7,7 @@ node execution results based on parameters, inputs, and upstream cache keys.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 from pathlib import Path
@@ -64,9 +65,15 @@ class CacheStore:
         payload = json.dumps(
             {
                 "node_type": node_type,
-                "params": _sorted_json(params),
-                "inputs": _sorted_json(inputs),
-                "upstream_keys": _sorted_json(upstream_keys),
+                "params": _sorted_json_cached(
+                    json.dumps(params, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+                ),
+                "inputs": _sorted_json_cached(
+                    json.dumps(inputs, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+                ),
+                "upstream_keys": _sorted_json_cached(
+                    json.dumps(upstream_keys, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+                ),
             },
             sort_keys=True,
             ensure_ascii=True,
@@ -137,3 +144,15 @@ def _sorted_json(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_sorted_json(v) for v in obj]
     return obj
+
+
+@functools.lru_cache(maxsize=4096)
+def _sorted_json_cached(json_str: str) -> str:
+    """Memoized version of _sorted_json for hashable string inputs.
+
+    Callers should serialize their object to a canonical JSON string
+    (``sort_keys=True, separators=(',', ':')``) before passing it here.
+    """
+    obj = json.loads(json_str)
+    sorted_obj = _sorted_json(obj)
+    return json.dumps(sorted_obj, sort_keys=True, separators=(",", ":"))

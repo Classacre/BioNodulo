@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
-        version="Alpha 1.2",
+        version="0.1.3",
     )
 
     # CORS
@@ -115,7 +115,12 @@ def create_app() -> FastAPI:
         @app.get("/{path:path}")
         async def serve_spa(request: Request, path: str) -> FileResponse:
             # API paths should be handled by routers above
-            if path.startswith("object_info") or path.startswith("api/") or path.startswith("workspace/") or path.startswith("manager/") or path.startswith("workflow/") or path.startswith("runs") or path.startswith("queue") or path.startswith("history") or path.startswith("config/") or path.startswith("ai/") or path.startswith("settings") or path.startswith("hpc/") or path.startswith("docs/") or path.startswith("workflow_templates") or path.startswith("i18n"):
+            _api_prefixes = frozenset({
+                "object_info", "api", "workspace", "manager", "workflow",
+                "runs", "queue", "history", "config", "ai", "settings",
+                "hpc", "docs", "workflow_templates", "i18n",
+            })
+            if any(path.startswith(p) or path.startswith(p + "/") for p in _api_prefixes):
                 # Let the router handle it
                 from fastapi.exceptions import HTTPException
                 raise HTTPException(status_code=404, detail="Not found")

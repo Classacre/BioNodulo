@@ -8,6 +8,7 @@ interruption, clearing, and state broadcast.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -57,11 +58,11 @@ class RunQueue:
     def __init__(
         self,
         executor: WorkflowExecutor | None = None,
-        max_concurrent: int = 1,
+        max_concurrent: int = 0,
         emit: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.executor = executor or WorkflowExecutor()
-        self.max_concurrent = max_concurrent
+        self.max_concurrent = max_concurrent if max_concurrent > 0 else min(4, os.cpu_count() or 1)
         self.emit = emit or (lambda _evt, _data: None)
 
         self._pending: asyncio.Queue[RunRequest] = asyncio.Queue()

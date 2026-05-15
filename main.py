@@ -8,6 +8,7 @@ import asyncio
 import os
 from pathlib import Path
 
+import uvloop
 import uvicorn
 
 
@@ -38,6 +39,9 @@ def main() -> None:
     # Ensure project root exists
     root = Path(os.environ.get("BIONODULO_ROOT", str(project_dir / "workspace"))).resolve()
     root.mkdir(parents=True, exist_ok=True)
+
+    # Install uvloop for faster asyncio event loop (2-4x I/O throughput)
+    uvloop.install()
 
     print(f"""
     =========================================

@@ -34,6 +34,7 @@ class NodeRegistry:
             cls._instance = super().__new__(cls)
             cls._instance._nodes: dict[str, Type[BaseNode]] = {}
             cls._instance._loaded: set[str] = set()
+            cls._instance._object_info_cache: dict[str, Any] | None = None
         return cls._instance
 
     # ── Registration ─────────────────────────────────────────────────
@@ -55,6 +56,7 @@ class NodeRegistry:
         if node_id in self._nodes:
             logger.warning("Overwriting registered node: %s", node_id)
         self._nodes[node_id] = node_class
+        self._object_info_cache = None
         logger.debug("Registered node: %s", node_id)
 
     def get(self, node_id: str) -> Optional[Type[BaseNode]]:
@@ -102,10 +104,12 @@ class NodeRegistry:
                 return {}
             return _to_comfy_info(node_class)
 
-        return {
-            nid: _to_comfy_info(nc)
-            for nid, nc in sorted(self._nodes.items())
-        }
+        if self._object_info_cache is None:
+            self._object_info_cache = {
+                nid: _to_comfy_info(nc)
+                for nid, nc in sorted(self._nodes.items())
+            }
+        return self._object_info_cache
 
     # ── Discovery ────────────────────────────────────────────────────
 
@@ -250,6 +254,7 @@ class NodeRegistry:
         """Clear all registrations (primarily for testing)."""
         self._nodes.clear()
         self._loaded.clear()
+        self._object_info_cache = None
 
 
 def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:

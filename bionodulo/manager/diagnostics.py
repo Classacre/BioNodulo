@@ -8,11 +8,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import time
 from typing import Any
 
 from bionodulo.nodes.base import BaseNode
 
 logger = logging.getLogger(__name__)
+
+# Module-level TTL cache for environment_status() to avoid 50+ shutil.which()
+# calls on every status check.
+_ENV_STATUS_CACHE: dict[str, Any] | None = None
+_ENV_STATUS_TIMESTAMP = 0.0
+_ENV_STATUS_TTL = 60.0  # seconds
 
 # Module-level cache for R package checks.
 # Key: (tuple(sorted(packages)), env_name)
@@ -208,9 +215,17 @@ def diagnose_workflow(nodes: list[type[BaseNode]]) -> dict[str, Any]:
 def environment_status() -> dict[str, Any]:
     """Check which bioinformatics tools are installed on the system.
 
+    Results are cached for 60 seconds to avoid repeated ``shutil.which()``
+    and Rscript subprocess calls.
+
     Returns:
         Dictionary with overall status and per-tool availability.
     """
+    global _ENV_STATUS_CACHE, _ENV_STATUS_TIMESTAMP
+
+    if _ENV_STATUS_CACHE is not None and (time.time() - _ENV_STATUS_TIMESTAMP) < _ENV_STATUS_TTL:
+        return _ENV_STATUS_CACHE
+
     results: dict[str, dict[str, Any]] = {}
     available_count = 0
     for exe, package in sorted(KNOWN_EXECUTABLES.items()):
@@ -236,7 +251,7 @@ def environment_status() -> dict[str, Any]:
     total_available = available_count + r_available_count
     total_known = len(KNOWN_EXECUTABLES) + len(r_packages_check)
 
-    return {
+    _ENV_STATUS_CACHE = {
         "total_known": total_known,
         "available": total_available,
         "missing": total_known - total_available,
@@ -247,6 +262,8 @@ def environment_status() -> dict[str, Any]:
             "percent_ready": round(total_available / total_known * 100, 1) if total_known else 100,
         },
     }
+    _ENV_STATUS_TIMESTAMP = time.time()
+    return _ENV_STATUS_CACHE
 
 
 def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
