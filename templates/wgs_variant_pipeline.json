@@ -258,8 +258,8 @@
     {
       "id": "e6",
       "from": {
-        "node": "idx_001",
-        "output": "indexed_bam"
+        "node": "sort_001",
+        "output": "sorted_bam"
       },
       "to": {
         "node": "fb_001",

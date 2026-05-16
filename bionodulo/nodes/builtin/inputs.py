@@ -249,8 +249,8 @@ class InputVCFNode(CommandNode):
     CATEGORY = "input"
     DESCRIPTION = "Import a VCF variant call file"
     SEARCH_ALIASES = ["vcf", "variants", "input variants"]
-    RETURN_TYPES = ("VCF",)
-    RETURN_NAMES = ("vcf",)
+    RETURN_TYPES = ("VCF", "VCF_GZ")
+    RETURN_NAMES = ("vcf", "vcf_gz")
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://samtools.github.io/hts-specs/VCFv4.2.pdf"
     COMMAND = ["cp", "-r", "{inputs.vcf}", "{output}"]
@@ -290,7 +290,7 @@ class InputVCFNode(CommandNode):
             shutil.copytree(src, dst, dirs_exist_ok=True)
         else:
             shutil.copy2(src, dst)
-        return {"outputs": {"vcf": str(dst.resolve())}}
+        return {"outputs": {"vcf": str(dst.resolve()), "vcf_gz": str(dst.resolve())}}
 
 
 class InputGFFNode(CommandNode):

@@ -27,7 +27,7 @@
         100
       ],
       "params": {
-        "path": "examples/data/single_cell"
+        "directory": "examples/data/single_cell"
       },
       "ui": {
         "title": "FASTQ Directory"
@@ -41,7 +41,7 @@
         300
       ],
       "params": {
-        "path": "refdata-gex-GRCh38"
+        "directory": "refdata-gex-GRCh38"
       },
       "ui": {
         "title": "Cell Ranger Reference"
