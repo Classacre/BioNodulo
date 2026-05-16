@@ -12,9 +12,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from bionodulo.environments.constants import (
+    EXECUTABLE_TO_CONDA_PACKAGE,
+    R_PACKAGE_TO_CONDA_PACKAGE,
+)
 from bionodulo.environments.manifest import (
-    EXECUTABLE_PACKAGES,
-    R_PACKAGE_MAP,
     get_env_dir,
     get_env_id,
     is_env_ready,
@@ -278,7 +280,7 @@ async def _resolve_node_type(
         if conda_packages:
             conda_pkg = conda_packages[0]
         else:
-            conda_pkg = EXECUTABLE_PACKAGES.get(exe, exe)
+            conda_pkg = EXECUTABLE_TO_CONDA_PACKAGE.get(exe, exe)
 
         required_executables.append(
             MissingExecutable(

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import subprocess
 import time
 from typing import Any
 
@@ -87,58 +88,7 @@ def _check_r_packages_env_aware(
     return results
 
 
-# Known bioinformatics executables with their package names
-KNOWN_EXECUTABLES: dict[str, str] = {
-    "bwa": "bwa",
-    "bowtie2": "bowtie2",
-    "bowtie2-build": "bowtie2",
-    "hisat2": "hisat2",
-    "hisat2-build": "hisat2",
-    "STAR": "star",
-    "minimap2": "minimap2",
-    "salmon": "salmon",
-    "kallisto": "kallisto",
-    "samtools": "samtools",
-    "bcftools": "bcftools",
-    "gatk": "gatk4",
-    "freebayes": "freebayes",
-    "vcftools": "vcftools",
-    "fastqc": "fastqc",
-    "multiqc": "multiqc",
-    "qualimap": "qualimap",
-    "fastp": "fastp",
-    "trimmomatic": "trimmomatic",
-    "cutadapt": "cutadapt",
-    "spades.py": "spades",
-    "megahit": "megahit",
-    "canu": "canu",
-    "flye": "flye",
-    "unicycler": "unicycler",
-    "quast": "quast",
-    "prokka": "prokka",
-    "bakta": "bakta",
-    "emapper.py": "eggnog-mapper",
-    "mafft": "mafft",
-    "clustalo": "clustal-omega",
-    "iqtree": "iqtree",
-    "iqtree2": "iqtree",
-    "FastTree": "fasttree",
-    "raxmlHPC": "raxml",
-    "featureCounts": "subread",
-    "stringtie": "stringtie",
-    "kraken2": "kraken2",
-    "kraken2-build": "kraken2",
-    "bracken": "bracken",
-    "metaphlan": "metaphlan",
-    "humann": "humann",
-    "run_MaxBin.pl": "maxbin2",
-    "checkm": "checkm-genome",
-    "macs2": "macs2",
-    "bedtools": "bedtools",
-    "bamCoverage": "deeptools",
-    "cellranger": "cellranger",
-    "Rscript": "r-base",
-}
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE as KNOWN_EXECUTABLES
 
 
 def diagnose_workflow(nodes: list[type[BaseNode]]) -> dict[str, Any]:

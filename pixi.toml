@@ -2,6 +2,7 @@
 name = "bionodulo"
 version = "0.1.3"
 description = "Visual bioinformatics pipelines, node by node."
+authors = ["BioNodulo Team <team@bionodulo.org>"]
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64"]
 

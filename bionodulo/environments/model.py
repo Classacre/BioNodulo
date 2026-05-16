@@ -19,7 +19,7 @@ class EnvironmentSpec:
 
     # Environment type discriminator
     type: str = "none"
-    """Environment type: conda, docker, apptainer, singularity, or none."""
+    """Environment type: pixi, conda, docker, apptainer, singularity, or none."""
 
     # Conda-specific fields
     name: str = ""

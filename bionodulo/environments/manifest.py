@@ -18,87 +18,21 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Mapping of executable names to conda package names.
-# This is the single source of truth for tool → package resolution.
-EXECUTABLE_PACKAGES: dict[str, str] = {
-    "bwa": "bwa",
-    "blastn": "blast",
-    "bowtie2": "bowtie2",
-    "bowtie2-build": "bowtie2",
-    "bowtie2-inspect": "bowtie2",
-    "hisat2": "hisat2",
-    "hisat2-build": "hisat2",
-    "STAR": "star",
-    "minimap2": "minimap2",
-    "salmon": "salmon",
-    "kallisto": "kallisto",
-    "samtools": "samtools",
-    "bcftools": "bcftools",
-    "gatk": "gatk4",
-    "freebayes": "freebayes",
-    "vcftools": "vcftools",
-    "fastqc": "fastqc",
-    "multiqc": "multiqc",
-    "qualimap": "qualimap",
-    "fastp": "fastp",
-    "trimmomatic": "trimmomatic",
-    "cutadapt": "cutadapt",
-    "spades.py": "spades",
-    "megahit": "megahit",
-    "canu": "canu",
-    "flye": "flye",
-    "unicycler": "unicycler",
-    "quast": "quast",
-    "prokka": "prokka",
-    "bakta": "bakta",
-    "emapper.py": "eggnog-mapper",
-    "mafft": "mafft",
-    "clustalo": "clustal-omega",
-    "iqtree": "iqtree",
-    "iqtree2": "iqtree",
-    "FastTree": "fasttree",
-    "raxmlHPC": "raxml",
-    "featureCounts": "subread",
-    "stringtie": "stringtie",
-    "kraken2": "kraken2",
-    "kraken2-build": "kraken2",
-    "bracken": "bracken",
-    "metaphlan": "metaphlan",
-    "humann": "humann",
-    "run_MaxBin.pl": "maxbin2",
-    "checkm": "checkm-genome",
-    "macs2": "macs2",
-    "bedtools": "bedtools",
-    "bamCoverage": "deeptools",
-    "cellranger": "cellranger",
-    "Rscript": "r-base",
-}
-
-# Mapping of R packages to conda package names.
-R_PACKAGE_MAP: dict[str, str] = {
-    "ggplot2": "r-ggplot2",
-    "readr": "r-readr",
-    "dplyr": "r-dplyr",
-    "tidyr": "r-tidyr",
-    "pheatmap": "r-pheatmap",
-    "DESeq2": "bioconductor-deseq2",
-    "edgeR": "bioconductor-edger",
-    "limma": "bioconductor-limma",
-    "Biostrings": "bioconductor-biostrings",
-    "GenomicRanges": "bioconductor-genomicranges",
-    "ape": "r-ape",
-    "vegan": "r-vegan",
-    "ComplexHeatmap": "bioconductor-complexheatmap",
-    "RColorBrewer": "r-rcolorbrewer",
-    "rtracklayer": "bioconductor-rtracklayer",
-    "summarizedexperiment": "bioconductor-summarizedexperiment",
-    "tximport": "bioconductor-tximport",
-}
+from bionodulo.environments.constants import (
+    EXECUTABLE_TO_CONDA_PACKAGE,
+    R_PACKAGE_TO_CONDA_PACKAGE,
+    PACKAGE_MIN_VERSIONS,
+)
 
 
 def _norm_pkg(name: str) -> str:
     """Normalise a package name for stable hashing."""
     return name.strip().lower()
+
+
+def _version_spec(pkg: str) -> str:
+    """Return the version constraint for a package."""
+    return PACKAGE_MIN_VERSIONS.get(pkg, "*")
 
 
 def get_env_id(packages: list[str]) -> str:
@@ -158,16 +92,22 @@ def workflow_to_packages(
                     packages.add(cpkg)
 
         for exe in executables:
-            pkg = EXECUTABLE_PACKAGES.get(exe, exe)
+            pkg = EXECUTABLE_TO_CONDA_PACKAGE.get(exe, exe)
             if pkg:
                 packages.add(pkg)
 
         for rpkg in r_packages:
-            pkg = R_PACKAGE_MAP.get(rpkg, rpkg)
+            pkg = R_PACKAGE_TO_CONDA_PACKAGE.get(rpkg, rpkg)
             if pkg:
                 packages.add(pkg)
 
-    return sorted(packages)
+    packages = sorted(packages)
+    # Ensure r-base is present if any R packages are needed
+    if any(p.startswith("r-") or p.startswith("bioconductor-") for p in packages):
+        if "r-base" not in packages:
+            packages.append("r-base")
+            packages.sort()
+    return packages
 
 
 def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
@@ -181,6 +121,7 @@ def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
     toml_lines = [
         '[workspace]',
         'name = "bionodulo-workflow"',
+        'version = "0.1.0"',
         'channels = ["conda-forge", "bioconda"]',
         'platforms = ["linux-64"]',
         '',
@@ -188,7 +129,7 @@ def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
     ]
 
     for pkg in sorted(packages):
-        toml_lines.append(f'{pkg} = "*"')
+        toml_lines.append(f'{pkg} = "{_version_spec(pkg)}"')
 
     toml_lines.append("")
 
@@ -205,9 +146,29 @@ def is_manifest_current(env_dir: str | Path, packages: list[str]) -> bool:
     if not manifest_path.exists():
         return False
 
-    # Quick check: count lines in [dependencies] section
-    content = manifest_path.read_text(encoding="utf-8")
-    current_pkgs = {line.split("=")[0].strip() for line in content.splitlines() if "=" in line and not line.startswith("[")}
+    try:
+        import tomllib  # Python 3.11+
+        with open(manifest_path, "rb") as f:
+            data = tomllib.load(f)
+        current_pkgs = set(data.get("dependencies", {}).keys())
+    except Exception:
+        # Fallback: section-aware parsing
+        content = manifest_path.read_text(encoding="utf-8")
+        current_pkgs: set[str] = set()
+        in_deps = False
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped == "[dependencies]":
+                in_deps = True
+                continue
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_deps = False
+                continue
+            if in_deps and "=" in stripped:
+                pkg_name = stripped.split("=", 1)[0].strip()
+                if pkg_name:
+                    current_pkgs.add(pkg_name)
+
     required_pkgs = {_norm_pkg(p) for p in packages}
     return current_pkgs == required_pkgs
 
@@ -387,7 +348,7 @@ def get_installed_versions(env_dir: str | Path) -> dict[str, str]:
 
     try:
         result = subprocess.run(
-            [str(pixi), "list", "--json", "--manifest-path", str(manifest)],
+            [str(pixi), "list", "--json", "--frozen", "--manifest-path", str(manifest)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -395,13 +356,19 @@ def get_installed_versions(env_dir: str | Path) -> dict[str, str]:
         if result.returncode != 0:
             return {}
         data = json.loads(result.stdout)
-        versions: dict[str, str] = {}
-        for pkg in data:
-            name = pkg.get("name", "").strip().lower()
-            version = pkg.get("version", "*")
-            if name:
-                versions[name] = version
-        return versions
+        if isinstance(data, list):
+            return {
+                entry["name"].lower(): entry["version"]
+                for entry in data
+                if "name" in entry and "version" in entry
+            }
+        if isinstance(data, dict):
+            return {
+                name.lower(): info["version"]
+                for name, info in data.items()
+                if isinstance(info, dict) and "version" in info
+            }
+        return {}
     except Exception:
         return {}
 
@@ -419,47 +386,64 @@ def remove_package_from_env(env_dir: str | Path, package_name: str) -> tuple[boo
 
     pkg_norm = package_name.strip().lower()
     try:
-        lines = manifest.read_text(encoding="utf-8").splitlines()
-        new_lines: list[str] = []
-        removed = False
-        in_deps = False
-        for line in lines:
-            stripped = line.strip()
-            if stripped == "[dependencies]":
-                in_deps = True
-                new_lines.append(line)
-                continue
-            if stripped.startswith("[") and stripped.endswith("]"):
-                in_deps = False
-                new_lines.append(line)
-                continue
-            if in_deps and "=" in stripped:
-                dep_name = stripped.split("=")[0].strip().lower()
-                if dep_name == pkg_norm:
-                    removed = True
-                    continue
-            new_lines.append(line)
-
-        if not removed:
-            return False, f"Package '{package_name}' not found in dependencies"
-
-        manifest.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-
-        # Delete lockfile so env must be re-resolved
-        lockfile = env_dir / "pixi.lock"
-        if lockfile.exists():
-            lockfile.unlink()
-
-        # Mark env as not ready
-        set_env_meta(
-            env_dir,
-            ready=False,
-            broken_reason=f"Package '{package_name}' was manually removed",
-        )
-
-        return True, f"Removed '{package_name}'"
+        import tomllib
+        with open(manifest, "rb") as f:
+            data = tomllib.load(f)
     except Exception as exc:
-        return False, str(exc)
+        return False, f"Failed to parse manifest: {exc}"
+
+    deps = data.get("dependencies", {})
+    if not isinstance(deps, dict):
+        return False, "Invalid manifest: dependencies section is not a table"
+
+    removed_key = None
+    for key in list(deps.keys()):
+        if key.lower() == pkg_norm:
+            removed_key = key
+            del deps[key]
+            break
+
+    if removed_key is None:
+        return False, f"Package '{package_name}' not found in dependencies"
+
+    # Regenerate manifest preserving workspace metadata
+    ws = data.get("workspace", {})
+    toml_lines = [
+        "[workspace]",
+        f'name = "{ws.get("name", "bionodulo-workflow")}"',
+    ]
+    if "version" in ws:
+        toml_lines.append(f'version = "{ws["version"]}"')
+    if "description" in ws:
+        toml_lines.append(f'description = "{ws["description"]}"')
+    toml_lines.extend([
+        'channels = ["conda-forge", "bioconda"]',
+        'platforms = ["linux-64"]',
+        "",
+        "[dependencies]",
+    ])
+    for key, val in sorted(deps.items()):
+        if isinstance(val, str):
+            toml_lines.append(f'{key} = "{val}"')
+        else:
+            toml_lines.append(f"{key} = {json.dumps(val)}")
+    toml_lines.append("")
+
+    manifest.write_text("\n".join(toml_lines) + "\n", encoding="utf-8")
+
+    # Delete lockfile so env must be re-resolved
+    lockfile = env_dir / "pixi.lock"
+    if lockfile.exists():
+        lockfile.unlink()
+
+    # Mark env as not ready
+    set_env_meta(
+        env_dir,
+        ready=False,
+        broken_reason=f"Package '{package_name}' was manually removed",
+    )
+
+    return True, f"Removed '{package_name}'"
 
 
 def list_all_envs(workspace_dir: str | Path) -> list[dict[str, Any]]:

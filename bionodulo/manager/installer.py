@@ -146,6 +146,10 @@ class DependencyInstaller:
                     if emit:
                         emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
                     generate_manifest(env_dir, packages)
+                    # CRITICAL FIX: Delete stale lockfile so pixi lock will regenerate it
+                    lockfile = env_dir / "pixi.lock"
+                    if lockfile.exists():
+                        lockfile.unlink()
 
                 # Step 2: lock
                 if not is_env_ready(env_dir):
