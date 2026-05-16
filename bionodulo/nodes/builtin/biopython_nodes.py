@@ -62,6 +62,7 @@ class SeqIOReadNode(BaseNode):
                 "description": rec.description,
                 "length": len(seq_str),
                 "seq_preview": seq_str[:100],
+                "seq_full": seq_str,
             })
             total_len += len(seq_str)
             gc = seq_str.count("G") + seq_str.count("C")
@@ -126,8 +127,9 @@ class SeqIOWriteNode(BaseNode):
             data = data["_value"]
         records = []
         for item in data:
+            seq = item.get("seq_full") or item.get("seq_preview", "")
             rec = SeqRecord(
-                Seq(item.get("seq_preview", "")),
+                Seq(seq),
                 id=item.get("id", "unknown"),
                 description=item.get("description", ""),
                 annotations={"molecule_type": "DNA"},
@@ -298,7 +300,7 @@ class BLASTSearchNode(BaseNode):
         max_hits = kwargs.get("max_hits", 10)
         outfmt = kwargs.get("outfmt", "5")
 
-        out_path = out_dir / "blast_result.xml"
+        out_path = out_dir / ("blast_result.xml" if outfmt == "5" else "blast_result.tsv")
 
         cmd = [
             program,

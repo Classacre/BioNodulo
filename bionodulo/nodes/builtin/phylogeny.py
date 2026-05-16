@@ -5,6 +5,7 @@ and tree inference (IQ-TREE, FastTree, RAxML).
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -50,9 +51,8 @@ class MAFFTNode(CommandNode):
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         strategy = inputs.get("strategy", "auto")
         cmd = ["mafft", "--thread", str(inputs.get("threads", 4))]
-        if strategy != "auto":
-            flag = f"--{strategy}" if not strategy.startswith("--") else strategy
-            cmd.append(flag)
+        flag = f"--{strategy}" if not strategy.startswith("--") else strategy
+        cmd.append(flag)
         cmd.extend([str(inputs.get("input", "")), ">", f"{inputs.get('output', '.')}/alignment.fasta"])
         return cmd
 
@@ -70,13 +70,19 @@ class ClustalONode(CommandNode):
     REQUIRED_CONDA_PACKAGES = ['clustal-omega']
     DOCUMENTATION_URL = "http://www.clustal.org/omega/"
     VERSION = "1.2.4"
-    COMMAND = [
-        "clustalo",
-        "-i", "{inputs.input}",
-        "-o", "{output}/alignment.fasta",
-        "--threads={inputs.threads}",
-        "--force",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "clustalo",
+            "-i", str(inputs.get("input", "")),
+            "-o", f"{inputs.get('output', '.')}/alignment.fasta",
+            "--threads", str(inputs.get("threads", 4)),
+            "--force",
+        ]
+        if inputs.get("outfmt"):
+            cmd.extend(["--outfmt", str(inputs["outfmt"])])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -108,7 +114,7 @@ class IQTREENode(CommandNode):
     DOCUMENTATION_URL = "http://www.iqtree.org/"
     VERSION = "2.3.4"
     COMMAND = [
-        "iqtree2" if False else "iqtree",
+        "iqtree",
         "-s", "{inputs.alignment}",
         "-nt", "{inputs.threads}",
         "-pre", "{output}/tree",
@@ -135,7 +141,7 @@ class IQTREENode(CommandNode):
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         cmd = [
-            "iqtree2" if False else "iqtree",
+            "iqtree",
             "-s", str(inputs.get("alignment", "")),
             "-nt", str(inputs.get("threads", 4)),
             "-pre", f"{inputs.get('output', '.')}/tree",
@@ -246,8 +252,8 @@ class RAxMLNode(CommandNode):
             "-m", str(inputs.get("model", "GTRGAMMA")),
             "-p", "12345",
             "-T", str(inputs.get("threads", 4)),
-            "-w", str(inputs.get("output", ".")),
+            "-w", os.path.abspath(str(inputs.get("output", "."))),
         ]
         if inputs.get("bootstrap"):
-            cmd.extend(["-b", "12345", "-N", "100"])
+            cmd.extend(["-b", "12345", "-#", "100"])
         return cmd

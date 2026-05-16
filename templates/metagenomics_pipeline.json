@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true,
         "reads": [
           "examples/data/metagenomics/reads_forward.fastq",
           "examples/data/metagenomics/reads_reverse.fastq"
@@ -46,7 +45,7 @@
         280
       ],
       "params": {
-        "path": "kraken2_db"
+        "directory": "kraken2_db"
       },
       "ui": {
         "title": "Kraken2 DB"
@@ -60,8 +59,7 @@
         80
       ],
       "params": {
-        "threads": 4,
-        "adapter_sequence": "auto"
+        "threads": 4
       },
       "ui": {
         "title": "fastp Trim"
@@ -103,7 +101,8 @@
         280
       ],
       "params": {
-        "threads": 8
+        "threads": 8,
+        "bt2_db": "metaphlan_db"
       },
       "ui": {
         "title": "MetaPhlAn"

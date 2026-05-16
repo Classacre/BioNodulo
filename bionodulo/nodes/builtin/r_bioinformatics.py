@@ -18,7 +18,7 @@ class DESeq2Node(BaseNode):
 
     NODE_ID = "deseq2_analysis"
     DISPLAY_NAME = "DESeq2 Analysis"
-    REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-deseq2', 'r-ggplot2', 'r-readr']
+    REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-deseq2', 'r-ggplot2', 'r-readr', 'r-ashr']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Differential expression analysis using DESeq2 (requires count matrix + sample metadata)"
     RETURN_TYPES = ("FILE", "FILE", "FILE")
@@ -26,7 +26,7 @@ class DESeq2Node(BaseNode):
     OUTPUT_NODE = True
     REQUIRES_EXTERNAL_TOOLS = True
     REQUIRED_EXECUTABLES = ["Rscript"]
-    REQUIRED_R_PACKAGES = ["DESeq2", "ggplot2", "readr"]
+    REQUIRED_R_PACKAGES = ["DESeq2", "ggplot2", "readr", "ashr"]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -238,7 +238,7 @@ class BiostringsStatsNode(BaseNode):
     NODE_ID = "r_biostrings_stats"
     DISPLAY_NAME = "Biostrings Stats"
     REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-biostrings', 'r-readr']
-    CATEGORY = "biopython"
+    CATEGORY = "sequence"
     DESCRIPTION = "Advanced sequence stats with Biostrings: ORF finding, reverse complement, 6-frame translation"
     RETURN_TYPES = ("FILE", "FILE", "FILE")
     RETURN_NAMES = ("orf_table_csv", "revcomp_fasta", "six_frame_fasta")

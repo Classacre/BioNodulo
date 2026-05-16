@@ -61,20 +61,6 @@
       "ui": {
         "title": "Cell Ranger Count"
       }
-    },
-    {
-      "id": "qc_001",
-      "type": "fastqc",
-      "position": [
-        400,
-        400
-      ],
-      "params": {
-        "threads": 4
-      },
-      "ui": {
-        "title": "FastQC"
-      }
     }
   ],
   "edges": [
@@ -98,17 +84,6 @@
       "to": {
         "node": "cr_count_001",
         "input": "transcriptome"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "fastq_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "qc_001",
-        "input": "directory"
       }
     }
   ],

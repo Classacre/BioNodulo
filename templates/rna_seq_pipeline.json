@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true,
         "reads": [
           "examples/data/rna_seq/SRR6357070_1.fastq",
           "examples/data/rna_seq/SRR6357070_2.fastq"
@@ -74,8 +73,7 @@
         60
       ],
       "params": {
-        "threads": 4,
-        "adapter_sequence": "auto"
+        "threads": 4
       },
       "ui": {
         "title": "fastp Trim"
@@ -93,6 +91,20 @@
       },
       "ui": {
         "title": "HISAT2 Align"
+      }
+    },
+    {
+      "id": "view_001",
+      "type": "samtools_view",
+      "position": [
+        730,
+        60
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "SAM to BAM"
       }
     },
     {
@@ -219,8 +231,8 @@
         "output": "alignment"
       },
       "to": {
-        "node": "sort_001",
-        "input": "input"
+        "node": "view_001",
+        "input": "sam"
       }
     },
     {
@@ -238,11 +250,11 @@
       "id": "e6",
       "from": {
         "node": "annot_001",
-        "output": "annotations"
+        "output": "annotation"
       },
       "to": {
         "node": "counts_001",
-        "input": "annotation"
+        "input": "gtf"
       }
     },
     {
@@ -265,6 +277,17 @@
       "to": {
         "node": "mqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e4b",
+      "from": {
+        "node": "view_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "bam"
       }
     }
   ],

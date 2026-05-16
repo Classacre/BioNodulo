@@ -21,16 +21,27 @@ class CellRangerCountNode(CommandNode):
     RETURN_NAMES = ("output_dir",)
     REQUIRED_EXECUTABLES = ["cellranger"]
     DOCUMENTATION_URL = "https://www.10xgenomics.com/support/software/cell-ranger"
-    VERSION = "8.0"
-    COMMAND = [
-        "cellranger", "count",
-        "--id", "{inputs.run_id}",
-        "--transcriptome", "{inputs.transcriptome}",
-        "--fastqs", "{inputs.fastq_dir}",
-        "--sample", "{inputs.sample}",
-        "--localcores", "{inputs.threads}",
-        "--localmem", "{inputs.memory}",
-    ]
+    VERSION = "9.0.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "cellranger", "count",
+            "--id", str(inputs.get("run_id", "cellranger_count")),
+            "--transcriptome", str(inputs.get("transcriptome", "")),
+            "--fastqs", str(inputs.get("fastq_dir", "")),
+            "--localcores", str(inputs.get("threads", 16)),
+            "--localmem", str(inputs.get("memory", 64)),
+        ]
+        if inputs.get("sample"):
+            cmd.extend(["--sample", str(inputs["sample"])])
+        if inputs.get("expect_cells"):
+            cmd.extend(["--expect-cells", str(inputs["expect_cells"])])
+        if inputs.get("chemistry"):
+            cmd.extend(["--chemistry", str(inputs["chemistry"])])
+        if inputs.get("lanes"):
+            cmd.extend(["--lanes", str(inputs["lanes"])])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -38,13 +49,15 @@ class CellRangerCountNode(CommandNode):
             "required": {
                 "fastq_dir": ("DIRECTORY", {"description": "Directory with FASTQ files"}),
                 "transcriptome": ("DIRECTORY", {"description": "Cell Ranger reference transcriptome"}),
-                "sample": ("STRING", {"description": "Sample name matching FASTQ files"}),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
                 "memory": ("INT", {"default": 64, "min": 8, "description": "Memory in GB"}),
                 "run_id": ("STRING", {"default": "cellranger_count"}),
             },
             "optional": {
+                "sample": ("STRING", {"description": "Sample name matching FASTQ files"}),
                 "expect_cells": ("INT", {"default": 3000, "min": 100, "max": 50000, "step": 100, "display": "slider"}),
+                "chemistry": ("STRING", {"default": "auto", "description": "Chemistry assay configuration", "advanced": True}),
+                "lanes": ("STRING", {"default": "", "description": "Lanes to analyze", "advanced": True}),
             },
             "hidden": {},
         }
@@ -62,7 +75,7 @@ class CellRangerMkrefNode(CommandNode):
     RETURN_NAMES = ("reference",)
     REQUIRED_EXECUTABLES = ["cellranger"]
     DOCUMENTATION_URL = "https://www.10xgenomics.com/support/software/cell-ranger"
-    VERSION = "8.0"
+    VERSION = "9.0.1"
     COMMAND = [
         "cellranger", "mkref",
         "--genome={inputs.genome_name}",
@@ -83,5 +96,7 @@ class CellRangerMkrefNode(CommandNode):
                 "memory": ("INT", {"default": 32, "min": 8, "description": "Memory in GB"}),
             },
             "optional": {},
-            "hidden": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
         }

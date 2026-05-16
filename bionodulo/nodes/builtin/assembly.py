@@ -22,8 +22,8 @@ class SPAdesNode(CommandNode):
     RETURN_TYPES = ("ASSEMBLY", "CONTIGS")
     RETURN_NAMES = ("assembly", "contigs")
     REQUIRED_EXECUTABLES = ["spades.py"]
-    DOCUMENTATION_URL = "https://cab.spbu.ru/software/spades/"
-    VERSION = "3.15.5"
+    DOCUMENTATION_URL = "https://github.com/ablab/spades"
+    VERSION = "4.2.0"
     COMMAND = [
         "spades.py",
         "-1", "{inputs.r1}",
@@ -42,6 +42,7 @@ class SPAdesNode(CommandNode):
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
                 "memory": ("INT", {"default": 128, "min": 1, "description": "Memory limit in GB"}),
                 "careful": ("BOOLEAN", {"default": True, "description": "Reduce mismatch correction errors"}),
             },
@@ -57,6 +58,20 @@ class SPAdesNode(CommandNode):
             kwargs["r1"] = reads[0]
             kwargs["r2"] = reads[1]
         return await super().run(**kwargs)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "spades.py",
+            "-1", str(inputs.get("r1", "")),
+            "-2", str(inputs.get("r2", "")),
+            "-o", str(inputs.get("output", ".")),
+            "-t", str(inputs.get("threads", 16)),
+            "--memory", str(inputs.get("memory", 128)),
+        ]
+        if inputs.get("careful"):
+            cmd.append("--careful")
+        return cmd
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
@@ -115,6 +130,21 @@ class MEGAHITNode(CommandNode):
         return await super().run(**kwargs)
 
     @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "megahit",
+            "-1", str(inputs.get("r1", "")),
+            "-2", str(inputs.get("r2", "")),
+            "-o", str(inputs.get("output", ".")),
+            "-t", str(inputs.get("threads", 16)),
+        ]
+        if inputs.get("min_contig_len"):
+            cmd.extend(["--min-contig-len", str(inputs["min_contig_len"])])
+        if inputs.get("k_list"):
+            cmd.extend(["-k-list", str(inputs["k_list"])])
+        return cmd
+
+    @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         od = Path(output_dir)
@@ -130,10 +160,10 @@ class CanuNode(CommandNode):
     DESCRIPTION = "Long-read assembler for PacBio and Oxford Nanopore"
     SEARCH_ALIASES = ["canu", "assemble", "long reads", "pacbio", "ont"]
     RETURN_TYPES = ("ASSEMBLY", "CONTIGS")
-    RETURN_NAMES = ("assembly", "unitigs")
+    RETURN_NAMES = ("assembly", "contigs")
     REQUIRED_EXECUTABLES = ["canu"]
     DOCUMENTATION_URL = "https://canu.readthedocs.io/"
-    VERSION = "2.2"
+    VERSION = "2.3"
     COMMAND = [
         "canu",
         "-p", "{inputs.prefix}",
@@ -174,6 +204,15 @@ class CanuNode(CommandNode):
             f"maxThreads={inputs.get('threads', 16)}",
         ]
 
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
+        from pathlib import Path
+        od = Path(output_dir)
+        return [
+            od / f"{inputs.get('prefix', 'assembly')}.contigs.fasta",
+            od / f"{inputs.get('prefix', 'assembly')}.unitigs.fasta",
+        ]
+
 
 class FlyeNode(CommandNode):
     """De novo assembly with Flye (long reads)."""
@@ -187,13 +226,12 @@ class FlyeNode(CommandNode):
     RETURN_NAMES = ("assembly",)
     REQUIRED_EXECUTABLES = ["flye"]
     DOCUMENTATION_URL = "https://github.com/fenderglass/Flye"
-    VERSION = "2.9.3"
+    VERSION = "2.9.6"
     COMMAND = [
         "flye",
         "--{inputs.read_type}", "{inputs.reads}",
         "--out-dir", "{output}",
         "--threads", "{inputs.threads}",
-        "--genome-size", "{inputs.genome_size}",
     ]
 
     @classmethod
@@ -201,11 +239,11 @@ class FlyeNode(CommandNode):
         return {
             "required": {
                 "reads": ("FASTQ", {"description": "Long reads FASTQ"}),
-                "genome_size": ("STRING", {"default": "5m", "description": "Estimated genome size"}),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
                 "read_type": ("STRING", {"default": "nano-hq"}),
             },
             "optional": {
+                "genome_size": ("STRING", {"default": "5m", "description": "Estimated genome size"}),
                 "iterations": ("INT", {"default": 1, "min": 0, "max": 5}),
             },
             "hidden": {
@@ -220,8 +258,9 @@ class FlyeNode(CommandNode):
             f"--{inputs.get('read_type', 'nano-hq')}", str(inputs.get("reads", "")),
             "--out-dir", str(inputs.get("output", ".")),
             "--threads", str(inputs.get("threads", 16)),
-            "--genome-size", str(inputs.get("genome_size", "5m")),
         ]
+        if inputs.get("genome_size"):
+            cmd.extend(["--genome-size", str(inputs["genome_size"])])
         if inputs.get("iterations"):
             cmd.extend(["--iterations", str(inputs["iterations"])])
         return cmd
@@ -245,7 +284,7 @@ class UnicyclerNode(CommandNode):
     RETURN_NAMES = ("assembly",)
     REQUIRED_EXECUTABLES = ["unicycler"]
     DOCUMENTATION_URL = "https://github.com/rrwick/Unicycler"
-    VERSION = "0.5.0"
+    VERSION = "0.5.1"
     COMMAND = [
         "unicycler",
         "-1", "{inputs.r1}",
@@ -265,6 +304,8 @@ class UnicyclerNode(CommandNode):
             "optional": {
                 "long_reads": ("FASTQ", {"description": "Optional long reads for hybrid assembly"}),
                 "mode": ("STRING", {"default": "normal"}),
+                "unpaired": ("FASTQ", {"description": "Optional unpaired reads"}),
+                "min_fasta_length": ("INT", {"default": 100, "min": 1}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -291,6 +332,10 @@ class UnicyclerNode(CommandNode):
         ]
         if inputs.get("long_reads"):
             cmd.extend(["-l", str(inputs["long_reads"])])
+        if inputs.get("unpaired"):
+            cmd.extend(["-s", str(inputs["unpaired"])])
+        if inputs.get("min_fasta_length") is not None:
+            cmd.extend(["--min_fasta_length", str(inputs["min_fasta_length"])])
         return cmd
 
     @classmethod
@@ -312,7 +357,7 @@ class QuastNode(CommandNode):
     RETURN_NAMES = ("report",)
     REQUIRED_EXECUTABLES = ["quast"]
     DOCUMENTATION_URL = "https://quast.sourceforge.net/"
-    VERSION = "5.2.0"
+    VERSION = "5.3.0"
     COMMAND = [
         "quast",
         "{inputs.assembly}",
@@ -335,3 +380,23 @@ class QuastNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "quast",
+            str(inputs.get("assembly", "")),
+            "-o", str(inputs.get("output", ".")),
+            "-t", str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("reference"):
+            cmd.extend(["-r", str(inputs["reference"])])
+        if inputs.get("gff"):
+            cmd.extend(["--features", str(inputs["gff"])])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
+        from pathlib import Path
+        od = Path(output_dir)
+        return [od / "report.html"]

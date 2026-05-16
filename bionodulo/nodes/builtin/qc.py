@@ -5,6 +5,7 @@ sequencing data and alignment quality.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -25,17 +26,28 @@ class FastQCNode(CommandNode):
     VERSION = "0.12.1"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        outdir = str(inputs.get("output", inputs.get("output_dir", ".")))
         cmd = [
             "fastqc",
             "--threads", str(inputs.get("threads", 2)),
-            "--outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
+            "--outdir", outdir,
         ]
         if inputs.get("nogroup"):
             cmd.append("--nogroup")
         if inputs.get("kmers"):
             cmd.extend(["--kmers", str(inputs["kmers"])])
-        if inputs.get("extract") is not False:
+        if not inputs.get("extract", True):
+            cmd.append("--noextract")
+        if inputs.get("extract"):
             cmd.append("--extract")
+        if inputs.get("format"):
+            cmd.extend(["--format", str(inputs["format"])])
+        if inputs.get("contaminants"):
+            cmd.extend(["--contaminants", str(inputs["contaminants"])])
+        if inputs.get("adapters"):
+            cmd.extend(["--adapters", str(inputs["adapters"])])
+        if inputs.get("limits"):
+            cmd.extend(["--limits", str(inputs["limits"])])
         reads = inputs.get("reads", "")
         if isinstance(reads, list):
             cmd.extend(reads)
@@ -54,6 +66,10 @@ class FastQCNode(CommandNode):
                 "nogroup": ("BOOLEAN", {"default": False, "description": "Disable grouping of bases", "advanced": True}),
                 "kmers": ("INT", {"default": 7, "min": 2, "max": 10, "description": "K-mer length", "advanced": True}),
                 "extract": ("BOOLEAN", {"default": True, "description": "Extract ZIP archive", "advanced": True}),
+                "format": ("STRING", {"default": "", "description": "Format (bam, sam, bismark)", "advanced": True}),
+                "contaminants": ("STRING", {"default": "", "description": "Contaminants file", "advanced": True}),
+                "adapters": ("STRING", {"default": "", "description": "Adapters file", "advanced": True}),
+                "limits": ("STRING", {"default": "", "description": "Limits file", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -68,6 +84,7 @@ class FastQCNode(CommandNode):
             output_dir = getattr(ctx, "node_dir", ".")
         if output_dir is None:
             output_dir = "."
+        os.makedirs(output_dir, exist_ok=True)
         await super().run(**kwargs)
         return {"outputs": {"report_dir": str(output_dir)}}
 
@@ -84,14 +101,17 @@ class MultiQCNode(CommandNode):
     RETURN_NAMES = ("report",)
     REQUIRED_EXECUTABLES = ["multiqc"]
     DOCUMENTATION_URL = "https://multiqc.info/"
-    VERSION = "1.21"
+    VERSION = "1.33"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        reports = inputs.get("reports", "")
+        if isinstance(reports, str):
+            reports = [reports]
         cmd = [
             "multiqc",
-            str(inputs.get("reports", "")),
+            *reports,
             "--outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
-            "--filename", "multiqc_report.html",
+            "--filename", str(inputs.get("filename", "multiqc_report.html")),
         ]
         if inputs.get("title"):
             cmd.extend(["--title", str(inputs["title"])])
@@ -105,12 +125,13 @@ class MultiQCNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "reports": ("DIRECTORY", {"description": "Directory containing QC report files"}),
+                "reports": ("FILE_LIST", {"description": "Directory or list containing QC report files"}),
             },
             "optional": {
                 "title": ("STRING", {"default": "BioNodulo QC Report", "label": "Report Title"}),
                 "comment": ("STRING", {"default": "", "multiline": True, "label": "Comment", "advanced": True}),
                 "force": ("BOOLEAN", {"default": False, "label": "Overwrite", "advanced": True}),
+                "filename": ("STRING", {"default": "multiqc_report.html", "label": "Output Filename", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -127,7 +148,8 @@ class MultiQCNode(CommandNode):
             output_dir = "."
         await super().run(**kwargs)
         from pathlib import Path
-        report = Path(output_dir) / "multiqc_report.html"
+        filename = kwargs.get("filename", "multiqc_report.html")
+        report = Path(output_dir) / filename
         return {"outputs": {"report": str(report)}}
 
 
@@ -138,8 +160,8 @@ class QualiMapNode(CommandNode):
     CATEGORY = "qc"
     DESCRIPTION = "Comprehensive BAM quality analysis with QualiMap"
     SEARCH_ALIASES = ["qualimap", "bamqc", "bam qc", "alignment qc"]
-    RETURN_TYPES = ("HTML_REPORT",)
-    RETURN_NAMES = ("report",)
+    RETURN_TYPES = ("HTML_REPORT", "QC_REPORT_DIR")
+    RETURN_NAMES = ("report", "report_dir")
     REQUIRED_EXECUTABLES = ["qualimap"]
     REQUIRED_CONDA_PACKAGES = ['qualimap']
     DOCUMENTATION_URL = "http://qualimap.conesalab.org/"
@@ -175,4 +197,22 @@ class QualiMapNode(CommandNode):
             "hidden": {
                 "output": ("STRING", {}),
             },
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run QualiMap and return the report path and directory."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        await super().run(**kwargs)
+        from pathlib import Path
+        report = Path(output_dir) / "qualimapReport.html"
+        return {
+            "outputs": {
+                "report": str(report),
+                "report_dir": str(output_dir),
+            }
         }

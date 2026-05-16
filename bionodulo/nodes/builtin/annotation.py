@@ -22,7 +22,7 @@ class ProkkaNode(CommandNode):
     RETURN_NAMES = ("gff", "genbank", "proteins")
     REQUIRED_EXECUTABLES = ["prokka"]
     DOCUMENTATION_URL = "https://github.com/tseemann/prokka"
-    VERSION = "1.14.6"
+    VERSION = "1.15.6"
     COMMAND = [
         "prokka",
         "--outdir", "{output}",
@@ -46,11 +46,33 @@ class ProkkaNode(CommandNode):
                 "genus": ("STRING", {"default": ""}),
                 "species": ("STRING", {"default": ""}),
                 "strain": ("STRING", {"default": ""}),
+                "gcode": ("INT", {"default": 11, "min": 1, "max": 33}),
             },
             "hidden": {
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "prokka",
+            "--outdir", str(inputs.get("output", ".")),
+            "--prefix", str(inputs.get("prefix", "genome")),
+            "--cpus", str(inputs.get("threads", 8)),
+            "--kingdom", str(inputs.get("kingdom", "Bacteria")),
+            "--force",
+            str(inputs.get("assembly", "")),
+        ]
+        if inputs.get("genus"):
+            cmd.extend(["--genus", str(inputs["genus"])])
+        if inputs.get("species"):
+            cmd.extend(["--species", str(inputs["species"])])
+        if inputs.get("strain"):
+            cmd.extend(["--strain", str(inputs["strain"])])
+        if inputs.get("gcode") is not None:
+            cmd.extend(["--gcode", str(inputs["gcode"])])
+        return cmd
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
@@ -71,12 +93,12 @@ class BaktaNode(CommandNode):
     CATEGORY = "annotation"
     DESCRIPTION = "Rapid & standardized annotation of bacterial genomes"
     SEARCH_ALIASES = ["bakta", "annotate", "bacteria", "annotation"]
-    RETURN_TYPES = ("GFF", "FAA")
+    RETURN_TYPES = ("GFF3", "FAA")
     RETURN_NAMES = ("gff", "proteins")
     REQUIRED_EXECUTABLES = ["bakta"]
     REQUIRED_CONDA_PACKAGES = ['bakta']
     DOCUMENTATION_URL = "https://github.com/oschwengers/bakta"
-    VERSION = "1.9.3"
+    VERSION = "1.12.0"
     COMMAND = [
         "bakta",
         "--output", "{output}",
@@ -103,6 +125,19 @@ class BaktaNode(CommandNode):
         }
 
     @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bakta",
+            "--output", str(inputs.get("output", ".")),
+            "--prefix", str(inputs.get("prefix", "genome")),
+            "--threads", str(inputs.get("threads", 8)),
+            str(inputs.get("assembly", "")),
+        ]
+        if inputs.get("db"):
+            cmd.extend(["--db", str(inputs["db"])])
+        return cmd
+
+    @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         prefix = inputs.get("prefix", "genome")
@@ -125,7 +160,7 @@ class EggNOGMapperNode(CommandNode):
     REQUIRED_EXECUTABLES = ["emapper.py"]
     REQUIRED_CONDA_PACKAGES = ['eggnog-mapper']
     DOCUMENTATION_URL = "https://github.com/eggnogdb/eggnog-mapper"
-    VERSION = "2.1.12"
+    VERSION = "2.1.14"
     COMMAND = [
         "emapper.py",
         "-i", "{inputs.proteins}",
@@ -146,8 +181,32 @@ class EggNOGMapperNode(CommandNode):
             "optional": {
                 "mode": ("STRING", {"default": "diamond", "description": "Search mode: diamond, mmseqs, or hmmer"}),
                 "data_dir": ("DIRECTORY", {"description": "eggNOG data directory"}),
+                "itype": ("STRING", {"default": "proteins", "options": ["proteins", "CDS", "genome", "metagenome"], "label": "Input Type", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "emapper.py",
+            "-i", str(inputs.get("proteins", "")),
+            "--output", str(inputs.get("prefix", "annotations")),
+            "--output_dir", str(inputs.get("output", ".")),
+            "-m", str(inputs.get("mode", "diamond")),
+            "--cpu", str(inputs.get("threads", 8)),
+        ]
+        if inputs.get("data_dir"):
+            cmd.extend(["--data_dir", str(inputs["data_dir"])])
+        if inputs.get("itype"):
+            cmd.extend(["--itype", str(inputs["itype"])])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
+        from pathlib import Path
+        prefix = inputs.get("prefix", "annotations")
+        od = Path(output_dir)
+        return [od / f"{prefix}.annotations.tsv"]

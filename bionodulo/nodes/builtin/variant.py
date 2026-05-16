@@ -22,7 +22,7 @@ class BcftoolsMpileupNode(CommandNode):
     RETURN_NAMES = ("vcf",)
     REQUIRED_EXECUTABLES = ["bcftools"]
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
-    VERSION = "1.20"
+    VERSION = "1.22"
     SHELL = True
 
     @classmethod
@@ -70,8 +70,8 @@ class BcftoolsIndexNode(CommandNode):
     CATEGORY = "variant"
     DESCRIPTION = "Index a VCF.gz or BCF file for fast random access"
     SEARCH_ALIASES = ["bcftools", "index", "tbi", "csi"]
-    RETURN_TYPES = ("VCF_GZ", "VCF_INDEX")
-    RETURN_NAMES = ("vcf", "index")
+    RETURN_TYPES = ("VCF_INDEX",)
+    RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["bcftools"]
     REQUIRED_CONDA_PACKAGES = ['bcftools']
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
@@ -116,11 +116,17 @@ class BcftoolsStatsNode(CommandNode):
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
     VERSION = "1.20"
     SHELL = True
-    COMMAND = [
-        "bcftools", "stats",
-        "{inputs.vcf}",
-        ">", "{output}/vcf_stats.txt",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bcftools", "stats",
+            str(inputs.get("vcf", "")),
+        ]
+        if inputs.get("samples"):
+            cmd.extend(["-s", str(inputs["samples"])])
+        cmd.extend([">", f"{inputs.get('output', '.')}/vcf_stats.txt"])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -150,13 +156,19 @@ class BcftoolsFilterNode(CommandNode):
     REQUIRED_EXECUTABLES = ["bcftools"]
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
     VERSION = "1.20"
-    COMMAND = [
-        "bcftools", "filter",
-        "-i", "{inputs.expr}",
-        "-Oz",
-        "-o", "{output}/filtered.vcf.gz",
-        "{inputs.vcf}",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bcftools", "filter",
+            "-i", str(inputs.get("expr", "")),
+            "-Oz",
+            "-o", f"{inputs.get('output', '.')}/filtered.vcf.gz",
+            str(inputs.get("vcf", "")),
+        ]
+        if inputs.get("set_gt"):
+            cmd.extend(["--set-GT", str(inputs["set_gt"])])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -186,15 +198,16 @@ class GatkHaplotypeCallerNode(CommandNode):
     RETURN_NAMES = ("vcf",)
     REQUIRED_EXECUTABLES = ["gatk"]
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037225632-HaplotypeCaller"
-    VERSION = "4.5.0"
+    VERSION = "4.6.2.0"
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output_ext = "g.vcf.gz" if inputs.get("emit_ref_confidence") else "vcf.gz"
         cmd = [
             "gatk", "HaplotypeCaller",
             "-R", str(inputs.get("reference", "")),
             "-I", str(inputs.get("bam", "")),
-            "-O", f"{inputs.get('output', '.')}/variants.g.vcf.gz",
+            "-O", f"{inputs.get('output', '.')}/variants.{output_ext}",
             "--native-pair-hmm-threads", str(inputs.get("threads", 4)),
         ]
         if inputs.get("emit_ref_confidence"):
@@ -205,6 +218,10 @@ class GatkHaplotypeCallerNode(CommandNode):
             cmd.extend(["--standard-min-confidence-threshold-for-calling", str(inputs["stand_call_conf"])])
         if inputs.get("min_base_quality"):
             cmd.extend(["--min-base-quality-score", str(inputs["min_base_quality"])])
+        if inputs.get("sample_ploidy"):
+            cmd.extend(["-ploidy", str(inputs["sample_ploidy"])])
+        if inputs.get("intervals"):
+            cmd.extend(["-L", str(inputs["intervals"])])
         return cmd
 
     @classmethod
@@ -220,6 +237,8 @@ class GatkHaplotypeCallerNode(CommandNode):
                 "dbsnp": ("VCF_GZ", {"description": "Optional dbSNP VCF for annotation", "advanced": True}),
                 "stand_call_conf": ("INT", {"default": 30, "min": 0, "max": 100, "display": "slider", "label": "Call Confidence Threshold", "advanced": True}),
                 "min_base_quality": ("INT", {"default": 10, "min": 0, "label": "Min Base Quality", "advanced": True}),
+                "sample_ploidy": ("INT", {"default": 2, "min": 1, "max": 8, "display": "slider", "label": "Sample Ploidy", "advanced": True}),
+                "intervals": ("STRING", {"default": "", "description": "Intervals to process (e.g., chr1:1-1000)", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -235,18 +254,31 @@ class GatkBaseRecalibratorNode(CommandNode):
     CATEGORY = "variant"
     DESCRIPTION = "Recalibrate base quality scores using known variants"
     SEARCH_ALIASES = ["gatk", "bqsr", "recalibrate", "base quality"]
-    RETURN_TYPES = ("FILE",)
+    RETURN_TYPES = ("TABLE",)
     RETURN_NAMES = ("recal_table",)
     REQUIRED_EXECUTABLES = ["gatk"]
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360036898312-BaseRecalibrator"
     VERSION = "4.5.0"
-    COMMAND = [
-        "gatk", "BaseRecalibrator",
-        "-I", "{inputs.bam}",
-        "-R", "{inputs.reference}",
-        "--known-sites", "{inputs.known_sites}",
-        "-O", "{output}/recal_data.table",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "gatk", "BaseRecalibrator",
+            "-I", str(inputs.get("bam", "")),
+            "-R", str(inputs.get("reference", "")),
+            "-O", f"{inputs.get('output', '.')}/recal_data.table",
+        ]
+        known = inputs.get("known_sites", "")
+        if known:
+            if isinstance(known, list):
+                for ks in known:
+                    cmd.extend(["--known-sites", str(ks)])
+            else:
+                for ks in str(known).split(","):
+                    ks = ks.strip()
+                    if ks:
+                        cmd.extend(["--known-sites", ks])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -254,7 +286,7 @@ class GatkBaseRecalibratorNode(CommandNode):
             "required": {
                 "bam": ("BAM", {"description": "Input BAM file"}),
                 "reference": ("FASTA", {"description": "Reference FASTA"}),
-                "known_sites": ("VCF_GZ", {"description": "Known variants VCF (e.g., dbSNP, Mills)"}),
+                "known_sites": ("VCF_GZ", {"description": "Known variants VCF (e.g., dbSNP, Mills). Use comma-separated paths for multiple sites."}),
             },
             "optional": {},
             "hidden": {
@@ -290,7 +322,7 @@ class GatkApplyBQSRNode(CommandNode):
             "required": {
                 "bam": ("BAM", {"description": "Input BAM file"}),
                 "reference": ("FASTA", {"description": "Reference FASTA"}),
-                "recal_table": ("FILE", {"description": "Recalibration table from BaseRecalibrator"}),
+                "recal_table": (("TABLE", "FILE"), {"description": "Recalibration table from BaseRecalibrator"}),
             },
             "optional": {},
             "hidden": {
@@ -311,15 +343,25 @@ class FreeBayesNode(CommandNode):
     RETURN_NAMES = ("vcf",)
     REQUIRED_EXECUTABLES = ["freebayes"]
     DOCUMENTATION_URL = "https://github.com/freebayes/freebayes"
-    VERSION = "1.3.6"
+    VERSION = "1.3.10"
     SHELL = True
-    COMMAND = [
-        "freebayes",
-        "-f", "{inputs.reference}",
-        "--pooled-continuous" if "{inputs.pooled}" == "True" else "",
-        "{inputs.bam}",
-        ">", "{output}/variants.vcf",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["freebayes", "-f", str(inputs.get("reference", ""))]
+        if inputs.get("pooled"):
+            cmd.append("--pooled-continuous")
+        if inputs.get("ploidy"):
+            cmd.extend(["-p", str(inputs["ploidy"])])
+        if inputs.get("min_mapping_quality") is not None:
+            cmd.extend(["--min-mapping-quality", str(inputs["min_mapping_quality"])])
+        if inputs.get("min_base_quality") is not None:
+            cmd.extend(["--min-base-quality", str(inputs["min_base_quality"])])
+        if inputs.get("haplotype_length") is not None:
+            cmd.extend(["--haplotype-length", str(inputs["haplotype_length"])])
+        cmd.append(str(inputs.get("bam", "")))
+        cmd.extend([">", f"{inputs.get('output', '.')}/variants.vcf"])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -331,22 +373,14 @@ class FreeBayesNode(CommandNode):
             "optional": {
                 "pooled": ("BOOLEAN", {"default": False, "description": "Enable pooled calling"}),
                 "ploidy": ("INT", {"default": 2, "min": 1, "max": 8, "display": "slider"}),
+                "min_mapping_quality": ("INT", {"default": 1, "min": 0, "label": "Min Mapping Quality", "advanced": True}),
+                "min_base_quality": ("INT", {"default": 0, "min": 0, "label": "Min Base Quality", "advanced": True}),
+                "haplotype_length": ("INT", {"default": 3, "min": 0, "label": "Haplotype Length", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
             },
         }
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = ["freebayes", "-f", str(inputs.get("reference", ""))]
-        if inputs.get("pooled"):
-            cmd.append("--pooled-continuous")
-        if inputs.get("ploidy"):
-            cmd.extend(["-p", str(inputs["ploidy"])])
-        cmd.append(str(inputs.get("bam", "")))
-        cmd.extend([">", f"{inputs.get('output', '.')}/variants.vcf"])
-        return cmd
 
 
 class VcfToolsFilterNode(CommandNode):
@@ -361,13 +395,15 @@ class VcfToolsFilterNode(CommandNode):
     REQUIRED_EXECUTABLES = ["vcftools"]
     REQUIRED_CONDA_PACKAGES = ['vcftools']
     DOCUMENTATION_URL = "https://vcftools.github.io/index.html"
-    VERSION = "0.1.16"
+    VERSION = "0.1.17"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
-            "vcftools",
-            "--vcf", str(inputs.get("vcf", "")),
-        ]
+        vcf = str(inputs.get("vcf", ""))
+        cmd = ["vcftools"]
+        if vcf.endswith(".gz"):
+            cmd.extend(["--gzvcf", vcf])
+        else:
+            cmd.extend(["--vcf", vcf])
         if inputs.get("maf") is not None and float(inputs.get("maf", 0)) > 0:
             cmd.extend(["--maf", str(inputs["maf"])])
         if inputs.get("min_qual") is not None:
@@ -376,6 +412,8 @@ class VcfToolsFilterNode(CommandNode):
             cmd.extend(["--min-meanDP", str(inputs["min_dp"])])
         if inputs.get("max_missing") is not None:
             cmd.extend(["--max-missing", str(inputs["max_missing"])])
+        if inputs.get("recode_info_all"):
+            cmd.append("--recode-INFO-all")
         cmd.extend([
             "--recode",
             "--out", f"{inputs.get('output', '.')}/filtered",
@@ -393,6 +431,7 @@ class VcfToolsFilterNode(CommandNode):
                 "min_qual": ("INT", {"default": 30, "min": 0, "label": "Min Quality", "advanced": True}),
                 "min_dp": ("INT", {"default": 10, "min": 0, "label": "Min Depth", "advanced": True}),
                 "max_missing": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "label": "Max Missing", "advanced": True}),
+                "recode_info_all": ("BOOLEAN", {"default": False, "description": "Recode all INFO fields", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),

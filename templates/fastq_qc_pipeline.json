@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true,
         "reads": [
           "examples/data/fastq_qc/R1.fq",
           "examples/data/fastq_qc/R2.fq"

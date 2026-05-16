@@ -65,17 +65,25 @@ class InputFASTQNode(CommandNode):
         if output_dir is None:
             output_dir = "."
 
+        # Paired-end naming validation
+        if len(reads) == 2:
+            names = [Path(r).name for r in reads]
+            if sum(1 for n in names if "R1" in n) != 1 or sum(1 for n in names if "R2" in n) != 1:
+                raise ValueError(f"Paired-end reads must contain one R1 and one R2 file, got: {names}")
+
         # Copy files to the output directory so the run is self-contained
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         copied = []
-        for src in reads:
-            src_path = Path(src)
-            dst = out_dir / src_path.name
-            if src_path.is_dir():
-                shutil.copytree(src_path, dst, dirs_exist_ok=True)
+        for src_str in reads:
+            src = Path(src_str)
+            if not src.exists():
+                raise FileNotFoundError(f"Source not found: {src}")
+            dst = out_dir / src.name
+            if src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True)
             else:
-                shutil.copy2(src_path, dst)
+                shutil.copy2(src, dst)
             copied.append(str(dst.resolve()))
 
         return {"outputs": {"reads": copied}}
@@ -122,6 +130,8 @@ class InputFASTANode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -140,6 +150,7 @@ class InputFileNode(CommandNode):
     RETURN_TYPES = ("FILE",)
     RETURN_NAMES = ("file",)
     REQUIRES_EXTERNAL_TOOLS = False
+    DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/Computer_file"
     COMMAND = ["cp", "-r", "{inputs.file}", "{output}"]
 
     @classmethod
@@ -170,6 +181,8 @@ class InputFileNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -188,6 +201,7 @@ class InputDirectoryNode(CommandNode):
     RETURN_TYPES = ("DIRECTORY",)
     RETURN_NAMES = ("directory",)
     REQUIRES_EXTERNAL_TOOLS = False
+    DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/Directory_(computing)"
     COMMAND = ["cp", "-r", "{inputs.directory}", "{output}"]
 
     @classmethod
@@ -218,6 +232,8 @@ class InputDirectoryNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -243,7 +259,7 @@ class InputVCFNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "vcf": ("VCF", {"description": "Path to VCF file"}),
+                "vcf": (("VCF", "VCF_GZ"), {"description": "Path to VCF file"}),
             },
             "optional": {},
             "hidden": {},
@@ -267,6 +283,8 @@ class InputVCFNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -316,6 +334,8 @@ class InputGFFNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
@@ -366,6 +386,8 @@ class SampleSheetNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)

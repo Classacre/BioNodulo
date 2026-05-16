@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "wgs1",
-        "paired_end": true,
         "reads": [
           "examples/data/assembly/R1.fq",
           "examples/data/assembly/R2.fq"
@@ -46,8 +45,7 @@
         220
       ],
       "params": {
-        "file_path": "examples/data/wgs_variant/ecoli_k12_mg1655.fna",
-        "reference": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
+        "file_path": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -77,6 +75,20 @@
       },
       "ui": {
         "title": "fastp Trim"
+      }
+    },
+    {
+      "id": "view_001",
+      "type": "samtools_view",
+      "position": [
+        730,
+        60
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "SAM to BAM"
       }
     },
     {
@@ -228,8 +240,8 @@
         "output": "alignment"
       },
       "to": {
-        "node": "sort_001",
-        "input": "input"
+        "node": "view_001",
+        "input": "sam"
       }
     },
     {
@@ -269,7 +281,7 @@
       "id": "e8",
       "from": {
         "node": "fb_001",
-        "output": "variants"
+        "output": "vcf"
       },
       "to": {
         "node": "filter_001",
@@ -296,6 +308,17 @@
       "to": {
         "node": "mqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e4b",
+      "from": {
+        "node": "view_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "bam"
       }
     }
   ],

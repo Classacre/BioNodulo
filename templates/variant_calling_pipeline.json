@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "sample1",
-        "paired_end": true,
         "reads": [
           "examples/data/variant_calling/mutant_R1.fastq",
           "examples/data/variant_calling/mutant_R2.fastq"
@@ -46,8 +45,7 @@
         180
       ],
       "params": {
-        "file_path": "examples/data/variant_calling/wildtype.fna",
-        "reference": "examples/data/variant_calling/wildtype.fna"
+        "file_path": "examples/data/variant_calling/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -63,6 +61,20 @@
       "params": {},
       "ui": {
         "title": "BWA Index"
+      }
+    },
+    {
+      "id": "view_001",
+      "type": "samtools_view",
+      "position": [
+        425,
+        50
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "SAM to BAM"
       }
     },
     {
@@ -120,14 +132,14 @@
     },
     {
       "id": "gatk_001",
-      "type": "gatk_haplotypecaller",
+      "type": "gatk_haplotype_caller",
       "position": [
         800,
         50
       ],
       "params": {
-        "emit_conf": 30,
-        "call_conf": 30
+        "emit_ref_confidence": "GVCF",
+        "stand_call_conf": 30
       },
       "ui": {
         "title": "GATK HaplotypeCaller"
@@ -217,8 +229,8 @@
         "output": "alignment"
       },
       "to": {
-        "node": "sort_001",
-        "input": "input"
+        "node": "view_001",
+        "input": "sam"
       }
     },
     {
@@ -236,7 +248,7 @@
       "id": "e5",
       "from": {
         "node": "index_001",
-        "output": "indexed_bam"
+        "output": "bam"
       },
       "to": {
         "node": "gatk_001",
@@ -258,7 +270,7 @@
       "id": "e7",
       "from": {
         "node": "gatk_001",
-        "output": "variants"
+        "output": "vcf"
       },
       "to": {
         "node": "filter_001",
@@ -269,7 +281,7 @@
       "id": "e8",
       "from": {
         "node": "index_001",
-        "output": "indexed_bam"
+        "output": "bam"
       },
       "to": {
         "node": "flagstat_001",
@@ -296,6 +308,17 @@
       "to": {
         "node": "mqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e3b",
+      "from": {
+        "node": "view_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "bam"
       }
     }
   ],

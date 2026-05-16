@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "treatment",
-        "paired_end": true,
         "reads": [
           "examples/data/chip_seq/wt_H3K4me3_read1.fastq",
           "examples/data/chip_seq/wt_H3K4me3_read2.fastq"
@@ -46,10 +45,24 @@
         300
       ],
       "params": {
-        "path": "bowtie2_index"
+        "directory": "bowtie2_index"
       },
       "ui": {
         "title": "Bowtie2 Index"
+      }
+    },
+    {
+      "id": "view_001",
+      "type": "samtools_view",
+      "position": [
+        520,
+        80
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "SAM to BAM"
       }
     },
     {
@@ -153,8 +166,8 @@
         "output": "alignment"
       },
       "to": {
-        "node": "sort_001",
-        "input": "input"
+        "node": "view_001",
+        "input": "sam"
       }
     },
     {
@@ -188,6 +201,17 @@
       "to": {
         "node": "mqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e3b",
+      "from": {
+        "node": "view_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "bam"
       }
     }
   ],

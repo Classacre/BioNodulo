@@ -5,6 +5,7 @@ tools including index building and read mapping.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -20,11 +21,11 @@ class BWAIndexNode(CommandNode):
     CATEGORY = "alignment"
     DESCRIPTION = "Build BWA MEM index for a reference FASTA"
     SEARCH_ALIASES = ["bwa", "index", "reference index"]
-    RETURN_TYPES = ("FASTA",)
+    RETURN_TYPES = ("INDEX_DIR",)
     RETURN_NAMES = ("indexed_reference",)
     REQUIRED_EXECUTABLES = ["bwa"]
     DOCUMENTATION_URL = "https://bio-bwa.sourceforge.net/"
-    VERSION = "0.7.17"
+    VERSION = "0.7.19"
     COMMAND = [
         "bwa", "index",
         "{inputs.reference}",
@@ -65,11 +66,12 @@ class BWAMemNode(CommandNode):
             reads = [reads]
         r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
         r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
-        rg = f"@RG\\tID:{inputs.get('rg_id', '1')}\\tSM:{inputs.get('rg_sample', 'sample')}\\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
+        rg = f"@RG\tID:{inputs.get('rg_id', '1')}\tSM:{inputs.get('rg_sample', 'sample')}\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
         cmd = [
             "bwa", "mem",
             "-t", str(inputs.get("threads", 8)),
             "-R", rg,
+            "-T", str(inputs.get("min_score", 30)),
             str(inputs.get("reference", "")),
             str(r1),
         ]
@@ -114,6 +116,20 @@ class BWAIndexDirNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     COMMAND = ["cp", "-r", "{inputs.index_dir}", "{output}"]
 
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        index_dir = kwargs.get("index_dir") or kwargs.get("dir_path")
+        if not index_dir:
+            raise ValueError("No index_dir provided")
+        src = Path(index_dir)
+        if not src.exists():
+            raise FileNotFoundError(f"Index directory not found: {src}")
+        if not src.is_dir():
+            raise NotADirectoryError(f"Index directory is not a directory: {src}")
+        expected = [".amb", ".ann", ".bwt", ".pac", ".sa"]
+        if not any(list(src.glob(f"*{suffix}")) for suffix in expected):
+            raise FileNotFoundError(f"BWA index files not found in {src}")
+        return await super().run(**kwargs)
+
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
@@ -139,7 +155,7 @@ class Bowtie2BuildNode(CommandNode):
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["bowtie2-build"]
     DOCUMENTATION_URL = "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
-    VERSION = "2.5.3"
+    VERSION = "2.5.5"
     COMMAND = [
         "bowtie2-build",
         "--threads", "{inputs.threads}",
@@ -203,6 +219,14 @@ class Bowtie2AlignNode(CommandNode):
         cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
         return cmd
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for Bowtie2."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
@@ -213,6 +237,7 @@ class Bowtie2AlignNode(CommandNode):
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
                 "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
                 "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
                 "very_sensitive": ("BOOLEAN", {"default": False, "label": "Very Sensitive", "advanced": True}),
@@ -270,7 +295,7 @@ class Minimap2IndexNode(CommandNode):
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["minimap2"]
     DOCUMENTATION_URL = "https://lh3.github.io/minimap2/"
-    VERSION = "2.28"
+    VERSION = "2.30"
     COMMAND = [
         "minimap2",
         "-d", "{output}/index.mmi",
@@ -304,7 +329,7 @@ class Minimap2AlignNode(CommandNode):
     RETURN_NAMES = ("alignment",)
     REQUIRED_EXECUTABLES = ["minimap2"]
     DOCUMENTATION_URL = "https://lh3.github.io/minimap2/"
-    VERSION = "2.28"
+    VERSION = "2.30"
     SHELL = True
     COMMAND = [
         "minimap2",
@@ -346,7 +371,7 @@ class HISAT2BuildNode(CommandNode):
     REQUIRED_EXECUTABLES = ["hisat2-build"]
     REQUIRED_CONDA_PACKAGES = ['hisat2']
     DOCUMENTATION_URL = "https://daehwankimlab.github.io/hisat2/"
-    VERSION = "2.2.1"
+    VERSION = "2.2.2"
     COMMAND = [
         "hisat2-build",
         "-p", "{inputs.threads}",
@@ -410,6 +435,14 @@ class HISAT2AlignNode(CommandNode):
         cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
         return cmd
 
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for HISAT2."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        return await super().run(**kwargs)
+
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
@@ -420,6 +453,7 @@ class HISAT2AlignNode(CommandNode):
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
                 "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
                 "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
                 "dta": ("BOOLEAN", {"default": True, "description": "Report alignments for StringTie", "advanced": True}),
@@ -446,14 +480,22 @@ class STARIndexNode(CommandNode):
     REQUIRED_EXECUTABLES = ["STAR"]
     DOCUMENTATION_URL = "https://github.com/alexdobin/STAR"
     VERSION = "2.7.11b"
-    COMMAND = [
-        "STAR",
-        "--runMode", "genomeGenerate",
-        "--genomeDir", "{output}",
-        "--genomeFastaFiles", "{inputs.reference}",
-        "--sjdbGTFfile", "{inputs.gtf}",
-        "--runThreadN", "{inputs.threads}",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "STAR",
+            "--runMode", "genomeGenerate",
+            "--genomeDir", str(inputs.get("output", ".")),
+            "--genomeFastaFiles", str(inputs.get("reference", "")),
+            "--sjdbGTFfile", str(inputs.get("gtf", "")),
+            "--runThreadN", str(inputs.get("threads", 8)),
+        ]
+        if inputs.get("genome_sa_index_nbases"):
+            cmd.extend(["--genomeSAindexNbases", str(inputs["genome_sa_index_nbases"])])
+        if inputs.get("sjdb_overhang"):
+            cmd.extend(["--sjdbOverhang", str(inputs["sjdb_overhang"])])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -465,6 +507,7 @@ class STARIndexNode(CommandNode):
             },
             "optional": {
                 "genome_sa_index_nbases": ("INT", {"default": 14}),
+                "sjdb_overhang": ("INT", {"default": 100, "min": 1, "label": "SJDB Overhang", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -500,14 +543,18 @@ class STARAlignNode(CommandNode):
         ]
         if r2:
             cmd.append(str(r2))
+        # Compression detection for readFilesCommand
+        if str(r1).endswith(".gz"):
+            cmd.extend(["--readFilesCommand", "zcat"])
+        elif str(r1).endswith(".bz2"):
+            cmd.extend(["--readFilesCommand", "bzcat"])
         cmd.extend([
-            "--readFilesCommand", "zcat",
             "--outFileNamePrefix", f"{inputs.get('output', '.')}/",
             "--outSAMtype", "BAM", "SortedByCoordinate",
             "--runThreadN", str(inputs.get("threads", 8)),
         ])
         if inputs.get("two_pass"):
-            cmd.append("--twopassMode", "Basic")
+            cmd.extend(["--twopassMode", "Basic"])
         if inputs.get("chim_segment_min"):
             cmd.extend(["--chimSegmentMin", str(inputs["chim_segment_min"])])
         return cmd

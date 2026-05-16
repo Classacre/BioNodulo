@@ -55,8 +55,6 @@
         100
       ],
       "params": {
-        "count_matrix": "",
-        "sample_info": "",
         "design_formula": "~ condition",
         "contrast": "condition,treated,control",
         "min_counts": 10,
@@ -75,7 +73,6 @@
         100
       ],
       "params": {
-        "data_csv": "",
         "scale": "row",
         "annotation_csv": "examples/data/biopython/heatmap_annotation.csv",
         "cluster_rows": true,

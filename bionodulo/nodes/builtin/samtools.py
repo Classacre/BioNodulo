@@ -5,6 +5,7 @@ format conversion, merging, flagstat, and stats generation.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -22,14 +23,21 @@ class SamtoolsSortNode(CommandNode):
     RETURN_NAMES = ("sorted_bam",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-sort.html"
-    VERSION = "1.20"
-    COMMAND = [
-        "samtools", "sort",
-        "-@", "{inputs.threads}",
-        "-o", "{output}/sorted.bam",
-        "-T", "{output}/tmp",
-        "{inputs.bam}",
-    ]
+    VERSION = "1.23.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools", "sort",
+            "-@", str(inputs.get("threads", 4)),
+            "-o", f"{output}/sorted.bam",
+            "-T", f"{output}/tmp",
+        ]
+        if inputs.get("memory"):
+            cmd.extend(["-m", str(inputs["memory"])])
+        cmd.append(str(inputs.get("bam", "")))
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -55,16 +63,26 @@ class SamtoolsIndexNode(CommandNode):
     CATEGORY = "samtools"
     DESCRIPTION = "Create a .bai index for a sorted BAM file"
     SEARCH_ALIASES = ["samtools", "index", "bai"]
-    RETURN_TYPES = ("BAM", "BAI")
-    RETURN_NAMES = ("bam", "bai")
+    RETURN_TYPES = ("BAI",)
+    RETURN_NAMES = ("bai",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-index.html"
-    VERSION = "1.20"
-    COMMAND = [
-        "samtools", "index",
-        "-@", "{inputs.threads}",
-        "{inputs.bam}",
-    ]
+    VERSION = "1.23.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        bam = str(inputs.get("bam", ""))
+        output_path = inputs.get("output_path", "")
+        cmd = [
+            "samtools", "index",
+            "-@", str(inputs.get("threads", 2)),
+        ]
+        if inputs.get("csi"):
+            cmd.append("--csi")
+        if output_path:
+            cmd.extend(["-o", str(output_path)])
+        cmd.append(bam)
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -75,11 +93,22 @@ class SamtoolsIndexNode(CommandNode):
             },
             "optional": {
                 "csi": ("BOOLEAN", {"default": False, "description": "Create CSI index instead of BAI"}),
+                "output_path": ("STRING", {"default": "", "description": "Output index path", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
             },
         }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        await super().run(**kwargs)
+        bam = kwargs.get("bam", "")
+        output_path = kwargs.get("output_path", "")
+        if output_path:
+            return {"outputs": {"bai": str(output_path)}}
+        if kwargs.get("csi"):
+            return {"outputs": {"bai": str(Path(bam).with_suffix(".csi"))}}
+        return {"outputs": {"bai": str(Path(bam).with_suffix(".bai"))}}
 
 
 class SamtoolsFlagstatNode(CommandNode):
@@ -94,14 +123,23 @@ class SamtoolsFlagstatNode(CommandNode):
     RETURN_NAMES = ("stats",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-flagstat.html"
-    VERSION = "1.20"
+    VERSION = "1.23.1"
     SHELL = True
-    COMMAND = [
-        "samtools", "flagstat",
-        "-@", "{inputs.threads}",
-        "{inputs.bam}",
-        ">", "{output}/flagstat.txt",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools", "flagstat",
+            "-@", str(inputs.get("threads", 2)),
+        ]
+        if inputs.get("output_format"):
+            cmd.extend(["-O", str(inputs["output_format"])])
+        cmd.extend([
+            str(inputs.get("bam", "")),
+            ">", f"{output}/flagstat.txt",
+        ])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -110,7 +148,9 @@ class SamtoolsFlagstatNode(CommandNode):
                 "bam": ("BAM", {"description": "Input BAM file"}),
                 "threads": ("INT", {"default": 2, "min": 1, "max": 64, "display": "slider"}),
             },
-            "optional": {},
+            "optional": {
+                "output_format": ("STRING", {"default": "", "description": "Output format (json, tsv)", "advanced": True}),
+            },
             "hidden": {
                 "output": ("STRING", {}),
             },
@@ -129,15 +169,24 @@ class SamtoolsViewNode(CommandNode):
     RETURN_NAMES = ("bam",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-view.html"
-    VERSION = "1.20"
+    VERSION = "1.23.1"
     SHELL = True
-    COMMAND = [
-        "samtools", "view",
-        "-b",
-        "-@", "{inputs.threads}",
-        "-o", "{output}/output.bam",
-        "{inputs.sam}",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools", "view",
+            "-b",
+            "-@", str(inputs.get("threads", 4)),
+            "-o", f"{output}/output.bam",
+        ]
+        if inputs.get("f") is not None:
+            cmd.extend(["-f", str(inputs["f"])])
+        if inputs.get("F") is not None:
+            cmd.extend(["-F", str(inputs["F"])])
+        cmd.append(str(inputs.get("sam", "")))
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -168,12 +217,7 @@ class SamtoolsMergeNode(CommandNode):
     RETURN_NAMES = ("merged_bam",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-merge.html"
-    VERSION = "1.20"
-    COMMAND = [
-        "samtools", "merge",
-        "-@", "{inputs.threads}",
-        "{output}/merged.bam",
-    ] + ["{inputs.bams[i]}" for i in range(10)]  # Placeholder - actual bams passed via inputs
+    VERSION = "1.23.1"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -214,14 +258,23 @@ class SamtoolsStatsNode(CommandNode):
     REQUIRED_EXECUTABLES = ["samtools"]
     REQUIRED_CONDA_PACKAGES = ['samtools']
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-stats.html"
-    VERSION = "1.20"
+    VERSION = "1.23.1"
     SHELL = True
-    COMMAND = [
-        "samtools", "stats",
-        "-@", "{inputs.threads}",
-        "{inputs.bam}",
-        ">", "{output}/stats.txt",
-    ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools", "stats",
+            "-@", str(inputs.get("threads", 2)),
+        ]
+        if inputs.get("target_regions"):
+            cmd.extend(["-t", str(inputs["target_regions"])])
+        cmd.extend([
+            str(inputs.get("bam", "")),
+            ">", f"{output}/stats.txt",
+        ])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

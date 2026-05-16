@@ -22,7 +22,7 @@ class SalmonIndexNode(CommandNode):
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["salmon"]
     DOCUMENTATION_URL = "https://salmon.readthedocs.io/"
-    VERSION = "1.10.0"
+    VERSION = "1.11.2"
     COMMAND = [
         "salmon", "index",
         "-t", "{inputs.transcripts}",
@@ -45,6 +45,18 @@ class SalmonIndexNode(CommandNode):
             },
         }
 
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "salmon", "index",
+            "-t", str(inputs.get("transcripts", "")),
+            "-i", f"{inputs.get('output', '.')}/salmon_index",
+            "-p", str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("kmer"):
+            cmd.extend(["-k", str(inputs["kmer"])])
+        return cmd
+
 
 class SalmonQuantNode(CommandNode):
     """Quantify transcripts with Salmon."""
@@ -58,7 +70,7 @@ class SalmonQuantNode(CommandNode):
     RETURN_NAMES = ("quant",)
     REQUIRED_EXECUTABLES = ["salmon"]
     DOCUMENTATION_URL = "https://salmon.readthedocs.io/"
-    VERSION = "1.10.0"
+    VERSION = "1.11.2"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         reads = inputs.get("reads", [])
@@ -82,8 +94,6 @@ class SalmonQuantNode(CommandNode):
             cmd.append("--gcBias")
         if inputs.get("seq_bias"):
             cmd.append("--seqBias")
-        if inputs.get("validate_mappings") is not False:
-            cmd.append("--validateMappings")
         return cmd
 
     @classmethod
@@ -96,10 +106,10 @@ class SalmonQuantNode(CommandNode):
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
-                "lib_type": ("STRING", {"default": "A", "options": ["A", "IS", "ISR", "IU", "U", "SF", "SR"], "label": "Library Type", "advanced": True}),
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "lib_type": ("STRING", {"default": "A", "options": ["A", "ISF", "ISR", "IU", "U", "SF", "SR"], "label": "Library Type", "advanced": True}),
                 "gc_bias": ("BOOLEAN", {"default": True, "label": "GC Bias Correction", "advanced": True}),
                 "seq_bias": ("BOOLEAN", {"default": True, "label": "Seq Bias Correction", "advanced": True}),
-                "validate_mappings": ("BOOLEAN", {"default": True, "label": "Validate Mappings", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -125,7 +135,7 @@ class KallistoIndexNode(CommandNode):
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["kallisto"]
     DOCUMENTATION_URL = "https://pachterlab.github.io/kallisto/"
-    VERSION = "0.50.1"
+    VERSION = "0.51.1"
     COMMAND = [
         "kallisto", "index",
         "-i", "{output}/kallisto.idx",
@@ -138,7 +148,7 @@ class KallistoIndexNode(CommandNode):
         return {
             "required": {
                 "transcripts": ("FASTA", {"description": "Transcriptome FASTA"}),
-                "kmer": ("INT", {"default": 31, "min": 5, "max": 64}),
+                "kmer": ("INT", {"default": 31, "min": 5, "max": 31}),
             },
             "optional": {},
             "hidden": {
@@ -159,7 +169,7 @@ class KallistoQuantNode(CommandNode):
     RETURN_NAMES = ("abundance",)
     REQUIRED_EXECUTABLES = ["kallisto"]
     DOCUMENTATION_URL = "https://pachterlab.github.io/kallisto/"
-    VERSION = "0.50.1"
+    VERSION = "0.51.1"
     COMMAND = [
         "kallisto", "quant",
         "-i", "{inputs.index}",
@@ -179,7 +189,11 @@ class KallistoQuantNode(CommandNode):
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
                 "bootstrap": ("INT", {"default": 100, "min": 0, "max": 1000, "step": 10, "display": "slider"}),
+                "single_end": ("BOOLEAN", {"default": False, "label": "Single-end reads", "advanced": True}),
+                "fragment_length": ("INT", {"default": 200, "min": 1, "label": "Fragment Length", "advanced": True}),
+                "sd": ("INT", {"default": 20, "min": 1, "label": "Fragment SD", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -193,6 +207,27 @@ class KallistoQuantNode(CommandNode):
             kwargs["r1"] = reads[0]
             kwargs["r2"] = reads[1]
         return await super().run(**kwargs)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "kallisto", "quant",
+            "-i", str(inputs.get("index", "")),
+            "-o", str(inputs.get("output", ".")),
+            "-t", str(inputs.get("threads", 8)),
+        ]
+        if inputs.get("bootstrap"):
+            cmd.extend(["-b", str(inputs["bootstrap"])])
+        if inputs.get("single_end"):
+            cmd.extend([
+                "--single",
+                "-l", str(inputs.get("fragment_length", 200)),
+                "-s", str(inputs.get("sd", 20)),
+                str(inputs.get("r1", "")),
+            ])
+        else:
+            cmd.extend([str(inputs.get("r1", "")), str(inputs.get("r2", ""))])
+        return cmd
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
@@ -213,7 +248,7 @@ class FeatureCountsNode(CommandNode):
     RETURN_NAMES = ("counts",)
     REQUIRED_EXECUTABLES = ["featureCounts"]
     DOCUMENTATION_URL = "https://subread.sourceforge.net/"
-    VERSION = "2.0.6"
+    VERSION = "2.1.1"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         # Templates may connect annotation via "annotation" or "gtf"
@@ -271,7 +306,7 @@ class StringTieNode(CommandNode):
     RETURN_NAMES = ("transcripts_gtf", "gene_abundance")
     REQUIRED_EXECUTABLES = ["stringtie"]
     DOCUMENTATION_URL = "https://ccb.jhu.edu/software/stringtie/"
-    VERSION = "2.2.3"
+    VERSION = "3.0.3"
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         cmd = [
@@ -299,9 +334,9 @@ class StringTieNode(CommandNode):
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
-                "fr": ("BOOLEAN", {"default": True, "label": "Forward Strand (fr)", "advanced": True}),
+                "fr": ("BOOLEAN", {"default": False, "label": "Forward Strand (fr)", "advanced": True}),
                 "rf": ("BOOLEAN", {"default": False, "label": "Reverse Strand (rf)", "advanced": True}),
-                "min_isoform_fraction": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1.0, "step": 0.01, "label": "Min Isoform Fraction", "advanced": True}),
+                "min_isoform_fraction": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 1.0, "step": 0.01, "label": "Min Isoform Fraction", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),

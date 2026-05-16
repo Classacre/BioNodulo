@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "genome1",
-        "paired_end": true,
         "reads": [
           "examples/data/assembly/R1.fq",
           "examples/data/assembly/R2.fq"
@@ -46,8 +45,7 @@
         100
       ],
       "params": {
-        "threads": 4,
-        "adapter_sequence": "auto"
+        "threads": 4
       },
       "ui": {
         "title": "fastp Trim"
@@ -61,8 +59,7 @@
         100
       ],
       "params": {
-        "threads": 8,
-        "mode": "--isolate"
+        "threads": 8
       },
       "ui": {
         "title": "SPAdes Assembly"
@@ -76,8 +73,7 @@
         350
       ],
       "params": {
-        "file_path": "examples/data/assembly/ecoli_reference.fna",
-        "reference": "examples/data/assembly/ecoli_reference.fna"
+        "file_path": "examples/data/assembly/ecoli_reference.fna"
       },
       "ui": {
         "title": "Reference (optional)"

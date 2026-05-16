@@ -28,7 +28,6 @@
       ],
       "params": {
         "sample_name": "ctrl_rep1",
-        "paired_end": true,
         "reads": [
           "examples/data/differential_expression/SRR6357071_1.fastq",
           "examples/data/differential_expression/SRR6357071_2.fastq"

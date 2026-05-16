@@ -200,7 +200,7 @@ class RerouteNode(CommandNode):
     CATEGORY = "Utility"
     DESCRIPTION = "Pass a connection through a routing point"
     SEARCH_ALIASES = ["reroute", "pass", "through", "junction", "connection"]
-    RETURN_TYPES = ("*",)
+    RETURN_TYPES = ("ANY",)
     RETURN_NAMES = ("output",)
     REQUIRES_EXTERNAL_TOOLS = False
     OUTPUT_NODE = False

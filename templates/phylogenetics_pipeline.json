@@ -27,8 +27,7 @@
         150
       ],
       "params": {
-        "file_path": "examples/data/phylogenetics/16s_sequences.fasta",
-        "reference": "examples/data/phylogenetics/16s_sequences.fasta"
+        "file_path": "examples/data/phylogenetics/16s_sequences.fasta"
       },
       "ui": {
         "title": "Input Sequences"
@@ -75,7 +74,7 @@
       },
       "to": {
         "node": "mafft_001",
-        "input": "sequences"
+        "input": "input"
       }
     },
     {

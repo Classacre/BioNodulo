@@ -23,17 +23,33 @@ class FastpNode(CommandNode):
     RETURN_NAMES = ("trimmed_reads", "report",)
     REQUIRED_EXECUTABLES = ["fastp"]
     DOCUMENTATION_URL = "https://github.com/OpenGene/fastp"
-    VERSION = "0.23.4"
-    COMMAND = [
-        "fastp",
-        "-i", "{inputs.reads[0]}",
-        "-I", "{inputs.reads[1]}",
-        "-o", "{output}/trimmed_R1.fastq.gz",
-        "-O", "{output}/trimmed_R2.fastq.gz",
-        "-h", "{output}/fastp_report.html",
-        "-j", "{output}/fastp_report.json",
-        "-w", "{inputs.threads}",
-    ]
+    VERSION = "0.24.0"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        cmd = [
+            "fastp",
+            "-i", str(reads[0]) if len(reads) > 0 else "",
+            "-I", str(reads[1]) if len(reads) > 1 else "",
+            "-o", f"{output}/trimmed_R1.fastq.gz",
+            "-O", f"{output}/trimmed_R2.fastq.gz",
+            "-h", f"{output}/fastp_report.html",
+            "-j", f"{output}/fastp_report.json",
+            "-w", str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("qualified_quality_phred") is not None:
+            cmd.extend(["-q", str(inputs["qualified_quality_phred"])])
+        if inputs.get("cut_front"):
+            cmd.append("--cut_front")
+        if inputs.get("cut_tail"):
+            cmd.append("--cut_tail")
+        if inputs.get("length_required") is not None:
+            cmd.extend(["--length_required", str(inputs["length_required"])])
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -82,26 +98,34 @@ class TrimmomaticNode(CommandNode):
     CATEGORY = "trimming"
     DESCRIPTION = "Flexible read trimming tool for Illumina NGS data"
     SEARCH_ALIASES = ["trimmomatic", "trim", "adapter removal"]
-    RETURN_TYPES = ("FASTQ_LIST",)
-    RETURN_NAMES = ("trimmed_reads",)
+    RETURN_TYPES = ("FASTQ_LIST", "FASTQ_LIST", "FASTQ_LIST", "FASTQ_LIST")
+    RETURN_NAMES = ("R1_paired", "R1_unpaired", "R2_paired", "R2_unpaired")
     REQUIRED_EXECUTABLES = ["trimmomatic"]
     DOCUMENTATION_URL = "http://www.usadellab.org/cms/?page=trimmomatic"
-    VERSION = "0.39"
-    COMMAND = [
-        "trimmomatic", "PE",
-        "-threads", "{inputs.threads}",
-        "{inputs.reads[0]}",
-        "{inputs.reads[1]}",
-        "{output}/trimmed_R1_paired.fastq.gz",
-        "{output}/trimmed_R1_unpaired.fastq.gz",
-        "{output}/trimmed_R2_paired.fastq.gz",
-        "{output}/trimmed_R2_unpaired.fastq.gz",
-        "ILLUMINACLIP:{inputs.adapters}:2:30:10",
-        "LEADING:{inputs.leading}",
-        "TRAILING:{inputs.trailing}",
-        "SLIDINGWINDOW:4:{inputs.quality}",
-        "MINLEN:{inputs.minlen}",
-    ]
+    VERSION = "0.40"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        cmd = [
+            "trimmomatic", "PE",
+            "-threads", str(inputs.get("threads", 4)),
+            str(reads[0]) if len(reads) > 0 else "",
+            str(reads[1]) if len(reads) > 1 else "",
+            f"{output}/trimmed_R1_paired.fastq.gz",
+            f"{output}/trimmed_R1_unpaired.fastq.gz",
+            f"{output}/trimmed_R2_paired.fastq.gz",
+            f"{output}/trimmed_R2_unpaired.fastq.gz",
+            f"ILLUMINACLIP:{inputs.get('adapters', 'TruSeq3-PE.fa')}:2:30:10",
+            f"LEADING:{inputs.get('leading', 3)}",
+            f"TRAILING:{inputs.get('trailing', 3)}",
+            f"SLIDINGWINDOW:4:{inputs.get('quality', 15)}",
+            f"MINLEN:{inputs.get('minlen', 36)}",
+        ]
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -122,6 +146,25 @@ class TrimmomaticNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run Trimmomatic and return all four outputs."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        await super().run(**kwargs)
+        out = Path(output_dir)
+        return {
+            "outputs": {
+                "R1_paired": [str(out / "trimmed_R1_paired.fastq.gz")],
+                "R1_unpaired": [str(out / "trimmed_R1_unpaired.fastq.gz")],
+                "R2_paired": [str(out / "trimmed_R2_paired.fastq.gz")],
+                "R2_unpaired": [str(out / "trimmed_R2_unpaired.fastq.gz")],
+            }
+        }
+
 
 class CutadaptNode(CommandNode):
     """Adapter trimming with Cutadapt."""
@@ -130,22 +173,36 @@ class CutadaptNode(CommandNode):
     CATEGORY = "trimming"
     DESCRIPTION = "Remove adapter sequences from high-throughput sequencing reads"
     SEARCH_ALIASES = ["cutadapt", "trim adapters", "adapter"]
-    RETURN_TYPES = ("FASTQ",)
+    RETURN_TYPES = ("FASTQ_LIST",)
     RETURN_NAMES = ("trimmed_reads",)
     REQUIRED_EXECUTABLES = ["cutadapt"]
     REQUIRED_CONDA_PACKAGES = ['cutadapt']
     DOCUMENTATION_URL = "https://cutadapt.readthedocs.io/"
-    VERSION = "4.9"
-    COMMAND = [
-        "cutadapt",
-        "-a", "{inputs.adapter_r1}",
-        "-A", "{inputs.adapter_r2}",
-        "-o", "{output}/trimmed_R1.fastq.gz",
-        "-p", "{output}/trimmed_R2.fastq.gz",
-        "-j", "{inputs.threads}",
-        "{inputs.reads[0]}",
-        "{inputs.reads[1]}",
-    ]
+    VERSION = "5.2"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        reads = inputs.get("reads", [])
+        if isinstance(reads, str):
+            reads = [reads]
+        cmd = [
+            "cutadapt",
+            "-a", str(inputs.get("adapter_r1", "AGATCGGAAGAGC")),
+            "-A", str(inputs.get("adapter_r2", "AGATCGGAAGAGC")),
+            "-o", f"{output}/trimmed_R1.fastq.gz",
+            "-p", f"{output}/trimmed_R2.fastq.gz",
+            "-j", str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("minimum_length") is not None:
+            cmd.extend(["-m", str(inputs["minimum_length"])])
+        if inputs.get("quality_cutoff") is not None:
+            cmd.extend(["-q", str(inputs["quality_cutoff"])])
+        if len(reads) > 0:
+            cmd.append(str(reads[0]))
+        if len(reads) > 1:
+            cmd.append(str(reads[1]))
+        return cmd
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -163,4 +220,23 @@ class CutadaptNode(CommandNode):
             "hidden": {
                 "output": ("STRING", {}),
             },
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Run Cutadapt and return paired trimmed reads."""
+        output_dir = kwargs.get("output_dir")
+        ctx = kwargs.get("context")
+        if output_dir is None and ctx is not None:
+            output_dir = getattr(ctx, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        await super().run(**kwargs)
+        out = Path(output_dir)
+        return {
+            "outputs": {
+                "trimmed_reads": [
+                    str(out / "trimmed_R1.fastq.gz"),
+                    str(out / "trimmed_R2.fastq.gz"),
+                ],
+            }
         }
