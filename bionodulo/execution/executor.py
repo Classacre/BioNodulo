@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to_packages
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import run_subprocess
 
@@ -380,7 +381,7 @@ class WorkflowExecutor:
             isolation = getattr(self.settings, "execution", None)
             isolation_mode = getattr(isolation, "env_isolation", "auto") if isolation else "auto"
             if isolation_mode in ("auto", "always"):
-                env_prefix = self._env_prefix_for_node(node)
+                env_prefix = self._env_prefix_for_node(node, workflow)
 
             # ---- Build execution context ----
             ctx = ExecutionContext(
@@ -617,8 +618,9 @@ class WorkflowExecutor:
             nid = queue.pop(0)
             order.append(nid)
             for downstream in nodes:
-                if nid in upstream_of[downstream]:
-                    in_degree[downstream] -= 1
+                count = upstream_of[downstream].count(nid)
+                if count:
+                    in_degree[downstream] -= count
                     if in_degree[downstream] == 0:
                         queue.append(downstream)
 
@@ -805,12 +807,11 @@ class WorkflowExecutor:
         with open(meta_path, "w", encoding="utf-8") as fh:
             json.dump(metadata, fh, indent=2, ensure_ascii=True)
 
-    def _env_prefix_for_node(self, node: dict[str, Any]) -> list[str]:
+    def _env_prefix_for_node(self, node: dict[str, Any], workflow: dict[str, Any] | None = None) -> list[str]:
         """Compute the environment command prefix for a node.
 
-        Derives the isolated environment name from the node's CATEGORY.
-        Uses the node's own ENVIRONMENT spec if explicitly set.
-        Falls back to bionodulo-tools if the per-category env does not exist.
+        Uses the workflow's content-addressed pixi manifest so that every
+        workflow runs in an environment containing exactly the tools it needs.
         """
         node_type = node.get("type", "")
         node_class = node.get("_node_class")
@@ -819,40 +820,33 @@ class WorkflowExecutor:
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
             node_class = self.registry.get(node_type)
 
-        category = "general"
-        if node_class is not None:
-            category = getattr(node_class, "CATEGORY", "general")
-
         # Use the node's own ENVIRONMENT if explicitly set
         env_spec = getattr(node_class, "ENVIRONMENT", {}) if node_class else {}
         if env_spec and isinstance(env_spec, dict):
-            env_type = env_spec.get("type", "micromamba")
+            env_type = env_spec.get("type", "pixi")
             env_name = env_spec.get("name", "")
             if env_name:
                 return self._command_prefix_list(env_type, env_name)
 
-        # Default: per-category isolated environment (pixi naming)
-        env_name = category.lower().replace(' ', '-').replace('/', '-').replace('_', '-')
+        # Default: workflow-scoped manifest
+        if workflow is not None:
+            packages = workflow_to_packages(workflow, self.registry)
+            env_id = get_env_id(packages)
+            env_dir = get_env_dir(env_id, self.workspace_dir)
+            manifest_path = env_dir / "pixi.toml"
+            if manifest_path.exists():
+                return self._command_prefix_list("pixi", None, manifest_path=manifest_path)
 
-        # Fallback to tools if the per-category env does not exist
-        try:
-            from bionodulo.environments.manager import env_exists
-            if not env_exists(env_name):
-                env_name = "tools"
-        except Exception:
-            pass
-
-        return self._command_prefix_list("pixi", env_name)
+        # Fallback: system PATH
+        return []
 
     def _command_prefix_list(
         self,
         env_type: str | None,
         env_name: str | None,
+        manifest_path: Path | None = None,
     ) -> list[str]:
         """Generate environment command prefix as a token list."""
-        if not env_name:
-            return []
-
         # Resolve the actual executable path (system or managed)
         exe = env_type or "pixi"
         if exe == "pixi":
@@ -863,7 +857,9 @@ class WorkflowExecutor:
             else:
                 exe = "pixi"
 
-        if env_type in ("pixi", "conda", "mamba", "micromamba"):
+        if env_type == "pixi" and manifest_path is not None:
+            return [exe, "run", "--manifest-path", str(manifest_path), "--"]
+        if env_type == "pixi" and env_name:
             return [exe, "run", "-e", env_name, "--"]
         return []
 

@@ -245,10 +245,10 @@ export default function App() {
       const payload = (typeof data.data === 'object' && data.data !== null) ? data.data as Record<string, unknown> : {};
       const ts = String(payload.timestamp || new Date().toISOString());
 
-      // --- Install events (micromamba + dependency installer) ---
+      // --- Install events (pixi + dependency installer) ---
       if (data.type === 'install.log') {
         addLog({
-          run_id: 'install-micromamba',
+          run_id: 'install-pixi',
           node_id: 'host',
           level: (payload.level as LogEntry['level']) || 'info',
           message: String(payload.message || ''),
@@ -622,6 +622,7 @@ export default function App() {
         {resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
           <MissingDependenciesBanner
             report={resolveReport}
+            workflow={activeWorkflow}
             onDismiss={() => setDismissedReport(resolveReport)}
             onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
             onResolve={() => { resolve(activeWorkflow); }}

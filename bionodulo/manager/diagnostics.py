@@ -31,7 +31,7 @@ def _check_r_packages_env_aware(
     packages: list[str],
     _cache: dict[tuple[tuple[str, ...], str], dict[str, bool]] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Check R package availability across conda envs and system PATH.
+    """Check R package availability across pixi envs and system PATH.
 
     Args:
         packages: List of R package names to check.
@@ -72,28 +72,7 @@ def _check_r_packages_env_aware(
                         available_anywhere[pkg_name] = True
         _cache[cache_key] = env_results
 
-    # Try pixi envs
-    try:
-        from bionodulo.manager.runtime_installer import get_pixi_path
-
-        pixi = get_pixi_path()
-        if pixi:
-            for env_name in ["r", "tools"]:
-                try:
-                    check = subprocess.run(
-                        [str(pixi), "run", "-e", env_name, "Rscript", "--version"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    if check.returncode == 0:
-                        _check([str(pixi), "run", "-e", env_name, "Rscript", "-e", r_script], env_name)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # Fallback to system PATH
+    # Check via system PATH Rscript (per-workflow envs are checked separately)
     try:
         _check(["Rscript", "-e", r_script], "__system__")
     except Exception:
@@ -290,27 +269,96 @@ def _generate_install_command(results: dict[str, dict[str, Any]]) -> str:
 
 
 def host_diagnostics() -> dict[str, Any]:
-    """Return host-level diagnostics: system info and tool availability."""
+    """Return host-level prerequisite diagnostics.
+
+    Returns data shaped for the frontend HostStatus / HostPrerequisitesBanner.
+    """
     import platform
 
     import psutil
 
+    from bionodulo.manager.runtime_installer import get_pixi_path
+
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
-    env_status = environment_status()
+
+    # Build prerequisite checks
+    checks: dict[str, dict[str, Any]] = {}
+    missing_required: list[str] = []
+    missing_optional: list[str] = []
+
+    # Python
+    py_path = shutil.which("python3") or shutil.which("python")
+    checks["python3"] = {
+        "available": py_path is not None,
+        "path": py_path,
+        "required": True,
+        "auto_installable": False,
+        "description": "Python interpreter (>=3.11)",
+    }
+    if not checks["python3"]["available"]:
+        missing_required.append("python3")
+
+    # Pixi
+    pixi_path = get_pixi_path()
+    checks["pixi"] = {
+        "available": pixi_path is not None,
+        "path": str(pixi_path) if pixi_path else None,
+        "required": True,
+        "auto_installable": True,
+        "description": "Pixi package manager",
+    }
+    if not checks["pixi"]["available"]:
+        missing_required.append("pixi")
+
+    # Node / npm (optional, for frontend dev)
+    node_path = shutil.which("node")
+    checks["node"] = {
+        "available": node_path is not None,
+        "path": node_path,
+        "required": False,
+        "auto_installable": False,
+        "description": "Node.js (optional, for frontend development)",
+    }
+    if not checks["node"]["available"]:
+        missing_optional.append("node")
+
+    # Rscript (optional, for R nodes)
+    r_path = shutil.which("Rscript")
+    checks["Rscript"] = {
+        "available": r_path is not None,
+        "path": r_path,
+        "required": False,
+        "auto_installable": False,
+        "description": "R interpreter (optional, for R-based analysis nodes)",
+    }
+    if not checks["Rscript"]["available"]:
+        missing_optional.append("Rscript")
+
+    all_ready = len(missing_required) == 0
 
     return {
-        "platform": platform.platform(),
-        "cpu_count": psutil.cpu_count(),
-        "memory": {
-            "total_gb": round(mem.total / (1024 ** 3), 2),
-            "available_gb": round(mem.available / (1024 ** 3), 2),
-            "percent_used": mem.percent,
+        "ready": all_ready,
+        "checks": checks,
+        "missing_required": missing_required,
+        "missing_optional": missing_optional,
+        "message": (
+            "All prerequisites satisfied"
+            if all_ready
+            else f"{len(missing_required)} required tool(s) missing"
+        ),
+        "_system": {
+            "platform": platform.platform(),
+            "cpu_count": psutil.cpu_count(),
+            "memory": {
+                "total_gb": round(mem.total / (1024 ** 3), 2),
+                "available_gb": round(mem.available / (1024 ** 3), 2),
+                "percent_used": mem.percent,
+            },
+            "disk": {
+                "total_gb": round(disk.total / (1024 ** 3), 2),
+                "free_gb": round(disk.free / (1024 ** 3), 2),
+                "percent_used": round((disk.used / disk.total) * 100, 2),
+            },
         },
-        "disk": {
-            "total_gb": round(disk.total / (1024 ** 3), 2),
-            "free_gb": round(disk.free / (1024 ** 3), 2),
-            "percent_used": round((disk.used / disk.total) * 100, 2),
-        },
-        "tools": env_status,
     }

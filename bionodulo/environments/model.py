@@ -1,7 +1,7 @@
 """Environment specification dataclass for BioNodulo.
 
 Defines the data model for tool execution environments including
-Conda, Docker, Apptainer/Singularity, and bare-metal configurations.
+Pixi, Docker, Apptainer/Singularity, and bare-metal configurations.
 """
 from __future__ import annotations
 
@@ -93,6 +93,6 @@ class EnvironmentSpec:
         """Check if this is a container-based environment."""
         return self.type in ("docker", "apptainer", "singularity")
 
-    def is_conda(self) -> bool:
-        """Check if this is a Conda-based environment."""
-        return self.type in ("conda", "mamba", "micromamba")
+    def is_pixi(self) -> bool:
+        """Check if this is a pixi-based environment."""
+        return self.type in ("pixi",)

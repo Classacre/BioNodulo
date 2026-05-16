@@ -36,6 +36,10 @@ def main() -> None:
     else:
         # Default to workspace/ inside the project directory
         default_root = (project_dir / "workspace").resolve()
+        # Many bioinformatics tools cannot handle spaces in paths.
+        # Use a space-free fallback under the home directory.
+        if " " in str(default_root):
+            default_root = (Path.home() / ".bionodulo" / "workspace").resolve()
         os.environ["BIONODULO_ROOT"] = str(default_root)
     if args.config:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())

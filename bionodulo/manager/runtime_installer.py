@@ -187,7 +187,7 @@ def ensure_tool_available(
     logger.info("Installing %s via pixi...", pkg)
     try:
         result = subprocess.run(
-            [str(pixi), "add", "-e", env_name, pkg],
+            [str(pixi), "add", "--feature", env_name, pkg],
             capture_output=True,
             text=True,
             timeout=600,

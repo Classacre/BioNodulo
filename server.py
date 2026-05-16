@@ -94,7 +94,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def startup() -> None:
-        # Note: micromamba installation is surfaced via /api/host_status
+        # Note: pixi installation is surfaced via /api/host_status
         # and handled by the frontend so the user is aware of it.
         # RunQueue worker auto-starts on first submit
         pass

@@ -1,34 +1,43 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
-import type { CondaEnvironment, DependencyStatus, EnvPackage, Workflow } from '../../types';
+
+interface PackageInfo {
+  name: string;
+  version: string;
+}
+
+interface EnvInfo {
+  id: string;
+  name: string;
+  path: string;
+  packages: PackageInfo[];
+  package_count: number;
+  ready: boolean;
+  status: string;
+}
 
 interface EnvironmentPanelProps {
   onClose: () => void;
-  currentWorkflow?: Workflow;
+  currentWorkflow?: Record<string, any>;
 }
 
-const PRESET_PACKAGES: Record<string, string[]> = {
-  'QC': ['bwa', 'samtools', 'fastqc', 'multiqc'],
-  'RNA-Seq': ['star', 'featurecounts', 'salmon'],
-  'Variant': ['gatk4', 'bcftools', 'freebayes'],
-  'Assembly': ['spades', 'quast', 'megahit'],
-  'Metagenomics': ['kraken2', 'bracken', 'metaphlan'],
-};
+function shortId(id: string) {
+  if (id.length <= 8) return id;
+  return `${id.slice(0, 3)}...${id.slice(-3)}`;
+}
 
-export default function EnvironmentPanel({ onClose, currentWorkflow }: EnvironmentPanelProps) {
-  const [envs, setEnvs] = useState<CondaEnvironment[]>([]);
-  const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
-  const [envPackages, setEnvPackages] = useState<EnvPackage[]>([]);
-  const [deps, setDeps] = useState<DependencyStatus[]>([]);
+export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
+  const [envs, setEnvs] = useState<EnvInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [newEnvName, setNewEnvName] = useState('');
-  const [newEnvPackages, setNewEnvPackages] = useState('');
-  const [activeTab, setActiveTab] = useState<'envs' | 'deps' | 'create'>('envs');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch environments
   const fetchEnvs = useCallback(async () => {
+    setLoading(true);
     try {
       const r = await fetch('/api/manager/environments');
       if (r.ok) {
@@ -36,119 +45,109 @@ export default function EnvironmentPanel({ onClose, currentWorkflow }: Environme
         setEnvs(data.environments || []);
       }
     } catch { /* offline */ }
+    setLoading(false);
   }, []);
-
-  // Fetch dependency tree for current workflow
-  const fetchDeps = useCallback(async () => {
-    if (!currentWorkflow || currentWorkflow.nodes.length === 0) {
-      setDeps([]);
-      return;
-    }
-    try {
-      const r = await fetch('/api/manager/dependency-tree', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: currentWorkflow }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        setDeps(data.dependencies || []);
-      }
-    } catch { /* offline */ }
-  }, [currentWorkflow]);
 
   useEffect(() => {
     fetchEnvs();
-    fetchDeps();
-  }, [fetchEnvs, fetchDeps]);
+  }, [fetchEnvs]);
 
-  // Fetch packages when an env is selected
+  // Close menu on outside click
   useEffect(() => {
-    if (!selectedEnv) {
-      setEnvPackages([]);
+    function onClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const handleRename = async (id: string) => {
+    if (!renameValue.trim()) {
+      setRenamingId(null);
       return;
     }
-    (async () => {
-      try {
-        const r = await fetch(`/api/manager/environments/${encodeURIComponent(selectedEnv)}`);
-        if (r.ok) {
-          const data = await r.json();
-          setEnvPackages(data.packages || []);
-        }
-      } catch { /* offline */ }
-    })();
-  }, [selectedEnv]);
-
-  const handleCreateEnv = async () => {
-    if (!newEnvName.trim()) return;
-    setCreating(true);
-    setMessage('');
-    const packages = newEnvPackages.split('\n').map(s => s.trim()).filter(Boolean);
     try {
-      const r = await fetch('/api/manager/environments', {
+      const r = await fetch(`/api/manager/environments/${encodeURIComponent(id)}/rename`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newEnvName.trim(), packages }),
+        body: JSON.stringify({ name: renameValue.trim() }),
       });
-      const data = await r.json();
       if (r.ok) {
-        setMessage(`Created environment '${newEnvName.trim()}'`);
-        setNewEnvName('');
-        setNewEnvPackages('');
-        fetchEnvs();
-        setActiveTab('envs');
-      } else {
-        setMessage(data.detail || 'Failed to create environment');
-      }
-    } catch {
-      setMessage('Network error');
-    }
-    setCreating(false);
-  };
-
-  const handleDeleteEnv = async (name: string) => {
-    if (!confirm(`Delete environment '${name}'?`)) return;
-    try {
-      const r = await fetch(`/api/manager/environments/${encodeURIComponent(name)}`, { method: 'DELETE' });
-      if (r.ok) {
-        setMessage(`Deleted '${name}'`);
-        if (selectedEnv === name) setSelectedEnv(null);
+        setMessage(`Renamed to '${renameValue.trim()}'`);
         fetchEnvs();
       } else {
         const data = await r.json();
-        setMessage(data.detail || 'Failed to delete');
+        setMessage(data.detail || 'Rename failed');
       }
     } catch {
       setMessage('Network error');
     }
+    setRenamingId(null);
   };
 
-  const handleIsolateWorkflow = async () => {
-    if (!currentWorkflow) return;
-    setLoading(true);
-    setMessage('');
+  const handleDelete = async (env: EnvInfo) => {
+    setMenuOpenId(null);
+    if (!confirm(`Delete environment '${env.name}'? This cannot be undone.`)) return;
     try {
-      const r = await fetch('/api/manager/create-workflow-env', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: currentWorkflow, environment: {} }),
-      });
-      const data = await r.json();
+      const r = await fetch(`/api/manager/environments/${encodeURIComponent(env.id)}`, { method: 'DELETE' });
       if (r.ok) {
-        setMessage(data.message || 'Workflow environment created');
+        setMessage(`Deleted environment '${env.name}'`);
         fetchEnvs();
-        fetchDeps();
       } else {
-        setMessage(data.detail || 'Failed to create workflow environment');
+        const data = await r.json();
+        setMessage(data.detail || 'Delete failed');
       }
     } catch {
       setMessage('Network error');
     }
-    setLoading(false);
   };
 
-  const missingCount = deps.filter(d => d.status === 'missing').length;
-  const installedCount = deps.filter(d => d.status === 'installed').length;
+  const handleDuplicate = async (env: EnvInfo) => {
+    setMenuOpenId(null);
+    try {
+      const r = await fetch(`/api/manager/environments/${encodeURIComponent(env.id)}/duplicate`, {
+        method: 'POST',
+      });
+      if (!r.ok) {
+        const data = await r.json();
+        setMessage(data.detail || 'Duplicate failed');
+        return;
+      }
+      const data = await r.json();
+      setMessage(data.message || `Duplicated '${env.name}'`);
+      fetchEnvs();
+    } catch {
+      setMessage('Network error');
+    }
+  };
+
+  const handleRemovePackage = async (env: EnvInfo, pkg: PackageInfo) => {
+    if (!confirm(`Remove package '${pkg.name}' from environment '${env.name}'?`)) return;
+    try {
+      const r = await fetch(
+        `/api/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`,
+        { method: 'POST' }
+      );
+      if (!r.ok) {
+        const data = await r.json();
+        setMessage(data.detail || 'Remove failed');
+        return;
+      }
+      const data = await r.json();
+      setMessage(data.message || `Removed '${pkg.name}'`);
+      fetchEnvs();
+    } catch {
+      setMessage('Network error');
+    }
+  };
+
+  const startRename = (env: EnvInfo) => {
+    setRenamingId(env.id);
+    setRenameValue(env.name);
+    setMenuOpenId(null);
+  };
 
   return (
     <div className="rail-panel">
@@ -157,167 +156,159 @@ export default function EnvironmentPanel({ onClose, currentWorkflow }: Environme
         <button className="btn btn-icon" onClick={onClose}><Icon name="close" size={14} /></button>
       </div>
 
-      <div className="env-tabs">
-        {(['envs', 'deps', 'create'] as const).map(t => (
-          <button
-            key={t}
-            className={`env-type-tab ${activeTab === t ? 'active' : ''}`}
-            onClick={() => setActiveTab(t)}
-          >
-            {t === 'envs' && `Envs (${envs.length})`}
-            {t === 'deps' && `Deps (${deps.length})`}
-            {t === 'create' && 'Create'}
-          </button>
-        ))}
-      </div>
-
       {message && (
-        <div className={`env-message ${message.includes('Failed') || message.includes('error') ? 'err' : 'ok'}`}>
+        <div className={`env-message ${message.includes('failed') || message.includes('error') ? 'err' : 'ok'}`}>
           {message}
         </div>
       )}
 
-      {activeTab === 'envs' && (
-        <div className="rail-panel-body">
-          {envs.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-              No conda environments found.<br />
-              Install micromamba/conda or create an environment.
-            </div>
-          )}
-          <div className="env-list">
-            {envs.map(env => (
-              <div
-                key={env.name}
-                className={`env-item ${selectedEnv === env.name ? 'selected' : ''}`}
-                onClick={() => setSelectedEnv(env.name)}
-              >
-                <div className="env-item-main">
-                  <span className="env-item-name">{env.name}</span>
-                  <span className="env-item-path">{env.path}</span>
-                </div>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteEnv(env.name); }}
-                  title="Delete"
-                >
-                  <Icon name="close" size={12} />
-                </button>
-              </div>
-            ))}
+      <div className="rail-panel-body" style={{ padding: 0 }}>
+        {loading && envs.length === 0 && (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+            <Icon name="spinner" size={14} /> Loading environments...
           </div>
+        )}
 
-          {selectedEnv && (
-            <div className="env-packages">
-              <h4>Packages in <code>{selectedEnv}</code></h4>
-              {envPackages.length === 0 ? (
-                <span className="muted">No packages or still loading...</span>
-              ) : (
-                <div className="env-package-grid">
-                  {envPackages.slice(0, 50).map(pkg => (
-                    <div key={pkg.name} className="env-package-chip" title={`${pkg.channel} ${pkg.build}`}>
-                      <strong>{pkg.name}</strong> <span>{pkg.version}</span>
-                    </div>
-                  ))}
-                  {envPackages.length > 50 && (
-                    <span className="muted">+{envPackages.length - 50} more</span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+        {envs.length === 0 && !loading && (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+            No environments yet.<br />
+            Run a workflow to create one.
+          </div>
+        )}
 
-      {activeTab === 'deps' && (
-        <div className="rail-panel-body">
-          {deps.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-              {currentWorkflow && currentWorkflow.nodes.length > 0
-                ? 'All dependencies satisfied or no nodes requiring external tools.'
-                : 'Add nodes to the workflow to see dependencies.'}
-            </div>
-          )}
-
-          {currentWorkflow && currentWorkflow.nodes.length > 0 && (
-            <div className="dep-summary">
-              <span className="dep-badge ok">{installedCount} installed</span>
-              {missingCount > 0 && <span className="dep-badge err">{missingCount} missing</span>}
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleIsolateWorkflow}
-                disabled={loading || missingCount === 0}
-              >
-                {loading ? <><Icon name="spinner" size={12} /> Creating...</> : 'Isolate Workflow'}
-              </button>
-            </div>
-          )}
-
-          <div className="dep-list">
-            {deps.map(d => (
-              <div key={`${d.type}-${d.name}`} className={`dep-item ${d.status}`}>
-                <span className={`dep-dot ${d.status}`} />
-                <div className="dep-info">
-                  <span className="dep-name">{d.name}</span>
-                  <span className="dep-type">{d.type}</span>
-                </div>
-                <span className="dep-msg">{d.message}</span>
-                {d.envs.length > 0 && (
-                  <span className="dep-envs">{d.envs.join(', ')}</span>
+        {envs.map(env => (
+          <div key={env.id} className="env-item" style={{ borderBottom: '1px solid var(--border)', display: 'block' }}>
+            {/* Main row */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', gap: 6 }}>
+              {/* Name + short ID */}
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                {renamingId === env.id ? (
+                  <input
+                    autoFocus
+                    className="text-input"
+                    style={{ fontSize: 12, padding: '2px 6px', width: '100%' }}
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={() => handleRename(env.id)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRename(env.id); if (e.key === 'Escape') setRenamingId(null); }}
+                  />
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        fontSize: 13,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={env.name}
+                    >
+                      {env.name}
+                    </span>
+                    <code
+                      style={{
+                        fontSize: 10,
+                        color: env.ready ? '#22c55e' : 'var(--danger)',
+                        flexShrink: 0,
+                      }}
+                      title={env.id}
+                    >
+                      [{shortId(env.id)}]
+                    </code>
+                  </>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {activeTab === 'create' && (
-        <div className="rail-panel-body">
-          <div className="param-row">
-            <label className="param-label">Environment Name</label>
-            <input
-              type="text"
-              className="text-input"
-              placeholder="my-bio-env"
-              value={newEnvName}
-              onChange={e => setNewEnvName(e.target.value)}
-            />
-          </div>
-          <div className="param-row">
-            <label className="param-label">Packages (one per line)</label>
-            <textarea
-              className="text-input"
-              style={{ minHeight: 100, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-              placeholder="bwa=0.7.17&#10;samtools=1.17&#10;fastqc=0.12.1"
-              value={newEnvPackages}
-              onChange={e => setNewEnvPackages(e.target.value)}
-            />
-          </div>
-          <div className="param-row">
-            <label className="param-label">Quick Presets</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {Object.entries(PRESET_PACKAGES).map(([label, pkgs]) => (
+              {/* Expand toggle */}
+              <button
+                className="btn btn-icon btn-sm"
+                style={{ padding: 2, flexShrink: 0 }}
+                onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}
+                title={expandedId === env.id ? 'Collapse packages' : 'Show packages'}
+              >
+                <Icon name={expandedId === env.id ? 'chevronDown' : 'chevronRight'} size={12} />
+              </button>
+
+              {/* Burger menu */}
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative', flexShrink: 0 }} ref={menuOpenId === env.id ? menuRef : undefined}>
                 <button
-                  key={label}
-                  className="btn btn-sm"
-                  style={{ justifyContent: 'flex-start' }}
-                  onClick={() => setNewEnvPackages(pkgs.join('\n'))}
+                  className="btn btn-icon btn-sm"
+                  style={{ padding: 4 }}
+                  onClick={() => setMenuOpenId(menuOpenId === env.id ? null : env.id)}
+                  title="Options"
                 >
-                  {label}
+                  <Icon name="menu" size={14} />
                 </button>
-              ))}
+
+                {menuOpenId === env.id && (
+                  <div className="dropdown-menu" style={{ right: 0, top: '100%', marginTop: 4, minWidth: 140, zIndex: 10 }}>
+                    <div
+                      className="dropdown-item"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12 }}
+                      onClick={() => startRename(env)}
+                    >
+                      <Icon name="edit" size={12} /> Rename
+                    </div>
+                    <div
+                      className="dropdown-item"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12 }}
+                      onClick={() => handleDuplicate(env)}
+                    >
+                      <Icon name="copy" size={12} /> Duplicate
+                    </div>
+                    <div
+                      className="dropdown-item"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12, color: 'var(--danger)' }}
+                      onClick={() => handleDelete(env)}
+                    >
+                      <Icon name="trash" size={12} /> Delete
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Expanded packages */}
+            {expandedId === env.id && (
+              <div style={{ padding: '0 12px 12px 12px' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
+                  {env.package_count} package{env.package_count === 1 ? '' : 's'}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {env.packages.map((pkg) => (
+                    <span
+                      key={pkg.name}
+                      style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        background: 'var(--surface-2)',
+                        borderRadius: 4,
+                        border: '1px solid var(--border)',
+                        color: 'var(--text)',
+                        fontFamily: 'monospace',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>{pkg.name} <span style={{ color: 'var(--muted)' }}>{pkg.version}</span></span>
+                      <button
+                        className="btn btn-icon btn-sm btn-ghost"
+                        style={{ padding: 0, width: 14, height: 14, color: 'var(--danger)', lineHeight: 1 }}
+                        onClick={() => handleRemovePackage(env, pkg)}
+                        title={`Remove ${pkg.name}`}
+                      >
+                        <Icon name="close" size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 12 }}
-            onClick={handleCreateEnv}
-            disabled={creating || !newEnvName.trim()}
-          >
-            {creating ? <><Icon name="spinner" size={12} /> Creating...</> : 'Create Environment'}
-          </button>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }

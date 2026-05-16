@@ -19,7 +19,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
     setInstallMsg(null);
     onOpenConsole();
     try {
-      const r = await fetch('/api/host_status/install-micromamba', { method: 'POST' });
+      const r = await fetch('/api/host_status/install-pixi', { method: 'POST' });
       const data = await r.json();
       if (data.success) {
         setInstallMsg(data.already_installed ? 'Already installed' : 'Installed successfully — reload the page to activate.');
@@ -48,7 +48,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
           {status.message || `${missingRequired.length} required tool(s) missing`}
         </span>
         <div className="dep-banner-actions">
-          {missingRequired.includes('micromamba') && (
+          {missingRequired.includes('pixi') && (
             <button
               className="btn btn-primary btn-sm"
               onClick={handleInstall}
@@ -60,7 +60,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
                 </>
               ) : (
                 <>
-                  <Icon name="download" size={12} /> Auto Install Micromamba
+                  <Icon name="download" size={12} /> Auto Install Pixi
                 </>
               )}
             </button>

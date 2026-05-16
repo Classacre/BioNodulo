@@ -139,7 +139,7 @@ export interface ManagerStatus {
 }
 
 export interface EnvironmentSpec {
-  type: 'conda' | 'mamba' | 'micromamba' | 'docker' | 'apptainer' | 'singularity' | 'none';
+  type: 'pixi' | 'docker' | 'apptainer' | 'singularity' | 'none';
   name?: string;
   file?: string;
   image?: string;
@@ -150,7 +150,7 @@ export interface EnvironmentSpec {
   notes?: string;
 }
 
-export interface CondaEnvironment {
+export interface PixiEnvironment {
   name: string;
   path: string;
   active: boolean;
@@ -232,11 +232,13 @@ export interface ResolveReport {
   missing_executables: MissingExecutable[];
   missing_packages: MissingPackage[];
   missing_r_packages: MissingRPackage[];
+  required_packages: string[];
+  env_id: string;
+  env_ready: boolean;
   installable: boolean;
   errors: string[];
   has_issues: boolean;
   summary: string;
-  env_strategy?: string;
 }
 
 export interface InstallJobStatus {

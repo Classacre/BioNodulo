@@ -315,7 +315,7 @@ class BiostringsStatsNode(BaseNode):
                     aa <- translate(shifted, genetic.code = getGeneticCode("{code_num}"), if.fuzzy.codon = "X")
                     # Split on stop codons and find ORFs
                     aa_str <- as.character(aa)
-                    peptides <- strsplit(aa_str, "\\*")[[1]]
+                    peptides <- strsplit(aa_str, "\\\\*")[[1]]
                     pos <- 1
                     for (p in peptides) {{
                         if (nchar(p) >= {min_orf}) {{
@@ -336,7 +336,7 @@ class BiostringsStatsNode(BaseNode):
             write.csv(orf_results, "{orf_csv.as_posix()}", row.names = FALSE)
 
             # Six-frame translation
-            six_frame <- DNAStringSet()
+            six_frame <- AAStringSet()
             six_frame_names <- character()
             for (i in seq_along(dna)) {{
                 seq <- dna[[i]]
@@ -344,14 +344,14 @@ class BiostringsStatsNode(BaseNode):
                 for (frame in 0:2) {{
                     shifted <- subseq(seq, start = frame + 1)
                     aa <- translate(shifted, genetic.code = getGeneticCode("{code_num}"), if.fuzzy.codon = "X")
-                    six_frame <- c(six_frame, aa)
+                    six_frame <- c(six_frame, AAStringSet(aa))
                     six_frame_names <- c(six_frame_names, paste0(seq_name, "_frame", frame + 1))
                 }}
                 rev_seq <- reverseComplement(seq)
                 for (frame in 0:2) {{
                     shifted <- subseq(rev_seq, start = frame + 1)
                     aa <- translate(shifted, genetic.code = getGeneticCode("{code_num}"), if.fuzzy.codon = "X")
-                    six_frame <- c(six_frame, aa)
+                    six_frame <- c(six_frame, AAStringSet(aa))
                     six_frame_names <- c(six_frame_names, paste0(seq_name, "_rev_frame", frame + 1))
                 }}
             }}

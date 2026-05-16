@@ -281,18 +281,30 @@ def _update_setting(ctx: ToolContext, key: str, value: Any, **kwargs: Any) -> di
 
 
 def _list_environments(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """List conda environments."""
-    from bionodulo.environments.manager import list_conda_envs
-
-    return {"environments": list_conda_envs()}
+    """List pixi environments from the workspace envs directory."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["pixi", "info", "--json"], capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            import json
+            data = json.loads(result.stdout)
+            envs = []
+            for name, info in data.get("environments", {}).items():
+                envs.append({"name": name, "path": info.get("prefix", "")})
+            return {"environments": envs}
+    except Exception as exc:
+        return {"error": str(exc)}
+    return {"environments": []}
 
 
 def _create_environment(ctx: ToolContext, name: str, packages: list[str], **kwargs: Any) -> dict[str, Any]:
-    """Create a conda environment."""
-    from bionodulo.environments.manager import create_conda_env
-
-    success, message = create_conda_env(name, packages)
-    return {"success": success, "message": message}
+    """Create a pixi environment via manifest (legacy — use workflow envs instead)."""
+    return {
+        "success": False,
+        "message": "Direct environment creation is deprecated. Use workflow-scoped environments via /manager/ensure-workflow-env.",
+    }
 
 
 def _get_node_info(ctx: ToolContext, node_type: str, **kwargs: Any) -> dict[str, Any]:
@@ -353,7 +365,7 @@ ALL_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="list_environments",
-        description="List existing Conda/Mamba environments.",
+        description="List existing pixi environments.",
         parameters=[],
         mutates=False,
         execute=_list_environments,

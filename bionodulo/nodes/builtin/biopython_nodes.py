@@ -122,12 +122,15 @@ class SeqIOWriteNode(BaseNode):
         name = kwargs.get("output_name", "output.fasta")
 
         data = json.loads(Path(seq_json).read_text(encoding="utf-8"))
+        if isinstance(data, dict) and "_value" in data:
+            data = data["_value"]
         records = []
         for item in data:
             rec = SeqRecord(
                 Seq(item.get("seq_preview", "")),
                 id=item.get("id", "unknown"),
                 description=item.get("description", ""),
+                annotations={"molecule_type": "DNA"},
             )
             records.append(rec)
 
@@ -307,7 +310,6 @@ class BLASTSearchNode(BaseNode):
             "-out", str(out_path),
         ]
 
-        context = kwargs.pop("context", None)
         if context is not None and hasattr(context, "run_command"):
             result = await context.run_command(cmd, cwd=str(out_dir))
         else:

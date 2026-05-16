@@ -59,20 +59,24 @@ from bionodulo.workflow.graph import (
     upstream_nodes,
 )
 from bionodulo.workflow.serialization import load_workflow, save_workflow
-from bionodulo.environments.manager import (
-    create_conda_env,
-    create_workflow_env,
-    delete_conda_env,
-    env_exists,
-    executable_in_env,
+from bionodulo.environments.manifest import (
+    delete_env_dir,
+    duplicate_env_dir,
+    ensure_workflow_env,
+    get_env_dir,
+    get_env_id,
+    get_env_meta,
+    get_env_name,
     get_env_packages,
-    install_into_env,
-    list_conda_envs,
-    workflow_dependency_tree,
+    is_env_ready,
+    list_all_envs,
+    remove_package_from_env,
+    set_env_meta,
+    workflow_to_packages,
 )
 from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.diagnostics import host_diagnostics
-from bionodulo.manager.installer import InstallJob
+from bionodulo.manager.installer import get_installer
 from bionodulo.manager.resolver import build_node_manifest, resolve_workflow, _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
 
@@ -875,8 +879,9 @@ async def manager_diagnose(
 ) -> dict[str, Any]:
     """Diagnose a workflow (find missing tools, type mismatches)."""
     registry = _get_registry(request)
+    settings = _get_settings(request)
     result = validate_workflow(body.workflow, registry)
-    report = await _resolve_workflow_async(body.workflow, registry)
+    report = await _resolve_workflow_async(body.workflow, registry, settings.project_root)
 
     return {
         "valid": result.valid,
@@ -893,55 +898,22 @@ async def manager_diagnose(
     }
 
 
-@router.post("/manager/resolve")
-async def manager_resolve(
-    request: Request, body: ManagerResolveRequest
-) -> dict[str, Any]:
-    """Resolve dependencies for a workflow.
-
-    Returns a report of missing nodes, executables, and packages
-    with installation information where available.
-    """
-    registry = _get_registry(request)
-    report = await _resolve_workflow_async(body.workflow, registry)
-    return report.to_dict()
-
-
 @router.post("/manager/install-deps")
 async def manager_install_deps(
     request: Request, body: ManagerInstallDepsRequest
 ) -> dict[str, Any]:
-    """Start an async install job for missing dependencies.
+    """Legacy endpoint — redirects to ensure-workflow-env.
 
-    Returns a job_id that can be polled via /manager/status/{job_id}.
-    Emits real-time progress events via the WebSocket event hub.
+    Use POST /manager/ensure-workflow-env instead.
     """
-    settings = _get_settings(request)
-    event_hub = request.app.state.event_hub
-
-    def emit(level: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.progress",
-                {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="dependency-installer",
-            )
-        )
-
-    plan = dict(body.report)
-    plan["env_strategy"] = body.env_strategy
-    job = InstallJob.create(plan, settings.custom_nodes_dir, emit=emit)
-
-    # Start install in background
-    asyncio.create_task(job.run())
-
-    return {"job_id": job.job_id, "status": "started"}
+    return {"message": "Use /manager/ensure-workflow-env instead", "status": "deprecated"}
 
 
 @router.get("/manager/status/{job_id}")
 async def manager_status(job_id: str) -> dict[str, Any]:
     """Get the status of an async install job."""
-    job = InstallJob.get(job_id)
+    installer = get_installer()
+    job = installer.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return job.progress.to_dict()
@@ -1006,118 +978,141 @@ async def manager_install(
 
 
 # ---------------------------------------------------------------------------
-# Environment Manager
+# Environment Manager (manifest-based per-workflow environments)
 # ---------------------------------------------------------------------------
 
-@router.get("/manager/environments")
-async def list_environments() -> dict[str, Any]:
-    """List all Conda/Mamba/Micromamba environments."""
-    envs = list_conda_envs()
-    return {"environments": envs, "count": len(envs)}
-
-
-@router.post("/manager/environments")
-async def create_environment(body: EnvironmentCreateRequest) -> dict[str, Any]:
-    """Create a new Conda environment with specified packages."""
-    success, message = create_conda_env(
-        name=body.name,
-        packages=body.packages,
-        channels=body.channels,
-        pip_packages=body.pip_packages,
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail=message)
-    return {"success": True, "message": message, "name": body.name}
-
-
-@router.get("/manager/environments/{name}")
-async def get_environment(name: str) -> dict[str, Any]:
-    """Get details for a specific environment including installed packages."""
-    if not env_exists(name):
-        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
-    packages = get_env_packages(name)
-    return {"name": name, "packages": packages, "package_count": len(packages)}
-
-
-@router.delete("/manager/environments/{name}")
-async def delete_environment(name: str) -> dict[str, Any]:
-    """Remove a Conda environment."""
-    if not env_exists(name):
-        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
-    success, message = delete_conda_env(name)
-    if not success:
-        raise HTTPException(status_code=500, detail=message)
-    return {"success": True, "message": message}
-
-
-@router.post("/manager/environments/{name}/install")
-async def install_into_environment(name: str, body: EnvironmentInstallRequest) -> dict[str, Any]:
-    """Install packages into an existing environment."""
-    if not env_exists(name):
-        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
-    success, message = install_into_env(name, body.packages, body.channels)
-    if not success:
-        raise HTTPException(status_code=500, detail=message)
-    return {"success": True, "message": message}
-
-
-@router.post("/manager/dependency-tree")
-async def get_dependency_tree(
+@router.post("/manager/resolve")
+async def manager_resolve(
     request: Request, body: DependencyTreeRequest
 ) -> dict[str, Any]:
-    """Get the dependency status tree for a workflow.
+    """Resolve dependencies for a workflow.
 
-    Returns each dependency with its status (installed, missing, etc.)
-    and where it is available.
+    Returns required packages, environment status, and any missing nodes.
+    """
+    from bionodulo.manager.resolver import _resolve_workflow_async
+
+    registry = _get_registry(request)
+    settings = _get_settings(request)
+    report = await _resolve_workflow_async(body.workflow, registry, settings.project_root)
+    return report.to_dict()
+
+
+@router.post("/manager/ensure-workflow-env")
+async def manager_ensure_workflow_env(
+    request: Request, body: DependencyTreeRequest
+) -> dict[str, Any]:
+    """Generate manifest, lock, and install a workflow's environment.
+
+    Starts a background job and returns immediately with a job_id.
+    Poll GET /manager/status/{job_id} for progress.
     """
     registry = _get_registry(request)
-    tree = await workflow_dependency_tree(body.workflow, registry)
-    return {
-        "dependencies": [
-            {
-                "name": d.name,
-                "type": d.type,
-                "status": d.status,
-                "source": d.source,
-                "message": d.message,
-                "envs": d.envs,
-            }
-            for d in tree
-        ],
-        "count": len(tree),
-        "missing_count": sum(1 for d in tree if d.status == "missing"),
-    }
+    settings = _get_settings(request)
+    event_hub = request.app.state.event_hub
+
+    def emit(level: str, data: dict[str, Any]) -> None:
+        asyncio.create_task(
+            event_hub.emit_typed(
+                "install.progress",
+                {**data, "level": level, "timestamp": datetime.now().isoformat()},
+                source="dependency-installer",
+            )
+        )
+
+    installer = get_installer()
+    job_id = await installer.install_workflow_env(
+        body.workflow,
+        registry,
+        settings.project_root,
+        emit=emit,
+    )
+    return {"job_id": job_id, "status": "started"}
 
 
 @router.post("/manager/create-workflow-env")
 async def manager_create_workflow_env(
     request: Request, body: WorkflowEnvironmentRequest
 ) -> dict[str, Any]:
-    """Create a dedicated environment for a workflow.
+    """Legacy alias for /manager/ensure-workflow-env."""
+    return await manager_ensure_workflow_env(request, DependencyTreeRequest(workflow=body.workflow))
 
-    Extracts required executables from the workflow's nodes and creates
-    a conda environment with those packages.
-    """
-    registry = _get_registry(request)
-    report = await _resolve_workflow_async(body.workflow, registry)
 
-    deps: list[str] = []
-    for exe in report.missing_executables:
-        pkg = exe.conda_package or exe.name
-        if pkg and pkg not in deps:
-            deps.append(pkg)
-    for pkg in report.missing_packages:
-        if pkg.name not in deps:
-            deps.append(pkg.name)
+@router.get("/manager/environments")
+async def list_environments(request: Request) -> dict[str, Any]:
+    """List all workflow environments."""
+    settings = _get_settings(request)
+    envs = list_all_envs(settings.project_root)
+    return {"environments": envs, "count": len(envs)}
 
-    if not deps:
-        return {"success": True, "message": "No dependencies to install", "env_name": ""}
 
-    wf_id = body.workflow.get("name", "untitled").replace(" ", "-").lower()[:20]
-    success, message, env_name = create_workflow_env(wf_id, deps)
+@router.get("/manager/environments/{env_id}")
+async def get_environment(env_id: str, request: Request) -> dict[str, Any]:
+    """Get details for a specific environment including installed packages."""
+    settings = _get_settings(request)
+    env_dir = get_env_dir(env_id, settings.project_root)
+    if not env_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+    meta = get_env_meta(env_dir)
+    packages = get_env_packages(env_dir)
+    return {
+        "id": env_id,
+        "name": meta.get("name") or f"Env {env_id[:8]}",
+        "path": str(env_dir),
+        "packages": packages,
+        "package_count": len(packages),
+        "ready": is_env_ready(env_dir),
+    }
+
+
+@router.post("/manager/environments/{env_id}/rename")
+async def rename_environment(env_id: str, request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """Rename an environment (display name only — ID cannot change)."""
+    settings = _get_settings(request)
+    env_dir = get_env_dir(env_id, settings.project_root)
+    if not env_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+    new_name = body.get("name", "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    set_env_meta(env_dir, name=new_name)
+    return {"success": True, "id": env_id, "name": new_name}
+
+
+@router.post("/manager/environments/{env_id}/duplicate")
+async def duplicate_environment(env_id: str, request: Request) -> dict[str, Any]:
+    """Duplicate an environment."""
+    settings = _get_settings(request)
+    env_dir = get_env_dir(env_id, settings.project_root)
+    if not env_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+    success, message, new_id = duplicate_env_dir(env_dir, settings.project_root)
     if not success:
         raise HTTPException(status_code=500, detail=message)
-    return {"success": True, "message": message, "env_name": env_name}
+    return {"success": True, "message": message, "new_id": new_id}
+
+
+@router.post("/manager/environments/{env_id}/packages/{pkg_name}/remove")
+async def remove_environment_package(env_id: str, pkg_name: str, request: Request) -> dict[str, Any]:
+    """Remove a single package from an environment's manifest."""
+    settings = _get_settings(request)
+    env_dir = get_env_dir(env_id, settings.project_root)
+    if not env_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+    success, message = remove_package_from_env(env_dir, pkg_name)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"success": True, "message": message}
+
+
+@router.delete("/manager/environments/{env_id}")
+async def delete_environment(env_id: str, request: Request) -> dict[str, Any]:
+    """Remove an environment directory."""
+    settings = _get_settings(request)
+    env_dir = get_env_dir(env_id, settings.project_root)
+    success, message = delete_env_dir(env_dir)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"success": True, "message": message}
 
 
 # ---------------------------------------------------------------------------
