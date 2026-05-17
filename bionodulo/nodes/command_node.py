@@ -17,6 +17,25 @@ from bionodulo.nodes.types import file_extension_for
 
 logger = logging.getLogger(__name__)
 
+# Shell metacharacters that must NOT be quoted when building a shell command string.
+_SHELL_METACHARS = {">", ">>", "|", "||", "&&", ";", "<", "<<", "$(", "${", "`", "&"}
+
+
+def _shell_join(cmd: list[str]) -> str:
+    """Join a command list into a shell-safe string.
+
+    Arguments containing whitespace or special characters are quoted with
+    ``shlex.quote()``, but shell metacharacters (``>``, ``|``, etc.) are
+    left bare so the shell interprets them as operators.
+    """
+    parts: list[str] = []
+    for token in cmd:
+        if token in _SHELL_METACHARS or token.startswith((">", "<", "|", "&", ";")):
+            parts.append(token)
+        else:
+            parts.append(shlex.quote(token))
+    return " ".join(parts)
+
 
 class CommandNode(BaseNode):
     """Base class for nodes that execute external bioinformatics commands.
@@ -231,9 +250,15 @@ class CommandNode(BaseNode):
             os.symlink(str(output_dir), symlink)
             output_dir = symlink
 
+        # Compute the node's output directory (where PLAN_OUTPUTS places files).
+        # Use this for command rendering so that commands which write to
+        # {output}/filename end up in the same directory as the planned outputs.
+        node_out = Path(output_dir) / self.__class__.NODE_ID if output_dir else Path(".")
+        node_out.mkdir(parents=True, exist_ok=True)
+
         # Inject back so render_command sees {output} and {output_dir}
-        kwargs["output"] = output_dir
-        kwargs["output_dir"] = output_dir
+        kwargs["output"] = str(node_out)
+        kwargs["output_dir"] = str(node_out)
 
         try:
             # Validate inputs
@@ -246,10 +271,16 @@ class CommandNode(BaseNode):
             if not cmd:
                 raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
 
-            logger.info("[%s] Executing: %s", self.__class__.NODE_ID, " ".join(cmd))
-
             # Plan outputs using the REAL output dir so returned paths are stable
             outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
+
+            # When SHELL=True, join command list so shell operators (>, |) work.
+            # Arguments with whitespace or special chars are safely quoted;
+            # shell metacharacters themselves are left bare.
+            if getattr(self.__class__, "SHELL", False) and isinstance(cmd, list):
+                cmd = _shell_join(cmd)
+
+            logger.info("[%s] Executing: %s", self.__class__.NODE_ID, cmd if isinstance(cmd, str) else " ".join(cmd))
 
             # Execute via context if available
             if context is not None and hasattr(context, "run_command"):
@@ -259,19 +290,15 @@ class CommandNode(BaseNode):
                     cwd=self.__class__.WORKING_DIR,
                 )
             else:
-                # Fallback: direct subprocess execution
-                import asyncio
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+                # Fallback: direct subprocess execution via run_subprocess
+                # for consistency and proper shell handling.
+                from bionodulo.execution.subprocess_runner import run_subprocess
+                result = await run_subprocess(
+                    cmd,
+                    cwd=output_dir,
+                    stdout_path=Path(output_dir) / "stdout.log" if output_dir else None,
+                    stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
                 )
-                stdout, stderr = await proc.communicate()
-                result = {
-                    "returncode": proc.returncode,
-                    "stdout": stdout.decode(),
-                    "stderr": stderr.decode(),
-                }
 
             if result.get("returncode", 0) != 0:
                 stderr = result.get("stderr", "")

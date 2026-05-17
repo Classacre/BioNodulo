@@ -27,6 +27,7 @@ class FastQCNode(CommandNode):
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         outdir = str(inputs.get("output", inputs.get("output_dir", ".")))
+        outdir = f"{outdir}/report_dir.out"
         cmd = [
             "fastqc",
             "--threads", str(inputs.get("threads", 2)),
@@ -84,9 +85,10 @@ class FastQCNode(CommandNode):
             output_dir = getattr(ctx, "node_dir", ".")
         if output_dir is None:
             output_dir = "."
-        os.makedirs(output_dir, exist_ok=True)
+        report_dir = Path(output_dir) / self.NODE_ID / "report_dir.out"
+        report_dir.mkdir(parents=True, exist_ok=True)
         await super().run(**kwargs)
-        return {"outputs": {"report_dir": str(output_dir)}}
+        return {"outputs": {"report_dir": str(report_dir)}}
 
 
 class MultiQCNode(CommandNode):
@@ -111,7 +113,7 @@ class MultiQCNode(CommandNode):
             "multiqc",
             *reports,
             "--outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
-            "--filename", str(inputs.get("filename", "multiqc_report.html")),
+            "--filename", "report.out",
         ]
         if inputs.get("title"):
             cmd.extend(["--title", str(inputs["title"])])
@@ -131,7 +133,7 @@ class MultiQCNode(CommandNode):
                 "title": ("STRING", {"default": "BioNodulo QC Report", "label": "Report Title"}),
                 "comment": ("STRING", {"default": "", "multiline": True, "label": "Comment", "advanced": True}),
                 "force": ("BOOLEAN", {"default": False, "label": "Overwrite", "advanced": True}),
-                "filename": ("STRING", {"default": "multiqc_report.html", "label": "Output Filename", "advanced": True}),
+                "filename": ("STRING", {"default": "report.out", "label": "Output Filename", "advanced": True}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -148,8 +150,7 @@ class MultiQCNode(CommandNode):
             output_dir = "."
         await super().run(**kwargs)
         from pathlib import Path
-        filename = kwargs.get("filename", "multiqc_report.html")
-        report = Path(output_dir) / filename
+        report = Path(output_dir) / self.NODE_ID / "report.out"
         return {"outputs": {"report": str(report)}}
 
 
@@ -171,7 +172,7 @@ class QualiMapNode(CommandNode):
         cmd = [
             "qualimap", "bamqc",
             "-bam", str(inputs.get("bam", "")),
-            "-outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
+            "-outdir", f"{str(inputs.get('output', inputs.get('output_dir', '.')))}/report_dir.out",
             "-nt", str(inputs.get("threads", 2)),
         ]
         if inputs.get("feature_file"):
@@ -209,10 +210,15 @@ class QualiMapNode(CommandNode):
             output_dir = "."
         await super().run(**kwargs)
         from pathlib import Path
-        report = Path(output_dir) / "qualimapReport.html"
+        out = Path(output_dir) / self.NODE_ID
+        report = out / "report.html"
+        report_dir = out / "report_dir.out"
+        src = report_dir / "qualimapReport.html"
+        if src.exists():
+            src.rename(report)
         return {
             "outputs": {
                 "report": str(report),
-                "report_dir": str(output_dir),
+                "report_dir": str(report_dir),
             }
         }

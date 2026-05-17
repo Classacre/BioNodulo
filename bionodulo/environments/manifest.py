@@ -7,14 +7,16 @@ the same isolated environment.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import re
 import shutil
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +182,51 @@ def is_env_ready(env_dir: str | Path) -> bool:
     return prefix.exists() and (prefix / "bin").exists()
 
 
-def run_pixi_lock(env_dir: str | Path, timeout: int = 300) -> tuple[bool, str]:
+# ANSI escape sequence pattern (colors, cursor movement, etc.)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+async def _read_stream(
+    stream: asyncio.StreamReader,
+    name: str,
+    lines: list[str],
+    emit: Callable[[str, dict[str, Any]], Any] | None,
+    job_id: str | None,
+) -> None:
+    """Read lines from an asyncio stream and optionally emit them.
+
+    Strips ANSI escape codes and carriage returns so that progress-bar
+    spam from tools like pixi doesn't produce empty or garbled log lines.
+    """
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        decoded = line.decode("utf-8", errors="replace")
+        # Pixi and other Rust tools use \r to overwrite the current line.
+        # Split on \r and keep only the last segment (the final visible text).
+        if "\r" in decoded:
+            decoded = decoded.split("\r")[-1]
+        # Strip ANSI escape codes (colors, cursor movement, etc.)
+        decoded = _ANSI_RE.sub("", decoded)
+        # Strip whitespace
+        decoded = decoded.strip()
+        if decoded:
+            lines.append(decoded)
+            if emit:
+                emit("install.log", {"job_id": job_id, "stream": name, "message": decoded})
+
+
+async def run_pixi_lock(
+    env_dir: str | Path,
+    timeout: int = 600,
+    emit: Callable[[str, dict[str, Any]], Any] | None = None,
+    job_id: str | None = None,
+) -> tuple[bool, str]:
     """Run `pixi lock` in the environment directory.
+
+    When *emit* is provided, stdout/stderr are streamed in real time via
+    ``emit("install.log", {"job_id": ..., "stream": "stdout|stderr", "message": ...})``.
 
     Returns (success, message).
     """
@@ -196,25 +241,49 @@ def run_pixi_lock(env_dir: str | Path, timeout: int = 300) -> tuple[bool, str]:
     if pixi is None:
         return False, "pixi executable not found"
 
+    if emit:
+        emit("install.log", {"job_id": job_id, "stream": "stdout", "message": f"[pixi] Starting pixi lock in {env_dir}"})
+
     try:
-        result = subprocess.run(
-            [str(pixi), "lock"],
+        proc = await asyncio.create_subprocess_exec(
+            str(pixi), "lock",
             cwd=str(env_dir),
-            capture_output=True,
-            text=True,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
+
+        await asyncio.wait_for(
+            asyncio.gather(
+                _read_stream(proc.stdout, "stdout", stdout_lines, emit, job_id),
+                _read_stream(proc.stderr, "stderr", stderr_lines, emit, job_id),
+            ),
             timeout=timeout,
         )
-        if result.returncode == 0:
+
+        returncode = proc.returncode
+        if returncode == 0:
             return True, "Lockfile updated"
-        return False, f"pixi lock failed: {result.stderr[:500]}"
-    except subprocess.TimeoutExpired:
+        stderr_text = "\n".join(stderr_lines)
+        return False, f"pixi lock failed: {stderr_text[:500]}"
+    except asyncio.TimeoutError:
         return False, f"pixi lock timed out after {timeout}s"
     except FileNotFoundError:
         return False, "pixi executable not found"
 
 
-def run_pixi_install(env_dir: str | Path, timeout: int = 300) -> tuple[bool, str]:
+async def run_pixi_install(
+    env_dir: str | Path,
+    timeout: int = 900,
+    emit: Callable[[str, dict[str, Any]], Any] | None = None,
+    job_id: str | None = None,
+) -> tuple[bool, str]:
     """Run `pixi install` in the environment directory.
+
+    When *emit* is provided, stdout/stderr are streamed in real time via
+    ``emit("install.log", {"job_id": ..., "stream": "stdout|stderr", "message": ...})``.
 
     Returns (success, message).
     """
@@ -229,18 +298,34 @@ def run_pixi_install(env_dir: str | Path, timeout: int = 300) -> tuple[bool, str
     if pixi is None:
         return False, "pixi executable not found"
 
+    if emit:
+        emit("install.log", {"job_id": job_id, "stream": "stdout", "message": f"[pixi] Starting pixi install in {env_dir}"})
+
     try:
-        result = subprocess.run(
-            [str(pixi), "install"],
+        proc = await asyncio.create_subprocess_exec(
+            str(pixi), "install",
             cwd=str(env_dir),
-            capture_output=True,
-            text=True,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
+
+        await asyncio.wait_for(
+            asyncio.gather(
+                _read_stream(proc.stdout, "stdout", stdout_lines, emit, job_id),
+                _read_stream(proc.stderr, "stderr", stderr_lines, emit, job_id),
+            ),
             timeout=timeout,
         )
-        if result.returncode == 0:
+
+        returncode = proc.returncode
+        if returncode == 0:
             return True, "Environment installed"
-        return False, f"pixi install failed: {result.stderr[:500]}"
-    except subprocess.TimeoutExpired:
+        stderr_text = "\n".join(stderr_lines)
+        return False, f"pixi install failed: {stderr_text[:500]}"
+    except asyncio.TimeoutError:
         return False, f"pixi install timed out after {timeout}s"
     except FileNotFoundError:
         return False, "pixi executable not found"
@@ -250,6 +335,8 @@ async def ensure_workflow_env(
     env_dir: str | Path,
     packages: list[str],
     name: str = "",
+    emit: Callable[[str, dict[str, Any]], Any] | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Ensure a workflow environment exists and is installed.
 
@@ -257,6 +344,8 @@ async def ensure_workflow_env(
     1. Generates/updates the manifest if needed
     2. Runs `pixi lock` if the lockfile is missing or stale
     3. Runs `pixi install` if the environment is not installed
+
+    When *emit* is provided, subprocess output is streamed in real time.
 
     Returns a status dict with keys: ready, env_dir, packages, message.
     """
@@ -277,13 +366,13 @@ async def ensure_workflow_env(
     # Step 2: lockfile
     lockfile = env_dir / "pixi.lock"
     if not lockfile.exists():
-        ok, msg = run_pixi_lock(env_dir)
+        ok, msg = await run_pixi_lock(env_dir, emit=emit, job_id=job_id)
         if not ok:
             return {"ready": False, "env_dir": str(env_dir), "packages": packages, "message": msg}
 
     # Step 3: install
     if not is_env_ready(env_dir):
-        ok, msg = run_pixi_install(env_dir)
+        ok, msg = await run_pixi_install(env_dir, emit=emit, job_id=job_id)
         if not ok:
             return {"ready": False, "env_dir": str(env_dir), "packages": packages, "message": msg}
 

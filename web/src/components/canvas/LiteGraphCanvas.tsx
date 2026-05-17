@@ -52,6 +52,7 @@ export interface GraphNode {
   pinned: boolean;
   title: string;
   status?: NodeStatus['status'];
+  visualOnly: boolean;
 }
 
 const NODE_WIDTH = 220;
@@ -354,6 +355,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const collapsed = wn.ui?.collapsed ?? existing?.collapsed ?? false;
         const isNote = meta?.id === 'note';
         const isReroute = meta?.id === 'reroute';
+        const visualOnly = meta?.visual_only ?? isNote;
         return {
           id: wn.id,
           type: wn.type,
@@ -363,7 +365,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           y: wn.position[1],
           width: isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : (isReroute ? 20 : (wn.ui?.width ?? existing?.width ?? NODE_WIDTH)),
           height: isReroute ? 20 : (collapsed ? calcNodeHeight(meta, true, wn.params) : (wn.ui?.height ?? existing?.height ?? calcNodeHeight(meta, false, wn.params, isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : undefined))),
-          inputs: meta ? [
+          inputs: (meta && !visualOnly) ? [
             ...Object.entries(meta.input_types?.required || {}).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
             })),
@@ -371,7 +373,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
             })),
           ] : [],
-          outputs: meta ? (meta.return_types || []).map((t, i) => ({
+          outputs: (meta && !visualOnly) ? (meta.return_types || []).map((t, i) => ({
             name: meta.return_names?.[i] || t, type: t,
             connected: edges.some(e => e.from.node === wn.id),
           })) : [],
@@ -385,6 +387,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           pinned: wn.ui?.pinned || false,
           title: wn.ui?.title || meta?.display_name || wn.type || 'Node',
           status: existing?.status,
+          visualOnly,
         };
       });
     });
@@ -551,6 +554,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     // Nodes
     for (const node of graphNodesRef.current) {
       const isNote = node.type === 'note';
+      const isVisualOnly = node.visualOnly;
       const isReroute = node.type === 'reroute';
       const nw = node.width;
       const nh = node.height;
@@ -612,7 +616,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.fill();
 
       // Collapse indicator
-      if (!isNote) {
+      if (!isReroute) {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.font = '11px Inter, sans-serif';
         ctx.fillText(node.collapsed ? '▸' : '▾', node.x + 6, node.y + 20);
@@ -625,7 +629,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const maxTitleChars = node.collapsed ? 20 : Math.floor((nw - (isNote ? 20 : 36)) / 7);
       ctx.fillText(title.length > maxTitleChars ? title.slice(0, maxTitleChars) + '...' : title, node.x + (isNote ? 10 : 22), node.y + 20);
 
-      if (node.collapsed && !isNote) {
+      if (node.collapsed && !isVisualOnly) {
         // Collapsed: show first connected input on left, first connected output on right
         const firstConnectedIn = node.inputs.findIndex(i => i.connected);
         const firstConnectedOut = node.outputs.findIndex(o => o.connected);
@@ -794,7 +798,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.stroke();
 
       // Status badge
-      if (node.status) {
+      if (node.status && !isVisualOnly) {
         const statusColors: Record<string, string> = {
           pending: '#94a3b8', running: '#3b82f6', completed: '#22c55e',
           error: '#ef4444', cached: '#a855f7', skipped: '#f97316',
@@ -1117,7 +1121,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
     if (clicked) {
       // Check output slot hit (for link drag)
-      if (clicked.outputs.length > 0 && clicked.type !== 'note') {
+      if (clicked.outputs.length > 0 && !clicked.visualOnly) {
         if (clicked.collapsed) {
           const firstConnectedOut = clicked.outputs.findIndex(o => o.connected);
           const outIdx = firstConnectedOut >= 0 ? firstConnectedOut : 0;
@@ -1169,7 +1173,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         return;
       }
 
-      const inCollapseArea = clicked.type !== 'note' && world.x >= clicked.x && world.x <= clicked.x + 20 && world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
+      const inCollapseArea = !clicked.visualOnly && world.x >= clicked.x && world.x <= clicked.x + 20 && world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
       if (inCollapseArea) {
         setGraphNodes(prev => prev.map(n => {
           if (n.id !== clicked.id) return n;
@@ -1261,7 +1265,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     let foundSlot: { nodeId: string; type: 'input' | 'output'; index: number } | null = null;
     const linkOutputType = linkDragRef.current?.fromOutputType;
     for (const node of graphNodes) {
-      if (node.type === 'note') continue;
+      if (node.visualOnly) continue;
       if (node.collapsed) {
         // Collapsed: only first connected slot (or first slot) is visible at header center
         const firstConnectedIn = node.inputs.findIndex(i => i.connected);
@@ -1397,7 +1401,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       setGraphNodes(prev => prev.map(n => {
         if (n.id !== resizingNode) return n;
         const newWidth = Math.max(140, n.width + dx);
-        if (n.type === 'note') {
+        if (n.visualOnly) {
           const newHeight = calcNoteHeight(String(n.params?.text || ''), newWidth);
           return { ...n, width: newWidth, height: newHeight };
         }
@@ -1487,7 +1491,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       let created = false;
       for (const node of graphNodesRef.current) {
         if (node.id === ld.fromNodeId) continue;
-        if (node.type === 'note') continue;
+        if (node.visualOnly) continue;
         if (node.collapsed) {
           const firstConnectedIn = node.inputs.findIndex(inp => inp.connected);
           const i = firstConnectedIn >= 0 ? firstConnectedIn : 0;
@@ -1678,11 +1682,23 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       world.y >= n.y && world.y <= n.y + n.height
     );
     if (clicked) {
+      // Double-click header to toggle collapse (ComfyUI behavior)
+      const inHeader = world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
+      if (inHeader && !clicked.visualOnly) {
+        setGraphNodes(prev => prev.map(n => {
+          if (n.id !== clicked.id) return n;
+          const newCollapsed = !n.collapsed;
+          return { ...n, collapsed: newCollapsed, height: calcNodeHeight(n.meta, newCollapsed, n.params) };
+        }));
+        const updatedNodes = nodes.map(n => n.id === clicked.id ? { ...n, ui: { ...n.ui, collapsed: !(n.ui?.collapsed ?? false) } } : n);
+        onNodesChange(updatedNodes);
+        return;
+      }
       setEditingNode(clicked.id);
     } else {
       setPalettePos({ x: cx, y: cy });
     }
-  }, [graphNodes, toWorld]);
+  }, [graphNodes, toWorld, nodes, onNodesChange]);
 
   const fitView = useCallback((onlySelected?: boolean) => {
     const targets = onlySelected ? graphNodes.filter(n => n.selected) : graphNodes;
@@ -1782,7 +1798,21 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     } else if (action === 'bypass') {
       handleContextAction('bypass', selectedId);
     } else if (action === 'collapse') {
-      handleContextAction('collapse', selectedId);
+      // Collapse/expand all selected nodes
+      const selectedIds = new Set(graphNodes.filter(n => n.selected).map(n => n.id));
+      const anyExpanded = graphNodes.some(n => n.selected && !n.collapsed && !n.visualOnly && n.type !== 'reroute');
+      const targetCollapsed = anyExpanded; // if any selected is expanded, collapse all; else expand all
+      setGraphNodes(prev => prev.map(n => {
+        if (!selectedIds.has(n.id) || n.visualOnly || n.type === 'reroute') return n;
+        return { ...n, collapsed: targetCollapsed, height: calcNodeHeight(n.meta, targetCollapsed, n.params) };
+      }));
+      const updatedNodes = nodes.map(n => {
+        const isVisualOnly = n.node_info?.visual_only ?? n.type === 'note';
+        if (!selectedIds.has(n.id) || isVisualOnly) return n;
+        return { ...n, ui: { ...n.ui, collapsed: targetCollapsed } };
+      });
+      onNodesChange(updatedNodes);
+      onPushHistory();
     } else if (action === 'color') {
       setGraphNodes(prev => prev.map(n => n.selected ? { ...n, color: extra || n.color } : n));
       onGroupsChange(groups.map(g => g.selected ? { ...g, color: extra || g.color } : g));

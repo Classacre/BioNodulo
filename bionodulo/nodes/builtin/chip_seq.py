@@ -67,6 +67,27 @@ class MACS2CallpeakNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs):
+        import shutil
+        from pathlib import Path
+        result = await super().run(**kwargs)
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        name = kwargs.get("name", "peaks")
+        if output_dir:
+            node_out = Path(output_dir) / self.__class__.NODE_ID
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            # Peaks
+            peaks_src = node_out / f"{name}_peaks.narrowPeak"
+            if peaks_src.exists() and len(outputs) > 0:
+                outputs[0].parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(peaks_src), str(outputs[0]))
+            # Signal (treat pileup)
+            signal_src = node_out / f"{name}_treat_pileup.bdg"
+            if signal_src.exists() and len(outputs) > 1:
+                outputs[1].parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(signal_src), str(outputs[1]))
+        return result
+
 
 class BEDToolsIntersectNode(CommandNode):
     """Intersect two BED/BAM files."""
@@ -104,7 +125,7 @@ class BEDToolsIntersectNode(CommandNode):
             cmd.append("-s")
         if inputs.get("wo"):
             cmd.append("-wo")
-        cmd.extend([">", f"{inputs.get('output', '.')}/intersect.bed"])
+        cmd.extend([">", f"{inputs.get('output', '.')}/intersection.bed"])
         return cmd
 
     @classmethod
@@ -183,7 +204,7 @@ class DeepToolsBamCoverageNode(CommandNode):
         cmd = [
             "bamCoverage",
             "-b", str(inputs.get("bam", "")),
-            "-o", f"{inputs.get('output', '.')}/coverage.bw",
+            "-o", f"{inputs.get('output', '.')}/bigwig.bw",
             "-p", str(inputs.get("threads", 8)),
             "--binSize", str(inputs.get("bin_size", 10)),
         ]

@@ -3,6 +3,7 @@ import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
+import ErrorBoundary from './components/layout/ErrorBoundary';
 import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
 import HardwareMonitor from './components/canvas/HardwareMonitor';
 import SettingsPanel from './components/panels/SettingsPanel';
@@ -23,7 +24,7 @@ import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import { defaultsFor } from './utils';
-import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord } from './types';
+import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { HPCStatus } from './components/layout/TopBar';
 
 // Built-in node definitions for offline use
@@ -73,7 +74,7 @@ const BUILTIN_NODES: Record<string, NodeMetadata> = {
   'macs2_callpeak': { id: 'macs2_callpeak', display_name: 'MACS2 CallPeak', category: 'ChIP-Seq', description: 'Model-based Analysis of ChIP-Seq', return_types: ['DIRECTORY'], return_names: ['peaks'], input_types: { required: { treatment: { type: 'BAM', label: 'Treatment BAM' } }, optional: { control: { type: 'BAM', label: 'Control BAM' }, format: { type: 'STRING', default: 'AUTO', options: ['AUTO', 'BAM', 'BED'], label: 'Format' } } }, requires_external_tools: ['macs2'] },
   'cellranger_count': { id: 'cellranger_count', display_name: 'Cell Ranger Count', category: 'Single Cell', description: '10x Genomics single cell analysis', return_types: ['DIRECTORY'], return_names: ['counts'], input_types: { required: { fastq_dir: { type: 'DIRECTORY', label: 'FASTQ Directory' }, transcriptome: { type: 'DIRECTORY', label: 'Transcriptome' }, sample: { type: 'STRING', default: '', label: 'Sample' } }, optional: { expect_cells: { type: 'INT', default: 3000, min: 100, max: 50000, step: 100, display: 'slider', label: 'Expected Cells' } } }, requires_external_tools: ['cellranger'] },
   'generic_command': { id: 'generic_command', display_name: 'Generic Command', category: 'Utility', description: 'Run any shell command', return_types: ['FILE'], return_names: ['output'], input_types: { required: { command: { type: 'STRING', default: 'echo "Hello"', label: 'Command' } }, optional: { output_name: { type: 'STRING', default: 'output.txt', label: 'Output Name' } } } },
-  'note': { id: 'note', display_name: 'Note', category: 'Utility', description: 'Add a text note or description to the workflow', search_aliases: ['note', 'text', 'comment', 'description'], input_types: { required: { text: { type: 'STRING', default: '', multiline: true, label: 'Text' } } } },
+  'note': { id: 'note', display_name: 'Note', category: 'Utility', description: 'Add a text note or description to the workflow', visual_only: true, search_aliases: ['note', 'text', 'comment', 'description'], input_types: { required: { text: { type: 'STRING', default: '', multiline: true, label: 'Text' } } } },
   'reroute': { id: 'reroute', display_name: 'Reroute', category: 'Utility', description: 'Pass a connection through a routing point', search_aliases: ['reroute', 'pass', 'junction', 'connection'], input_types: { required: { input: { type: 'STRING', label: 'Input' } } }, return_types: ['STRING'], return_names: ['output'] },
   'view_text': { id: 'view_text', display_name: 'View Text', category: 'Utility', description: 'View text file contents', output_node: true, return_types: ['STRING'], return_names: ['text'], input_types: { required: { file: { type: 'FILE', label: 'File' } } } },
   'image_preview': { id: 'image_preview', display_name: 'Image Preview', category: 'Utility', description: 'Preview an image file in the canvas', output_node: true, return_types: [], return_names: [], input_types: { required: { file: { type: 'FILE', label: 'Image File' } } } },
@@ -136,29 +137,92 @@ export default function App() {
       .catch(() => { /* offline */ });
   }, []);
 
-  // Load execution history from backend on startup
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const MAX_LOGS = 5000;
+  const addLog = useCallback((entry: LogEntry) => {
+    setLogs(prev => {
+      const next = [...prev, entry];
+      if (next.length > MAX_LOGS) next.splice(0, next.length - MAX_LOGS);
+      return next;
+    });
+  }, []);
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+  }, []);
+
+  // Load queue and execution history from backend on startup
   useEffect(() => {
-    fetch('/api/history')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.history)) {
-          const historyRuns: RunRecord[] = data.history.map((h: Record<string, unknown>) => ({
+    Promise.all([
+      fetch('/api/queue').then(r => r.ok ? r.json() : null),
+      fetch('/api/history').then(r => r.ok ? r.json() : null),
+    ]).then(([queueData, historyData]) => {
+      const allRuns: RunRecord[] = [];
+      const seen = new Set<string>();
+
+      // Queue items first (active runs)
+      if (queueData) {
+        const items = [...(queueData.pending || []), ...(queueData.running || [])];
+        for (const h of items) {
+          const run: RunRecord = {
             run_id: String(h.run_id),
             status: String(h.status) as RunRecord['status'],
             workflow_name: String(h.workflow_name || 'Untitled'),
-            node_statuses: [],
+            node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
             node_outputs: {},
             execution_plan: [],
-            previews: {},
-            artifacts: {},
+            previews: (h.previews as Record<string, string>) || {},
+            artifacts: (h.artifacts as Record<string, string>) || {},
             start_time: h.started_at ? new Date(Number(h.started_at) * 1000).toISOString() : undefined,
             end_time: h.finished_at ? new Date(Number(h.finished_at) * 1000).toISOString() : undefined,
-          }));
-          setRuns(historyRuns);
+          };
+          allRuns.push(run);
+          seen.add(run.run_id);
         }
-      })
-      .catch(() => { /* offline */ });
-  }, [setRuns]);
+      }
+
+      // History items (completed runs)
+      if (historyData && Array.isArray(historyData.history)) {
+        for (const h of historyData.history) {
+          const runId = String(h.run_id);
+          if (seen.has(runId)) continue;
+          allRuns.push({
+            run_id: runId,
+            status: String(h.status) as RunRecord['status'],
+            workflow_name: String(h.workflow_name || 'Untitled'),
+            node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
+            node_outputs: {},
+            execution_plan: [],
+            previews: (h.previews as Record<string, string>) || {},
+            artifacts: (h.artifacts as Record<string, string>) || {},
+            start_time: h.started_at ? new Date(Number(h.started_at) * 1000).toISOString() : undefined,
+            end_time: h.finished_at ? new Date(Number(h.finished_at) * 1000).toISOString() : undefined,
+          });
+          seen.add(runId);
+        }
+      }
+
+      setRuns(allRuns);
+
+      // Fetch logs for the most recent runs (queue + recent history)
+      const runsToFetch = allRuns.slice(0, 10);
+      for (const run of runsToFetch) {
+        fetch(`/api/runs/${run.run_id}/logs`)
+          .then(r => r.ok ? r.json() : null)
+          .then((logData: { logs?: Array<Record<string, unknown>>; run_id?: string } | null) => {
+            if (!logData || !Array.isArray(logData.logs)) return;
+            const newLogs: LogEntry[] = logData.logs.map(l => ({
+              run_id: String(l.run_id || run.run_id),
+              node_id: String(l.node_id || 'engine'),
+              level: (l.level as LogEntry['level']) || 'info',
+              message: String(l.message || ''),
+              timestamp: String(l.timestamp || new Date().toISOString()),
+            }));
+            setLogs(prev => [...prev, ...newLogs]);
+          })
+          .catch(() => { /* ignore */ });
+      }
+    }).catch(() => { /* offline */ });
+  }, [setRuns, addLog, setLogs]);
 
   // History stack for undo/redo
   const canvasRef = useRef<LiteGraphCanvasRef>(null);
@@ -228,12 +292,7 @@ export default function App() {
     setLightboxOpen(true);
   }, []);
   const [isRunning, setIsRunning] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
-
-  const addLog = useCallback((entry: LogEntry) => {
-    setLogs(prev => [...prev, entry]);
-  }, []);
 
   // WebSocket connection for real-time logs
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
@@ -713,14 +772,18 @@ export default function App() {
         )}
 
         <HardwareMonitor />
-        <BottomConsole
-          visible={consoleVisible || railTab === 'console'}
-          logs={logs}
-          queue={runs.filter(r => r.status === 'pending' || r.status === 'running')}
-          history={runs}
-          onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
-          onOpenLightbox={openLightbox}
-        />
+        {(consoleVisible || railTab === 'console') && (
+          <ErrorBoundary>
+            <BottomConsole
+              logs={logs}
+              queue={runs.filter(r => r.status === 'pending' || r.status === 'running')}
+              history={runs}
+              onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
+              onOpenLightbox={openLightbox}
+              onClearLogs={clearLogs}
+            />
+          </ErrorBoundary>
+        )}
       </div>
 
       {/* Modals */}

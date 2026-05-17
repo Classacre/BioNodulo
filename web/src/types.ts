@@ -30,6 +30,7 @@ export interface NodeMetadata {
   return_types?: string[];
   return_names?: string[];
   output_node?: boolean;
+  visual_only?: boolean;
   experimental?: boolean;
   requires_external_tools?: string[];
   documentation_url?: string;

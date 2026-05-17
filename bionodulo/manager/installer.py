@@ -156,7 +156,7 @@ class DependencyInstaller:
                     job.progress.message = "Locking dependencies with pixi (this may take a moment)..."
                     if emit:
                         emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                    ok, msg = run_pixi_lock(env_dir)
+                    ok, msg = await run_pixi_lock(env_dir, emit=emit, job_id=job_id)
                     if not ok:
                         job.progress.status = "failed"
                         job.progress.message = msg
@@ -170,7 +170,7 @@ class DependencyInstaller:
                     job.progress.message = "Installing packages into environment..."
                     if emit:
                         emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                    ok, msg = run_pixi_install(env_dir)
+                    ok, msg = await run_pixi_install(env_dir, emit=emit, job_id=job_id)
                     if not ok:
                         job.progress.status = "failed"
                         job.progress.message = msg

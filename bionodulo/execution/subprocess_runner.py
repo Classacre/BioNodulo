@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
@@ -86,12 +87,7 @@ async def run_subprocess(
     if env:
         merged_env = {**dict(os.environ), **env}
 
-    if isinstance(cmd, str):
-        proc_cmd = cmd
-        shell = True
-    else:
-        proc_cmd = cmd
-        shell = False
+    cmd_str = cmd if isinstance(cmd, str) else " ".join(cmd)
 
     def _emit(level: str, message: str) -> None:
         if emit:
@@ -104,84 +100,56 @@ async def run_subprocess(
                 },
             )
 
-    _emit("info", f"[subprocess] Starting: {cmd if isinstance(cmd, str) else ' '.join(cmd)}")
+    _emit("info", f"[subprocess] Starting: {cmd_str}")
 
-    stdout_fh = open(stdout_path, "w", encoding="utf-8") if stdout_path else None
-    stderr_fh = open(stderr_path, "w", encoding="utf-8") if stderr_path else None
+    loop = asyncio.get_running_loop()
 
-    try:
-        if shell:
-            process = await asyncio.create_subprocess_shell(
-                proc_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env=merged_env,
-            )
-        else:
-            process = await asyncio.create_subprocess_exec(
-                *proc_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env=merged_env,
-            )
-
-        async def _read_stream(
-            stream: asyncio.StreamReader | None,
-            fh: Any,
-            level: str,
-        ) -> None:
-            if stream is None:
-                return
-            while True:
-                try:
-                    line = await stream.readline()
-                except Exception:
-                    break
-                if not line:
-                    break
-                text = line.decode("utf-8", errors="replace").rstrip("\n")
-                if fh:
-                    fh.write(text + "\n")
-                    fh.flush()
-                _emit(level, text)
-
-        await asyncio.wait_for(
-            asyncio.gather(
-                _read_stream(process.stdout, stdout_fh, "stdout"),
-                _read_stream(process.stderr, stderr_fh, "stderr"),
-            ),
-            timeout=timeout,
+    def _run_sync() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            cmd if isinstance(cmd, list) else cmd,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            env=merged_env,
+            shell=isinstance(cmd, str),
+            executable="/bin/bash" if isinstance(cmd, str) else None,
+            errors="replace",
         )
 
-        returncode = await process.wait()
-
+    try:
+        completed = await asyncio.wait_for(
+            loop.run_in_executor(None, _run_sync),
+            timeout=timeout,
+        )
     except asyncio.TimeoutError:
-        try:
-            process.kill()
-            await process.wait()
-        except Exception:
-            pass
         _emit("error", f"[subprocess] Timeout after {timeout}s")
         raise
-    finally:
-        if stdout_fh:
-            stdout_fh.close()
-        if stderr_fh:
-            stderr_fh.close()
+
+    returncode = completed.returncode
+
+    # Write captured output to log files and emit events
+    if stdout_path:
+        stdout_path.write_text(completed.stdout, encoding="utf-8")
+        for line in completed.stdout.splitlines():
+            _emit("stdout", line)
+    if stderr_path:
+        stderr_path.write_text(completed.stderr, encoding="utf-8")
+        for line in completed.stderr.splitlines():
+            _emit("stderr", line)
 
     _emit("info", f"[subprocess] Finished with exit code {returncode}")
 
     result = {
         "returncode": returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
         "stdout_path": str(stdout_path) if stdout_path else None,
         "stderr_path": str(stderr_path) if stderr_path else None,
     }
 
     if returncode != 0:
         raise CommandExecutionError(
-            cmd=cmd if isinstance(cmd, str) else " ".join(cmd),
+            cmd=cmd_str,
             returncode=returncode,
             stdout_path=stdout_path or Path("/dev/null"),
             stderr_path=stderr_path or Path("/dev/null"),

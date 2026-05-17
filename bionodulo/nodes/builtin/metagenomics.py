@@ -28,8 +28,8 @@ class Kraken2Node(CommandNode):
         cmd = [
             "kraken2",
             "--db", str(inputs.get("db", "")),
-            "--output", f"{inputs.get('output', '.')}/kraken2.output",
-            "--report", f"{inputs.get('output', '.')}/kraken2.report",
+            "--output", f"{inputs.get('output', '.')}/output.kraken",
+            "--report", f"{inputs.get('output', '.')}/report.kreport",
             "--threads", str(inputs.get("threads", 8)),
         ]
         reads = inputs.get("reads", [])
@@ -62,13 +62,13 @@ class Kraken2Node(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "db": ("DIRECTORY", {"description": "Kraken2 database directory"}),
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "confidence": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01, "label": "Confidence", "advanced": True}),
                 "minimum_hit_groups": ("INT", {"default": 2, "label": "Min Hit Groups", "advanced": True}),
                 "memory_mapping": ("BOOLEAN", {"default": False, "label": "Memory Mapping", "advanced": True}),
@@ -141,7 +141,7 @@ class BrackenNode(CommandNode):
         "bracken",
         "-d", "{inputs.db}",
         "-i", "{inputs.report}",
-        "-o", "{output}/bracken.txt",
+        "-o", "{output}/report.kreport",
         "-r", "{inputs.read_length}",
         "-l", "{inputs.level}",
     ]
@@ -185,8 +185,8 @@ class MetaPhlAnNode(CommandNode):
             "--nproc", str(inputs.get("threads", 8)),
             "--db_dir", str(inputs.get("bt2_db", "")),
             "--index", str(inputs.get("index", "mpa_vJun23_CHOCOPhlAnSGB_202403")),
-            "-o", f"{inputs.get('output', '.')}/metaphlan_profile.txt",
-            "--mapout", f"{inputs.get('output', '.')}/metaphlan.bowtie2.bz2",
+            "-o", f"{inputs.get('output', '.')}/profile.metaphlan.tsv",
+            "--mapout", f"{inputs.get('output', '.')}/mapout.out",
         ]
         reads_list = reads if isinstance(reads, list) else [reads]
         if inputs.get("paired", False) and len(reads_list) >= 2:
@@ -242,7 +242,7 @@ class HUMAnNNode(CommandNode):
         cmd = [
             "humann",
             "--input", str(reads),
-            "--output", str(inputs.get("output", ".")),
+            "--output", f"{inputs.get('output', '.')}/output_dir.out",
             "--threads", str(inputs.get("threads", 8)),
         ]
         if inputs.get("nuc_db"):
@@ -293,7 +293,7 @@ class MaxBinNode(CommandNode):
         cmd = [
             "run_MaxBin.pl",
             "-contig", str(inputs.get("contigs", "")),
-            "-out", f"{inputs.get('output', '.')}/maxbin",
+            "-out", f"{inputs.get('output', '.')}/bins.out",
             "-reads", str(inputs.get("reads", "")),
             "-thread", str(inputs.get("threads", 8)),
         ]
@@ -348,11 +348,11 @@ class CheckMNode(CommandNode):
                 cmd.extend(["--pplacer_threads", str(inputs["pplacer_threads"])])
             if inputs.get("reduced_tree"):
                 cmd.append("--reduced_tree")
-            cmd.extend([str(inputs.get("bins", "")), str(inputs.get("output", "."))])
+            cmd.extend([str(inputs.get("bins", "")), f"{inputs.get('output', '.')}/bins.out"])
         elif step == "qa":
             cmd.extend([
                 "-o", str(inputs.get("qa_output", "1")),
-                "-f", f"{inputs.get('output', '.')}/qa.txt",
+                "-f", f"{inputs.get('output', '.')}/qa_output.out",
             ])
             cmd.extend([str(inputs.get("markers_file", "")), str(inputs.get("output", "."))])
         return cmd

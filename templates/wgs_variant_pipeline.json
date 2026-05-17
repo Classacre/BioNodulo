@@ -45,7 +45,7 @@
         220
       ],
       "params": {
-        "file_path": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
+        "reference": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
       },
       "ui": {
         "title": "Reference FASTA"

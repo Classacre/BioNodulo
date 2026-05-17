@@ -24,6 +24,7 @@ class BaseNode(abc.ABC):
     RETURN_NAMES: ClassVar[tuple[str, ...]] = ()
     FUNCTION: ClassVar[str] = "run"
     OUTPUT_NODE: ClassVar[bool] = False
+    VISUAL_ONLY: ClassVar[bool] = False
     EXPERIMENTAL: ClassVar[bool] = False
     REQUIRES_EXTERNAL_TOOLS: ClassVar[bool] = True
     REQUIRED_EXECUTABLES: ClassVar[list[str]] = []

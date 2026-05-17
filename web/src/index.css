@@ -490,6 +490,90 @@ input[type="range"]::-moz-range-thumb {
   word-break: break-word;
 }
 
+.console-log-group {
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.console-log-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.console-log-group-header:hover {
+  background: var(--border);
+}
+
+.console-log-group-title {
+  font-weight: 600;
+  color: var(--accent-dark);
+  word-break: break-all;
+}
+
+.console-log-group-count {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.console-log-group-body {
+  padding: 4px 8px;
+  background: var(--surface);
+}
+
+.console-log-node-group {
+  margin-bottom: 3px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.console-log-node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 6px;
+  background: var(--surface);
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.console-log-node-header:hover {
+  background: var(--surface-2);
+}
+
+.console-log-node-title {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.console-log-node-count {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.console-log-node-body {
+  padding: 2px 6px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
 /* Modal Overlay */
 .modal-overlay {
   position: fixed; inset: 0;

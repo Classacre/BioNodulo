@@ -177,25 +177,40 @@ class RunQueue:
         await self._emit_queue()
         return count
 
+    def _run_to_dict(self, r: RunRequest, include_result: bool = True) -> dict[str, Any]:
+        """Serialize a RunRequest to a dict with optional result fields."""
+        entry: dict[str, Any] = {
+            "run_id": r.run_id,
+            "status": r.status.value,
+            "workflow_name": r.metadata.get("name", "Untitled"),
+            "created_at": r.created_at,
+            "started_at": r.started_at,
+            "finished_at": r.finished_at,
+        }
+        if include_result and r.result:
+            entry["previews"] = {
+                p.get("node_id", ""): p.get("path", "")
+                for p in r.result.get("previews", [])
+                if p.get("node_id")
+            }
+            entry["artifacts"] = {
+                a.get("node_id", ""): a.get("path", "")
+                for a in r.result.get("artifacts", [])
+                if a.get("node_id")
+            }
+            meta = r.result.get("metadata", {})
+            if meta.get("nodes"):
+                entry["node_statuses"] = [
+                    {"node_id": nid, "status": ninfo.get("status", "unknown")}
+                    for nid, ninfo in meta["nodes"].items()
+                ]
+        return entry
+
     def queue_state(self) -> dict[str, Any]:
         """Get the current queue state."""
         return {
-            "pending": [
-                {
-                    "run_id": r.run_id,
-                    "status": r.status.value,
-                    "workflow_name": r.metadata.get("name", "Untitled"),
-                }
-                for r in self._queue_items()
-            ],
-            "running": [
-                {
-                    "run_id": r.run_id,
-                    "status": r.status.value,
-                    "workflow_name": r.metadata.get("name", "Untitled"),
-                }
-                for r in self._running.values()
-            ],
+            "pending": [self._run_to_dict(r, include_result=False) for r in self._queue_items()],
+            "running": [self._run_to_dict(r, include_result=True) for r in self._running.values()],
             "max_concurrent": self.max_concurrent,
         }
 
@@ -207,24 +222,9 @@ class RunQueue:
         """List all runs (pending + running)."""
         runs: list[dict[str, Any]] = []
         for r in self._queue_items():
-            runs.append(
-                {
-                    "run_id": r.run_id,
-                    "status": r.status.value,
-                    "workflow_name": r.metadata.get("name", "Untitled"),
-                    "created_at": r.created_at,
-                }
-            )
+            runs.append(self._run_to_dict(r, include_result=False))
         for r in self._running.values():
-            runs.append(
-                {
-                    "run_id": r.run_id,
-                    "status": r.status.value,
-                    "workflow_name": r.metadata.get("name", "Untitled"),
-                    "created_at": r.created_at,
-                    "started_at": r.started_at,
-                }
-            )
+            runs.append(self._run_to_dict(r, include_result=True))
         return runs
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:

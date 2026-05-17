@@ -5,6 +5,7 @@ tools including index building and read mapping.
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,22 @@ class BWAIndexNode(CommandNode):
         "bwa", "index",
         "{inputs.reference}",
     ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        reference = kwargs.get("reference", "")
+        result = await super().run(**kwargs)
+        if reference and result:
+            ref_path = Path(reference)
+            planned = Path(result[0]) if isinstance(result, tuple) else Path(result)
+            target_dir = planned.parent
+            target_dir.mkdir(parents=True, exist_ok=True)
+            if ref_path.exists():
+                shutil.copy2(str(ref_path), str(target_dir / ref_path.name))
+            for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
+                idx_file = ref_path.parent / (ref_path.name + suffix)
+                if idx_file.exists():
+                    shutil.copy2(str(idx_file), str(target_dir / (ref_path.name + suffix)))
+        return result
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -66,7 +83,7 @@ class BWAMemNode(CommandNode):
             reads = [reads]
         r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
         r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
-        rg = f"@RG\tID:{inputs.get('rg_id', '1')}\tSM:{inputs.get('rg_sample', 'sample')}\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
+        rg = f"@RG\\tID:{inputs.get('rg_id', '1')}\\tSM:{inputs.get('rg_sample', 'sample')}\\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
         cmd = [
             "bwa", "mem",
             "-t", str(inputs.get("threads", 8)),
@@ -79,7 +96,7 @@ class BWAMemNode(CommandNode):
             cmd.append(str(r2))
         if inputs.get("mark_shorter_splits") is not False:
             cmd.append("-M")
-        cmd.extend([">", f"{inputs.get('output', '.')}/aligned.sam"])
+        cmd.extend([">", f"{inputs.get('output', '.')}/alignment.sam"])
         return cmd
 
     @classmethod
@@ -160,7 +177,7 @@ class Bowtie2BuildNode(CommandNode):
         "bowtie2-build",
         "--threads", "{inputs.threads}",
         "{inputs.reference}",
-        "{output}/bt2_index",
+        "{output}/index",
     ]
 
     @classmethod
@@ -216,7 +233,7 @@ class Bowtie2AlignNode(CommandNode):
             cmd.append("--very-sensitive")
         if inputs.get("no_mixed"):
             cmd.append("--no-mixed")
-        cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
+        cmd.extend(["-S", f"{inputs.get('output', '.')}/alignment.sam"])
         return cmd
 
     async def run(self, **kwargs: Any) -> Any:
@@ -231,13 +248,13 @@ class Bowtie2AlignNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "index": ("INDEX_DIR", {"description": "Bowtie2 index prefix"}),
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
                 "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
                 "very_sensitive": ("BOOLEAN", {"default": False, "label": "Very Sensitive", "advanced": True}),
@@ -265,7 +282,7 @@ class Bowtie2IndexNode(CommandNode):
     COMMAND = [
         "bowtie2-inspect",
         "{inputs.index}",
-        ">", "{output}/reference.fa",
+        ">", "{output}/reference.fasta",
     ]
 
     @classmethod
@@ -337,7 +354,7 @@ class Minimap2AlignNode(CommandNode):
         "-t", "{inputs.threads}",
         "{inputs.reference}",
         "{inputs.reads}",
-        ">", "{output}/aligned.sam",
+        ">", "{output}/alignment.sam",
     ]
 
     @classmethod
@@ -376,7 +393,7 @@ class HISAT2BuildNode(CommandNode):
         "hisat2-build",
         "-p", "{inputs.threads}",
         "{inputs.reference}",
-        "{output}/hisat2_index",
+        "{output}/index",
     ]
 
     @classmethod
@@ -432,7 +449,7 @@ class HISAT2AlignNode(CommandNode):
             cmd.append("--dta")
         if inputs.get("no_softclip"):
             cmd.append("--no-softclip")
-        cmd.extend(["-S", f"{inputs.get('output', '.')}/aligned.sam"])
+        cmd.extend(["-S", f"{inputs.get('output', '.')}/alignment.sam"])
         return cmd
 
     async def run(self, **kwargs: Any) -> Any:
@@ -447,13 +464,13 @@ class HISAT2AlignNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "index": ("INDEX_DIR", {"description": "HISAT2 index prefix"}),
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "rg_id": ("STRING", {"default": "1", "label": "Read Group ID"}),
                 "rg_sample": ("STRING", {"default": "sample", "label": "Sample Name"}),
                 "dta": ("BOOLEAN", {"default": True, "description": "Report alignments for StringTie", "advanced": True}),
@@ -558,6 +575,15 @@ class STARAlignNode(CommandNode):
         if inputs.get("chim_segment_min"):
             cmd.extend(["--chimSegmentMin", str(inputs["chim_segment_min"])])
         return cmd
+
+    async def run(self, **kwargs: Any) -> Any:
+        result = await super().run(**kwargs)
+        if result:
+            planned = Path(result[0]) if isinstance(result, tuple) else Path(result)
+            actual = planned.parent / "Aligned.sortedByCoord.out.bam"
+            if actual.exists():
+                shutil.copy2(str(actual), str(planned))
+        return result
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

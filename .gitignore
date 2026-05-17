@@ -34,3 +34,4 @@ custom_nodes/*/
 *.fasta
 r_plot/
 .pixi/
+server.pid

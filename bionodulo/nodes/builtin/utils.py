@@ -40,8 +40,10 @@ class GenericCommandNode(CommandNode):
         }
 
     @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        return [str(inputs.get("command", ""))]
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        # Return as a plain string so the shell receives the command
+        # unquoted and can interpret redirects, pipes, etc.
+        return str(inputs.get("command", ""))
 
 
 class ViewTextFileNode(CommandNode):
@@ -229,6 +231,7 @@ class NoteNode(CommandNode):
     RETURN_NAMES = ()
     REQUIRES_EXTERNAL_TOOLS = False
     OUTPUT_NODE = False
+    VISUAL_ONLY = True
     COMMAND = []
 
     @classmethod

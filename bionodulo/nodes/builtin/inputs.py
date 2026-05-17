@@ -65,11 +65,19 @@ class InputFASTQNode(CommandNode):
         if output_dir is None:
             output_dir = "."
 
-        # Paired-end naming validation
+        # Paired-end naming validation (lenient — warns but doesn't block)
         if len(reads) == 2:
             names = [Path(r).name for r in reads]
-            if sum(1 for n in names if "R1" in n) != 1 or sum(1 for n in names if "R2" in n) != 1:
-                raise ValueError(f"Paired-end reads must contain one R1 and one R2 file, got: {names}")
+            lower_names = [n.lower() for n in names]
+            has_r1 = any(marker in n for n in lower_names for marker in ("r1", "_1", "forward", "read1"))
+            has_r2 = any(marker in n for n in lower_names for marker in ("r2", "_2", "reverse", "read2"))
+            if not (has_r1 and has_r2):
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Paired-end reads filenames don't follow typical naming (R1/R2, _1/_2, "
+                    "forward/reverse, read1/read2). Got: %s",
+                    names,
+                )
 
         # Copy files to the output directory so the run is self-contained
         out_dir = Path(output_dir)
@@ -109,7 +117,9 @@ class InputFASTANode(CommandNode):
                 "reference": ("FASTA", {"description": "Path to FASTA file"}),
             },
             "optional": {},
-            "hidden": {},
+            "hidden": {
+                "file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"}),
+            },
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
@@ -160,7 +170,9 @@ class InputFileNode(CommandNode):
                 "file": ("FILE", {"description": "Path to file"}),
             },
             "optional": {},
-            "hidden": {},
+            "hidden": {
+                "file_path": ("STRING", {"description": "Alias for file (backward compatibility)"}),
+            },
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
@@ -313,7 +325,9 @@ class InputGFFNode(CommandNode):
                 "annotation": ("GFF_GTF", {"description": "Path to GFF3 or GTF file"}),
             },
             "optional": {},
-            "hidden": {},
+            "hidden": {
+                "file_path": ("STRING", {"description": "Alias for annotation (backward compatibility)"}),
+            },
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:

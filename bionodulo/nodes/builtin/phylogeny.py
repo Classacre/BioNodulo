@@ -24,12 +24,10 @@ class MAFFTNode(CommandNode):
     REQUIRED_EXECUTABLES = ["mafft"]
     DOCUMENTATION_URL = "https://mafft.cbrc.jp/alignment/software/"
     VERSION = "7.520"
-    SHELL = True
     COMMAND = [
         "mafft",
         "--thread", "{inputs.threads}",
         "{inputs.input}",
-        ">", "{output}/alignment.fasta",
     ]
 
     @classmethod
@@ -53,8 +51,32 @@ class MAFFTNode(CommandNode):
         cmd = ["mafft", "--thread", str(inputs.get("threads", 4))]
         flag = f"--{strategy}" if not strategy.startswith("--") else strategy
         cmd.append(flag)
-        cmd.extend([str(inputs.get("input", "")), ">", f"{inputs.get('output', '.')}/alignment.fasta"])
+        cmd.append(str(inputs.get("input", "")))
         return cmd
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run MAFFT and capture stdout to the output file."""
+        import shutil
+        from pathlib import Path
+
+        context = kwargs.get("context")
+        output_dir = kwargs.get("output_dir")
+        if output_dir is None and context is not None:
+            output_dir = getattr(context, "node_dir", ".")
+
+        # Run the command (stdout is captured to stdout.log by subprocess_runner)
+        result = await super().run(**kwargs)
+
+        # Copy stdout.log to the expected output path
+        if output_dir:
+            stdout_log = Path(output_dir) / "stdout.log"
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if stdout_log.exists() and outputs:
+                target = outputs[0]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(stdout_log), str(target))
+
+        return result
 
 
 class ClustalONode(CommandNode):
@@ -167,13 +189,11 @@ class FastTreeNode(CommandNode):
     REQUIRED_CONDA_PACKAGES = ['fasttree']
     DOCUMENTATION_URL = "http://www.microbesonline.org/fasttree/"
     VERSION = "2.1.11"
-    SHELL = True
     COMMAND = [
         "FastTree",
         "-gamma",
         "-boot", "100",
         "{inputs.alignment}",
-        ">", "{output}/tree.nwk",
     ]
 
     @classmethod
@@ -199,8 +219,30 @@ class FastTreeNode(CommandNode):
         if inputs.get("gtr"):
             cmd.append("-gtr")
         cmd.extend(["-gamma", "-boot", "100"])
-        cmd.extend([str(inputs.get("alignment", "")), ">", f"{inputs.get('output', '.')}/tree.nwk"])
+        cmd.append(str(inputs.get("alignment", "")))
         return cmd
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run FastTree and capture stdout to the output file."""
+        import shutil
+        from pathlib import Path
+
+        context = kwargs.get("context")
+        output_dir = kwargs.get("output_dir")
+        if output_dir is None and context is not None:
+            output_dir = getattr(context, "node_dir", ".")
+
+        result = await super().run(**kwargs)
+
+        if output_dir:
+            stdout_log = Path(output_dir) / "stdout.log"
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if stdout_log.exists() and outputs:
+                target = outputs[0]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(stdout_log), str(target))
+
+        return result
 
 
 class RAxMLNode(CommandNode):

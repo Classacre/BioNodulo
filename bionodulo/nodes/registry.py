@@ -297,6 +297,7 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "description": node_class.DESCRIPTION,
         "category": node_class.CATEGORY,
         "output_node": node_class.OUTPUT_NODE,
+        "visual_only": node_class.VISUAL_ONLY,
         "experimental": node_class.EXPERIMENTAL,
         "version": node_class.VERSION,
         "builtin": node_class.__module__.startswith("bionodulo.nodes.builtin"),
@@ -309,15 +310,19 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
     }
 
 
-def _comfy_type(bionodulo_type: str) -> str:
+def _comfy_type(bionodulo_type: str | list | tuple) -> str:
     """Map BioNodulo type names to ComfyUI-compatible type names.
 
     Args:
-        bionodulo_type: BioNodulo type string.
+        bionodulo_type: BioNodulo type string (or list/tuple in edge cases).
 
     Returns:
         ComfyUI-compatible type string.
     """
+    while isinstance(bionodulo_type, (list, tuple)):
+        bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"
+    if not isinstance(bionodulo_type, str):
+        bionodulo_type = str(bionodulo_type)
     mapping = {
         "STRING": "STRING",
         "INT": "INT",

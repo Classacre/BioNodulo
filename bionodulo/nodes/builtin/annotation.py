@@ -80,10 +80,28 @@ class ProkkaNode(CommandNode):
         prefix = inputs.get("prefix", "genome")
         od = Path(output_dir)
         return [
-            od / f"{prefix}.gff",
-            od / f"{prefix}.gbk",
-            od / f"{prefix}.faa",
+            od / cls.NODE_ID / f"{prefix}.gff",
+            od / cls.NODE_ID / f"{prefix}.gbk",
+            od / cls.NODE_ID / f"{prefix}.faa",
         ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run Prokka and copy outputs to planned paths."""
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        prefix = kwargs.get("prefix", "genome")
+        files = [f"{prefix}.gff", f"{prefix}.gbk", f"{prefix}.faa"]
+        for i, fname in enumerate(files):
+            if i < len(outputs):
+                actual = node_out / fname
+                if actual.exists():
+                    outputs[i].parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(actual), str(outputs[i]))
+        return result
 
 
 class BaktaNode(CommandNode):
@@ -143,9 +161,27 @@ class BaktaNode(CommandNode):
         prefix = inputs.get("prefix", "genome")
         od = Path(output_dir)
         return [
-            od / f"{prefix}.gff3",
-            od / f"{prefix}.faa",
+            od / cls.NODE_ID / f"{prefix}.gff3",
+            od / cls.NODE_ID / f"{prefix}.faa",
         ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run Bakta and copy outputs to planned paths."""
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        prefix = kwargs.get("prefix", "genome")
+        files = [f"{prefix}.gff3", f"{prefix}.faa"]
+        for i, fname in enumerate(files):
+            if i < len(outputs):
+                actual = node_out / fname
+                if actual.exists():
+                    outputs[i].parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(actual), str(outputs[i]))
+        return result
 
 
 class EggNOGMapperNode(CommandNode):
@@ -209,4 +245,20 @@ class EggNOGMapperNode(CommandNode):
         from pathlib import Path
         prefix = inputs.get("prefix", "annotations")
         od = Path(output_dir)
-        return [od / f"{prefix}.annotations.tsv"]
+        return [od / cls.NODE_ID / f"{prefix}.annotations.tsv"]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run eggNOG-mapper and copy annotations to planned path."""
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        prefix = kwargs.get("prefix", "annotations")
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            actual = node_out / f"{prefix}.annotations"
+            if actual.exists():
+                shutil.copy2(str(actual), str(outputs[0]))
+        return result

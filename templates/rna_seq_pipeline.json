@@ -45,7 +45,7 @@
         220
       ],
       "params": {
-        "file_path": "examples/data/rna_seq/genome.fa"
+        "reference": "examples/data/rna_seq/genome.fa"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -129,7 +129,7 @@
         280
       ],
       "params": {
-        "file_path": "examples/data/rna_seq/annotation.gff"
+        "annotation": "examples/data/rna_seq/annotation.gff"
       },
       "ui": {
         "title": "Annotation GFF"

@@ -45,7 +45,7 @@
         180
       ],
       "params": {
-        "file_path": "examples/data/variant_calling/wildtype.fna"
+        "reference": "examples/data/variant_calling/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -247,8 +247,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "index_001",
-        "output": "bam"
+        "node": "sort_001",
+        "output": "sorted_bam"
       },
       "to": {
         "node": "gatk_001",
@@ -280,8 +280,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "index_001",
-        "output": "bam"
+        "node": "sort_001",
+        "output": "sorted_bam"
       },
       "to": {
         "node": "flagstat_001",

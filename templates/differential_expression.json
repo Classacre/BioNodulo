@@ -45,7 +45,7 @@
         280
       ],
       "params": {
-        "file_path": "examples/data/differential_expression/transcriptome.fa"
+        "reference": "examples/data/differential_expression/transcriptome.fa"
       },
       "ui": {
         "title": "Transcriptome FASTA"

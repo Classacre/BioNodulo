@@ -26,7 +26,7 @@ class SalmonIndexNode(CommandNode):
     COMMAND = [
         "salmon", "index",
         "-t", "{inputs.transcripts}",
-        "-i", "{output}/salmon_index",
+        "-i", "{output}/index.out",
         "-p", "{inputs.threads}",
     ]
 
@@ -50,7 +50,7 @@ class SalmonIndexNode(CommandNode):
         cmd = [
             "salmon", "index",
             "-t", str(inputs.get("transcripts", "")),
-            "-i", f"{inputs.get('output', '.')}/salmon_index",
+            "-i", f"{inputs.get('output', '.')}/index.out",
             "-p", str(inputs.get("threads", 4)),
         ]
         if inputs.get("kmer"):
@@ -66,8 +66,8 @@ class SalmonQuantNode(CommandNode):
     CATEGORY = "rna_seq"
     DESCRIPTION = "Transcript-level quantification with Salmon"
     SEARCH_ALIASES = ["salmon", "quant", "expression", "tpm", "counts"]
-    RETURN_TYPES = ("ABUNDANCE",)
-    RETURN_NAMES = ("quant",)
+    RETURN_TYPES = ("COUNTS",)
+    RETURN_NAMES = ("counts",)
     REQUIRED_EXECUTABLES = ["salmon"]
     DOCUMENTATION_URL = "https://salmon.readthedocs.io/"
     VERSION = "1.11.2"
@@ -100,13 +100,13 @@ class SalmonQuantNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "index": ("INDEX_DIR", {"description": "Salmon index directory"}),
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "lib_type": ("STRING", {"default": "A", "options": ["A", "ISF", "ISR", "IU", "U", "SF", "SR"], "label": "Library Type", "advanced": True}),
                 "gc_bias": ("BOOLEAN", {"default": True, "label": "GC Bias Correction", "advanced": True}),
                 "seq_bias": ("BOOLEAN", {"default": True, "label": "Seq Bias Correction", "advanced": True}),
@@ -116,11 +116,19 @@ class SalmonQuantNode(CommandNode):
             },
         }
 
-    @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
+    async def run(self, **kwargs: Any) -> Any:
+        import shutil
         from pathlib import Path
-        od = Path(output_dir)
-        return [od / "quant.sf"]
+        result = await super().run(**kwargs)
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        if output_dir:
+            node_out = Path(output_dir) / self.__class__.NODE_ID
+            quant = node_out / "quant.sf"
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if quant.exists() and outputs:
+                outputs[0].parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(quant), str(outputs[0]))
+        return result
 
 
 class KallistoIndexNode(CommandNode):
@@ -131,14 +139,14 @@ class KallistoIndexNode(CommandNode):
     CATEGORY = "rna_seq"
     DESCRIPTION = "Build Kallisto k-mer index for transcriptome"
     SEARCH_ALIASES = ["kallisto", "index", "transcriptome", "pseudoalign"]
-    RETURN_TYPES = ("FILE",)
+    RETURN_TYPES = ("INDEX_DIR",)
     RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["kallisto"]
     DOCUMENTATION_URL = "https://pachterlab.github.io/kallisto/"
     VERSION = "0.51.1"
     COMMAND = [
         "kallisto", "index",
-        "-i", "{output}/kallisto.idx",
+        "-i", "{output}/index.out",
         "-k", "{inputs.kmer}",
         "{inputs.transcripts}",
     ]
@@ -183,13 +191,13 @@ class KallistoQuantNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "index": ("FILE", {"description": "Kallisto index file (.idx)"}),
                 "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "bootstrap": ("INT", {"default": 100, "min": 0, "max": 1000, "step": 10, "display": "slider"}),
                 "single_end": ("BOOLEAN", {"default": False, "label": "Single-end reads", "advanced": True}),
                 "fragment_length": ("INT", {"default": 200, "min": 1, "label": "Fragment Length", "advanced": True}),
@@ -206,7 +214,18 @@ class KallistoQuantNode(CommandNode):
         if isinstance(reads, (list, tuple)) and len(reads) >= 2:
             kwargs["r1"] = reads[0]
             kwargs["r2"] = reads[1]
-        return await super().run(**kwargs)
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        if output_dir:
+            node_out = Path(output_dir) / self.__class__.NODE_ID
+            abundance = node_out / "abundance.tsv"
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if abundance.exists() and outputs:
+                outputs[0].parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(abundance), str(outputs[0]))
+        return result
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -229,11 +248,7 @@ class KallistoQuantNode(CommandNode):
             cmd.extend([str(inputs.get("r1", "")), str(inputs.get("r2", ""))])
         return cmd
 
-    @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
-        od = Path(output_dir)
-        return [od / "abundance.tsv"]
+
 
 
 class FeatureCountsNode(CommandNode):
@@ -256,7 +271,7 @@ class FeatureCountsNode(CommandNode):
         cmd = [
             "featureCounts",
             "-a", str(gtf),
-            "-o", f"{inputs.get('output', '.')}/counts.txt",
+            "-o", f"{inputs.get('output', '.')}/counts.counts.tsv",
             "-T", str(inputs.get("threads", 8)),
         ]
         strand = str(inputs.get("strandness", "0"))
@@ -302,8 +317,8 @@ class StringTieNode(CommandNode):
     CATEGORY = "rna_seq"
     DESCRIPTION = "Transcript assembly and quantification from RNA-seq alignments"
     SEARCH_ALIASES = ["stringtie", "assemble", "transcript", "expression"]
-    RETURN_TYPES = ("GTF", "ABUNDANCE")
-    RETURN_NAMES = ("transcripts_gtf", "gene_abundance")
+    RETURN_TYPES = ("GTF", "TSV")
+    RETURN_NAMES = ("transcripts", "gene_abundance")
     REQUIRED_EXECUTABLES = ["stringtie"]
     DOCUMENTATION_URL = "https://ccb.jhu.edu/software/stringtie/"
     VERSION = "3.0.3"
@@ -314,7 +329,7 @@ class StringTieNode(CommandNode):
             str(inputs.get("bam", "")),
             "-G", str(inputs.get("gtf", "")),
             "-o", f"{inputs.get('output', '.')}/transcripts.gtf",
-            "-A", f"{inputs.get('output', '.')}/gene_abundance.tab",
+            "-A", f"{inputs.get('output', '.')}/gene_abundance.tsv",
             "-p", str(inputs.get("threads", 8)),
         ]
         if inputs.get("fr"):

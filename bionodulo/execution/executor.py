@@ -193,8 +193,10 @@ class WorkflowExecutor:
                 pass
             emit = _noop_emit
 
+        _VISUAL_ONLY_TYPES = frozenset({"note"})
+        raw_nodes = workflow.get("nodes", [])
         nodes: dict[str, dict[str, Any]] = {
-            n["id"]: n for n in workflow.get("nodes", [])
+            n["id"]: n for n in raw_nodes if n.get("type") not in _VISUAL_ONLY_TYPES
         }
         edges: list[dict[str, Any]] = workflow.get("edges", [])
 

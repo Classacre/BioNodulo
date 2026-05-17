@@ -5,6 +5,7 @@ and filtering with bcftools and VCFtools.
 """
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -27,23 +28,26 @@ class BcftoolsMpileupNode(CommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        parts = [
             "bcftools", "mpileup",
-            "-f", str(inputs.get("reference", "")),
+            "-f", shlex.quote(str(inputs.get("reference", ""))),
         ]
         if inputs.get("max_depth"):
-            cmd.extend(["-d", str(inputs["max_depth"])])
+            parts.extend(["-d", shlex.quote(str(inputs["max_depth"]))])
         if inputs.get("min_bq"):
-            cmd.extend(["-Q", str(inputs["min_bq"])])
-        cmd.extend(["-Ou", str(inputs.get("bam", ""))])
-        cmd.extend([
+            parts.extend(["-Q", shlex.quote(str(inputs["min_bq"]))])
+        parts.extend(["-Ou", shlex.quote(str(inputs.get("bam", "")))])
+        parts.extend([
             "|", "bcftools", "call",
             "-mv", "-Oz",
-            "-o", f"{inputs.get('output', '.')}/variants.vcf.gz",
+            "-o", shlex.quote(f"{output}/vcf.vcf.gz"),
         ])
         if inputs.get("ploidy"):
-            cmd.extend(["--ploidy", str(inputs["ploidy"])])
-        return cmd
+            parts.extend(["--ploidy", shlex.quote(str(inputs["ploidy"]))])
+        # Wrap in bash -c so the entire pipeline runs inside the pixi
+        # environment when env_prefix is prepended by the executor.
+        return ["bash", "-c", " ".join(parts)]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -101,6 +105,24 @@ class BcftoolsIndexNode(CommandNode):
             },
         }
 
+    async def run(self, **kwargs):
+        import shutil
+        from pathlib import Path
+        result = await super().run(**kwargs)
+        vcf = kwargs.get("vcf", "")
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        if vcf and output_dir:
+            vcf_path = Path(vcf)
+            tbi = vcf_path.with_suffix(vcf_path.suffix + ".tbi")
+            csi = vcf_path.with_suffix(vcf_path.suffix + ".csi")
+            index_file = tbi if tbi.exists() else csi
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if index_file.exists() and outputs:
+                target = outputs[0]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(index_file), str(target))
+        return result
+
 
 class BcftoolsStatsNode(CommandNode):
     """Generate VCF statistics with bcftools."""
@@ -125,7 +147,7 @@ class BcftoolsStatsNode(CommandNode):
         ]
         if inputs.get("samples"):
             cmd.extend(["-s", str(inputs["samples"])])
-        cmd.extend([">", f"{inputs.get('output', '.')}/vcf_stats.txt"])
+        cmd.extend([">", f"{inputs.get('output', '.')}/stats.stats.txt"])
         return cmd
 
     @classmethod
@@ -163,7 +185,7 @@ class BcftoolsFilterNode(CommandNode):
             "bcftools", "filter",
             "-i", str(inputs.get("expr", "")),
             "-Oz",
-            "-o", f"{inputs.get('output', '.')}/filtered.vcf.gz",
+            "-o", f"{inputs.get('output', '.')}/filtered_vcf.vcf.gz",
             str(inputs.get("vcf", "")),
         ]
         if inputs.get("set_gt"):
@@ -202,12 +224,11 @@ class GatkHaplotypeCallerNode(CommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        output_ext = "g.vcf.gz" if inputs.get("emit_ref_confidence") else "vcf.gz"
         cmd = [
             "gatk", "HaplotypeCaller",
             "-R", str(inputs.get("reference", "")),
             "-I", str(inputs.get("bam", "")),
-            "-O", f"{inputs.get('output', '.')}/variants.{output_ext}",
+            "-O", f"{inputs.get('output', '.')}/vcf.vcf.gz",
             "--native-pair-hmm-threads", str(inputs.get("threads", 4)),
         ]
         if inputs.get("emit_ref_confidence"):
@@ -266,7 +287,7 @@ class GatkBaseRecalibratorNode(CommandNode):
             "gatk", "BaseRecalibrator",
             "-I", str(inputs.get("bam", "")),
             "-R", str(inputs.get("reference", "")),
-            "-O", f"{inputs.get('output', '.')}/recal_data.table",
+            "-O", f"{inputs.get('output', '.')}/recal_table.out",
         ]
         known = inputs.get("known_sites", "")
         if known:
@@ -303,7 +324,7 @@ class GatkApplyBQSRNode(CommandNode):
     DESCRIPTION = "Apply base quality score recalibration to a BAM file"
     SEARCH_ALIASES = ["gatk", "apply bqsr", "recalibrate"]
     RETURN_TYPES = ("BAM",)
-    RETURN_NAMES = ("recalibrated_bam",)
+    RETURN_NAMES = ("bam",)
     REQUIRED_EXECUTABLES = ["gatk"]
     REQUIRED_CONDA_PACKAGES = ['gatk4']
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037055952-ApplyBQSR"
@@ -313,7 +334,7 @@ class GatkApplyBQSRNode(CommandNode):
         "-R", "{inputs.reference}",
         "-I", "{inputs.bam}",
         "--bqsr-recal-file", "{inputs.recal_table}",
-        "-O", "{output}/recalibrated.bam",
+        "-O", "{output}/bam.bam",
     ]
 
     @classmethod
@@ -360,7 +381,7 @@ class FreeBayesNode(CommandNode):
         if inputs.get("haplotype_length") is not None:
             cmd.extend(["--haplotype-length", str(inputs["haplotype_length"])])
         cmd.append(str(inputs.get("bam", "")))
-        cmd.extend([">", f"{inputs.get('output', '.')}/variants.vcf"])
+        cmd.extend([">", f"{inputs.get('output', '.')}/vcf.vcf"])
         return cmd
 
     @classmethod
@@ -416,9 +437,24 @@ class VcfToolsFilterNode(CommandNode):
             cmd.append("--recode-INFO-all")
         cmd.extend([
             "--recode",
-            "--out", f"{inputs.get('output', '.')}/filtered",
+            "--out", f"{inputs.get('output', '.')}/filtered_vcf",
         ])
         return cmd
+
+    async def run(self, **kwargs):
+        import shutil
+        from pathlib import Path
+        result = await super().run(**kwargs)
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        if output_dir:
+            node_out = Path(output_dir) / self.__class__.NODE_ID
+            actual = node_out / "filtered_vcf.recode.vcf"
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if actual.exists() and outputs:
+                target = outputs[0]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(actual), str(target))
+        return result
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

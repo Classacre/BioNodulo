@@ -73,7 +73,7 @@
         350
       ],
       "params": {
-        "file_path": "examples/data/assembly/ecoli_reference.fna"
+        "reference": "examples/data/assembly/ecoli_reference.fna"
       },
       "ui": {
         "title": "Reference (optional)"

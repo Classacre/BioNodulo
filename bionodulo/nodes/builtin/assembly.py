@@ -37,12 +37,12 @@ class SPAdesNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "memory": ("INT", {"default": 128, "min": 1, "description": "Memory limit in GB"}),
                 "careful": ("BOOLEAN", {"default": True, "description": "Reduce mismatch correction errors"}),
             },
@@ -50,14 +50,6 @@ class SPAdesNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
-
-    async def run(self, **kwargs: Any) -> Any:
-        """Accept reads list and split into r1/r2 for SPAdes."""
-        reads = kwargs.get("reads", [])
-        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
-            kwargs["r1"] = reads[0]
-            kwargs["r2"] = reads[1]
-        return await super().run(**kwargs)
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -78,9 +70,31 @@ class SPAdesNode(CommandNode):
         from pathlib import Path
         od = Path(output_dir)
         return [
-            od / "scaffolds.fasta",
-            od / "contigs.fasta",
+            od / cls.NODE_ID / "assembly.fasta",
+            od / cls.NODE_ID / "contigs.fasta",
         ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Accept reads list and split into r1/r2 for SPAdes, then copy outputs."""
+        reads = kwargs.get("reads", [])
+        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
+            kwargs["r1"] = reads[0]
+            kwargs["r2"] = reads[1]
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            scaffolds = node_out / "scaffolds.fasta"
+            contigs = node_out / "contigs.fasta"
+            if scaffolds.exists():
+                shutil.copy2(str(scaffolds), str(outputs[0]))
+            elif contigs.exists():
+                shutil.copy2(str(contigs), str(outputs[0]))
+        return result
 
 
 class MEGAHITNode(CommandNode):
@@ -108,11 +122,12 @@ class MEGAHITNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
-                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward reads (R1)"}),
+                "r2": ("FASTQ", {"description": "Reverse reads (R2)"}),
                 "min_contig_len": ("INT", {"default": 200, "min": 1}),
                 "k_list": ("STRING", {"default": "21,29,39,59,79,99,119,141"}),
             },
@@ -122,12 +137,23 @@ class MEGAHITNode(CommandNode):
         }
 
     async def run(self, **kwargs: Any) -> Any:
-        """Accept reads list and split into r1/r2 for MEGAHIT."""
+        """Accept reads list and split into r1/r2 for MEGAHIT, then copy output."""
         reads = kwargs.get("reads", [])
         if isinstance(reads, (list, tuple)) and len(reads) >= 2:
             kwargs["r1"] = reads[0]
             kwargs["r2"] = reads[1]
-        return await super().run(**kwargs)
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            actual = node_out / "final.contigs.fa"
+            if actual.exists():
+                shutil.copy2(str(actual), str(outputs[0]))
+        return result
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -148,7 +174,7 @@ class MEGAHITNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         od = Path(output_dir)
-        return [od / "final.contigs.fa"]
+        return [od / cls.NODE_ID / "contigs.fasta"]
 
 
 class CanuNode(CommandNode):
@@ -209,9 +235,28 @@ class CanuNode(CommandNode):
         from pathlib import Path
         od = Path(output_dir)
         return [
-            od / f"{inputs.get('prefix', 'assembly')}.contigs.fasta",
-            od / f"{inputs.get('prefix', 'assembly')}.unitigs.fasta",
+            od / cls.NODE_ID / "assembly.fasta",
+            od / cls.NODE_ID / "contigs.fasta",
         ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run Canu and copy assembly files to planned paths."""
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        prefix = kwargs.get("prefix", "assembly")
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            contigs = node_out / f"{prefix}.contigs.fasta"
+            unitigs = node_out / f"{prefix}.unitigs.fasta"
+            if contigs.exists() and len(outputs) > 0:
+                shutil.copy2(str(contigs), str(outputs[0]))
+            if unitigs.exists() and len(outputs) > 1:
+                shutil.copy2(str(unitigs), str(outputs[1]))
+        return result
 
 
 class FlyeNode(CommandNode):
@@ -269,7 +314,22 @@ class FlyeNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         od = Path(output_dir)
-        return [od / "assembly.fasta"]
+        return [od / cls.NODE_ID / "assembly.fasta"]
+
+    async def run(self, **kwargs: Any) -> Any:
+        """Run Flye and copy assembly to planned path."""
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            actual = node_out / "assembly.fasta"
+            if actual.exists():
+                shutil.copy2(str(actual), str(outputs[0]))
+        return result
 
 
 class UnicyclerNode(CommandNode):
@@ -297,11 +357,12 @@ class UnicyclerNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "r1": ("FASTQ", {"description": "Forward Illumina reads"}),
-                "r2": ("FASTQ", {"description": "Reverse Illumina reads"}),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
+                "reads": ("FASTQ_LIST", {"description": "Paired-end FASTQ reads [R1, R2]"}),
+                "r1": ("FASTQ", {"description": "Forward Illumina reads"}),
+                "r2": ("FASTQ", {"description": "Reverse Illumina reads"}),
                 "long_reads": ("FASTQ", {"description": "Optional long reads for hybrid assembly"}),
                 "mode": ("STRING", {"default": "normal"}),
                 "unpaired": ("FASTQ", {"description": "Optional unpaired reads"}),
@@ -313,12 +374,23 @@ class UnicyclerNode(CommandNode):
         }
 
     async def run(self, **kwargs: Any) -> Any:
-        """Accept reads list and split into r1/r2 for Unicycler."""
+        """Accept reads list and split into r1/r2 for Unicycler, then copy output."""
         reads = kwargs.get("reads", [])
         if isinstance(reads, (list, tuple)) and len(reads) >= 2:
             kwargs["r1"] = reads[0]
             kwargs["r2"] = reads[1]
-        return await super().run(**kwargs)
+        result = await super().run(**kwargs)
+        import shutil
+        from pathlib import Path
+        node_out = Path(kwargs["output_dir"])
+        base_output_dir = node_out.parent
+        outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
+        if outputs:
+            outputs[0].parent.mkdir(parents=True, exist_ok=True)
+            actual = node_out / "assembly.fasta"
+            if actual.exists():
+                shutil.copy2(str(actual), str(outputs[0]))
+        return result
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -342,7 +414,7 @@ class UnicyclerNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         od = Path(output_dir)
-        return [od / "assembly.fasta"]
+        return [od / cls.NODE_ID / "assembly.fasta"]
 
 
 class QuastNode(CommandNode):
@@ -361,7 +433,7 @@ class QuastNode(CommandNode):
     COMMAND = [
         "quast",
         "{inputs.assembly}",
-        "-o", "{output}",
+        "-o", "{output}/report_dir.out",
         "-t", "{inputs.threads}",
     ]
 
@@ -386,7 +458,7 @@ class QuastNode(CommandNode):
         cmd = [
             "quast",
             str(inputs.get("assembly", "")),
-            "-o", str(inputs.get("output", ".")),
+            "-o", f"{str(inputs.get('output', '.'))}/report_dir.out",
             "-t", str(inputs.get("threads", 4)),
         ]
         if inputs.get("reference"):
@@ -399,4 +471,4 @@ class QuastNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
         from pathlib import Path
         od = Path(output_dir)
-        return [od / "report.html"]
+        return [od / cls.NODE_ID / "report_dir.out"]

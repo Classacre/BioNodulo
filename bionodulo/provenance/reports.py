@@ -210,7 +210,7 @@ def generate_execution_report(
         <div class="summary">
             <div class="summary-card">
                 <h3>Total Nodes</h3>
-                <div class="value">{len(nodes)}</div>
+                <div class="value">{sum(1 for n in nodes if n.get('type') != 'note')}</div>
             </div>
             <div class="summary-card">
                 <h3>Completed</h3>
@@ -282,7 +282,7 @@ def generate_provenance_report(
             "id": workflow.get("id", "unknown"),
             "name": workflow.get("name", ""),
             "description": workflow.get("description", ""),
-            "node_count": len(workflow.get("nodes", [])),
+            "node_count": sum(1 for n in workflow.get("nodes", []) if n.get("type") != "note"),
             "edge_count": len(workflow.get("edges", [])),
         },
         "execution": {

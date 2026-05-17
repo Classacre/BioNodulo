@@ -64,7 +64,7 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
   if (!hasSelection || isDragging || !position) return null;
 
   const singleNode = selectedNodes.length === 1 && selectedGroups.length === 0 ? selectedNodes[0] : null;
-  const canCollapse = singleNode && singleNode.type !== 'note' && singleNode.type !== 'reroute';
+  const hasCollapsible = selectedNodes.some(n => !n.visualOnly && n.type !== 'reroute');
 
   return (
     <div
@@ -101,11 +101,14 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
           <ToolboxButton title="Bypass" onClick={() => onAction('bypass')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
           </ToolboxButton>
-          {canCollapse && (
-            <ToolboxButton title="Collapse/Expand" onClick={() => onAction('collapse')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
-            </ToolboxButton>
-          )}
+        </>
+      )}
+      {hasCollapsible && (
+        <>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
+          <ToolboxButton title="Collapse/Expand" onClick={() => onAction('collapse')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
+          </ToolboxButton>
         </>
       )}
       <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />

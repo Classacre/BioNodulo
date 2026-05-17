@@ -35,10 +35,10 @@ class FastpNode(CommandNode):
             "fastp",
             "-i", str(reads[0]) if len(reads) > 0 else "",
             "-I", str(reads[1]) if len(reads) > 1 else "",
-            "-o", f"{output}/trimmed_R1.fastq.gz",
-            "-O", f"{output}/trimmed_R2.fastq.gz",
-            "-h", f"{output}/fastp_report.html",
-            "-j", f"{output}/fastp_report.json",
+            "-o", f"{output}/trimmed_reads.fastq.gz",
+            "-O", f"{output}/trimmed_reads_2.fastq.gz",
+            "-h", f"{output}/report.html",
+            "-j", f"{output}/report.json",
             "-w", str(inputs.get("threads", 4)),
         ]
         if inputs.get("qualified_quality_phred") is not None:
@@ -59,10 +59,10 @@ class FastpNode(CommandNode):
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
-                "qualified_quality_phred": ("INT", {"default": 15, "min": 1, "max": 40}),
-                "cut_front": ("BOOLEAN", {"default": True}),
-                "cut_tail": ("BOOLEAN", {"default": True}),
-                "length_required": ("INT", {"default": 20, "min": 1}),
+                "qualified_quality_phred": ("INT", {"default": 15, "min": 1, "max": 40, "description": "Quality threshold for trimming (fastp default: 15)"}),
+                "cut_front": ("BOOLEAN", {"default": False, "description": "Trim low-quality bases from 5' end (fastp default: OFF)"}),
+                "cut_tail": ("BOOLEAN", {"default": False, "description": "Trim low-quality bases from 3' end (fastp default: OFF)"}),
+                "length_required": ("INT", {"default": 15, "min": 1, "description": "Discard reads shorter than this (fastp default: 15)"}),
             },
             "hidden": {
                 "output": ("STRING", {}),
@@ -77,15 +77,15 @@ class FastpNode(CommandNode):
             output_dir = getattr(ctx, "node_dir", ".")
         if output_dir is None:
             output_dir = "."
-        raw = await super().run(**kwargs)
-        out = Path(output_dir)
+        await super().run(**kwargs)
+        out = Path(output_dir) / self.NODE_ID
         return {
             "outputs": {
                 "trimmed_reads": [
-                    str(out / "trimmed_R1.fastq.gz"),
-                    str(out / "trimmed_R2.fastq.gz"),
+                    str(out / "trimmed_reads.fastq.gz"),
+                    str(out / "trimmed_reads_2.fastq.gz"),
                 ],
-                "report": str(out / "fastp_report.html"),
+                "report": str(out / "report.html"),
             }
         }
 
@@ -115,10 +115,10 @@ class TrimmomaticNode(CommandNode):
             "-threads", str(inputs.get("threads", 4)),
             str(reads[0]) if len(reads) > 0 else "",
             str(reads[1]) if len(reads) > 1 else "",
-            f"{output}/trimmed_R1_paired.fastq.gz",
-            f"{output}/trimmed_R1_unpaired.fastq.gz",
-            f"{output}/trimmed_R2_paired.fastq.gz",
-            f"{output}/trimmed_R2_unpaired.fastq.gz",
+            f"{output}/R1_paired.fastq.gz",
+            f"{output}/R1_unpaired.fastq.gz",
+            f"{output}/R2_paired.fastq.gz",
+            f"{output}/R2_unpaired.fastq.gz",
             f"ILLUMINACLIP:{inputs.get('adapters', 'TruSeq3-PE.fa')}:2:30:10",
             f"LEADING:{inputs.get('leading', 3)}",
             f"TRAILING:{inputs.get('trailing', 3)}",
@@ -155,13 +155,13 @@ class TrimmomaticNode(CommandNode):
         if output_dir is None:
             output_dir = "."
         await super().run(**kwargs)
-        out = Path(output_dir)
+        out = Path(output_dir) / self.NODE_ID
         return {
             "outputs": {
-                "R1_paired": [str(out / "trimmed_R1_paired.fastq.gz")],
-                "R1_unpaired": [str(out / "trimmed_R1_unpaired.fastq.gz")],
-                "R2_paired": [str(out / "trimmed_R2_paired.fastq.gz")],
-                "R2_unpaired": [str(out / "trimmed_R2_unpaired.fastq.gz")],
+                "R1_paired": [str(out / "R1_paired.fastq.gz")],
+                "R1_unpaired": [str(out / "R1_unpaired.fastq.gz")],
+                "R2_paired": [str(out / "R2_paired.fastq.gz")],
+                "R2_unpaired": [str(out / "R2_unpaired.fastq.gz")],
             }
         }
 
@@ -190,8 +190,8 @@ class CutadaptNode(CommandNode):
             "cutadapt",
             "-a", str(inputs.get("adapter_r1", "AGATCGGAAGAGC")),
             "-A", str(inputs.get("adapter_r2", "AGATCGGAAGAGC")),
-            "-o", f"{output}/trimmed_R1.fastq.gz",
-            "-p", f"{output}/trimmed_R2.fastq.gz",
+            "-o", f"{output}/trimmed_reads.fastq.gz",
+            "-p", f"{output}/trimmed_reads_2.fastq.gz",
             "-j", str(inputs.get("threads", 4)),
         ]
         if inputs.get("minimum_length") is not None:
@@ -231,12 +231,12 @@ class CutadaptNode(CommandNode):
         if output_dir is None:
             output_dir = "."
         await super().run(**kwargs)
-        out = Path(output_dir)
+        out = Path(output_dir) / self.NODE_ID
         return {
             "outputs": {
                 "trimmed_reads": [
-                    str(out / "trimmed_R1.fastq.gz"),
-                    str(out / "trimmed_R2.fastq.gz"),
+                    str(out / "trimmed_reads.fastq.gz"),
+                    str(out / "trimmed_reads_2.fastq.gz"),
                 ],
             }
         }

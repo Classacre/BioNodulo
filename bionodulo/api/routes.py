@@ -350,6 +350,95 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
 
 
+@router.get("/runs/{run_id}/logs")
+async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
+    """Retrieve logs for a specific run from on-disk log files.
+
+    Reads stdout.log and stderr.log from each node's execution directory
+    under workspace/runs/{run_id}/.
+    """
+    settings = _get_settings(request)
+    run_dir = settings.project_root / "runs" / run_id
+    if not run_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Run directory not found: '{run_id}'")
+
+    logs: list[dict[str, Any]] = []
+    meta_path = run_dir / "run_metadata.json"
+    nodes_meta: dict[str, Any] = {}
+    run_started_at = datetime.now(timezone.utc).isoformat()
+
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            nodes_meta = meta.get("nodes", {})
+            run_started_at = meta.get("started_at") or run_started_at
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Synthetic start event
+    exec_node_count = sum(1 for n in nodes_meta.values() if n.get("type") != "note")
+    logs.append({
+        "node_id": "engine",
+        "level": "info",
+        "message": f"Workflow started ({exec_node_count} nodes)",
+        "timestamp": run_started_at,
+        "stream": "event",
+    })
+
+    for node_id, node_info in nodes_meta.items():
+        node_dir = run_dir / node_id
+        if not node_dir.is_dir():
+            continue
+
+        node_status = node_info.get("status", "unknown")
+        logs.append({
+            "node_id": node_id,
+            "level": "info",
+            "message": f"Node {node_status}",
+            "timestamp": run_started_at,
+            "stream": "event",
+        })
+
+        for stream_name, level in (("stdout", "stdout"), ("stderr", "stderr")):
+            log_path = node_dir / f"{stream_name}.log"
+            if not log_path.exists():
+                continue
+            try:
+                content = log_path.read_text(encoding="utf-8", errors="replace")
+                mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc).isoformat()
+                for line in content.splitlines():
+                    if not line.strip():
+                        continue
+                    logs.append({
+                        "node_id": node_id,
+                        "level": level,
+                        "message": line,
+                        "timestamp": mtime,
+                        "stream": stream_name,
+                    })
+            except OSError:
+                continue
+
+    # Synthetic complete event
+    final_status = "unknown"
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            final_status = meta.get("status", final_status)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    logs.append({
+        "node_id": "engine",
+        "level": "success" if final_status == "completed" else "error" if final_status == "failed" else "info",
+        "message": f"Workflow {final_status}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "stream": "event",
+    })
+
+    return {"run_id": run_id, "logs": logs}
+
+
 @router.post("/cache/clear")
 async def clear_cache(request: Request) -> dict[str, Any]:
     """Clear all cached workflow node execution results."""
@@ -1156,7 +1245,7 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
                         "name": name,
                         "filename": entry.name,
                         "description": description,
-                        "node_count": len(nodes),
+                        "node_count": sum(1 for n in nodes if n.get("type") != "note"),
                         "tools": tools,
                         "category": category,
                         "tags": tags,

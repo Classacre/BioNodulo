@@ -31,7 +31,7 @@ class SamtoolsSortNode(CommandNode):
         cmd = [
             "samtools", "sort",
             "-@", str(inputs.get("threads", 4)),
-            "-o", f"{output}/sorted.bam",
+            "-o", f"{output}/sorted_bam.bam",
             "-T", f"{output}/tmp",
         ]
         if inputs.get("memory"):
@@ -64,7 +64,7 @@ class SamtoolsIndexNode(CommandNode):
     DESCRIPTION = "Create a .bai index for a sorted BAM file"
     SEARCH_ALIASES = ["samtools", "index", "bai"]
     RETURN_TYPES = ("BAI",)
-    RETURN_NAMES = ("bai",)
+    RETURN_NAMES = ("index",)
     REQUIRED_EXECUTABLES = ["samtools"]
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-index.html"
     VERSION = "1.23.1"
@@ -100,15 +100,23 @@ class SamtoolsIndexNode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        await super().run(**kwargs)
+    async def run(self, **kwargs):
+        import shutil
+        from pathlib import Path
+        result = await super().run(**kwargs)
         bam = kwargs.get("bam", "")
-        output_path = kwargs.get("output_path", "")
-        if output_path:
-            return {"outputs": {"bai": str(output_path)}}
-        if kwargs.get("csi"):
-            return {"outputs": {"bai": str(Path(bam).with_suffix(".csi"))}}
-        return {"outputs": {"bai": str(Path(bam).with_suffix(".bai"))}}
+        output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))
+        if bam and output_dir:
+            bam_path = Path(bam)
+            bai_path = Path(str(bam) + ".bai")
+            if not bai_path.exists():
+                bai_path = bam_path.with_suffix(bam_path.suffix + ".bai")
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
+            if bai_path.exists() and outputs:
+                target = outputs[0]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(bai_path), str(target))
+        return result
 
 
 class SamtoolsFlagstatNode(CommandNode):
@@ -137,7 +145,7 @@ class SamtoolsFlagstatNode(CommandNode):
             cmd.extend(["-O", str(inputs["output_format"])])
         cmd.extend([
             str(inputs.get("bam", "")),
-            ">", f"{output}/flagstat.txt",
+            ">", f"{output}/stats.stats.txt",
         ])
         return cmd
 
@@ -179,7 +187,7 @@ class SamtoolsViewNode(CommandNode):
             "samtools", "view",
             "-b",
             "-@", str(inputs.get("threads", 4)),
-            "-o", f"{output}/output.bam",
+            "-o", f"{output}/bam.bam",
         ]
         if inputs.get("f") is not None:
             cmd.extend(["-f", str(inputs["f"])])
@@ -241,7 +249,7 @@ class SamtoolsMergeNode(CommandNode):
         cmd = [
             "samtools", "merge",
             "-@", str(inputs.get("threads", 4)),
-            f"{inputs.get('output', '.')}/merged.bam",
+            f"{inputs.get('output', '.')}/merged_bam.bam",
         ] + list(bams)
         return cmd
 
@@ -272,7 +280,7 @@ class SamtoolsStatsNode(CommandNode):
             cmd.extend(["-t", str(inputs["target_regions"])])
         cmd.extend([
             str(inputs.get("bam", "")),
-            ">", f"{output}/stats.txt",
+            ">", f"{output}/stats.stats.txt",
         ])
         return cmd
 
