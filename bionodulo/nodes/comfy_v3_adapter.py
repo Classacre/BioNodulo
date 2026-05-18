@@ -5,10 +5,9 @@ BioNodulo native node classes.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Type
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.schema_api import SchemaNode, Socket
 
 

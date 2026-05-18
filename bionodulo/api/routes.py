@@ -10,14 +10,13 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 from bionodulo.api.system_stats import router as system_stats_router
@@ -26,8 +25,7 @@ from bionodulo.api.schemas import (
     AIChatRequest,
     DeleteFilesRequest,
     DependencyTreeRequest,
-    EnvironmentCreateRequest,
-    EnvironmentInstallRequest,
+    ExampleDataDownloadRequest,
     FileOperationRequest,
     HPCConfigureRequest,
     HPCSubmitRequest,
@@ -38,7 +36,6 @@ from bionodulo.api.schemas import (
     ManagerInstallPlanRequest,
     ManagerInstallRequest,
     ManagerPackageRequest,
-    ManagerResolveRequest,
     RunCreateRequest,
     SettingsSaveRequest,
     SettingsSetRequest,
@@ -46,40 +43,31 @@ from bionodulo.api.schemas import (
     WorkspaceRootRequest,
     WorkflowEnvironmentRequest,
     WorkflowExportRequest,
-    WorkflowExtractRequest,
 )
 from bionodulo.core.config import Settings
 from bionodulo.core.events import EventHub
 from bionodulo.core.paths import ensure_within
 from bionodulo.workflow.export import export_workflow
-from bionodulo.workflow.graph import (
-    downstream_nodes,
-    incoming_edges,
-    topological_sort,
-    upstream_nodes,
-)
-from bionodulo.workflow.serialization import load_workflow, save_workflow
 from bionodulo.environments.manifest import (
     delete_env_dir,
     duplicate_env_dir,
-    ensure_workflow_env,
     get_env_dir,
-    get_env_id,
     get_env_meta,
-    get_env_name,
     get_env_packages,
     is_env_ready,
     list_all_envs,
     remove_package_from_env,
     set_env_meta,
-    workflow_to_packages,
 )
 from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.diagnostics import host_diagnostics
+from bionodulo.manager.example_data import download_example_data
 from bionodulo.manager.installer import get_installer
-from bionodulo.manager.resolver import build_node_manifest, resolve_workflow, _resolve_workflow_async
+from bionodulo.hpc.base import HPCBackend
+from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
@@ -979,10 +967,7 @@ async def manager_diagnose(
         "missing_nodes": [n.node_type for n in report.missing_nodes],
         "missing_tools": [e.name for e in report.missing_executables],
         "missing_packages": [p.name for p in report.missing_packages],
-        "compatibility_issues": [
-            {"name": c.name, "path": c.path, "error": c.error}
-            for c in report.compatibility_issues
-        ],
+        "compatibility_issues": [],
         "resolution": report.to_dict(),
     }
 
@@ -999,7 +984,7 @@ async def manager_install_deps(
 
 
 @router.get("/manager/status/{job_id}")
-async def manager_status(job_id: str) -> dict[str, Any]:
+async def manager_job_status(job_id: str) -> dict[str, Any]:
     """Get the status of an async install job."""
     installer = get_installer()
     job = installer.get_job(job_id)
@@ -1211,7 +1196,6 @@ async def delete_environment(env_id: str, request: Request) -> dict[str, Any]:
 @router.get("/workflow_templates")
 async def list_workflow_templates(request: Request) -> dict[str, Any]:
     """List available workflow templates."""
-    settings = _get_settings(request)
     templates_dir = REPO_ROOT / "templates"
     templates: list[dict[str, Any]] = []
 
@@ -1268,7 +1252,6 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
 @router.get("/workflow_templates/{filename}")
 async def get_workflow_template(request: Request, filename: str) -> dict[str, Any]:
     """Return a specific workflow template JSON."""
-    settings = _get_settings(request)
     templates_dir = REPO_ROOT / "templates"
     target = templates_dir / filename
 
@@ -1351,33 +1334,46 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
     source = body.source.lower()
     content = body.content
 
+    file_path_obj = None
     if not content and body.file_path:
         settings = _get_settings(request)
         try:
-            file_path = _safe_path(body.file_path, settings.project_root)
-            content = file_path.read_text(encoding="utf-8")
+            file_path_obj = _safe_path(body.file_path, settings.project_root)
+            if source == "cwl":
+                content = None
+            else:
+                content = file_path_obj.read_text(encoding="utf-8")
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if not content:
+    if not content and not file_path_obj:
         raise HTTPException(status_code=400, detail="No content or file_path provided")
 
     # Try to delegate to converter module
     try:
         if source == "snakemake":
-            from bionodulo.converter.snakemake_converter import import_workflow as snakemake_import
+            from bionodulo.converter.snakemake_converter import import_from_snakemake as snakemake_import
             workflow = snakemake_import(content)
         elif source == "nextflow":
-            from bionodulo.converter.nextflow_converter import import_workflow as nextflow_import
+            from bionodulo.converter.nextflow_converter import import_from_nextflow as nextflow_import
             workflow = nextflow_import(content)
         elif source == "cwl":
-            from bionodulo.converter.cwl_converter import import_workflow as cwl_import
-            workflow = cwl_import(content)
+            from bionodulo.converter.cwl_converter import import_from_cwl as cwl_import
+            if file_path_obj:
+                workflow = cwl_import(file_path_obj)
+            else:
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".cwl", delete=False) as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                try:
+                    workflow = cwl_import(tmp_path)
+                finally:
+                    os.unlink(tmp_path)
         elif source == "galaxy":
-            from bionodulo.converter.galaxy_converter import import_workflow as galaxy_import
+            from bionodulo.converter.galaxy_converter import import_from_galaxy as galaxy_import
             workflow = galaxy_import(content)
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported import format: \\\'{source}\\\'")
+            raise HTTPException(status_code=400, detail=f"Unsupported import format: \\'{source}\\'")
 
         return {"workflow": workflow, "source": source, "imported": True}
     except ImportError as exc:
@@ -1456,7 +1452,7 @@ async def hpc_configure(
 
     # Try to initialize backend
     try:
-        backend_class = None
+        backend_class: type[HPCBackend] | None = None
         if body.backend == "slurm":
             from bionodulo.hpc.slurm import SLURMBackend
             backend_class = SLURMBackend
@@ -1582,3 +1578,90 @@ async def get_example_workflow(request: Request, filename: str) -> Any:
         raise HTTPException(status_code=404, detail=f"Example \\\'{filename}\\\' not found")
 
     return FileResponse(safe_path)
+
+
+# ---------------------------------------------------------------------------
+# Getting Started
+# ---------------------------------------------------------------------------
+
+@router.get("/getting-started/status")
+async def getting_started_status(request: Request) -> dict[str, Any]:
+    """Check whether example data is present locally."""
+    settings = _get_settings(request)
+    data_dir = settings.project_root / "examples" / "data"
+
+    has_data = False
+    total_size = 0
+    categories: list[str] = []
+    files_per_category: dict[str, int] = {}
+
+    if data_dir.exists() and data_dir.is_dir():
+        for subdir in data_dir.iterdir():
+            if subdir.is_dir():
+                categories.append(subdir.name)
+                file_count = 0
+                for f in subdir.rglob("*"):
+                    if f.is_file():
+                        total_size += f.stat().st_size
+                        file_count += 1
+                files_per_category[subdir.name] = file_count
+        has_data = len(categories) > 0 and total_size > 0
+
+    return {
+        "has_example_data": has_data,
+        "categories": sorted(categories),
+        "files_per_category": files_per_category,
+        "total_size_bytes": total_size,
+        "total_size_mb": round(total_size / (1024 * 1024), 1),
+    }
+
+
+@router.post("/getting-started/download")
+async def getting_started_download(
+    request: Request, body: ExampleDataDownloadRequest
+) -> dict[str, Any]:
+    """Download example data files individually from public sources.
+
+    Streams per-file progress via WebSocket (install.progress events) so the
+    frontend console can show what is happening.  Files that already exist are
+    skipped.  Synthetic / generated files are created on-the-fly.
+    """
+    settings = _get_settings(request)
+    event_hub = _get_event_hub(request)
+
+    def emit_progress(message: str, level: str = "info") -> None:
+        asyncio.create_task(
+            event_hub.emit_typed(
+                "install.progress",
+                {
+                    "job_id": "example-data-download",
+                    "message": message,
+                    "level": level,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                source="example-data",
+            )
+        )
+
+    emit_progress("Starting example data download from public sources ...", "info")
+
+    # Run download in a thread pool so the event loop stays responsive
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: download_example_data(
+            project_root=settings.project_root,
+            emit=emit_progress,
+        ),
+    )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Example data download incomplete: {len(result.get('failed', []))} file(s) failed",
+        )
+
+    # Return refreshed status
+    status = await getting_started_status(request)
+    status["download_result"] = result
+    return status

@@ -102,7 +102,6 @@ class SamtoolsIndexNode(CommandNode):
 
     async def run(self, **kwargs):
         import shutil
-        from pathlib import Path
         result = await super().run(**kwargs)
         bam = kwargs.get("bam", "")
         output_dir = kwargs.get("output_dir") or (kwargs.get("context") and getattr(kwargs["context"], "node_dir", "."))

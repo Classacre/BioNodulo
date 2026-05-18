@@ -352,7 +352,6 @@ class MSAViewNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> tuple[str, ...]:
         from Bio import AlignIO, SeqIO
-        from Bio.Align import MultipleSeqAlignment
         from Bio.Seq import Seq
         from Bio.SeqRecord import SeqRecord
 
@@ -375,11 +374,11 @@ class MSAViewNode(BaseNode):
         consensus = []
         for i in range(alignment.get_alignment_length()):
             col = alignment[:, i]
-            counts = {}
+            counts: dict[str, int] = {}
             for char in col.upper():
                 if char != "-":
                     counts[char] = counts.get(char, 0) + 1
-            consensus.append(max(counts, key=counts.get) if counts else "-")
+            consensus.append(max(counts, key=lambda k: counts[k]) if counts else "-")
 
         consensus_rec = SeqRecord(Seq("".join(consensus)), id="consensus", description="majority rule consensus")
         consensus_path = out_dir / "consensus.fasta"

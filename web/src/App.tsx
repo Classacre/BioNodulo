@@ -17,6 +17,7 @@ import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
 import ImageLightbox from './components/modals/ImageLightbox';
+import GettingStartedModal from './components/modals/GettingStartedModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import { useSettings } from './hooks/useSettings';
@@ -280,6 +281,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
+  const [showGettingStarted, setShowGettingStarted] = useState(false);
 
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -423,6 +425,31 @@ export default function App() {
     return unsub;
   }, [onMessage, addLog, runs, updateRun]);
   const [hpcStatus, setHpcStatus] = useState<HPCStatus>('off');
+
+  // Getting Started modal visibility
+  useEffect(() => {
+    const dismissed = getBool('bionodulo.getting_started.dismissed');
+    const showOnStartup = getBool('bionodulo.getting_started.show_on_startup');
+    if (!dismissed && showOnStartup) {
+      // Small delay so the app shell renders first
+      const t = setTimeout(() => setShowGettingStarted(true), 400);
+      return () => clearTimeout(t);
+    }
+  }, [getBool]);
+
+  // Listen for custom event from Getting Started modal to open help
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setRailTab('help');
+      // Store preferred help page in session if needed
+      if (detail) {
+        sessionStorage.setItem('bionodulo.help_page', detail);
+      }
+    };
+    window.addEventListener('bionodulo:open-help', handler);
+    return () => window.removeEventListener('bionodulo:open-help', handler);
+  }, []);
 
   const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
 
@@ -794,6 +821,18 @@ export default function App() {
           workflow={activeWorkflow}
           onClose={() => setShowAI(false)}
           onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => wf)}
+        />
+      )}
+      {showGettingStarted && (
+        <GettingStartedModal
+          onClose={() => {
+            set('bionodulo.getting_started.dismissed', true);
+            setShowGettingStarted(false);
+          }}
+          onDontShowAgain={(hide) => {
+            set('bionodulo.getting_started.show_on_startup', !hide);
+          }}
+          showOnStartup={getBool('bionodulo.getting_started.show_on_startup')}
         />
       )}
       <ImageLightbox

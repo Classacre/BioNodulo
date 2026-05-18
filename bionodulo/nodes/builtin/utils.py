@@ -285,5 +285,5 @@ class ImagePreviewNode(CommandNode):
         file_path = kwargs.get("file")
         context = kwargs.pop("context", None)
         if context is not None and hasattr(context, "register_preview"):
-            context.register_preview(Path(file_path), label="Image Preview")
+            context.register_preview(Path(str(file_path or ".")), label="Image Preview")
         return ()

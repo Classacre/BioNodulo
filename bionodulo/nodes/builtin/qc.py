@@ -5,7 +5,7 @@ sequencing data and alignment quality.
 """
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode

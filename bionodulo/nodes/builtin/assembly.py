@@ -66,8 +66,7 @@ class SPAdesNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [
             od / cls.NODE_ID / "assembly.fasta",
@@ -82,7 +81,6 @@ class SPAdesNode(CommandNode):
             kwargs["r2"] = reads[1]
         result = await super().run(**kwargs)
         import shutil
-        from pathlib import Path
         node_out = Path(kwargs["output_dir"])
         base_output_dir = node_out.parent
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
@@ -144,7 +142,6 @@ class MEGAHITNode(CommandNode):
             kwargs["r2"] = reads[1]
         result = await super().run(**kwargs)
         import shutil
-        from pathlib import Path
         node_out = Path(kwargs["output_dir"])
         base_output_dir = node_out.parent
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
@@ -171,8 +168,7 @@ class MEGAHITNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [od / cls.NODE_ID / "contigs.fasta"]
 
@@ -231,8 +227,7 @@ class CanuNode(CommandNode):
         ]
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [
             od / cls.NODE_ID / "assembly.fasta",
@@ -243,7 +238,6 @@ class CanuNode(CommandNode):
         """Run Canu and copy assembly files to planned paths."""
         result = await super().run(**kwargs)
         import shutil
-        from pathlib import Path
         node_out = Path(kwargs["output_dir"])
         base_output_dir = node_out.parent
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
@@ -311,8 +305,7 @@ class FlyeNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [od / cls.NODE_ID / "assembly.fasta"]
 
@@ -320,7 +313,6 @@ class FlyeNode(CommandNode):
         """Run Flye and copy assembly to planned path."""
         result = await super().run(**kwargs)
         import shutil
-        from pathlib import Path
         node_out = Path(kwargs["output_dir"])
         base_output_dir = node_out.parent
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
@@ -381,7 +373,6 @@ class UnicyclerNode(CommandNode):
             kwargs["r2"] = reads[1]
         result = await super().run(**kwargs)
         import shutil
-        from pathlib import Path
         node_out = Path(kwargs["output_dir"])
         base_output_dir = node_out.parent
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir)
@@ -411,8 +402,7 @@ class UnicyclerNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [od / cls.NODE_ID / "assembly.fasta"]
 
@@ -468,7 +458,6 @@ class QuastNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         od = Path(output_dir)
         return [od / cls.NODE_ID / "report_dir.out"]

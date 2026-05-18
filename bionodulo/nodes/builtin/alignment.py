@@ -35,9 +35,9 @@ class BWAIndexNode(CommandNode):
     async def run(self, **kwargs: Any) -> Any:
         reference = kwargs.get("reference", "")
         result = await super().run(**kwargs)
-        if reference and result:
+        if reference and result and isinstance(result, tuple):
             ref_path = Path(reference)
-            planned = Path(result[0]) if isinstance(result, tuple) else Path(result)
+            planned = Path(str(result[0]))
             target_dir = planned.parent
             target_dir.mkdir(parents=True, exist_ok=True)
             if ref_path.exists():
@@ -133,7 +133,7 @@ class BWAIndexDirNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     COMMAND = ["cp", "-r", "{inputs.index_dir}", "{output}"]
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
+    async def run(self, **kwargs: Any) -> Any:
         index_dir = kwargs.get("index_dir") or kwargs.get("dir_path")
         if not index_dir:
             raise ValueError("No index_dir provided")
@@ -578,8 +578,8 @@ class STARAlignNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> Any:
         result = await super().run(**kwargs)
-        if result:
-            planned = Path(result[0]) if isinstance(result, tuple) else Path(result)
+        if result and isinstance(result, tuple):
+            planned = Path(str(result[0]))
             actual = planned.parent / "Aligned.sortedByCoord.out.bam"
             if actual.exists():
                 shutil.copy2(str(actual), str(planned))

@@ -5,6 +5,7 @@ and functional annotation with eggNOG-mapper.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -75,8 +76,7 @@ class ProkkaNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         prefix = inputs.get("prefix", "genome")
         od = Path(output_dir)
         return [
@@ -156,8 +156,7 @@ class BaktaNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         prefix = inputs.get("prefix", "genome")
         od = Path(output_dir)
         return [
@@ -241,8 +240,7 @@ class EggNOGMapperNode(CommandNode):
         return cmd
 
     @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str) -> list:
-        from pathlib import Path
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
         prefix = inputs.get("prefix", "annotations")
         od = Path(output_dir)
         return [od / cls.NODE_ID / f"{prefix}.annotations.tsv"]

@@ -226,7 +226,7 @@ def _build_cwl_workflow(
             src = edge.get("source")
             src_port = edge.get("source_output", "default")
             tgt_port = edge.get("target_input", "default")
-            step_inputs[tgt_port] = src + "/" + src_port
+            step_inputs[tgt_port] = str(src) + "/" + src_port
         steps[node_id] = {
             "run": "tools/" + node_id + ".cwl",
             "in": step_inputs,

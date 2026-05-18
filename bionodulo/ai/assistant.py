@@ -313,7 +313,7 @@ def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
     Anthropic uses slightly different block types for images.
     """
     raw_content = msg.get("content")
-    if isinstance(raw_content, str):
+    if isinstance(raw_content, str) or raw_content is None:
         return msg
 
     new_content: list[dict[str, Any]] = []
@@ -358,11 +358,11 @@ async def _call_llm(
 ) -> str:
     if provider in ("openai", "custom"):
         return await _call_openai(
-            messages, model or "gpt-4", api_key, api_base, temperature, max_tokens
+            messages, model or "gpt-4", api_key or "", api_base, temperature, max_tokens
         )
     elif provider == "anthropic":
         return await _call_anthropic(
-            messages, model or "claude-3-sonnet-20240229", api_key, api_base, temperature, max_tokens
+            messages, model or "claude-3-sonnet-20240229", api_key or "", api_base, temperature, max_tokens
         )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -498,7 +498,7 @@ async def chat_with_tools(
 
     # Build provider-specific user message content
     if provider == "anthropic":
-        user_content = _build_anthropic_content(user_message, files)
+        user_content: str | list[dict[str, Any]] = _build_anthropic_content(user_message, files)
     else:
         user_content = _build_openai_content(user_message, files)
 

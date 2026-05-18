@@ -8,21 +8,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import shutil
-import subprocess
-import threading
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 from bionodulo.environments.manifest import (
-    ensure_workflow_env,
     get_env_dir,
     get_env_id,
     workflow_to_packages,
 )
-from bionodulo.manager.custom_nodes import install_git, _install_requirements
 
 logger = logging.getLogger(__name__)
 

@@ -30,7 +30,6 @@ class ExecutionSettings:
     cache_ttl_seconds: int = 86400
     env_isolation: str = "auto"
     timeout_seconds: int = 3600
-    env_isolation: str = "auto"
 
 
 @dataclass

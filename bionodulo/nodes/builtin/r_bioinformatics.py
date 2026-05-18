@@ -5,7 +5,6 @@ statistical analysis and visualization of omics data.
 """
 from __future__ import annotations
 
-import csv
 import textwrap
 from pathlib import Path
 from typing import Any

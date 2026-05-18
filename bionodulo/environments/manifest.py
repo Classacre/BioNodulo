@@ -18,13 +18,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-logger = logging.getLogger(__name__)
-
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
     R_PACKAGE_TO_CONDA_PACKAGE,
     PACKAGE_MIN_VERSIONS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _norm_pkg(name: str) -> str:
@@ -103,13 +103,13 @@ def workflow_to_packages(
             if pkg:
                 packages.add(pkg)
 
-    packages = sorted(packages)
+    sorted_packages: list[str] = sorted(packages)
     # Ensure r-base is present if any R packages are needed
-    if any(p.startswith("r-") or p.startswith("bioconductor-") for p in packages):
-        if "r-base" not in packages:
-            packages.append("r-base")
-            packages.sort()
-    return packages
+    if any(p.startswith("r-") or p.startswith("bioconductor-") for p in sorted_packages):
+        if "r-base" not in sorted_packages:
+            sorted_packages.append("r-base")
+            sorted_packages.sort()
+    return sorted_packages
 
 
 def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
@@ -156,7 +156,7 @@ def is_manifest_current(env_dir: str | Path, packages: list[str]) -> bool:
     except Exception:
         # Fallback: section-aware parsing
         content = manifest_path.read_text(encoding="utf-8")
-        current_pkgs: set[str] = set()
+        current_pkgs = set()
         in_deps = False
         for line in content.splitlines():
             stripped = line.strip()
@@ -255,6 +255,9 @@ async def run_pixi_lock(
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
+        if proc.stdout is None or proc.stderr is None:
+            return False, "Failed to capture subprocess output"
+
         await asyncio.wait_for(
             asyncio.gather(
                 _read_stream(proc.stdout, "stdout", stdout_lines, emit, job_id),
@@ -311,6 +314,9 @@ async def run_pixi_install(
 
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
+
+        if proc.stdout is None or proc.stderr is None:
+            return False, "Failed to capture subprocess output"
 
         await asyncio.wait_for(
             asyncio.gather(

@@ -186,8 +186,12 @@ def get_common_type(types: list[str | BioType]) -> BioType | None:
     biotypes = [_coerce_to_biotype(t) for t in types]
     if None in biotypes:
         return None
-    common: set[BioType] = {biotypes[0]}
+    first = biotypes[0]
+    assert first is not None
+    common: set[BioType] = {first}
     for bt in biotypes[1:]:
+        if bt is None:
+            return None
         new_common: set[BioType] = set()
         for c in common:
             if c == bt:

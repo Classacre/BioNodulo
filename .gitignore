@@ -35,3 +35,7 @@ custom_nodes/*/
 r_plot/
 .pixi/
 server.pid
+
+# Example template data (large files; user downloads via Getting Started)
+examples/data/
+

@@ -275,6 +275,19 @@ class GenericMessageResponse(BaseModel):
     success: bool = Field(True, description="Operation success indicator")
 
 
+# ---------------------------------------------------------------------------
+# Getting Started requests
+# ---------------------------------------------------------------------------
+
+class ExampleDataDownloadRequest(BaseModel):
+    """Request body for POST /getting-started/download."""
+
+    url: str | None = Field(
+        None,
+        description="Optional URL override. Defaults to the configured example-data release asset.",
+    )
+
+
 class ErrorResponse(BaseModel):
     """Standardized error response."""
 

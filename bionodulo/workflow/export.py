@@ -34,28 +34,28 @@ def export_workflow(
 
     if fmt == "snakemake":
         try:
-            from bionodulo.converter.snakemake_converter import export_workflow as snakemake_export
+            from bionodulo.converter.snakemake_converter import export_to_snakemake as snakemake_export
             return snakemake_export(workflow, name=name)
         except ImportError:
             return _fallback_export(workflow, fmt, name)
 
     if fmt == "nextflow":
         try:
-            from bionodulo.converter.nextflow_converter import export_workflow as nextflow_export
+            from bionodulo.converter.nextflow_converter import export_to_nextflow as nextflow_export
             return nextflow_export(workflow, name=name)
         except ImportError:
             return _fallback_export(workflow, fmt, name)
 
     if fmt == "cwl":
         try:
-            from bionodulo.converter.cwl_converter import export_workflow as cwl_export
+            from bionodulo.converter.cwl_converter import export_to_cwl as cwl_export
             return cwl_export(workflow, name=name)
         except ImportError:
             return _fallback_export(workflow, fmt, name)
 
     if fmt == "galaxy":
         try:
-            from bionodulo.converter.galaxy_converter import export_workflow as galaxy_export
+            from bionodulo.converter.galaxy_converter import export_to_galaxy as galaxy_export
             return galaxy_export(workflow, name=name)
         except ImportError:
             return _fallback_export(workflow, fmt, name)

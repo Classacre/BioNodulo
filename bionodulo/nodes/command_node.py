@@ -5,7 +5,6 @@ via the workflow context.
 """
 from __future__ import annotations
 
-import abc
 import logging
 import re
 import shlex
@@ -61,7 +60,7 @@ class CommandNode(BaseNode):
     """Additional environment variables for the command."""
 
     @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+    def render_command(cls, inputs: dict[str, Any]) -> str | list[str]:
         """Render the COMMAND template with actual input values.
 
         Args:
@@ -267,7 +266,7 @@ class CommandNode(BaseNode):
                 raise ValueError(f"Input validation failed: {validation}")
 
             # Render command
-            cmd = self.__class__.render_command(kwargs)
+            cmd: str | list[str] = self.__class__.render_command(kwargs)
             if not cmd:
                 raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
 

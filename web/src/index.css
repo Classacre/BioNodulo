@@ -695,6 +695,41 @@ input[type="range"]::-moz-range-thumb {
   100% { opacity: 1; transform: scale(1); }
 }
 
+.getting-started-modal {
+  width: 640px;
+  max-width: 92vw;
+}
+
+.resource-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.resource-link:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--border-2);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .rail-panel { width: 280px; }

@@ -6,7 +6,7 @@ These nodes serve as workflow entry points for various file formats.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Union
+from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 

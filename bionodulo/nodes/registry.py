@@ -29,12 +29,16 @@ class NodeRegistry:
 
     _instance: ClassVar[Optional[NodeRegistry]] = None
 
+    _nodes: dict[str, Type[BaseNode]]
+    _loaded: set[str]
+    _object_info_cache: dict[str, Any] | None
+
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._nodes: dict[str, Type[BaseNode]] = {}
-            cls._instance._loaded: set[str] = set()
-            cls._instance._object_info_cache: dict[str, Any] | None = None
+            cls._instance._nodes = {}
+            cls._instance._loaded = set()
+            cls._instance._object_info_cache = None
         return cls._instance
 
     # ── Registration ─────────────────────────────────────────────────
@@ -210,7 +214,7 @@ class NodeRegistry:
                 issubclass(obj, BaseNode)
                 and obj is not BaseNode
                 and obj is not CommandNode
-                and getattr(obj, "NODE_ID", "")
+                and obj.NODE_ID
             ):
                 self.register(obj)
                 count += 1

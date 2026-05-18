@@ -5,13 +5,13 @@ report on the overall tool installation status.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import shutil
 import subprocess
 import time
 from typing import Any
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE as KNOWN_EXECUTABLES
 from bionodulo.nodes.base import BaseNode
 
 logger = logging.getLogger(__name__)
@@ -86,9 +86,6 @@ def _check_r_packages_env_aware(
         else:
             results[pkg] = {"available": False, "error": "Not installed in any R environment"}
     return results
-
-
-from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE as KNOWN_EXECUTABLES
 
 
 def diagnose_workflow(nodes: list[type[BaseNode]]) -> dict[str, Any]:

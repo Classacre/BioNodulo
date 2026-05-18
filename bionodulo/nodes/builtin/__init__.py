@@ -18,4 +18,4 @@ This package contains all built-in node modules covering:
 - HPC integration (hpc.py)
 """
 
-from bionodulo.nodes.builtin import utils
+from bionodulo.nodes.builtin import utils as utils

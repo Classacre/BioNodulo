@@ -7,7 +7,6 @@ Converts BioNodulo workflows to Galaxy workflow JSON (.ga format) and vice versa
 from __future__ import annotations
 
 import json
-import re
 import uuid as _uuid
 from pathlib import Path
 from typing import Any
@@ -165,7 +164,7 @@ def import_from_galaxy(
                 else:
                     inputs[inp] = {"type": "FILE"}
 
-            outputs = {}
+            outputs: dict[str, Any] = {}
             for out in step.get("outputs", []):
                 if isinstance(out, dict):
                     outputs[out.get("name", "output_" + str(len(outputs)))] = {"type": "FILE"}
@@ -247,23 +246,40 @@ def _node_type_to_galaxy_tool(node_type: str) -> str:
 
 def _galaxy_tool_to_node_type(tool_id: str) -> str:
     tl = tool_id.lower()
-    if "fastqc" in tl: return "fastqc"
-    if "multiqc" in tl: return "multiqc"
-    if "fastp" in tl: return "fastp"
-    if "trimmomatic" in tl: return "trimmomatic"
-    if "bowtie2" in tl: return "bowtie2"
-    if "bwa" in tl: return "bwa_mem"
-    if "samtools_sort" in tl: return "samtools_sort"
-    if "samtools_index" in tl: return "samtools_index"
-    if "bcftools" in tl: return "bcftools_mpileup"
-    if "spades" in tl: return "spades"
-    if "prokka" in tl: return "prokka"
-    if "star" in tl or "rgrnastar" in tl: return "star_align"
-    if "hisat2" in tl: return "hisat2"
-    if "salmon" in tl: return "salmon_quant"
-    if "featurecounts" in tl: return "featurecounts"
-    if "kraken2" in tl: return "kraken2"
-    if "iqtree" in tl: return "iqtree"
+    if "fastqc" in tl:
+        return "fastqc"
+    if "multiqc" in tl:
+        return "multiqc"
+    if "fastp" in tl:
+        return "fastp"
+    if "trimmomatic" in tl:
+        return "trimmomatic"
+    if "bowtie2" in tl:
+        return "bowtie2"
+    if "bwa" in tl:
+        return "bwa_mem"
+    if "samtools_sort" in tl:
+        return "samtools_sort"
+    if "samtools_index" in tl:
+        return "samtools_index"
+    if "bcftools" in tl:
+        return "bcftools_mpileup"
+    if "spades" in tl:
+        return "spades"
+    if "prokka" in tl:
+        return "prokka"
+    if "star" in tl or "rgrnastar" in tl:
+        return "star_align"
+    if "hisat2" in tl:
+        return "hisat2"
+    if "salmon" in tl:
+        return "salmon_quant"
+    if "featurecounts" in tl:
+        return "featurecounts"
+    if "kraken2" in tl:
+        return "kraken2"
+    if "iqtree" in tl:
+        return "iqtree"
     return "command"
 
 

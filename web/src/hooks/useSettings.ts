@@ -29,6 +29,8 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.hpc.walltime': '01:00:00',
   'bionodulo.hpc.cpus_per_task': 4,
   'bionodulo.hpc.mem_per_cpu': '4G',
+  'bionodulo.getting_started.show_on_startup': true,
+  'bionodulo.getting_started.dismissed': false,
 };
 
 const STORAGE_KEY = 'bionodulo.settings';

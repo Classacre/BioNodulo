@@ -71,7 +71,7 @@ def export_to_nextflow(
         input_defs: list[str] = []
         for i, edge in enumerate(incoming[node_id]):
             src = edge.get("source")
-            input_defs.append("        path input_" + str(i) + " from " + src)
+            input_defs.append("        path input_" + str(i) + " from " + str(src))
         if input_defs:
             lines.append("    input:")
             lines.extend(input_defs)
@@ -104,7 +104,7 @@ def export_to_nextflow(
         inc = incoming[node_id]
         if inc:
             srcs = [e.get("source") for e in inc]
-            lines.append("    " + process_name + "(ch_" + srcs[0] + ")")
+            lines.append("    " + process_name + "(ch_" + str(srcs[0]) + ")")
             lines.append("    ch_" + node_id + " = " + process_name + ".out")
         else:
             lines.append("    " + process_name + "(ch_" + node_id + ")")
@@ -215,18 +215,18 @@ def _build_nextflow_script(
         "multiqc": f"multiqc . -o {out_file}",
         "fastp": f"fastp -i {in_file} -o {out_file}",
         "trimmomatic": f"trimmomatic PE {in_file} {out_file}",
-        "bowtie2": f"bowtie2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
-        "bwa": f"bwa mem " + widgets.get("index", "index") + f" {in_file} > {out_file}",
+        "bowtie2": "bowtie2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
+        "bwa": "bwa mem " + widgets.get("index", "index") + f" {in_file} > {out_file}",
         "samtools_sort": f"samtools sort {in_file} -o {out_file}",
         "samtools_index": f"samtools index {in_file}",
-        "bcftools": f"bcftools mpileup -f " + widgets.get("ref", "ref.fa") + f" {in_file} | bcftools call -mv -o {out_file}",
+        "bcftools": "bcftools mpileup -f " + widgets.get("ref", "ref.fa") + f" {in_file} | bcftools call -mv -o {out_file}",
         "spades": f"spades.py -1 {in_file} -o {out_file}",
         "prokka": f"prokka --outdir . {in_file}",
-        "star": f"STAR --genomeDir " + widgets.get("genome_dir", "./") + f" --readFilesIn {in_file} --outFileNamePrefix {out_file}",
-        "hisat2": f"hisat2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
-        "salmon": f"salmon quant -i " + widgets.get("index", "index") + f" -l A -r {in_file} -o {out_file}",
-        "featurecounts": f"featureCounts -a " + widgets.get("annotation", "anno.gtf") + f" -o {out_file} {in_file}",
-        "kraken2": f"kraken2 --db " + widgets.get("db", "db") + f" {in_file} --output {out_file}",
+        "star": "STAR --genomeDir " + widgets.get("genome_dir", "./") + f" --readFilesIn {in_file} --outFileNamePrefix {out_file}",
+        "hisat2": "hisat2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
+        "salmon": "salmon quant -i " + widgets.get("index", "index") + f" -l A -r {in_file} -o {out_file}",
+        "featurecounts": "featureCounts -a " + widgets.get("annotation", "anno.gtf") + f" -o {out_file} {in_file}",
+        "kraken2": "kraken2 --db " + widgets.get("db", "db") + f" {in_file} --output {out_file}",
         "iqtree": f"iqtree -s {in_file} -pre {out_file}",
     }
 
@@ -242,7 +242,7 @@ def _parse_processes(content: str) -> list[dict[str, Any]]:
         line = lines[i]
         proc_match = re.match(r"process\s+(\w+)\s*\{", line.strip())
         if proc_match:
-            proc = {"name": proc_match.group(1), "inputs": [], "outputs": [], "params": {}, "script": ""}
+            proc: dict[str, Any] = {"name": proc_match.group(1), "inputs": [], "outputs": [], "params": {}, "script": ""}
             i += 1
             script_lines: list[str] = []
             while i < len(lines) and lines[i].strip() != "}":

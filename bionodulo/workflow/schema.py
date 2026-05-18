@@ -138,7 +138,7 @@ class Workflow(BaseModel):
     groups: list[WorkflowGroup] = Field(default_factory=list, description="Visual groups")
     outputs: list[WorkflowOutput] = Field(default_factory=list, description="Named outputs")
     environment: WorkflowEnvironment = Field(
-        default_factory=WorkflowEnvironment,
+        default_factory=lambda: WorkflowEnvironment(),  # type: ignore[call-arg]
         description="Execution environment",
     )
     dependencies: list[WorkflowDependency] = Field(

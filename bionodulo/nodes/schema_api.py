@@ -6,7 +6,7 @@ BioNoduloExtension class for integrating with ComfyUI v3 workflows.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Optional
+from typing import Any, Callable, Optional
 
 
 # ── Socket Type Definitions ────────────────────────────────────────

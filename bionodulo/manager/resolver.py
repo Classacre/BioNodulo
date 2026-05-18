@@ -14,7 +14,6 @@ from typing import Any
 
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
-    R_PACKAGE_TO_CONDA_PACKAGE,
 )
 from bionodulo.environments.manifest import (
     get_env_dir,
@@ -363,7 +362,7 @@ async def _resolve_workflow_async(
     r_packages_to_check: dict[str, list[str]] = {}
 
     for result in results:
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.warning("Node-type resolution failed: %s", result)
             report.errors.append(str(result))
             continue
@@ -407,10 +406,10 @@ async def _resolve_workflow_async(
 
     # Filter R packages: available if env is ready (they're in the manifest)
     if r_packages_to_check and not report.env_ready:
-        for pkg, node_types in r_packages_to_check.items():
+        for pkg_name, node_types in r_packages_to_check.items():
             source = (
                 "bioconductor"
-                if pkg.lower()
+                if pkg_name.lower()
                 in {
                     "deseq2",
                     "edger",
@@ -429,10 +428,10 @@ async def _resolve_workflow_async(
             )
             report.missing_r_packages.append(
                 MissingRPackage(
-                    name=pkg,
+                    name=pkg_name,
                     source=source,
                     node_types=node_types,
-                    message=f"R package '{pkg}' required by {', '.join(node_types)}",
+                    message=f"R package '{pkg_name}' required by {', '.join(node_types)}",
                 )
             )
 

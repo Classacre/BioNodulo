@@ -317,13 +317,13 @@ class WorkflowExecutor:
             # ---- Fill parameter defaults ----
             _node_class = node.get("_node_class")
             if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
-                _node_class = self.registry.get(node.get("type", "unknown"))
+                _node_class = self.registry.get(str(node.get("type", "unknown")))
             resolved_params = self._with_defaults(node, resolved_inputs, _node_class)
 
             # ---- Build upstream cache key map ----
             upstream_keys: dict[str, str | None] = {}
             for edge in edge_map.get(node_id, []):
-                src = edge.get("source")
+                src = str(edge.get("source", ""))
                 src_port = edge.get("source_output", "default")
                 tgt_port = edge.get("target_input", "default")
                 upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
@@ -563,7 +563,6 @@ class WorkflowExecutor:
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
         """Execute a single node via its ``run()`` method."""
-        node_type = node.get("type", "unknown")
         node_class = node.get("_node_class")
         # Fallback: look up in registry if _node_class is not attached
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):

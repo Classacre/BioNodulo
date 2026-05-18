@@ -4,12 +4,11 @@ from __future__ import annotations
 import abc
 import json
 import hashlib
-import os
 import re
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Union
+from typing import Any, ClassVar, Union
 
-from bionodulo.nodes.types import BioType, file_extension_for, is_compatible
+from bionodulo.nodes.types import file_extension_for
 
 
 class BaseNode(abc.ABC):
