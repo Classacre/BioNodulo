@@ -23,7 +23,11 @@ type IconName =
   | 'mail'
   | 'arrow'
   | 'check'
-  | 'code';
+  | 'code'
+  | 'sun'
+  | 'moon';
+
+type ThemeMode = 'light' | 'dark';
 
 type ToolLogoName =
   | 'python'
@@ -164,6 +168,15 @@ const faqs = [
       'Hosted services are planned for the future. Pricing will be determined and is expected to include licensing plus RDP or VPS infrastructure costs.',
   },
 ];
+
+const themeStorageKey = 'bionodulo-site-theme';
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'dark';
+  const stored = window.localStorage.getItem(themeStorageKey);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 function WorkflowCanvasBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -355,12 +368,14 @@ function WorkflowCanvasBackground() {
     resize();
     animate(0);
     window.addEventListener('resize', resize);
+    window.addEventListener('bionodulo-theme-change', handleThemeChange);
     themeQuery.addEventListener('change', handleThemeChange);
     motionQuery.addEventListener('change', handleMotionChange);
 
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('bionodulo-theme-change', handleThemeChange);
       themeQuery.removeEventListener('change', handleThemeChange);
       motionQuery.removeEventListener('change', handleMotionChange);
     };
@@ -423,6 +438,10 @@ function Icon({ name }: { name: IconName }) {
       return <svg {...common}><path d="M20 6L9 17l-5-5" /></svg>;
     case 'code':
       return <svg {...common}><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14" /></svg>;
+    case 'sun':
+      return <svg {...common}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>;
+    case 'moon':
+      return <svg {...common}><path d="M20.5 14.5A8.5 8.5 0 019.5 3.5 7 7 0 1020.5 14.5z" /></svg>;
   }
 }
 
@@ -449,6 +468,7 @@ function LogoMark() {
 
 function Header() {
   const [hidden, setHidden] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   useEffect(() => {
     let previousY = window.scrollY;
@@ -463,6 +483,14 @@ function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(themeStorageKey, theme);
+    window.dispatchEvent(new CustomEvent('bionodulo-theme-change'));
+  }, [theme]);
+
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+
   return (
     <header className={`site-header ${hidden ? 'is-hidden' : ''}`}>
       <Logo />
@@ -473,6 +501,15 @@ function Header() {
         <a href="/contact">Contact</a>
       </nav>
       <div className="header-actions">
+        <button
+          className="theme-toggle"
+          type="button"
+          aria-label={`Switch to ${nextTheme} mode`}
+          title={`Switch to ${nextTheme} mode`}
+          onClick={() => setTheme(nextTheme)}
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
         <a className="button secondary small" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">
           <Icon name="github" />
           GitHub
