@@ -1264,30 +1264,30 @@ footer {
 @keyframes orbitOuter {
   from {
     transform:
-      rotate(calc(var(--i) * 51.428deg))
+      rotate(calc(var(--i) * (360deg / var(--count))))
       translateX(clamp(200px, 24vw, 310px))
-      rotate(calc(var(--i) * -51.428deg));
+      rotate(calc(var(--i) * (-360deg / var(--count))));
   }
   to {
     transform:
-      rotate(calc((var(--i) * 51.428deg) + 360deg))
+      rotate(calc((var(--i) * (360deg / var(--count))) + 360deg))
       translateX(clamp(200px, 24vw, 310px))
-      rotate(calc((var(--i) * -51.428deg) - 360deg));
+      rotate(calc((var(--i) * (-360deg / var(--count))) - 360deg));
   }
 }
 
 @keyframes orbitInner {
   from {
     transform:
-      rotate(calc((var(--i) * 60deg) + 30deg))
+      rotate(calc((var(--i) * (360deg / var(--count))) + var(--offset, 0deg)))
       translateX(clamp(108px, 13vw, 160px))
-      rotate(calc((var(--i) * -60deg) - 30deg));
+      rotate(calc((var(--i) * (-360deg / var(--count))) - var(--offset, 0deg)));
   }
   to {
     transform:
-      rotate(calc((var(--i) * 60deg) + 390deg))
+      rotate(calc((var(--i) * (360deg / var(--count))) + var(--offset, 0deg) + 360deg))
       translateX(clamp(108px, 13vw, 160px))
-      rotate(calc((var(--i) * -60deg) - 390deg));
+      rotate(calc((var(--i) * (-360deg / var(--count))) - var(--offset, 0deg) - 360deg));
   }
 }
 
@@ -2082,9 +2082,9 @@ footer {
     height: 64px;
     margin: -32px;
     transform:
-      rotate(calc(var(--i) * 51.428deg))
+      rotate(calc(var(--i) * (360deg / var(--count))))
       translateX(132px)
-      rotate(calc(var(--i) * -51.428deg));
+      rotate(calc(var(--i) * (-360deg / var(--count))));
   }
 
   .inner-track .integration {
@@ -2092,23 +2092,23 @@ footer {
     height: 56px;
     margin: -28px;
     transform:
-      rotate(calc((var(--i) * 72deg) + 36deg))
+      rotate(calc((var(--i) * (360deg / var(--count))) + var(--offset, 0deg)))
       translateX(82px)
-      rotate(calc((var(--i) * -72deg) - 36deg));
+      rotate(calc((var(--i) * (-360deg / var(--count))) - var(--offset, 0deg)));
   }
 
   .outer-track .integration:hover {
     transform:
-      rotate(calc(var(--i) * 51.428deg))
+      rotate(calc(var(--i) * (360deg / var(--count))))
       translateX(132px)
-      rotate(calc(var(--i) * -51.428deg));
+      rotate(calc(var(--i) * (-360deg / var(--count))));
   }
 
   .inner-track .integration:hover {
     transform:
-      rotate(calc((var(--i) * 72deg) + 36deg))
+      rotate(calc((var(--i) * (360deg / var(--count))) + var(--offset, 0deg)))
       translateX(82px)
-      rotate(calc((var(--i) * -72deg) - 36deg));
+      rotate(calc((var(--i) * (-360deg / var(--count))) - var(--offset, 0deg)));
   }
 
   .integration svg {

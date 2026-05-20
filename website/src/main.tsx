@@ -37,7 +37,13 @@ type ToolLogoName =
   | 'cwl'
   | 'galaxy'
   | 'chatgpt'
+  | 'openai'
   | 'claude'
+  | 'anthropic'
+  | 'deepseek'
+  | 'gemini'
+  | 'mistral'
+  | 'groq'
   | 'openrouter';
 
 const stats = [
@@ -82,6 +88,8 @@ const integrations: Array<{ name: string; logo: ToolLogoName }> = [
   { name: 'Python', logo: 'python' },
   { name: 'R', logo: 'r' },
   { name: 'Conda / Mamba', logo: 'conda' },
+  { name: 'OpenAI', logo: 'openai' },
+  { name: 'Anthropic', logo: 'anthropic' },
   { name: 'SLURM', logo: 'slurm' },
   { name: 'PBS / Torque', logo: 'pbs' },
   { name: 'SGE', logo: 'sge' },
@@ -91,11 +99,15 @@ const integrations: Array<{ name: string; logo: ToolLogoName }> = [
   { name: 'Galaxy', logo: 'galaxy' },
   { name: 'ChatGPT', logo: 'chatgpt' },
   { name: 'Claude', logo: 'claude' },
+  { name: 'DeepSeek', logo: 'deepseek' },
+  { name: 'Gemini', logo: 'gemini' },
+  { name: 'Mistral AI', logo: 'mistral' },
+  { name: 'Groq', logo: 'groq' },
   { name: 'OpenRouter', logo: 'openrouter' },
 ];
 
-const outerIntegrations = integrations.slice(0, 7);
-const innerIntegrations = integrations.slice(7);
+const outerIntegrations = integrations.filter((_, index) => index % 2 === 0);
+const innerIntegrations = integrations.filter((_, index) => index % 2 === 1);
 
 const licensing = [
   {
@@ -562,7 +574,7 @@ function Integrations() {
     <section className="section compact reveal" id="integrations">
       <div className="section-heading">
         <h2>Works with the tools you already use</h2>
-        <p>BioNodulo stays close to the open research stack, from scripting languages to workflow engines and HPC schedulers.</p>
+        <p>BioNodulo stays close to the open research stack, from scripting languages and workflow engines to HPC schedulers and AI model providers.</p>
       </div>
       <div className="integration-orbit" aria-label="BioNodulo integrations">
         <div className="orbit-ring outer" />
@@ -573,14 +585,14 @@ function Integrations() {
         </div>
         <div className="integration-track outer-track">
           {outerIntegrations.map((item, index) => (
-            <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
+            <div className="integration" style={{ '--i': index, '--count': outerIntegrations.length } as React.CSSProperties} aria-label={item.name} key={item.name}>
               <ToolLogo name={item.logo} />
             </div>
           ))}
         </div>
         <div className="integration-track inner-track">
           {innerIntegrations.map((item, index) => (
-            <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
+            <div className="integration" style={{ '--i': index, '--count': innerIntegrations.length, '--offset': '20deg' } as React.CSSProperties} aria-label={item.name} key={item.name}>
               <ToolLogo name={item.logo} />
             </div>
           ))}
@@ -614,8 +626,20 @@ function ToolLogo({ name }: { name: ToolLogoName }) {
       return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#ffd166" /><path d="M24 11l3.8 8 8.7 1.2-6.3 6.1 1.5 8.6L24 30.8l-7.7 4.1 1.5-8.6-6.3-6.1 8.7-1.2z" fill="#5c4b9b" /></svg>;
     case 'chatgpt':
       return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#10a37f" /><path d="M18 15c2-5 9-5 12-1 5 0 8 6 5 10 2 5-2 10-7 10-3 4-10 4-12 0-5 0-8-6-5-10-2-4 1-9 7-9zm1 6l9-5m-8 17v-9m9 8l-9-5m-1-12l8 5m2 12v-9m-9 1l9 5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case 'openai':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#111827" /><path d="M18 15c2-5 9-5 12-1 5 0 8 6 5 10 2 5-2 10-7 10-3 4-10 4-12 0-5 0-8-6-5-10-2-4 1-9 7-9zm1 6l9-5m-8 17v-9m9 8l-9-5m-1-12l8 5m2 12v-9m-9 1l9 5" stroke="#f8fafc" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case 'claude':
       return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#d97757" /><path d="M15 31l7-17h4l7 17h-4l-1.5-4h-7L19 31zm7-8h4l-2-5z" fill="#fff8ef" /></svg>;
+    case 'anthropic':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#191919" /><path d="M13 34l8-20h4l8 20h-4.5l-1.7-4.6h-7.6L17.5 34zm7.4-8.4h5.2L23 18.7z" fill="#f5f0e8" /><path d="M30 14h5v20h-5z" fill="#f5f0e8" /></svg>;
+    case 'deepseek':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#4f8cff" /><path d="M14 25c2-7 8-11 16-9 4 1 6 4 6 8 0 7-6 11-14 10l-5 4 1-6c-3-2-5-4-4-7z" fill="#fff" /><path d="M24 20c4 0 7 2 8 6M21 25h.1M29 25h.1" stroke="#214b9b" strokeWidth="2.4" strokeLinecap="round" fill="none" /></svg>;
+    case 'gemini':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#101827" /><path d="M24 7c2.3 10.2 6.8 14.7 17 17-10.2 2.3-14.7 6.8-17 17-2.3-10.2-6.8-14.7-17-17 10.2-2.3 14.7-6.8 17-17z" fill="#8ab4f8" /><path d="M24 14c1.3 5.9 4.1 8.7 10 10-5.9 1.3-8.7 4.1-10 10-1.3-5.9-4.1-8.7-10-10 5.9-1.3 8.7-4.1 10-10z" fill="#c58af9" /></svg>;
+    case 'mistral':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="8" fill="#111827" /><path d="M12 14h6v6h6v-6h6v6h6v14h-6v-8h-6v8h-6v-8h-6v8h-6z" fill="#ff7000" /><path d="M18 20h6v6h-6zm12 0h6v6h-6z" fill="#ffd166" /></svg>;
+    case 'groq':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#f97316" /><path d="M31 16a10 10 0 10-1 17l-5-5h6v9a16 16 0 1112-15h-7a6 6 0 00-5-6z" fill="#fff7ed" /></svg>;
     case 'openrouter':
       return <svg viewBox="0 0 48 48"><rect x="6" y="8" width="36" height="32" rx="10" fill="#111827" /><path d="M12 24h12m0 0l-5-5m5 5l-5 5M24 16h12M24 32h12" stroke="#7dd3fc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /><circle cx="36" cy="16" r="3" fill="#2dd4bf" /><circle cx="36" cy="32" r="3" fill="#2dd4bf" /></svg>;
   }
