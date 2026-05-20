@@ -60,6 +60,13 @@ const featureTabs = [
     icon: 'users',
   },
   {
+    title: 'Local-first',
+    kicker: 'Private by default',
+    text: 'BioNodulo runs locally by default. Your data never leaves your machine unless you choose to share it.',
+    bullets: ['Run workflows offline on your own computer', 'Keep templates and workflow state available locally', 'Enable collaboration only when you are ready'],
+    icon: 'lock',
+  },
+  {
     title: 'AI Assistant',
     kicker: 'A helper that understands the workflow',
     text: 'Use the built-in assistant to inspect graphs, add nodes, validate connections, and draft changes for review.',
@@ -254,7 +261,7 @@ function Header() {
   );
 }
 
-function ProductMockup({ compact = false, hero = false }: { compact?: boolean; hero?: boolean }) {
+function ProductMockup({ compact = false, hero = false, style }: { compact?: boolean; hero?: boolean; style?: React.CSSProperties }) {
   const nodes = [
     { label: 'Input FASTQ', x: 15, y: 42, color: 'blue' },
     { label: 'FastQC', x: 41, y: 27, color: 'amber' },
@@ -264,7 +271,7 @@ function ProductMockup({ compact = false, hero = false }: { compact?: boolean; h
   ];
 
   return (
-    <div className={`product-mockup ${compact ? 'compact' : ''} ${hero ? 'hero-mockup' : ''}`} aria-label="BioNodulo workflow editor preview">
+    <div className={`product-mockup ${compact ? 'compact' : ''} ${hero ? 'hero-mockup' : ''}`} style={style} aria-label="BioNodulo workflow editor preview">
       <div className="mockup-toolbar">
         <div className="window-dots"><span /><span /><span /></div>
         <span>RNA-seq Differential Expression</span>
@@ -303,6 +310,22 @@ function ProductMockup({ compact = false, hero = false }: { compact?: boolean; h
 }
 
 function Hero() {
+  const [tiltProgress, setTiltProgress] = useState(0);
+
+  useEffect(() => {
+    const updateTilt = () => {
+      setTiltProgress(Math.min(1, window.scrollY / 420));
+    };
+
+    updateTilt();
+    window.addEventListener('scroll', updateTilt, { passive: true });
+    return () => window.removeEventListener('scroll', updateTilt);
+  }, []);
+
+  const tilt = 58 * (1 - tiltProgress);
+  const lift = 58 * (1 - tiltProgress);
+  const scale = 1.04 - 0.04 * tiltProgress;
+
   return (
     <section className="hero">
       <div className="hero-aurora" aria-hidden="true" />
@@ -324,7 +347,10 @@ function Hero() {
           <span>Python Powered</span>
         </div>
       </div>
-      <ProductMockup hero />
+      <ProductMockup
+        hero
+        style={{ transform: `translateY(${lift}px) rotateX(${tilt}deg) rotateZ(${-2 * (1 - tiltProgress)}deg) scale(${scale})` }}
+      />
     </section>
   );
 }
@@ -424,46 +450,33 @@ function FeatureScreenshot({ feature }: { feature: string }) {
     );
   }
 
+  if (feature === 'Local-first') {
+    return (
+      <div className="feature-shot local-shot" aria-label="Local-first preview">
+        <div className="shot-toolbar"><span /><strong>Local Runtime</strong><em>Offline</em></div>
+        <div className="local-grid">
+          <div className="system-panel">
+            <h3>System Stats</h3>
+            <div><span>CPU</span><i style={{ width: '28%' }} /></div>
+            <div><span>Memory</span><i style={{ width: '54%' }} /></div>
+            <div><span>Disk</span><i style={{ width: '73%' }} /></div>
+            <div><span>Processes</span><b>182</b></div>
+          </div>
+          <div className="system-panel">
+            <h3>Recent Runs</h3>
+            {['FASTQ QC Workflow', 'Variant Calling Pipeline', 'Metagenomics Analysis'].map(name => (
+              <div className="run-row" key={name}><Icon name="check" /><span>{name}</span></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="feature-shot workflow-shot" aria-label="Visual workflow builder preview">
       <ProductMockup compact />
     </div>
-  );
-}
-
-function LocalFirst() {
-  return (
-    <section className="split-section reveal">
-      <div className="system-card">
-        <div className="system-panel">
-          <h3>System Stats</h3>
-          <div><span>CPU</span><i style={{ width: '28%' }} /></div>
-          <div><span>Memory</span><i style={{ width: '54%' }} /></div>
-          <div><span>Disk</span><i style={{ width: '73%' }} /></div>
-          <div><span>Processes</span><b>182</b></div>
-        </div>
-        <div className="system-panel">
-          <h3>Recent Runs</h3>
-          {['FASTQ QC Workflow', 'Variant Calling Pipeline', 'Metagenomics Analysis'].map(name => (
-            <div className="run-row" key={name}><Icon name="check" /><span>{name}</span></div>
-          ))}
-        </div>
-      </div>
-      <div className="split-copy">
-        <span className="section-label">Local-first, private by design</span>
-        <h2>Your data stays yours.</h2>
-        <p>
-          BioNodulo runs locally by default. Your data never leaves your machine unless you choose to share it.
-          Enable collaboration when you are ready.
-        </p>
-        <div className="pill-grid">
-          <span><Icon name="play" /> Runs Offline</span>
-          <span><Icon name="lock" /> No Data Lock-in</span>
-          <span><Icon name="eye" /> Full Transparency</span>
-          <span><Icon name="check" /> Reproducible</span>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -481,8 +494,15 @@ function Integrations() {
           <LogoMark />
           <span>BioNodulo</span>
         </div>
-        <div className="integration-track">
-          {integrations.map((item, index) => (
+        <div className="integration-track outer-track">
+          {integrations.slice(0, 5).map((item, index) => (
+            <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
+              <ToolLogo name={item.logo} />
+            </div>
+          ))}
+        </div>
+        <div className="integration-track inner-track">
+          {integrations.slice(5).map((item, index) => (
             <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
               <ToolLogo name={item.logo} />
             </div>
@@ -621,9 +641,8 @@ function HomePage() {
       <Header />
       <main>
         <Hero />
-        <Stats />
         <Features />
-        <LocalFirst />
+        <Stats />
         <Integrations />
         <Licensing />
         <DemoCallout />
