@@ -739,28 +739,173 @@ function HomePage() {
 const detailedFeatures = [
   {
     title: 'Visual Workflow Builder',
-    text: 'A node-based canvas for turning bioinformatics pipelines into visible, editable systems.',
-    bullets: ['94 registered node types', '13 built-in templates', 'Typed inputs and outputs', 'Inspectable run state'],
+    text: 'A LiteGraph-style canvas for turning pipelines into editable, typed workflow graphs.',
+    bullets: ['Drag, connect, group, undo, redo, and inspect workflow nodes', '94 registered node types across 19 categories', 'Typed inputs, outputs, defaults, advanced parameters, and validation'],
     icon: 'node',
   },
   {
+    title: 'Local Execution',
+    text: 'Run locally by default with persistent workflow tabs, dependency checks, queue state, logs, previews, and cache controls.',
+    bullets: ['Local workflow state persists in the browser', 'Run queue, history, node status, logs, artifacts, and image previews', 'Workflow-scoped environments and dependency resolution'],
+    icon: 'play',
+  },
+  {
     title: 'Collaboration',
-    text: 'Optional shared workspaces for teams that need review, comments, versions, and shared workflow context.',
-    bullets: ['Presence and comments', 'Workflow versions', 'Audit history', 'Local mode remains available'],
+    text: 'Optional shared workspaces using Yjs sync, awareness, comments, versions, sharing, and audit history.',
+    bullets: ['Collaboration stays opt-in from settings and startup choice', 'Presence cursors, active users, follow mode, and share controls', 'Comments, version history, diffs, restores, templates, and audit export'],
     icon: 'users',
   },
   {
     title: 'HPC Execution',
     text: 'Research groups can configure cluster execution while keeping local development comfortable.',
-    bullets: ['SLURM support', 'PBS/Torque support', 'SGE support', 'Local-to-cluster workflow handoff'],
+    bullets: ['SLURM, PBS/Torque, and SGE backends', 'Partition, account, modules, container, walltime, CPU, memory, and extra args', 'Status checks, job submission, job lookup, and script preview'],
     icon: 'server',
   },
   {
     title: 'AI Workflow Assistant',
-    text: 'Tool-backed assistant actions help inspect workflows, add nodes, validate edges, and draft changes.',
-    bullets: ['Workflow-aware questions', 'Node and edge actions', 'Validation support', 'Review-first changes'],
+    text: 'A tool-backed assistant that can reason over the active workflow and propose graph changes for review.',
+    bullets: ['22 workflow-aware tools for graph, node, template, settings, and system context', 'OpenAI, Anthropic, or custom OpenAI-compatible provider settings', 'Chat sessions, attachments, pasted node selections, and review-first changes'],
     icon: 'code',
   },
+] as const;
+
+const featureAuditStats = [
+  { value: '94', label: 'Built-in nodes', detail: 'Parsed from bionodulo/nodes/builtin' },
+  { value: '19', label: 'Node categories', detail: 'Alignment, RNA-Seq, variant, metagenomics, and more' },
+  { value: '13', label: 'Workflow templates', detail: 'Local templates available without collaboration' },
+  { value: '3', label: 'HPC schedulers', detail: 'SLURM, PBS/Torque, and SGE' },
+  { value: '5', label: 'Workflow formats', detail: 'BioNodulo JSON, Snakemake, Nextflow, CWL, Galaxy' },
+  { value: '22', label: 'AI tools', detail: 'Tool-backed assistant actions in bionodulo/ai/tools.py' },
+] as const;
+
+const featureDeepDives = [
+  {
+    title: 'Canvas and Workflow Authoring',
+    icon: 'node',
+    intro: 'BioNodulo is built around an editable workflow graph rather than a form wizard. The UI keeps nodes, edges, groups, selections, and tabs visible while the backend validates the graph before execution.',
+    points: [
+      'Multi-tab workflow editing with browser-local persistence',
+      'Node library, object metadata, searchable categories, defaults, and advanced fields',
+      'Groups, selection tools, minimap, keyboard shortcuts, undo, redo, and canvas settings',
+      'Structural validation through /api/workflow/validate before expensive runs',
+    ],
+    proof: ['web/src/App.tsx', 'web/src/components/canvas/LiteGraphCanvas.tsx', 'bionodulo/workflow/validation.py'],
+  },
+  {
+    title: 'Bioinformatics Node Library',
+    icon: 'cube',
+    intro: 'The node registry covers practical analysis domains rather than a tiny demo set. The current codebase includes command nodes, visual-only nodes, output preview nodes, R helpers, and BioPython utilities.',
+    points: [
+      'Alignment, SAM/BAM processing, variant calling, assembly, annotation, QC, trimming, RNA-Seq, ChIP-Seq, metagenomics, phylogeny, single-cell, R, and BioPython nodes',
+      'Typed ports and generated forms for node parameters',
+      'Hidden and visual-only node metadata for UX-specific behavior',
+      'External tool metadata feeds dependency diagnostics and environment planning',
+    ],
+    proof: ['bionodulo/nodes/builtin', 'bionodulo/nodes/registry.py', 'web/src/components/panels/NodeLibraryPanel.tsx'],
+  },
+  {
+    title: 'Templates and Local-First Startup',
+    icon: 'template',
+    intro: 'Templates are available even when the collaboration server path is unreachable. The frontend falls back to bundled local template definitions and can load them directly into the canvas.',
+    points: [
+      '13 built-in templates spanning QC, RNA-Seq, DESeq2, WGS, variant calling, assembly, metagenomics, ChIP-Seq, phylogenetics, single-cell, R visualization, and BioPython',
+      'Search and category filters in the templates panel',
+      'Getting Started flow lets users choose local/offline mode or collaboration',
+      'Template workflows are remapped to fresh node IDs before insertion',
+    ],
+    proof: ['templates/*.json', 'web/src/localTemplates.ts', 'web/src/components/panels/TemplatesPanel.tsx'],
+  },
+  {
+    title: 'Execution, Queue, Logs, and Previews',
+    icon: 'play',
+    intro: 'Runs are submitted through the backend queue, streamed back over WebSocket events, and summarized in the bottom console with logs, queue, history, and previews.',
+    points: [
+      'Run submission through /api/runs with optional cache bypass and workflow environment selection',
+      'Queue and history are restored on startup from /api/queue and /api/history',
+      'Real-time node lifecycle events, cache hits, skips, errors, and completion logs',
+      'Image preview lightbox and artifact links for workflow outputs',
+    ],
+    proof: ['bionodulo/execution', 'bionodulo/api/websocket.py', 'web/src/components/layout/BottomConsole.tsx'],
+  },
+  {
+    title: 'Dependency and Environment Management',
+    icon: 'grid',
+    intro: 'The app audits host prerequisites, resolves workflow dependencies, and manages workflow-scoped environments instead of asking users to fix every missing command manually.',
+    points: [
+      'Host diagnostics and Pixi prerequisite checks',
+      'Dependency resolver report and install plan flow',
+      'Create, list, rename, duplicate, inspect, and delete workflow environments',
+      'Package removal and ready/status indicators for environments',
+    ],
+    proof: ['bionodulo/manager', 'bionodulo/environments', 'web/src/components/panels/EnvironmentPanel.tsx'],
+  },
+  {
+    title: 'Collaboration System',
+    icon: 'users',
+    intro: 'Collaboration is intentionally optional. When enabled, the app uses Yjs document updates, IndexedDB persistence, awareness state, JWT auth, permissions, comments, versions, templates, and audits.',
+    points: [
+      'Native Yjs sync and awareness messages over /ws/collab/{workflow_id}',
+      'IndexedDB-backed offline document persistence on the frontend',
+      'Sharing roles, public room status, comments, replies, resolve/delete, and active-user list',
+      'Version save/list/diff/restore/delete plus audit query and CSV export',
+    ],
+    proof: ['web/src/collab', 'bionodulo/collab', 'bionodulo/api/collab_routes.py'],
+  },
+  {
+    title: 'HPC and Portable Workflow Formats',
+    icon: 'server',
+    intro: 'BioNodulo keeps the local canvas as the authoring surface while supporting cluster-oriented execution and export paths for existing workflow ecosystems.',
+    points: [
+      'SLURM, PBS/Torque, and SGE backend classes',
+      'Scheduler resource fields for partition, account, walltime, CPUs, memory, modules, containers, and extra args',
+      'Workflow export to BioNodulo JSON, Snakemake, Nextflow, CWL, and Galaxy',
+      'Import paths for BioNodulo JSON, Snakemake, Nextflow, CWL, and Galaxy',
+    ],
+    proof: ['bionodulo/hpc', 'bionodulo/workflow/export.py', 'bionodulo/converter'],
+  },
+  {
+    title: 'AI Assistant',
+    icon: 'code',
+    intro: 'The assistant is wired into the workflow model rather than being a disconnected chat box. It can inspect the graph, use registry metadata, validate edits, and propose changes back to the UI.',
+    points: [
+      'Tools for current workflow, available nodes, node info, validation, dependencies, environments, templates, settings, system stats, run history, and collaboration status',
+      'Mutating tools for adding, updating, removing, and connecting nodes, loading templates, and changing workflow name or description',
+      'Persistent chat sessions, file attachments up to 5MB, pasted selected nodes, images, text files, and best-effort PDF extraction',
+      'Provider settings for OpenAI, Anthropic, and custom API-compatible endpoints',
+    ],
+    proof: ['bionodulo/ai/tools.py', 'bionodulo/ai/assistant.py', 'web/src/components/modals/AIWorkflowModal.tsx'],
+  },
+] as const;
+
+const nodeCategoryRows = [
+  ['Alignment', '12'],
+  ['Variant', '9'],
+  ['Input', '7'],
+  ['Metagenomics', '7'],
+  ['RNA-Seq', '7'],
+  ['Assembly', '6'],
+  ['BioPython', '6'],
+  ['SAMtools', '6'],
+  ['Phylogeny', '5'],
+  ['ChIP-Seq', '4'],
+  ['R / Plotting', '4'],
+  ['Utilities', '4+'],
+] as const;
+
+const workflowTemplateRows = [
+  'FASTQ QC Pipeline',
+  'RNA-Seq Pipeline',
+  'DESeq2 Differential Expression',
+  'WGS Variant Pipeline',
+  'Variant Calling Pipeline',
+  'Genome Assembly',
+  'Metagenomics Profiling',
+  'ChIP-Seq Pipeline',
+  'Phylogenetics Pipeline',
+  'Single Cell RNA-Seq',
+  'R Visualization Pipeline',
+  'Biopython Analysis Pipeline',
+  'Differential Expression',
 ] as const;
 
 function PageLayout({ children }: { children: React.ReactNode }) {
@@ -797,16 +942,110 @@ function PageHero({ label, title, text }: { label: string; title: string; text: 
 function FeaturesPage() {
   return (
     <PageLayout>
-      <PageHero label="Features" title="A deeper look at BioNodulo." text="Explore the core systems behind the visual workflow canvas, collaboration model, HPC support, local execution, and assistant tooling." />
-      <section className="detail-grid">
+      <PageHero
+        label="Features"
+        title="The app surface, mapped from the code."
+        text="This page was rebuilt from a code audit of the frontend, backend, collaboration layer, node registry, execution system, converters, HPC backends, templates, and AI assistant tools."
+      />
+
+      <section className="feature-audit-strip reveal" aria-label="Feature audit summary">
+        {featureAuditStats.map(stat => (
+          <div className="feature-audit-stat pop-in" key={stat.label}>
+            <strong>{stat.value}</strong>
+            <span>{stat.label}</span>
+            <p>{stat.detail}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="feature-overview reveal">
+        <div>
+          <span className="section-kicker">Audit Summary</span>
+          <h2>BioNodulo is more than a canvas.</h2>
+        </div>
+        <p>
+          The current implementation spans workflow authoring, local execution, dependency management,
+          environment lifecycle, import and export, optional real-time collaboration, cluster submission,
+          and a tool-backed assistant. The detailed sections below reflect what is already wired into
+          the codebase today.
+        </p>
+      </section>
+
+      <section className="detail-grid feature-primer-grid">
         {detailedFeatures.map(feature => (
-          <article className="detail-card pop-in" key={feature.title}>
+          <article className="detail-card feature-primer-card pop-in" key={feature.title}>
             <div className="icon-shell"><Icon name={feature.icon} /></div>
             <h2>{feature.title}</h2>
             <p>{feature.text}</p>
             <ul>{feature.bullets.map(bullet => <li key={bullet}><Icon name="check" /> {bullet}</li>)}</ul>
           </article>
         ))}
+      </section>
+
+      <section className="feature-deep-list">
+        {featureDeepDives.map((feature, index) => (
+          <article className="feature-deep-card reveal" key={feature.title}>
+            <div className="feature-deep-index">0{index + 1}</div>
+            <div className="feature-deep-main">
+              <div className="feature-deep-heading">
+                <div className="icon-shell"><Icon name={feature.icon} /></div>
+                <div>
+                  <h2>{feature.title}</h2>
+                  <p>{feature.intro}</p>
+                </div>
+              </div>
+              <ul className="feature-check-list">
+                {feature.points.map(point => <li key={point}><Icon name="check" /> {point}</li>)}
+              </ul>
+            </div>
+            <aside className="feature-proof">
+              <strong>Code audited</strong>
+              {feature.proof.map(item => <code key={item}>{item}</code>)}
+            </aside>
+          </article>
+        ))}
+      </section>
+
+      <section className="feature-inventory reveal">
+        <div className="feature-inventory-panel">
+          <span className="section-kicker">Node Inventory</span>
+          <h2>Coverage by category</h2>
+          <div className="category-bars">
+            {nodeCategoryRows.map(([label, count]) => (
+              <div className="category-row" key={label}>
+                <span>{label}</span>
+                <div><i style={{ width: `${Math.max(18, Number.parseInt(count, 10) * 7)}%` }} /></div>
+                <strong>{count}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="feature-inventory-panel">
+          <span className="section-kicker">Template Library</span>
+          <h2>Built-in starting points</h2>
+          <div className="template-list">
+            {workflowTemplateRows.map(template => (
+              <span key={template}><Icon name="check" /> {template}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="feature-workflow-band reveal">
+        <div>
+          <span className="section-kicker">Workflow Lifecycle</span>
+          <h2>From local drafting to shared review.</h2>
+          <p>
+            BioNodulo starts in local mode, lets users build and validate the graph, resolves host
+            requirements, runs jobs locally or through configured HPC backends, and can then export
+            or share the workflow when the project needs review.
+          </p>
+        </div>
+        <div className="workflow-steps">
+          {['Design', 'Validate', 'Resolve', 'Run', 'Preview', 'Export', 'Share'].map(step => (
+            <span key={step}>{step}</span>
+          ))}
+        </div>
       </section>
     </PageLayout>
   );
