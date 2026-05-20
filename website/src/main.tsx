@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import './styles.css';
@@ -24,6 +24,18 @@ type IconName =
   | 'arrow'
   | 'check'
   | 'code';
+
+type ToolLogoName =
+  | 'python'
+  | 'r'
+  | 'conda'
+  | 'slurm'
+  | 'pbs'
+  | 'sge'
+  | 'snakemake'
+  | 'nextflow'
+  | 'cwl'
+  | 'galaxy';
 
 const stats = [
   { value: '94', label: 'Bioinformatics Nodes', detail: 'Registered node types in the app', icon: 'cube' },
@@ -65,17 +77,17 @@ const features = [
   },
 ] as const;
 
-const integrations = [
-  'Python',
-  'R',
-  'Conda / Mamba',
-  'SLURM',
-  'PBS / Torque',
-  'SGE',
-  'Snakemake',
-  'Nextflow',
-  'CWL',
-  'Galaxy',
+const integrations: Array<{ name: string; logo: ToolLogoName }> = [
+  { name: 'Python', logo: 'python' },
+  { name: 'R', logo: 'r' },
+  { name: 'Conda / Mamba', logo: 'conda' },
+  { name: 'SLURM', logo: 'slurm' },
+  { name: 'PBS / Torque', logo: 'pbs' },
+  { name: 'SGE', logo: 'sge' },
+  { name: 'Snakemake', logo: 'snakemake' },
+  { name: 'Nextflow', logo: 'nextflow' },
+  { name: 'CWL', logo: 'cwl' },
+  { name: 'Galaxy', logo: 'galaxy' },
 ];
 
 const licensing = [
@@ -194,19 +206,42 @@ function Icon({ name }: { name: IconName }) {
 function Logo() {
   return (
     <a className="logo" href="/">
-      <span className="logo-mark" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </span>
+      <LogoMark />
       <span>BioNodulo</span>
     </a>
   );
 }
 
-function Header() {
+function LogoMark() {
   return (
-    <header className="site-header">
+    <svg className="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="18" fill="#111314" />
+      <circle cx="19" cy="22" r="7" fill="#7ee6b4" />
+      <circle cx="45" cy="20" r="7" fill="#d7f36b" />
+      <circle cx="32" cy="44" r="8" fill="#8fb7ff" />
+      <path d="M25 22h13M23 28l6 10M41 27l-6 11" stroke="#f5f1e8" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Header() {
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    let previousY = window.scrollY;
+
+    const handleScroll = () => {
+      const nextY = window.scrollY;
+      setHidden(nextY > 120 && nextY > previousY);
+      previousY = nextY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <header className={`site-header ${hidden ? 'is-hidden' : ''}`}>
       <Logo />
       <nav aria-label="Primary navigation">
         <a href="#features">Features</a>
@@ -228,7 +263,7 @@ function Header() {
   );
 }
 
-function ProductMockup({ compact = false }: { compact?: boolean }) {
+function ProductMockup({ compact = false, hero = false }: { compact?: boolean; hero?: boolean }) {
   const nodes = [
     { label: 'Input FASTQ', x: 15, y: 42, color: 'blue' },
     { label: 'FastQC', x: 41, y: 27, color: 'amber' },
@@ -238,7 +273,7 @@ function ProductMockup({ compact = false }: { compact?: boolean }) {
   ];
 
   return (
-    <div className={`product-mockup ${compact ? 'compact' : ''}`} aria-label="BioNodulo workflow editor preview">
+    <div className={`product-mockup ${compact ? 'compact' : ''} ${hero ? 'hero-mockup' : ''}`} aria-label="BioNodulo workflow editor preview">
       <div className="mockup-toolbar">
         <div className="window-dots"><span /><span /><span /></div>
         <span>RNA-seq Differential Expression</span>
@@ -279,6 +314,7 @@ function ProductMockup({ compact = false }: { compact?: boolean }) {
 function Hero() {
   return (
     <section className="hero">
+      <div className="hero-aurora" aria-hidden="true" />
       <div className="hero-copy">
         <span className="beta">Open Beta</span>
         <h1>Visual bioinformatics pipelines, <br /><span>node by node.</span></h1>
@@ -297,14 +333,14 @@ function Hero() {
           <span>Python Powered</span>
         </div>
       </div>
-      <ProductMockup />
+      <ProductMockup hero />
     </section>
   );
 }
 
 function Stats() {
   return (
-    <section className="stats" aria-label="BioNodulo product statistics">
+    <section className="stats reveal" aria-label="BioNodulo product statistics">
       {stats.map(stat => (
         <div className="stat" key={stat.label}>
           <Icon name={stat.icon} />
@@ -319,7 +355,7 @@ function Stats() {
 
 function Features() {
   return (
-    <section className="section" id="features">
+    <section className="section reveal" id="features">
       <div className="section-heading">
         <h2>Everything you need to do more research</h2>
         <p>BioNodulo keeps the workflow visible while still leaving room for serious local, HPC, and collaborative execution.</p>
@@ -339,7 +375,7 @@ function Features() {
 
 function LocalFirst() {
   return (
-    <section className="split-section">
+    <section className="split-section reveal">
       <div className="system-card">
         <div className="system-panel">
           <h3>System Stats</h3>
@@ -375,20 +411,57 @@ function LocalFirst() {
 
 function Integrations() {
   return (
-    <section className="section compact" id="integrations">
+    <section className="section compact reveal" id="integrations">
       <div className="section-heading">
         <h2>Works with the tools you already use</h2>
+        <p>BioNodulo stays close to the open research stack, from scripting languages to workflow engines and HPC schedulers.</p>
       </div>
-      <div className="integration-grid">
-        {integrations.map(item => <div className="integration" key={item}>{item}</div>)}
+      <div className="integration-orbit" aria-label="BioNodulo integrations">
+        <div className="orbit-ring outer" />
+        <div className="orbit-ring inner" />
+        <div className="orbit-core">
+          <LogoMark />
+          <span>BioNodulo</span>
+        </div>
+        {integrations.map((item, index) => (
+          <div className="integration" style={{ '--i': index } as React.CSSProperties} key={item.name}>
+            <ToolLogo name={item.logo} />
+            <span>{item.name}</span>
+          </div>
+        ))}
       </div>
     </section>
   );
 }
 
+function ToolLogo({ name }: { name: ToolLogoName }) {
+  switch (name) {
+    case 'python':
+      return <svg viewBox="0 0 48 48"><path fill="#3776ab" d="M24 4c-8 0-8 4-8 4v5h9v2H12s-6 0-6 9 5 9 5 9h3v-5s0-5 5-5h10s5 0 5-5V9s0-5-10-5z" /><path fill="#ffd43b" d="M24 44c8 0 8-4 8-4v-5h-9v-2h13s6 0 6-9-5-9-5-9h-3v5s0 5-5 5H19s-5 0-5 5v9s0 5 10 5z" /><circle cx="20" cy="10" r="1.8" fill="#fff" /><circle cx="28" cy="38" r="1.8" fill="#7a5b00" /></svg>;
+    case 'r':
+      return <svg viewBox="0 0 48 48"><ellipse cx="24" cy="24" rx="20" ry="14" fill="#d7deea" /><ellipse cx="24" cy="24" rx="15" ry="9" fill="#276dc3" /><path fill="#fff" d="M15 18h12c5 0 8 2 8 6 0 2.5-1.4 4.2-4 5.1l5 7h-8l-4-6h-3v6h-6zm6 8h5c2 0 3-.6 3-2s-1-2-3-2h-5z" /></svg>;
+    case 'conda':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#43b02a" /><path d="M15 29c5-15 17-16 20-8-8-3-14 2-17 11zm-1-8c3-6 9-9 15-8-8-4-17-.5-18 8zm16 10c-5 5-13 4-17-2 7 3 12 2 17-2z" fill="#0b1b0c" /></svg>;
+    case 'slurm':
+      return <svg viewBox="0 0 48 48"><rect x="8" y="9" width="32" height="30" rx="8" fill="#19a7e0" /><path d="M13 31c9-15 14-15 22 0M17 20h14M17 25h14" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" /></svg>;
+    case 'pbs':
+      return <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="7" fill="#f05a28" /><path d="M15 30V18h9c4 0 6 2 6 5s-2 5-6 5h-4v2zm5-7h4M31 18h3v12h-3" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case 'sge':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#8dd63f" /><path d="M15 31c6 4 18 3 18-4 0-8-17-3-17-10 0-6 10-7 17-3" stroke="#17230f" strokeWidth="4" strokeLinecap="round" fill="none" /></svg>;
+    case 'snakemake':
+      return <svg viewBox="0 0 48 48"><rect x="8" y="8" width="32" height="32" rx="9" fill="#76b900" /><path d="M14 28c5 7 19 7 20 0 1-8-18-2-18-10 0-6 12-7 18-1" stroke="#fff" strokeWidth="4" strokeLinecap="round" fill="none" /></svg>;
+    case 'nextflow':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#00b8b0" /><path d="M15 34V14l18 20V14" stroke="#082e31" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case 'cwl':
+      return <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="7" fill="#7b61ff" /><text x="24" y="29" textAnchor="middle" fill="#fff" fontSize="12" fontWeight="900">CWL</text></svg>;
+    case 'galaxy':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#ffd166" /><path d="M24 11l3.8 8 8.7 1.2-6.3 6.1 1.5 8.6L24 30.8l-7.7 4.1 1.5-8.6-6.3-6.1 8.7-1.2z" fill="#5c4b9b" /></svg>;
+  }
+}
+
 function Licensing() {
   return (
-    <section className="section" id="licensing">
+    <section className="section reveal" id="licensing">
       <div className="section-heading">
         <h2>Open Beta. Open Source. Open for Research.</h2>
         <p>Licensing is designed around research first, with institutional and hosted options coming as the platform matures.</p>
@@ -412,7 +485,7 @@ function Licensing() {
 
 function DemoCallout() {
   return (
-    <section className="demo-callout" id="templates">
+    <section className="demo-callout reveal" id="templates">
       <div>
         <span className="section-label">See BioNodulo in action</span>
         <h2>Explore BioNodulo with an interactive demo.</h2>
@@ -426,7 +499,7 @@ function DemoCallout() {
 
 function FAQ() {
   return (
-    <section className="section faq" id="faq">
+    <section className="section faq reveal" id="faq">
       <div className="section-heading">
         <h2>Frequently Asked Questions</h2>
       </div>
@@ -469,6 +542,21 @@ function Footer() {
 }
 
 function HomePage() {
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll<HTMLElement>('.reveal'));
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) entry.target.classList.add('is-visible');
+        });
+      },
+      { threshold: 0.16 },
+    );
+
+    targets.forEach(target => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <Header />
