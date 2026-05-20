@@ -1267,7 +1267,7 @@ summary {
   min-height: 54px;
   padding: 0 18px;
   cursor: pointer;
-  color: #e8ebf2;
+  color: var(--text);
   font-size: 14px;
   font-weight: 800;
   list-style: none;
@@ -1279,7 +1279,7 @@ summary::-webkit-details-marker {
 
 summary::after {
   content: "+";
-  color: #5eead4;
+  color: var(--accent);
   font-size: 20px;
 }
 

@@ -17,6 +17,18 @@ interface TopBarProps {
   collabControls?: ReactNode;
 }
 
+function BrandMark() {
+  return (
+    <svg className="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="18" fill="#111314" />
+      <circle cx="19" cy="22" r="7" fill="#7ee6b4" />
+      <circle cx="45" cy="20" r="7" fill="#d7f36b" />
+      <circle cx="32" cy="44" r="8" fill="#8fb7ff" />
+      <path d="M25 22h13M23 28l6 10M41 27l-6 11" stroke="#f5f1e8" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport, onImport,
   onAI, hpcStatus, isRunning, queueCount, onToggleQueue, collabControls,
@@ -34,7 +46,7 @@ export default function TopBar({
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="mark">B</span>
+        <BrandMark />
         <strong>BioNodulo</strong>
         <small>Alpha 1.2</small>
       </div>

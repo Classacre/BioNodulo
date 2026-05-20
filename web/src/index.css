@@ -110,10 +110,9 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand .mark {
   width: 28px; height: 28px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-weight: 800; font-size: 11px;
+  flex: 0 0 28px;
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgba(45, 212, 191, 0.25);
 }
 .brand strong { font-size: 14px; font-weight: 700; }
 .brand small { font-size: 11px; color: var(--muted); }
