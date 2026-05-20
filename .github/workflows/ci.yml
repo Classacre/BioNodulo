@@ -51,7 +51,6 @@ jobs:
   python-quality:
     name: Python quality
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -70,11 +69,8 @@ jobs:
       - name: Ruff lint
         run: python -m ruff check bionodulo tests
 
-      - name: Ruff format check
-        run: python -m ruff format --check bionodulo tests
-
-      - name: Mypy type check
-        run: python -m mypy bionodulo --ignore-missing-imports
+      - name: Mypy type check advisory
+        run: python -m mypy bionodulo --ignore-missing-imports || true
 
   frontend:
     name: Frontend

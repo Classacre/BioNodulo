@@ -251,23 +251,16 @@ async def yjs_websocket(
         return
 
     jwt_user_id = auth_payload.get("sub", "")
-    jwt_name = auth_payload.get("name", "")
-    jwt_role = auth_payload.get("role", "editor")
-    jwt_color = auth_payload.get("color", "#3b82f6")
 
     # Identity must come from the signed JWT. Query-string identity override
     # was part of the MVP protocol and allowed impersonation.
     effective_user_id = jwt_user_id or generate_user_id()
-    effective_name = name or jwt_name or effective_user_id
-    effective_role = jwt_role
-    effective_color = color or jwt_color
 
     # ------------------------------------------------------------------
     # 2. Permission check
     # ------------------------------------------------------------------
     permissions = _get_permissions()
     permissions.ensure_owner(workflow_id, effective_user_id)
-    actual_role = permissions.get_role(workflow_id, effective_user_id) or effective_role
     read_only = not permissions.can_write(workflow_id, effective_user_id)
 
     if not permissions.can_read(workflow_id, effective_user_id):

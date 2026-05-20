@@ -18,8 +18,6 @@ import logging
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from typing import Any
-
 from bionodulo.collab.models import CollabStore, Comment
 
 logger = logging.getLogger(__name__)

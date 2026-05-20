@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import gzip
 import logging
-import os
 import shutil
 import urllib.error
 import urllib.request
@@ -259,21 +258,21 @@ def download_example_data(
 
         if dest.exists():
             skipped.append(str(dest.relative_to(project_root)))
-            _emit(f"  skipped (already exists)", "info")
+            _emit("  skipped (already exists)", "info")
             continue
 
         try:
             if spec.generator is not None:
                 spec.generator(dest)
                 downloaded.append(str(dest.relative_to(project_root)))
-                _emit(f"  generated OK", "success")
+                _emit("  generated OK", "success")
             elif spec.url:
                 _download_url(spec.url, dest, gunzip=spec.gunzip)
                 downloaded.append(str(dest.relative_to(project_root)))
-                _emit(f"  downloaded OK", "success")
+                _emit("  downloaded OK", "success")
             else:
                 failed.append(str(dest.relative_to(project_root)))
-                _emit(f"  failed: no URL or generator", "error")
+                _emit("  failed: no URL or generator", "error")
         except Exception as exc:
             failed.append(str(dest.relative_to(project_root)))
             _emit(f"  failed: {exc}", "error")

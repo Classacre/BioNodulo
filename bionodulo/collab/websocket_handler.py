@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import struct
 from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -49,15 +48,13 @@ from bionodulo.collab.auth import get_auth_ws, generate_user_id
 from bionodulo.collab.doc_store import (
     get_or_create_doc,
     persist_doc_update,
-    load_doc_from_db,
 )
 from bionodulo.collab.heartbeat import HeartbeatManager
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
-from bionodulo.collab.presence import AwarenessManager
 from bionodulo.collab.rate_limiter import RateLimiter
 from bionodulo.collab.redis_broadcaster import RedisBroadcaster
-from bionodulo.collab.room_manager import RoomManager, RoomUser
+from bionodulo.collab.room_manager import RoomManager
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +375,7 @@ async def collab_websocket(
         doc = await _get_doc(workflow_id)
 
     # --- 6. Join room -------------------------------------------------------
-    room_user = await room_manager.join(
+    await room_manager.join(
         workflow_id=workflow_id,
         websocket=websocket,
         user_id=effective_user_id,
