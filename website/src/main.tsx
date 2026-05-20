@@ -250,8 +250,8 @@ function WorkflowCanvasBackground() {
       ctx.fillRect(0, 0, width, height);
 
       const grid = 42;
-      const driftX = motionQuery.matches ? 0 : (t * 8) % grid;
-      const driftY = motionQuery.matches ? 0 : (t * 5) % grid;
+      const driftX = motionQuery.matches ? 0 : (t * 18) % grid;
+      const driftY = motionQuery.matches ? 0 : (t * 12) % grid;
       ctx.strokeStyle = theme.canvasGrid;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -266,8 +266,8 @@ function WorkflowCanvasBackground() {
       ctx.stroke();
 
       const placed = nodes.map(node => {
-        const floatX = motionQuery.matches ? 0 : Math.sin(t * 0.27 + node.phase) * 18;
-        const floatY = motionQuery.matches ? 0 : Math.cos(t * 0.22 + node.phase) * 16;
+        const floatX = motionQuery.matches ? 0 : Math.sin(t * 0.55 + node.phase) * 34;
+        const floatY = motionQuery.matches ? 0 : Math.cos(t * 0.46 + node.phase) * 28;
         return {
           ...node,
           px: node.x * width + floatX - node.w / 2,
@@ -278,8 +278,8 @@ function WorkflowCanvasBackground() {
       for (const edge of edgePairs) {
         const from = placed[edge.from];
         const to = placed[edge.to];
-        const pulse = motionQuery.matches ? 0.52 : (Math.sin(t * 0.82 + edge.phase) + 1) / 2;
-        const alpha = pulse > 0.32 ? Math.min(1, (pulse - 0.32) / 0.28) : 0;
+        const pulse = motionQuery.matches ? 0.62 : (Math.sin(t * 1.55 + edge.phase) + 1) / 2;
+        const alpha = pulse > 0.18 ? Math.min(1, (pulse - 0.18) / 0.34) : 0;
         if (alpha <= 0.01) continue;
         const fx = from.px + from.w;
         const fy = from.py + from.h / 2;
@@ -287,15 +287,15 @@ function WorkflowCanvasBackground() {
         const ty = to.py + to.h / 2;
         const control = Math.max(48, Math.abs(tx - fx) * 0.36);
         ctx.strokeStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
-        ctx.globalAlpha = 0.08 + alpha * 0.24;
-        ctx.lineWidth = 1.4 + alpha * 1.1;
+        ctx.globalAlpha = 0.18 + alpha * 0.42;
+        ctx.lineWidth = 1.6 + alpha * 1.4;
         ctx.beginPath();
         ctx.moveTo(fx, fy);
         ctx.bezierCurveTo(fx + control, fy, tx - control, ty, tx, ty);
         ctx.stroke();
-        ctx.globalAlpha = alpha * 0.34;
+        ctx.globalAlpha = alpha * 0.72;
         ctx.fillStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
-        const dotProgress = motionQuery.matches ? 0.5 : (t * 0.18 + edge.phase) % 1;
+        const dotProgress = motionQuery.matches ? 0.5 : (t * 0.42 + edge.phase) % 1;
         const dx = fx + (tx - fx) * dotProgress;
         const dy = fy + (ty - fy) * dotProgress;
         ctx.beginPath();
@@ -305,16 +305,16 @@ function WorkflowCanvasBackground() {
       }
 
       for (const node of placed) {
-        const activity = motionQuery.matches ? 0.45 : (Math.sin(t * 0.95 + node.phase) + 1) / 2;
+        const activity = motionQuery.matches ? 0.5 : (Math.sin(t * 1.45 + node.phase) + 1) / 2;
         ctx.shadowColor = node.color;
-        ctx.shadowBlur = 5 + activity * 7;
+        ctx.shadowBlur = 8 + activity * 12;
         ctx.fillStyle = theme.nodeBg;
         roundedRect(node.px, node.py, node.w, node.h, 10);
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.strokeStyle = node.color;
-        ctx.globalAlpha = 0.2 + activity * 0.18;
-        ctx.lineWidth = 1.4;
+        ctx.globalAlpha = 0.34 + activity * 0.28;
+        ctx.lineWidth = 1.6;
         ctx.stroke();
         ctx.globalAlpha = 1;
 
