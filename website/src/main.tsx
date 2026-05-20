@@ -153,6 +153,76 @@ const faqs = [
   },
 ];
 
+function NoiseGradientBackground() {
+  return (
+    <svg className="noise-gradient-bg" viewBox="0 0 1440 1200" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="bioNoiseBase" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#071018" />
+          <stop offset="48%" stopColor="#0f172a" />
+          <stop offset="100%" stopColor="#05070d" />
+        </linearGradient>
+        <radialGradient id="bioTealBlob" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.98" />
+          <stop offset="46%" stopColor="#0ea5e9" stopOpacity="0.44" />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="bioGreenBlob" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#22c55e" stopOpacity="0.82" />
+          <stop offset="54%" stopColor="#2dd4bf" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="bioBlueBlob" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.72" />
+          <stop offset="58%" stopColor="#334155" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#334155" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="bioAmberBlob" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#ffc85f" stopOpacity="0.48" />
+          <stop offset="60%" stopColor="#22c55e" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+        </radialGradient>
+        <filter id="bioGradientNoise" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.011 0.019" numOctaves="3" seed="17" result="noise">
+            <animate attributeName="baseFrequency" dur="9s" values="0.011 0.019;0.019 0.012;0.014 0.024;0.011 0.019" repeatCount="indefinite" />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="48" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+        <filter id="bioWireNoise" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="23" result="wireNoise">
+            <animate attributeName="baseFrequency" dur="7s" values="0.018 0.03;0.03 0.018;0.02 0.026;0.018 0.03" repeatCount="indefinite" />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="wireNoise" scale="22" />
+        </filter>
+        <filter id="bioFineGrain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.78" numOctaves="2" seed="9" result="grain" />
+          <feColorMatrix in="grain" type="saturate" values="0" />
+          <feComponentTransfer>
+            <feFuncA type="table" tableValues="0 0.19" />
+          </feComponentTransfer>
+        </filter>
+        <pattern id="bioWirePattern" width="74" height="74" patternUnits="userSpaceOnUse">
+          <path d="M74 0H0V74" />
+          <path d="M0 74L74 0" />
+          <path d="M37 0V74M0 37H74" className="wire-minor" />
+        </pattern>
+      </defs>
+      <rect width="1440" height="1200" fill="url(#bioNoiseBase)" />
+      <g className="noise-gradient-field" filter="url(#bioGradientNoise)">
+        <ellipse className="noise-blob noise-blob-main" cx="910" cy="230" rx="540" ry="330" fill="url(#bioTealBlob)" />
+        <ellipse className="noise-blob noise-blob-blue" cx="330" cy="400" rx="330" ry="260" fill="url(#bioBlueBlob)" />
+        <ellipse className="noise-blob noise-blob-green" cx="1050" cy="800" rx="410" ry="310" fill="url(#bioGreenBlob)" />
+        <ellipse className="noise-blob noise-blob-amber" cx="470" cy="960" rx="280" ry="220" fill="url(#bioAmberBlob)" />
+      </g>
+      <g className="noise-gradient-wire" filter="url(#bioWireNoise)">
+        <rect width="1440" height="1200" fill="url(#bioWirePattern)" />
+      </g>
+      <rect className="noise-gradient-grain" width="1440" height="1200" filter="url(#bioFineGrain)" />
+      <rect className="noise-gradient-vignette" width="1440" height="1200" />
+    </svg>
+  );
+}
+
 function Icon({ name }: { name: IconName }) {
   const common = {
     width: 24,
@@ -336,7 +406,6 @@ function Hero() {
 
   return (
     <section className="hero">
-      <div className="hero-aurora" aria-hidden="true" />
       <div className="hero-copy">
         <span className="beta">Open Beta</span>
         <h1>Visual bioinformatics pipelines, <br /><span>node by node.</span></h1>
@@ -843,20 +912,34 @@ function DemoPage() {
 }
 
 function App() {
+  let page: React.ReactNode;
+
   switch (window.location.pathname) {
     case '/demo':
-      return <DemoPage />;
+      page = <DemoPage />;
+      break;
     case '/features':
-      return <FeaturesPage />;
+      page = <FeaturesPage />;
+      break;
     case '/download':
-      return <DownloadPage />;
+      page = <DownloadPage />;
+      break;
     case '/pricing':
-      return <PricingPage />;
+      page = <PricingPage />;
+      break;
     case '/contact':
-      return <ContactPage />;
+      page = <ContactPage />;
+      break;
     default:
-      return <HomePage />;
+      page = <HomePage />;
   }
+
+  return (
+    <>
+      <NoiseGradientBackground />
+      {page}
+    </>
+  );
 }
 
 const rootElement = document.getElementById('root');
