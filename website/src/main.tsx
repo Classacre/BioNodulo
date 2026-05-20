@@ -287,13 +287,13 @@ function WorkflowCanvasBackground() {
         const ty = to.py + to.h / 2;
         const control = Math.max(48, Math.abs(tx - fx) * 0.36);
         ctx.strokeStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
-        ctx.globalAlpha = 0.14 + alpha * 0.48;
+        ctx.globalAlpha = 0.08 + alpha * 0.24;
         ctx.lineWidth = 1.4 + alpha * 1.1;
         ctx.beginPath();
         ctx.moveTo(fx, fy);
         ctx.bezierCurveTo(fx + control, fy, tx - control, ty, tx, ty);
         ctx.stroke();
-        ctx.globalAlpha = alpha * 0.7;
+        ctx.globalAlpha = alpha * 0.34;
         ctx.fillStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
         const dotProgress = motionQuery.matches ? 0.5 : (t * 0.18 + edge.phase) % 1;
         const dx = fx + (tx - fx) * dotProgress;
@@ -307,13 +307,13 @@ function WorkflowCanvasBackground() {
       for (const node of placed) {
         const activity = motionQuery.matches ? 0.45 : (Math.sin(t * 0.95 + node.phase) + 1) / 2;
         ctx.shadowColor = node.color;
-        ctx.shadowBlur = 10 + activity * 12;
+        ctx.shadowBlur = 5 + activity * 7;
         ctx.fillStyle = theme.nodeBg;
         roundedRect(node.px, node.py, node.w, node.h, 10);
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.strokeStyle = node.color;
-        ctx.globalAlpha = 0.38 + activity * 0.28;
+        ctx.globalAlpha = 0.2 + activity * 0.18;
         ctx.lineWidth = 1.4;
         ctx.stroke();
         ctx.globalAlpha = 1;
@@ -322,9 +322,14 @@ function WorkflowCanvasBackground() {
         ctx.beginPath();
         ctx.arc(node.px + 14, node.py + node.h / 2, 4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 0.36;
         ctx.fillStyle = theme.nodeText;
-        ctx.font = '700 12px Inter, system-ui, sans-serif';
-        ctx.fillText(node.label, node.px + 25, node.py + 24);
+        roundedRect(node.px + 25, node.py + 12, node.w - 42, 5, 3);
+        ctx.fill();
+        ctx.globalAlpha = 0.2;
+        roundedRect(node.px + 25, node.py + 23, Math.max(28, node.w * 0.42), 4, 3);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
 
       ctx.fillStyle = theme.bg;

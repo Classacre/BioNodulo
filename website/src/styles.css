@@ -30,6 +30,10 @@
   --canvas-link-alt: rgba(14, 165, 233, 0.3);
   --canvas-node-bg: rgba(255, 255, 255, 0.82);
   --canvas-node-text: #1d2930;
+  --canvas-opacity: 0.42;
+  --content-veil:
+    linear-gradient(180deg, rgba(238, 243, 244, 0.86) 0%, rgba(238, 243, 244, 0.58) 44%, rgba(238, 243, 244, 0.84) 100%),
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.72), transparent 42%);
   --radius-xl: 28px;
   --radius-lg: 20px;
   --radius-md: 14px;
@@ -67,6 +71,10 @@
     --canvas-link-alt: rgba(14, 165, 233, 0.3);
     --canvas-node-bg: rgba(15, 23, 42, 0.82);
     --canvas-node-text: #f8fafc;
+    --canvas-opacity: 0.36;
+    --content-veil:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.58) 42%, rgba(15, 23, 42, 0.9) 100%),
+      radial-gradient(circle at 50% 16%, rgba(15, 23, 42, 0.34), transparent 44%);
     --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
   }
 }
@@ -101,12 +109,22 @@ body::after {
   min-height: 100vh;
 }
 
+#root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--content-veil);
+}
+
 .workflow-canvas-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   width: 100vw;
   height: 100vh;
+  opacity: var(--canvas-opacity);
   pointer-events: none;
 }
 
@@ -115,7 +133,7 @@ main,
 footer,
 .demo-page {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 a {
