@@ -13,6 +13,8 @@
 # Frontend build artifacts (hashed filenames change every build)
 web/node_modules/
 web/dist/assets/
+website/node_modules/
+website/dist/
 
 # Runtime data
 runs/
@@ -38,4 +40,3 @@ server.pid
 
 # Example template data (large files; user downloads via Getting Started)
 examples/data/
-
