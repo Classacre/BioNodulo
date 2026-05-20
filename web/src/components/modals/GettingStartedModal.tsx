@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 interface GettingStartedModalProps {
   onClose: () => void;
   onDontShowAgain: (hide: boolean) => void;
+  collabEnabled: boolean;
+  onSetCollabEnabled: (enabled: boolean) => void;
   showOnStartup: boolean;
 }
 
@@ -60,7 +62,13 @@ interface DataStatus {
   total_size_mb: number;
 }
 
-export default function GettingStartedModal({ onClose, onDontShowAgain, showOnStartup }: GettingStartedModalProps) {
+export default function GettingStartedModal({
+  onClose,
+  onDontShowAgain,
+  collabEnabled,
+  onSetCollabEnabled,
+  showOnStartup,
+}: GettingStartedModalProps) {
   const [tab, setTab] = useState<TabId>('welcome');
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -126,7 +134,7 @@ export default function GettingStartedModal({ onClose, onDontShowAgain, showOnSt
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 500 }}>
       <div className="modal-content getting-started-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 4 }}>
           <div>
@@ -164,6 +172,29 @@ export default function GettingStartedModal({ onClose, onDontShowAgain, showOnSt
                   <li>Press <kbd>Ctrl+R</kbd> to validate and run your workflow.</li>
                   <li>Watch real-time logs in the <strong>Console</strong> (<kbd>Ctrl+`</kbd>).</li>
                 </ol>
+              </div>
+
+              <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Collaboration Mode</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    className={`btn ${collabEnabled ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => onSetCollabEnabled(true)}
+                    style={{ justifyContent: 'center', minHeight: 34 }}
+                  >
+                    Use Collaboration
+                  </button>
+                  <button
+                    className={`btn ${!collabEnabled ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => onSetCollabEnabled(false)}
+                    style={{ justifyContent: 'center', minHeight: 34 }}
+                  >
+                    Work Offline
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginTop: 8 }}>
+                  Collaboration enables shared editing, comments, versions, and audit history. Offline mode keeps workflows local and avoids signing in.
+                </div>
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>

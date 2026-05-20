@@ -1,4 +1,5 @@
 import Icon from '../ui/Icon';
+import type { ReactNode } from 'react';
 
 export type HPCStatus = 'off' | 'error' | 'on';
 
@@ -13,11 +14,12 @@ interface TopBarProps {
   isRunning: boolean;
   queueCount: number;
   onToggleQueue: () => void;
+  collabControls?: ReactNode;
 }
 
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport, onImport,
-  onAI, hpcStatus, isRunning, queueCount, onToggleQueue,
+  onAI, hpcStatus, isRunning, queueCount, onToggleQueue, collabControls,
 }: TopBarProps) {
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
@@ -49,6 +51,8 @@ export default function TopBar({
       <span className={hpcBadgeClass} title={`HPC ${hpcStatus.toUpperCase()}`}>
         <Icon name="server" size={14} /> {hpcLabel}
       </span>
+
+      {collabControls}
 
       <div className="run-cluster">
         <button className="btn btn-sm" onClick={onToggleQueue} title="Show queue">

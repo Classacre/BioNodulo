@@ -5,9 +5,9 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps) {
-  const { get, set } = useSettings();
+  const { get, getBool, set } = useSettings();
 
-  const toggle = (key: string) => set(key, !get(key));
+  const toggle = (key: string) => set(key, !getBool(key));
 
   return (
     <div className="rail-panel">
@@ -46,6 +46,20 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
               <option value="30s">Every 30s</option>
               <option value="60s">Every minute</option>
             </select>
+          </SettingRow>
+        </div>
+
+        {/* Collaboration */}
+        <div className="settings-group">
+          <div className="settings-group-title">Collaboration</div>
+          <SettingRow label="Real-Time Collaboration" desc="Enable shared editing and presence">
+            <div className={`toggle ${getBool('bionodulo.collab.enabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.enabled')} />
+          </SettingRow>
+          <SettingRow label="Presence Cursors" desc="Show collaborators on the canvas">
+            <div className={`toggle ${getBool('bionodulo.collab.presence') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.presence')} />
+          </SettingRow>
+          <SettingRow label="Startup Choice" desc="Show collaboration choice on startup">
+            <div className={`toggle ${getBool('bionodulo.getting_started.show_on_startup') ? 'on' : ''}`} onClick={() => toggle('bionodulo.getting_started.show_on_startup')} />
           </SettingRow>
         </div>
 

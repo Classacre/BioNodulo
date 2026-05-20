@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
@@ -24,7 +24,14 @@ import { useSettings } from './hooks/useSettings';
 import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
+import {
+  LiteGraphYjsBridge, useCollab, workflowToDoc,
+  ForeignCursors, CollabBadge, ShareDialog, UserList,
+  getUserColor, getAuthUser, initAuth, AuthDialog,
+  CommentsPanel, VersionHistory, AuditLog,
+} from './collab';
 import { defaultsFor } from './utils';
+import { getLocalTemplateWorkflow } from './localTemplates';
 import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { HPCStatus } from './components/layout/TopBar';
 
@@ -93,26 +100,40 @@ const BUILTIN_NODES: Record<string, NodeMetadata> = {
   'bp_blast': { id: 'bp_blast', display_name: 'BLAST Search', category: 'BioPython', description: 'Run local BLAST (requires blast+)', return_types: ['FILE'], return_names: ['blast_xml'], requires_external_tools: ['blastn'], input_types: { required: { query: { type: 'FILE', label: 'Query FASTA' }, subject: { type: 'FILE', label: 'Subject FASTA' }, program: { type: 'STRING', default: 'blastn', options: ['blastn', 'blastp', 'blastx', 'tblastn', 'tblastx'], label: 'BLAST Program' } }, optional: { evalue: { type: 'FLOAT', default: 0.001, min: 0, max: 100, step: 0.001, label: 'E-value', advanced: true }, max_hits: { type: 'INT', default: 10, min: 1, max: 500, label: 'Max Hits', advanced: true }, outfmt: { type: 'STRING', default: '5', options: ['5', '6', '7'], label: 'Output Format', advanced: true } } } },
 };
 
+function createWorkflowId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId()): Workflow {
+  return { ...workflow, id };
+}
+
+function remapTemplateWorkflow(data: Workflow): Workflow {
+  const oldToNew = new Map<string, string>();
+  data.nodes = data.nodes.map((n, i) => {
+    const newId = `${n.type}_${Date.now()}_${i}`;
+    oldToNew.set(n.id, newId);
+    return { ...n, id: newId };
+  });
+  data.edges = data.edges.map(e => ({
+    ...e,
+    from: { ...e.from, node: oldToNew.get(e.from.node) || e.from.node },
+    to: { ...e.to, node: oldToNew.get(e.to.node) || e.to.node },
+  }));
+  return data;
+}
+
 async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow | null> {
   try {
     const r = await fetch(`/api/workflow_templates/${template.filename}`);
-    if (!r.ok) return null;
-    const data = await r.json() as Workflow;
-    // Assign fresh unique ids so multiple loads don't collide
-    const oldToNew = new Map<string, string>();
-    data.nodes = data.nodes.map((n, i) => {
-      const newId = `${n.type}_${Date.now()}_${i}`;
-      oldToNew.set(n.id, newId);
-      return { ...n, id: newId };
-    });
-    data.edges = data.edges.map(e => ({
-      ...e,
-      from: { ...e.from, node: oldToNew.get(e.from.node) || e.from.node },
-      to: { ...e.to, node: oldToNew.get(e.to.node) || e.to.node },
-    }));
-    return data;
+    const data = r.ok ? await r.json() as Workflow : getLocalTemplateWorkflow(template.filename);
+    return data ? remapTemplateWorkflow(data) : null;
   } catch {
-    return null;
+    const data = getLocalTemplateWorkflow(template.filename);
+    return data ? remapTemplateWorkflow(data) : null;
   }
 }
 
@@ -124,6 +145,120 @@ export default function App() {
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
   } = useWorkflow();
   useTheme();
+
+  // Authentication state
+  const collabEnabled = getBool('bionodulo.collab.enabled');
+  const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(getAuthUser());
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
+  // Initialize auth on mount
+  useEffect(() => {
+    if (!collabEnabled) {
+      setShowAuthDialog(false);
+      return;
+    }
+    initAuth().then(valid => {
+      if (valid) {
+        setAuthUser(getAuthUser());
+      } else {
+        setShowAuthDialog(true);
+      }
+    });
+  }, [collabEnabled]);
+
+  // Handle login from AuthDialog
+  const handleAuthLogin = useCallback((name: string) => {
+    setAuthUser(getAuthUser());
+    setShowAuthDialog(false);
+  }, []);
+
+  // Handle auth dialog close (without login)
+  const handleAuthClose = useCallback(() => {
+    // If user closes without logging in, keep current state
+    // They can still use the app; collaboration just won't connect
+    setShowAuthDialog(false);
+  }, []);
+
+  // Collaboration setup
+  const currentUser = authUser
+    ? { id: authUser.id, name: authUser.name, color: authUser.color }
+    : { id: 'anonymous', name: 'You', color: getUserColor('anonymous') };
+  const pendingWorkflowIdsRef = useRef<WeakMap<Workflow, string>>(new WeakMap());
+  const activeWorkflowId = useMemo(() => {
+    if (activeWorkflow.id) return activeWorkflow.id;
+    const existing = pendingWorkflowIdsRef.current.get(activeWorkflow);
+    if (existing) return existing;
+    const id = createWorkflowId();
+    pendingWorkflowIdsRef.current.set(activeWorkflow, id);
+    return id;
+  }, [activeWorkflow]);
+
+  useEffect(() => {
+    if (!activeWorkflow.id) {
+      updateWorkflow(activeIndex, { id: activeWorkflowId });
+    }
+  }, [activeWorkflow.id, activeWorkflowId, activeIndex, updateWorkflow]);
+
+  const {
+    doc: collabDoc,
+    connected: collabConnected,
+    connecting: collabConnecting,
+    activeUsers: collabActiveUsers,
+    setCursor: setCollabCursor,
+    setSelection: setCollabSelection,
+    claimDrag: claimCollabDrag,
+    releaseDrag: releaseCollabDrag,
+    shareWorkflow,
+    isShared: collabIsShared,
+    error: collabError,
+    reconnectAttempt: collabReconnectAttempt,
+    offline: collabOffline,
+  } = useCollab(collabEnabled ? activeWorkflowId : null, currentUser);
+
+  const bridgeRef = useRef<LiteGraphYjsBridge | null>(null);
+  const activeWorkflowRef = useRef(activeWorkflow);
+  const updateWorkflowRef = useRef(updateWorkflow);
+
+  useEffect(() => { activeWorkflowRef.current = activeWorkflow; }, [activeWorkflow]);
+  useEffect(() => { updateWorkflowRef.current = updateWorkflow; }, [updateWorkflow]);
+
+  useEffect(() => {
+    if (!collabDoc) {
+      bridgeRef.current?.unbind();
+      bridgeRef.current = null;
+      return;
+    }
+    // Seed doc with current workflow if empty
+    const yNodes = collabDoc.getMap('nodes');
+    if (yNodes.size === 0 && activeWorkflowRef.current.nodes.length > 0) {
+      workflowToDoc(activeWorkflowRef.current, collabDoc);
+    }
+    const bridge = new LiteGraphYjsBridge(collabDoc, {
+      onNodesChange: (nodes) => updateWorkflowRef.current(activeIndex, { nodes }),
+      onEdgesChange: (edges) => updateWorkflowRef.current(activeIndex, { edges }),
+      onGroupsChange: (groups) => updateWorkflowRef.current(activeIndex, { groups }),
+      getNodes: () => activeWorkflowRef.current.nodes,
+      getEdges: () => activeWorkflowRef.current.edges,
+      getGroups: () => activeWorkflowRef.current.groups,
+      onDragStart: claimCollabDrag,
+      onDragEnd: releaseCollabDrag,
+    });
+    bridge.bind();
+    bridgeRef.current = bridge;
+    return () => {
+      bridge.unbind();
+      bridgeRef.current = null;
+    };
+  }, [collabDoc, activeIndex, claimCollabDrag, releaseCollabDrag]);
+
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showUserList, setShowUserList] = useState(false);
+  // Phase 3 collaboration panels
+  const [showComments, setShowComments] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
+  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -454,6 +589,7 @@ export default function App() {
   const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
 
   const cacheEnabled = getBool('bionodulo.cacheEnabled');
+  const collabPresenceEnabled = getBool('bionodulo.collab.presence');
   const hpcEnabled = getBool('bionodulo.hpc.enabled');
   const hpcConfig: HPCConfig = {
     enabled: hpcEnabled,
@@ -493,16 +629,25 @@ export default function App() {
   }, [activeIndex, updateWorkflow]);
 
   const handleNodesChange = useCallback((nodes: WorkflowNode[]) => {
+    if (bridgeRef.current) {
+      bridgeRef.current.onNodesChanged(nodes);
+    }
     pendingStateRef.current = { ...pendingStateRef.current, nodes };
     updateActive({ nodes });
   }, [updateActive]);
 
   const handleEdgesChange = useCallback((edges: Workflow['edges']) => {
+    if (bridgeRef.current) {
+      bridgeRef.current.onEdgesChanged(edges);
+    }
     pendingStateRef.current = { ...pendingStateRef.current, edges };
     updateActive({ edges });
   }, [updateActive]);
 
   const handleGroupsChange = useCallback((groups: Workflow['groups']) => {
+    if (bridgeRef.current) {
+      bridgeRef.current.onGroupsChanged(groups);
+    }
     pendingStateRef.current = { ...pendingStateRef.current, groups };
     updateActive({ groups });
   }, [updateActive]);
@@ -559,7 +704,7 @@ export default function App() {
       return;
     }
     console.log('[Template] loaded, nodes:', wf.nodes.length);
-    addWorkflow(wf);
+    addWorkflow(withWorkflowId(wf));
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
@@ -568,7 +713,7 @@ export default function App() {
   }, [addWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
-    addWorkflow(wf);
+    addWorkflow(withWorkflowId(wf));
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
@@ -585,6 +730,7 @@ export default function App() {
     if (!wf) return;
     const dup: Workflow = {
       ...wf,
+      id: createWorkflowId(),
       name: `${wf.name || 'Untitled'} (copy)`,
       nodes: wf.nodes.map(n => ({ ...n, id: `${n.type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })),
     };
@@ -650,12 +796,37 @@ export default function App() {
         onRun={handleRun}
         onExport={() => setShowExport(true)}
         onImport={() => setShowImport(true)}
-
         onAI={() => setShowAI(true)}
         hpcStatus={hpcStatus}
         isRunning={isRunning}
         queueCount={queueCount}
         onToggleQueue={handleToggleQueue}
+        collabControls={(
+          <CollabBadge
+            enabled={collabEnabled}
+            connected={collabConnected}
+            connecting={collabConnecting}
+            activeUsers={collabActiveUsers}
+            followingUserId={followingUserId}
+            isShared={collabIsShared}
+            onShare={() => setShowShareDialog(true)}
+            onShowUsers={() => setShowUserList(true)}
+            onFollow={setFollowingUserId}
+            onOpenComments={() => setShowComments(v => !v)}
+            onOpenVersions={() => setShowVersions(v => !v)}
+            onOpenAudit={() => setShowAudit(v => !v)}
+            onOpenSettings={() => setRailTab('settings')}
+            reconnectAttempt={collabReconnectAttempt}
+            error={collabError}
+            offline={collabOffline || !collabEnabled}
+          />
+        )}
+      />
+
+      <AuthDialog
+        isOpen={showAuthDialog}
+        onLogin={handleAuthLogin}
+        onClose={handleAuthClose}
       />
 
       <WorkflowTabs
@@ -694,6 +865,12 @@ export default function App() {
           } catch { /* ignore */ }
         }}
       >
+        {collabEnabled && collabPresenceEnabled && (
+          <ForeignCursors
+            activeUsers={collabActiveUsers}
+            currentUserId={currentUser.id}
+          />
+        )}
         {hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
@@ -752,6 +929,14 @@ export default function App() {
             }
             return map;
           })()}
+          collabBridge={bridgeRef.current ?? undefined}
+          onCollabCursor={setCollabCursor}
+          onCollabSelection={(nodeIds) => {
+            setSelectedNodeId(nodeIds[0] ?? null);
+            setCollabSelection({ nodeIds });
+          }}
+          onCollabDragStart={claimCollabDrag}
+          onCollabDragEnd={releaseCollabDrag}
         />
 
         {/* Rail panels */}
@@ -813,6 +998,45 @@ export default function App() {
         )}
       </div>
 
+      <ShareDialog
+        workflowId={activeWorkflowId}
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+      />
+      <UserList
+        users={collabActiveUsers}
+        currentUserId={currentUser.id}
+        isOpen={showUserList}
+        onClose={() => setShowUserList(false)}
+      />
+
+      {/* Phase 3 Collaboration Panels */}
+      <CommentsPanel
+        workflowId={activeWorkflowId}
+        selectedNodeId={selectedNodeId}
+        currentUser={currentUser}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+      />
+      <VersionHistory
+        workflowId={activeWorkflowId}
+        isOpen={showVersions}
+        onClose={() => setShowVersions(false)}
+        onRestore={(versionJson) => {
+          if (versionJson && typeof versionJson === 'object') {
+            const v = versionJson as Record<string, unknown>;
+            if (v.nodes) updateWorkflow(activeIndex, { nodes: v.nodes as WorkflowNode[] });
+            if (v.edges) updateWorkflow(activeIndex, { edges: v.edges as Workflow['edges'] });
+            if (v.groups) updateWorkflow(activeIndex, { groups: v.groups as Workflow['groups'] });
+          }
+        }}
+      />
+      <AuditLog
+        workflowId={activeWorkflowId}
+        isOpen={showAudit}
+        onClose={() => setShowAudit(false)}
+      />
+
       {/* Modals */}
       {showExport && <ExportModal workflow={activeWorkflow} onClose={() => setShowExport(false)} />}
       {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />}
@@ -820,7 +1044,7 @@ export default function App() {
         <AIWorkflowModal
           workflow={activeWorkflow}
           onClose={() => setShowAI(false)}
-          onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => wf)}
+          onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => withWorkflowId(wf, activeWorkflowId))}
         />
       )}
       {showGettingStarted && (
@@ -831,6 +1055,15 @@ export default function App() {
           }}
           onDontShowAgain={(hide) => {
             set('bionodulo.getting_started.show_on_startup', !hide);
+          }}
+          collabEnabled={collabEnabled}
+          onSetCollabEnabled={(enabled) => {
+            set('bionodulo.collab.enabled', enabled);
+            if (!enabled) {
+              setShowAuthDialog(false);
+            } else if (!authUser) {
+              setShowAuthDialog(true);
+            }
           }}
           showOnStartup={getBool('bionodulo.getting_started.show_on_startup')}
         />
@@ -845,5 +1078,3 @@ export default function App() {
     </div>
   );
 }
-
-

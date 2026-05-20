@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
+import { listLocalTemplates } from '../../localTemplates';
 
 interface TemplatesPanelProps {
   onClose: () => void;
@@ -38,7 +39,9 @@ export default function TemplatesPanel({ onClose, onLoadTemplate }: TemplatesPan
       })
       .catch(err => {
         if (cancelled) return;
-        setError(err.message);
+        const localTemplates = listLocalTemplates();
+        setTemplates(localTemplates);
+        setError(localTemplates.length > 0 ? null : err.message);
         setLoading(false);
       });
     return () => { cancelled = true; };

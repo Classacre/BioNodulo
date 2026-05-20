@@ -80,6 +80,7 @@ export interface WorkflowGroup {
 }
 
 export interface Workflow {
+  id?: string;
   version: string;
   app: string;
   name: string;

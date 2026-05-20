@@ -469,6 +469,7 @@ async def chat_with_tools(
     user_message: str,
     workflow: dict[str, Any] | None,
     history: list[dict[str, str]],
+    workflow_id: str | None = None,
     provider: str = "openai",
     model: str | None = None,
     api_key: str | None = None,
@@ -477,6 +478,7 @@ async def chat_with_tools(
     max_tokens: int = 4096,
     registry: Any = None,
     settings: Any = None,
+    settings_manager: Any = None,
     files: list[dict[str, str]] | None = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
@@ -484,7 +486,13 @@ async def chat_with_tools(
     Returns a ChatResponse containing all reasoning steps, tool calls,
     and optionally a proposed workflow change for user confirmation.
     """
-    ctx = ToolContext(workflow=workflow, registry=registry, settings=settings)
+    ctx = ToolContext(
+        workflow=workflow,
+        workflow_id=workflow_id,
+        registry=registry,
+        settings=settings,
+        settings_manager=settings_manager,
+    )
     tools_text = format_tools_for_prompt(ALL_TOOLS)
     system_prompt = BIONODULO_SYSTEM_PROMPT.format(tools_text=tools_text)
 
@@ -507,6 +515,7 @@ async def chat_with_tools(
     steps: list[ChatStep] = []
     proposed_workflow: dict[str, Any] | None = None
     proposed_description: str = ""
+    mutated_workflow = False
 
     for _round in range(MAX_TOOL_ROUNDS):
         try:
@@ -534,6 +543,14 @@ async def chat_with_tools(
             if propose:
                 proposed_workflow = propose.get("workflow")
                 proposed_description = propose.get("description", "")
+                steps.append(ChatStep(
+                    type="propose_changes",
+                    workflow=proposed_workflow,
+                    description=proposed_description,
+                ))
+            elif mutated_workflow:
+                proposed_workflow = ctx.workflow
+                proposed_description = "Apply the workflow changes drafted by the assistant tools."
                 steps.append(ChatStep(
                     type="propose_changes",
                     workflow=proposed_workflow,
@@ -571,6 +588,7 @@ async def chat_with_tools(
                 inner = result.get("result", {})
                 if "workflow" in inner:
                     ctx.workflow = inner["workflow"]
+                    mutated_workflow = True
 
             # Feed result back to LLM
             result_text = json.dumps(result, default=str, indent=2)
@@ -582,8 +600,18 @@ async def chat_with_tools(
             break  # One tool call per LLM round for simplicity
 
     # Max rounds reached
+    if mutated_workflow:
+        proposed_workflow = ctx.workflow
+        proposed_description = "Apply the workflow changes drafted by the assistant tools."
+        steps.append(ChatStep(
+            type="propose_changes",
+            workflow=proposed_workflow,
+            description=proposed_description,
+        ))
     steps.append(ChatStep(type="reply", content="I reached the maximum number of tool calls. Please simplify your request."))
     return ChatResponse(
         steps=steps,
         reply="I reached the maximum number of tool calls. Please simplify your request.",
+        proposed_workflow=proposed_workflow,
+        proposed_description=proposed_description,
     )

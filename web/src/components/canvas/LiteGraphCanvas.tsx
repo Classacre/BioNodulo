@@ -10,6 +10,8 @@ import Minimap from './Minimap';
 import SelectionToolbox from './SelectionToolbox';
 import GroupContextMenu from './GroupContextMenu';
 
+import { LiteGraphYjsBridge } from '../../collab/bridge';
+
 interface LiteGraphCanvasProps {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
@@ -29,6 +31,12 @@ interface LiteGraphCanvasProps {
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
   nodePreviewsMap?: Map<string, string>;
+  collabBridge?: LiteGraphYjsBridge;
+  onCollabCursor?: (cursor: { x: number; y: number; visible: boolean } | null) => void;
+  onCollabSelection?: (nodeIds: string[]) => void;
+  onCollabDragStart?: (nodeId: string) => void;
+  onCollabDragEnd?: () => void;
+  onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
 }
 
 export interface GraphNode {
@@ -273,11 +281,22 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
   nodePreviewsMap,
+  collabBridge,
+  onCollabCursor,
+  onCollabSelection,
+  onCollabDragStart,
+  onCollabDragEnd,
+  onViewportChange,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    onViewportChange?.(offset, scale);
+  }, [offset, scale, onViewportChange]);
+
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -1181,17 +1200,29 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           return { ...n, collapsed: newCollapsed, height: calcNodeHeight(n.meta, newCollapsed, n.params) };
         }));
         setDragging(clicked.id);
+        collabBridge?.onDragStart(clicked.id);
+        onCollabDragStart?.(clicked.id);
         setDragStart({ x: e.clientX, y: e.clientY });
         setContextMenu(null);
         setPalettePos(null);
         return;
       }
       if (e.shiftKey) {
-        setGraphNodes(prev => prev.map(n => n.id === clicked.id ? { ...n, selected: !n.selected } : n));
+        setGraphNodes(prev => {
+          const next = prev.map(n => n.id === clicked.id ? { ...n, selected: !n.selected } : n);
+          onCollabSelection?.(next.filter(n => n.selected).map(n => n.id));
+          return next;
+        });
       } else {
-        setGraphNodes(prev => prev.map(n => ({ ...n, selected: n.id === clicked.id })));
+        setGraphNodes(prev => {
+          const next = prev.map(n => ({ ...n, selected: n.id === clicked.id }));
+          onCollabSelection?.([clicked.id]);
+          return next;
+        });
       }
       setDragging(clicked.id);
+      collabBridge?.onDragStart(clicked.id);
+      onCollabDragStart?.(clicked.id);
       setDragStart({ x: e.clientX, y: e.clientY });
     } else {
       // Check group resize handle (in screen coords for easier grabbing)
@@ -1259,6 +1290,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const cy = rect ? e.clientY - rect.top : e.clientY;
     const world = toWorld(cx, cy);
     setMouseWorld(world);
+    onCollabCursor?.({ x: cx, y: cy, visible: true });
     mouseWorldRef.current = world;
 
     // Slot hover detection
@@ -1571,6 +1603,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (dragging || groupDragging || groupResizing || resizingNode) {
       onPushHistory();
     }
+    collabBridge?.onDragEnd();
+    onCollabDragEnd?.();
     setDragging(null);
     setPanning(false);
     setSelectBox(null);
@@ -1834,7 +1868,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onMouseDown={viewportLocked ? undefined : handleMouseDown}
         onMouseMove={viewportLocked ? undefined : handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={() => { onCollabCursor?.(null); handleMouseUp(); }}
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}

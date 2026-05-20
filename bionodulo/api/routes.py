@@ -16,13 +16,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from bionodulo.api.system_stats import router as system_stats_router
 from bionodulo.api.previews import router as previews_router
 from bionodulo.api.schemas import (
     AIChatRequest,
+    AuthMeResponse,
+    AuthTokenRequest,
+    AuthTokenResponse,
     DeleteFilesRequest,
     DependencyTreeRequest,
     ExampleDataDownloadRequest,
@@ -36,9 +40,12 @@ from bionodulo.api.schemas import (
     ManagerInstallPlanRequest,
     ManagerInstallRequest,
     ManagerPackageRequest,
+    RoomStatusResponse,
     RunCreateRequest,
     SettingsSaveRequest,
     SettingsSetRequest,
+    ShareWorkflowRequest,
+    ShareWorkflowResponse,
     ValidationRequest,
     WorkspaceRootRequest,
     WorkflowEnvironmentRequest,
@@ -66,6 +73,7 @@ from bionodulo.manager.installer import get_installer
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
+from bionodulo.collab.auth import get_token_from_header_or_query, validate_token
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -165,6 +173,29 @@ def _get_settings_manager(request: Request) -> Any:
     return request.app.state.settings_manager
 
 
+def _setting_literal(request: Request, key: str, default: Any = None) -> Any:
+    """Read frontend-style literal dotted settings keys.
+
+    SettingsManager also supports nested dotted access, but the React settings
+    store persists keys such as "bionodulo.collab.enabled" literally.
+    """
+    sm = _get_settings_manager(request)
+    try:
+        settings = sm.get_all()
+    except Exception:
+        settings = {}
+    return settings.get(key, default)
+
+
+def _setting_bool(request: Request, key: str, default: bool = False) -> bool:
+    value = _setting_literal(request, key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
 
@@ -225,6 +256,7 @@ def _generate_run_id(workflow_name: str) -> str:
 @router.post("/runs")
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
     """Submit a workflow for execution."""
+    _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     queue = _get_queue(request)
     event_hub = _get_event_hub(request)
 
@@ -501,18 +533,24 @@ async def set_setting(
 async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
     """Send a message to the AI assistant and get a tool-aware response."""
     settings = _get_settings(request)
+    settings_manager = _get_settings_manager(request)
     registry = _get_registry(request)
 
-    provider = body.provider or getattr(settings, "ai_provider", None) or "openai"
-    model = body.model or getattr(settings, "ai_model", None)
-    api_key = getattr(settings, "ai_api_key", None) or os.environ.get("OPENAI_API_KEY", "")
-    api_base = getattr(settings, "ai_base_url", None)
-    temperature = getattr(settings, "ai_temperature", 0.3)
+    provider = body.provider or _setting_literal(request, "bionodulo.llm.provider", "openai")
+    model = body.model or _setting_literal(request, "bionodulo.llm.model", None)
+    api_key = _setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
+    api_base = _setting_literal(request, "bionodulo.llm.baseUrl", None) or None
+    temperature = _setting_literal(request, "bionodulo.llm.temperature", 0.2)
+    try:
+        temperature = float(temperature)
+    except (TypeError, ValueError):
+        temperature = 0.2
 
     try:
         response = await chat_with_tools(
             user_message=body.message,
             workflow=body.workflow,
+            workflow_id=body.workflow_id,
             history=body.history,
             provider=provider,
             model=model,
@@ -521,6 +559,7 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
             temperature=temperature,
             registry=registry,
             settings=settings,
+            settings_manager=settings_manager,
             files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
         )
     except Exception as exc:
@@ -1489,6 +1528,7 @@ async def hpc_configure(
 @router.post("/hpc/submit")
 async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]:
     """Submit a workflow as an HPC job."""
+    _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     hpc = getattr(request.app.state, "hpc_backend", None)
     if hpc is None:
         raise HTTPException(status_code=503, detail="HPC backend not configured")
@@ -1665,3 +1705,198 @@ async def getting_started_download(
     status = await getting_started_status(request)
     status["download_result"] = result
     return status
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+security_scheme = HTTPBearer(auto_error=False)
+
+
+def _get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme)) -> dict[str, Any] | None:
+    """Validate the Bearer token from the Authorization header.
+
+    Returns the decoded JWT payload, or None if no valid token was provided.
+    """
+    from bionodulo.collab.auth import validate_token
+    if credentials is None:
+        return None
+    return validate_token(credentials.credentials)
+
+
+@router.post("/auth/token", response_model=AuthTokenResponse)
+async def auth_create_token(body: AuthTokenRequest) -> dict[str, Any]:
+    """Create a new JWT authentication token.
+
+    Generates a fresh user ID, creates a signed JWT with the provided name,
+    and returns both the token and user details.
+    """
+    from bionodulo.collab.auth import create_token, generate_user_id
+
+    user_id = generate_user_id()
+    token = create_token(
+        user_id=user_id,
+        name=body.name,
+        role="editor",
+        expiry_hours=24,
+    )
+    return {
+        "token": token,
+        "user_id": user_id,
+        "name": body.name,
+    }
+
+
+@router.get("/auth/me", response_model=AuthMeResponse)
+async def auth_me(user: dict[str, Any] | None = Depends(_get_current_user)) -> dict[str, Any]:
+    """Return the currently authenticated user's details.
+
+    Requires a valid Bearer token in the Authorization header.
+    """
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication token")
+    return {
+        "user_id": user.get("sub", ""),
+        "name": user.get("name", ""),
+        "role": user.get("role", "editor"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Collaboration
+# ---------------------------------------------------------------------------
+
+def _get_room_manager(request: Request) -> Any:
+    if not hasattr(request.app.state, "room_manager") or request.app.state.room_manager is None:
+        from bionodulo.collab.room_manager import RoomManager
+        request.app.state.room_manager = RoomManager()
+    return request.app.state.room_manager
+
+
+def _get_permissions(request: Request) -> Any:
+    if not hasattr(request.app.state, "permission_checker") or request.app.state.permission_checker is None:
+        from bionodulo.collab.permissions import PermissionChecker
+        from bionodulo.collab.models import CollabStore
+        from bionodulo.collab.persistence import _resolve_workspace_root
+        db_path = _resolve_workspace_root() / "collab.db"
+        fallback = _resolve_workspace_root() / "permissions.json"
+        request.app.state.permission_checker = PermissionChecker(
+            store=CollabStore(str(db_path)),
+            fallback_file=fallback,
+        )
+    return request.app.state.permission_checker
+
+
+def _require_auth_payload(request: Request) -> dict[str, Any]:
+    token = get_token_from_header_or_query(request)
+    payload = validate_token(token) if token else None
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication token")
+    return payload
+
+
+def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
+    if not workflow_id:
+        return None
+    if not _setting_bool(request, "bionodulo.collab.enabled", False):
+        return None
+    payload = _require_auth_payload(request)
+    user_id = payload.get("sub", "")
+    permissions = _get_permissions(request)
+    permissions.ensure_owner(workflow_id, user_id)
+    if not permissions.can_execute(workflow_id, user_id):
+        raise HTTPException(status_code=403, detail="Execute permission required")
+    return payload
+
+
+@router.post("/collab/share", response_model=ShareWorkflowResponse)
+async def collab_share(
+    request: Request,
+    body: ShareWorkflowRequest,
+) -> dict[str, Any]:
+    """Share a workflow with another user.
+
+    The calling user must be the owner of the workflow.
+    """
+    permissions = _get_permissions(request)
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    permissions.ensure_owner(body.workflow_id, caller_id)
+
+    if not permissions.can_share(body.workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Only the owner can share workflows")
+
+    share = permissions.grant(
+        workflow_id=body.workflow_id,
+        user_id=body.user_id,
+        role=body.role,
+        invited_by=caller_id,
+    )
+    return {
+        "share_id": share.id,
+        "workflow_id": share.workflow_id,
+        "user_id": share.user_id,
+        "role": share.role,
+        "invited_by": share.invited_by,
+        "invited_at": share.invited_at,
+    }
+
+
+@router.get("/collab/shares/{workflow_id}")
+async def collab_list_shares(
+    request: Request,
+    workflow_id: str,
+) -> dict[str, Any]:
+    """List all shares for a given workflow."""
+    permissions = _get_permissions(request)
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    if not permissions.can_read(workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    shares = permissions.list_users(workflow_id)
+    return {"workflow_id": workflow_id, "shares": shares, "count": len(shares)}
+
+
+@router.delete("/collab/share/{share_id}")
+async def collab_revoke_share(
+    request: Request,
+    share_id: str,
+) -> dict[str, str]:
+    """Revoke a share by its share record ID."""
+    from bionodulo.collab.models import CollabStore
+    from bionodulo.collab.persistence import _resolve_workspace_root
+
+    db_path = _resolve_workspace_root() / "collab.db"
+    store = CollabStore(str(db_path))
+    share = store.get_share(share_id)
+    if share is None:
+        raise HTTPException(status_code=404, detail="Share not found")
+
+    permissions = _get_permissions(request)
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    if not permissions.can_share(share.workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Only the owner can revoke shares")
+
+    success = store.delete_share(share_id)
+    if success:
+        # Warm cache removal
+        permissions.revoke(share.workflow_id, share.user_id)
+    return {"status": "revoked" if success else "not_found"}
+
+
+@router.get("/collab/room/{workflow_id}", response_model=RoomStatusResponse)
+async def collab_room_status(
+    request: Request,
+    workflow_id: str,
+) -> dict[str, Any]:
+    """Get the current collaboration room status for a workflow."""
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    permissions = _get_permissions(request)
+    if not permissions.can_read(workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    room_manager = _get_room_manager(request)
+    return room_manager.room_status(workflow_id)

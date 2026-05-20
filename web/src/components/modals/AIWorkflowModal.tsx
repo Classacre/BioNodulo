@@ -265,6 +265,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         body: JSON.stringify({
           message: userMsg,
           workflow,
+          workflow_id: workflow.id || null,
           history,
           files: currentAttachments,
         }),
@@ -591,6 +592,7 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
 
 function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
   return {
+    id: typeof raw.id === 'string' ? raw.id : undefined,
     version: (raw.version as string) || 'Alpha 1.2',
     app: (raw.app as string) || 'bionodulo',
     name: (raw.name as string) || 'Untitled',

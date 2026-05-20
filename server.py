@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,10 @@ from fastapi.staticfiles import StaticFiles
 
 from bionodulo.api.routes import router
 from bionodulo.api.websocket import websocket_router
+from bionodulo.api.collab_routes import collab_api_router
+from bionodulo.collab.yjs_native_handler import yjs_router
+from bionodulo.collab.heartbeat import HeartbeatManager
+from bionodulo.collab.redis_broadcaster import RedisBroadcaster
 from bionodulo.core.config import Settings, SettingsManager
 from bionodulo.core.events import EventHub
 from bionodulo.execution.executor import WorkflowExecutor
@@ -36,7 +41,10 @@ def create_app() -> FastAPI:
         examples_dst = default_root / "examples"
         if examples_src.exists() and not examples_dst.exists():
             default_root.mkdir(parents=True, exist_ok=True)
-            os.symlink(str(examples_src), str(examples_dst))
+            try:
+                os.symlink(str(examples_src), str(examples_dst))
+            except OSError:
+                shutil.copytree(examples_src, examples_dst, dirs_exist_ok=True)
 
     app = FastAPI(
         title="BioNodulo",
@@ -91,21 +99,52 @@ def create_app() -> FastAPI:
     app.state.run_queue = run_queue
     app.state.event_hub = event_hub
     app.state.settings_manager = settings_manager
+    app.state.room_manager = None  # lazily created by collab module
+
+    # Collaboration infrastructure
+    app.state.heartbeat_manager = HeartbeatManager()
+    app.state.rate_limiter = None  # lazily created by collab module
+    app.state.redis_broadcaster = RedisBroadcaster()
+
+    # Native Yjs room sockets (workflow_id -> list of WebSockets)
+    app.state.yjs_room_sockets = {}
 
     @app.on_event("startup")
     async def startup() -> None:
         # Note: pixi installation is surfaced via /api/host_status
         # and handled by the frontend so the user is aware of it.
         # RunQueue worker auto-starts on first submit
-        pass
+
+        # Connect to Redis (falls back to in-memory if unavailable)
+        try:
+            await app.state.redis_broadcaster.connect()
+        except Exception:
+            # Already logged inside connect()
+            pass
 
     @app.on_event("shutdown")
     async def shutdown() -> None:
         await run_queue.shutdown()
 
+        # Shut down heartbeat manager
+        try:
+            await app.state.heartbeat_manager.shutdown()
+        except Exception as exc:
+            logger = __import__("logging").getLogger(__name__)
+            logger.warning("Error shutting down heartbeat manager: %s", exc)
+
+        # Disconnect Redis
+        try:
+            await app.state.redis_broadcaster.disconnect()
+        except Exception as exc:
+            logger = __import__("logging").getLogger(__name__)
+            logger.warning("Error disconnecting Redis broadcaster: %s", exc)
+
     # Include routers
     app.include_router(router, prefix="/api")
+    app.include_router(collab_api_router, prefix="/api")
     app.include_router(websocket_router)
+    app.include_router(yjs_router)
 
     # Static files (frontend)
     web_dist = Path(__file__).parent / "web" / "dist"

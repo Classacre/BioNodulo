@@ -1,16 +1,60 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../types';
+import { getToken } from '../collab/auth';
+
+function createWorkflowId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeWorkflow(wf: Workflow): Workflow {
+  return { ...wf, id: wf.id || createWorkflowId() };
+}
 
 function emptyWorkflow(): Workflow {
   return {
-    version: 'Alpha 1.2', app: 'bionodulo', name: 'Untitled', description: '',
+    id: createWorkflowId(), version: 'Alpha 1.2', app: 'bionodulo', name: 'Untitled', description: '',
     nodes: [], edges: [], groups: [], outputs: {},
   };
 }
 
+const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
+
+function loadLocalWorkflows(): { workflows: Workflow[]; activeIndex: number } {
+  try {
+    const raw = localStorage.getItem(LOCAL_WORKFLOWS_KEY);
+    if (!raw) return { workflows: [emptyWorkflow()], activeIndex: 0 };
+    const parsed = JSON.parse(raw) as { workflows?: Workflow[]; activeIndex?: number };
+    const workflows = Array.isArray(parsed.workflows)
+      ? parsed.workflows.map(normalizeWorkflow).filter(wf => Array.isArray(wf.nodes) && Array.isArray(wf.edges))
+      : [];
+    if (workflows.length === 0) return { workflows: [emptyWorkflow()], activeIndex: 0 };
+    const activeIndex = Math.max(0, Math.min(parsed.activeIndex ?? 0, workflows.length - 1));
+    return { workflows, activeIndex };
+  } catch {
+    return { workflows: [emptyWorkflow()], activeIndex: 0 };
+  }
+}
+
+function saveLocalWorkflows(workflows: Workflow[], activeIndex: number) {
+  try {
+    localStorage.setItem(LOCAL_WORKFLOWS_KEY, JSON.stringify({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      activeIndex,
+      workflows: workflows.map(normalizeWorkflow),
+    }));
+  } catch {
+    // Browser storage can be unavailable in private mode or quota exhaustion.
+  }
+}
+
 export function useWorkflow() {
-  const [workflows, setWorkflows] = useState<Workflow[]>([emptyWorkflow()]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const initial = useState(loadLocalWorkflows)[0];
+  const [workflows, setWorkflows] = useState<Workflow[]>(initial.workflows);
+  const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
   const [resolveReport, setResolveReport] = useState<ResolveReport | null>(null);
 
@@ -18,6 +62,10 @@ export function useWorkflow() {
     setResolveReport(null);
   }, []);
   const [runs, setRuns] = useState<RunRecord[]>([]);
+
+  useEffect(() => {
+    saveLocalWorkflows(workflows, activeIndex);
+  }, [workflows, activeIndex]);
 
   const addRun = useCallback((run: RunRecord) => {
     setRuns(prev => [run, ...prev]);
@@ -30,21 +78,25 @@ export function useWorkflow() {
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();
 
   const setWorkflow = useCallback((index: number, updater: (w: Workflow) => Workflow) => {
-    setWorkflows(prev => prev.map((w, i) => i === index ? updater(w) : w));
+    setWorkflows(prev => prev.map((w, i) => i === index ? normalizeWorkflow(updater(w)) : w));
   }, []);
 
   const updateWorkflow = useCallback((index: number, partial: Partial<Workflow>) => {
-    setWorkflows(prev => prev.map((w, i) => i === index ? { ...w, ...partial } : w));
+    setWorkflows(prev => prev.map((w, i) => i === index ? normalizeWorkflow({ ...w, ...partial }) : w));
   }, []);
 
   const addTab = useCallback(() => {
-    setWorkflows(prev => [...prev, emptyWorkflow()]);
-    setActiveIndex(prev => prev + 1);
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, emptyWorkflow()];
+    });
   }, []);
 
   const addWorkflow = useCallback((wf: Workflow) => {
-    setWorkflows(prev => [...prev, wf]);
-    setActiveIndex(prev => prev + 1);
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, normalizeWorkflow(wf)];
+    });
   }, []);
 
   const closeTab = useCallback((index: number) => {
@@ -108,10 +160,16 @@ export function useWorkflow() {
   }, []);
 
   const submitRun = useCallback(async (wf: Workflow, options?: { no_cache?: boolean; name?: string; environment?: string }) => {
+    const token = getToken();
     const r = await fetch('/api/runs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
         workflow: wf,
+        workflow_id: wf.id || null,
         name: options?.name || wf.name || 'Untitled',
         no_cache: options?.no_cache || false,
         environment: options?.environment || null,
