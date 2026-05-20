@@ -44,35 +44,26 @@ const stats = [
   { value: '3', label: 'HPC Schedulers', detail: 'SLURM, PBS/Torque, and SGE', icon: 'server' },
 ] as const;
 
-const features = [
+const featureTabs = [
   {
     title: 'Visual Workflow Builder',
-    text: 'Drag, drop, connect, and inspect bioinformatics workflows as a node graph instead of a wall of scripts.',
+    kicker: 'Design pipelines without losing the science',
+    text: 'Build reproducible bioinformatics workflows as a node graph, inspect every step, and keep local execution close at hand.',
+    bullets: ['Drag nodes onto a canvas and connect typed inputs', 'Start from 13 built-in workflow templates', 'Inspect parameters, status, and outputs in one place'],
     icon: 'node',
   },
   {
-    title: 'Bioinformatics Node Library',
-    text: '94 registered nodes across QC, alignment, RNA-seq, assembly, variant calling, metagenomics, R, BioPython, and more.',
-    icon: 'cube',
-  },
-  {
-    title: 'Local Execution by Default',
-    text: 'Run on your own machine first, with local templates and local workflow state available without collaboration services.',
-    icon: 'play',
-  },
-  {
-    title: 'Optional Collaboration',
-    text: 'Invite collaborators, share workflows, comment, inspect versions, and keep local mode as the default when working alone.',
+    title: 'Collaboration and HPC',
+    kicker: 'Work locally first, scale when needed',
+    text: 'Keep solo workflows private by default, then enable collaboration or cluster execution for the projects that need it.',
+    bullets: ['Optional shared editing, comments, versions, and audit history', 'Local mode remains the default for individual research', 'Configure SLURM, PBS/Torque, or SGE for HPC runs'],
     icon: 'users',
   },
   {
-    title: 'HPC Ready',
-    text: 'Configure SLURM, PBS/Torque, or SGE for research groups that need cluster execution.',
-    icon: 'server',
-  },
-  {
-    title: 'AI Workflow Assistant',
-    text: 'Use the built-in assistant to inspect workflows, add nodes, validate edges, and draft changes for review.',
+    title: 'AI Assistant',
+    kicker: 'A helper that understands the workflow',
+    text: 'Use the built-in assistant to inspect graphs, add nodes, validate connections, and draft changes for review.',
+    bullets: ['Ask questions about the current workflow state', 'Create nodes and edges through tool-backed actions', 'Validate configuration before expensive runs'],
     icon: 'code',
   },
 ] as const;
@@ -251,7 +242,7 @@ function Header() {
         <a href="#faq">FAQ</a>
       </nav>
       <div className="header-actions">
-        <a className="button secondary small" href="https://github.com/Classacre" target="_blank" rel="noreferrer">
+        <a className="button secondary small" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">
           <Icon name="github" />
           GitHub
         </a>
@@ -324,7 +315,7 @@ function Hero() {
         </p>
         <div className="hero-actions">
           <a className="button primary" href="/demo">View Demo <Icon name="arrow" /></a>
-          <a className="button secondary" href="https://github.com/Classacre" target="_blank" rel="noreferrer"><Icon name="github" /> GitHub</a>
+          <a className="button secondary" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer"><Icon name="github" /> GitHub</a>
         </div>
         <div className="trust-line">
           <span>Open Source</span>
@@ -354,22 +345,89 @@ function Stats() {
 }
 
 function Features() {
+  const [activeTab, setActiveTab] = useState(0);
+  const activeFeature = featureTabs[activeTab];
+
   return (
     <section className="section reveal" id="features">
       <div className="section-heading">
         <h2>Everything you need to do more research</h2>
         <p>BioNodulo keeps the workflow visible while still leaving room for serious local, HPC, and collaborative execution.</p>
       </div>
-      <div className="feature-grid">
-        {features.map(feature => (
-          <article className="feature-card" key={feature.title}>
-            <div className="icon-shell"><Icon name={feature.icon} /></div>
-            <h3>{feature.title}</h3>
-            <p>{feature.text}</p>
-          </article>
+      <div className="feature-tabs" role="tablist" aria-label="BioNodulo feature areas">
+        {featureTabs.map((feature, index) => (
+          <button
+            className={activeTab === index ? 'active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === index}
+            key={feature.title}
+            onClick={() => setActiveTab(index)}
+          >
+            <Icon name={feature.icon} />
+            {feature.title}
+          </button>
         ))}
       </div>
+      <div className="feature-panel">
+        <article>
+          <span className="section-label">{activeFeature.kicker}</span>
+          <h3>{activeFeature.title}</h3>
+          <p>{activeFeature.text}</p>
+          <ul>
+            {activeFeature.bullets.map(bullet => (
+              <li key={bullet}><Icon name="check" /> {bullet}</li>
+            ))}
+          </ul>
+        </article>
+        <FeatureScreenshot feature={activeFeature.title} />
+      </div>
     </section>
+  );
+}
+
+function FeatureScreenshot({ feature }: { feature: string }) {
+  if (feature === 'Collaboration and HPC') {
+    return (
+      <div className="feature-shot collaboration-shot" aria-label="Collaboration and HPC preview">
+        <div className="shot-toolbar"><span /><strong>Shared RNA-seq Project</strong><em>Live</em></div>
+        <div className="collab-grid">
+          <div className="collab-card">
+            <h4>Presence</h4>
+            <div className="avatars"><span>M</span><span>A</span><span>L</span></div>
+            <p>3 collaborators reviewing the workflow</p>
+          </div>
+          <div className="collab-card">
+            <h4>HPC Queue</h4>
+            <div className="queue-row"><b>SLURM</b><span>Running</span></div>
+            <div className="queue-row"><b>PBS</b><span>Ready</span></div>
+            <div className="queue-row"><b>SGE</b><span>Configured</span></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (feature === 'AI Assistant') {
+    return (
+      <div className="feature-shot assistant-shot" aria-label="AI Assistant preview">
+        <div className="shot-toolbar"><span /><strong>BioNodulo Assistant</strong><em>Tools enabled</em></div>
+        <div className="assistant-thread">
+          <p>Inspect the workflow and suggest missing QC steps.</p>
+          <div>
+            <Icon name="code" />
+            <span>Added FastQC before trimming and validated downstream edges.</span>
+          </div>
+          <button type="button">Review Changes</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="feature-shot workflow-shot" aria-label="Visual workflow builder preview">
+      <ProductMockup compact />
+    </div>
   );
 }
 
@@ -423,12 +481,13 @@ function Integrations() {
           <LogoMark />
           <span>BioNodulo</span>
         </div>
-        {integrations.map((item, index) => (
-          <div className="integration" style={{ '--i': index } as React.CSSProperties} key={item.name}>
-            <ToolLogo name={item.logo} />
-            <span>{item.name}</span>
-          </div>
-        ))}
+        <div className="integration-track">
+          {integrations.map((item, index) => (
+            <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
+              <ToolLogo name={item.logo} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -453,7 +512,7 @@ function ToolLogo({ name }: { name: ToolLogoName }) {
     case 'nextflow':
       return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#00b8b0" /><path d="M15 34V14l18 20V14" stroke="#082e31" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case 'cwl':
-      return <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="7" fill="#7b61ff" /><text x="24" y="29" textAnchor="middle" fill="#fff" fontSize="12" fontWeight="900">CWL</text></svg>;
+      return <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="7" fill="#7b61ff" /><path d="M17 18h-3a5 5 0 000 10h3M21 18l3 10 3-10M32 18v10h5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case 'galaxy':
       return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#ffd166" /><path d="M24 11l3.8 8 8.7 1.2-6.3 6.1 1.5 8.6L24 30.8l-7.7 4.1 1.5-8.6-6.3-6.1 8.7-1.2z" fill="#5c4b9b" /></svg>;
   }
@@ -522,7 +581,7 @@ function Footer() {
         <Logo />
         <p>A visual bioinformatics workflow workbench for modern research. Open source, local-first, and built for reproducibility.</p>
         <div className="socials">
-          <a href="https://github.com/Classacre" aria-label="GitHub" target="_blank" rel="noreferrer"><Icon name="github" /></a>
+          <a href="https://github.com/Classacre/BioNodulo" aria-label="GitHub" target="_blank" rel="noreferrer"><Icon name="github" /></a>
           <a href="https://discord.gg/baNKVhZq6k" aria-label="Discord" target="_blank" rel="noreferrer"><Icon name="discord" /></a>
           <a href="https://www.linkedin.com/in/mika-nieuwenhuyzen/" aria-label="LinkedIn" target="_blank" rel="noreferrer"><Icon name="linkedin" /></a>
           <a href="mailto:nieuwenhuyzemikamartin@gmail.com" aria-label="Email"><Icon name="mail" /></a>
@@ -530,7 +589,7 @@ function Footer() {
       </div>
       <div className="footer-links">
         <div><strong>Product</strong><a href="#features">Features</a><a href="#templates">Templates</a><a href="#integrations">Integrations</a><a href="/demo">Demo</a></div>
-        <div><strong>Community</strong><a href="https://github.com/Classacre" target="_blank" rel="noreferrer">GitHub</a><a href="https://discord.gg/baNKVhZq6k" target="_blank" rel="noreferrer">Discord</a><a href="#faq">FAQ</a></div>
+        <div><strong>Community</strong><a href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">GitHub</a><a href="https://discord.gg/baNKVhZq6k" target="_blank" rel="noreferrer">Discord</a><a href="#faq">FAQ</a></div>
         <div><strong>Company</strong><a href="mailto:nieuwenhuyzemikamartin@gmail.com">Contact</a><a href="#licensing">Licensing</a><a href="https://www.linkedin.com/in/mika-nieuwenhuyzen/" target="_blank" rel="noreferrer">LinkedIn</a></div>
       </div>
       <div className="footer-bottom">
@@ -589,7 +648,7 @@ function DemoPage() {
           </p>
           <div className="hero-actions">
             <a className="button primary" href="/">Back to Site</a>
-            <a className="button secondary" href="https://github.com/Classacre" target="_blank" rel="noreferrer"><Icon name="github" /> GitHub</a>
+            <a className="button secondary" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer"><Icon name="github" /> GitHub</a>
           </div>
         </div>
         <ProductMockup />
