@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import './styles.css';
@@ -165,74 +165,203 @@ const faqs = [
   },
 ];
 
-function NoiseGradientBackground() {
-  return (
-    <svg className="noise-gradient-bg" viewBox="0 0 1440 1200" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="bioNoiseBase" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#071018" />
-          <stop offset="48%" stopColor="#0f172a" />
-          <stop offset="100%" stopColor="#05070d" />
-        </linearGradient>
-        <radialGradient id="bioTealBlob" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.98" />
-          <stop offset="46%" stopColor="#0ea5e9" stopOpacity="0.44" />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="bioGreenBlob" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#22c55e" stopOpacity="0.82" />
-          <stop offset="54%" stopColor="#2dd4bf" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="bioBlueBlob" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.72" />
-          <stop offset="58%" stopColor="#334155" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#334155" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="bioAmberBlob" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#ffc85f" stopOpacity="0.48" />
-          <stop offset="60%" stopColor="#22c55e" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
-        </radialGradient>
-        <filter id="bioGradientNoise" x="-20%" y="-20%" width="140%" height="140%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.011 0.019" numOctaves="3" seed="17" result="noise">
-            <animate attributeName="baseFrequency" dur="9s" values="0.011 0.019;0.019 0.012;0.014 0.024;0.011 0.019" repeatCount="indefinite" />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="48" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-        <filter id="bioWireNoise" x="-10%" y="-10%" width="120%" height="120%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="23" result="wireNoise">
-            <animate attributeName="baseFrequency" dur="7s" values="0.018 0.03;0.03 0.018;0.02 0.026;0.018 0.03" repeatCount="indefinite" />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="wireNoise" scale="22" />
-        </filter>
-        <filter id="bioFineGrain">
-          <feTurbulence type="fractalNoise" baseFrequency="0.78" numOctaves="2" seed="9" result="grain" />
-          <feColorMatrix in="grain" type="saturate" values="0" />
-          <feComponentTransfer>
-            <feFuncA type="table" tableValues="0 0.19" />
-          </feComponentTransfer>
-        </filter>
-        <pattern id="bioWirePattern" width="74" height="74" patternUnits="userSpaceOnUse">
-          <path d="M74 0H0V74" />
-          <path d="M0 74L74 0" />
-          <path d="M37 0V74M0 37H74" className="wire-minor" />
-        </pattern>
-      </defs>
-      <rect width="1440" height="1200" fill="url(#bioNoiseBase)" />
-      <g className="noise-gradient-field" filter="url(#bioGradientNoise)">
-        <ellipse className="noise-blob noise-blob-main" cx="910" cy="230" rx="540" ry="330" fill="url(#bioTealBlob)" />
-        <ellipse className="noise-blob noise-blob-blue" cx="330" cy="400" rx="330" ry="260" fill="url(#bioBlueBlob)" />
-        <ellipse className="noise-blob noise-blob-green" cx="1050" cy="800" rx="410" ry="310" fill="url(#bioGreenBlob)" />
-        <ellipse className="noise-blob noise-blob-amber" cx="470" cy="960" rx="280" ry="220" fill="url(#bioAmberBlob)" />
-      </g>
-      <g className="noise-gradient-wire" filter="url(#bioWireNoise)">
-        <rect width="1440" height="1200" fill="url(#bioWirePattern)" />
-      </g>
-      <rect className="noise-gradient-grain" width="1440" height="1200" filter="url(#bioFineGrain)" />
-      <rect className="noise-gradient-vignette" width="1440" height="1200" />
-    </svg>
-  );
+function WorkflowCanvasBackground() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const themeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const nodeLabels = ['FASTQ', 'FastQC', 'Trim', 'STAR', 'BAM', 'Counts', 'DESeq2', 'Plot', 'VCF', 'QC', 'HPC', 'AI', 'MultiQC', 'Genome'];
+    const nodeColors = ['#0d9488', '#ec4899', '#f59e0b', '#3b82f6', '#60a5fa', '#f97316', '#a855f7', '#06b6d4', '#ef4444', '#22c55e'];
+    const nodes = nodeLabels.map((label, index) => ({
+      label,
+      x: 0.08 + ((index * 37) % 84) / 100,
+      y: 0.08 + ((index * 23) % 82) / 100,
+      w: 92 + (index % 3) * 14,
+      h: 38,
+      color: nodeColors[index % nodeColors.length],
+      phase: index * 0.71,
+    }));
+    const edgePairs = [
+      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7],
+      [0, 12], [12, 2], [8, 9], [9, 10], [10, 11], [11, 7],
+      [1, 9], [3, 10], [5, 11], [2, 13], [13, 3], [6, 11],
+    ].map(([from, to], index) => ({ from, to, phase: index * 0.43 }));
+
+    let frame = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const readTheme = () => {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        bg: style.getPropertyValue('--bg').trim() || '#0f172a',
+        glowA: style.getPropertyValue('--canvas-glow-a').trim() || 'rgba(45, 212, 191, 0.16)',
+        glowB: style.getPropertyValue('--canvas-glow-b').trim() || 'rgba(14, 165, 233, 0.08)',
+        fadeTop: style.getPropertyValue('--canvas-fade-top').trim() || 'rgba(0, 0, 0, 0.2)',
+        canvasGrid: style.getPropertyValue('--canvas-grid').trim() || 'rgba(148, 163, 184, 0.12)',
+        link: style.getPropertyValue('--canvas-link').trim() || 'rgba(45, 212, 191, 0.35)',
+        linkAlt: style.getPropertyValue('--canvas-link-alt').trim() || 'rgba(14, 165, 233, 0.3)',
+        nodeBg: style.getPropertyValue('--canvas-node-bg').trim() || 'rgba(15, 23, 42, 0.82)',
+        nodeText: style.getPropertyValue('--canvas-node-text').trim() || '#f8fafc',
+      };
+    };
+
+    const roundedRect = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    };
+
+    const draw = (time: number) => {
+      const t = time / 1000;
+      const theme = readTheme();
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(0, 0, width, height);
+
+      const gradient = ctx.createRadialGradient(width * 0.5, height * 0.45, 0, width * 0.5, height * 0.45, Math.max(width, height) * 0.7);
+      gradient.addColorStop(0, theme.glowA);
+      gradient.addColorStop(0.42, theme.glowB);
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      const grid = 42;
+      const driftX = motionQuery.matches ? 0 : (t * 8) % grid;
+      const driftY = motionQuery.matches ? 0 : (t * 5) % grid;
+      ctx.strokeStyle = theme.canvasGrid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = -grid + driftX; x < width + grid; x += grid) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+      }
+      for (let y = -grid + driftY; y < height + grid; y += grid) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+      }
+      ctx.stroke();
+
+      const placed = nodes.map(node => {
+        const floatX = motionQuery.matches ? 0 : Math.sin(t * 0.27 + node.phase) * 18;
+        const floatY = motionQuery.matches ? 0 : Math.cos(t * 0.22 + node.phase) * 16;
+        return {
+          ...node,
+          px: node.x * width + floatX - node.w / 2,
+          py: node.y * height + floatY - node.h / 2,
+        };
+      });
+
+      for (const edge of edgePairs) {
+        const from = placed[edge.from];
+        const to = placed[edge.to];
+        const pulse = motionQuery.matches ? 0.52 : (Math.sin(t * 0.82 + edge.phase) + 1) / 2;
+        const alpha = pulse > 0.32 ? Math.min(1, (pulse - 0.32) / 0.28) : 0;
+        if (alpha <= 0.01) continue;
+        const fx = from.px + from.w;
+        const fy = from.py + from.h / 2;
+        const tx = to.px;
+        const ty = to.py + to.h / 2;
+        const control = Math.max(48, Math.abs(tx - fx) * 0.36);
+        ctx.strokeStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
+        ctx.globalAlpha = 0.14 + alpha * 0.48;
+        ctx.lineWidth = 1.4 + alpha * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.bezierCurveTo(fx + control, fy, tx - control, ty, tx, ty);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.fillStyle = edge.phase % 1 > 0.5 ? theme.linkAlt : theme.link;
+        const dotProgress = motionQuery.matches ? 0.5 : (t * 0.18 + edge.phase) % 1;
+        const dx = fx + (tx - fx) * dotProgress;
+        const dy = fy + (ty - fy) * dotProgress;
+        ctx.beginPath();
+        ctx.arc(dx, dy, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      for (const node of placed) {
+        const activity = motionQuery.matches ? 0.45 : (Math.sin(t * 0.95 + node.phase) + 1) / 2;
+        ctx.shadowColor = node.color;
+        ctx.shadowBlur = 10 + activity * 12;
+        ctx.fillStyle = theme.nodeBg;
+        roundedRect(node.px, node.py, node.w, node.h, 10);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = node.color;
+        ctx.globalAlpha = 0.38 + activity * 0.28;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = node.color;
+        ctx.beginPath();
+        ctx.arc(node.px + 14, node.py + node.h / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = theme.nodeText;
+        ctx.font = '700 12px Inter, system-ui, sans-serif';
+        ctx.fillText(node.label, node.px + 25, node.py + 24);
+      }
+
+      ctx.fillStyle = theme.bg;
+      const fade = ctx.createLinearGradient(0, 0, 0, height);
+      fade.addColorStop(0, theme.fadeTop);
+      fade.addColorStop(0.35, 'rgba(0, 0, 0, 0)');
+      fade.addColorStop(1, theme.bg);
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, width, height);
+    };
+
+    const animate = (time: number) => {
+      draw(time);
+      if (!motionQuery.matches) frame = requestAnimationFrame(animate);
+    };
+
+    const handleThemeChange = () => draw(performance.now());
+    const handleMotionChange = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(animate);
+    };
+
+    resize();
+    animate(0);
+    window.addEventListener('resize', resize);
+    themeQuery.addEventListener('change', handleThemeChange);
+    motionQuery.addEventListener('change', handleMotionChange);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', resize);
+      themeQuery.removeEventListener('change', handleThemeChange);
+      motionQuery.removeEventListener('change', handleMotionChange);
+    };
+  }, []);
+
+  return <canvas className="workflow-canvas-bg" ref={canvasRef} aria-hidden="true" />;
 }
 
 function Icon({ name }: { name: IconName }) {
@@ -1186,7 +1315,7 @@ function App() {
 
   return (
     <>
-      <NoiseGradientBackground />
+      <WorkflowCanvasBackground />
       {page}
     </>
   );
