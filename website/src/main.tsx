@@ -35,7 +35,10 @@ type ToolLogoName =
   | 'snakemake'
   | 'nextflow'
   | 'cwl'
-  | 'galaxy';
+  | 'galaxy'
+  | 'chatgpt'
+  | 'claude'
+  | 'openrouter';
 
 const stats = [
   { value: '94', label: 'Bioinformatics Nodes', detail: 'Registered node types in the app', icon: 'cube' },
@@ -86,7 +89,13 @@ const integrations: Array<{ name: string; logo: ToolLogoName }> = [
   { name: 'Nextflow', logo: 'nextflow' },
   { name: 'CWL', logo: 'cwl' },
   { name: 'Galaxy', logo: 'galaxy' },
+  { name: 'ChatGPT', logo: 'chatgpt' },
+  { name: 'Claude', logo: 'claude' },
+  { name: 'OpenRouter', logo: 'openrouter' },
 ];
+
+const outerIntegrations = integrations.slice(0, 7);
+const innerIntegrations = integrations.slice(7);
 
 const licensing = [
   {
@@ -242,11 +251,10 @@ function Header() {
     <header className={`site-header ${hidden ? 'is-hidden' : ''}`}>
       <Logo />
       <nav aria-label="Primary navigation">
-        <a href="#features">Features</a>
-        <a href="#templates">Templates</a>
-        <a href="#integrations">Integrations</a>
-        <a href="#licensing">Licensing</a>
-        <a href="#faq">FAQ</a>
+        <a href="/features">Features</a>
+        <a href="/download">Download</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/contact">Contact</a>
       </nav>
       <div className="header-actions">
         <a className="button secondary small" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">
@@ -359,7 +367,7 @@ function Stats() {
   return (
     <section className="stats reveal" aria-label="BioNodulo product statistics">
       {stats.map(stat => (
-        <div className="stat" key={stat.label}>
+        <div className="stat pop-in" key={stat.label}>
           <Icon name={stat.icon} />
           <strong>{stat.value}</strong>
           <span>{stat.label}</span>
@@ -383,7 +391,7 @@ function Features() {
       <div className="feature-tabs" role="tablist" aria-label="BioNodulo feature areas">
         {featureTabs.map((feature, index) => (
           <button
-            className={activeTab === index ? 'active' : ''}
+            className={`pop-in ${activeTab === index ? 'active' : ''}`}
             type="button"
             role="tab"
             aria-selected={activeTab === index}
@@ -395,7 +403,7 @@ function Features() {
           </button>
         ))}
       </div>
-      <div className="feature-panel">
+      <div className="feature-panel pop-in">
         <article>
           <span className="section-label">{activeFeature.kicker}</span>
           <h3>{activeFeature.title}</h3>
@@ -495,14 +503,14 @@ function Integrations() {
           <span>BioNodulo</span>
         </div>
         <div className="integration-track outer-track">
-          {integrations.slice(0, 5).map((item, index) => (
+          {outerIntegrations.map((item, index) => (
             <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
               <ToolLogo name={item.logo} />
             </div>
           ))}
         </div>
         <div className="integration-track inner-track">
-          {integrations.slice(5).map((item, index) => (
+          {innerIntegrations.map((item, index) => (
             <div className="integration" style={{ '--i': index } as React.CSSProperties} aria-label={item.name} key={item.name}>
               <ToolLogo name={item.logo} />
             </div>
@@ -535,6 +543,12 @@ function ToolLogo({ name }: { name: ToolLogoName }) {
       return <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="28" rx="7" fill="#7b61ff" /><path d="M17 18h-3a5 5 0 000 10h3M21 18l3 10 3-10M32 18v10h5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case 'galaxy':
       return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#ffd166" /><path d="M24 11l3.8 8 8.7 1.2-6.3 6.1 1.5 8.6L24 30.8l-7.7 4.1 1.5-8.6-6.3-6.1 8.7-1.2z" fill="#5c4b9b" /></svg>;
+    case 'chatgpt':
+      return <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#10a37f" /><path d="M18 15c2-5 9-5 12-1 5 0 8 6 5 10 2 5-2 10-7 10-3 4-10 4-12 0-5 0-8-6-5-10-2-4 1-9 7-9zm1 6l9-5m-8 17v-9m9 8l-9-5m-1-12l8 5m2 12v-9m-9 1l9 5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case 'claude':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="12" fill="#d97757" /><path d="M15 31l7-17h4l7 17h-4l-1.5-4h-7L19 31zm7-8h4l-2-5z" fill="#fff8ef" /></svg>;
+    case 'openrouter':
+      return <svg viewBox="0 0 48 48"><rect x="6" y="8" width="36" height="32" rx="10" fill="#111827" /><path d="M12 24h12m0 0l-5-5m5 5l-5 5M24 16h12M24 32h12" stroke="#7dd3fc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /><circle cx="36" cy="16" r="3" fill="#2dd4bf" /><circle cx="36" cy="32" r="3" fill="#2dd4bf" /></svg>;
   }
 }
 
@@ -547,7 +561,7 @@ function Licensing() {
       </div>
       <div className="license-grid">
         {licensing.map(item => (
-          <article className="license-card" key={item.title}>
+          <article className="license-card pop-in" key={item.title}>
             <Icon name={item.icon} />
             <h3>{item.title}</h3>
             <p>{item.text}</p>
@@ -584,7 +598,7 @@ function FAQ() {
       </div>
       <div className="faq-grid">
         {faqs.map(item => (
-          <details key={item.question}>
+          <details className="pop-in" key={item.question}>
             <summary>{item.question}</summary>
             <p>{item.answer}</p>
           </details>
@@ -608,9 +622,9 @@ function Footer() {
         </div>
       </div>
       <div className="footer-links">
-        <div><strong>Product</strong><a href="#features">Features</a><a href="#templates">Templates</a><a href="#integrations">Integrations</a><a href="/demo">Demo</a></div>
-        <div><strong>Community</strong><a href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">GitHub</a><a href="https://discord.gg/baNKVhZq6k" target="_blank" rel="noreferrer">Discord</a><a href="#faq">FAQ</a></div>
-        <div><strong>Company</strong><a href="mailto:nieuwenhuyzemikamartin@gmail.com">Contact</a><a href="#licensing">Licensing</a><a href="https://www.linkedin.com/in/mika-nieuwenhuyzen/" target="_blank" rel="noreferrer">LinkedIn</a></div>
+        <div><strong>Product</strong><a href="/features">Features</a><a href="/download">Download</a><a href="/pricing">Pricing</a><a href="/demo">Demo</a></div>
+        <div><strong>Community</strong><a href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">GitHub</a><a href="https://discord.gg/baNKVhZq6k" target="_blank" rel="noreferrer">Discord</a><a href="/contact">Contact</a></div>
+        <div><strong>Company</strong><a href="/contact">Contact</a><a href="/pricing">Licensing</a><a href="https://www.linkedin.com/in/mika-nieuwenhuyzen/" target="_blank" rel="noreferrer">LinkedIn</a></div>
       </div>
       <div className="footer-bottom">
         <span>© 2026 BioNodulo</span>
@@ -622,7 +636,7 @@ function Footer() {
 
 function HomePage() {
   useEffect(() => {
-    const targets = Array.from(document.querySelectorAll<HTMLElement>('.reveal'));
+    const targets = Array.from(document.querySelectorAll<HTMLElement>('.reveal, .pop-in'));
     const observer = new IntersectionObserver(
       entries => {
         entries.forEach(entry => {
@@ -653,6 +667,158 @@ function HomePage() {
   );
 }
 
+const detailedFeatures = [
+  {
+    title: 'Visual Workflow Builder',
+    text: 'A node-based canvas for turning bioinformatics pipelines into visible, editable systems.',
+    bullets: ['94 registered node types', '13 built-in templates', 'Typed inputs and outputs', 'Inspectable run state'],
+    icon: 'node',
+  },
+  {
+    title: 'Collaboration',
+    text: 'Optional shared workspaces for teams that need review, comments, versions, and shared workflow context.',
+    bullets: ['Presence and comments', 'Workflow versions', 'Audit history', 'Local mode remains available'],
+    icon: 'users',
+  },
+  {
+    title: 'HPC Execution',
+    text: 'Research groups can configure cluster execution while keeping local development comfortable.',
+    bullets: ['SLURM support', 'PBS/Torque support', 'SGE support', 'Local-to-cluster workflow handoff'],
+    icon: 'server',
+  },
+  {
+    title: 'AI Workflow Assistant',
+    text: 'Tool-backed assistant actions help inspect workflows, add nodes, validate edges, and draft changes.',
+    bullets: ['Workflow-aware questions', 'Node and edge actions', 'Validation support', 'Review-first changes'],
+    icon: 'code',
+  },
+] as const;
+
+function PageLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll<HTMLElement>('.reveal, .pop-in'));
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('is-visible');
+      });
+    }, { threshold: 0.14 });
+    targets.forEach(target => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <>
+      <Header />
+      <main className="page-main">{children}</main>
+      <Footer />
+    </>
+  );
+}
+
+function PageHero({ label, title, text }: { label: string; title: string; text: string }) {
+  return (
+    <section className="page-hero reveal">
+      <span className="beta">{label}</span>
+      <h1>{title}</h1>
+      <p>{text}</p>
+    </section>
+  );
+}
+
+function FeaturesPage() {
+  return (
+    <PageLayout>
+      <PageHero label="Features" title="A deeper look at BioNodulo." text="Explore the core systems behind the visual workflow canvas, collaboration model, HPC support, local execution, and assistant tooling." />
+      <section className="detail-grid">
+        {detailedFeatures.map(feature => (
+          <article className="detail-card pop-in" key={feature.title}>
+            <div className="icon-shell"><Icon name={feature.icon} /></div>
+            <h2>{feature.title}</h2>
+            <p>{feature.text}</p>
+            <ul>{feature.bullets.map(bullet => <li key={bullet}><Icon name="check" /> {bullet}</li>)}</ul>
+          </article>
+        ))}
+      </section>
+    </PageLayout>
+  );
+}
+
+function DownloadPage() {
+  return (
+    <PageLayout>
+      <PageHero label="Download" title="Run BioNodulo your way." text="Start locally from GitHub, use a future notebook launch path, or choose hosted cloud when that option becomes available." />
+      <section className="option-grid">
+        <article className="option-card pop-in">
+          <Icon name="github" />
+          <h2>GitHub</h2>
+          <p>Clone the open-source repository, inspect the code, and run BioNodulo locally.</p>
+          <a className="button primary" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">Open GitHub <Icon name="arrow" /></a>
+        </article>
+        <article className="option-card pop-in">
+          <Icon name="code" />
+          <h2>Google Colab</h2>
+          <p>A notebook launch option is planned. This placeholder will point to the Colab notebook once it exists.</p>
+          <a className="button secondary" href="#" aria-disabled="true">Coming Soon</a>
+        </article>
+        <article className="option-card pop-in">
+          <Icon name="server" />
+          <h2>Cloud Hosting</h2>
+          <p>Future hosted services can bundle licensing with RDP or VPS infrastructure for teams that want managed access.</p>
+          <a className="button primary" href="/pricing">View Pricing <Icon name="arrow" /></a>
+        </article>
+      </section>
+    </PageLayout>
+  );
+}
+
+function PricingPage() {
+  const plans = [
+    { name: 'Free', price: 'Free', text: 'Open-source and free for academic and non-commercial research purposes.', icon: 'gift' as const },
+    { name: 'Publishing', price: 'TBD', text: 'Required for commercial use or publishing results produced with BioNodulo.', icon: 'license' as const },
+    { name: 'Institutional', price: 'TBD', text: 'For institutions that need licensing, deployment help, and future hosted options.', icon: 'building' as const },
+  ];
+
+  return (
+    <PageLayout>
+      <PageHero label="Pricing" title="Licensing built around research first." text="BioNodulo is currently in open beta. Publishing and institutional pricing will be finalized as the platform matures." />
+      <section className="pricing-grid">
+        {plans.map(plan => (
+          <article className="pricing-card pop-in" key={plan.name}>
+            <Icon name={plan.icon} />
+            <h2>{plan.name}</h2>
+            <strong>{plan.price}</strong>
+            <p>{plan.text}</p>
+            <a className="button secondary" href={plan.name === 'Free' ? 'https://github.com/Classacre/BioNodulo' : '/contact'}>{plan.name === 'Free' ? 'Get Started' : 'Contact Us'}</a>
+          </article>
+        ))}
+      </section>
+    </PageLayout>
+  );
+}
+
+function ContactPage() {
+  return (
+    <PageLayout>
+      <PageHero label="Contact" title="Talk to us about BioNodulo." text="For publishing licenses, institutional plans, cloud hosting, or open beta feedback, send a note or use one of the community links." />
+      <section className="contact-page-grid">
+        <form className="contact-form pop-in">
+          <label>Name<input type="text" name="name" placeholder="Your name" /></label>
+          <label>Email<input type="email" name="email" placeholder="you@example.com" /></label>
+          <label>Topic<select name="topic" defaultValue="licensing"><option value="licensing">Licensing</option><option value="institution">Institutional pricing</option><option value="hosting">Cloud hosting</option><option value="feedback">Open beta feedback</option></select></label>
+          <label>Message<textarea name="message" placeholder="How can we help?" rows={6} /></label>
+          <a className="button primary" href="mailto:nieuwenhuyzemikamartin@gmail.com">Email Message <Icon name="arrow" /></a>
+        </form>
+        <div className="contact-links pop-in">
+          <a href="mailto:nieuwenhuyzemikamartin@gmail.com"><Icon name="mail" /> nieuwenhuyzemikamartin@gmail.com</a>
+          <a href="https://www.linkedin.com/in/mika-nieuwenhuyzen/" target="_blank" rel="noreferrer"><Icon name="linkedin" /> LinkedIn</a>
+          <a href="https://discord.gg/baNKVhZq6k" target="_blank" rel="noreferrer"><Icon name="discord" /> Discord</a>
+          <a href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer"><Icon name="github" /> GitHub Project</a>
+        </div>
+      </section>
+    </PageLayout>
+  );
+}
+
 function DemoPage() {
   return (
     <div className="demo-page">
@@ -677,7 +843,20 @@ function DemoPage() {
 }
 
 function App() {
-  return window.location.pathname === '/demo' ? <DemoPage /> : <HomePage />;
+  switch (window.location.pathname) {
+    case '/demo':
+      return <DemoPage />;
+    case '/features':
+      return <FeaturesPage />;
+    case '/download':
+      return <DownloadPage />;
+    case '/pricing':
+      return <PricingPage />;
+    case '/contact':
+      return <ContactPage />;
+    default:
+      return <HomePage />;
+  }
 }
 
 const rootElement = document.getElementById('root');

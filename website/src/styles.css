@@ -39,7 +39,7 @@ body {
     radial-gradient(circle at 20% 24%, rgba(14, 165, 233, 0.16), transparent 31%),
     linear-gradient(180deg, #0f172a 0%, #111827 48%, #0b1120 100%);
   color: var(--text);
-  animation: pageGradient 16s ease-in-out infinite alternate;
+  animation: pageGradient 7s ease-in-out infinite alternate;
 }
 
 body::before {
@@ -51,6 +51,21 @@ body::before {
     linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(45, 212, 191, 0.18), transparent 12%),
+    radial-gradient(circle at 78% 34%, rgba(14, 165, 233, 0.16), transparent 10%),
+    radial-gradient(circle at 64% 78%, rgba(34, 197, 94, 0.13), transparent 9%),
+    radial-gradient(circle at 30% 84%, rgba(96, 165, 250, 0.12), transparent 11%);
+  filter: blur(18px) saturate(1.12);
+  animation: backgroundBlobs 12s ease-in-out infinite alternate;
 }
 
 a {
@@ -210,7 +225,7 @@ footer {
   filter: blur(14px) saturate(1.2);
   opacity: 0.76;
   transform: translateX(-50%) rotate(-7deg);
-  animation: auroraFloat 12s ease-in-out infinite alternate;
+  animation: auroraFloat 6s ease-in-out infinite alternate;
 }
 
 .hero-aurora::after {
@@ -535,7 +550,6 @@ h1 span {
 }
 
 .license-card,
-.integration,
 details,
 footer,
 .split-section,
@@ -906,37 +920,27 @@ footer,
   border-radius: 24px;
   background: transparent;
   box-shadow: none;
-  transition: transform 260ms ease, border-color 260ms ease, background 260ms ease;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-duration: 46s;
+  transition: filter 260ms ease;
 }
 
 .outer-track .integration {
-  transform:
-    rotate(calc(var(--i) * 72deg))
-    translateX(clamp(190px, 22vw, 260px))
-    rotate(calc(var(--i) * -72deg));
+  animation-name: orbitOuter;
 }
 
 .inner-track .integration {
-  transform:
-    rotate(calc((var(--i) * 72deg) + 36deg))
-    translateX(clamp(106px, 14vw, 155px))
-    rotate(calc((var(--i) * -72deg) - 36deg));
+  width: 78px;
+  height: 78px;
+  margin: -39px;
+  animation-name: orbitInner;
+  animation-duration: 34s;
+  animation-direction: reverse;
 }
 
-.outer-track .integration:hover {
-  transform:
-    rotate(calc(var(--i) * 72deg))
-    translateX(clamp(190px, 22vw, 260px))
-    rotate(calc(var(--i) * -72deg))
-    scale(1.08);
-}
-
-.inner-track .integration:hover {
-  transform:
-    rotate(calc((var(--i) * 72deg) + 36deg))
-    translateX(clamp(106px, 14vw, 155px))
-    rotate(calc((var(--i) * -72deg) - 36deg))
-    scale(1.08);
+.integration:hover {
+  filter: brightness(1.2) drop-shadow(0 0 18px rgba(45, 212, 191, 0.24));
 }
 
 .integration svg {
@@ -952,7 +956,7 @@ footer,
 .integration-orbit {
   position: relative;
   min-height: 520px;
-  margin: 8px auto 0;
+  margin: 128px auto 0;
   overflow: visible;
   background:
     radial-gradient(circle at center, rgba(45, 212, 191, 0.18), transparent 28%),
@@ -964,12 +968,6 @@ footer,
   inset: 50%;
   width: 1px;
   height: 1px;
-  animation: orbitSpin 48s linear infinite;
-}
-
-.inner-track {
-  animation-duration: 34s;
-  animation-direction: reverse;
 }
 
 .orbit-ring {
@@ -981,13 +979,13 @@ footer,
 }
 
 .orbit-ring.outer {
-  width: min(62%, 520px);
+  width: min(72%, 620px);
   aspect-ratio: 1;
   animation: orbitPulse 8s ease-in-out infinite alternate;
 }
 
 .orbit-ring.inner {
-  width: min(48%, 420px);
+  width: min(43%, 350px);
   aspect-ratio: 1;
   border-color: rgba(45, 212, 191, 0.18);
 }
@@ -1176,8 +1174,18 @@ footer {
 }
 
 @keyframes pageGradient {
-  0% { --aurora-x: 72%; }
-  100% { --aurora-x: 88%; }
+  0% { --aurora-x: 62%; }
+  40% { --aurora-x: 86%; }
+  100% { --aurora-x: 72%; }
+}
+
+@keyframes backgroundBlobs {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
 }
 
 @keyframes auroraFloat {
@@ -1189,9 +1197,33 @@ footer {
   }
 }
 
-@keyframes orbitSpin {
+@keyframes orbitOuter {
+  from {
+    transform:
+      rotate(calc(var(--i) * 51.428deg))
+      translateX(clamp(200px, 24vw, 310px))
+      rotate(calc(var(--i) * -51.428deg));
+  }
   to {
-    transform: rotate(360deg);
+    transform:
+      rotate(calc((var(--i) * 51.428deg) + 360deg))
+      translateX(clamp(200px, 24vw, 310px))
+      rotate(calc((var(--i) * -51.428deg) - 360deg));
+  }
+}
+
+@keyframes orbitInner {
+  from {
+    transform:
+      rotate(calc((var(--i) * 60deg) + 30deg))
+      translateX(clamp(108px, 13vw, 160px))
+      rotate(calc((var(--i) * -60deg) - 30deg));
+  }
+  to {
+    transform:
+      rotate(calc((var(--i) * 60deg) + 390deg))
+      translateX(clamp(108px, 13vw, 160px))
+      rotate(calc((var(--i) * -60deg) - 390deg));
   }
 }
 
@@ -1288,6 +1320,191 @@ footer {
   margin-top: 28px;
 }
 
+.page-main {
+  padding-top: 72px;
+}
+
+.page-hero {
+  max-width: 820px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+
+.page-hero h1 {
+  font-size: clamp(44px, 6vw, 72px);
+}
+
+.page-hero p {
+  max-width: 720px;
+  margin: 22px auto 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.detail-grid,
+.option-grid,
+.pricing-grid,
+.contact-page-grid {
+  display: grid;
+  gap: 16px;
+  margin: 32px 0 70px;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.option-grid,
+.pricing-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.contact-page-grid {
+  grid-template-columns: 1.15fr 0.85fr;
+  align-items: start;
+}
+
+.detail-card,
+.option-card,
+.pricing-card,
+.contact-form,
+.contact-links {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(45, 212, 191, 0.1), transparent 32%),
+    linear-gradient(145deg, rgba(17, 23, 34, 0.92), rgba(8, 10, 15, 0.94));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.3);
+}
+
+.detail-card,
+.option-card,
+.pricing-card {
+  padding: 26px;
+}
+
+.icon-shell {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  border-radius: 18px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.18), rgba(45, 212, 191, 0.035));
+  color: var(--accent);
+}
+
+.detail-card h2,
+.option-card h2,
+.pricing-card h2 {
+  margin-top: 18px;
+  font-size: 24px;
+}
+
+.detail-card p,
+.option-card p,
+.pricing-card p {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.detail-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-card li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e8eef8;
+  font-weight: 700;
+}
+
+.detail-card li svg,
+.option-card > svg,
+.pricing-card > svg {
+  color: var(--accent);
+}
+
+.option-card,
+.pricing-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.pricing-card strong {
+  color: #5eead4;
+  font-size: 42px;
+  line-height: 1;
+}
+
+.contact-form {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+}
+
+.contact-form label {
+  display: grid;
+  gap: 8px;
+  color: #d9e2ee;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.contact-form input,
+.contact-form select,
+.contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text);
+  font: inherit;
+  padding: 12px 14px;
+}
+
+.contact-links {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+}
+
+.contact-links a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.pop-in {
+  opacity: 0;
+  transform: translateY(26px) scale(0.96);
+  transition: opacity 520ms ease, transform 520ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.pop-in.is-visible,
+.is-visible .pop-in {
+  opacity: 1;
+  transform: none;
+}
+
+.is-visible .pop-in:nth-child(2) { transition-delay: 70ms; }
+.is-visible .pop-in:nth-child(3) { transition-delay: 140ms; }
+.is-visible .pop-in:nth-child(4) { transition-delay: 210ms; }
+.is-visible .pop-in:nth-child(5) { transition-delay: 280ms; }
+
 @media (max-width: 1080px) {
   nav {
     display: none;
@@ -1302,6 +1519,13 @@ footer {
   }
 
   .demo-callout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-grid,
+  .option-grid,
+  .pricing-grid,
+  .contact-page-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1472,9 +1696,9 @@ footer {
     height: 64px;
     margin: -32px;
     transform:
-      rotate(calc(var(--i) * 72deg))
+      rotate(calc(var(--i) * 51.428deg))
       translateX(132px)
-      rotate(calc(var(--i) * -72deg));
+      rotate(calc(var(--i) * -51.428deg));
   }
 
   .inner-track .integration {
@@ -1489,9 +1713,9 @@ footer {
 
   .outer-track .integration:hover {
     transform:
-      rotate(calc(var(--i) * 72deg))
+      rotate(calc(var(--i) * 51.428deg))
       translateX(132px)
-      rotate(calc(var(--i) * -72deg));
+      rotate(calc(var(--i) * -51.428deg));
   }
 
   .inner-track .integration:hover {
