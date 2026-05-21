@@ -34,7 +34,7 @@ For an ephemeral notebook-based trial, launch the Colab notebook:
 
 [Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
 
-The notebook clones this repository, installs the backend dependencies, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
+The notebook clones this repository, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
 
 ### Prerequisites
 
