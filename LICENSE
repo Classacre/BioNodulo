@@ -1,0 +1,72 @@
+BioNodulo Research License
+Version 1.0
+
+SPDX-License-Identifier: LicenseRef-BioNodulo-Research-1.0
+
+Copyright (c) 2026 BioNodulo contributors.
+
+1. Scope
+
+This license applies to the BioNodulo software and source code distributed
+with this license (the "Software"). Third-party components remain subject to
+their own license terms.
+
+2. Research License Grant
+
+Subject to this license, you may download, run, copy, inspect, and modify the
+Software for:
+
+- personal research;
+- academic or non-commercial research;
+- teaching and education;
+- evaluation, testing, and development of changes for the Software; and
+- reproduction or validation work that does not itself publish or commercially
+  use new results produced with the Software.
+
+You may distribute copies of the Software or your modifications only under
+this license and only if you preserve this license, copyright notices, and
+notices identifying modified files.
+
+3. Uses Requiring a Separate License
+
+This license does not grant permission for:
+
+- publishing, submitting, or publicly disseminating results produced with the
+  Software in a paper, preprint, thesis, report, poster, presentation,
+  dataset, workflow release, or other research output;
+- commercial use or use intended for commercial advantage;
+- offering the Software as a hosted, cloud, managed, consulting, or paid
+  service;
+- sublicensing the Software under different terms; or
+- removing or obscuring license, copyright, or attribution notices.
+
+Those uses require a separate written license from the BioNodulo licensors.
+For licensing enquiries, contact nieuwenhuyzemikamartin@gmail.com.
+
+4. No Trademark License
+
+This license does not grant rights to use BioNodulo names, logos, or other
+trademarks except as needed for truthful identification of the Software.
+
+5. Termination
+
+Your rights under this license terminate automatically if you violate its
+terms. If the violation is your first violation and you cure it within 30 days
+after receiving written notice, your rights are reinstated.
+
+6. No Warranty
+
+The Software is provided "as is", without warranty of any kind, express or
+implied, including warranties of merchantability, fitness for a particular
+purpose, title, and non-infringement.
+
+7. Limitation of Liability
+
+To the maximum extent permitted by law, the BioNodulo licensors and
+contributors will not be liable for any claim, damages, or other liability
+arising from the Software or this license.
+
+8. Other Rights
+
+This license does not limit rights you may have under applicable law that do
+not require permission from the copyright holder.

@@ -4,6 +4,10 @@
 
 BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor inspired by ComfyUI.
 
+- **Current version:** Alpha 1.2
+- **Community:** [Discord](https://discord.gg/baNKVhZq6k)
+- **Notebook launch:** [Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
+
 ## Features
 
 - **Visual Node Editor** — Drag-and-drop canvas for building workflows with ~90 built-in bioinformatics nodes
@@ -22,6 +26,14 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **Undo/Redo** — Full history support
 
 ## Quick Start
+
+### Google Colab
+
+For an ephemeral notebook-based trial, launch the Colab notebook:
+
+[Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
+
+The notebook clones this repository, installs the backend dependencies, starts BioNodulo in the Colab runtime, and opens the local web app through Colab's port viewer.
 
 ### Prerequisites
 
@@ -268,5 +280,9 @@ api_secrets: {}
 ```
 
 ## License
+
+BioNodulo is source-available for research, education, evaluation, and development under the [BioNodulo Research License](LICENSE).
+
+Publication of results produced with BioNodulo, commercial use, paid services, and hosted offerings require a separate paid license. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
 
 BioNodulo is an independent bioinformatics workflow platform inspired by the excellent work of the ComfyUI team. It is not a fork of ComfyUI but shares architectural patterns and design philosophy.
