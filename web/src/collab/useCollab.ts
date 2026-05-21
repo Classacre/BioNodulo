@@ -215,7 +215,14 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
     const handler = ({ added, updated, removed }: {
       added: number[]; updated: number[]; removed: number[];
-    }) => {
+    }, origin: unknown) => {
+      if (origin === 'remote' && added.length > 0) {
+        // A newcomer advertises itself before the relay has any awareness
+        // snapshot for the room. Answer immediately with our own state.
+        sendAwareness([awareness.doc.clientID]);
+        return;
+      }
+      if (origin === 'remote') return;
       sendAwareness([...added, ...updated, ...removed]);
     };
 

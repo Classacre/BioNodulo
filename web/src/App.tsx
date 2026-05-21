@@ -722,13 +722,23 @@ export default function App() {
       return;
     }
     console.log('[Template] loaded, nodes:', wf.nodes.length);
-    addWorkflow(withWorkflowId(wf));
+    if (collabEnabled) {
+      // Keep a shared room on the same workflow id. Opening a new tab here
+      // strands collaborators, presence, and comments in different rooms.
+      const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
+      updateWorkflow(activeIndex, sharedWorkflow);
+      if (collabDoc) {
+        workflowToDoc(sharedWorkflow, collabDoc);
+      }
+    } else {
+      addWorkflow(withWorkflowId(wf));
+    }
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [addWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     addWorkflow(withWorkflowId(wf));

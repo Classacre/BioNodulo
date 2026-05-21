@@ -34,7 +34,6 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 import pycrdt
 
 from bionodulo.collab.auth import get_auth_ws, generate_user_id
-from bionodulo.collab.heartbeat import HeartbeatManager
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.rate_limiter import RateLimiter
@@ -105,13 +104,6 @@ def _get_rate_limiter() -> RateLimiter:
     if _rate_limiter is None:
         _rate_limiter = RateLimiter()
     return _rate_limiter
-
-
-def _get_heartbeat_manager(app_state: Any) -> HeartbeatManager:
-    """Return the HeartbeatManager from app.state, creating lazily if needed."""
-    if not hasattr(app_state, "heartbeat_manager") or app_state.heartbeat_manager is None:
-        app_state.heartbeat_manager = HeartbeatManager()
-    return app_state.heartbeat_manager
 
 
 def _get_yjs_db_path() -> str:
@@ -298,7 +290,6 @@ async def yjs_websocket(
     # ------------------------------------------------------------------
     # 4. Resolve managers
     # ------------------------------------------------------------------
-    heartbeat_mgr = _get_heartbeat_manager(websocket.app.state)
     rate_limiter = _get_rate_limiter()
     store = _get_store()
 
@@ -311,17 +302,12 @@ async def yjs_websocket(
     room_sockets[workflow_id].append(websocket)
 
     # ------------------------------------------------------------------
-    # 6. Register heartbeat
-    # ------------------------------------------------------------------
-    heartbeat_mgr.register(websocket)
-
-    # ------------------------------------------------------------------
-    # 7. Load / create pycrdt document
+    # 6. Load / create pycrdt document
     # ------------------------------------------------------------------
     doc = await _get_doc(workflow_id)
 
     # ------------------------------------------------------------------
-    # 8. Send initial SyncStep2 (full document update)
+    # 7. Send initial SyncStep2 (full document update)
     # ------------------------------------------------------------------
     try:
         lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
@@ -340,7 +326,7 @@ async def yjs_websocket(
         logger.warning("Failed to send initial SyncStep2: %s", exc)
 
     # ------------------------------------------------------------------
-    # 9. Main read loop
+    # 8. Main read loop
     # ------------------------------------------------------------------
     try:
         while True:
@@ -474,9 +460,8 @@ async def yjs_websocket(
         )
     finally:
         # ------------------------------------------------------------------
-        # 10. Cleanup
+        # 9. Cleanup
         # ------------------------------------------------------------------
-        heartbeat_mgr.unregister(websocket)
         rate_limiter.reset(websocket)
 
         # Remove from room

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { getToken } from './auth';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
@@ -59,7 +59,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
   const [newContent, setNewContent] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchComments = useCallback(async () => {
@@ -91,7 +91,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
     if (!isOpen) return;
     setLoading(true);
     fetchComments().then(() => setLoading(false));
-    intervalRef.current = setInterval(fetchComments, 5000);
+    intervalRef.current = setInterval(fetchComments, 2500);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isOpen, fetchComments]);
 
@@ -120,6 +120,12 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
     }
   };
 
+  const handleCommentKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    void handleSubmit();
+  };
+
   const handleReply = async (parentId: string) => {
     if (!replyContent.trim()) return;
     try {
@@ -130,6 +136,12 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post reply');
     }
+  };
+
+  const handleReplyKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>, parentId: string) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    void handleReply(parentId);
   };
 
   const handleResolve = async (commentId: string) => {
@@ -247,6 +259,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
                 <textarea
                   value={replyContent}
                   onChange={e => setReplyContent(e.target.value)}
+                  onKeyDown={e => handleReplyKeyDown(e, comment.id)}
                   placeholder="Write a reply..."
                   style={{ flex: 1, fontSize: 12, padding: 6, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', resize: 'none', minHeight: 50 }}
                 />
@@ -281,6 +294,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
         <textarea
           value={newContent}
           onChange={e => setNewContent(e.target.value)}
+          onKeyDown={handleCommentKeyDown}
           placeholder={selectedNodeId ? 'Comment on this node... Use @name to mention' : 'New comment... Use @name to mention'}
           style={{ width: '100%', fontSize: 12, padding: 8, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', resize: 'none', minHeight: 60, boxSizing: 'border-box' }}
         />
