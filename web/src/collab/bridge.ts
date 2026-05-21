@@ -16,6 +16,7 @@ interface BridgeCallbacks {
 export class LiteGraphYjsBridge {
   private _isApplyingRemote = false;
   private _isDragging = false;
+  private _draggingNodeIds: Set<string> = new Set();
   private _pendingRemotePositions: Map<string, [number, number]> = new Map();
   private _positionThrottleTimer: ReturnType<typeof setTimeout> | null = null;
   private _pendingPositionUpdates: Map<string, WorkflowNode> = new Map();
@@ -182,6 +183,7 @@ export class LiteGraphYjsBridge {
 
   onDragStart(_nodeId: string) {
     this._isDragging = true;
+    this._draggingNodeIds.add(_nodeId);
     this.callbacks.onDragStart?.(_nodeId);
   }
 
@@ -207,7 +209,7 @@ export class LiteGraphYjsBridge {
     if (this._pendingRemotePositions.size > 0 && currentNodes.length > 0) {
       const nextNodes = currentNodes.map(n => {
         const pos = this._pendingRemotePositions.get(n.id);
-        if (pos) {
+        if (pos && !this._draggingNodeIds.has(n.id)) {
           return { ...n, position: pos };
         }
         return n;
@@ -215,11 +217,15 @@ export class LiteGraphYjsBridge {
       this._pendingRemotePositions.clear();
       this.callbacks.onNodesChange(nextNodes);
     }
+    this._draggingNodeIds.clear();
   }
 
   // Yjs → React state (remote changes)
   private _onYjsNodesChange(event: Y.YMapEvent<unknown>, yNodes: Y.Map<unknown>) {
-    if (this._isApplyingRemote) return;
+    // Canvas handlers already applied our own Yjs writes to React state.
+    // Replaying them while a node is being dragged can restore an older
+    // throttled position over the pointer position.
+    if (this._isApplyingRemote || event.transaction.origin === 'local') return;
     this._isApplyingRemote = true;
     try {
       const currentNodes = this.callbacks.getNodes();
@@ -233,9 +239,11 @@ export class LiteGraphYjsBridge {
             const nodeData = deserializeNode(raw);
             const existing = nodeMap.get(key);
             if (existing) {
-              // If we're dragging this node, defer position update
-              if (this._isDragging) {
+              // Preserve the pointer-owned position for the node currently
+              // being dragged, but still accept other remote node changes.
+              if (this._isDragging && this._draggingNodeIds.has(key)) {
                 this._pendingRemotePositions.set(key, nodeData.position);
+                nodeMap.set(key, { ...existing, ...nodeData, position: existing.position, id: key });
               } else {
                 nodeMap.set(key, { ...existing, ...nodeData, id: key });
               }
@@ -255,7 +263,7 @@ export class LiteGraphYjsBridge {
   }
 
   private _onYjsEdgesChange(event: Y.YMapEvent<unknown>, yEdges: Y.Map<unknown>) {
-    if (this._isApplyingRemote) return;
+    if (this._isApplyingRemote || event.transaction.origin === 'local') return;
     this._isApplyingRemote = true;
     try {
       const currentEdges = this.callbacks.getEdges();
@@ -280,7 +288,7 @@ export class LiteGraphYjsBridge {
   }
 
   private _onYjsGroupsChange(event: Y.YMapEvent<unknown>, yGroups: Y.Map<unknown>) {
-    if (this._isApplyingRemote) return;
+    if (this._isApplyingRemote || event.transaction.origin === 'local') return;
     this._isApplyingRemote = true;
     try {
       const currentGroups = this.callbacks.getGroups();

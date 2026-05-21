@@ -974,16 +974,17 @@ async def api_install_pixi(request: Request) -> dict[str, Any]:
 
     event_hub = request.app.state.event_hub
 
+    loop = asyncio.get_running_loop()
+
     def emit(level: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.log",
-                {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="pixi-installer",
+        payload = {**data, "level": level, "timestamp": datetime.now().isoformat()}
+        loop.call_soon_threadsafe(
+            lambda: asyncio.create_task(
+                event_hub.emit_typed("install.log", payload, source="pixi-installer")
             )
         )
 
-    success = install_managed_pixi(emit=emit)
+    success = await asyncio.to_thread(install_managed_pixi, emit=emit)
     if success:
         return {"success": True, "message": "pixi installed successfully", "already_installed": False}
     return {"success": False, "message": "pixi installation failed. Check server logs for details.", "already_installed": False}

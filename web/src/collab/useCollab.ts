@@ -195,13 +195,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   useEffect(() => {
     if (!awareness || !connected) return;
 
-    const handler = ({ added, updated, removed }: {
-      added: number[]; updated: number[]; removed: number[];
-    }) => {
+    const sendAwareness = (changedClients: number[]) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-      const changedClients = [...added, ...updated, ...removed];
       if (changedClients.length === 0) return;
 
       try {
@@ -216,7 +213,17 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       }
     };
 
+    const handler = ({ added, updated, removed }: {
+      added: number[]; updated: number[]; removed: number[];
+    }) => {
+      sendAwareness([...added, ...updated, ...removed]);
+    };
+
     awareness.on('change', handler);
+    // The local awareness state can be prepared before the socket connects.
+    // Announce it again after the sender is attached so new tabs appear in
+    // the collaborator list without waiting for cursor movement.
+    sendAwareness([awareness.doc.clientID]);
     return () => {
       awareness.off('change', handler);
     };

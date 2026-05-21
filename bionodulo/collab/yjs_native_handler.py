@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -54,6 +55,16 @@ MSG_AWARENESS = 1  # [1] [awareness_bytes]
 SYNC_STEP1 = 0  # state vector request
 SYNC_STEP2 = 1  # update diff response
 SYNC_UPDATE = 2  # incremental change
+
+
+def _open_room_join_enabled() -> bool:
+    """Allow authenticated link visitors into trusted local/open rooms."""
+    return os.environ.get("BIONODULO_COLLAB_OPEN_ROOMS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 # ---------------------------------------------------------------------------
 # Singletons (event-loop single-threaded — safe without locks)
@@ -261,6 +272,13 @@ async def yjs_websocket(
     # ------------------------------------------------------------------
     permissions = _get_permissions()
     permissions.ensure_owner(workflow_id, effective_user_id)
+    if _open_room_join_enabled() and not permissions.can_read(workflow_id, effective_user_id):
+        permissions.grant(
+            workflow_id,
+            effective_user_id,
+            "editor",
+            invited_by="open-room-link",
+        )
     read_only = not permissions.can_write(workflow_id, effective_user_id)
 
     if not permissions.can_read(workflow_id, effective_user_id):

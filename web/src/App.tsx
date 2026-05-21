@@ -107,6 +107,12 @@ function createWorkflowId(): string {
   return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function getRequestedWorkflowId(): string | null {
+  const id = new URLSearchParams(window.location.search).get('workflow');
+  if (!id || !/^[a-zA-Z0-9._:-]{1,160}$/.test(id)) return null;
+  return id;
+}
+
 function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId()): Workflow {
   return { ...workflow, id };
 }
@@ -148,6 +154,7 @@ export default function App() {
 
   // Authentication state
   const collabEnabled = getBool('bionodulo.collab.enabled');
+  const requestedWorkflowId = useMemo(getRequestedWorkflowId, []);
   const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(getAuthUser());
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
@@ -198,6 +205,17 @@ export default function App() {
       updateWorkflow(activeIndex, { id: activeWorkflowId });
     }
   }, [activeWorkflow.id, activeWorkflowId, activeIndex, updateWorkflow]);
+
+  // Colab and copied room links pin each browser to the same Yjs room.
+  useEffect(() => {
+    if (!requestedWorkflowId) return;
+    if (activeWorkflow.id !== requestedWorkflowId) {
+      updateWorkflow(activeIndex, { id: requestedWorkflowId });
+    }
+    if (!collabEnabled) {
+      set('bionodulo.collab.enabled', true);
+    }
+  }, [activeWorkflow.id, activeIndex, collabEnabled, requestedWorkflowId, set, updateWorkflow]);
 
   const {
     doc: collabDoc,

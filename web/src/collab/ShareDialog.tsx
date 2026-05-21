@@ -18,7 +18,6 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [shares, setShares] = useState<ShareEntry[]>([]);
-  const [publicLink, setPublicLink] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -80,16 +79,9 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
     }
   }, [workflowId]);
 
-  const handleTogglePublic = useCallback(async () => {
-    if (!workflowId) return;
-    const newVal = !publicLink;
-    const token = getToken();
-    const r = await fetch(`/api/collab/room/${workflowId}`, {
-      method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (r.ok) setPublicLink(newVal);
-  }, [workflowId, publicLink]);
+  const roomLink = workflowId
+    ? `${window.location.origin}${window.location.pathname}?workflow=${encodeURIComponent(workflowId)}`
+    : '';
 
   if (!isOpen) return null;
 
@@ -151,15 +143,23 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-            <input type="checkbox" checked={publicLink} onChange={handleTogglePublic} />
-            Generate public link (view-only)
-          </label>
-          {publicLink && workflowId && (
-            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--muted)', wordBreak: 'break-all' }}>
-              {`${window.location.origin}/workflow/${workflowId}?share=public`}
-            </div>
-          )}
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--muted)' }}>
+            Collaboration room link
+          </div>
+          <div style={{
+            padding: '7px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--surface-2)',
+            fontSize: 11,
+            color: 'var(--muted)',
+            wordBreak: 'break-all',
+          }}>
+            {roomLink}
+          </div>
+          <div style={{ marginTop: 5, fontSize: 11, color: 'var(--muted)' }}>
+            Open-room hosts can join from this link. Restricted hosts still require an invite.
+          </div>
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--muted)' }}>

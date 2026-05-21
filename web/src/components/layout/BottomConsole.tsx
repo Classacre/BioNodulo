@@ -110,6 +110,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
 
   const groupedLogs = groupLogsByRun(displayLogs);
   const groupedEntries = Array.from(groupedLogs.entries());
+  const hasPixiInstallLogs = groupedLogs.has('install-pixi');
 
   const toggleRun = (runId: string) => {
     setExpandedRuns(prev => {
@@ -130,7 +131,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
     });
   };
 
-  // Auto-expand running/pending nodes, collapse completed/error ones
+  // Auto-expand live nodes without overriding a group the user opened.
   useEffect(() => {
     const nextExpanded = new Set<string>();
     const allRuns = new Map<string, RunRecord>();
@@ -160,10 +161,30 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
       }
     }
     setExpandedNodes(prev => {
-      if (prev.size === nextExpanded.size && [...prev].every(k => nextExpanded.has(k))) return prev;
-      return nextExpanded;
+      const next = new Set(prev);
+      nextExpanded.forEach(key => next.add(key));
+      if (prev.size === next.size && [...prev].every(k => next.has(k))) return prev;
+      return next;
     });
   }, [groupedEntries, queue, history]);
+
+  // Pixi installation is triggered from a banner. Keep its live logs visible
+  // so the error output does not hide behind a collapsed run while it streams.
+  useEffect(() => {
+    if (!hasPixiInstallLogs) return;
+    setExpandedRuns(prev => {
+      if (prev.has('install-pixi')) return prev;
+      const next = new Set(prev);
+      next.add('install-pixi');
+      return next;
+    });
+    setExpandedNodes(prev => {
+      if (prev.has('install-pixi:host')) return prev;
+      const next = new Set(prev);
+      next.add('install-pixi:host');
+      return next;
+    });
+  }, [hasPixiInstallLogs]);
 
   // Auto-scroll when logs change (only if user is near bottom)
   useEffect(() => {
