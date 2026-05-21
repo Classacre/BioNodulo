@@ -1587,7 +1587,7 @@ footer {
 .feature-stat span {
   display: block;
   margin-top: 12px;
-  color: #f8fafc;
+  color: var(--text);
   font-size: 13px;
   font-weight: 900;
 }
@@ -1652,12 +1652,12 @@ footer {
   border-radius: var(--radius-lg);
   background:
     radial-gradient(circle at 12% 20%, rgba(45, 212, 191, 0.09), transparent 28%),
-    linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(7, 10, 16, 0.94));
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.26);
+    var(--card-bg);
+  box-shadow: var(--shadow);
 }
 
 .feature-deep-index {
-  color: rgba(94, 234, 212, 0.72);
+  color: var(--accent);
   font-size: 28px;
   font-weight: 900;
   line-height: 1;
