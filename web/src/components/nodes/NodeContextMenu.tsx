@@ -51,6 +51,7 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
     { label: 'Edit Properties', action: 'edit' },
     { label: 'Rename', action: 'rename' },
     { label: 'Node Info', action: 'info' },
+    { label: 'Add Comment', action: 'comment' },
     { label: 'Duplicate', action: 'duplicate' },
     null,
     { label: 'Mute Node', action: 'mute' },

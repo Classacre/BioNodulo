@@ -807,7 +807,12 @@ export default function App() {
   const tabNames = workflows.map(w => w.name || 'Untitled');
 
   return (
-    <div className={showAI ? 'app-shell ai-open' : 'app-shell'}>
+    <div className={[
+      'app-shell',
+      showAI ? 'ai-open' : '',
+      showComments ? 'comments-open' : '',
+      (consoleVisible || railTab === 'console') ? 'console-open' : '',
+    ].filter(Boolean).join(' ')}>
       <TopBar
         validationValid={validation.valid}
         validationErrors={validation.errors}
@@ -914,7 +919,7 @@ export default function App() {
           nodes={activeWorkflow.nodes}
           edges={activeWorkflow.edges}
           groups={activeWorkflow.groups}
-          objectInfo={{ ...BUILTIN_NODES /* merged with server-provided */ }}
+          objectInfo={BUILTIN_NODES /* merged with server-provided */}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onGroupsChange={handleGroupsChange}
@@ -948,13 +953,17 @@ export default function App() {
             return map;
           })()}
           collabBridge={bridgeRef.current ?? undefined}
-          onCollabCursor={setCollabCursor}
+          onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onCollabSelection={(nodeIds) => {
             setSelectedNodeId(nodeIds[0] ?? null);
             setCollabSelection({ nodeIds });
           }}
           onCollabDragStart={claimCollabDrag}
           onCollabDragEnd={releaseCollabDrag}
+          onCommentNode={(nodeId) => {
+            setSelectedNodeId(nodeId);
+            setShowComments(true);
+          }}
         />
 
         {/* Rail panels */}
@@ -1035,6 +1044,10 @@ export default function App() {
         currentUser={currentUser}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
+        onFocusNode={(nodeId) => {
+          setSelectedNodeId(nodeId);
+          canvasRef.current?.focusNode(nodeId);
+        }}
       />
       <VersionHistory
         workflowId={activeWorkflowId}

@@ -245,6 +245,7 @@ body {
   box-shadow: var(--shadow);
   z-index: 25;
   overflow: hidden;
+  transition: right 0.2s ease, bottom 0.2s ease;
 }
 .minimap-viewport {
   position: absolute;
@@ -270,6 +271,7 @@ body {
   padding: 4px 8px; border-radius: 8px;
   background: var(--surface); border: 1px solid var(--border);
   box-shadow: var(--shadow); z-index: 100;
+  transition: right 0.2s ease, bottom 0.2s ease;
 }
 
 /* Context Menus */
@@ -1056,10 +1058,20 @@ kbd {
   to { transform: translateX(0); }
 }
 
-/* Shift canvas controls when AI drawer is open */
-.app-shell.ai-open .canvas-controls {
+/* Shift floating canvas chrome away from side and bottom drawers. */
+.app-shell.ai-open .canvas-controls,
+.app-shell.ai-open .minimap {
   right: 388px;
-  transition: right 0.2s ease;
+}
+.app-shell.comments-open:not(.ai-open) .canvas-controls,
+.app-shell.comments-open:not(.ai-open) .minimap {
+  right: 328px;
+}
+.app-shell.console-open .canvas-controls {
+  bottom: 208px;
+}
+.app-shell.console-open .minimap {
+  bottom: 252px;
 }
 .ai-drawer-header {
   padding: 12px 16px;

@@ -224,7 +224,12 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     // Announce it again after the sender is attached so new tabs appear in
     // the collaborator list without waiting for cursor movement.
     sendAwareness([awareness.doc.clientID]);
+    // The native relay does not replay awareness already sent before a later
+    // collaborator joins. Refresh the local announcement periodically so a
+    // new browser sees existing users even while everyone is idle.
+    const heartbeat = setInterval(() => sendAwareness([awareness.doc.clientID]), 3000);
     return () => {
+      clearInterval(heartbeat);
       awareness.off('change', handler);
     };
   }, [awareness, connected]);

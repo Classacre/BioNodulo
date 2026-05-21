@@ -12,6 +12,7 @@ interface CommentsPanelProps {
   currentUser: CollabUser;
   isOpen: boolean;
   onClose: () => void;
+  onFocusNode?: (nodeId: string) => void;
 }
 
 function getInitials(name: string): string {
@@ -51,7 +52,7 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
   return resolved ? <s>{parts}</s> : parts;
 }
 
-export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose }: CommentsPanelProps) {
+export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode }: CommentsPanelProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +66,11 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
     if (!workflowId) return;
     try {
       const token = getToken();
+      if (!token) {
+        setComments([]);
+        setError('Join collaboration before using workflow comments.');
+        return;
+      }
       const params = new URLSearchParams();
       if (selectedNodeId && !showAll) params.set('node_id', selectedNodeId);
       const qs = params.toString();
@@ -91,6 +97,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
 
   const postComment = async (content: string, parentId: string | null = null, nodeId: string | null = null) => {
     const token = getToken();
+    if (!token) throw new Error('Join collaboration before posting comments.');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}/workflows/${workflowId}/comments`, {
@@ -216,6 +223,16 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
                 <button className="btn btn-icon btn-xs" onClick={() => handleDelete(comment.id)} title="Delete" style={{ fontSize: 9 }}><Icon name="trash" size={12} /></button>
               )}
             </div>
+            {comment.node_id && (
+              <button
+                className="btn btn-xs"
+                onClick={() => onFocusNode?.(comment.node_id!)}
+                title="Focus this node on the canvas"
+                style={{ fontSize: 10, margin: '0 0 5px 32px' }}
+              >
+                <Icon name="target" size={10} /> Go to node
+              </button>
+            )}
             {/* Content */}
             <div style={{ fontSize: 12, lineHeight: 1.5, paddingLeft: 32, whiteSpace: 'pre-wrap' }}>
               {renderCommentContent(comment.content, comment.resolved)}
