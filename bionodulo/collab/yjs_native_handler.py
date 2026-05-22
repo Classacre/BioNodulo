@@ -24,8 +24,10 @@ custom length-prefixed protocol.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -213,6 +215,32 @@ async def _broadcast_to_room(
             pass
 
 
+def _room_presence_payload(
+    workflow_id: str,
+    room_sockets: dict[str, list[WebSocket]],
+) -> dict[str, Any]:
+    """Build a lightweight roster from authenticated sockets in one room."""
+    users: list[dict[str, str]] = []
+    for socket in room_sockets.get(workflow_id, []):
+        presence = getattr(socket.state, "yjs_presence", None)
+        if isinstance(presence, dict):
+            users.append(presence)
+    return {"type": "room.presence", "workflow_id": workflow_id, "users": users}
+
+
+async def _broadcast_room_presence(
+    workflow_id: str,
+    room_sockets: dict[str, list[WebSocket]],
+) -> None:
+    """Tell each browser which authenticated sockets are in its room."""
+    message = json.dumps(_room_presence_payload(workflow_id, room_sockets))
+    for socket in room_sockets.get(workflow_id, []):
+        try:
+            await socket.send_text(message)
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # WebSocket endpoint (native Yjs protocol)
 # ---------------------------------------------------------------------------
@@ -299,7 +327,14 @@ async def yjs_websocket(
     room_sockets = websocket.app.state.yjs_room_sockets
     if workflow_id not in room_sockets:
         room_sockets[workflow_id] = []
+    websocket.state.yjs_presence = {
+        "session_id": uuid.uuid4().hex,
+        "user_id": effective_user_id,
+        "name": str(auth_payload.get("name", effective_user_id)),
+        "color": str(auth_payload.get("color", color)),
+    }
     room_sockets[workflow_id].append(websocket)
+    await _broadcast_room_presence(workflow_id, room_sockets)
 
     # ------------------------------------------------------------------
     # 6. Load / create pycrdt document
@@ -470,6 +505,8 @@ async def yjs_websocket(
                 room_sockets[workflow_id].remove(websocket)
                 if not room_sockets[workflow_id]:
                     del room_sockets[workflow_id]
+                else:
+                    await _broadcast_room_presence(workflow_id, room_sockets)
             except ValueError:
                 pass
 

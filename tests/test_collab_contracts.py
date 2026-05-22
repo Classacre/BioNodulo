@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from bionodulo.api.collab_routes import _diff_snapshots
 from bionodulo.collab.models import CollabStore, Comment, WorkflowShare, WorkflowTemplate, WorkflowVersion
 from bionodulo.collab.permissions import PermissionChecker
+from bionodulo.collab.yjs_native_handler import _room_presence_payload
 
 
 def test_collab_routes_are_mounted_once() -> None:
@@ -129,4 +132,32 @@ def test_version_diff_matches_frontend_contract() -> None:
     assert diff["meta_changes"]["meta"] == {
         "before": {"name": "Before"},
         "after": {"name": "After"},
+    }
+
+
+def test_native_room_presence_roster_uses_socket_metadata() -> None:
+    room_sockets = {
+        "wf-room": [
+            SimpleNamespace(state=SimpleNamespace(yjs_presence={
+                "session_id": "s1",
+                "user_id": "u1",
+                "name": "User One",
+                "color": "#123456",
+            })),
+            SimpleNamespace(state=SimpleNamespace(yjs_presence={
+                "session_id": "s2",
+                "user_id": "u2",
+                "name": "User Two",
+                "color": "#abcdef",
+            })),
+        ],
+    }
+
+    assert _room_presence_payload("wf-room", room_sockets) == {
+        "type": "room.presence",
+        "workflow_id": "wf-room",
+        "users": [
+            {"session_id": "s1", "user_id": "u1", "name": "User One", "color": "#123456"},
+            {"session_id": "s2", "user_id": "u2", "name": "User Two", "color": "#abcdef"},
+        ],
     }

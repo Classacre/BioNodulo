@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness';
@@ -18,6 +18,19 @@ const MSG_AWARENESS = 1;
 const SYNC_STEP1 = 0;
 const SYNC_STEP2 = 1;
 const SYNC_UPDATE = 2;
+
+interface RoomPresenceUser {
+  session_id: string;
+  user_id: string;
+  name: string;
+  color: string;
+}
+
+interface RoomPresenceMessage {
+  type: 'room.presence';
+  workflow_id: string;
+  users: RoomPresenceUser[];
+}
 
 interface UseCollabReturn {
   doc: Y.Doc | null;
@@ -46,6 +59,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const [isShared, setIsShared] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [roomUsers, setRoomUsers] = useState<AwarenessState[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const docRef = useRef<Y.Doc | null>(null);
@@ -64,6 +78,17 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const skippedUpdateRef = useRef(false);
 
   const awarenessResult = useAwareness(doc, currentUser, awareness, connected);
+  const activeUsers = useMemo(() => {
+    const awarenessByUserId = new Map(
+      awarenessResult.others.map(state => [state.user.id, state]),
+    );
+    for (const roomUser of roomUsers) {
+      if (!awarenessByUserId.has(roomUser.user.id)) {
+        awarenessByUserId.set(roomUser.user.id, roomUser);
+      }
+    }
+    return Array.from(awarenessByUserId.values());
+  }, [awarenessResult.others, roomUsers]);
 
   const buildWsUrl = useCallback((wfId: string) => {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -94,7 +119,27 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
   const handleMessage = useCallback((ev: MessageEvent) => {
     if (!(ev.data instanceof ArrayBuffer)) {
-      console.warn('[collab] Received non-binary message, ignoring');
+      if (typeof ev.data === 'string') {
+        try {
+          const message = JSON.parse(ev.data) as RoomPresenceMessage;
+          if (message.type === 'room.presence' && Array.isArray(message.users)) {
+            const users = message.users
+              .filter(user => user.user_id && user.user_id !== currentUser.id)
+              .map(user => ({
+                user: { id: user.user_id, name: user.name || user.user_id, color: user.color || '#3b82f6' },
+                cursor: null,
+                selection: { nodeIds: [] },
+                activity: 'active' as const,
+                timestamp: Date.now(),
+              }));
+            setRoomUsers(users);
+            return;
+          }
+        } catch {
+          // Non-JSON text does not belong to the native collab protocol.
+        }
+      }
+      console.warn('[collab] Received unsupported message, ignoring');
       return;
     }
     const data = new Uint8Array(ev.data);
@@ -145,7 +190,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     else {
       console.warn('[collab] Unknown message type:', msgType);
     }
-  }, [applyBinaryUpdate, applyBinaryAwareness]);
+  }, [applyBinaryUpdate, applyBinaryAwareness, currentUser.id]);
 
   // Listen for local Yjs changes and send as native Yjs updates
   useEffect(() => {
@@ -249,6 +294,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       setConnected(false);
       setConnecting(false);
       setError(null);
+      setRoomUsers([]);
       setReconnectAttempt(0);
       reconnectAttemptRef.current = 0;
       if (awareness) {
@@ -262,6 +308,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     docRef.current = ydoc;
     setDoc(ydoc);
     setError(null);
+    setRoomUsers([]);
     reconnectAttemptRef.current = 0;
     setReconnectAttempt(0);
     shouldReconnectRef.current = true;
@@ -326,6 +373,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
         ws.onclose = () => {
           setConnected(false);
           setConnecting(false);
+          setRoomUsers([]);
           if (shouldReconnectRef.current) {
             const attempt = reconnectAttemptRef.current;
             if (attempt >= MAX_RECONNECT_ATTEMPTS) {
@@ -415,7 +463,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     connected,
     connecting,
     offline,
-    activeUsers: awarenessResult.others,
+    activeUsers,
     localAwareness: awarenessResult.localState,
     setCursor: awarenessResult.setCursor,
     setSelection: awarenessResult.setSelection,
