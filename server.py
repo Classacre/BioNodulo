@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
+import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from bionodulo.api.routes import router
@@ -24,6 +25,16 @@ from bionodulo.core.events import EventHub
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.nodes.registry import NodeRegistry
+
+_COLLAB_WORKFLOW_ID_RE = re.compile(r"^[a-zA-Z0-9._:-]{1,160}$")
+
+
+def _default_collab_workflow() -> str | None:
+    """Return the configured shared room for single-link notebook launches."""
+    workflow_id = os.environ.get("BIONODULO_COLLAB_DEFAULT_WORKFLOW", "").strip()
+    if workflow_id and _COLLAB_WORKFLOW_ID_RE.fullmatch(workflow_id):
+        return workflow_id
+    return None
 
 
 def create_app() -> FastAPI:
@@ -154,7 +165,7 @@ def create_app() -> FastAPI:
             app.mount("/assets", StaticFiles(directory=web_assets), name="assets")
 
         @app.get("/{path:path}")
-        async def serve_spa(request: Request, path: str) -> FileResponse:
+        async def serve_spa(request: Request, path: str) -> Response:
             # API paths should be handled by routers above
             _api_prefixes = frozenset({
                 "object_info", "api", "workspace", "manager", "workflow",
@@ -165,6 +176,12 @@ def create_app() -> FastAPI:
                 # Let the router handle it
                 from fastapi.exceptions import HTTPException
                 raise HTTPException(status_code=404, detail="Not found")
+            default_workflow = _default_collab_workflow()
+            if not path and default_workflow and not request.query_params.get("workflow"):
+                return RedirectResponse(
+                    str(request.url.include_query_params(workflow=default_workflow)),
+                    status_code=307,
+                )
             index_file = web_dist / "index.html"
             if index_file.exists():
                 return FileResponse(index_file)

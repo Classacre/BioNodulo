@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from fastapi.testclient import TestClient
+
 from bionodulo.api.collab_routes import _diff_snapshots
 from bionodulo.collab.models import CollabStore, Comment, WorkflowShare, WorkflowTemplate, WorkflowVersion
 from bionodulo.collab.permissions import PermissionChecker
@@ -16,6 +18,20 @@ def test_collab_routes_are_mounted_once() -> None:
     assert "/api/collab/workflows/{workflow_id}/comments" in paths
     assert "/api/collab/templates/{template_id}/fork" in paths
     assert all(not path.startswith("/api/api/collab") for path in paths)
+
+
+def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_COLLAB_DEFAULT_WORKFLOW", "colab-room")
+
+    with TestClient(create_app()) as client:
+        response = client.get("/", follow_redirects=False)
+        pinned_response = client.get("/?workflow=explicit-room", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"].endswith("/?workflow=colab-room")
+    assert pinned_response.status_code == 200
 
 
 def test_comment_role_can_comment_but_cannot_write(tmp_path) -> None:
