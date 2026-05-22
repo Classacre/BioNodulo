@@ -27,12 +27,13 @@ import { useWebSocket } from './hooks/useWebSocket';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc,
   ForeignCursors, CollabBadge, ShareDialog, UserList,
-  getUserColor, getAuthUser, initAuth, AuthDialog,
+  getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor } from './utils';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
+import type { Comment } from './collab';
 import type { HPCStatus } from './components/layout/TopBar';
 
 // Built-in node definitions for offline use
@@ -224,6 +225,7 @@ export default function App() {
     activeUsers: collabActiveUsers,
     setCursor: setCollabCursor,
     setSelection: setCollabSelection,
+    setViewport: setCollabViewport,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
     shareWorkflow,
@@ -277,6 +279,43 @@ export default function App() {
   const [showAudit, setShowAudit] = useState(false);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
+
+  const fetchWorkflowComments = useCallback(async () => {
+    if (!collabEnabled || !activeWorkflowId) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/collab/workflows/${activeWorkflowId}/comments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json() as { comments?: Comment[] };
+      setWorkflowComments(data.comments ?? []);
+    } catch {
+      // Node comment pins are optional when collaboration is unavailable.
+    }
+  }, [activeWorkflowId, collabEnabled]);
+
+  useEffect(() => {
+    setWorkflowComments([]);
+    void fetchWorkflowComments();
+    if (!collabEnabled) return;
+    const interval = setInterval(fetchWorkflowComments, 5000);
+    return () => clearInterval(interval);
+  }, [collabEnabled, fetchWorkflowComments]);
+
+  useEffect(() => {
+    if (!followingUserId) return;
+    const user = collabActiveUsers.find(candidate => candidate.user.id === followingUserId);
+    if (user?.viewport) {
+      canvasRef.current?.setViewport(user.viewport);
+    }
+  }, [collabActiveUsers, followingUserId]);
+
+  const publishCollabViewport = useCallback((viewOffset: { x: number; y: number }, viewScale: number) => {
+    setCollabViewport({ ...viewOffset, scale: viewScale });
+  }, [setCollabViewport]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -303,6 +342,20 @@ export default function App() {
   const clearLogs = useCallback(() => {
     setLogs([]);
   }, []);
+
+  const updateNodeRunStatus = useCallback((runId: string, nodeId: string, status: NodeStatus['status'], error?: string) => {
+    setRuns(prev => prev.map(run => {
+      if (run.run_id !== runId) return run;
+      const existing = run.node_statuses.find(node => node.node_id === nodeId);
+      const nodeStatus = { ...existing, node_id: nodeId, status, ...(error ? { error } : {}) };
+      return {
+        ...run,
+        node_statuses: existing
+          ? run.node_statuses.map(node => node.node_id === nodeId ? nodeStatus : node)
+          : [...run.node_statuses, nodeStatus],
+      };
+    }));
+  }, [setRuns]);
 
   // Load queue and execution history from backend on startup
   useEffect(() => {
@@ -498,16 +551,22 @@ export default function App() {
       if (data.type === 'start') {
         addLog({ run_id: runId, node_id: 'engine', level: 'info', message: `Workflow started (${payload.total_nodes} nodes)`, timestamp: ts });
       } else if (data.type === 'node_start') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'running');
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Node start [${payload.progress}] ${payload.node_type}`, timestamp: ts });
       } else if (data.type === 'node_complete') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'completed');
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'success', message: `Node completed`, timestamp: ts });
       } else if (data.type === 'node_error') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'error', String(payload.error || 'Node error'));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'error', message: `Node error: ${payload.error}`, timestamp: ts });
       } else if (data.type === 'node_skip') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node skipped (${payload.reason})`, timestamp: ts });
       } else if (data.type === 'node_bypass') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node bypassed`, timestamp: ts });
       } else if (data.type === 'node_cache_hit') {
+        updateNodeRunStatus(runId, String(payload.node_id), 'cached');
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Cache hit — skipping execution`, timestamp: ts });
       } else if (data.type === 'complete') {
         addLog({ run_id: runId, node_id: 'engine', level: payload.status === 'completed' ? 'success' : 'error', message: `Workflow ${payload.status}`, timestamp: ts });
@@ -576,7 +635,7 @@ export default function App() {
       }
     });
     return unsub;
-  }, [onMessage, addLog, runs, updateRun]);
+  }, [onMessage, addLog, runs, updateRun, updateNodeRunStatus]);
   const [hpcStatus, setHpcStatus] = useState<HPCStatus>('off');
 
   // Getting Started modal visibility
@@ -815,6 +874,28 @@ export default function App() {
   }, [activeIndex, clearResolveReport]);
 
   const tabNames = workflows.map(w => w.name || 'Untitled');
+  const missingDependencyNodeIds = useMemo(() => {
+    const missingTypes = new Set<string>();
+    for (const item of resolveReport?.missing_nodes ?? []) missingTypes.add(item.node_type);
+    for (const item of resolveReport?.missing_executables ?? []) item.node_types.forEach(type => missingTypes.add(type));
+    for (const item of resolveReport?.missing_packages ?? []) item.node_types.forEach(type => missingTypes.add(type));
+    for (const item of resolveReport?.missing_r_packages ?? []) item.node_types.forEach(type => missingTypes.add(type));
+    return new Set(activeWorkflow.nodes.filter(node => missingTypes.has(node.type)).map(node => node.id));
+  }, [activeWorkflow.nodes, resolveReport]);
+  const nodeCommentsMap = useMemo(() => {
+    const map = new Map<string, { count: number; unresolved: boolean }>();
+    const add = (comment: Comment) => {
+      if (!comment.node_id) return;
+      const previous = map.get(comment.node_id) ?? { count: 0, unresolved: false };
+      map.set(comment.node_id, {
+        count: previous.count + 1,
+        unresolved: previous.unresolved || !comment.resolved,
+      });
+      comment.replies?.forEach(add);
+    };
+    workflowComments.forEach(add);
+    return map;
+  }, [workflowComments]);
 
   return (
     <div className={[
@@ -943,6 +1024,9 @@ export default function App() {
           onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
           nodeStatusMap={new Map(runs.length > 0 ? runs[0].node_statuses.map(ns => [ns.node_id, ns.status]) : [])}
+          missingDependencyNodeIds={missingDependencyNodeIds}
+          nodeCommentsMap={nodeCommentsMap}
+          collabUsers={collabActiveUsers}
           nodePreviewsMap={(() => {
             if (runs.length === 0) return undefined;
             const latest = runs[0];
@@ -964,6 +1048,7 @@ export default function App() {
           })()}
           collabBridge={bridgeRef.current ?? undefined}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
+          onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(nodeIds) => {
             setSelectedNodeId(nodeIds[0] ?? null);
             setCollabSelection({ nodeIds });
@@ -1058,6 +1143,7 @@ export default function App() {
           setSelectedNodeId(nodeId);
           canvasRef.current?.focusNode(nodeId);
         }}
+        onCommentsChange={setWorkflowComments}
       />
       <VersionHistory
         workflowId={activeWorkflowId}

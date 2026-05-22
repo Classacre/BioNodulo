@@ -11,6 +11,13 @@ import SelectionToolbox from './SelectionToolbox';
 import GroupContextMenu from './GroupContextMenu';
 
 import { LiteGraphYjsBridge } from '../../collab/bridge';
+import CommentPin from '../../collab/CommentPin';
+import type { AwarenessState } from '../../collab/types';
+
+export interface NodeCommentSummary {
+  count: number;
+  unresolved: boolean;
+}
 
 interface LiteGraphCanvasProps {
   nodes: WorkflowNode[];
@@ -31,6 +38,9 @@ interface LiteGraphCanvasProps {
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
   nodePreviewsMap?: Map<string, string>;
+  missingDependencyNodeIds?: Set<string>;
+  nodeCommentsMap?: Map<string, NodeCommentSummary>;
+  collabUsers?: AwarenessState[];
   collabBridge?: LiteGraphYjsBridge;
   onCollabCursor?: (cursor: { x: number; y: number; visible: boolean } | null) => void;
   onCollabSelection?: (nodeIds: string[]) => void;
@@ -274,6 +284,7 @@ function createGroupFromNodes(nodes: GraphNode[]): WorkflowGroup {
 export interface LiteGraphCanvasRef {
   fitView: () => void;
   focusNode: (nodeId: string) => void;
+  setViewport: (viewport: { x: number; y: number; scale: number }) => void;
 }
 
 const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(function LiteGraphCanvas({
@@ -283,6 +294,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
   nodePreviewsMap,
+  missingDependencyNodeIds,
+  nodeCommentsMap,
+  collabUsers = [],
   collabBridge,
   onCollabCursor,
   onCollabSelection,
@@ -345,6 +359,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const hoveredSlotRef = useRef(hoveredSlot);
   const hoveredLinkRef = useRef(hoveredLink);
   const resizingNodeRef = useRef(resizingNode);
+  const collabUsersRef = useRef(collabUsers);
+  const missingDependencyNodeIdsRef = useRef(missingDependencyNodeIds);
   const isDraggingRef = useRef(false);
   const drawRef = useRef<() => void>(() => {});
 
@@ -363,6 +379,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { hoveredSlotRef.current = hoveredSlot; }, [hoveredSlot]);
   useEffect(() => { hoveredLinkRef.current = hoveredLink; }, [hoveredLink]);
   useEffect(() => { resizingNodeRef.current = resizingNode; }, [resizingNode]);
+  useEffect(() => { collabUsersRef.current = collabUsers; }, [collabUsers]);
+  useEffect(() => { missingDependencyNodeIdsRef.current = missingDependencyNodeIds; }, [missingDependencyNodeIds]);
   useEffect(() => { widgetsRef.current.clear(); }, [graphNodes]);
 
   // Convert workflow nodes to graph nodes (positions, structure, connectivity)
@@ -814,15 +832,48 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       }
 
       // Border
-      ctx.strokeStyle = node.selected ? node.color : (isDark ? '#334155' : '#e2e8f0');
-      ctx.lineWidth = node.selected ? 2 : 1;
+      const statusOutline = node.status === 'running'
+        ? '#22c55e'
+        : node.status === 'error'
+          ? '#ef4444'
+          : null;
+      const missingDependency = missingDependencyNodeIdsRef.current?.has(node.id);
+      ctx.strokeStyle = statusOutline
+        || (missingDependency ? '#f97316' : node.selected ? node.color : (isDark ? '#334155' : '#e2e8f0'));
+      ctx.lineWidth = statusOutline || missingDependency ? 3 : node.selected ? 2 : 1;
       roundRect(ctx, node.x, node.y, nw, nh, 8);
       ctx.stroke();
+
+      const nodeCollaborators = collabUsersRef.current.filter(user =>
+        user.selection?.nodeIds?.includes(node.id) || user.dragOwnership?.nodeId === node.id
+      );
+      nodeCollaborators.forEach((user, index) => {
+        ctx.strokeStyle = user.user.color;
+        ctx.lineWidth = user.dragOwnership?.nodeId === node.id ? 3 : 2;
+        ctx.setLineDash(user.dragOwnership?.nodeId === node.id ? [] : [6, 3]);
+        roundRect(ctx, node.x - 3 - index * 2, node.y - 3 - index * 2, nw + 6 + index * 4, nh + 6 + index * 4, 10);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const label = user.user.name;
+        ctx.font = '600 10px Inter, sans-serif';
+        const labelWidth = Math.min(140, ctx.measureText(label).width + 23);
+        const labelX = node.x + 6;
+        const labelY = node.y - 22 - index * 21;
+        ctx.fillStyle = user.user.color;
+        roundRect(ctx, labelX, labelY, labelWidth, 17, 8);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(labelX + 8, labelY + 8.5, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText(label.length > 18 ? `${label.slice(0, 18)}...` : label, labelX + 15, labelY + 12);
+      });
 
       // Status badge
       if (node.status && !isVisualOnly) {
         const statusColors: Record<string, string> = {
-          pending: '#94a3b8', running: '#3b82f6', completed: '#22c55e',
+          pending: '#94a3b8', running: '#22c55e', completed: '#22c55e',
           error: '#ef4444', cached: '#a855f7', skipped: '#f97316',
         };
         const sc = statusColors[node.status] || '#94a3b8';
@@ -1276,6 +1327,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       setGraphNodes(prev => prev.map(n => e.ctrlKey ? n : { ...n, selected: false }));
       if (!e.ctrlKey) {
         onGroupsChange(groups.map(g => ({ ...g, selected: false })));
+        onCollabSelection?.([]);
       }
       setSelectBox({ x: cx, y: cy, w: 0, h: 0 });
       setDragStart({ x: cx, y: cy });
@@ -1608,6 +1660,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (dragging || groupDragging || groupResizing || resizingNode) {
       onPushHistory();
     }
+    if (selectBox) {
+      onCollabSelection?.(graphNodesRef.current.filter(n => n.selected).map(n => n.id));
+    }
     collabBridge?.onDragEnd();
     onCollabDragEnd?.();
     setDragging(null);
@@ -1769,10 +1824,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     });
   }, [onCollabSelection, scale]);
 
+  const setViewportFromAwareness = useCallback((viewport: { x: number; y: number; scale: number }) => {
+    setOffset({ x: viewport.x, y: viewport.y });
+    setScale(clamp(viewport.scale, 0.1, 5));
+  }, []);
+
   useImperativeHandle(ref, () => ({
     fitView,
     focusNode,
-  }), [fitView, focusNode]);
+    setViewport: setViewportFromAwareness,
+  }), [fitView, focusNode, setViewportFromAwareness]);
 
   const handleContextAction = useCallback((action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
@@ -1927,6 +1988,21 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           </div>
+        );
+      })}
+
+      {nodeCommentsMap && graphNodes.filter(node => nodeCommentsMap.has(node.id)).map(node => {
+        const summary = nodeCommentsMap.get(node.id)!;
+        const point = fromWorld(node.x + node.width - 18, node.y);
+        return (
+          <CommentPin
+            key={`comment-${node.id}`}
+            commentCount={summary.count}
+            hasUnresolved={summary.unresolved}
+            x={point.x}
+            y={point.y}
+            onClick={() => onCommentNode?.(node.id)}
+          />
         );
       })}
 

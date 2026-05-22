@@ -13,6 +13,7 @@ interface CommentsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onFocusNode?: (nodeId: string) => void;
+  onCommentsChange?: (comments: Comment[]) => void;
 }
 
 function getInitials(name: string): string {
@@ -52,7 +53,7 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
   return resolved ? <s>{parts}</s> : parts;
 }
 
-export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode }: CommentsPanelProps) {
+export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange }: CommentsPanelProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,14 +82,16 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
       if (!res.ok) throw new Error(`Failed to fetch comments: ${res.status}`);
       const data = await res.json() as { comments: Comment[]; count: number };
       setComments(data.comments ?? []);
+      onCommentsChange?.(data.comments ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load comments');
     }
-  }, [workflowId, selectedNodeId, showAll]);
+  }, [workflowId, selectedNodeId, showAll, onCommentsChange]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (selectedNodeId) setShowAll(false);
     setLoading(true);
     fetchComments().then(() => setLoading(false));
     intervalRef.current = setInterval(fetchComments, 2500);
@@ -186,7 +189,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
     <div style={{
       position: 'fixed', top: 0, right: 0, width: 320, height: '100vh',
       background: 'var(--surface)', borderLeft: '1px solid var(--border)',
-      zIndex: 50, display: 'flex', flexDirection: 'column', transition: 'transform 0.2s ease',
+      zIndex: 260, display: 'flex', flexDirection: 'column', transition: 'transform 0.2s ease',
       boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',
     }}>
       {/* Header */}
