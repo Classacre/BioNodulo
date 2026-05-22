@@ -34,6 +34,29 @@ def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
     assert pinned_response.status_code == 200
 
 
+def test_example_data_download_progress_crosses_worker_thread(monkeypatch) -> None:
+    from bionodulo.api import routes
+    from server import create_app
+
+    def fake_download(*, project_root, emit):
+        emit("threaded progress", "info")
+        return {
+            "total": 0,
+            "downloaded": [],
+            "skipped": [],
+            "failed": [],
+            "success": True,
+        }
+
+    monkeypatch.setattr(routes, "download_example_data", fake_download)
+
+    with TestClient(create_app()) as client:
+        response = client.post("/api/getting-started/download", json={})
+
+    assert response.status_code == 200
+    assert response.json()["download_result"]["success"] is True
+
+
 def test_comment_role_can_comment_but_cannot_write(tmp_path) -> None:
     store = CollabStore(tmp_path / "collab.db")
     checker = PermissionChecker(store=store)

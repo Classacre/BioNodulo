@@ -12,7 +12,8 @@ import GroupContextMenu from './GroupContextMenu';
 
 import { LiteGraphYjsBridge } from '../../collab/bridge';
 import CommentPin from '../../collab/CommentPin';
-import type { AwarenessState } from '../../collab/types';
+import NodeCommentPopover from '../../collab/NodeCommentPopover';
+import type { AwarenessState, CollabUser, Comment } from '../../collab/types';
 
 export interface NodeCommentSummary {
   count: number;
@@ -40,6 +41,10 @@ interface LiteGraphCanvasProps {
   nodePreviewsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   nodeCommentsMap?: Map<string, NodeCommentSummary>;
+  nodeComments?: Comment[];
+  collabWorkflowId?: string;
+  currentCollabUser?: CollabUser;
+  onNodeCommentsChange?: () => void;
   collabUsers?: AwarenessState[];
   collabBridge?: LiteGraphYjsBridge;
   onCollabCursor?: (cursor: { x: number; y: number; visible: boolean } | null) => void;
@@ -47,7 +52,6 @@ interface LiteGraphCanvasProps {
   onCollabDragStart?: (nodeId: string) => void;
   onCollabDragEnd?: () => void;
   onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
-  onCommentNode?: (nodeId: string) => void;
 }
 
 export interface GraphNode {
@@ -296,6 +300,10 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   nodePreviewsMap,
   missingDependencyNodeIds,
   nodeCommentsMap,
+  nodeComments = [],
+  collabWorkflowId,
+  currentCollabUser,
+  onNodeCommentsChange,
   collabUsers = [],
   collabBridge,
   onCollabCursor,
@@ -303,7 +311,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onCollabDragStart,
   onCollabDragEnd,
   onViewportChange,
-  onCommentNode,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -325,6 +332,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
+  const [nodeCommentTarget, setNodeCommentTarget] = useState<{ nodeId: string; compose: boolean } | null>(null);
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
   const [groupDragging, setGroupDragging] = useState<string | null>(null);
   const groupDragNodesRef = useRef<string[]>([]);
@@ -901,6 +909,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
     // Selection box (screen coords)
     if (selectBox) {
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.strokeStyle = '#0d9488';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
@@ -908,6 +918,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.fillStyle = 'rgba(13, 148, 136, 0.08)';
       ctx.fillRect(selectBox.x, selectBox.y, selectBox.w, selectBox.h);
       ctx.setLineDash([]);
+      ctx.restore();
     }
   }, [edges, offset, scale, linksHidden, selectBox]);
   useEffect(() => { drawRef.current = draw; }, [draw]);
@@ -1861,7 +1872,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     } else if (action === 'info') {
       setShowNodeInfo(nodeId);
     } else if (action === 'comment') {
-      onCommentNode?.(nodeId);
+      setNodeCommentTarget({ nodeId, compose: true });
     } else if (action === 'mute') {
       const newMuted = !graphNodes.find(n => n.id === nodeId)?.muted;
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, muted: newMuted } : n));
@@ -1891,7 +1902,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       }
     }
     onPushHistory();
-  }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, onCommentNode]);
+  }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory]);
 
   const handleNodeParamChange = useCallback((nodeId: string, key: string, value: unknown) => {
     onNodesChange(nodes.map(n =>
@@ -2001,10 +2012,28 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             hasUnresolved={summary.unresolved}
             x={point.x}
             y={point.y}
-            onClick={() => onCommentNode?.(node.id)}
+            onClick={() => setNodeCommentTarget({ nodeId: node.id, compose: false })}
           />
         );
       })}
+      {nodeCommentTarget && collabWorkflowId && currentCollabUser && (() => {
+        const node = graphNodes.find(candidate => candidate.id === nodeCommentTarget.nodeId);
+        if (!node) return null;
+        const point = fromWorld(node.x + node.width + 12, node.y + 8);
+        return (
+          <NodeCommentPopover
+            workflowId={collabWorkflowId}
+            nodeId={node.id}
+            currentUser={currentCollabUser}
+            comments={nodeComments}
+            x={Math.max(8, point.x)}
+            y={Math.max(8, point.y)}
+            compose={nodeCommentTarget.compose}
+            onChanged={() => onNodeCommentsChange?.()}
+            onClose={() => setNodeCommentTarget(null)}
+          />
+        );
+      })()}
 
       <SelectionToolbox
         graphNodes={graphNodes}

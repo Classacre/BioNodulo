@@ -26,6 +26,7 @@ const CommentPin: React.FC<CommentPinProps> = ({
   return (
     <div
       onClick={onClick}
+      onMouseDown={event => event.stopPropagation()}
       title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}${hasUnresolved ? ` (${commentCount} unresolved)` : ''}`}
       style={{
         position: 'absolute',

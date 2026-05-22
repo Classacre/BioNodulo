@@ -24,6 +24,8 @@ interface RoomPresenceUser {
   user_id: string;
   name: string;
   color: string;
+  role?: AwarenessState['user']['role'];
+  workflow_id?: string;
 }
 
 interface RoomPresenceMessage {
@@ -126,7 +128,14 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
             const users = message.users
               .filter(user => user.user_id && user.user_id !== currentUser.id)
               .map(user => ({
-                user: { id: user.user_id, name: user.name || user.user_id, color: user.color || '#3b82f6' },
+                user: {
+                  id: user.user_id,
+                  name: user.name || user.user_id,
+                  color: user.color || '#3b82f6',
+                  role: user.role,
+                  workflowId: user.workflow_id || message.workflow_id,
+                  sessionId: user.session_id,
+                },
                 cursor: null,
                 selection: { nodeIds: [] },
                 activity: 'active' as const,

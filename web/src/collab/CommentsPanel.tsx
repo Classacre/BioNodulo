@@ -14,6 +14,7 @@ interface CommentsPanelProps {
   onClose: () => void;
   onFocusNode?: (nodeId: string) => void;
   onCommentsChange?: (comments: Comment[]) => void;
+  onWorkflowNamesChange?: (workflowNames: Record<string, string>) => void;
 }
 
 function getInitials(name: string): string {
@@ -53,7 +54,7 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
   return resolved ? <s>{parts}</s> : parts;
 }
 
-export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange }: CommentsPanelProps) {
+export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange, onWorkflowNamesChange }: CommentsPanelProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [showAll, setShowAll] = useState(true);
+  const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchComments = useCallback(async () => {
@@ -72,22 +74,25 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
         setError('Join collaboration before using workflow comments.');
         return;
       }
-      const params = new URLSearchParams();
-      if (selectedNodeId && !showAll) params.set('node_id', selectedNodeId);
-      const qs = params.toString();
-      const url = `${API_BASE}/workflows/${workflowId}/comments${qs ? `?${qs}` : ''}`;
+      const url = selectedNodeId && !showAll
+        ? `${API_BASE}/workflows/${workflowId}/comments?node_id=${encodeURIComponent(selectedNodeId)}`
+        : `${API_BASE}/comments`;
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Failed to fetch comments: ${res.status}`);
-      const data = await res.json() as { comments: Comment[]; count: number };
+      const data = await res.json() as { comments: Comment[]; count: number; workflow_names?: Record<string, string> };
       setComments(data.comments ?? []);
-      onCommentsChange?.(data.comments ?? []);
+      if (selectedNodeId && !showAll) {
+        onCommentsChange?.(data.comments ?? []);
+      }
+      setWorkflowNames(data.workflow_names ?? {});
+      onWorkflowNamesChange?.(data.workflow_names ?? {});
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load comments');
     }
-  }, [workflowId, selectedNodeId, showAll, onCommentsChange]);
+  }, [workflowId, selectedNodeId, showAll, onCommentsChange, onWorkflowNamesChange]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -216,7 +221,7 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
         {loading && comments.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Loading comments...</div>}
         {rootComments.length === 0 && !loading && (
           <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
-            {selectedNodeId && !showAll ? 'No comments for this node.\nClick "Show All" to see all comments.' : 'No comments yet.\nStart the conversation!'}
+            {selectedNodeId && !showAll ? 'No comments for this node.\nClick "Show All" to see all comments.' : 'No comments yet across your workflows.\nStart the conversation!'}
           </div>
         )}
         {rootComments.map(comment => (
@@ -248,6 +253,9 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
                 <Icon name="target" size={10} /> Go to node
               </button>
             )}
+            <div title={comment.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 32, marginBottom: 4 }}>
+              {workflowNames[comment.workflow_id] || `Workflow ${comment.workflow_id.slice(0, 12)}`}
+            </div>
             {/* Content */}
             <div style={{ fontSize: 12, lineHeight: 1.5, paddingLeft: 32, whiteSpace: 'pre-wrap' }}>
               {renderCommentContent(comment.content, comment.resolved)}

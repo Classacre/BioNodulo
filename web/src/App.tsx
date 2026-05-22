@@ -33,7 +33,7 @@ import {
 import { defaultsFor } from './utils';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
-import type { Comment } from './collab';
+import type { Comment, LivePresenceUser } from './collab';
 import type { HPCStatus } from './components/layout/TopBar';
 
 // Built-in node definitions for offline use
@@ -155,7 +155,7 @@ export default function App() {
 
   // Authentication state
   const collabEnabled = getBool('bionodulo.collab.enabled');
-  const requestedWorkflowId = useMemo(getRequestedWorkflowId, []);
+  const [requestedWorkflowId, setRequestedWorkflowId] = useState(getRequestedWorkflowId);
   const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(getAuthUser());
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
@@ -243,7 +243,7 @@ export default function App() {
   useEffect(() => { updateWorkflowRef.current = updateWorkflow; }, [updateWorkflow]);
 
   useEffect(() => {
-    if (!collabDoc) {
+    if (!collabDoc || collabConnecting) {
       bridgeRef.current?.unbind();
       bridgeRef.current = null;
       return;
@@ -269,7 +269,7 @@ export default function App() {
       bridge.unbind();
       bridgeRef.current = null;
     };
-  }, [collabDoc, activeIndex, claimCollabDrag, releaseCollabDrag]);
+  }, [collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
 
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
@@ -280,6 +280,8 @@ export default function App() {
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
+  const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
+  const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
 
   const fetchWorkflowComments = useCallback(async () => {
     if (!collabEnabled || !activeWorkflowId) return;
@@ -305,6 +307,29 @@ export default function App() {
     return () => clearInterval(interval);
   }, [collabEnabled, fetchWorkflowComments]);
 
+  const fetchLivePresence = useCallback(async () => {
+    if (!collabEnabled) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const response = await fetch('/api/collab/presence', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json() as { users?: LivePresenceUser[] };
+      setLivePresenceUsers(data.users ?? []);
+    } catch {
+      // Room-local awareness still drives collaborative cursor rendering.
+    }
+  }, [collabEnabled]);
+
+  useEffect(() => {
+    void fetchLivePresence();
+    if (!collabEnabled) return;
+    const interval = setInterval(fetchLivePresence, 3000);
+    return () => clearInterval(interval);
+  }, [collabEnabled, fetchLivePresence]);
+
   useEffect(() => {
     if (!followingUserId) return;
     const user = collabActiveUsers.find(candidate => candidate.user.id === followingUserId);
@@ -316,6 +341,22 @@ export default function App() {
   const publishCollabViewport = useCallback((viewOffset: { x: number; y: number }, viewScale: number) => {
     setCollabViewport({ ...viewOffset, scale: viewScale });
   }, [setCollabViewport]);
+
+  const followPresenceUser = useCallback((userId: string | null) => {
+    if (!userId) {
+      setFollowingUserId(null);
+      return;
+    }
+    const presence = livePresenceUsers.find(user => user.user_id === userId);
+    if (presence?.workflow_id && presence.workflow_id !== activeWorkflowId) {
+      updateWorkflow(activeIndex, { id: presence.workflow_id });
+      const url = new URL(window.location.href);
+      url.searchParams.set('workflow', presence.workflow_id);
+      window.history.replaceState({}, '', url);
+      setRequestedWorkflowId(presence.workflow_id);
+    }
+    setFollowingUserId(userId);
+  }, [activeIndex, activeWorkflowId, livePresenceUsers, updateWorkflow]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -896,6 +937,14 @@ export default function App() {
     workflowComments.forEach(add);
     return map;
   }, [workflowComments]);
+  const knownWorkflowNames = useMemo(() => ({
+    ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || 'Untitled'])),
+    ...workflowNames,
+  }), [workflowNames, workflows]);
+  const followableUsers = useMemo(
+    () => livePresenceUsers.filter(user => user.user_id !== currentUser.id),
+    [currentUser.id, livePresenceUsers],
+  );
 
   return (
     <div className={[
@@ -921,11 +970,13 @@ export default function App() {
             connected={collabConnected}
             connecting={collabConnecting}
             activeUsers={collabActiveUsers}
+            liveUsers={followableUsers}
+            workflowNames={knownWorkflowNames}
             followingUserId={followingUserId}
             isShared={collabIsShared}
             onShare={() => setShowShareDialog(true)}
             onShowUsers={() => setShowUserList(true)}
-            onFollow={setFollowingUserId}
+            onFollow={followPresenceUser}
             onOpenComments={() => setShowComments(v => !v)}
             onOpenVersions={() => setShowVersions(v => !v)}
             onOpenAudit={() => setShowAudit(v => !v)}
@@ -1026,6 +1077,10 @@ export default function App() {
           nodeStatusMap={new Map(runs.length > 0 ? runs[0].node_statuses.map(ns => [ns.node_id, ns.status]) : [])}
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
+          nodeComments={workflowComments}
+          collabWorkflowId={collabEnabled ? activeWorkflowId : undefined}
+          currentCollabUser={collabEnabled ? currentUser : undefined}
+          onNodeCommentsChange={() => void fetchWorkflowComments()}
           collabUsers={collabActiveUsers}
           nodePreviewsMap={(() => {
             if (runs.length === 0) return undefined;
@@ -1055,10 +1110,6 @@ export default function App() {
           }}
           onCollabDragStart={claimCollabDrag}
           onCollabDragEnd={releaseCollabDrag}
-          onCommentNode={(nodeId) => {
-            setSelectedNodeId(nodeId);
-            setShowComments(true);
-          }}
         />
 
         {/* Rail panels */}
@@ -1126,8 +1177,10 @@ export default function App() {
         onClose={() => setShowShareDialog(false)}
       />
       <UserList
-        users={collabActiveUsers}
+        users={livePresenceUsers}
         currentUserId={currentUser.id}
+        currentWorkflowId={activeWorkflowId}
+        workflowNames={knownWorkflowNames}
         isOpen={showUserList}
         onClose={() => setShowUserList(false)}
       />
@@ -1135,7 +1188,7 @@ export default function App() {
       {/* Phase 3 Collaboration Panels */}
       <CommentsPanel
         workflowId={activeWorkflowId}
-        selectedNodeId={selectedNodeId}
+        selectedNodeId={null}
         currentUser={currentUser}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
@@ -1144,6 +1197,7 @@ export default function App() {
           canvasRef.current?.focusNode(nodeId);
         }}
         onCommentsChange={setWorkflowComments}
+        onWorkflowNamesChange={setWorkflowNames}
       />
       <VersionHistory
         workflowId={activeWorkflowId}

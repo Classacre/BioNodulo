@@ -13,7 +13,7 @@ export {
   initAuth,
   generateGuestName,
 } from './auth';
-export type { CollabUser, AwarenessState, CollabState, AuthUser } from './types';
+export type { CollabUser, AwarenessState, CollabState, AuthUser, CollabRole, LivePresenceUser } from './types';
 export type { SyncPayload, UpdatePayload, AwarenessPayload, CollabMessage } from './types';
 export type { Comment, WorkflowVersion, WorkflowTemplate, AuditEntry, VersionDiffResult } from './types';
 export { default as ForeignCursors } from './ForeignCursors';

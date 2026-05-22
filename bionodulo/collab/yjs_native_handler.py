@@ -332,6 +332,8 @@ async def yjs_websocket(
         "user_id": effective_user_id,
         "name": str(auth_payload.get("name", effective_user_id)),
         "color": str(auth_payload.get("color", color)),
+        "role": permissions.get_role(workflow_id, effective_user_id) or "viewer",
+        "workflow_id": workflow_id,
     }
     room_sockets[workflow_id].append(websocket)
     await _broadcast_room_presence(workflow_id, room_sockets)

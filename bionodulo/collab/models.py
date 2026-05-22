@@ -341,6 +341,15 @@ class CollabStore:
         ).fetchall()
         return [WorkflowShare(**dict(row)) for row in rows]
 
+    def list_workflow_ids_for_user(self, user_id: str) -> list[str]:
+        """Return workflow IDs that have been shared with a user."""
+        conn = self._conn()
+        rows = conn.execute(
+            "SELECT workflow_id FROM workflow_shares WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+        return [str(row["workflow_id"]) for row in rows]
+
     def get_share(self, share_id: str) -> WorkflowShare | None:
         """Return a single share by ID."""
         conn = self._conn()

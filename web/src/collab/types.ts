@@ -4,7 +4,21 @@ export interface CollabUser {
   id: string;
   name: string;
   color: string;
+  role?: CollabRole;
+  workflowId?: string;
+  sessionId?: string;
   avatar?: string;
+}
+
+export type CollabRole = 'owner' | 'editor' | 'viewer' | 'commenter';
+
+export interface LivePresenceUser {
+  session_id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  role: CollabRole;
+  workflow_id: string;
 }
 
 export interface AuthUser {

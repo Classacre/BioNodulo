@@ -1,81 +1,208 @@
-import React, { useState } from 'react';
-import type { AwarenessState } from './types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Icon from '../components/ui/Icon';
+import { getToken } from './auth';
+import type { CollabRole, LivePresenceUser } from './types';
+
+interface ShareRecord {
+  id: string;
+  workflow_id: string;
+  user_id: string;
+  role: CollabRole;
+}
 
 interface UserListProps {
-  users: AwarenessState[];
+  users: LivePresenceUser[];
   currentUserId?: string;
+  currentWorkflowId: string;
+  workflowNames?: Record<string, string>;
   isOpen: boolean;
   onClose: () => void;
 }
 
 function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+  return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
 }
 
-const UserList: React.FC<UserListProps> = ({ users, currentUserId, isOpen, onClose }) => {
-  const displayUsers = currentUserId ? users.filter(u => u.user.id !== currentUserId) : users;
+function roleLabel(role: CollabRole): string {
+  return role === 'owner' ? 'Admin' : `${role[0].toUpperCase()}${role.slice(1)}`;
+}
+
+const roleChipColors: Record<CollabRole, string> = {
+  owner: '#0f766e',
+  editor: '#2563eb',
+  commenter: '#7c3aed',
+  viewer: '#64748b',
+};
+
+const UserList: React.FC<UserListProps> = ({
+  users,
+  currentUserId,
+  currentWorkflowId,
+  workflowNames = {},
+  isOpen,
+  onClose,
+}) => {
+  const [shares, setShares] = useState<Record<string, ShareRecord[]>>({});
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const workflows = useMemo(() => Array.from(new Set(users.map(user => user.workflow_id))), [users]);
+
+  const fetchShares = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    const entries = await Promise.all(workflows.map(async workflowId => {
+      const response = await fetch(`/api/collab/shares/${workflowId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return [workflowId, []] as const;
+      const data = await response.json() as { shares?: ShareRecord[] };
+      return [workflowId, data.shares ?? []] as const;
+    }));
+    setShares(Object.fromEntries(entries));
+  }, [workflows]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void fetchShares();
+  }, [fetchShares, isOpen]);
+
+  const currentRoles = useMemo(() => {
+    const entries = Object.entries(shares).map(([workflowId, records]) => [
+      workflowId,
+      records.find(share => share.user_id === currentUserId)?.role,
+    ]);
+    return Object.fromEntries(entries) as Record<string, CollabRole | undefined>;
+  }, [currentUserId, shares]);
+
+  const mutateRole = async (user: LivePresenceUser, role: Exclude<CollabRole, 'owner'>) => {
+    const token = getToken();
+    if (!token) return;
+    setError(null);
+    const response = await fetch('/api/collab/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ workflow_id: user.workflow_id, user_id: user.user_id, role }),
+    });
+    if (!response.ok) {
+      setError(`Could not change ${user.name}'s role.`);
+      return;
+    }
+    setMenuFor(null);
+    void fetchShares();
+  };
+
+  const kickUser = async (user: LivePresenceUser) => {
+    const token = getToken();
+    const share = shares[user.workflow_id]?.find(record => record.user_id === user.user_id);
+    if (!token || !share) return;
+    setError(null);
+    const response = await fetch(`/api/collab/share/${share.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      setError(`Could not remove ${user.name}.`);
+      return;
+    }
+    setMenuFor(null);
+    void fetchShares();
+  };
+
   if (!isOpen) return null;
+
   return (
     <div className="collab-user-list" style={{
-      position: 'absolute',
+      position: 'fixed',
       right: 12,
       top: 48,
-      width: 220,
+      width: 320,
+      maxHeight: 'min(560px, calc(100vh - 64px))',
+      overflowY: 'auto',
       background: 'var(--surface)',
       border: '1px solid var(--border)',
       borderRadius: 8,
       padding: 12,
-      zIndex: 120,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      zIndex: 265,
+      boxShadow: '0 8px 28px rgba(0,0,0,0.22)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <strong style={{ fontSize: 13 }}>Active Users</strong>
         <button className="btn btn-icon btn-xs" onClick={onClose} title="Close">
-          <span style={{ fontSize: 12 }}>×</span>
+          <Icon name="close" size={12} />
         </button>
       </div>
-      {displayUsers.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No other users in this room</div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {displayUsers.map(u => (
-          <div key={u.user.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              backgroundColor: u.user.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#fff',
-              flexShrink: 0,
-            }}>
-              {getInitials(u.user.name)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {u.user.name}
+      {error ? <div style={{ color: 'var(--danger)', fontSize: 11, marginBottom: 8 }}>{error}</div> : null}
+      {users.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No live collaboration sessions</div>
+      ) : null}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {users.map(user => {
+          const itemKey = `${user.workflow_id}:${user.session_id}`;
+          const workflowRole = shares[user.workflow_id]?.find(share => share.user_id === user.user_id)?.role ?? user.role;
+          const canAdmin = currentRoles[user.workflow_id] === 'owner'
+            && user.user_id !== currentUserId
+            && workflowRole !== 'owner';
+          return (
+            <div key={itemKey} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: 6, borderRadius: 7, background: user.workflow_id === currentWorkflowId ? 'var(--surface-2)' : 'transparent' }}>
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                backgroundColor: user.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#fff',
+                flexShrink: 0,
+              }}>{getInitials(user.name)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.name}{user.user_id === currentUserId ? ' (You)' : ''}
+                  </span>
+                  <span style={{ fontSize: 9, padding: '2px 5px', borderRadius: 10, background: `${roleChipColors[workflowRole]}20`, color: roleChipColors[workflowRole], fontWeight: 700 }}>
+                    {roleLabel(workflowRole)}
+                  </span>
+                </div>
+                <div title={user.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {workflowNames[user.workflow_id] || `Workflow ${user.workflow_id.slice(0, 12)}`}
+                </div>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                {u.activity === 'active' ? 'Active' : u.activity === 'idle' ? 'Idle' : u.activity === 'dragging' ? 'Dragging' : 'Typing'}
-              </div>
+              {canAdmin ? (
+                <button className="btn btn-icon btn-xs" title="Manage access" onClick={() => setMenuFor(menuFor === itemKey ? null : itemKey)}>
+                  <Icon name="menu" size={13} />
+                </button>
+              ) : null}
+              {menuFor === itemKey ? (
+                <div style={{
+                  position: 'absolute',
+                  top: 38,
+                  right: 4,
+                  width: 144,
+                  zIndex: 2,
+                  border: '1px solid var(--border)',
+                  borderRadius: 7,
+                  background: 'var(--surface)',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+                  padding: 5,
+                  display: 'grid',
+                  gap: 2,
+                }}>
+                  {(['editor', 'commenter', 'viewer'] as const).map(role => (
+                    <button key={role} className="btn btn-xs" onClick={() => void mutateRole(user, role)} style={{ justifyContent: 'flex-start' }}>
+                      Make {roleLabel(role)}
+                    </button>
+                  ))}
+                  <button className="btn btn-xs" onClick={() => void kickUser(user)} style={{ justifyContent: 'flex-start', color: 'var(--danger)' }}>
+                    Kick user
+                  </button>
+                </div>
+              ) : null}
             </div>
-            <div style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: u.activity === 'active' || u.activity === 'dragging' ? '#22c55e' : '#94a3b8',
-            }} />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

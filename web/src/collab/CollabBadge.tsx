@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../components/ui/Icon';
-import type { AwarenessState } from './types';
+import type { AwarenessState, LivePresenceUser } from './types';
 
 interface CollabBadgeProps {
   enabled: boolean;
   connected: boolean;
   connecting: boolean;
   activeUsers: AwarenessState[];
+  liveUsers?: LivePresenceUser[];
+  workflowNames?: Record<string, string>;
   followingUserId: string | null;
   isShared: boolean;
   onShare: () => void;
@@ -52,6 +54,8 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   connected,
   connecting,
   activeUsers,
+  liveUsers = [],
+  workflowNames = {},
   followingUserId,
   isShared,
   onShare,
@@ -101,8 +105,18 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
     return { color: '#ef4444', text: 'Offline', label: error || 'Disconnected' };
   }, [enabled, offline, connected, connecting, reconnectAttempt, error]);
 
-  const userCount = activeUsers.length;
-  const followedUser = followingUserId ? activeUsers.find(user => user.user.id === followingUserId) : null;
+  const followUsers = liveUsers.length > 0
+    ? liveUsers
+    : activeUsers.map(user => ({
+        session_id: user.user.sessionId || user.user.id,
+        user_id: user.user.id,
+        name: user.user.name,
+        color: user.user.color,
+        role: user.user.role || 'editor',
+        workflow_id: user.user.workflowId || '',
+      }));
+  const userCount = liveUsers.length > 0 ? liveUsers.length : activeUsers.length;
+  const followedUser = followingUserId ? followUsers.find(user => user.user_id === followingUserId) : null;
 
   const closeThen = (action: () => void) => {
     action();
@@ -185,7 +199,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
             <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onShare)} disabled={!enabled}>
               <Icon name="link" size={14} /> Share workflow
             </button>
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onShowUsers)} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={onShowUsers} disabled={!enabled}>
               <Icon name="users" size={14} /> Active users
               {enabled && <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{userCount + 1}</span>}
             </button>
@@ -209,26 +223,26 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
             </div>
             {followedUser && (
               <button style={menuButtonStyle} onClick={() => onFollow(null)}>
-                <Icon name="eye" size={14} /> Stop following {followedUser.user.name}
+                <Icon name="eye" size={14} /> Stop following {followedUser.name}
               </button>
             )}
-            {activeUsers.length === 0 && (
+            {followUsers.length === 0 && (
               <div style={{ fontSize: 11, color: 'var(--muted)', padding: '6px' }}>No other users are active.</div>
             )}
-            {activeUsers.map(user => (
+            {followUsers.map(user => (
               <button
-                key={user.user.id}
+                key={`${user.workflow_id}:${user.session_id}`}
                 style={{
                   ...menuButtonStyle,
-                  background: followingUserId === user.user.id ? 'var(--accent-soft, rgba(59, 130, 246, 0.15))' : 'transparent',
+                  background: followingUserId === user.user_id ? 'var(--accent-soft, rgba(59, 130, 246, 0.15))' : 'transparent',
                 }}
-                onClick={() => closeThen(() => onFollow(user.user.id))}
+                onClick={() => closeThen(() => onFollow(user.user_id))}
               >
                 <span style={{
                   width: 20,
                   height: 20,
                   borderRadius: '50%',
-                  background: user.user.color,
+                  background: user.color,
                   color: '#fff',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -236,10 +250,17 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
                   fontSize: 8,
                   fontWeight: 700,
                 }}>
-                  {getInitials(user.user.name)}
+                  {getInitials(user.name)}
                 </span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user.user.name}
+                <span style={{ minWidth: 0, display: 'grid', overflow: 'hidden' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.name}
+                  </span>
+                  {user.workflow_id ? (
+                    <span style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {workflowNames[user.workflow_id] || `Workflow ${user.workflow_id.slice(0, 10)}`}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             ))}

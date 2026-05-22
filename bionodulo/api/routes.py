@@ -1670,24 +1670,30 @@ async def getting_started_download(
     settings = _get_settings(request)
     event_hub = _get_event_hub(request)
 
+    # Worker-thread download progress must return to the request loop before
+    # emitting into the async EventHub.
+    loop = asyncio.get_running_loop()
+
     def emit_progress(message: str, level: str = "info") -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.progress",
-                {
-                    "job_id": "example-data-download",
-                    "message": message,
-                    "level": level,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-                source="example-data",
+        payload = {
+            "job_id": "example-data-download",
+            "message": message,
+            "level": level,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        loop.call_soon_threadsafe(
+            lambda: asyncio.create_task(
+                event_hub.emit_typed(
+                    "install.progress",
+                    payload,
+                    source="example-data",
+                )
             )
         )
 
     emit_progress("Starting example data download from public sources ...", "info")
 
     # Run download in a thread pool so the event loop stays responsive
-    loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
         lambda: download_example_data(
@@ -1811,6 +1817,19 @@ def _require_execute_permission(request: Request, workflow_id: str | None) -> di
     return payload
 
 
+async def _close_yjs_user_sessions(request: Request, workflow_id: str, user_id: str) -> None:
+    """Reconnect a live Yjs user so changed room permissions take effect."""
+    rooms = getattr(request.app.state, "yjs_room_sockets", {})
+    for socket in list(rooms.get(workflow_id, [])):
+        presence = getattr(socket.state, "yjs_presence", None)
+        if not isinstance(presence, dict) or presence.get("user_id") != user_id:
+            continue
+        try:
+            await socket.close(code=4403, reason="Collaboration access changed")
+        except Exception:
+            pass
+
+
 @router.post("/collab/share", response_model=ShareWorkflowResponse)
 async def collab_share(
     request: Request,
@@ -1834,6 +1853,8 @@ async def collab_share(
         role=body.role,
         invited_by=caller_id,
     )
+    if body.user_id != caller_id:
+        await _close_yjs_user_sessions(request, body.workflow_id, body.user_id)
     return {
         "share_id": share.id,
         "workflow_id": share.workflow_id,
@@ -1858,6 +1879,29 @@ async def collab_list_shares(
 
     shares = permissions.list_users(workflow_id)
     return {"workflow_id": workflow_id, "shares": shares, "count": len(shares)}
+
+
+@router.get("/collab/presence")
+async def collab_presence(
+    request: Request,
+) -> dict[str, Any]:
+    """List authenticated live Yjs sessions across workflow rooms."""
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    permissions = _get_permissions(request)
+    rooms = getattr(request.app.state, "yjs_room_sockets", {})
+    users: list[dict[str, Any]] = []
+
+    open_rooms = os.environ.get("BIONODULO_COLLAB_OPEN_ROOMS", "").lower() in {"1", "true", "yes", "on"}
+    for workflow_id, sockets in rooms.items():
+        if not open_rooms and not permissions.can_read(workflow_id, caller_id):
+            continue
+        for socket in sockets:
+            presence = getattr(socket.state, "yjs_presence", None)
+            if isinstance(presence, dict):
+                users.append({**presence, "workflow_id": workflow_id})
+
+    return {"users": users, "count": len(users)}
 
 
 @router.delete("/collab/share/{share_id}")
@@ -1885,6 +1929,7 @@ async def collab_revoke_share(
     if success:
         # Warm cache removal
         permissions.revoke(share.workflow_id, share.user_id)
+        await _close_yjs_user_sessions(request, share.workflow_id, share.user_id)
     return {"status": "revoked" if success else "not_found"}
 
 
