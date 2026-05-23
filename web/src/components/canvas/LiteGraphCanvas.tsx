@@ -10,7 +10,6 @@ import Minimap from './Minimap';
 import SelectionToolbox from './SelectionToolbox';
 import GroupContextMenu from './GroupContextMenu';
 
-import { LiteGraphYjsBridge } from '../../collab/bridge';
 import CommentPin from '../../collab/CommentPin';
 import NodeCommentPopover from '../../collab/NodeCommentPopover';
 import type { AwarenessState, CollabUser, Comment } from '../../collab/types';
@@ -46,9 +45,9 @@ interface LiteGraphCanvasProps {
   currentCollabUser?: CollabUser;
   onNodeCommentsChange?: () => void;
   collabUsers?: AwarenessState[];
-  collabBridge?: LiteGraphYjsBridge;
   onCollabCursor?: (cursor: AwarenessState['cursor']) => void;
   onCollabSelection?: (selection: AwarenessState['selection']) => void;
+  onCollabNodeMove?: (nodeId: string, position: [number, number]) => void;
   onCollabDragStart?: (nodeId: string) => void;
   onCollabDragEnd?: () => void;
   onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
@@ -305,9 +304,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   currentCollabUser,
   onNodeCommentsChange,
   collabUsers = [],
-  collabBridge,
   onCollabCursor,
   onCollabSelection,
+  onCollabNodeMove,
   onCollabDragStart,
   onCollabDragEnd,
   onViewportChange,
@@ -403,9 +402,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const startDragOwnership = useCallback((nodeId: string) => {
     if (dragOwnershipStartedRef.current) return;
     dragOwnershipStartedRef.current = true;
-    collabBridge?.onDragStart(nodeId);
     onCollabDragStart?.(nodeId);
-  }, [collabBridge, onCollabDragStart]);
+  }, [onCollabDragStart]);
 
   // Convert workflow nodes to graph nodes (positions, structure, connectivity)
   useEffect(() => {
@@ -1620,6 +1618,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           };
         });
         graphNodesRef.current = next;
+        next
+          .filter(n => n.selected)
+          .forEach(n => onCollabNodeMove?.(n.id, [n.x, n.y]));
         return next;
       });
     } else if (selectBox) {
@@ -1647,7 +1648,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         },
       });
     }
-  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange, publishCollabSelection, startDragOwnership]);
+  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange, publishCollabSelection, startDragOwnership, onCollabNodeMove]);
 
   const handleMouseUp = useCallback(() => {
     // Check for link drop
@@ -1758,7 +1759,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       });
     }
     if (dragOwnershipStartedRef.current) {
-      collabBridge?.onDragEnd();
       onCollabDragEnd?.();
     }
     dragMovedRef.current = false;
@@ -1772,7 +1772,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     groupDragStartRef.current = null;
     setGroupResizing(null);
     setResizingNode(null);
-  }, [dragging, graphNodes, nodes, onNodesChange, groupDragging, groupResizing, resizingNode, onPushHistory, edges, onEdgesChange, publishCollabSelection, collabBridge, onCollabDragEnd]);
+  }, [dragging, graphNodes, nodes, onNodesChange, groupDragging, groupResizing, resizingNode, onPushHistory, edges, onEdgesChange, publishCollabSelection, onCollabDragEnd]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();

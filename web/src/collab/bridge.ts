@@ -2,6 +2,14 @@ import * as Y from 'yjs';
 import type { WorkflowNode, WorkflowEdge, WorkflowGroup } from '../types';
 import { serializeNode, deserializeNode, serializeEdge, deserializeEdge, serializeGroup, deserializeGroup } from './yjsDoc';
 
+function serializedValuesEqual(a: unknown, b: unknown): boolean {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 interface BridgeCallbacks {
   onNodesChange: (nodes: WorkflowNode[]) => void;
   onEdgesChange: (edges: WorkflowEdge[]) => void;
@@ -86,7 +94,8 @@ export class LiteGraphYjsBridge {
 
   onNodeMoved(nodeId: string, pos: [number, number]) {
     if (this._isApplyingRemote) return;
-    // Throttle position updates during drag to ~5Hz (200ms)
+    // Throttle position updates during drag to ~20Hz so collaborators see
+    // motion without flooding the socket with every pointer event.
     const currentNodes = this.callbacks.getNodes();
     const node = currentNodes.find(n => n.id === nodeId);
     if (!node) return;
@@ -104,7 +113,7 @@ export class LiteGraphYjsBridge {
         });
       }, 'local');
       this._pendingPositionUpdates.clear();
-    }, 200);
+    }, 50);
   }
 
   onNodesChanged(nodes: WorkflowNode[]) {
@@ -113,7 +122,10 @@ export class LiteGraphYjsBridge {
     const currentIds = new Set(nodes.map(n => n.id));
     this.ydoc.transact(() => {
       nodes.forEach(node => {
-        yNodes.set(node.id, serializeNode(node));
+        const serialized = serializeNode(node);
+        if (!serializedValuesEqual(yNodes.get(node.id), serialized)) {
+          yNodes.set(node.id, serialized);
+        }
       });
       yNodes.forEach((_, key) => {
         if (!currentIds.has(key)) yNodes.delete(key);
@@ -143,7 +155,10 @@ export class LiteGraphYjsBridge {
     const currentIds = new Set(edges.map(e => e.id));
     this.ydoc.transact(() => {
       edges.forEach(edge => {
-        yEdges.set(edge.id, serializeEdge(edge));
+        const serialized = serializeEdge(edge);
+        if (!serializedValuesEqual(yEdges.get(edge.id), serialized)) {
+          yEdges.set(edge.id, serialized);
+        }
       });
       yEdges.forEach((_, key) => {
         if (!currentIds.has(key)) yEdges.delete(key);
@@ -173,7 +188,10 @@ export class LiteGraphYjsBridge {
     const currentIds = new Set(groups.map(g => g.id));
     this.ydoc.transact(() => {
       groups.forEach(group => {
-        yGroups.set(group.id, serializeGroup(group));
+        const serialized = serializeGroup(group);
+        if (!serializedValuesEqual(yGroups.get(group.id), serialized)) {
+          yGroups.set(group.id, serialized);
+        }
       });
       yGroups.forEach((_, key) => {
         if (!currentIds.has(key)) yGroups.delete(key);

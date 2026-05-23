@@ -396,8 +396,19 @@ export default function App() {
     setCollabViewport({ ...viewOffset, scale: viewScale });
   }, [setCollabViewport]);
 
-  const collabSnapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingCollabSnapshotRef = useRef<Workflow | null>(null);
+  const publishCollabNodeMove = useCallback((nodeId: string, position: [number, number]) => {
+    bridgeRef.current?.onNodeMoved(nodeId, position);
+  }, []);
+
+  const handleCollabDragStart = useCallback((nodeId: string) => {
+    bridgeRef.current?.onDragStart(nodeId);
+    claimCollabDrag(nodeId);
+  }, [claimCollabDrag]);
+
+  const handleCollabDragEnd = useCallback(() => {
+    bridgeRef.current?.onDragEnd();
+    releaseCollabDrag();
+  }, [releaseCollabDrag]);
 
   const publishCollabWorkflowSnapshot = useCallback(async (workflow: Workflow) => {
     if (!collabEnabled || !workflow.id) return;
@@ -416,28 +427,6 @@ export default function App() {
       // The socket bridge still handles normal collaboration when REST is unavailable.
     }
   }, [collabEnabled]);
-
-  const scheduleCollabWorkflowSnapshotPublish = useCallback((workflow: Workflow, delay = 450) => {
-    if (!collabEnabled || !workflow.id) return;
-    pendingCollabSnapshotRef.current = workflow;
-    if (collabSnapshotTimerRef.current) {
-      clearTimeout(collabSnapshotTimerRef.current);
-    }
-    collabSnapshotTimerRef.current = setTimeout(() => {
-      collabSnapshotTimerRef.current = null;
-      const pending = pendingCollabSnapshotRef.current;
-      pendingCollabSnapshotRef.current = null;
-      if (pending) {
-        void publishCollabWorkflowSnapshot(pending);
-      }
-    }, delay);
-  }, [collabEnabled, publishCollabWorkflowSnapshot]);
-
-  useEffect(() => () => {
-    if (collabSnapshotTimerRef.current) {
-      clearTimeout(collabSnapshotTimerRef.current);
-    }
-  }, []);
 
   const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
     const token = getToken();
@@ -650,19 +639,12 @@ export default function App() {
       bridgeRef.current.onEdgesChanged(state.edges);
       bridgeRef.current.onGroupsChanged(state.groups);
     }
-    scheduleCollabWorkflowSnapshotPublish({
-      ...activeWorkflowRef.current,
-      id: activeWorkflowId,
-      nodes: state.nodes,
-      edges: state.edges,
-      groups: state.groups,
-    }, 0);
     updateWorkflow(activeIndex, {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
     });
-  }, [activeIndex, activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateWorkflow]);
+  }, [activeIndex, updateWorkflow]);
 
   const redo = useCallback(() => {
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
@@ -673,19 +655,12 @@ export default function App() {
       bridgeRef.current.onEdgesChanged(state.edges);
       bridgeRef.current.onGroupsChanged(state.groups);
     }
-    scheduleCollabWorkflowSnapshotPublish({
-      ...activeWorkflowRef.current,
-      id: activeWorkflowId,
-      nodes: state.nodes,
-      edges: state.edges,
-      groups: state.groups,
-    }, 0);
     updateWorkflow(activeIndex, {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
     });
-  }, [activeIndex, activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateWorkflow]);
+  }, [activeIndex, updateWorkflow]);
 
   const [railTab, setRailTab] = useState<RailTab>(null);
   const [consoleVisible, setConsoleVisible] = useState(false);
@@ -916,27 +891,24 @@ export default function App() {
       bridgeRef.current.onNodesChanged(nodes);
     }
     pendingStateRef.current = { ...pendingStateRef.current, nodes };
-    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, nodes });
     updateActive({ nodes });
-  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
+  }, [updateActive]);
 
   const handleEdgesChange = useCallback((edges: Workflow['edges']) => {
     if (bridgeRef.current) {
       bridgeRef.current.onEdgesChanged(edges);
     }
     pendingStateRef.current = { ...pendingStateRef.current, edges };
-    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, edges });
     updateActive({ edges });
-  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
+  }, [updateActive]);
 
   const handleGroupsChange = useCallback((groups: Workflow['groups']) => {
     if (bridgeRef.current) {
       bridgeRef.current.onGroupsChanged(groups);
     }
     pendingStateRef.current = { ...pendingStateRef.current, groups };
-    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, groups });
     updateActive({ groups });
-  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
+  }, [updateActive]);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -1281,15 +1253,15 @@ export default function App() {
             }
             return map;
           })()}
-          collabBridge={bridgeRef.current ?? undefined}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(selection) => {
             setSelectedNodeId(selection.nodeIds[0] ?? null);
             setCollabSelection(selection);
           }}
-          onCollabDragStart={claimCollabDrag}
-          onCollabDragEnd={releaseCollabDrag}
+          onCollabNodeMove={collabEnabled ? publishCollabNodeMove : undefined}
+          onCollabDragStart={collabEnabled ? handleCollabDragStart : undefined}
+          onCollabDragEnd={collabEnabled ? handleCollabDragEnd : undefined}
         />
 
         {/* Rail panels */}
