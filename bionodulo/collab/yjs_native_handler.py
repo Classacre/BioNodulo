@@ -253,6 +253,7 @@ async def yjs_websocket(
     token: str = Query(default=""),
     name: str = Query(default=""),
     color: str = Query(default="#3b82f6"),
+    session_id: str = Query(default=""),
 ) -> None:
     """Native Yjs WebSocket endpoint.
 
@@ -327,8 +328,9 @@ async def yjs_websocket(
     room_sockets = websocket.app.state.yjs_room_sockets
     if workflow_id not in room_sockets:
         room_sockets[workflow_id] = []
+    safe_session_id = session_id if session_id.replace("-", "").replace("_", "").isalnum() else ""
     websocket.state.yjs_presence = {
-        "session_id": uuid.uuid4().hex,
+        "session_id": safe_session_id[:80] or uuid.uuid4().hex,
         "user_id": effective_user_id,
         "name": str(auth_payload.get("name", effective_user_id)),
         "color": str(auth_payload.get("color", color)),

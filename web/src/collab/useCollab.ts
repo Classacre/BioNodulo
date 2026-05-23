@@ -36,6 +36,7 @@ interface RoomPresenceMessage {
 
 interface UseCollabReturn {
   doc: Y.Doc | null;
+  localSessionId: string;
   connected: boolean;
   connecting: boolean;
   offline: boolean; // true when browser is offline (IndexedDB active)
@@ -62,6 +63,11 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [roomUsers, setRoomUsers] = useState<AwarenessState[]>([]);
+  const localSessionIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  );
 
   const wsRef = useRef<WebSocket | null>(null);
   const docRef = useRef<Y.Doc | null>(null);
@@ -96,7 +102,8 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const token = getToken();
     const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
-    return `${proto}://${window.location.host}/ws/collab/${wfId}?client=web${tokenParam}`;
+    const sessionParam = `&session_id=${encodeURIComponent(localSessionIdRef.current)}`;
+    return `${proto}://${window.location.host}/ws/collab/${wfId}?client=web${tokenParam}${sessionParam}`;
   }, []);
 
   const applyBinaryUpdate = useCallback((updateBytes: Uint8Array) => {
@@ -348,7 +355,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
         ws.onopen = () => {
           setConnected(true);
-          setConnecting(false);
           setError(null);
           reconnectAttemptRef.current = 0;
           setReconnectAttempt(0);
@@ -469,6 +475,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
   return {
     doc,
+    localSessionId: localSessionIdRef.current,
     connected,
     connecting,
     offline,

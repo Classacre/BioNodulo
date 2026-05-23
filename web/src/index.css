@@ -1064,9 +1064,7 @@ kbd {
   right: 388px;
 }
 .app-shell.comments-open:not(.ai-open) .canvas-controls,
-.app-shell.comments-open:not(.ai-open) .minimap,
-.app-shell.users-open:not(.ai-open) .canvas-controls,
-.app-shell.users-open:not(.ai-open) .minimap {
+.app-shell.comments-open:not(.ai-open) .minimap {
   right: 328px;
 }
 .app-shell.console-open .canvas-controls {

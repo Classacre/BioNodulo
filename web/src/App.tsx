@@ -26,7 +26,7 @@ import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
-  ForeignCursors, CollabBadge, ShareDialog, UserList,
+  ForeignCursors, CollabBadge, ShareDialog,
   getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
@@ -234,6 +234,7 @@ export default function App() {
 
   const {
     doc: collabDoc,
+    localSessionId: collabSessionId,
     connected: collabConnected,
     connecting: collabConnecting,
     activeUsers: collabActiveUsers,
@@ -303,7 +304,6 @@ export default function App() {
   }, [activeWorkflowId, collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
 
   const [showShareDialog, setShowShareDialog] = useState(false);
-  const [showUserList, setShowUserList] = useState(false);
   // Phase 3 collaboration panels
   const [showComments, setShowComments] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
@@ -363,18 +363,21 @@ export default function App() {
 
   useEffect(() => {
     if (!followingUserId) return;
-    const user = collabActiveUsers.find(candidate => candidate.user.id === followingUserId);
+    const user = collabActiveUsers.find(candidate => (
+      candidate.user.sessionId === followingUserId || candidate.user.id === followingUserId
+    ));
     if (user?.viewport) {
       canvasRef.current?.setViewport(user.viewport);
     }
   }, [collabActiveUsers, followingUserId]);
 
-  const followPresenceUser = useCallback((userId: string | null) => {
-    if (!userId) {
+  const followPresenceUser = useCallback((sessionId: string | null) => {
+    if (!sessionId) {
       setFollowingUserId(null);
       return;
     }
-    const presence = livePresenceUsers.find(user => user.user_id === userId);
+    const presence = livePresenceUsers.find(user => user.session_id === sessionId)
+      ?? livePresenceUsers.find(user => user.user_id === sessionId);
     if (presence?.workflow_id && presence.workflow_id !== activeWorkflowId) {
       const workflowName = workflowNames[presence.workflow_id] || `Workflow ${presence.workflow_id.slice(0, 12)}`;
       suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
@@ -384,7 +387,7 @@ export default function App() {
       window.history.replaceState({}, '', url);
       setRequestedWorkflowId(presence.workflow_id);
     }
-    setFollowingUserId(userId);
+    setFollowingUserId(presence?.session_id ?? sessionId);
   }, [activeIndex, activeWorkflowId, livePresenceUsers, setWorkflow, workflowNames]);
 
   // Host prerequisite status
@@ -970,17 +973,11 @@ export default function App() {
     ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || 'Untitled'])),
     ...workflowNames,
   }), [workflowNames, workflows]);
-  const followableUsers = useMemo(
-    () => livePresenceUsers.filter(user => user.user_id !== currentUser.id),
-    [currentUser.id, livePresenceUsers],
-  );
-
   return (
     <div className={[
       'app-shell',
       showAI ? 'ai-open' : '',
       showComments ? 'comments-open' : '',
-      showUserList ? 'users-open' : '',
       (consoleVisible || railTab === 'console') ? 'console-open' : '',
     ].filter(Boolean).join(' ')}>
       <TopBar
@@ -1000,12 +997,14 @@ export default function App() {
             connected={collabConnected}
             connecting={collabConnecting}
             activeUsers={collabActiveUsers}
-            liveUsers={followableUsers}
+            liveUsers={livePresenceUsers}
+            currentUserId={currentUser.id}
+            currentSessionId={collabSessionId}
+            currentWorkflowId={activeWorkflowId}
             workflowNames={knownWorkflowNames}
             followingUserId={followingUserId}
             isShared={collabIsShared}
             onShare={() => setShowShareDialog(true)}
-            onShowUsers={() => setShowUserList(true)}
             onFollow={followPresenceUser}
             onOpenComments={() => setShowComments(v => !v)}
             onOpenVersions={() => setShowVersions(v => !v)}
@@ -1204,14 +1203,6 @@ export default function App() {
         workflowId={activeWorkflowId}
         isOpen={showShareDialog}
         onClose={() => setShowShareDialog(false)}
-      />
-      <UserList
-        users={livePresenceUsers}
-        currentUserId={currentUser.id}
-        currentWorkflowId={activeWorkflowId}
-        workflowNames={knownWorkflowNames}
-        isOpen={showUserList}
-        onClose={() => setShowUserList(false)}
       />
 
       {/* Phase 3 Collaboration Panels */}

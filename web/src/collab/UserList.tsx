@@ -13,10 +13,12 @@ interface ShareRecord {
 interface UserListProps {
   users: LivePresenceUser[];
   currentUserId?: string;
+  currentSessionId?: string;
   currentWorkflowId: string;
   workflowNames?: Record<string, string>;
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -37,10 +39,12 @@ const roleChipColors: Record<CollabRole, string> = {
 const UserList: React.FC<UserListProps> = ({
   users,
   currentUserId,
+  currentSessionId,
   currentWorkflowId,
   workflowNames = {},
   isOpen,
   onClose,
+  embedded = false,
 }) => {
   const [shares, setShares] = useState<Record<string, ShareRecord[]>>({});
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -112,17 +116,19 @@ const UserList: React.FC<UserListProps> = ({
 
   return (
     <div className="collab-user-list" style={{
-      position: 'fixed',
-      right: 0,
-      top: 0,
-      width: 340,
-      maxWidth: 'calc(100vw - 48px)',
-      height: '100vh',
+      position: embedded ? 'relative' : 'fixed',
+      right: embedded ? undefined : 0,
+      top: embedded ? undefined : 0,
+      width: embedded ? '100%' : 340,
+      maxWidth: embedded ? undefined : 'calc(100vw - 48px)',
+      height: embedded ? 'min(360px, calc(100vh - 220px))' : '100vh',
       overflow: 'hidden',
       background: 'var(--surface)',
-      borderLeft: '1px solid var(--border)',
-      zIndex: 265,
-      boxShadow: '-10px 0 32px rgba(0,0,0,0.18)',
+      border: embedded ? '1px solid var(--border)' : undefined,
+      borderLeft: embedded ? '1px solid var(--border)' : '1px solid var(--border)',
+      borderRadius: embedded ? 8 : 0,
+      zIndex: embedded ? 1 : 265,
+      boxShadow: embedded ? 'none' : '-10px 0 32px rgba(0,0,0,0.18)',
       display: 'flex',
       flexDirection: 'column',
     }}>
@@ -169,7 +175,7 @@ const UserList: React.FC<UserListProps> = ({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {user.name}{user.user_id === currentUserId ? ' (You)' : ''}
+                    {user.name}{user.session_id === currentSessionId || (!currentSessionId && user.user_id === currentUserId) ? ' (You)' : ''}
                   </span>
                   <span style={{ fontSize: 9, padding: '2px 5px', borderRadius: 10, background: `${roleChipColors[workflowRole]}20`, color: roleChipColors[workflowRole], fontWeight: 700 }}>
                     {roleLabel(workflowRole)}
