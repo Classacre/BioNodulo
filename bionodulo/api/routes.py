@@ -1795,12 +1795,42 @@ def _get_permissions(request: Request) -> Any:
     return request.app.state.permission_checker
 
 
+def _open_collab_rooms_enabled() -> bool:
+    return os.environ.get("BIONODULO_COLLAB_OPEN_ROOMS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _require_auth_payload(request: Request) -> dict[str, Any]:
     token = get_token_from_header_or_query(request)
     payload = validate_token(token) if token else None
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or missing authentication token")
     return payload
+
+
+def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, role: str = "editor") -> None:
+    """Grant trusted local/open-room visitors access before API permission checks.
+
+    Colab exposes a single trusted app URL to collaborators. When open-room mode
+    is enabled, WebSockets already grant access on join; REST endpoints need the
+    same behavior so follow, rosters, comments, and share checks do not race the
+    socket connection and surface transient 403s.
+    """
+    if not _open_collab_rooms_enabled():
+        return
+    permissions = _get_permissions(request)
+    permissions.ensure_owner(workflow_id, user_id)
+    if not permissions.can_read(workflow_id, user_id):
+        permissions.grant(
+            workflow_id=workflow_id,
+            user_id=user_id,
+            role=role,
+            invited_by="open-room-link",
+        )
 
 
 def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
@@ -1810,6 +1840,7 @@ def _require_execute_permission(request: Request, workflow_id: str | None) -> di
         return None
     payload = _require_auth_payload(request)
     user_id = payload.get("sub", "")
+    _ensure_open_room_access(request, workflow_id, user_id)
     permissions = _get_permissions(request)
     permissions.ensure_owner(workflow_id, user_id)
     if not permissions.can_execute(workflow_id, user_id):
@@ -1874,6 +1905,7 @@ async def collab_list_shares(
     permissions = _get_permissions(request)
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
+    _ensure_open_room_access(request, workflow_id, caller_id)
     if not permissions.can_read(workflow_id, caller_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -1892,7 +1924,7 @@ async def collab_presence(
     rooms = getattr(request.app.state, "yjs_room_sockets", {})
     users: list[dict[str, Any]] = []
 
-    open_rooms = os.environ.get("BIONODULO_COLLAB_OPEN_ROOMS", "").lower() in {"1", "true", "yes", "on"}
+    open_rooms = _open_collab_rooms_enabled()
     for workflow_id, sockets in rooms.items():
         if not open_rooms and not permissions.can_read(workflow_id, caller_id):
             continue

@@ -200,3 +200,18 @@ def test_native_room_presence_roster_uses_socket_metadata() -> None:
             {"session_id": "s2", "user_id": "u2", "name": "User Two", "color": "#abcdef"},
         ],
     }
+
+
+def test_open_room_api_access_grants_before_permission_checks(tmp_path, monkeypatch) -> None:
+    from bionodulo.api.routes import _ensure_open_room_access
+
+    monkeypatch.setenv("BIONODULO_COLLAB_OPEN_ROOMS", "1")
+    checker = PermissionChecker(store=CollabStore(tmp_path / "collab.db"))
+    checker.ensure_owner("wf-room", "owner")
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(permission_checker=checker)))
+
+    assert not checker.can_read("wf-room", "guest")
+
+    _ensure_open_room_access(request, "wf-room", "guest")
+
+    assert checker.can_write("wf-room", "guest")
