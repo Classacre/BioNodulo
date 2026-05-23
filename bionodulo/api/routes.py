@@ -1936,6 +1936,28 @@ async def collab_presence(
     return {"users": users, "count": len(users)}
 
 
+@router.get("/collab/workflows/{workflow_id}/snapshot")
+async def collab_workflow_snapshot(
+    request: Request,
+    workflow_id: str,
+) -> dict[str, Any]:
+    """Return the current server-side CRDT workflow snapshot for follow/join."""
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    _ensure_open_room_access(request, workflow_id, caller_id)
+    permissions = _get_permissions(request)
+    if not permissions.can_read(workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from bionodulo.collab.doc_store import extract_flat_snapshot
+    from bionodulo.collab.yjs_native_handler import _get_doc
+
+    doc = await _get_doc(workflow_id)
+    snapshot = extract_flat_snapshot(doc)
+    snapshot.setdefault("meta", {})["id"] = workflow_id
+    return {"workflow_id": workflow_id, "snapshot": snapshot}
+
+
 @router.delete("/collab/share/{share_id}")
 async def collab_revoke_share(
     request: Request,

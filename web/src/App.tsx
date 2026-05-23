@@ -132,6 +132,26 @@ function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
   };
 }
 
+function workflowFromCollabSnapshot(workflowId: string, snapshot: Record<string, unknown>, fallbackName: string): Workflow {
+  const meta = (snapshot.meta && typeof snapshot.meta === 'object' ? snapshot.meta : {}) as Record<string, unknown>;
+  const values = <T,>(value: unknown): T[] => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.values(value as Record<string, T>)
+      : []
+  );
+  return {
+    id: workflowId,
+    version: String(meta.version || 'Alpha 1.2'),
+    app: 'bionodulo',
+    name: String(meta.name || fallbackName),
+    description: '',
+    nodes: values<WorkflowNode>(snapshot.nodes),
+    edges: values<Workflow['edges'][number]>(snapshot.edges),
+    groups: values<Workflow['groups'][number]>(snapshot.groups),
+    outputs: {},
+  };
+}
+
 function remapTemplateWorkflow(data: Workflow): Workflow {
   const oldToNew = new Map<string, string>();
   data.nodes = data.nodes.map((n, i) => {
@@ -371,7 +391,19 @@ export default function App() {
     }
   }, [collabActiveUsers, followingUserId]);
 
-  const followPresenceUser = useCallback((sessionId: string | null) => {
+  const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
+    const token = getToken();
+    if (!token) return null;
+    const response = await fetch(`/api/collab/workflows/${encodeURIComponent(workflowId)}/snapshot`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { snapshot?: Record<string, unknown> };
+    if (!data.snapshot) return null;
+    return workflowFromCollabSnapshot(workflowId, data.snapshot, fallbackName);
+  }, []);
+
+  const followPresenceUser = useCallback(async (sessionId: string | null) => {
     if (!sessionId) {
       setFollowingUserId(null);
       return;
@@ -386,9 +418,20 @@ export default function App() {
       url.searchParams.set('workflow', presence.workflow_id);
       window.history.replaceState({}, '', url);
       setRequestedWorkflowId(presence.workflow_id);
+      try {
+        const snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
+        if (snapshotWorkflow) {
+          setWorkflow(activeIndex, () => snapshotWorkflow);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => canvasRef.current?.fitView());
+          });
+        }
+      } catch {
+        // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
+      }
     }
     setFollowingUserId(presence?.session_id ?? sessionId);
-  }, [activeIndex, activeWorkflowId, livePresenceUsers, setWorkflow, workflowNames]);
+  }, [activeIndex, activeWorkflowId, fetchCollabSnapshot, livePresenceUsers, setWorkflow, workflowNames]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
