@@ -1833,6 +1833,49 @@ def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, r
         )
 
 
+def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a workflow or snapshot payload to the flat CRDT schema."""
+    snapshot = body.get("snapshot")
+    if isinstance(snapshot, dict):
+        meta = dict(snapshot.get("meta") or {})
+        meta["id"] = workflow_id
+        snapshot["meta"] = meta
+        return snapshot
+
+    workflow = body.get("workflow")
+    if not isinstance(workflow, dict):
+        raise HTTPException(status_code=400, detail="Expected workflow or snapshot payload")
+
+    def keyed(items: Any) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        if not isinstance(items, list):
+            return result
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_id = item.get("id")
+            if item_id:
+                result[str(item_id)] = item
+        return result
+
+    meta = {
+        "id": workflow_id,
+        "version": workflow.get("version") or "Alpha 1.2",
+        "name": workflow.get("name") or "Untitled",
+        "description": workflow.get("description") or "",
+        "lastModified": datetime.now(timezone.utc).isoformat(),
+    }
+    return {
+        "meta": meta,
+        "nodes": keyed(workflow.get("nodes")),
+        "edges": keyed(workflow.get("edges")),
+        "groups": keyed(workflow.get("groups")),
+        "viewport": workflow.get("viewport")
+        if isinstance(workflow.get("viewport"), dict)
+        else {"x": 0, "y": 0, "scale": 1.0},
+    }
+
+
 def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
     if not workflow_id:
         return None
@@ -1944,8 +1987,9 @@ async def collab_workflow_snapshot(
     """Return the current server-side CRDT workflow snapshot for follow/join."""
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    _ensure_open_room_access(request, workflow_id, caller_id)
     permissions = _get_permissions(request)
+    permissions.ensure_owner(workflow_id, caller_id)
+    _ensure_open_room_access(request, workflow_id, caller_id)
     if not permissions.can_read(workflow_id, caller_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -1956,6 +2000,35 @@ async def collab_workflow_snapshot(
     snapshot = extract_flat_snapshot(doc)
     snapshot.setdefault("meta", {})["id"] = workflow_id
     return {"workflow_id": workflow_id, "snapshot": snapshot}
+
+
+@router.post("/collab/workflows/{workflow_id}/snapshot")
+async def collab_publish_workflow_snapshot(
+    request: Request,
+    workflow_id: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Replace and broadcast the server-side CRDT workflow snapshot."""
+    payload = _require_auth_payload(request)
+    caller_id = payload["sub"]
+    permissions = _get_permissions(request)
+    permissions.ensure_owner(workflow_id, caller_id)
+    _ensure_open_room_access(request, workflow_id, caller_id)
+    if not permissions.can_write(workflow_id, caller_id):
+        raise HTTPException(status_code=403, detail="Editor access required")
+
+    from bionodulo.collab.yjs_native_handler import publish_flat_snapshot_to_room
+
+    snapshot = _workflow_payload_to_flat_snapshot(workflow_id, body)
+    room_sockets = getattr(request.app.state, "yjs_room_sockets", {})
+    published = await publish_flat_snapshot_to_room(workflow_id, snapshot, room_sockets)
+    return {
+        "workflow_id": workflow_id,
+        "snapshot": published,
+        "nodes": len(published.get("nodes", {})),
+        "edges": len(published.get("edges", {})),
+        "groups": len(published.get("groups", {})),
+    }
 
 
 @router.delete("/collab/share/{share_id}")

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pycrdt
 from fastapi.testclient import TestClient
 
 from bionodulo.api.collab_routes import _diff_snapshots
+from bionodulo.api.routes import _workflow_payload_to_flat_snapshot
+from bionodulo.collab.doc_store import extract_flat_snapshot
 from bionodulo.collab.models import CollabStore, Comment, WorkflowShare, WorkflowTemplate, WorkflowVersion
 from bionodulo.collab.permissions import PermissionChecker
-from bionodulo.collab.yjs_native_handler import _room_presence_payload
+from bionodulo.collab.yjs_native_handler import _replace_flat_snapshot, _room_presence_payload
 
 
 def test_collab_routes_are_mounted_once() -> None:
@@ -215,3 +218,41 @@ def test_open_room_api_access_grants_before_permission_checks(tmp_path, monkeypa
     _ensure_open_room_access(request, "wf-room", "guest")
 
     assert checker.can_write("wf-room", "guest")
+
+
+def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:
+    doc = pycrdt.Doc()
+    first = _workflow_payload_to_flat_snapshot(
+        "wf-room",
+        {
+            "workflow": {
+                "version": "Alpha 1.2",
+                "name": "Genome Assembly",
+                "nodes": [{"id": "n1", "type": "input_fastq"}],
+                "edges": [{"id": "e1", "from": {"node": "n1"}, "to": {"node": "n2"}}],
+                "groups": [],
+            }
+        },
+    )
+    second = _workflow_payload_to_flat_snapshot(
+        "wf-room",
+        {
+            "workflow": {
+                "version": "Alpha 1.2",
+                "name": "Variant Calling",
+                "nodes": [{"id": "n2", "type": "input_vcf"}],
+                "edges": [],
+                "groups": [],
+            }
+        },
+    )
+
+    _replace_flat_snapshot(doc, first)
+    _replace_flat_snapshot(doc, second)
+    snapshot = extract_flat_snapshot(doc)
+
+    assert snapshot["meta"]["id"] == "wf-room"
+    assert snapshot["meta"]["name"] == "Variant Calling"
+    assert "n1" not in snapshot["nodes"]
+    assert snapshot["nodes"]["n2"]["type"] == "input_vcf"
+    assert snapshot["edges"] == {}

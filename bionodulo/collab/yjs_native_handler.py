@@ -39,6 +39,7 @@ from bionodulo.collab.auth import get_auth_ws, generate_user_id
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.rate_limiter import RateLimiter
+from bionodulo.collab.doc_store import CRDT_TOP_LEVEL_MAPS
 from bionodulo.collab.yjs_store import SQLiteYStore
 
 logger = logging.getLogger(__name__)
@@ -239,6 +240,58 @@ async def _broadcast_room_presence(
             await socket.send_text(message)
         except Exception:
             pass
+
+
+def _replace_flat_snapshot(doc: pycrdt.Doc, snapshot: dict[str, Any]) -> None:
+    """Replace the flat workflow maps in *doc* with *snapshot* values."""
+    with doc.transaction():
+        for map_name in CRDT_TOP_LEVEL_MAPS:
+            target = doc.get(map_name, type=pycrdt.Map)
+            for key in list(dict(target).keys()):
+                del target[key]
+            values = snapshot.get(map_name, {})
+            if not isinstance(values, dict):
+                continue
+            for key, value in values.items():
+                target[str(key)] = value
+
+
+async def publish_flat_snapshot_to_room(
+    workflow_id: str,
+    snapshot: dict[str, Any],
+    room_sockets: dict[str, list[WebSocket]] | None = None,
+) -> dict[str, Any]:
+    """Replace a room document with a flat snapshot and broadcast it.
+
+    This is used by REST endpoints for higher-level workflow operations such as
+    loading a template. It complements the incremental Yjs socket path so a
+    newly-following collaborator can hydrate the exact room graph even if the
+    browser's first local update was made before the socket sender was ready.
+    """
+    snapshot = dict(snapshot)
+    meta = dict(snapshot.get("meta") or {})
+    meta["id"] = workflow_id
+    meta.setdefault("version", "Alpha 1.2")
+    meta.setdefault("name", "Untitled")
+    meta["lastModified"] = datetime.now(timezone.utc).isoformat()
+    snapshot["meta"] = meta
+
+    doc = await _get_doc(workflow_id)
+    lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
+    async with lock:
+        _replace_flat_snapshot(doc, snapshot)
+        full_update = doc.get_update(b"\x00")
+
+    if full_update:
+        # A full Yjs update is valid as an incremental update; clients merge it
+        # idempotently into their current document.
+        await _broadcast_to_room(
+            workflow_id,
+            bytes([MSG_SYNC, SYNC_UPDATE]) + full_update,
+            room_sockets=room_sockets,
+        )
+
+    return snapshot
 
 
 # ---------------------------------------------------------------------------

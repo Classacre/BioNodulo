@@ -396,6 +396,49 @@ export default function App() {
     setCollabViewport({ ...viewOffset, scale: viewScale });
   }, [setCollabViewport]);
 
+  const collabSnapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCollabSnapshotRef = useRef<Workflow | null>(null);
+
+  const publishCollabWorkflowSnapshot = useCallback(async (workflow: Workflow) => {
+    if (!collabEnabled || !workflow.id) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      await fetch(`/api/collab/workflows/${encodeURIComponent(workflow.id)}/snapshot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ workflow }),
+      });
+    } catch {
+      // The socket bridge still handles normal collaboration when REST is unavailable.
+    }
+  }, [collabEnabled]);
+
+  const scheduleCollabWorkflowSnapshotPublish = useCallback((workflow: Workflow, delay = 450) => {
+    if (!collabEnabled || !workflow.id) return;
+    pendingCollabSnapshotRef.current = workflow;
+    if (collabSnapshotTimerRef.current) {
+      clearTimeout(collabSnapshotTimerRef.current);
+    }
+    collabSnapshotTimerRef.current = setTimeout(() => {
+      collabSnapshotTimerRef.current = null;
+      const pending = pendingCollabSnapshotRef.current;
+      pendingCollabSnapshotRef.current = null;
+      if (pending) {
+        void publishCollabWorkflowSnapshot(pending);
+      }
+    }, delay);
+  }, [collabEnabled, publishCollabWorkflowSnapshot]);
+
+  useEffect(() => () => {
+    if (collabSnapshotTimerRef.current) {
+      clearTimeout(collabSnapshotTimerRef.current);
+    }
+  }, []);
+
   const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
     const token = getToken();
     if (!token) return null;
@@ -417,24 +460,26 @@ export default function App() {
       ?? livePresenceUsers.find(user => user.user_id === sessionId);
     if (presence?.workflow_id) {
       const workflowName = workflowNames[presence.workflow_id] || `Workflow ${presence.workflow_id.slice(0, 12)}`;
+      let snapshotWorkflow: Workflow | null = null;
+      try {
+        snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
+      } catch {
+        // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
+      }
       if (presence.workflow_id !== activeWorkflowId) {
         suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
-        setWorkflow(activeIndex, () => emptySharedWorkflow(presence.workflow_id, workflowName));
+        setWorkflow(activeIndex, () => snapshotWorkflow ?? emptySharedWorkflow(presence.workflow_id, workflowName));
         const url = new URL(window.location.href);
         url.searchParams.set('workflow', presence.workflow_id);
         window.history.replaceState({}, '', url);
         setRequestedWorkflowId(presence.workflow_id);
+      } else if (snapshotWorkflow) {
+        setWorkflow(activeIndex, () => snapshotWorkflow);
       }
-      try {
-        const snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
-        if (snapshotWorkflow) {
-          setWorkflow(activeIndex, () => snapshotWorkflow);
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => canvasRef.current?.fitView());
-          });
-        }
-      } catch {
-        // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
+      if (snapshotWorkflow) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => canvasRef.current?.fitView());
+        });
       }
       const targetAwareness = collabActiveUsers.find(candidate => (
         candidate.user.sessionId === presence.session_id || candidate.user.id === presence.user_id
@@ -592,23 +637,47 @@ export default function App() {
     if (historyIndexRef.current <= 0) return;
     historyIndexRef.current -= 1;
     const state = historyRef.current[historyIndexRef.current];
+    if (bridgeRef.current) {
+      bridgeRef.current.onNodesChanged(state.nodes);
+      bridgeRef.current.onEdgesChanged(state.edges);
+      bridgeRef.current.onGroupsChanged(state.groups);
+    }
+    scheduleCollabWorkflowSnapshotPublish({
+      ...activeWorkflowRef.current,
+      id: activeWorkflowId,
+      nodes: state.nodes,
+      edges: state.edges,
+      groups: state.groups,
+    }, 0);
     updateWorkflow(activeIndex, {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
     });
-  }, [activeIndex, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateWorkflow]);
 
   const redo = useCallback(() => {
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
     historyIndexRef.current += 1;
     const state = historyRef.current[historyIndexRef.current];
+    if (bridgeRef.current) {
+      bridgeRef.current.onNodesChanged(state.nodes);
+      bridgeRef.current.onEdgesChanged(state.edges);
+      bridgeRef.current.onGroupsChanged(state.groups);
+    }
+    scheduleCollabWorkflowSnapshotPublish({
+      ...activeWorkflowRef.current,
+      id: activeWorkflowId,
+      nodes: state.nodes,
+      edges: state.edges,
+      groups: state.groups,
+    }, 0);
     updateWorkflow(activeIndex, {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
     });
-  }, [activeIndex, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateWorkflow]);
 
   const [railTab, setRailTab] = useState<RailTab>(null);
   const [consoleVisible, setConsoleVisible] = useState(false);
@@ -839,24 +908,27 @@ export default function App() {
       bridgeRef.current.onNodesChanged(nodes);
     }
     pendingStateRef.current = { ...pendingStateRef.current, nodes };
+    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, nodes });
     updateActive({ nodes });
-  }, [updateActive]);
+  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
 
   const handleEdgesChange = useCallback((edges: Workflow['edges']) => {
     if (bridgeRef.current) {
       bridgeRef.current.onEdgesChanged(edges);
     }
     pendingStateRef.current = { ...pendingStateRef.current, edges };
+    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, edges });
     updateActive({ edges });
-  }, [updateActive]);
+  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
 
   const handleGroupsChange = useCallback((groups: Workflow['groups']) => {
     if (bridgeRef.current) {
       bridgeRef.current.onGroupsChanged(groups);
     }
     pendingStateRef.current = { ...pendingStateRef.current, groups };
+    scheduleCollabWorkflowSnapshotPublish({ ...activeWorkflowRef.current, id: activeWorkflowId, groups });
     updateActive({ groups });
-  }, [updateActive]);
+  }, [activeWorkflowId, scheduleCollabWorkflowSnapshotPublish, updateActive]);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -918,6 +990,7 @@ export default function App() {
       if (collabDoc) {
         workflowToDoc(sharedWorkflow, collabDoc);
       }
+      void publishCollabWorkflowSnapshot(sharedWorkflow);
     } else {
       addWorkflow(withWorkflowId(wf));
     }
@@ -926,16 +999,36 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
-    addWorkflow(withWorkflowId(wf));
+    if (collabEnabled) {
+      const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
+      updateWorkflow(activeIndex, sharedWorkflow);
+      if (collabDoc) {
+        workflowToDoc(sharedWorkflow, collabDoc);
+      }
+      void publishCollabWorkflowSnapshot(sharedWorkflow);
+    } else {
+      addWorkflow(withWorkflowId(wf));
+    }
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [addWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
+
+  const handleApplyWorkflow = useCallback((wf: Workflow) => {
+    const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
+    setWorkflow(activeIndex, () => sharedWorkflow);
+    if (collabEnabled) {
+      if (collabDoc) {
+        workflowToDoc(sharedWorkflow, collabDoc);
+      }
+      void publishCollabWorkflowSnapshot(sharedWorkflow);
+    }
+  }, [activeIndex, activeWorkflowId, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, setWorkflow]);
 
   const handleRenameTab = useCallback((index: number, name: string) => {
     updateWorkflow(index, { name });
@@ -1283,9 +1376,25 @@ export default function App() {
         onRestore={(versionJson) => {
           if (versionJson && typeof versionJson === 'object') {
             const v = versionJson as Record<string, unknown>;
-            if (v.nodes) updateWorkflow(activeIndex, { nodes: v.nodes as WorkflowNode[] });
-            if (v.edges) updateWorkflow(activeIndex, { edges: v.edges as Workflow['edges'] });
-            if (v.groups) updateWorkflow(activeIndex, { groups: v.groups as Workflow['groups'] });
+            const values = <T,>(value: unknown): T[] => {
+              if (Array.isArray(value)) return value as T[];
+              if (value && typeof value === 'object') return Object.values(value as Record<string, T>);
+              return [];
+            };
+            const nextWorkflow = {
+              ...activeWorkflowRef.current,
+              id: activeWorkflowId,
+              nodes: values<WorkflowNode>(v.nodes),
+              edges: values<Workflow['edges'][number]>(v.edges),
+              groups: values<Workflow['groups'][number]>(v.groups),
+            };
+            if (bridgeRef.current) {
+              bridgeRef.current.onNodesChanged(nextWorkflow.nodes);
+              bridgeRef.current.onEdgesChanged(nextWorkflow.edges);
+              bridgeRef.current.onGroupsChanged(nextWorkflow.groups);
+            }
+            updateWorkflow(activeIndex, nextWorkflow);
+            void publishCollabWorkflowSnapshot(nextWorkflow);
           }
         }}
       />
@@ -1302,7 +1411,7 @@ export default function App() {
         <AIWorkflowModal
           workflow={activeWorkflow}
           onClose={() => setShowAI(false)}
-          onApplyWorkflow={(wf) => setWorkflow(activeIndex, () => withWorkflowId(wf, activeWorkflowId))}
+          onApplyWorkflow={handleApplyWorkflow}
         />
       )}
       {showGettingStarted && (
