@@ -25,7 +25,7 @@ import { useWorkflow } from './hooks/useWorkflow';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import {
-  LiteGraphYjsBridge, useCollab, workflowToDoc,
+  LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   ForeignCursors, CollabBadge, ShareDialog, UserList,
   getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
@@ -116,6 +116,20 @@ function getRequestedWorkflowId(): string | null {
 
 function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId()): Workflow {
   return { ...workflow, id };
+}
+
+function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
+  return {
+    id,
+    version: 'Alpha 1.2',
+    app: 'bionodulo',
+    name,
+    description: '',
+    nodes: [],
+    edges: [],
+    groups: [],
+    outputs: {},
+  };
 }
 
 function remapTemplateWorkflow(data: Workflow): Workflow {
@@ -225,7 +239,6 @@ export default function App() {
     activeUsers: collabActiveUsers,
     setCursor: setCollabCursor,
     setSelection: setCollabSelection,
-    setViewport: setCollabViewport,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
     shareWorkflow,
@@ -236,6 +249,7 @@ export default function App() {
   } = useCollab(collabEnabled ? activeWorkflowId : null, currentUser);
 
   const bridgeRef = useRef<LiteGraphYjsBridge | null>(null);
+  const suppressLocalSeedForWorkflowRef = useRef<string | null>(null);
   const activeWorkflowRef = useRef(activeWorkflow);
   const updateWorkflowRef = useRef(updateWorkflow);
 
@@ -248,10 +262,27 @@ export default function App() {
       bridgeRef.current = null;
       return;
     }
-    // Seed doc with current workflow if empty
     const yNodes = collabDoc.getMap('nodes');
-    if (yNodes.size === 0 && activeWorkflowRef.current.nodes.length > 0) {
+    const yEdges = collabDoc.getMap('edges');
+    const yGroups = collabDoc.getMap('groups');
+    const remoteHasWorkflow = yNodes.size > 0 || yEdges.size > 0 || yGroups.size > 0;
+    if (remoteHasWorkflow) {
+      const remoteWorkflow = docToWorkflow(collabDoc);
+      updateWorkflowRef.current(activeIndex, {
+        id: activeWorkflowId,
+        name: remoteWorkflow.name || activeWorkflowRef.current.name,
+        nodes: remoteWorkflow.nodes,
+        edges: remoteWorkflow.edges,
+        groups: remoteWorkflow.groups,
+      });
+    } else if (
+      suppressLocalSeedForWorkflowRef.current !== activeWorkflowId
+      && activeWorkflowRef.current.nodes.length > 0
+    ) {
       workflowToDoc(activeWorkflowRef.current, collabDoc);
+    }
+    if (suppressLocalSeedForWorkflowRef.current === activeWorkflowId) {
+      suppressLocalSeedForWorkflowRef.current = null;
     }
     const bridge = new LiteGraphYjsBridge(collabDoc, {
       onNodesChange: (nodes) => updateWorkflowRef.current(activeIndex, { nodes }),
@@ -269,7 +300,7 @@ export default function App() {
       bridge.unbind();
       bridgeRef.current = null;
     };
-  }, [collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
+  }, [activeWorkflowId, collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
 
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showUserList, setShowUserList] = useState(false);
@@ -338,10 +369,6 @@ export default function App() {
     }
   }, [collabActiveUsers, followingUserId]);
 
-  const publishCollabViewport = useCallback((viewOffset: { x: number; y: number }, viewScale: number) => {
-    setCollabViewport({ ...viewOffset, scale: viewScale });
-  }, [setCollabViewport]);
-
   const followPresenceUser = useCallback((userId: string | null) => {
     if (!userId) {
       setFollowingUserId(null);
@@ -349,14 +376,16 @@ export default function App() {
     }
     const presence = livePresenceUsers.find(user => user.user_id === userId);
     if (presence?.workflow_id && presence.workflow_id !== activeWorkflowId) {
-      updateWorkflow(activeIndex, { id: presence.workflow_id });
+      const workflowName = workflowNames[presence.workflow_id] || `Workflow ${presence.workflow_id.slice(0, 12)}`;
+      suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
+      setWorkflow(activeIndex, () => emptySharedWorkflow(presence.workflow_id, workflowName));
       const url = new URL(window.location.href);
       url.searchParams.set('workflow', presence.workflow_id);
       window.history.replaceState({}, '', url);
       setRequestedWorkflowId(presence.workflow_id);
     }
     setFollowingUserId(userId);
-  }, [activeIndex, activeWorkflowId, livePresenceUsers, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, livePresenceUsers, setWorkflow, workflowNames]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -951,6 +980,7 @@ export default function App() {
       'app-shell',
       showAI ? 'ai-open' : '',
       showComments ? 'comments-open' : '',
+      showUserList ? 'users-open' : '',
       (consoleVisible || railTab === 'console') ? 'console-open' : '',
     ].filter(Boolean).join(' ')}>
       <TopBar
@@ -1103,7 +1133,6 @@ export default function App() {
           })()}
           collabBridge={bridgeRef.current ?? undefined}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
-          onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(nodeIds) => {
             setSelectedNodeId(nodeIds[0] ?? null);
             setCollabSelection({ nodeIds });

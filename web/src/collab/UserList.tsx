@@ -113,24 +113,33 @@ const UserList: React.FC<UserListProps> = ({
   return (
     <div className="collab-user-list" style={{
       position: 'fixed',
-      right: 12,
-      top: 48,
-      width: 320,
-      maxHeight: 'min(560px, calc(100vh - 64px))',
-      overflowY: 'auto',
+      right: 0,
+      top: 0,
+      width: 340,
+      maxWidth: 'calc(100vw - 48px)',
+      height: '100vh',
+      overflow: 'hidden',
       background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      padding: 12,
+      borderLeft: '1px solid var(--border)',
       zIndex: 265,
-      boxShadow: '0 8px 28px rgba(0,0,0,0.22)',
+      boxShadow: '-10px 0 32px rgba(0,0,0,0.18)',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 14px',
+        borderBottom: '1px solid var(--border)',
+        flexShrink: 0,
+      }}>
         <strong style={{ fontSize: 13 }}>Active Users</strong>
         <button className="btn btn-icon btn-xs" onClick={onClose} title="Close">
           <Icon name="close" size={12} />
         </button>
       </div>
+      <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
       {error ? <div style={{ color: 'var(--danger)', fontSize: 11, marginBottom: 8 }}>{error}</div> : null}
       {users.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No live collaboration sessions</div>
@@ -203,6 +212,7 @@ const UserList: React.FC<UserListProps> = ({
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
