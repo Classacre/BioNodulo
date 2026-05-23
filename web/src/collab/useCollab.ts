@@ -85,14 +85,20 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const updateWindowStartRef = useRef(Date.now());
   const skippedUpdateRef = useRef(false);
 
-  const awarenessResult = useAwareness(doc, currentUser, awareness, connected);
+  const awarenessUser = useMemo(() => ({
+    ...currentUser,
+    sessionId: localSessionIdRef.current,
+    workflowId: workflowId || undefined,
+  }), [currentUser.id, currentUser.name, currentUser.color, workflowId]);
+  const awarenessResult = useAwareness(doc, awarenessUser, awareness, connected);
   const activeUsers = useMemo(() => {
     const awarenessByUserId = new Map(
-      awarenessResult.others.map(state => [state.user.id, state]),
+      awarenessResult.others.map(state => [state.user.sessionId || state.user.id, state]),
     );
     for (const roomUser of roomUsers) {
-      if (!awarenessByUserId.has(roomUser.user.id)) {
-        awarenessByUserId.set(roomUser.user.id, roomUser);
+      const key = roomUser.user.sessionId || roomUser.user.id;
+      if (!awarenessByUserId.has(key)) {
+        awarenessByUserId.set(key, roomUser);
       }
     }
     return Array.from(awarenessByUserId.values());
@@ -133,7 +139,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
           const message = JSON.parse(ev.data) as RoomPresenceMessage;
           if (message.type === 'room.presence' && Array.isArray(message.users)) {
             const users = message.users
-              .filter(user => user.user_id && user.user_id !== currentUser.id)
+              .filter(user => user.user_id && user.session_id !== localSessionIdRef.current)
               .map(user => ({
                 user: {
                   id: user.user_id,
@@ -206,7 +212,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     else {
       console.warn('[collab] Unknown message type:', msgType);
     }
-  }, [applyBinaryUpdate, applyBinaryAwareness, currentUser.id]);
+  }, [applyBinaryUpdate, applyBinaryAwareness]);
 
   // Listen for local Yjs changes and send as native Yjs updates
   useEffect(() => {

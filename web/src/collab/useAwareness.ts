@@ -174,7 +174,7 @@ export function useAwareness(
       user,
       timestamp: Date.now(),
     }));
-  }, [user.id, user.name, user.color]);
+  }, [user.id, user.name, user.color, user.sessionId, user.workflowId]);
 
   const setCursor = useCallback((cursor: AwarenessState['cursor']) => {
     setLocalState(prev => ({ ...prev, cursor, timestamp: Date.now() }));

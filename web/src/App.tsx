@@ -260,6 +260,7 @@ export default function App() {
     activeUsers: collabActiveUsers,
     setCursor: setCollabCursor,
     setSelection: setCollabSelection,
+    setViewport: setCollabViewport,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
     shareWorkflow,
@@ -391,6 +392,10 @@ export default function App() {
     }
   }, [collabActiveUsers, followingUserId]);
 
+  const publishCollabViewport = useCallback((viewOffset: { x: number; y: number }, viewScale: number) => {
+    setCollabViewport({ ...viewOffset, scale: viewScale });
+  }, [setCollabViewport]);
+
   const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
     const token = getToken();
     if (!token) return null;
@@ -410,14 +415,16 @@ export default function App() {
     }
     const presence = livePresenceUsers.find(user => user.session_id === sessionId)
       ?? livePresenceUsers.find(user => user.user_id === sessionId);
-    if (presence?.workflow_id && presence.workflow_id !== activeWorkflowId) {
+    if (presence?.workflow_id) {
       const workflowName = workflowNames[presence.workflow_id] || `Workflow ${presence.workflow_id.slice(0, 12)}`;
-      suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
-      setWorkflow(activeIndex, () => emptySharedWorkflow(presence.workflow_id, workflowName));
-      const url = new URL(window.location.href);
-      url.searchParams.set('workflow', presence.workflow_id);
-      window.history.replaceState({}, '', url);
-      setRequestedWorkflowId(presence.workflow_id);
+      if (presence.workflow_id !== activeWorkflowId) {
+        suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
+        setWorkflow(activeIndex, () => emptySharedWorkflow(presence.workflow_id, workflowName));
+        const url = new URL(window.location.href);
+        url.searchParams.set('workflow', presence.workflow_id);
+        window.history.replaceState({}, '', url);
+        setRequestedWorkflowId(presence.workflow_id);
+      }
       try {
         const snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
         if (snapshotWorkflow) {
@@ -429,9 +436,15 @@ export default function App() {
       } catch {
         // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
       }
+      const targetAwareness = collabActiveUsers.find(candidate => (
+        candidate.user.sessionId === presence.session_id || candidate.user.id === presence.user_id
+      ));
+      if (targetAwareness?.viewport) {
+        canvasRef.current?.setViewport(targetAwareness.viewport);
+      }
     }
     setFollowingUserId(presence?.session_id ?? sessionId);
-  }, [activeIndex, activeWorkflowId, fetchCollabSnapshot, livePresenceUsers, setWorkflow, workflowNames]);
+  }, [activeIndex, activeWorkflowId, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setWorkflow, workflowNames]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -1175,6 +1188,7 @@ export default function App() {
           })()}
           collabBridge={bridgeRef.current ?? undefined}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
+          onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(nodeIds) => {
             setSelectedNodeId(nodeIds[0] ?? null);
             setCollabSelection({ nodeIds });
