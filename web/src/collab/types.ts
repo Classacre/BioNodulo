@@ -29,8 +29,11 @@ export interface AuthUser {
 
 export interface AwarenessState {
   user: CollabUser;
-  cursor: { x: number; y: number; visible: boolean } | null;
-  selection: { nodeIds: string[] };
+  cursor: { x: number; y: number; visible: boolean; worldX?: number; worldY?: number } | null;
+  selection: {
+    nodeIds: string[];
+    box?: { x: number; y: number; w: number; h: number } | null;
+  };
   viewport?: { x: number; y: number; scale: number };
   activity: 'active' | 'idle' | 'dragging' | 'typing';
   dragOwnership?: { nodeId: string; startedAt: number } | null;

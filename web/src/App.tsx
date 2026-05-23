@@ -26,7 +26,7 @@ import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
-  ForeignCursors, CollabBadge, ShareDialog,
+  CollabBadge, ShareDialog,
   getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
@@ -467,12 +467,20 @@ export default function App() {
         // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
       }
       if (presence.workflow_id !== activeWorkflowId) {
+        const targetWorkflow = snapshotWorkflow ?? emptySharedWorkflow(presence.workflow_id, workflowName);
+        const existingIndex = workflows.findIndex(workflow => workflow.id === presence.workflow_id);
         suppressLocalSeedForWorkflowRef.current = presence.workflow_id;
-        setWorkflow(activeIndex, () => snapshotWorkflow ?? emptySharedWorkflow(presence.workflow_id, workflowName));
+        if (existingIndex >= 0) {
+          if (snapshotWorkflow) {
+            setWorkflow(existingIndex, () => snapshotWorkflow);
+          }
+          setActiveIndex(existingIndex);
+        } else {
+          addWorkflow(targetWorkflow);
+        }
         const url = new URL(window.location.href);
         url.searchParams.set('workflow', presence.workflow_id);
         window.history.replaceState({}, '', url);
-        setRequestedWorkflowId(presence.workflow_id);
       } else if (snapshotWorkflow) {
         setWorkflow(activeIndex, () => snapshotWorkflow);
       }
@@ -489,7 +497,7 @@ export default function App() {
       }
     }
     setFollowingUserId(presence?.session_id ?? sessionId);
-  }, [activeIndex, activeWorkflowId, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setWorkflow, workflowNames]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setActiveIndex, setWorkflow, workflows, workflowNames]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
@@ -1208,12 +1216,6 @@ export default function App() {
           } catch { /* ignore */ }
         }}
       >
-        {collabEnabled && collabPresenceEnabled && (
-          <ForeignCursors
-            activeUsers={collabActiveUsers}
-            currentUserId={currentUser.id}
-          />
-        )}
         {hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
@@ -1259,7 +1261,7 @@ export default function App() {
           collabWorkflowId={collabEnabled ? activeWorkflowId : undefined}
           currentCollabUser={collabEnabled ? currentUser : undefined}
           onNodeCommentsChange={() => void fetchWorkflowComments()}
-          collabUsers={collabActiveUsers}
+          collabUsers={collabEnabled && collabPresenceEnabled ? collabActiveUsers : []}
           nodePreviewsMap={(() => {
             if (runs.length === 0) return undefined;
             const latest = runs[0];
@@ -1282,9 +1284,9 @@ export default function App() {
           collabBridge={bridgeRef.current ?? undefined}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
-          onCollabSelection={(nodeIds) => {
-            setSelectedNodeId(nodeIds[0] ?? null);
-            setCollabSelection({ nodeIds });
+          onCollabSelection={(selection) => {
+            setSelectedNodeId(selection.nodeIds[0] ?? null);
+            setCollabSelection(selection);
           }}
           onCollabDragStart={claimCollabDrag}
           onCollabDragEnd={releaseCollabDrag}

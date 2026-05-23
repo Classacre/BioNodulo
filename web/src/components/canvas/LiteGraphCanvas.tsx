@@ -47,8 +47,8 @@ interface LiteGraphCanvasProps {
   onNodeCommentsChange?: () => void;
   collabUsers?: AwarenessState[];
   collabBridge?: LiteGraphYjsBridge;
-  onCollabCursor?: (cursor: { x: number; y: number; visible: boolean } | null) => void;
-  onCollabSelection?: (nodeIds: string[]) => void;
+  onCollabCursor?: (cursor: AwarenessState['cursor']) => void;
+  onCollabSelection?: (selection: AwarenessState['selection']) => void;
   onCollabDragStart?: (nodeId: string) => void;
   onCollabDragEnd?: () => void;
   onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
@@ -360,7 +360,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const onPushHistoryRef = useRef(onPushHistory);
   const onUndoRef = useRef(onUndo);
   const onRedoRef = useRef(onRedo);
+  const onCollabSelectionRef = useRef(onCollabSelection);
   const pendingSelectionRef = useRef<Set<string> | null>(null);
+  const dragMovedRef = useRef(false);
+  const dragCommitNeededRef = useRef(false);
+  const dragOwnershipStartedRef = useRef(false);
   // Refs for high-frequency values to avoid recreating draw callback
   const linkDragRef = useRef(linkDrag);
   const mouseWorldRef = useRef(mouseWorld);
@@ -382,6 +386,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { onPushHistoryRef.current = onPushHistory; }, [onPushHistory]);
   useEffect(() => { onUndoRef.current = onUndo; }, [onUndo]);
   useEffect(() => { onRedoRef.current = onRedo; }, [onRedo]);
+  useEffect(() => { onCollabSelectionRef.current = onCollabSelection; }, [onCollabSelection]);
   useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
   useEffect(() => { mouseWorldRef.current = mouseWorld; }, [mouseWorld]);
   useEffect(() => { hoveredSlotRef.current = hoveredSlot; }, [hoveredSlot]);
@@ -390,6 +395,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { collabUsersRef.current = collabUsers; }, [collabUsers]);
   useEffect(() => { missingDependencyNodeIdsRef.current = missingDependencyNodeIds; }, [missingDependencyNodeIds]);
   useEffect(() => { widgetsRef.current.clear(); }, [graphNodes]);
+
+  const publishCollabSelection = useCallback((selection: AwarenessState['selection']) => {
+    onCollabSelectionRef.current?.(selection);
+  }, []);
+
+  const startDragOwnership = useCallback((nodeId: string) => {
+    if (dragOwnershipStartedRef.current) return;
+    dragOwnershipStartedRef.current = true;
+    collabBridge?.onDragStart(nodeId);
+    onCollabDragStart?.(nodeId);
+  }, [collabBridge, onCollabDragStart]);
 
   // Convert workflow nodes to graph nodes (positions, structure, connectivity)
   useEffect(() => {
@@ -471,12 +487,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const { w, h } = sizeRef.current;
-    const dpr = window.devicePixelRatio;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
+    const w = Math.max(1, sizeRef.current.w);
+    const h = Math.max(1, sizeRef.current.h);
+    const dpr = window.devicePixelRatio || 1;
+    const targetWidth = Math.round(w * dpr);
+    const targetHeight = Math.round(h * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+    }
 
     const isDark = document.documentElement.classList.contains('dark');
     const currentLinkDrag = linkDragRef.current;
@@ -920,6 +941,27 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.setLineDash([]);
       ctx.restore();
     }
+
+    const remoteBoxes = collabUsersRef.current.filter(u => u.selection?.box);
+    if (remoteBoxes.length > 0) {
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const user of remoteBoxes) {
+        const box = user.selection.box!;
+        const x = box.x * scale + offset.x;
+        const y = box.y * scale + offset.y;
+        const bw = box.w * scale;
+        const bh = box.h * scale;
+        ctx.strokeStyle = user.user.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(x, y, bw, bh);
+        ctx.fillStyle = `${user.user.color}1a`;
+        ctx.fillRect(x, y, bw, bh);
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
   }, [edges, offset, scale, linksHidden, selectBox]);
   useEffect(() => { drawRef.current = draw; }, [draw]);
 
@@ -1182,6 +1224,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       return;
     }
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      dragMovedRef.current = false;
+      dragCommitNeededRef.current = false;
+      dragOwnershipStartedRef.current = false;
       setPanning(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       return;
@@ -1252,6 +1297,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       // Check node resize handle
       if (world.x >= clicked.x + clicked.width - 10 && world.y >= clicked.y + clicked.height - 10) {
+        dragMovedRef.current = false;
+        dragCommitNeededRef.current = false;
+        dragOwnershipStartedRef.current = false;
         setResizingNode(clicked.id);
         setDragStart({ x: e.clientX, y: e.clientY });
         return;
@@ -1259,6 +1307,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       const inCollapseArea = !clicked.visualOnly && world.x >= clicked.x && world.x <= clicked.x + 20 && world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
       if (inCollapseArea) {
+        dragMovedRef.current = false;
+        dragCommitNeededRef.current = true;
+        dragOwnershipStartedRef.current = false;
         setGraphNodes(prev => prev.map(n => {
           if (n.id !== clicked.id) return n;
           const newCollapsed = !n.collapsed;
@@ -1266,8 +1317,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         }));
         setDragging(clicked.id);
         isDraggingRef.current = true;
-        collabBridge?.onDragStart(clicked.id);
-        onCollabDragStart?.(clicked.id);
         setDragStart({ x: e.clientX, y: e.clientY });
         setContextMenu(null);
         setPalettePos(null);
@@ -1276,15 +1325,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (e.shiftKey) {
         const next = graphNodes.map(n => n.id === clicked.id ? { ...n, selected: !n.selected } : n);
         setGraphNodes(next);
-        onCollabSelection?.(next.filter(n => n.selected).map(n => n.id));
+        publishCollabSelection({ nodeIds: next.filter(n => n.selected).map(n => n.id), box: null });
       } else {
         setGraphNodes(prev => prev.map(n => ({ ...n, selected: n.id === clicked.id })));
-        onCollabSelection?.([clicked.id]);
+        publishCollabSelection({ nodeIds: [clicked.id], box: null });
       }
+      dragMovedRef.current = false;
+      dragCommitNeededRef.current = false;
+      dragOwnershipStartedRef.current = false;
       setDragging(clicked.id);
       isDraggingRef.current = true;
-      collabBridge?.onDragStart(clicked.id);
-      onCollabDragStart?.(clicked.id);
       setDragStart({ x: e.clientX, y: e.clientY });
     } else {
       // Check group resize handle (in screen coords for easier grabbing)
@@ -1294,6 +1344,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const gh = g.height * scale;
         const hs = 8;
         if (cx >= p.x + gw - hs && cx <= p.x + gw && cy >= p.y + gh - hs && cy <= p.y + gh) {
+          dragMovedRef.current = false;
+          dragCommitNeededRef.current = false;
+          dragOwnershipStartedRef.current = false;
           setGroupResizing(g.id);
           setDragStart({ x: e.clientX, y: e.clientY });
           setContextMenu(null);
@@ -1313,6 +1366,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             setGraphNodes(prev => prev.map(n => ({ ...n, selected: false })));
           }
           setGroupDragging(g.id);
+          dragMovedRef.current = false;
+          dragCommitNeededRef.current = false;
+          dragOwnershipStartedRef.current = false;
           const containedIds = getNodesInGroup(g, graphNodes);
           groupDragNodesRef.current = containedIds;
           groupDragStartRef.current = {
@@ -1338,14 +1394,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       setGraphNodes(prev => prev.map(n => e.ctrlKey ? n : { ...n, selected: false }));
       if (!e.ctrlKey) {
         onGroupsChange(groups.map(g => ({ ...g, selected: false })));
-        onCollabSelection?.([]);
+        publishCollabSelection({ nodeIds: [], box: null });
       }
       setSelectBox({ x: cx, y: cy, w: 0, h: 0 });
       setDragStart({ x: cx, y: cy });
+      const startWorld = toWorld(cx, cy);
+      publishCollabSelection({ nodeIds: [], box: { x: startWorld.x, y: startWorld.y, w: 0, h: 0 } });
     }
     setContextMenu(null);
     setPalettePos(null);
-  }, [graphNodes, toWorld, fromWorld, scale, contextMenu, canvasMenu, palettePos, groupContextMenu, groups]);
+  }, [graphNodes, toWorld, fromWorld, scale, contextMenu, canvasMenu, palettePos, groupContextMenu, groups, publishCollabSelection]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1353,7 +1411,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const cy = rect ? e.clientY - rect.top : e.clientY;
     const world = toWorld(cx, cy);
     setMouseWorld(world);
-    onCollabCursor?.({ x: cx, y: cy, visible: true });
+    onCollabCursor?.({ x: cx, y: cy, worldX: world.x, worldY: world.y, visible: true });
     mouseWorldRef.current = world;
 
     // Slot hover detection
@@ -1482,6 +1540,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (groupResizing) {
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) dragMovedRef.current = true;
       setDragStart({ x: e.clientX, y: e.clientY });
       onGroupsChange(groups.map(g => {
         if (g.id !== groupResizing) return g;
@@ -1492,6 +1551,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (resizingNode) {
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) dragMovedRef.current = true;
       setDragStart({ x: e.clientX, y: e.clientY });
       setGraphNodes(prev => prev.map(n => {
         if (n.id !== resizingNode) return n;
@@ -1507,6 +1567,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (groupDragging) {
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) dragMovedRef.current = true;
       const gs = groupDragStartRef.current;
       if (!gs) return;
       const containedIds = groupDragNodesRef.current;
@@ -1542,6 +1603,10 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       isDraggingRef.current = true;
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        dragMovedRef.current = true;
+        startDragOwnership(dragging);
+      }
       setDragStart({ x: e.clientX, y: e.clientY });
       setGraphNodes(prev => {
         const next = prev.map(n => {
@@ -1564,12 +1629,25 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       // Select nodes in box
       const w1 = toWorld(x, y);
       const w2 = toWorld(x + Math.abs(cx - dragStart.x), y + Math.abs(cy - dragStart.y));
+      const isInSelectionBox = (n: GraphNode) => (
+        n.x >= w1.x && n.x + n.width <= w2.x && n.y >= w1.y && n.y + n.height <= w2.y
+      );
+      const selectedIds = graphNodesRef.current.filter(isInSelectionBox).map(n => n.id);
       setGraphNodes(prev => prev.map(n => {
         const inBox = n.x >= w1.x && n.x + n.width <= w2.x && n.y >= w1.y && n.y + n.height <= w2.y;
         return { ...n, selected: inBox };
       }));
+      publishCollabSelection({
+        nodeIds: selectedIds,
+        box: {
+          x: w1.x,
+          y: w1.y,
+          w: Math.max(0, w2.x - w1.x),
+          h: Math.max(0, w2.y - w1.y),
+        },
+      });
     }
-  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange]);
+  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange, publishCollabSelection, startDragOwnership]);
 
   const handleMouseUp = useCallback(() => {
     // Check for link drop
@@ -1647,10 +1725,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     }
 
     isDraggingRef.current = false;
-    if (groupDragging) {
+    const moved = dragMovedRef.current;
+    const needsNodeCommit = moved || dragCommitNeededRef.current;
+    if (groupDragging && moved) {
       onGroupsChangeRef.current(groupsRef.current);
     }
-    if (dragging || groupDragging) {
+    if ((dragging && needsNodeCommit) || (groupDragging && moved)) {
       // Sync back to workflow nodes using ref to avoid stale closure
       const currentGraphNodes = graphNodesRef.current;
       const updatedNodes = nodes.map(wn => {
@@ -1660,7 +1740,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       });
       onNodesChange(updatedNodes);
     }
-    if (resizingNode) {
+    if (resizingNode && moved) {
       const updatedNodes = nodes.map(wn => {
         const gn = graphNodesRef.current.find(g => g.id === wn.id);
         if (!gn) return wn;
@@ -1668,14 +1748,22 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       });
       onNodesChange(updatedNodes);
     }
-    if (dragging || groupDragging || groupResizing || resizingNode) {
+    if ((dragging && needsNodeCommit) || (groupDragging && moved) || (groupResizing && moved) || (resizingNode && moved)) {
       onPushHistory();
     }
     if (selectBox) {
-      onCollabSelection?.(graphNodesRef.current.filter(n => n.selected).map(n => n.id));
+      publishCollabSelection({
+        nodeIds: graphNodesRef.current.filter(n => n.selected).map(n => n.id),
+        box: null,
+      });
     }
-    collabBridge?.onDragEnd();
-    onCollabDragEnd?.();
+    if (dragOwnershipStartedRef.current) {
+      collabBridge?.onDragEnd();
+      onCollabDragEnd?.();
+    }
+    dragMovedRef.current = false;
+    dragCommitNeededRef.current = false;
+    dragOwnershipStartedRef.current = false;
     setDragging(null);
     setPanning(false);
     setSelectBox(null);
@@ -1684,7 +1772,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     groupDragStartRef.current = null;
     setGroupResizing(null);
     setResizingNode(null);
-  }, [dragging, graphNodes, nodes, onNodesChange, groupDragging, groupResizing, resizingNode, onPushHistory, edges, onEdgesChange]);
+  }, [dragging, graphNodes, nodes, onNodesChange, groupDragging, groupResizing, resizingNode, onPushHistory, edges, onEdgesChange, publishCollabSelection, collabBridge, onCollabDragEnd]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -1828,12 +1916,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (!node) return;
     pendingSelectionRef.current = new Set([nodeId]);
     setGraphNodes(prev => prev.map(candidate => ({ ...candidate, selected: candidate.id === nodeId })));
-    onCollabSelection?.([nodeId]);
+    publishCollabSelection({ nodeIds: [nodeId], box: null });
     setOffset({
       x: sizeRef.current.w / 2 - (node.x + node.width / 2) * scale,
       y: sizeRef.current.h / 2 - (node.y + node.height / 2) * scale,
     });
-  }, [onCollabSelection, scale]);
+  }, [publishCollabSelection, scale]);
 
   const setViewportFromAwareness = useCallback((viewport: { x: number; y: number; scale: number }) => {
     setOffset({ x: viewport.x, y: viewport.y });
@@ -1965,6 +2053,51 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
       />
+
+      {collabUsers.filter(user => user.cursor?.visible).map(user => {
+        const cursor = user.cursor!;
+        const hasWorld = Number.isFinite(cursor.worldX) && Number.isFinite(cursor.worldY);
+        const x = hasWorld ? cursor.worldX! * scale + offset.x : cursor.x;
+        const y = hasWorld ? cursor.worldY! * scale + offset.y : cursor.y;
+        return (
+          <div
+            key={`cursor-${user.user.sessionId || user.user.id}`}
+            style={{
+              position: 'absolute',
+              left: x,
+              top: y,
+              pointerEvents: 'none',
+              zIndex: 102,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: user.user.color,
+                boxShadow: `0 0 4px ${user.user.color}`,
+              }}
+            />
+            <span
+              style={{
+                position: 'absolute',
+                left: 10,
+                top: -4,
+                fontSize: 11,
+                color: user.user.color,
+                background: 'rgba(0,0,0,0.7)',
+                padding: '1px 4px',
+                borderRadius: 3,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user.user.name}
+            </span>
+          </div>
+        );
+      })}
 
       {/* Image preview DOM overlays */}
       {nodePreviewsMap && graphNodes.filter(n => nodePreviewsMap.has(n.id) && !n.collapsed).map(node => {
