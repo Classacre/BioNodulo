@@ -19,6 +19,7 @@ from typing import Any
 import pycrdt
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from pycrdt.websocket import YRoom, exception_logger
+from pycrdt.websocket.yroom import read_message
 
 from bionodulo.api.app_state import app_state_from_app
 from bionodulo.collab.auth import generate_user_id, get_auth_ws
@@ -41,6 +42,14 @@ MSG_AWARENESS = 1
 SYNC_STEP1 = 0
 SYNC_STEP2 = 1
 SYNC_UPDATE = 2
+
+
+def _read_length_prefixed_payload(payload: bytes) -> bytes | None:
+    """Decode a pycrdt/y-websocket payload without mutating the room doc."""
+    try:
+        return read_message(payload)
+    except Exception:
+        return None
 
 
 def _open_room_join_enabled() -> bool:
@@ -115,6 +124,13 @@ class FastAPIYChannel:
         msg_type = data[0]
         if msg_type == MSG_SYNC and len(data) > 1:
             sync_type = data[1]
+            if sync_type not in {SYNC_STEP1, SYNC_STEP2, SYNC_UPDATE}:
+                logger.debug("Dropping unknown sync message type %s for %s", sync_type, self.path)
+                return False
+            payload = _read_length_prefixed_payload(data[2:])
+            if payload is None or payload == b"":
+                logger.debug("Dropping malformed sync payload for %s", self.path)
+                return False
             if sync_type == SYNC_UPDATE:
                 if self.read_only:
                     return False
@@ -125,6 +141,9 @@ class FastAPIYChannel:
                 if not self.rate_limiter.check(self.websocket, "sync"):
                     return False
         elif msg_type == MSG_AWARENESS:
+            if not _read_length_prefixed_payload(data[1:]):
+                logger.debug("Dropping malformed awareness payload for %s", self.path)
+                return False
             if not self.rate_limiter.check(self.websocket, "awareness"):
                 return False
         return True

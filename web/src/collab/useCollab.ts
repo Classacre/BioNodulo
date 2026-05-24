@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
+import * as decoding from 'lib0/decoding';
+import * as encoding from 'lib0/encoding';
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness';
+import * as syncProtocol from 'y-protocols/sync';
 import { createWorkflowDoc, workflowToDoc, docToWorkflow } from './yjsDoc';
 import { useAwareness } from './useAwareness';
 import { getToken } from './auth';
@@ -11,12 +14,9 @@ const MAX_RECONNECT_DELAY = 30000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const UPDATE_RATE_LIMIT = 30;
 
-// Native Yjs protocol constants (matching backend)
+// y-websocket protocol constants (matching pycrdt-websocket)
 const MSG_SYNC = 0;
 const MSG_AWARENESS = 1;
-const SYNC_STEP1 = 0;
-const SYNC_STEP2 = 1;
-const SYNC_UPDATE = 2;
 
 interface RoomPresenceUser {
   session_id: string;
@@ -111,16 +111,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     return `${proto}://${window.location.host}/ws/collab/${wfId}?client=web${tokenParam}${sessionParam}`;
   }, []);
 
-  const applyBinaryUpdate = useCallback((updateBytes: Uint8Array) => {
-    const currentDoc = docRef.current;
-    if (!currentDoc) return;
-    try {
-      Y.applyUpdate(currentDoc, new Uint8Array(updateBytes), 'remote');
-    } catch (err) {
-      console.warn('[collab] Failed to apply Yjs update:', err);
-    }
-  }, []);
-
   const applyBinaryAwareness = useCallback((awarenessBytes: Uint8Array) => {
     const aw = awarenessRef.current;
     if (!aw) return;
@@ -166,52 +156,42 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     const data = new Uint8Array(ev.data);
     if (data.length < 1) return;
 
-    const msgType = data[0];
+    const decoder = decoding.createDecoder(data);
+    const msgType = decoding.readVarUint(decoder);
 
-    // Sync message: [0] [sync_type] [payload...]
+    // Sync message: [0] [sync_type] [varUint8Array(payload)]
     if (msgType === MSG_SYNC) {
-      if (data.length < 2) return;
-      const syncType = data[1];
-      const payload = data.slice(2);
-
-      if (syncType === SYNC_STEP1) {
-        // Server asking for our state vector -- respond with SyncStep2
-        const currentDoc = docRef.current;
-        if (currentDoc) {
-          try {
-            const stateVector = payload;
-            const update = Y.encodeStateAsUpdate(currentDoc, stateVector);
-            // Send: [0] [1] [update_bytes]
-            const response = new Uint8Array(2 + update.length);
-            response[0] = MSG_SYNC;
-            response[1] = SYNC_STEP2;
-            response.set(update, 2);
-            const ws = wsRef.current;
-            if (ws?.readyState === WebSocket.OPEN) {
-              ws.send(response);
-            }
-          } catch (err) {
-            console.warn('[collab] SyncStep1 response failed:', err);
-          }
+      const currentDoc = docRef.current;
+      if (!currentDoc) return;
+      try {
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, MSG_SYNC);
+        const syncType = syncProtocol.readSyncMessage(decoder, encoder, currentDoc, 'remote', err => {
+          console.warn('[collab] Failed to apply sync message:', err);
+        });
+        if (syncType === syncProtocol.messageYjsSyncStep2) {
+          setConnecting(false);
         }
-      } else if (syncType === SYNC_STEP2) {
-        // Server sent us a diff
-        setConnecting(false);
-        applyBinaryUpdate(payload);
-      } else if (syncType === SYNC_UPDATE) {
-        // Incremental update from another client
-        applyBinaryUpdate(payload);
+        const ws = wsRef.current;
+        if (encoding.length(encoder) > 1 && ws?.readyState === WebSocket.OPEN) {
+          ws.send(encoding.toUint8Array(encoder));
+        }
+      } catch (err) {
+        console.warn('[collab] Failed to read sync message:', err);
       }
     }
-    // Awareness message: [1] [awareness_bytes...]
+    // Awareness message: [1] [varUint8Array(awareness_bytes)]
     else if (msgType === MSG_AWARENESS) {
-      const payload = data.slice(1);
-      applyBinaryAwareness(payload);
+      try {
+        applyBinaryAwareness(decoding.readVarUint8Array(decoder));
+      } catch (err) {
+        console.warn('[collab] Failed to read awareness message:', err);
+      }
     }
     else {
       console.warn('[collab] Unknown message type:', msgType);
     }
-  }, [applyBinaryUpdate, applyBinaryAwareness]);
+  }, [applyBinaryAwareness]);
 
   // Listen for local Yjs changes and send as native Yjs updates
   useEffect(() => {
@@ -240,12 +220,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
       try {
-        // Send as native Yjs: [0] [2] [update_bytes]
-        const message = new Uint8Array(2 + update.length);
-        message[0] = MSG_SYNC;
-        message[1] = SYNC_UPDATE;
-        message.set(update, 2);
-        ws.send(message);
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, MSG_SYNC);
+        syncProtocol.writeUpdate(encoder, update);
+        ws.send(encoding.toUint8Array(encoder));
       } catch (err) {
         console.warn('[collab] Failed to send update:', err);
       }
@@ -269,11 +247,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
       try {
         const update = encodeAwarenessUpdate(awareness, changedClients);
-        // Send as native Yjs: [1] [awareness_bytes]
-        const message = new Uint8Array(1 + update.length);
-        message[0] = MSG_AWARENESS;
-        message.set(update, 1);
-        ws.send(message);
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, MSG_AWARENESS);
+        encoding.writeVarUint8Array(encoder, update);
+        ws.send(encoding.toUint8Array(encoder));
       } catch (err) {
         console.warn('[collab] Failed to send awareness:', err);
       }
@@ -363,12 +340,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
           // Send SyncStep1: our state vector
           try {
-            const stateVector = Y.encodeStateVector(ydoc);
-            const message = new Uint8Array(2 + stateVector.length);
-            message[0] = MSG_SYNC;
-            message[1] = SYNC_STEP1;
-            message.set(stateVector, 2);
-            ws.send(message);
+            const encoder = encoding.createEncoder();
+            encoding.writeVarUint(encoder, MSG_SYNC);
+            syncProtocol.writeSyncStep1(encoder, ydoc);
+            ws.send(encoding.toUint8Array(encoder));
           } catch (err) {
             console.warn('[collab] Failed to send SyncStep1:', err);
           }
@@ -376,10 +351,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
           // Send initial awareness
           try {
             const awUpdate = encodeAwarenessUpdate(aw, [ydoc.clientID]);
-            const message = new Uint8Array(1 + awUpdate.length);
-            message[0] = MSG_AWARENESS;
-            message.set(awUpdate, 1);
-            ws.send(message);
+            const encoder = encoding.createEncoder();
+            encoding.writeVarUint(encoder, MSG_AWARENESS);
+            encoding.writeVarUint8Array(encoder, awUpdate);
+            ws.send(encoding.toUint8Array(encoder));
           } catch (err) {
             console.warn('[collab] Failed to send initial awareness:', err);
           }
