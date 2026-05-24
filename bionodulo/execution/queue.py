@@ -68,6 +68,7 @@ class RunQueue:
         self._running: dict[str, RunRequest] = {}
         self._history: list[RunRequest] = []
         self._worker_task: asyncio.Task[None] | None = None
+        self._active_tasks: set[asyncio.Task[None]] = set()
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
 
@@ -297,6 +298,8 @@ class RunQueue:
         self._shutdown_event.set()
         for req in self._running.values():
             req.cancel_event.set()
+        for task in tuple(self._active_tasks):
+            task.cancel()
         if self._worker_task and not self._worker_task.done():
             try:
                 await asyncio.wait_for(self._worker_task, timeout=10.0)
@@ -312,8 +315,12 @@ class RunQueue:
     # ------------------------------------------------------------------
 
     async def _worker(self) -> None:
-        """Async worker that processes the queue."""
+        """Async scheduler that keeps up to ``max_concurrent`` runs active."""
         while not self._shutdown_event.is_set():
+            if len(self._active_tasks) >= self.max_concurrent:
+                await asyncio.wait(self._active_tasks, return_when=asyncio.FIRST_COMPLETED)
+                continue
+
             try:
                 request = await asyncio.wait_for(
                     self._pending.get(), timeout=0.5
@@ -321,6 +328,16 @@ class RunQueue:
             except asyncio.TimeoutError:
                 continue
 
+            task = asyncio.create_task(self._run_request(request))
+            self._active_tasks.add(task)
+            task.add_done_callback(self._active_tasks.discard)
+
+        if self._active_tasks:
+            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+
+    async def _run_request(self, request: RunRequest) -> None:
+        """Execute one queued request and update queue state."""
+        try:
             async with self._lock:
                 self._running[request.run_id] = request
                 request.status = RunStatus.RUNNING
@@ -359,7 +376,8 @@ class RunQueue:
             request.finished_at = time.time()
 
             async with self._lock:
-                self._history.append(self._running.pop(request.run_id))
+                active = self._running.pop(request.run_id, request)
+                self._history.append(active)
 
             self.emit(
                 "queue_finish",
@@ -369,6 +387,8 @@ class RunQueue:
                 },
             )
             await self._emit_queue()
+        finally:
+            self._pending.task_done()
 
     async def _emit_queue(self) -> None:
         """Broadcast current queue state."""

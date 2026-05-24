@@ -5,13 +5,87 @@ These nodes serve as workflow entry points for various file formats.
 """
 from __future__ import annotations
 
+import logging
+import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from bionodulo.nodes.command_node import CommandNode
 
+logger = logging.getLogger(__name__)
 
-class InputFASTQNode(CommandNode):
+
+class CopyInputNode(CommandNode):
+    """Shared copy behavior for workflow input nodes."""
+
+    SOURCE_KEYS: ClassVar[tuple[str, ...]] = ()
+    OUTPUT_KEYS: ClassVar[tuple[str, ...]] = ()
+    ALLOW_MULTIPLE: ClassVar[bool] = False
+    ALLOW_EMPTY: ClassVar[bool] = False
+    MISSING_INPUT_MESSAGE: ClassVar[str] = "No input provided"
+
+    @classmethod
+    def _source_value(cls, kwargs: dict[str, Any]) -> Any:
+        for key in cls.SOURCE_KEYS:
+            value = kwargs.get(key)
+            if value:
+                return value
+        return [] if cls.ALLOW_MULTIPLE else None
+
+    @staticmethod
+    def _output_dir(context: Any, output_dir: Any) -> Path:
+        if output_dir is None and context is not None:
+            output_dir = getattr(context, "node_dir", ".")
+        if output_dir is None:
+            output_dir = "."
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return out_dir
+
+    @staticmethod
+    def _resolve_source(source: Any, context: Any) -> Path:
+        src = Path(source)
+        if not src.is_absolute() and context is not None:
+            workspace = getattr(context, "workspace_dir", Path("."))
+            src = (workspace / src).resolve()
+        return src
+
+    @classmethod
+    def _copy_one(cls, source: Any, out_dir: Path, context: Any) -> Path:
+        src = cls._resolve_source(source, context)
+        if not src.exists():
+            raise FileNotFoundError(f"Source not found: {src}")
+        dst = out_dir / src.name
+        if src.is_dir():
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src, dst)
+        return dst.resolve()
+
+    @classmethod
+    def _format_outputs(cls, copied: list[Path]) -> dict[str, Any]:
+        if cls.ALLOW_MULTIPLE:
+            return {cls.OUTPUT_KEYS[0]: [str(path) for path in copied]}
+        copied_path = str(copied[0])
+        return {key: copied_path for key in cls.OUTPUT_KEYS}
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        """Copy input path(s) into the node directory and return copied paths."""
+        value = self.__class__._source_value(kwargs)
+        if not value and not self.__class__.ALLOW_EMPTY:
+            raise ValueError(self.__class__.MISSING_INPUT_MESSAGE)
+
+        values = value if self.__class__.ALLOW_MULTIPLE else [value]
+        if isinstance(values, str):
+            values = [values]
+
+        context = kwargs.get("context")
+        out_dir = self.__class__._output_dir(context, kwargs.get("output_dir"))
+        copied = [self.__class__._copy_one(src, out_dir, context) for src in values]
+        return {"outputs": self.__class__._format_outputs(copied)}
+
+
+class InputFASTQNode(CopyInputNode):
     """Input FASTQ read files (single or paired-end)."""
     NODE_ID = "input_fastq"
     DISPLAY_NAME = "Input FASTQ"
@@ -23,6 +97,10 @@ class InputFASTQNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/FASTQ_format"
     COMMAND = ["cp", "-r", "{inputs.reads}", "{output}"]
+    SOURCE_KEYS = ("reads",)
+    OUTPUT_KEYS = ("reads",)
+    ALLOW_MULTIPLE = True
+    ALLOW_EMPTY = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -40,30 +118,9 @@ class InputFASTQNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         """Copy reads to the node directory and return the copied paths as a list."""
-        import shutil
-
         reads = kwargs.get("reads", [])
         if isinstance(reads, str):
             reads = [reads]
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-
-        # Resolve relative paths against workspace root
-        if context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            resolved = []
-            for r in reads:
-                p = Path(r)
-                if not p.is_absolute():
-                    p = (workspace / p).resolve()
-                resolved.append(str(p))
-            reads = resolved
-
-        # Use node_dir from context when output_dir is not explicitly provided
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
 
         # Paired-end naming validation (lenient — warns but doesn't block)
         if len(reads) == 2:
@@ -72,32 +129,16 @@ class InputFASTQNode(CommandNode):
             has_r1 = any(marker in n for n in lower_names for marker in ("r1", "_1", "forward", "read1"))
             has_r2 = any(marker in n for n in lower_names for marker in ("r2", "_2", "reverse", "read2"))
             if not (has_r1 and has_r2):
-                import logging
-                logging.getLogger(__name__).warning(
+                logger.warning(
                     "Paired-end reads filenames don't follow typical naming (R1/R2, _1/_2, "
                     "forward/reverse, read1/read2). Got: %s",
                     names,
                 )
 
-        # Copy files to the output directory so the run is self-contained
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        copied = []
-        for src_str in reads:
-            src = Path(src_str)
-            if not src.exists():
-                raise FileNotFoundError(f"Source not found: {src}")
-            dst = out_dir / src.name
-            if src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
-            copied.append(str(dst.resolve()))
-
-        return {"outputs": {"reads": copied}}
+        return await super().run(**kwargs)
 
 
-class InputFASTANode(CommandNode):
+class InputFASTANode(CopyInputNode):
     """Input FASTA reference or sequence file."""
     NODE_ID = "input_fasta"
     DISPLAY_NAME = "Input FASTA"
@@ -109,6 +150,9 @@ class InputFASTANode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/FASTA_format"
     COMMAND = ["cp", "-r", "{inputs.reference}", "{output}"]
+    SOURCE_KEYS = ("reference", "file_path")
+    OUTPUT_KEYS = ("reference",)
+    MISSING_INPUT_MESSAGE = "No reference or file_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -122,35 +166,8 @@ class InputFASTANode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy FASTA to node directory, supporting file_path alias."""
-        import shutil
-        reference = kwargs.get("reference") or kwargs.get("file_path")
-        if not reference:
-            raise ValueError("No reference or file_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(reference)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"reference": str(dst.resolve())}}
 
-
-class InputFileNode(CommandNode):
+class InputFileNode(CopyInputNode):
     """Input a generic file."""
     NODE_ID = "input_file"
     DISPLAY_NAME = "Input File"
@@ -162,6 +179,9 @@ class InputFileNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/Computer_file"
     COMMAND = ["cp", "-r", "{inputs.file}", "{output}"]
+    SOURCE_KEYS = ("file", "file_path")
+    OUTPUT_KEYS = ("file",)
+    MISSING_INPUT_MESSAGE = "No file or file_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -175,35 +195,8 @@ class InputFileNode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy file to node directory, supporting file_path alias."""
-        import shutil
-        file_path = kwargs.get("file") or kwargs.get("file_path")
-        if not file_path:
-            raise ValueError("No file or file_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(file_path)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"file": str(dst.resolve())}}
 
-
-class InputDirectoryNode(CommandNode):
+class InputDirectoryNode(CopyInputNode):
     """Input a directory."""
     NODE_ID = "input_directory"
     DISPLAY_NAME = "Input Directory"
@@ -215,6 +208,9 @@ class InputDirectoryNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/Directory_(computing)"
     COMMAND = ["cp", "-r", "{inputs.directory}", "{output}"]
+    SOURCE_KEYS = ("directory", "dir_path")
+    OUTPUT_KEYS = ("directory",)
+    MISSING_INPUT_MESSAGE = "No directory or dir_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -226,35 +222,8 @@ class InputDirectoryNode(CommandNode):
             "hidden": {},
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy directory to node directory."""
-        import shutil
-        directory = kwargs.get("directory") or kwargs.get("dir_path")
-        if not directory:
-            raise ValueError("No directory or dir_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(directory)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"directory": str(dst.resolve())}}
 
-
-class InputVCFNode(CommandNode):
+class InputVCFNode(CopyInputNode):
     """Input VCF variant file."""
     NODE_ID = "input_vcf"
     DISPLAY_NAME = "Input VCF"
@@ -266,6 +235,9 @@ class InputVCFNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://samtools.github.io/hts-specs/VCFv4.2.pdf"
     COMMAND = ["cp", "-r", "{inputs.vcf}", "{output}"]
+    SOURCE_KEYS = ("vcf", "file_path")
+    OUTPUT_KEYS = ("vcf", "vcf_gz")
+    MISSING_INPUT_MESSAGE = "No vcf or file_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -277,35 +249,8 @@ class InputVCFNode(CommandNode):
             "hidden": {},
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy VCF to node directory, supporting file_path alias."""
-        import shutil
-        vcf = kwargs.get("vcf") or kwargs.get("file_path")
-        if not vcf:
-            raise ValueError("No vcf or file_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(vcf)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"vcf": str(dst.resolve()), "vcf_gz": str(dst.resolve())}}
 
-
-class InputGFFNode(CommandNode):
+class InputGFFNode(CopyInputNode):
     """Input GFF/GTF annotation file."""
     NODE_ID = "input_gff"
     DISPLAY_NAME = "Input GFF/GTF"
@@ -317,6 +262,9 @@ class InputGFFNode(CommandNode):
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md"
     COMMAND = ["cp", "-r", "{inputs.annotation}", "{output}"]
+    SOURCE_KEYS = ("annotation", "file_path")
+    OUTPUT_KEYS = ("annotation",)
+    MISSING_INPUT_MESSAGE = "No annotation or file_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -330,35 +278,8 @@ class InputGFFNode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy GFF/GTF to node directory, supporting file_path alias."""
-        import shutil
-        annotation = kwargs.get("annotation") or kwargs.get("file_path")
-        if not annotation:
-            raise ValueError("No annotation or file_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(annotation)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"annotation": str(dst.resolve())}}
 
-
-class SampleSheetNode(CommandNode):
+class SampleSheetNode(CopyInputNode):
     """Input sample sheet / metadata CSV."""
     NODE_ID = "input_sample_sheet"
     DISPLAY_NAME = "Sample Sheet"
@@ -369,6 +290,9 @@ class SampleSheetNode(CommandNode):
     RETURN_NAMES = ("sample_sheet",)
     REQUIRES_EXTERNAL_TOOLS = False
     COMMAND = ["cp", "-r", "{inputs.sample_sheet}", "{output}"]
+    SOURCE_KEYS = ("sample_sheet", "file_path")
+    OUTPUT_KEYS = ("sample_sheet",)
+    MISSING_INPUT_MESSAGE = "No sample_sheet or file_path provided"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -381,30 +305,3 @@ class SampleSheetNode(CommandNode):
             "optional": {},
             "hidden": {},
         }
-
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy sample sheet to node directory."""
-        import shutil
-        sample_sheet = kwargs.get("sample_sheet") or kwargs.get("file_path")
-        if not sample_sheet:
-            raise ValueError("No sample_sheet or file_path provided")
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        out_dir = Path(output_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        src = Path(sample_sheet)
-        if not src.is_absolute() and context is not None:
-            workspace = getattr(context, "workspace_dir", Path("."))
-            src = (workspace / src).resolve()
-        if not src.exists():
-            raise FileNotFoundError(f"Source not found: {src}")
-        dst = out_dir / src.name
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return {"outputs": {"sample_sheet": str(dst.resolve())}}

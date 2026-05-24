@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import json
 import traceback
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -329,17 +330,19 @@ class WorkflowExecutor:
                 upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
 
             # ---- Compute cache key ----
-            cache_key = self.cache.cache_key_for_node(
-                node_id=node_id,
-                node_type=node_type,
-                params=resolved_params,
-                inputs=resolved_inputs,
-                upstream_keys=upstream_keys,
-            )
+            cache_key = None
+            if not force:
+                cache_key = self.cache.cache_key_for_node(
+                    node_id=node_id,
+                    node_type=node_type,
+                    params=resolved_params,
+                    inputs=resolved_inputs,
+                    upstream_keys=upstream_keys,
+                )
             node_cache_keys[node_id] = cache_key
 
             # ---- Cache hit check ----
-            if not force and node_id not in force_nodes and self.cache.is_hit(cache_key):
+            if cache_key is not None and node_id not in force_nodes and self.cache.is_hit(cache_key):
                 marker = self.cache.read_marker(cache_key)
                 cached_outputs = marker.get("outputs", {}) if marker else {}
                 emit(
@@ -411,13 +414,14 @@ class WorkflowExecutor:
                 node_outputs[node_id] = outputs
 
                 # Cache the result
-                self.cache.write_marker(
-                    cache_key=cache_key,
-                    outputs=outputs,
-                    params=resolved_params,
-                    inputs=resolved_inputs,
-                    upstream_keys=upstream_keys,
-                )
+                if cache_key is not None:
+                    self.cache.write_marker(
+                        cache_key=cache_key,
+                        outputs=outputs,
+                        params=resolved_params,
+                        inputs=resolved_inputs,
+                        upstream_keys=upstream_keys,
+                    )
 
                 # Collect previews
                 node_previews = self._collect_previews(ctx, result)
@@ -612,11 +616,11 @@ class WorkflowExecutor:
     ) -> list[str]:
         """Return node IDs in topological order (Kahn's algorithm)."""
         in_degree = {nid: len(upstream_of[nid]) for nid in nodes}
-        queue = [nid for nid, deg in in_degree.items() if deg == 0]
+        queue = deque(nid for nid, deg in in_degree.items() if deg == 0)
         order: list[str] = []
 
         while queue:
-            nid = queue.pop(0)
+            nid = queue.popleft()
             order.append(nid)
             for downstream in nodes:
                 count = upstream_of[downstream].count(nid)

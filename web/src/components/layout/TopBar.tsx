@@ -48,7 +48,7 @@ export default function TopBar({
       <div className="brand">
         <BrandMark />
         <strong>BioNodulo</strong>
-        <small>Alpha 1.2</small>
+        <small>Alpha 1.5</small>
       </div>
 
       <div className="validation-badge" style={{ visibility: validationErrors.length ? 'visible' : 'hidden' }}>

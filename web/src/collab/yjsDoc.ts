@@ -110,7 +110,7 @@ export function docToWorkflow(doc: Y.Doc): Workflow {
 
   return {
     id: String(meta.get('id') || ''),
-    version: String(meta.get('version') || 'Alpha 1.2'),
+    version: String(meta.get('version') || 'Alpha 1.5'),
     app: 'bionodulo',
     name: String(meta.get('name') || 'Untitled'),
     description: '',
@@ -127,7 +127,7 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
   ydoc.transact(() => {
     const meta = ydoc.getMap('meta');
     meta.set('id', workflow.id || String(meta.get('id') || workflow.name || 'Untitled'));
-    meta.set('version', workflow.version || 'Alpha 1.2');
+    meta.set('version', workflow.version || 'Alpha 1.5');
     meta.set('name', workflow.name || 'Untitled');
     meta.set('lastModified', new Date().toISOString());
 

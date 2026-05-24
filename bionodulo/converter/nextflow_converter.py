@@ -7,6 +7,7 @@ Converts BioNodulo workflows to NextFlow main.nf scripts and vice versa.
 from __future__ import annotations
 
 import re
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -326,10 +327,10 @@ def _topological_sort_nf(
     incoming: dict[str, list[dict[str, Any]]],
 ) -> list[str]:
     in_degree = {nid: len(incoming[nid]) for nid in nodes}
-    queue = [nid for nid, deg in in_degree.items() if deg == 0]
+    queue = deque(nid for nid, deg in in_degree.items() if deg == 0)
     order: list[str] = []
     while queue:
-        nid = queue.pop(0)
+        nid = queue.popleft()
         order.append(nid)
         for other_nid in nodes:
             for edge in incoming.get(other_nid, []):

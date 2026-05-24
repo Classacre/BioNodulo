@@ -15,7 +15,7 @@ function normalizeWorkflow(wf: Workflow): Workflow {
 
 function emptyWorkflow(): Workflow {
   return {
-    id: createWorkflowId(), version: 'Alpha 1.2', app: 'bionodulo', name: 'Untitled', description: '',
+    id: createWorkflowId(), version: 'Alpha 1.5', app: 'bionodulo', name: 'Untitled', description: '',
     nodes: [], edges: [], groups: [], outputs: {},
   };
 }

@@ -9,7 +9,7 @@ interface ImportModalProps {
 type ImportFormat = 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
 
 const FORMATS: { id: ImportFormat; name: string; placeholder: string }[] = [
-  { id: 'json', name: 'BioNodulo JSON', placeholder: '{\n  "version": "Alpha 1.2",\n  "nodes": [...],\n  "edges": [...]\n}' },
+  { id: 'json', name: 'BioNodulo JSON', placeholder: '{\n  "version": "Alpha 1.5",\n  "nodes": [...],\n  "edges": [...]\n}' },
   { id: 'snakemake', name: 'SnakeMake', placeholder: 'rule example:\n    input: "reads.fastq"\n    output: "aligned.bam"\n    shell: "bwa mem ref {input} > {output}"' },
   { id: 'nextflow', name: 'NextFlow', placeholder: 'process align {\n  input: path reads\n  output: path "*.bam"\n  script:\n  \"bwa mem ref $reads > out.bam\"\n}' },
   { id: 'cwl', name: 'CWL', placeholder: 'class: Workflow\ninputs:\n  reads: File\noutputs:\n  aligned: File\nsteps:\n  ...' },

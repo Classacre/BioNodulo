@@ -30,6 +30,12 @@ export function filterNodes(objectInfo: ObjectInfo, query: string): NodeMetadata
   );
 }
 
+export function valuesFromUnknownRecord<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object') return Object.values(value as Record<string, T>);
+  return [];
+}
+
 export function defaultsFor(meta: NodeMetadata): Record<string, unknown> {
   const defs: Record<string, unknown> = {};
   const inputs = meta.input_types;
@@ -62,7 +68,7 @@ export function edgeColorForSource(type: string): string {
 
 export function workflowFromCanvas(nodes: unknown[], edges: unknown[], groups: unknown[]): Workflow {
   return {
-    version: 'Alpha 1.2',
+    version: 'Alpha 1.5',
     app: 'bionodulo',
     name: 'Untitled Workflow',
     description: '',

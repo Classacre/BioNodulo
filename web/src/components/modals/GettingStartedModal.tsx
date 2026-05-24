@@ -19,7 +19,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 const CHANGELOG = [
   {
-    version: 'Alpha 1.2',
+    version: 'Alpha 1.5',
     date: '2025-05',
     items: [
       'Visual-only notes and node minimization support',

@@ -1,6 +1,6 @@
 {
   "name": "bionodulo-web",
-  "version": "Alpha 1.2",
+  "version": "Alpha 1.5",
   "private": true,
   "type": "module",
   "scripts": {

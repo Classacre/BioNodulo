@@ -198,7 +198,7 @@ def _build_provenance_payload(
     payload = {
         "workflow": workflow,
         "embedded_at": datetime.now(timezone.utc).isoformat(),
-        "bionodulo_version": "Alpha 1.2",
+        "bionodulo_version": "Alpha 1.5",
     }
     if custom_metadata:
         payload["metadata"] = custom_metadata

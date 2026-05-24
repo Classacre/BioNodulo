@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, Callable
+
+
+STREAM_CAPTURE_LIMIT = 1024 * 1024
+LOG_BATCH_LINES = 50
 
 
 class CommandExecutionError(Exception):
@@ -53,7 +56,7 @@ async def run_subprocess(
     node_id: str | None = None,
     timeout: float | None = None,
 ) -> dict[str, Any]:
-    """Run an external command asynchronously with full stream capture.
+    """Run an external command asynchronously with streaming log capture.
 
     Args:
         cmd: Shell command string or argument list.
@@ -68,7 +71,8 @@ async def run_subprocess(
         timeout: Maximum seconds to wait for the process.
 
     Returns:
-        Dictionary with ``returncode``, ``stdout_path``, ``stderr_path``.
+        Dictionary with ``returncode``, ``stdout_path``, ``stderr_path`` and a
+        bounded in-memory tail of each stream.
 
     Raises:
         CommandExecutionError: If the process exits with a non-zero code.
@@ -102,47 +106,105 @@ async def run_subprocess(
 
     _emit("info", f"[subprocess] Starting: {cmd_str}")
 
-    loop = asyncio.get_running_loop()
+    async def _drain_stream(
+        stream: asyncio.StreamReader | None,
+        path: Path | None,
+        level: str,
+    ) -> tuple[str, bool]:
+        if stream is None:
+            return "", False
 
-    def _run_sync() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            cmd if isinstance(cmd, list) else cmd,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            env=merged_env,
-            shell=isinstance(cmd, str),
-            executable="/bin/bash" if isinstance(cmd, str) else None,
-            errors="replace",
-        )
+        captured = bytearray()
+        truncated = False
+        batch: list[str] = []
+
+        def _capture(text: str) -> None:
+            nonlocal truncated
+            encoded = text.encode("utf-8", errors="replace")
+            captured.extend(encoded)
+            overflow = len(captured) - STREAM_CAPTURE_LIMIT
+            if overflow > 0:
+                del captured[:overflow]
+                truncated = True
+
+        def _queue_log(text: str) -> None:
+            for line in text.splitlines():
+                batch.append(line)
+                if len(batch) >= LOG_BATCH_LINES:
+                    _emit(level, "\n".join(batch))
+                    batch.clear()
+
+        handle = path.open("w", encoding="utf-8", errors="replace") if path else None
+        try:
+            while True:
+                raw = await stream.readline()
+                if not raw:
+                    break
+                text = raw.decode("utf-8", errors="replace")
+                _capture(text)
+                _queue_log(text)
+                if handle:
+                    handle.write(text)
+                    if len(batch) == 0:
+                        handle.flush()
+            if batch:
+                _emit(level, "\n".join(batch))
+            if handle:
+                handle.flush()
+        finally:
+            if handle:
+                handle.close()
+
+        return captured.decode("utf-8", errors="replace"), truncated
 
     try:
-        completed = await asyncio.wait_for(
-            loop.run_in_executor(None, _run_sync),
-            timeout=timeout,
+        if isinstance(cmd, str):
+            shell_kwargs: dict[str, Any] = {}
+            if os.name != "nt":
+                shell_kwargs["executable"] = "/bin/bash"
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                cwd=str(cwd) if cwd else None,
+                env=merged_env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                **shell_kwargs,
+            )
+        else:
+            process = await asyncio.create_subprocess_exec(
+                *(str(part) for part in cmd),
+                cwd=str(cwd) if cwd else None,
+                env=merged_env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+        stdout_task = asyncio.create_task(
+            _drain_stream(process.stdout, stdout_path, "stdout")
         )
+        stderr_task = asyncio.create_task(
+            _drain_stream(process.stderr, stderr_path, "stderr")
+        )
+        try:
+            returncode = await asyncio.wait_for(process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            _emit("error", f"[subprocess] Timeout after {timeout}s")
+            process.kill()
+            await process.wait()
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            raise
+        stdout_result, stderr_result = await asyncio.gather(stdout_task, stderr_task)
     except asyncio.TimeoutError:
-        _emit("error", f"[subprocess] Timeout after {timeout}s")
         raise
-
-    returncode = completed.returncode
-
-    # Write captured output to log files and emit events
-    if stdout_path:
-        stdout_path.write_text(completed.stdout, encoding="utf-8")
-        for line in completed.stdout.splitlines():
-            _emit("stdout", line)
-    if stderr_path:
-        stderr_path.write_text(completed.stderr, encoding="utf-8")
-        for line in completed.stderr.splitlines():
-            _emit("stderr", line)
 
     _emit("info", f"[subprocess] Finished with exit code {returncode}")
 
     result = {
         "returncode": returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
+        "stdout": stdout_result[0],
+        "stderr": stderr_result[0],
+        "stdout_truncated": stdout_result[1],
+        "stderr_truncated": stderr_result[1],
         "stdout_path": str(stdout_path) if stdout_path else None,
         "stderr_path": str(stderr_path) if stderr_path else None,
     }

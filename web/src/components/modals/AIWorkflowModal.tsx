@@ -593,7 +593,7 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
 function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
   return {
     id: typeof raw.id === 'string' ? raw.id : undefined,
-    version: (raw.version as string) || 'Alpha 1.2',
+    version: (raw.version as string) || 'Alpha 1.5',
     app: (raw.app as string) || 'bionodulo',
     name: (raw.name as string) || 'Untitled',
     description: (raw.description as string) || '',

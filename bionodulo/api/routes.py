@@ -1860,7 +1860,7 @@ def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -
 
     meta = {
         "id": workflow_id,
-        "version": workflow.get("version") or "Alpha 1.2",
+        "version": workflow.get("version") or "Alpha 1.5",
         "name": workflow.get("name") or "Untitled",
         "description": workflow.get("description") or "",
         "lastModified": datetime.now(timezone.utc).isoformat(),

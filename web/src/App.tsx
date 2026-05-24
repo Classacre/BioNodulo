@@ -30,7 +30,7 @@ import {
   getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
-import { defaultsFor } from './utils';
+import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import type { Workflow, WorkflowNode, NodeMetadata, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { Comment, LivePresenceUser } from './collab';
@@ -121,7 +121,7 @@ function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId
 function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
   return {
     id,
-    version: 'Alpha 1.2',
+    version: 'Alpha 1.5',
     app: 'bionodulo',
     name,
     description: '',
@@ -134,20 +134,15 @@ function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
 
 function workflowFromCollabSnapshot(workflowId: string, snapshot: Record<string, unknown>, fallbackName: string): Workflow {
   const meta = (snapshot.meta && typeof snapshot.meta === 'object' ? snapshot.meta : {}) as Record<string, unknown>;
-  const values = <T,>(value: unknown): T[] => (
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.values(value as Record<string, T>)
-      : []
-  );
   return {
     id: workflowId,
-    version: String(meta.version || 'Alpha 1.2'),
+    version: String(meta.version || 'Alpha 1.5'),
     app: 'bionodulo',
     name: String(meta.name || fallbackName),
     description: '',
-    nodes: values<WorkflowNode>(snapshot.nodes),
-    edges: values<Workflow['edges'][number]>(snapshot.edges),
-    groups: values<Workflow['groups'][number]>(snapshot.groups),
+    nodes: valuesFromUnknownRecord<WorkflowNode>(snapshot.nodes),
+    edges: valuesFromUnknownRecord<Workflow['edges'][number]>(snapshot.edges),
+    groups: valuesFromUnknownRecord<Workflow['groups'][number]>(snapshot.groups),
     outputs: {},
   };
 }
@@ -1030,6 +1025,28 @@ export default function App() {
     reorderWorkflows(from, to);
   }, [reorderWorkflows]);
 
+  const latestWorkflowRef = useRef(activeWorkflow);
+  useEffect(() => {
+    latestWorkflowRef.current = activeWorkflow;
+  }, [activeWorkflow]);
+
+  const workflowResolveKey = useMemo(() => JSON.stringify({
+    id: activeWorkflow.id,
+    nodes: activeWorkflow.nodes.map(node => [
+      node.id,
+      node.type,
+      node.params,
+      node.ui?.muted,
+      node.ui?.bypassed,
+    ]),
+    edges: activeWorkflow.edges.map(edge => [
+      edge.from.node,
+      edge.from.output,
+      edge.to.node,
+      edge.to.input,
+    ]),
+  }), [activeWorkflow.id, activeWorkflow.nodes, activeWorkflow.edges]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1057,16 +1074,20 @@ export default function App() {
 
   // Auto-validate and resolve on workflow change
   useEffect(() => {
-    console.log('[AutoResolve] workflow changed:', activeWorkflow.name, 'nodes:', activeWorkflow.nodes.length);
+    if (latestWorkflowRef.current.nodes.length === 0) {
+      clearResolveReport();
+      return;
+    }
     const timer = setTimeout(() => {
-      console.log('[AutoResolve] running resolve...');
-      validate(activeWorkflow);
-      resolve(activeWorkflow).then((report) => {
+      const workflow = latestWorkflowRef.current;
+      console.log('[AutoResolve] running resolve...', workflow.name);
+      validate(workflow);
+      resolve(workflow).then((report) => {
         console.log('[AutoResolve] resolve result:', report?.has_issues, report?.summary);
       });
-    }, 300);
+    }, 2000);
     return () => clearTimeout(timer);
-  }, [activeWorkflow, validate, resolve]);
+  }, [workflowResolveKey, validate, resolve, clearResolveReport]);
 
   // Reset banners when workflow changes
   useEffect(() => {
@@ -1084,6 +1105,25 @@ export default function App() {
     for (const item of resolveReport?.missing_r_packages ?? []) item.node_types.forEach(type => missingTypes.add(type));
     return new Set(activeWorkflow.nodes.filter(node => missingTypes.has(node.type)).map(node => node.id));
   }, [activeWorkflow.nodes, resolveReport]);
+  const nodeStatusMap = useMemo<Map<string, NodeStatus['status']>>(() => (
+    new Map(runs[0]?.node_statuses?.map(ns => [ns.node_id, ns.status]) ?? [])
+  ), [runs]);
+  const nodePreviewsMap = useMemo(() => {
+    const latest = runs[0];
+    if (!latest) return undefined;
+    const map = new Map<string, string>();
+    for (const node of activeWorkflow.nodes) {
+      if (node.type !== 'image_preview') continue;
+      const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
+      if (!incoming) continue;
+      const sourceNodeId = incoming.from.node;
+      const path = latest.previews?.[sourceNodeId];
+      if (path) {
+        map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
+      }
+    }
+    return map;
+  }, [activeWorkflow.edges, activeWorkflow.nodes, runs]);
   const nodeCommentsMap = useMemo(() => {
     const map = new Map<string, { count: number; unresolved: boolean }>();
     const add = (comment: Comment) => {
@@ -1226,7 +1266,7 @@ export default function App() {
           linksHidden={getBool('bionodulo.linksHidden')}
           onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
-          nodeStatusMap={new Map(runs.length > 0 ? runs[0].node_statuses.map(ns => [ns.node_id, ns.status]) : [])}
+          nodeStatusMap={nodeStatusMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
           nodeComments={workflowComments}
@@ -1234,25 +1274,7 @@ export default function App() {
           currentCollabUser={collabEnabled ? currentUser : undefined}
           onNodeCommentsChange={() => void fetchWorkflowComments()}
           collabUsers={collabEnabled && collabPresenceEnabled ? collabActiveUsers : []}
-          nodePreviewsMap={(() => {
-            if (runs.length === 0) return undefined;
-            const latest = runs[0];
-            const map = new Map<string, string>();
-            // Map previews to image_preview nodes (show preview on the viewer, not the producer)
-            for (const node of activeWorkflow.nodes) {
-              if (node.type === 'image_preview') {
-                const incoming = activeWorkflow.edges.find(e => e.to.node === node.id);
-                if (incoming) {
-                  const sourceNodeId = incoming.from.node;
-                  const path = latest.previews?.[sourceNodeId];
-                  if (path) {
-                    map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
-                  }
-                }
-              }
-            }
-            return map;
-          })()}
+          nodePreviewsMap={nodePreviewsMap}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(selection) => {
@@ -1350,17 +1372,12 @@ export default function App() {
         onRestore={(versionJson) => {
           if (versionJson && typeof versionJson === 'object') {
             const v = versionJson as Record<string, unknown>;
-            const values = <T,>(value: unknown): T[] => {
-              if (Array.isArray(value)) return value as T[];
-              if (value && typeof value === 'object') return Object.values(value as Record<string, T>);
-              return [];
-            };
             const nextWorkflow = {
               ...activeWorkflowRef.current,
               id: activeWorkflowId,
-              nodes: values<WorkflowNode>(v.nodes),
-              edges: values<Workflow['edges'][number]>(v.edges),
-              groups: values<Workflow['groups'][number]>(v.groups),
+              nodes: valuesFromUnknownRecord<WorkflowNode>(v.nodes),
+              edges: valuesFromUnknownRecord<Workflow['edges'][number]>(v.edges),
+              groups: valuesFromUnknownRecord<Workflow['groups'][number]>(v.groups),
             };
             if (bridgeRef.current) {
               bridgeRef.current.onNodesChanged(nextWorkflow.nodes);

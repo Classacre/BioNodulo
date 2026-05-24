@@ -1,10 +1,10 @@
-# BioNodulo Alpha 1.2
+# BioNodulo Alpha 1.5
 
 **Visual bioinformatics pipelines, node by node.**
 
 BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor inspired by ComfyUI.
 
-[![Version](https://img.shields.io/badge/version-Alpha%201.2-0d9488?logo=github)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-Alpha%201.5-0d9488?logo=github)](pyproject.toml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
 [![License](https://img.shields.io/badge/license-BioNodulo%20Research-f59e0b)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)

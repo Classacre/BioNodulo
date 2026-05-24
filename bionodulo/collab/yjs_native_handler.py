@@ -17,8 +17,7 @@ Binary format (NO length prefix)
 Auth is handled via JWT in the ``?token=`` query parameter.
 Permissions (read-only) are enforced at the document level.
 
-This module **replaces** the legacy ``websocket_handler.py`` which used a
-custom length-prefixed protocol.
+This module replaces the earlier custom length-prefixed protocol.
 """
 
 from __future__ import annotations
@@ -39,8 +38,7 @@ from bionodulo.collab.auth import get_auth_ws, generate_user_id
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.rate_limiter import RateLimiter
-from bionodulo.collab.doc_store import CRDT_TOP_LEVEL_MAPS
-from bionodulo.collab.yjs_store import SQLiteYStore
+from bionodulo.collab.doc_store import CRDT_TOP_LEVEL_MAPS, load_doc_from_db, persist_doc_update
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +107,6 @@ def _get_rate_limiter() -> RateLimiter:
     return _rate_limiter
 
 
-def _get_yjs_db_path() -> str:
-    """Resolve the SQLite DB path for CRDT document storage."""
-    from bionodulo.collab.persistence import _resolve_workspace_root
-
-    return str(_resolve_workspace_root() / "crdt_docs.db")
-
-
 # ---------------------------------------------------------------------------
 # Document cache (per workflow)
 # ---------------------------------------------------------------------------
@@ -123,6 +114,19 @@ def _get_yjs_db_path() -> str:
 _doc_cache: dict[str, pycrdt.Doc] = {}
 _doc_locks: dict[str, asyncio.Lock] = {}
 _doc_observers: dict[str, Any] = {}
+_persist_tasks: dict[str, set[asyncio.Task[None]]] = {}
+
+
+async def _cleanup_doc_cache(workflow_id: str) -> None:
+    """Drop cached CRDT state for an empty collaboration room."""
+    pending = _persist_tasks.pop(workflow_id, set())
+    if pending:
+        _, pending = await asyncio.wait(pending, timeout=2.0)
+        for task in pending:
+            task.cancel()
+    _doc_cache.pop(workflow_id, None)
+    _doc_locks.pop(workflow_id, None)
+    _doc_observers.pop(workflow_id, None)
 
 
 async def _get_doc(workflow_id: str) -> pycrdt.Doc:
@@ -139,31 +143,31 @@ async def _get_doc(workflow_id: str) -> pycrdt.Doc:
         if workflow_id in _doc_cache:
             return _doc_cache[workflow_id]
 
-        doc = pycrdt.Doc()
-
-        # Initialise top-level maps (matching the frontend structure)
-        with doc.transaction():
-            meta = doc.get("meta", type=pycrdt.Map)
-            meta["id"] = workflow_id
-            meta["version"] = 1
-            meta["name"] = "Untitled"
-            meta["createdAt"] = datetime.now(timezone.utc).isoformat()
-            meta["lastModified"] = ""
-            doc.get("nodes", type=pycrdt.Map)
-            doc.get("edges", type=pycrdt.Map)
-            doc.get("groups", type=pycrdt.Map)
-            viewport = doc.get("viewport", type=pycrdt.Map)
-            viewport["x"] = 0
-            viewport["y"] = 0
-            viewport["scale"] = 1.0
-
-        # Load persisted updates
         try:
-            ystore = SQLiteYStore(workflow_id, _get_yjs_db_path())
-            await ystore.apply_updates(doc)
-            logger.debug("Loaded persisted state for %s", workflow_id)
+            doc = await asyncio.to_thread(load_doc_from_db, workflow_id)
         except Exception as exc:
             logger.warning("Failed to load persisted state for %s: %s", workflow_id, exc)
+            doc = None
+        if doc is not None:
+            logger.debug("Loaded persisted state for %s", workflow_id)
+        else:
+            doc = pycrdt.Doc()
+
+            # Initialise top-level maps (matching the frontend structure)
+            with doc.transaction():
+                meta = doc.get("meta", type=pycrdt.Map)
+                meta["id"] = workflow_id
+                meta["version"] = 1
+                meta["name"] = "Untitled"
+                meta["createdAt"] = datetime.now(timezone.utc).isoformat()
+                meta["lastModified"] = ""
+                doc.get("nodes", type=pycrdt.Map)
+                doc.get("edges", type=pycrdt.Map)
+                doc.get("groups", type=pycrdt.Map)
+                viewport = doc.get("viewport", type=pycrdt.Map)
+                viewport["x"] = 0
+                viewport["y"] = 0
+                viewport["scale"] = 1.0
 
         # Persist future updates (observer fires on every document change)
         if workflow_id not in _doc_observers:
@@ -173,7 +177,10 @@ async def _get_doc(workflow_id: str) -> pycrdt.Doc:
                 update = getattr(event, "update", b"")
                 if update:
                     try:
-                        asyncio.create_task(_persist_update(_wid, update))
+                        task = asyncio.create_task(_persist_update(_wid, update))
+                        tasks = _persist_tasks.setdefault(_wid, set())
+                        tasks.add(task)
+                        task.add_done_callback(tasks.discard)
                     except Exception as exc:  # pragma: no cover
                         logger.warning("Failed to schedule persist task: %s", exc)
 
@@ -187,8 +194,7 @@ async def _get_doc(workflow_id: str) -> pycrdt.Doc:
 async def _persist_update(workflow_id: str, update: bytes) -> None:
     """Persist a CRDT update to SQLite (fire-and-forget)."""
     try:
-        ystore = SQLiteYStore(workflow_id, _get_yjs_db_path())
-        await ystore.write(update)
+        await asyncio.to_thread(persist_doc_update, workflow_id, update)
     except Exception as exc:
         logger.warning("Failed to persist update for %s: %s", workflow_id, exc)
 
@@ -206,14 +212,19 @@ async def _broadcast_to_room(
     """Broadcast *data* to all WebSockets in a room except *exclude*."""
     if room_sockets is None:
         return
-    sockets = room_sockets.get(workflow_id, [])
-    for ws in sockets:
-        if ws is exclude:
-            continue
-        try:
-            await ws.send_bytes(data)
-        except Exception:
-            pass
+    targets = [ws for ws in tuple(room_sockets.get(workflow_id, [])) if ws is not exclude]
+    if not targets:
+        return
+    results = await asyncio.gather(
+        *(ws.send_bytes(data) for ws in targets),
+        return_exceptions=True,
+    )
+    failed = {ws for ws, result in zip(targets, results) if isinstance(result, Exception)}
+    if failed and workflow_id in room_sockets:
+        room_sockets[workflow_id] = [ws for ws in room_sockets[workflow_id] if ws not in failed]
+        if not room_sockets[workflow_id]:
+            del room_sockets[workflow_id]
+            await _cleanup_doc_cache(workflow_id)
 
 
 def _room_presence_payload(
@@ -235,11 +246,21 @@ async def _broadcast_room_presence(
 ) -> None:
     """Tell each browser which authenticated sockets are in its room."""
     message = json.dumps(_room_presence_payload(workflow_id, room_sockets))
-    for socket in room_sockets.get(workflow_id, []):
-        try:
-            await socket.send_text(message)
-        except Exception:
-            pass
+    targets = tuple(room_sockets.get(workflow_id, []))
+    if not targets:
+        return
+    results = await asyncio.gather(
+        *(socket.send_text(message) for socket in targets),
+        return_exceptions=True,
+    )
+    failed = {socket for socket, result in zip(targets, results) if isinstance(result, Exception)}
+    if failed and workflow_id in room_sockets:
+        room_sockets[workflow_id] = [
+            socket for socket in room_sockets[workflow_id] if socket not in failed
+        ]
+        if not room_sockets[workflow_id]:
+            del room_sockets[workflow_id]
+            await _cleanup_doc_cache(workflow_id)
 
 
 def _replace_flat_snapshot(doc: pycrdt.Doc, snapshot: dict[str, Any]) -> None:
@@ -271,7 +292,7 @@ async def publish_flat_snapshot_to_room(
     snapshot = dict(snapshot)
     meta = dict(snapshot.get("meta") or {})
     meta["id"] = workflow_id
-    meta.setdefault("version", "Alpha 1.2")
+    meta.setdefault("version", "Alpha 1.5")
     meta.setdefault("name", "Untitled")
     meta["lastModified"] = datetime.now(timezone.utc).isoformat()
     snapshot["meta"] = meta
@@ -562,6 +583,7 @@ async def yjs_websocket(
                 room_sockets[workflow_id].remove(websocket)
                 if not room_sockets[workflow_id]:
                     del room_sockets[workflow_id]
+                    await _cleanup_doc_cache(workflow_id)
                 else:
                     await _broadcast_room_presence(workflow_id, room_sockets)
             except ValueError:

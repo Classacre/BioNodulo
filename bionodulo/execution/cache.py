@@ -7,9 +7,9 @@ node execution results based on parameters, inputs, and upstream cache keys.
 
 from __future__ import annotations
 
-import functools
 import hashlib
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,11 @@ class CacheStore:
     def __init__(self, cache_dir: str | Path) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._known_markers = {
+            path.name.removesuffix(".marker.json")
+            for path in self.cache_dir.glob("*.marker.json")
+            if path.is_file()
+        }
 
     def _marker_path(self, cache_key: str) -> Path:
         """Return the path to the marker file for *cache_key*."""
@@ -65,15 +70,9 @@ class CacheStore:
         payload = json.dumps(
             {
                 "node_type": node_type,
-                "params": _sorted_json_cached(
-                    json.dumps(params, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
-                ),
-                "inputs": _sorted_json_cached(
-                    json.dumps(inputs, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
-                ),
-                "upstream_keys": _sorted_json_cached(
-                    json.dumps(upstream_keys, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
-                ),
+                "params": _sorted_json(params),
+                "inputs": _sorted_json(inputs),
+                "upstream_keys": _sorted_json(upstream_keys),
             },
             sort_keys=True,
             ensure_ascii=True,
@@ -83,7 +82,12 @@ class CacheStore:
 
     def is_hit(self, cache_key: str) -> bool:
         """Return *True* if a cached result exists for *cache_key*."""
-        return self._marker_path(cache_key).is_file()
+        if cache_key in self._known_markers:
+            return True
+        exists = self._marker_path(cache_key).is_file()
+        if exists:
+            self._known_markers.add(cache_key)
+        return exists
 
     def read_marker(self, cache_key: str) -> dict[str, Any] | None:
         """Read and return the cached metadata for *cache_key*, or *None*."""
@@ -121,8 +125,11 @@ class CacheStore:
             "upstream_keys": upstream_keys or {},
         }
         path = self._marker_path(cache_key)
-        with open(path, "w", encoding="utf-8") as fh:
+        temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+        with open(temp_path, "w", encoding="utf-8") as fh:
             json.dump(marker, fh, indent=2, ensure_ascii=True)
+        temp_path.replace(path)
+        self._known_markers.add(cache_key)
 
     def clear(self) -> int:
         """Remove **all** cached markers and return the count deleted."""
@@ -132,8 +139,11 @@ class CacheStore:
                 try:
                     entry.unlink()
                     count += 1
+                    if entry.name.endswith(".marker.json"):
+                        self._known_markers.discard(entry.name.removesuffix(".marker.json"))
                 except OSError:
                     pass
+        self._known_markers.clear()
         return count
 
 
@@ -144,15 +154,3 @@ def _sorted_json(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_sorted_json(v) for v in obj]
     return obj
-
-
-@functools.lru_cache(maxsize=4096)
-def _sorted_json_cached(json_str: str) -> str:
-    """Memoized version of _sorted_json for hashable string inputs.
-
-    Callers should serialize their object to a canonical JSON string
-    (``sort_keys=True, separators=(',', ':')``) before passing it here.
-    """
-    obj = json.loads(json_str)
-    sorted_obj = _sorted_json(obj)
-    return json.dumps(sorted_obj, sort_keys=True, separators=(",", ":"))

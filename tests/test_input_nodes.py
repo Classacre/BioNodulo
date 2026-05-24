@@ -1,0 +1,124 @@
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from bionodulo.nodes.builtin.inputs import (
+    InputDirectoryNode,
+    InputFASTANode,
+    InputFASTQNode,
+    InputFileNode,
+    InputGFFNode,
+    InputVCFNode,
+    SampleSheetNode,
+)
+
+
+def test_input_node_schemas_are_preserved() -> None:
+    assert InputFASTQNode.INPUT_TYPES() == {
+        "required": {
+            "reads": ("FASTQ_LIST", {
+                "description": "Path(s) to FASTQ file(s). For paired-end, provide two files.",
+            }),
+        },
+        "optional": {
+            "sample_name": ("STRING", {"default": "sample"}),
+        },
+        "hidden": {},
+    }
+    assert InputFASTANode.INPUT_TYPES() == {
+        "required": {"reference": ("FASTA", {"description": "Path to FASTA file"})},
+        "optional": {},
+        "hidden": {"file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"})},
+    }
+    assert InputFileNode.INPUT_TYPES() == {
+        "required": {"file": ("FILE", {"description": "Path to file"})},
+        "optional": {},
+        "hidden": {"file_path": ("STRING", {"description": "Alias for file (backward compatibility)"})},
+    }
+    assert InputDirectoryNode.INPUT_TYPES() == {
+        "required": {"directory": ("DIRECTORY", {"description": "Path to directory"})},
+        "optional": {},
+        "hidden": {},
+    }
+    assert InputVCFNode.INPUT_TYPES() == {
+        "required": {"vcf": (("VCF", "VCF_GZ"), {"description": "Path to VCF file"})},
+        "optional": {},
+        "hidden": {},
+    }
+    assert InputGFFNode.INPUT_TYPES() == {
+        "required": {"annotation": ("GFF_GTF", {"description": "Path to GFF3 or GTF file"})},
+        "optional": {},
+        "hidden": {"file_path": ("STRING", {"description": "Alias for annotation (backward compatibility)"})},
+    }
+    assert SampleSheetNode.INPUT_TYPES() == {
+        "required": {
+            "sample_sheet": ("SAMPLE_SHEET", {
+                "description": "Path to sample sheet CSV (columns: sample, fastq_1, fastq_2, condition)",
+            }),
+        },
+        "optional": {},
+        "hidden": {},
+    }
+
+
+@pytest.mark.asyncio
+async def test_copy_input_node_resolves_relative_alias_against_context_workspace(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    node_dir = tmp_path / "node"
+    workspace.mkdir()
+    source = workspace / "reference.fa"
+    source.write_text(">chr1\nACGT\n")
+    context = SimpleNamespace(workspace_dir=workspace, node_dir=node_dir)
+
+    result = await InputFASTANode().run(file_path="reference.fa", context=context)
+
+    copied = node_dir / "reference.fa"
+    assert result == {"outputs": {"reference": str(copied.resolve())}}
+    assert copied.read_text() == source.read_text()
+
+
+@pytest.mark.asyncio
+async def test_fastq_input_preserves_list_output_and_empty_behavior(tmp_path: Path) -> None:
+    r1 = tmp_path / "sample_R1.fastq"
+    r2 = tmp_path / "sample_R2.fastq"
+    r1.write_text("@r1\nA\n+\n!\n")
+    r2.write_text("@r2\nT\n+\n!\n")
+    out_dir = tmp_path / "out"
+
+    result = await InputFASTQNode().run(reads=[str(r1), str(r2)], output_dir=out_dir)
+    empty_result = await InputFASTQNode().run(output_dir=tmp_path / "empty")
+
+    assert result == {"outputs": {"reads": [str((out_dir / r1.name).resolve()), str((out_dir / r2.name).resolve())]}}
+    assert (out_dir / r1.name).read_text() == r1.read_text()
+    assert (out_dir / r2.name).read_text() == r2.read_text()
+    assert empty_result == {"outputs": {"reads": []}}
+
+
+@pytest.mark.asyncio
+async def test_vcf_input_preserves_dual_output_mapping(tmp_path: Path) -> None:
+    source = tmp_path / "variants.vcf.gz"
+    source.write_text("##fileformat=VCFv4.2\n")
+    out_dir = tmp_path / "out"
+
+    result = await InputVCFNode().run(vcf=str(source), output_dir=out_dir)
+
+    copied = str((out_dir / source.name).resolve())
+    assert result == {"outputs": {"vcf": copied, "vcf_gz": copied}}
+
+
+@pytest.mark.asyncio
+async def test_directory_input_preserves_dir_path_alias_and_recursive_copy(tmp_path: Path) -> None:
+    source_dir = tmp_path / "data"
+    nested = source_dir / "nested"
+    nested.mkdir(parents=True)
+    (nested / "sample.txt").write_text("sample\n")
+    out_dir = tmp_path / "out"
+
+    result = await InputDirectoryNode().run(dir_path=str(source_dir), output_dir=out_dir)
+
+    copied = out_dir / source_dir.name
+    assert result == {"outputs": {"directory": str(copied.resolve())}}
+    assert (copied / "nested" / "sample.txt").read_text() == "sample\n"
