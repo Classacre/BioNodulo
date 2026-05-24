@@ -34,8 +34,47 @@ import {
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
-import type { Comment, LivePresenceUser } from './collab';
+import type { AwarenessState, Comment, LivePresenceUser } from './collab';
 import type { HPCStatus } from './components/layout/TopBar';
+
+const EMPTY_COLLAB_USERS: AwarenessState[] = [];
+const EMPTY_STRING_ARRAY: string[] = [];
+
+function workflowNameSignature(workflows: Workflow[]): string {
+  return JSON.stringify(workflows.map(workflow => [workflow.id ?? '', workflow.name || 'Untitled']));
+}
+
+function recordSignature(record: Record<string, string>): string {
+  return JSON.stringify(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function nodeTypeSignature(nodes: WorkflowNode[]): string {
+  return JSON.stringify(nodes.map(node => [node.id, node.type]));
+}
+
+function edgeTopologySignature(edges: Workflow['edges']): string {
+  return JSON.stringify(edges.map(edge => [edge.from.node, edge.from.output, edge.to.node, edge.to.input]));
+}
+
+function nodeStatusSignature(statuses: NodeStatus[]): string {
+  return JSON.stringify(statuses.map(status => [status.node_id, status.status]));
+}
+
+function previewsSignature(run: RunRecord | undefined): string {
+  if (!run) return '';
+  return JSON.stringify([run.run_id, Object.entries(run.previews ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
+}
+
+function commentsSignature(comments: Comment[]): string {
+  const visit = (items: Comment[]): unknown[] => items.map(comment => [
+    comment.id,
+    comment.node_id,
+    comment.parent_id,
+    comment.resolved,
+    visit(comment.replies ?? []),
+  ]);
+  return JSON.stringify(visit(comments));
+}
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -154,9 +193,11 @@ export default function App() {
   }, []);
 
   // Collaboration setup
-  const currentUser = authUser
-    ? { id: authUser.id, name: authUser.name, color: authUser.color }
-    : { id: 'anonymous', name: 'You', color: getUserColor('anonymous') };
+  const currentUser = useMemo(() => (
+    authUser
+      ? { id: authUser.id, name: authUser.name, color: authUser.color }
+      : { id: 'anonymous', name: 'You', color: getUserColor('anonymous') }
+  ), [authUser?.color, authUser?.id, authUser?.name]);
   const pendingWorkflowIdsRef = useRef<WeakMap<Workflow, string>>(new WeakMap());
   const activeWorkflowId = useMemo(() => {
     if (activeWorkflow.id) return activeWorkflow.id;
@@ -776,22 +817,49 @@ export default function App() {
     return () => window.removeEventListener('bionodulo:open-help', handler);
   }, []);
 
-  const queueCount = runs.filter(r => r.status === 'pending' || r.status === 'running').length;
+  const queuedRuns = useMemo(
+    () => runs.filter(r => r.status === 'pending' || r.status === 'running'),
+    [runs],
+  );
+  const queueCount = queuedRuns.length;
 
   const cacheEnabled = getBool('bionodulo.cacheEnabled');
   const collabPresenceEnabled = getBool('bionodulo.collab.presence');
   const hpcEnabled = getBool('bionodulo.hpc.enabled');
-  const hpcConfig: HPCConfig = {
+  const hpcBackend = ((get('bionodulo.hpc.backend') as string) || 'slurm') as HPCConfig['backend'];
+  const hpcPartition = (get('bionodulo.hpc.partition') as string) || '';
+  const hpcAccount = (get('bionodulo.hpc.account') as string) || '';
+  const hpcModulesSetting = get('bionodulo.hpc.modules') as string[] | undefined;
+  const hpcModulesKey = JSON.stringify(hpcModulesSetting ?? EMPTY_STRING_ARRAY);
+  const hpcModules = useMemo(
+    () => (Array.isArray(hpcModulesSetting) ? hpcModulesSetting : EMPTY_STRING_ARRAY),
+    [hpcModulesKey],
+  );
+  const hpcContainer = (get('bionodulo.hpc.container') as string) || '';
+  const hpcWalltime = (get('bionodulo.hpc.walltime') as string) || '01:00:00';
+  const hpcCpusPerTask = (get('bionodulo.hpc.cpus_per_task') as number) || 4;
+  const hpcMemPerCpu = (get('bionodulo.hpc.mem_per_cpu') as string) || '4G';
+  const hpcConfig: HPCConfig = useMemo(() => ({
     enabled: hpcEnabled,
-    backend: ((get('bionodulo.hpc.backend') as string) || 'slurm') as HPCConfig['backend'],
-    partition: (get('bionodulo.hpc.partition') as string) || '',
-    account: (get('bionodulo.hpc.account') as string) || '',
-    modules: (get('bionodulo.hpc.modules') as string[]) || [],
-    container: (get('bionodulo.hpc.container') as string) || '',
-    walltime: (get('bionodulo.hpc.walltime') as string) || '01:00:00',
-    cpus_per_task: (get('bionodulo.hpc.cpus_per_task') as number) || 4,
-    mem_per_cpu: (get('bionodulo.hpc.mem_per_cpu') as string) || '4G',
-  };
+    backend: hpcBackend,
+    partition: hpcPartition,
+    account: hpcAccount,
+    modules: hpcModules,
+    container: hpcContainer,
+    walltime: hpcWalltime,
+    cpus_per_task: hpcCpusPerTask,
+    mem_per_cpu: hpcMemPerCpu,
+  }), [
+    hpcAccount,
+    hpcBackend,
+    hpcContainer,
+    hpcCpusPerTask,
+    hpcEnabled,
+    hpcMemPerCpu,
+    hpcModules,
+    hpcPartition,
+    hpcWalltime,
+  ]);
 
   // Fetch HPC status from backend
   useEffect(() => {
@@ -1029,18 +1097,28 @@ export default function App() {
     clearResolveReport();
   }, [activeIndex, clearResolveReport]);
 
-  const tabNames = workflows.map(w => w.name || 'Untitled');
-  const missingDependencyNodeIds = useMemo(() => {
+  const workflowNamesKey = useMemo(() => workflowNameSignature(workflows), [workflows]);
+  const tabNames = useMemo(() => workflows.map(w => w.name || 'Untitled'), [workflowNamesKey]);
+  const activeNodeTypeKey = useMemo(() => nodeTypeSignature(activeWorkflow.nodes), [activeWorkflow.nodes]);
+  const activeEdgeTopologyKey = useMemo(() => edgeTopologySignature(activeWorkflow.edges), [activeWorkflow.edges]);
+  const missingTypesKey = useMemo(() => {
     const missingTypes = new Set<string>();
     for (const item of resolveReport?.missing_nodes ?? []) missingTypes.add(item.node_type);
     for (const item of resolveReport?.missing_executables ?? []) item.node_types.forEach(type => missingTypes.add(type));
     for (const item of resolveReport?.missing_packages ?? []) item.node_types.forEach(type => missingTypes.add(type));
     for (const item of resolveReport?.missing_r_packages ?? []) item.node_types.forEach(type => missingTypes.add(type));
+    return JSON.stringify([...missingTypes].sort());
+  }, [resolveReport]);
+  const missingDependencyNodeIds = useMemo(() => {
+    const missingTypes = new Set<string>(JSON.parse(missingTypesKey) as string[]);
     return new Set(activeWorkflow.nodes.filter(node => missingTypes.has(node.type)).map(node => node.id));
-  }, [activeWorkflow.nodes, resolveReport]);
+  }, [activeNodeTypeKey, missingTypesKey]);
+  const latestNodeStatuses = runs[0]?.node_statuses ?? [];
+  const latestNodeStatusKey = useMemo(() => nodeStatusSignature(latestNodeStatuses), [latestNodeStatuses]);
   const nodeStatusMap = useMemo<Map<string, NodeStatus['status']>>(() => (
-    new Map(runs[0]?.node_statuses?.map(ns => [ns.node_id, ns.status]) ?? [])
-  ), [runs]);
+    new Map(latestNodeStatuses.map(ns => [ns.node_id, ns.status]))
+  ), [latestNodeStatusKey]);
+  const latestPreviewsKey = useMemo(() => previewsSignature(runs[0]), [runs]);
   const nodePreviewsMap = useMemo(() => {
     const latest = runs[0];
     if (!latest) return undefined;
@@ -1056,7 +1134,8 @@ export default function App() {
       }
     }
     return map;
-  }, [activeWorkflow.edges, activeWorkflow.nodes, runs]);
+  }, [activeEdgeTopologyKey, activeNodeTypeKey, latestPreviewsKey]);
+  const workflowCommentsKey = useMemo(() => commentsSignature(workflowComments), [workflowComments]);
   const nodeCommentsMap = useMemo(() => {
     const map = new Map<string, { count: number; unresolved: boolean }>();
     const add = (comment: Comment) => {
@@ -1070,18 +1149,24 @@ export default function App() {
     };
     workflowComments.forEach(add);
     return map;
-  }, [workflowComments]);
+  }, [workflowCommentsKey]);
+  const liveWorkflowNamesKey = useMemo(() => recordSignature(workflowNames), [workflowNames]);
   const knownWorkflowNames = useMemo(() => ({
     ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || 'Untitled'])),
     ...workflowNames,
-  }), [workflowNames, workflows]);
+  }), [liveWorkflowNamesKey, workflowNamesKey]);
+  const canvasCollabUsers = useMemo(
+    () => (collabEnabled && collabPresenceEnabled ? collabActiveUsers : EMPTY_COLLAB_USERS),
+    [collabActiveUsers, collabEnabled, collabPresenceEnabled],
+  );
+  const appShellClassName = useMemo(() => ([
+    'app-shell',
+    showAI ? 'ai-open' : '',
+    showComments ? 'comments-open' : '',
+    (consoleVisible || railTab === 'console') ? 'console-open' : '',
+  ].filter(Boolean).join(' ')), [consoleVisible, railTab, showAI, showComments]);
   return (
-    <div className={[
-      'app-shell',
-      showAI ? 'ai-open' : '',
-      showComments ? 'comments-open' : '',
-      (consoleVisible || railTab === 'console') ? 'console-open' : '',
-    ].filter(Boolean).join(' ')}>
+    <div className={appShellClassName}>
       <TopBar
         validationValid={validation.valid}
         validationErrors={validation.errors}
@@ -1206,7 +1291,7 @@ export default function App() {
           collabWorkflowId={collabEnabled ? activeWorkflowId : undefined}
           currentCollabUser={collabEnabled ? currentUser : undefined}
           onNodeCommentsChange={() => void fetchWorkflowComments()}
-          collabUsers={collabEnabled && collabPresenceEnabled ? collabActiveUsers : []}
+          collabUsers={canvasCollabUsers}
           nodePreviewsMap={nodePreviewsMap}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
@@ -1268,7 +1353,7 @@ export default function App() {
           <ErrorBoundary>
             <BottomConsole
               logs={logs}
-              queue={runs.filter(r => r.status === 'pending' || r.status === 'running')}
+              queue={queuedRuns}
               history={runs}
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
               onOpenLightbox={openLightbox}

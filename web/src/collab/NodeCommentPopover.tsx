@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
+import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
 
 interface NodeCommentPopoverProps {
@@ -50,20 +51,14 @@ export default function NodeCommentPopover({
   onChanged,
   onClose,
 }: NodeCommentPopoverProps) {
-  const roots = comments.filter(comment => comment.node_id === nodeId && !comment.parent_id);
+  const roots = useMemo(
+    () => comments.filter(comment => comment.node_id === nodeId && !comment.parent_id),
+    [comments, nodeId],
+  );
   const [content, setContent] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const width = 300;
-  const maxHeight = 380;
-  const viewportPadding = 12;
-  const left = typeof window === 'undefined'
-    ? x
-    : Math.max(viewportPadding, Math.min(x, window.innerWidth - width - viewportPadding));
-  const top = typeof window === 'undefined'
-    ? y
-    : Math.max(viewportPadding, Math.min(y, window.innerHeight - maxHeight - viewportPadding));
 
   const post = async (text: string, parentId: string | null) => {
     if (!text.trim()) return;
@@ -102,11 +97,11 @@ export default function NodeCommentPopover({
   return (
     <div style={{
       position: 'absolute',
-      left,
-      top,
+      left: x,
+      top: y,
       zIndex: 225,
-      width,
-      maxHeight,
+      width: COMMENT_POPOVER_WIDTH,
+      maxHeight: COMMENT_POPOVER_MAX_HEIGHT,
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--surface)',

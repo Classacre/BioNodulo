@@ -18,6 +18,7 @@ use, add explicit locking.
 from __future__ import annotations
 
 import asyncio
+import queue
 import logging
 import sqlite3
 import threading
@@ -27,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import pycrdt
+from pycrdt.store import SQLiteYStore, YDocNotFound
 
 from bionodulo.core.workspace import resolve_workspace_root
 from bionodulo.collab.models import WorkflowVersion
@@ -71,13 +73,26 @@ _local = threading.local()
 
 
 def _db_path() -> Path:
-    """Resolve the SQLite database path for CRDT storage."""
+    """Resolve the legacy SQLite database path for CRDT storage."""
     path = resolve_workspace_root() / "crdt_docs.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
 _DB_PATH: Path = _db_path()
+
+
+def _ystore_db_path() -> Path:
+    """Resolve the pycrdt-store SQLite database path."""
+    path = resolve_workspace_root() / "crdt_ystore.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+class BioNoduloSQLiteYStore(SQLiteYStore):
+    """pycrdt-store SQLite backend scoped to BioNodulo's workspace."""
+
+    db_path = str(_ystore_db_path())
 
 CRDT_TOP_LEVEL_MAPS = ("meta", "nodes", "edges", "groups", "viewport")
 
@@ -152,6 +167,63 @@ def apply_flat_snapshot(doc: pycrdt.Doc, snapshot: dict[str, Any]) -> None:
                 target[key] = value
 
 
+def ystore_for_workflow(workflow_id: str) -> BioNoduloSQLiteYStore:
+    """Return a pycrdt-store SQLite store for one workflow document."""
+    return BioNoduloSQLiteYStore(workflow_id)
+
+
+def _run_ystore_sync(async_fn: Any, *args: Any) -> Any:
+    """Run a pycrdt-store coroutine from sync code.
+
+    Some existing API paths are synchronous while pycrdt-store is async. When
+    called from inside FastAPI's event loop, run the store operation in a short
+    worker thread to avoid nested event-loop errors.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        import anyio
+
+        return anyio.run(async_fn, *args)
+
+    results: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
+
+    def _worker() -> None:
+        import anyio
+
+        try:
+            results.put((True, anyio.run(async_fn, *args)))
+        except Exception as exc:
+            results.put((False, exc))
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+    thread.join()
+    ok, value = results.get()
+    if ok:
+        return value
+    raise value
+
+
+async def load_doc_from_ystore(workflow_id: str) -> pycrdt.Doc | None:
+    """Load a workflow document from pycrdt-store."""
+    doc = pycrdt.Doc()
+    async with ystore_for_workflow(workflow_id) as ystore:
+        try:
+            await ystore.apply_updates(doc)
+        except YDocNotFound:
+            return None
+    return doc
+
+
+async def persist_doc_update_async(workflow_id: str, update: bytes) -> None:
+    """Persist a CRDT update through pycrdt-store."""
+    if not update:
+        return
+    async with ystore_for_workflow(workflow_id) as ystore:
+        await ystore.write(update)
+
+
 # ---------------------------------------------------------------------------
 # Document lifecycle
 # ---------------------------------------------------------------------------
@@ -202,18 +274,8 @@ def persist_doc_update(workflow_id: str, update: bytes) -> None:
     if not update:
         return
 
-    conn = _get_connection()
-    try:
-        conn.execute(
-            "INSERT INTO crdt_updates (workflow_id, update_data) VALUES (?, ?)",
-            (workflow_id, update),
-        )
-        conn.commit()
-        logger.debug("Persisted %d-byte update for %s", len(update), workflow_id)
-    except sqlite3.Error as exc:
-        logger.error("Failed to persist update for %s: %s", workflow_id, exc)
-        conn.rollback()
-        raise
+    _run_ystore_sync(persist_doc_update_async, workflow_id, update)
+    logger.debug("Persisted %d-byte update for %s via pycrdt-store", len(update), workflow_id)
 
 
 def load_doc_from_db(workflow_id: str) -> pycrdt.Doc | None:
@@ -225,6 +287,10 @@ def load_doc_from_db(workflow_id: str) -> pycrdt.Doc | None:
     Returns:
         A reconstructed :class:`pycrdt.Doc`, or ``None`` if no data exists.
     """
+    doc = _run_ystore_sync(load_doc_from_ystore, workflow_id)
+    if doc is not None:
+        return doc
+
     conn = _get_connection()
     rows = conn.execute(
         "SELECT update_data FROM crdt_updates WHERE workflow_id = ? ORDER BY id ASC",
@@ -272,6 +338,7 @@ def consolidate_doc(workflow_id: str, doc: pycrdt.Doc) -> None:
     """
     # Get a full update by diffing against the empty state vector (b'\x00')
     full_update = doc.get_update(b"\x00")
+    persist_doc_update(workflow_id, full_update)
     conn = _get_connection()
     try:
         conn.execute(
@@ -299,6 +366,16 @@ def delete_doc(workflow_id: str) -> None:
     """
     conn = _get_connection()
     try:
+        ystore_db = sqlite3.connect(str(_ystore_db_path()), check_same_thread=False)
+        try:
+            ystore_db.execute("DELETE FROM yupdates WHERE path = ?", (workflow_id,))
+            ystore_db.execute("DELETE FROM ycheckpoints WHERE path = ?", (workflow_id,))
+            ystore_db.commit()
+        except sqlite3.Error:
+            ystore_db.rollback()
+            raise
+        finally:
+            ystore_db.close()
         conn.execute("DELETE FROM crdt_updates WHERE workflow_id = ?", (workflow_id,))
         conn.execute("DELETE FROM crdt_docs WHERE workflow_id = ?", (workflow_id,))
         conn.commit()
@@ -315,11 +392,24 @@ def list_workflow_ids() -> list[str]:
     Returns:
         A sorted list of workflow IDs.
     """
+    ids: set[str] = set()
+    ystore_path = _ystore_db_path()
+    if ystore_path.exists():
+        ystore_db = sqlite3.connect(str(ystore_path), check_same_thread=False)
+        try:
+            rows = ystore_db.execute("SELECT DISTINCT path FROM yupdates ORDER BY path").fetchall()
+            ids.update(str(row[0]) for row in rows)
+        except sqlite3.Error:
+            pass
+        finally:
+            ystore_db.close()
+
     conn = _get_connection()
     rows = conn.execute(
         "SELECT DISTINCT workflow_id FROM crdt_updates ORDER BY workflow_id"
     ).fetchall()
-    return [row["workflow_id"] for row in rows]
+    ids.update(str(row["workflow_id"]) for row in rows)
+    return sorted(ids)
 
 
 def get_doc_stats(workflow_id: str) -> dict[str, Any] | None:

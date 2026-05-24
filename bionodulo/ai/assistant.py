@@ -16,7 +16,7 @@ import json
 import os
 import re as re_mod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 from bionodulo.ai.tools import (
     ALL_TOOLS,
@@ -465,6 +465,73 @@ async def _call_anthropic(
 MAX_TOOL_ROUNDS = 6
 
 
+class AssistantGraphState(TypedDict, total=False):
+    """Mutable state passed through the LangGraph assistant workflow."""
+
+    messages: list[dict[str, Any]]
+    steps: list[ChatStep]
+    ctx: ToolContext
+    tool_calls: list[dict[str, Any]]
+    last_content: str
+    mutated_workflow: bool
+    proposed_workflow: dict[str, Any] | None
+    proposed_description: str
+    reply: str
+    rounds: int
+    error: str
+
+
+def _tool_param_type(type_name: str) -> Any:
+    """Map BioNodulo tool parameter names to Pydantic-friendly Python types."""
+    normalized = type_name.lower()
+    if normalized in {"int", "integer"}:
+        return int
+    if normalized in {"float", "number"}:
+        return float
+    if normalized in {"bool", "boolean"}:
+        return bool
+    if normalized in {"array", "list"}:
+        return list[Any]
+    if normalized in {"object", "dict", "json"}:
+        return dict[str, Any]
+    return str
+
+
+def _build_langchain_tools(ctx: ToolContext) -> dict[str, Any]:
+    """Wrap existing BioNodulo tools as LangChain StructuredTool instances."""
+    from langchain_core.tools import StructuredTool
+    from pydantic import Field, create_model
+
+    wrapped: dict[str, Any] = {}
+    for definition in ALL_TOOLS:
+        fields: dict[str, Any] = {}
+        for param in definition.parameters:
+            py_type = _tool_param_type(param.type)
+            if param.required:
+                fields[param.name] = (
+                    py_type,
+                    Field(description=param.description),
+                )
+            else:
+                fields[param.name] = (
+                    py_type | None,
+                    Field(default=param.default, description=param.description),
+                )
+        args_schema = create_model(f"{definition.name}_Args", **fields)
+
+        def _runner(_tool_name: str = definition.name, **kwargs: Any) -> dict[str, Any]:
+            return execute_tool(_tool_name, kwargs, ctx)
+
+        _runner.__name__ = f"run_{definition.name}"
+        wrapped[definition.name] = StructuredTool.from_function(
+            func=_runner,
+            name=definition.name,
+            description=definition.description,
+            args_schema=args_schema,
+        )
+    return wrapped
+
+
 async def chat_with_tools(
     user_message: str,
     workflow: dict[str, Any] | None,
@@ -512,15 +579,16 @@ async def chat_with_tools(
 
     messages.append({"role": "user", "content": user_content})
 
-    steps: list[ChatStep] = []
-    proposed_workflow: dict[str, Any] | None = None
-    proposed_description: str = ""
-    mutated_workflow = False
+    from langgraph.graph import END, StateGraph
 
-    for _round in range(MAX_TOOL_ROUNDS):
+    langchain_tools = _build_langchain_tools(ctx)
+
+    async def call_model(state: AssistantGraphState) -> AssistantGraphState:
+        messages_state = list(state["messages"])
+        steps_state = list(state.get("steps", []))
         try:
             content = await _call_llm(
-                messages=messages,
+                messages=messages_state,
                 provider=provider,
                 model=model,
                 api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
@@ -529,89 +597,168 @@ async def chat_with_tools(
                 max_tokens=max_tokens,
             )
         except Exception as exc:
-            steps.append(ChatStep(type="reply", content=f"Sorry, I encountered an error: {exc}"))
-            return ChatResponse(steps=steps, reply=f"Sorry, I encountered an error: {exc}")
+            reply = f"Sorry, I encountered an error: {exc}"
+            steps_state.append(ChatStep(type="reply", content=reply))
+            return {"steps": steps_state, "reply": reply, "error": reply}
 
         thinking = _extract_thinking(content)
         if thinking:
-            steps.append(ChatStep(type="thinking", content=thinking))
+            steps_state.append(ChatStep(type="thinking", content=thinking))
 
         tool_calls = _extract_tool_calls(content)
-        if not tool_calls:
-            # No tool calls — check for proposed changes
-            propose = _extract_propose_changes(content)
-            if propose:
-                proposed_workflow = propose.get("workflow")
-                proposed_description = propose.get("description", "")
-                steps.append(ChatStep(
+        updates: AssistantGraphState = {
+            "steps": steps_state,
+            "last_content": content,
+            "tool_calls": tool_calls,
+        }
+        if tool_calls:
+            return updates
+
+        propose = _extract_propose_changes(content)
+        proposed_workflow = state.get("proposed_workflow")
+        proposed_description = state.get("proposed_description", "")
+        if propose:
+            proposed_workflow = propose.get("workflow")
+            proposed_description = propose.get("description", "")
+            steps_state.append(
+                ChatStep(
                     type="propose_changes",
                     workflow=proposed_workflow,
                     description=proposed_description,
-                ))
-            elif mutated_workflow:
-                proposed_workflow = ctx.workflow
-                proposed_description = "Apply the workflow changes drafted by the assistant tools."
-                steps.append(ChatStep(
-                    type="propose_changes",
-                    workflow=proposed_workflow,
-                    description=proposed_description,
-                ))
-            reply = _strip_tags(content)
-            if reply:
-                steps.append(ChatStep(type="reply", content=reply))
-            return ChatResponse(
-                steps=steps,
-                reply=reply,
-                proposed_workflow=proposed_workflow,
-                proposed_description=proposed_description,
+                )
             )
+        elif state.get("mutated_workflow"):
+            graph_ctx = state["ctx"]
+            proposed_workflow = graph_ctx.workflow
+            proposed_description = "Apply the workflow changes drafted by the assistant tools."
+            steps_state.append(
+                ChatStep(
+                    type="propose_changes",
+                    workflow=proposed_workflow,
+                    description=proposed_description,
+                )
+            )
+        reply = _strip_tags(content)
+        if reply:
+            steps_state.append(ChatStep(type="reply", content=reply))
+        updates.update(
+            {
+                "steps": steps_state,
+                "reply": reply,
+                "proposed_workflow": proposed_workflow,
+                "proposed_description": proposed_description,
+            }
+        )
+        return updates
 
-        # Execute tool calls
-        for tc in tool_calls:
-            tool_name = tc["name"]
-            args = tc.get("arguments", {})
-            steps.append(ChatStep(
-                type="tool_call",
-                name=tool_name,
-                arguments=args,
-            ))
+    async def run_tool(state: AssistantGraphState) -> AssistantGraphState:
+        tool_calls = state.get("tool_calls", [])
+        if not tool_calls:
+            return {}
+        tool_call = tool_calls[0]
+        tool_name = str(tool_call.get("name", ""))
+        args = tool_call.get("arguments", {})
+        if not isinstance(args, dict):
+            args = {}
 
-            result = execute_tool(tool_name, args, ctx)
-            steps.append(ChatStep(
+        steps_state = list(state.get("steps", []))
+        steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
+
+        tool = langchain_tools.get(tool_name)
+        if tool is None:
+            result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
+        else:
+            try:
+                result = tool.invoke(args)
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+
+        steps_state.append(
+            ChatStep(
                 type="tool_result",
                 name=tool_name,
                 result=result,
-            ))
+            )
+        )
 
-            # If a mutating tool returns a workflow, update context
-            if result.get("status") == "ok":
-                inner = result.get("result", {})
-                if "workflow" in inner:
-                    ctx.workflow = inner["workflow"]
-                    mutated_workflow = True
+        graph_ctx = state["ctx"]
+        mutated = bool(state.get("mutated_workflow"))
+        if isinstance(result, dict) and result.get("status") == "ok":
+            inner = result.get("result", {})
+            if isinstance(inner, dict) and "workflow" in inner:
+                graph_ctx.workflow = inner["workflow"]
+                mutated = True
 
-            # Feed result back to LLM
-            result_text = json.dumps(result, default=str, indent=2)
-            messages.append({"role": "assistant", "content": content})
-            messages.append({
+        result_text = json.dumps(result, default=str, indent=2)
+        messages_state = list(state["messages"])
+        messages_state.append({"role": "assistant", "content": state.get("last_content", "")})
+        messages_state.append(
+            {
                 "role": "user",
                 "content": f"Tool result for {tool_name}:\n{result_text}",
-            })
-            break  # One tool call per LLM round for simplicity
+            }
+        )
+        return {
+            "messages": messages_state,
+            "steps": steps_state,
+            "ctx": graph_ctx,
+            "mutated_workflow": mutated,
+            "rounds": int(state.get("rounds", 0)) + 1,
+            "tool_calls": [],
+        }
 
-    # Max rounds reached
-    if mutated_workflow:
-        proposed_workflow = ctx.workflow
-        proposed_description = "Apply the workflow changes drafted by the assistant tools."
-        steps.append(ChatStep(
-            type="propose_changes",
-            workflow=proposed_workflow,
-            description=proposed_description,
-        ))
-    steps.append(ChatStep(type="reply", content="I reached the maximum number of tool calls. Please simplify your request."))
+    def route_after_model(state: AssistantGraphState) -> str:
+        if state.get("error"):
+            return END
+        if state.get("tool_calls") and int(state.get("rounds", 0)) < MAX_TOOL_ROUNDS:
+            return "tool"
+        return END
+
+    graph = StateGraph(AssistantGraphState)
+    graph.add_node("model", call_model)
+    graph.add_node("tool", run_tool)
+    graph.set_entry_point("model")
+    graph.add_conditional_edges("model", route_after_model, {"tool": "tool", END: END})
+    graph.add_edge("tool", "model")
+    compiled = graph.compile()
+
+    final_state = await compiled.ainvoke(
+        {
+            "messages": messages,
+            "steps": [],
+            "ctx": ctx,
+            "tool_calls": [],
+            "mutated_workflow": False,
+            "proposed_workflow": None,
+            "proposed_description": "",
+            "reply": "",
+            "rounds": 0,
+        }
+    )
+
+    steps = list(final_state.get("steps", []))
+    proposed_workflow = final_state.get("proposed_workflow")
+    proposed_description = final_state.get("proposed_description", "")
+    reply = final_state.get("reply", "")
+
+    if final_state.get("tool_calls") and int(final_state.get("rounds", 0)) >= MAX_TOOL_ROUNDS:
+        if final_state.get("mutated_workflow"):
+            graph_ctx = final_state["ctx"]
+            proposed_workflow = graph_ctx.workflow
+            proposed_description = "Apply the workflow changes drafted by the assistant tools."
+            steps.append(
+                ChatStep(
+                    type="propose_changes",
+                    workflow=proposed_workflow,
+                    description=proposed_description,
+                )
+            )
+        reply = "I reached the maximum number of tool calls. Please simplify your request."
+        steps.append(ChatStep(type="reply", content=reply))
+
     return ChatResponse(
         steps=steps,
-        reply="I reached the maximum number of tool calls. Please simplify your request.",
+        reply=reply,
         proposed_workflow=proposed_workflow,
         proposed_description=proposed_description,
     )

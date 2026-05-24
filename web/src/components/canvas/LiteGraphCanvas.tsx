@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import type { WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import Icon from '../ui/Icon';
@@ -12,6 +12,13 @@ import GroupContextMenu from './GroupContextMenu';
 
 import CommentPin from '../../collab/CommentPin';
 import NodeCommentPopover from '../../collab/NodeCommentPopover';
+import {
+  getCommentPinPosition,
+  getCommentPinSize,
+  getNodeCommentPopoverPosition,
+  type OverlayBounds,
+  type OverlayRect,
+} from '../../collab/commentLayout';
 import type { AwarenessState, CollabUser, Comment } from '../../collab/types';
 
 export interface NodeCommentSummary {
@@ -348,6 +355,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const activeWidgetRef = useRef(activeWidget);
   useEffect(() => { activeWidgetRef.current = activeWidget; }, [activeWidget]);
   const sizeRef = useRef({ w: 800, h: 600 });
+  const [canvasSize, setCanvasSize] = useState({ w: 800, h: 600 });
   const widgetsRef = useRef<Map<string, Array<{ name: string; type: string; x: number; y: number; w: number; h: number }>>>(new Map());
   const graphNodesRef = useRef(graphNodes);
   const nodesRef = useRef(nodes);
@@ -1180,12 +1188,26 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (!canvas) return;
       const parent = canvas.parentElement;
       if (!parent) return;
-      sizeRef.current = { w: parent.clientWidth, h: parent.clientHeight };
+      const nextSize = { w: parent.clientWidth, h: parent.clientHeight };
+      sizeRef.current = nextSize;
+      setCanvasSize(prev => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize));
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const canvasBounds = useMemo<OverlayBounds>(() => ({
+    width: Math.max(1, canvasSize.w),
+    height: Math.max(1, canvasSize.h),
+  }), [canvasSize.h, canvasSize.w]);
+
+  const toScreenNodeRect = useCallback((node: GraphNode): OverlayRect => ({
+    x: node.x * scale + offset.x,
+    y: node.y * scale + offset.y,
+    width: node.width * scale,
+    height: node.height * scale,
+  }), [offset.x, offset.y, scale]);
 
   const addNode = useCallback((meta: NodeMetadata, cx: number, cy: number) => {
     const world = toWorld(cx, cy);
@@ -2137,7 +2159,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       {nodeCommentsMap && graphNodes.filter(node => nodeCommentsMap.has(node.id)).map(node => {
         const summary = nodeCommentsMap.get(node.id)!;
-        const point = fromWorld(node.x + node.width - 18, node.y);
+        const point = getCommentPinPosition(toScreenNodeRect(node), canvasBounds, summary.count);
         return (
           <CommentPin
             key={`comment-${node.id}`}
@@ -2152,15 +2174,19 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       {nodeCommentTarget && collabWorkflowId && currentCollabUser && (() => {
         const node = graphNodes.find(candidate => candidate.id === nodeCommentTarget.nodeId);
         if (!node) return null;
-        const point = fromWorld(node.x + node.width + 12, node.y + 8);
+        const nodeRect = toScreenNodeRect(node);
+        const summary = nodeCommentsMap?.get(node.id);
+        const pinSize = summary ? getCommentPinSize(summary.count) : undefined;
+        const pinPoint = summary ? getCommentPinPosition(nodeRect, canvasBounds, summary.count) : undefined;
+        const point = getNodeCommentPopoverPosition(nodeRect, canvasBounds, pinPoint, pinSize);
         return (
           <NodeCommentPopover
             workflowId={collabWorkflowId}
             nodeId={node.id}
             currentUser={currentCollabUser}
             comments={nodeComments}
-            x={Math.max(8, point.x)}
-            y={Math.max(8, point.y)}
+            x={point.x}
+            y={point.y}
             compose={nodeCommentTarget.compose}
             onChanged={() => onNodeCommentsChange?.()}
             onClose={() => setNodeCommentTarget(null)}

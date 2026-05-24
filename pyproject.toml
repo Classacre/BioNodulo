@@ -39,6 +39,13 @@ dependencies = [
     "diskcache>=5.6.3",
     "slowapi>=0.1.9",
     "casbin>=1.36.0",
+    "pycrdt-websocket>=0.16.1",
+    "pycrdt-store>=0.1.4",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "fastapi-users>=15.0.0",
+    "langchain>=1.0.0",
+    "langgraph>=1.0.0",
 ]
 
 [project.optional-dependencies]

@@ -16,24 +16,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from bionodulo.api.app_state import app_state
+from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
 from bionodulo.api.collab_dependencies import (
     ensure_open_room_access,
-    open_collab_rooms_enabled,
     require_workflow_role,
 )
+from bionodulo.api.collab_runtime_routes import workflow_payload_to_flat_snapshot
 from bionodulo.api.system_stats import router as system_stats_router
 from bionodulo.api.previews import router as previews_router
 from bionodulo.api.rate_limits import limiter
 from bionodulo.api.schemas import (
-    AIChatRequest,
-    AuthMeResponse,
-    AuthTokenRequest,
-    AuthTokenResponse,
     DeleteFilesRequest,
     DependencyTreeRequest,
     ExampleDataDownloadRequest,
@@ -47,12 +42,7 @@ from bionodulo.api.schemas import (
     ManagerInstallPlanRequest,
     ManagerInstallRequest,
     ManagerPackageRequest,
-    RoomStatusResponse,
     RunCreateRequest,
-    SettingsSaveRequest,
-    SettingsSetRequest,
-    ShareWorkflowRequest,
-    ShareWorkflowResponse,
     ValidationRequest,
     WorkspaceRootRequest,
     WorkflowEnvironmentRequest,
@@ -73,14 +63,12 @@ from bionodulo.environments.manifest import (
     remove_package_from_env,
     set_env_meta,
 )
-from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
 from bionodulo.manager.installer import get_installer
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
-from bionodulo.collab.auth import get_token_from_header_or_query, validate_token
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -201,6 +189,28 @@ def _setting_bool(request: Request, key: str, default: bool = False) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, role: str = "editor") -> None:
+    """Compatibility wrapper for tests and older route helpers."""
+    ensure_open_room_access(request, workflow_id, user_id, role=role)
+
+
+def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility wrapper for tests and older route helpers."""
+    return workflow_payload_to_flat_snapshot(workflow_id, body)
+
+
+def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
+    """Require execute permission when collaborative permissions are enabled."""
+    if not workflow_id:
+        return None
+    if not _setting_bool(request, "bionodulo.collab.enabled", False):
+        return None
+    payload = _require_auth_payload(request)
+    user_id = payload.get("sub", "")
+    require_workflow_role(request, workflow_id, user_id, "execute")
+    return payload
 
 
 def _safe_path(path_str: str, root: Path) -> Path:
@@ -485,136 +495,6 @@ async def get_effective_config(request: Request) -> dict[str, Any]:
     """Get the effective configuration (settings merged with defaults)."""
     settings = _get_settings(request)
     return settings.as_effective_config()
-
-
-# ---------------------------------------------------------------------------
-# Settings (ComfyUI-style per-user settings)
-# ---------------------------------------------------------------------------
-
-@router.get("/settings")
-async def get_all_settings(request: Request) -> dict[str, Any]:
-    """Get all user settings."""
-    sm = _get_settings_manager(request)
-    return sm.get_all()
-
-
-@router.post("/settings")
-async def save_settings(request: Request, body: SettingsSaveRequest) -> dict[str, str]:
-    """Save multiple user settings at once."""
-    sm = _get_settings_manager(request)
-    sm.set_many(body.settings)
-    return {"status": "saved"}
-
-
-@router.get("/settings/{setting_id}")
-async def get_setting(request: Request, setting_id: str) -> Any:
-    """Get a specific user setting by ID.
-
-    Supports dotted key access for nested values.
-    """
-    sm = _get_settings_manager(request)
-    value = sm.get(setting_id)
-    if value is None:
-        raise HTTPException(status_code=404, detail=f"Setting \\\'{setting_id}\\\' not found")
-    return {setting_id: value}
-
-
-@router.post("/settings/{setting_id}")
-async def set_setting(
-    request: Request, setting_id: str, body: SettingsSetRequest
-) -> dict[str, str]:
-    """Set a specific user setting by ID.
-
-    Supports dotted key access for nested values.
-    """
-    sm = _get_settings_manager(request)
-    sm.set(setting_id, body.value)
-    return {"status": "saved", "id": setting_id}
-
-
-# ---------------------------------------------------------------------------
-# AI Assistant
-# ---------------------------------------------------------------------------
-
-@router.post("/ai/chat")
-@limiter.limit("20/minute")
-async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
-    """Send a message to the AI assistant and get a tool-aware response."""
-    settings = _get_settings(request)
-    settings_manager = _get_settings_manager(request)
-    registry = _get_registry(request)
-
-    provider = body.provider or _setting_literal(request, "bionodulo.llm.provider", "openai")
-    model = body.model or _setting_literal(request, "bionodulo.llm.model", None)
-    api_key = _setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
-    api_base = _setting_literal(request, "bionodulo.llm.baseUrl", None) or None
-    temperature = _setting_literal(request, "bionodulo.llm.temperature", 0.2)
-    try:
-        temperature = float(temperature)
-    except (TypeError, ValueError):
-        temperature = 0.2
-
-    try:
-        response = await chat_with_tools(
-            user_message=body.message,
-            workflow=body.workflow,
-            workflow_id=body.workflow_id,
-            history=body.history,
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            api_base=api_base,
-            temperature=temperature,
-            registry=registry,
-            settings=settings,
-            settings_manager=settings_manager,
-            files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
-        )
-    except Exception as exc:
-        return {
-            "steps": [{"type": "reply", "content": f"AI error: {exc}"}],
-            "reply": f"AI error: {exc}",
-            "model": model or provider,
-        }
-
-    return {
-        "steps": [
-            {
-                "type": s.type,
-                "content": s.content,
-                "name": s.name,
-                "arguments": s.arguments,
-                "result": s.result,
-                "workflow": s.workflow,
-                "description": s.description,
-            }
-            for s in response.steps
-        ],
-        "reply": response.reply,
-        "proposed_workflow": response.proposed_workflow,
-        "proposed_description": response.proposed_description,
-        "model": model or provider,
-    }
-
-
-@router.post("/ai/chat/stream")
-async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
-    """Stream an AI assistant response as server-sent events."""
-    from fastapi.responses import StreamingResponse
-
-    async def _stream():
-        chunks = [
-            "AI assistant (streaming mode): ",
-            "Analyzing your request... ",
-            f"Message was: '{body.message}'. ",
-            "Configure a real AI backend (OpenAI, Ollama, etc.) for production use.",
-        ]
-        for chunk in chunks:
-            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-            await asyncio.sleep(0.1)
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
@@ -1721,329 +1601,3 @@ async def getting_started_download(
     status = await getting_started_status(request)
     status["download_result"] = result
     return status
-
-
-# ---------------------------------------------------------------------------
-# Authentication
-# ---------------------------------------------------------------------------
-
-security_scheme = HTTPBearer(auto_error=False)
-
-
-def _get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme)) -> dict[str, Any] | None:
-    """Validate the Bearer token from the Authorization header.
-
-    Returns the decoded JWT payload, or None if no valid token was provided.
-    """
-    from bionodulo.collab.auth import validate_token
-    if credentials is None:
-        return None
-    return validate_token(credentials.credentials)
-
-
-@router.post("/auth/token", response_model=AuthTokenResponse)
-@limiter.limit("30/minute")
-async def auth_create_token(request: Request, body: AuthTokenRequest) -> dict[str, Any]:
-    """Create a new JWT authentication token.
-
-    Generates a fresh user ID, creates a signed JWT with the provided name,
-    and returns both the token and user details.
-    """
-    from bionodulo.collab.auth import create_token, generate_user_id
-
-    user_id = generate_user_id()
-    token = create_token(
-        user_id=user_id,
-        name=body.name,
-        role="editor",
-        expiry_hours=24,
-    )
-    return {
-        "token": token,
-        "user_id": user_id,
-        "name": body.name,
-    }
-
-
-@router.get("/auth/me", response_model=AuthMeResponse)
-async def auth_me(user: dict[str, Any] | None = Depends(_get_current_user)) -> dict[str, Any]:
-    """Return the currently authenticated user's details.
-
-    Requires a valid Bearer token in the Authorization header.
-    """
-    if user is None:
-        raise HTTPException(status_code=401, detail="Invalid or missing authentication token")
-    return {
-        "user_id": user.get("sub", ""),
-        "name": user.get("name", ""),
-        "role": user.get("role", "editor"),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Collaboration
-# ---------------------------------------------------------------------------
-
-def _get_room_manager(request: Request) -> Any:
-    return app_state(request).room_manager
-
-
-def _get_permissions(request: Request) -> Any:
-    return app_state(request).permission_checker
-
-
-def _open_collab_rooms_enabled() -> bool:
-    return open_collab_rooms_enabled()
-
-
-def _require_auth_payload(request: Request) -> dict[str, Any]:
-    token = get_token_from_header_or_query(request)
-    payload = validate_token(token) if token else None
-    if payload is None:
-        raise HTTPException(status_code=401, detail="Invalid or missing authentication token")
-    return payload
-
-
-def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, role: str = "editor") -> None:
-    """Grant trusted local/open-room visitors access before API permission checks.
-
-    Colab exposes a single trusted app URL to collaborators. When open-room mode
-    is enabled, WebSockets already grant access on join; REST endpoints need the
-    same behavior so follow, rosters, comments, and share checks do not race the
-    socket connection and surface transient 403s.
-    """
-    ensure_open_room_access(request, workflow_id, user_id, role=role)
-
-
-def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Normalize a workflow or snapshot payload to the flat CRDT schema."""
-    snapshot = body.get("snapshot")
-    if isinstance(snapshot, dict):
-        meta = dict(snapshot.get("meta") or {})
-        meta["id"] = workflow_id
-        snapshot["meta"] = meta
-        return snapshot
-
-    workflow = body.get("workflow")
-    if not isinstance(workflow, dict):
-        raise HTTPException(status_code=400, detail="Expected workflow or snapshot payload")
-
-    def keyed(items: Any) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        if not isinstance(items, list):
-            return result
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            item_id = item.get("id")
-            if item_id:
-                result[str(item_id)] = item
-        return result
-
-    meta = {
-        "id": workflow_id,
-        "version": workflow.get("version") or "Alpha 1.5",
-        "name": workflow.get("name") or "Untitled",
-        "description": workflow.get("description") or "",
-        "lastModified": datetime.now(timezone.utc).isoformat(),
-    }
-    return {
-        "meta": meta,
-        "nodes": keyed(workflow.get("nodes")),
-        "edges": keyed(workflow.get("edges")),
-        "groups": keyed(workflow.get("groups")),
-        "viewport": workflow.get("viewport")
-        if isinstance(workflow.get("viewport"), dict)
-        else {"x": 0, "y": 0, "scale": 1.0},
-    }
-
-
-def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
-    if not workflow_id:
-        return None
-    if not _setting_bool(request, "bionodulo.collab.enabled", False):
-        return None
-    payload = _require_auth_payload(request)
-    user_id = payload.get("sub", "")
-    require_workflow_role(request, workflow_id, user_id, "execute")
-    return payload
-
-
-async def _close_yjs_user_sessions(request: Request, workflow_id: str, user_id: str) -> None:
-    """Reconnect a live Yjs user so changed room permissions take effect."""
-    rooms = getattr(request.app.state, "yjs_room_sockets", {})
-    for socket in list(rooms.get(workflow_id, [])):
-        presence = getattr(socket.state, "yjs_presence", None)
-        if not isinstance(presence, dict) or presence.get("user_id") != user_id:
-            continue
-        try:
-            await socket.close(code=4403, reason="Collaboration access changed")
-        except Exception:
-            pass
-
-
-@router.post("/collab/share", response_model=ShareWorkflowResponse)
-async def collab_share(
-    request: Request,
-    body: ShareWorkflowRequest,
-) -> dict[str, Any]:
-    """Share a workflow with another user.
-
-    The calling user must be the owner of the workflow.
-    """
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    permissions = require_workflow_role(request, body.workflow_id, caller_id, "share")
-
-    share = permissions.grant(
-        workflow_id=body.workflow_id,
-        user_id=body.user_id,
-        role=body.role,
-        invited_by=caller_id,
-    )
-    if body.user_id != caller_id:
-        await _close_yjs_user_sessions(request, body.workflow_id, body.user_id)
-    return {
-        "share_id": share.id,
-        "workflow_id": share.workflow_id,
-        "user_id": share.user_id,
-        "role": share.role,
-        "invited_by": share.invited_by,
-        "invited_at": share.invited_at,
-    }
-
-
-@router.get("/collab/shares/{workflow_id}")
-async def collab_list_shares(
-    request: Request,
-    workflow_id: str,
-) -> dict[str, Any]:
-    """List all shares for a given workflow."""
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    permissions = require_workflow_role(request, workflow_id, caller_id, "read")
-
-    shares = permissions.list_users(workflow_id)
-    return {"workflow_id": workflow_id, "shares": shares, "count": len(shares)}
-
-
-@router.get("/collab/presence")
-async def collab_presence(
-    request: Request,
-) -> dict[str, Any]:
-    """List authenticated live Yjs sessions across workflow rooms."""
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    rooms = getattr(request.app.state, "yjs_room_sockets", {})
-    users: list[dict[str, Any]] = []
-
-    open_rooms = _open_collab_rooms_enabled()
-    for workflow_id, sockets in rooms.items():
-        if open_rooms:
-            ensure_open_room_access(request, workflow_id, caller_id)
-        else:
-            try:
-                require_workflow_role(request, workflow_id, caller_id, "read")
-            except HTTPException:
-                continue
-        for socket in sockets:
-            presence = getattr(socket.state, "yjs_presence", None)
-            if isinstance(presence, dict):
-                users.append({**presence, "workflow_id": workflow_id})
-
-    return {"users": users, "count": len(users)}
-
-
-@router.get("/collab/workflows/{workflow_id}/snapshot")
-async def collab_workflow_snapshot(
-    request: Request,
-    workflow_id: str,
-) -> dict[str, Any]:
-    """Return the current server-side CRDT workflow snapshot for follow/join."""
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    require_workflow_role(request, workflow_id, caller_id, "read")
-
-    from bionodulo.collab.doc_store import extract_flat_snapshot
-    from bionodulo.collab.yjs_native_handler import _get_doc
-
-    doc = await _get_doc(workflow_id)
-    snapshot = extract_flat_snapshot(doc)
-    snapshot.setdefault("meta", {})["id"] = workflow_id
-    return {"workflow_id": workflow_id, "snapshot": snapshot}
-
-
-@router.post("/collab/workflows/{workflow_id}/snapshot")
-async def collab_publish_workflow_snapshot(
-    request: Request,
-    workflow_id: str,
-    body: dict[str, Any],
-) -> dict[str, Any]:
-    """Replace and broadcast the server-side CRDT workflow snapshot."""
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    require_workflow_role(request, workflow_id, caller_id, "write")
-
-    from bionodulo.collab.yjs_native_handler import publish_flat_snapshot_to_room
-
-    snapshot = _workflow_payload_to_flat_snapshot(workflow_id, body)
-    room_sockets = getattr(request.app.state, "yjs_room_sockets", {})
-    published = await publish_flat_snapshot_to_room(workflow_id, snapshot, room_sockets)
-    return {
-        "workflow_id": workflow_id,
-        "snapshot": published,
-        "nodes": len(published.get("nodes", {})),
-        "edges": len(published.get("edges", {})),
-        "groups": len(published.get("groups", {})),
-    }
-
-
-@router.delete("/collab/share/{share_id}")
-async def collab_revoke_share(
-    request: Request,
-    share_id: str,
-) -> dict[str, str]:
-    """Revoke a share by its share record ID."""
-    store = app_state(request).collab_store
-    share = store.get_share(share_id)
-    if share is None:
-        raise HTTPException(status_code=404, detail="Share not found")
-
-    permissions = _get_permissions(request)
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    require_workflow_role(request, share.workflow_id, caller_id, "share")
-
-    success = store.delete_share(share_id)
-    if success:
-        # Warm cache removal
-        permissions.revoke(share.workflow_id, share.user_id)
-        await _close_yjs_user_sessions(request, share.workflow_id, share.user_id)
-    return {"status": "revoked" if success else "not_found"}
-
-
-@router.get("/collab/room/{workflow_id}", response_model=RoomStatusResponse)
-async def collab_room_status(
-    request: Request,
-    workflow_id: str,
-) -> dict[str, Any]:
-    """Get the current collaboration room status for a workflow."""
-    payload = _require_auth_payload(request)
-    caller_id = payload["sub"]
-    require_workflow_role(request, workflow_id, caller_id, "read")
-    room_status = _get_room_manager(request).room_status(workflow_id)
-    sockets = getattr(request.app.state, "yjs_room_sockets", {}).get(workflow_id, [])
-    if not sockets:
-        return room_status
-    users = [
-        presence
-        for socket in sockets
-        if isinstance((presence := getattr(socket.state, "yjs_presence", None)), dict)
-    ]
-    return {
-        "workflow_id": workflow_id,
-        "active": True,
-        "users": users,
-        "created_at": room_status.get("created_at"),
-        "client_count": len(sockets),
-    }

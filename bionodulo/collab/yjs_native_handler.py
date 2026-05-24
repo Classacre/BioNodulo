@@ -1,23 +1,9 @@
-"""Native Yjs WebSocket handler using the standard y-protocols binary format.
+"""Yjs collaboration endpoint backed by pycrdt-websocket primitives.
 
-Binary format (NO length prefix)
---------------------------------
-::
-
-    [message_type: u8] [payload: ...]
-
-- ``message_type = 0`` → Sync: ``[0] [sync_type: u8] [payload: ...]``
-
-  - ``sync_type = 0`` → SyncStep1 (client sends state vector)
-  - ``sync_type = 1`` → SyncStep2 (server sends diff/update)
-  - ``sync_type = 2`` → Update (incremental change)
-
-- ``message_type = 1`` → Awareness: ``[1] [awareness_bytes: ...]``
-
-Auth is handled via JWT in the ``?token=`` query parameter.
-Permissions (read-only) are enforced at the document level.
-
-This module replaces the earlier custom length-prefixed protocol.
+The browser speaks the standard Yjs binary protocol. BioNodulo owns
+authentication, authorization, room roster JSON messages, and audit metadata,
+while :class:`pycrdt.websocket.YRoom` handles sync, awareness relay, update
+broadcasting, and persistence through :mod:`pycrdt.store`.
 """
 
 from __future__ import annotations
@@ -30,32 +16,31 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-
 import pycrdt
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from pycrdt.websocket import YRoom, exception_logger
 
 from bionodulo.api.app_state import app_state_from_app
-from bionodulo.collab.auth import get_auth_ws, generate_user_id
+from bionodulo.collab.auth import generate_user_id, get_auth_ws
+from bionodulo.collab.doc_store import (
+    CRDT_TOP_LEVEL_MAPS,
+    load_doc_from_db,
+    persist_doc_update,
+    ystore_for_workflow,
+)
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.rate_limiter import RateLimiter
-from bionodulo.collab.doc_store import CRDT_TOP_LEVEL_MAPS, load_doc_from_db, persist_doc_update
 
 logger = logging.getLogger(__name__)
 
 yjs_router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Message type constants (native Yjs protocol — no length prefix)
-# ---------------------------------------------------------------------------
-
-MSG_SYNC = 0       # nested: [0] [sync_type] [payload]
-MSG_AWARENESS = 1  # [1] [awareness_bytes]
-
-# Sync sub-types (nested inside MSG_SYNC)
-SYNC_STEP1 = 0  # state vector request
-SYNC_STEP2 = 1  # update diff response
-SYNC_UPDATE = 2  # incremental change
+MSG_SYNC = 0
+MSG_AWARENESS = 1
+SYNC_STEP1 = 0
+SYNC_STEP2 = 1
+SYNC_UPDATE = 2
 
 
 def _open_room_join_enabled() -> bool:
@@ -67,151 +52,171 @@ def _open_room_join_enabled() -> bool:
         "on",
     }
 
-# ---------------------------------------------------------------------------
-# App-state accessors
-# ---------------------------------------------------------------------------
-
 
 def _store_for_websocket(websocket: WebSocket) -> CollabStore:
-    """Return the shared collab store for this FastAPI app."""
     return app_state_from_app(websocket.app).collab_store
 
 
 def _permissions_for_websocket(websocket: WebSocket) -> PermissionChecker:
-    """Return the shared permission checker for this FastAPI app."""
     return app_state_from_app(websocket.app).permission_checker
 
 
 def _rate_limiter_for_websocket(websocket: WebSocket) -> RateLimiter:
-    """Return the shared rate limiter for this FastAPI app."""
     return app_state_from_app(websocket.app).rate_limiter
 
 
-# ---------------------------------------------------------------------------
-# Document cache (per workflow)
-# ---------------------------------------------------------------------------
+_room_cache: dict[str, YRoom] = {}
+_room_locks: dict[str, asyncio.Lock] = {}
+_room_tasks: dict[str, asyncio.Task[None]] = {}
 
-_doc_cache: dict[str, pycrdt.Doc] = {}
-_doc_locks: dict[str, asyncio.Lock] = {}
-_doc_observers: dict[str, Any] = {}
-_persist_tasks: dict[str, set[asyncio.Task[None]]] = {}
+
+class FastAPIYChannel:
+    """Adapter from FastAPI's WebSocket object to pycrdt's Channel protocol."""
+
+    def __init__(
+        self,
+        websocket: WebSocket,
+        *,
+        workflow_id: str,
+        user_id: str,
+        read_only: bool,
+        rate_limiter: RateLimiter,
+        store: CollabStore,
+    ) -> None:
+        self.websocket = websocket
+        self.path = workflow_id
+        self.user_id = user_id
+        self.read_only = read_only
+        self.rate_limiter = rate_limiter
+        self.store = store
+
+    def __aiter__(self) -> FastAPIYChannel:
+        return self
+
+    async def __anext__(self) -> bytes:
+        try:
+            return await self.recv()
+        except WebSocketDisconnect:
+            raise StopAsyncIteration from None
+
+    async def send(self, message: bytes) -> None:
+        await self.websocket.send_bytes(message)
+
+    async def recv(self) -> bytes:
+        while True:
+            data = await self.websocket.receive_bytes()
+            if not data:
+                continue
+            if not self._allow_message(data):
+                continue
+            return data
+
+    def _allow_message(self, data: bytes) -> bool:
+        msg_type = data[0]
+        if msg_type == MSG_SYNC and len(data) > 1:
+            sync_type = data[1]
+            if sync_type == SYNC_UPDATE:
+                if self.read_only:
+                    return False
+                if not self.rate_limiter.check(self.websocket, "update"):
+                    return False
+                self._audit_update(len(data) - 2)
+            elif sync_type == SYNC_STEP1:
+                if not self.rate_limiter.check(self.websocket, "sync"):
+                    return False
+        elif msg_type == MSG_AWARENESS:
+            if not self.rate_limiter.check(self.websocket, "awareness"):
+                return False
+        return True
+
+    def _audit_update(self, update_bytes: int) -> None:
+        try:
+            self.store.add_audit_entry(
+                CollabAuditLogEntry(
+                    workflow_id=self.path,
+                    user_id=self.user_id,
+                    action="crdt_update",
+                    payload={"update_bytes": update_bytes},
+                )
+            )
+        except Exception:
+            pass
+
+
+async def _new_doc(workflow_id: str) -> pycrdt.Doc:
+    doc = await asyncio.to_thread(load_doc_from_db, workflow_id)
+    if doc is not None:
+        return doc
+
+    doc = pycrdt.Doc()
+    with doc.transaction():
+        meta = doc.get("meta", type=pycrdt.Map)
+        meta["id"] = workflow_id
+        meta["version"] = 1
+        meta["name"] = "Untitled"
+        meta["createdAt"] = datetime.now(timezone.utc).isoformat()
+        meta["lastModified"] = ""
+        doc.get("nodes", type=pycrdt.Map)
+        doc.get("edges", type=pycrdt.Map)
+        doc.get("groups", type=pycrdt.Map)
+        viewport = doc.get("viewport", type=pycrdt.Map)
+        viewport["x"] = 0
+        viewport["y"] = 0
+        viewport["scale"] = 1.0
+    return doc
+
+
+async def _get_room(workflow_id: str) -> YRoom:
+    if workflow_id in _room_cache:
+        return _room_cache[workflow_id]
+
+    lock = _room_locks.setdefault(workflow_id, asyncio.Lock())
+    async with lock:
+        if workflow_id in _room_cache:
+            return _room_cache[workflow_id]
+
+        room = YRoom(
+            ready=True,
+            ystore=ystore_for_workflow(workflow_id),
+            ydoc=await _new_doc(workflow_id),
+            exception_handler=exception_logger,
+            log=logger,
+        )
+        task = asyncio.create_task(room.start(), name=f"bionodulo-yroom-{workflow_id}")
+        await room.started.wait()
+        _room_cache[workflow_id] = room
+        _room_tasks[workflow_id] = task
+        return room
 
 
 async def _cleanup_doc_cache(workflow_id: str) -> None:
-    """Drop cached CRDT state for an empty collaboration room."""
-    pending = _persist_tasks.pop(workflow_id, set())
-    if pending:
-        _, pending = await asyncio.wait(pending, timeout=2.0)
-        for task in pending:
-            task.cancel()
-    _doc_cache.pop(workflow_id, None)
-    _doc_locks.pop(workflow_id, None)
-    _doc_observers.pop(workflow_id, None)
+    """Stop and drop an empty pycrdt room."""
+    room = _room_cache.pop(workflow_id, None)
+    task = _room_tasks.pop(workflow_id, None)
+    _room_locks.pop(workflow_id, None)
+    if room is not None:
+        try:
+            await room.stop()
+        except RuntimeError:
+            pass
+        except Exception as exc:
+            logger.debug("Failed to stop YRoom %s: %s", workflow_id, exc)
+    if task is not None:
+        task.cancel()
 
 
 async def _get_doc(workflow_id: str) -> pycrdt.Doc:
-    """Get or create a :class:`pycrdt.Doc` for *workflow_id*, loading persisted state.
-
-    The document has the flat top-level map structure expected by the
-    frontend: ``meta``, ``nodes``, ``edges``, ``groups``, ``viewport``.
-    """
-    if workflow_id in _doc_cache:
-        return _doc_cache[workflow_id]
-
-    lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
-    async with lock:
-        if workflow_id in _doc_cache:
-            return _doc_cache[workflow_id]
-
-        try:
-            doc = await asyncio.to_thread(load_doc_from_db, workflow_id)
-        except Exception as exc:
-            logger.warning("Failed to load persisted state for %s: %s", workflow_id, exc)
-            doc = None
-        if doc is not None:
-            logger.debug("Loaded persisted state for %s", workflow_id)
-        else:
-            doc = pycrdt.Doc()
-
-            # Initialise top-level maps (matching the frontend structure)
-            with doc.transaction():
-                meta = doc.get("meta", type=pycrdt.Map)
-                meta["id"] = workflow_id
-                meta["version"] = 1
-                meta["name"] = "Untitled"
-                meta["createdAt"] = datetime.now(timezone.utc).isoformat()
-                meta["lastModified"] = ""
-                doc.get("nodes", type=pycrdt.Map)
-                doc.get("edges", type=pycrdt.Map)
-                doc.get("groups", type=pycrdt.Map)
-                viewport = doc.get("viewport", type=pycrdt.Map)
-                viewport["x"] = 0
-                viewport["y"] = 0
-                viewport["scale"] = 1.0
-
-        # Persist future updates (observer fires on every document change)
-        if workflow_id not in _doc_observers:
-
-            def _on_change(event: Any, *, _wid: str = workflow_id) -> None:
-                """Callback invoked by pycrdt when the document changes."""
-                update = getattr(event, "update", b"")
-                if update:
-                    try:
-                        task = asyncio.create_task(_persist_update(_wid, update))
-                        tasks = _persist_tasks.setdefault(_wid, set())
-                        tasks.add(task)
-                        task.add_done_callback(tasks.discard)
-                    except Exception as exc:  # pragma: no cover
-                        logger.warning("Failed to schedule persist task: %s", exc)
-
-            doc.observe(_on_change)
-            _doc_observers[workflow_id] = _on_change
-
-        _doc_cache[workflow_id] = doc
-        return doc
-
-
-async def _persist_update(workflow_id: str, update: bytes) -> None:
-    """Persist a CRDT update to SQLite (fire-and-forget)."""
-    try:
-        await asyncio.to_thread(persist_doc_update, workflow_id, update)
-    except Exception as exc:
-        logger.warning("Failed to persist update for %s: %s", workflow_id, exc)
-
-
-# ---------------------------------------------------------------------------
-# Broadcast helpers
-# ---------------------------------------------------------------------------
-
-async def _broadcast_to_room(
-    workflow_id: str,
-    data: bytes,
-    exclude: WebSocket | None = None,
-    room_sockets: dict[str, list[WebSocket]] | None = None,
-) -> None:
-    """Broadcast *data* to all WebSockets in a room except *exclude*."""
-    if room_sockets is None:
-        return
-    targets = [ws for ws in tuple(room_sockets.get(workflow_id, [])) if ws is not exclude]
-    if not targets:
-        return
-    results = await asyncio.gather(
-        *(ws.send_bytes(data) for ws in targets),
-        return_exceptions=True,
-    )
-    failed = {ws for ws, result in zip(targets, results) if isinstance(result, Exception)}
-    if failed and workflow_id in room_sockets:
-        room_sockets[workflow_id] = [ws for ws in room_sockets[workflow_id] if ws not in failed]
-        if not room_sockets[workflow_id]:
-            del room_sockets[workflow_id]
-            await _cleanup_doc_cache(workflow_id)
+    """Return the active room document or load one from pycrdt-store."""
+    room = _room_cache.get(workflow_id)
+    if room is not None:
+        return room.ydoc
+    return await _new_doc(workflow_id)
 
 
 def _room_presence_payload(
     workflow_id: str,
     room_sockets: dict[str, list[WebSocket]],
 ) -> dict[str, Any]:
-    """Build a lightweight roster from authenticated sockets in one room."""
     users: list[dict[str, str]] = []
     for socket in room_sockets.get(workflow_id, []):
         presence = getattr(socket.state, "yjs_presence", None)
@@ -224,7 +229,6 @@ async def _broadcast_room_presence(
     workflow_id: str,
     room_sockets: dict[str, list[WebSocket]],
 ) -> None:
-    """Tell each browser which authenticated sockets are in its room."""
     message = json.dumps(_room_presence_payload(workflow_id, room_sockets))
     targets = tuple(room_sockets.get(workflow_id, []))
     if not targets:
@@ -244,17 +248,15 @@ async def _broadcast_room_presence(
 
 
 def _replace_flat_snapshot(doc: pycrdt.Doc, snapshot: dict[str, Any]) -> None:
-    """Replace the flat workflow maps in *doc* with *snapshot* values."""
     with doc.transaction():
         for map_name in CRDT_TOP_LEVEL_MAPS:
             target = doc.get(map_name, type=pycrdt.Map)
             for key in list(dict(target).keys()):
                 del target[key]
             values = snapshot.get(map_name, {})
-            if not isinstance(values, dict):
-                continue
-            for key, value in values.items():
-                target[str(key)] = value
+            if isinstance(values, dict):
+                for key, value in values.items():
+                    target[str(key)] = value
 
 
 async def publish_flat_snapshot_to_room(
@@ -262,13 +264,13 @@ async def publish_flat_snapshot_to_room(
     snapshot: dict[str, Any],
     room_sockets: dict[str, list[WebSocket]] | None = None,
 ) -> dict[str, Any]:
-    """Replace a room document with a flat snapshot and broadcast it.
+    """Replace a room document with a flat snapshot.
 
-    This is used by REST endpoints for higher-level workflow operations such as
-    loading a template. It complements the incremental Yjs socket path so a
-    newly-following collaborator can hydrate the exact room graph even if the
-    browser's first local update was made before the socket sender was ready.
+    Active rooms broadcast through pycrdt-websocket's YRoom observer. Inactive
+    rooms are persisted as a full update through pycrdt-store so the next
+    collaborator hydrates the same instance.
     """
+    del room_sockets
     snapshot = dict(snapshot)
     meta = dict(snapshot.get("meta") or {})
     meta["id"] = workflow_id
@@ -277,27 +279,12 @@ async def publish_flat_snapshot_to_room(
     meta["lastModified"] = datetime.now(timezone.utc).isoformat()
     snapshot["meta"] = meta
 
-    doc = await _get_doc(workflow_id)
-    lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
-    async with lock:
-        _replace_flat_snapshot(doc, snapshot)
-        full_update = doc.get_update(b"\x00")
-
-    if full_update:
-        # A full Yjs update is valid as an incremental update; clients merge it
-        # idempotently into their current document.
-        await _broadcast_to_room(
-            workflow_id,
-            bytes([MSG_SYNC, SYNC_UPDATE]) + full_update,
-            room_sockets=room_sockets,
-        )
-
+    active_room = _room_cache.get(workflow_id)
+    doc = active_room.ydoc if active_room is not None else await _new_doc(workflow_id)
+    _replace_flat_snapshot(doc, snapshot)
+    if active_room is None:
+        await asyncio.to_thread(persist_doc_update, workflow_id, doc.get_update(b"\x00"))
     return snapshot
-
-
-# ---------------------------------------------------------------------------
-# WebSocket endpoint (native Yjs protocol)
-# ---------------------------------------------------------------------------
 
 
 @yjs_router.websocket("/ws/collab/{workflow_id}")
@@ -309,42 +296,15 @@ async def yjs_websocket(
     color: str = Query(default="#3b82f6"),
     session_id: str = Query(default=""),
 ) -> None:
-    """Native Yjs WebSocket endpoint.
-
-    Uses the standard y-protocols binary format:
-
-    - ``[0] [sync_type] [payload]`` for sync messages
-    - ``[1] [awareness_bytes]`` for awareness
-
-    Query parameters
-    ----------------
-    - ``token`` — JWT authentication token (required).
-    - ``name`` — Optional display name for local presentation only.
-    - ``color`` — Hex colour for cursor / presence.
-    """
-    # ------------------------------------------------------------------
-    # 0. Parse query parameters
-    # ------------------------------------------------------------------
+    del token, name
     query_params = dict(websocket.query_params)
-
-    # ------------------------------------------------------------------
-    # 1. JWT Authentication
-    # ------------------------------------------------------------------
     auth_payload = get_auth_ws(query_params)
     if auth_payload is None:
         await websocket.accept()
         await websocket.close(code=4401, reason="Unauthorized")
         return
 
-    jwt_user_id = auth_payload.get("sub", "")
-
-    # Identity must come from the signed JWT. Query-string identity override
-    # was part of the MVP protocol and allowed impersonation.
-    effective_user_id = jwt_user_id or generate_user_id()
-
-    # ------------------------------------------------------------------
-    # 2. Permission check
-    # ------------------------------------------------------------------
+    effective_user_id = auth_payload.get("sub", "") or generate_user_id()
     permissions = _permissions_for_websocket(websocket)
     permissions.ensure_owner(workflow_id, effective_user_id)
     if _open_room_join_enabled() and not permissions.can_read(workflow_id, effective_user_id):
@@ -355,33 +315,19 @@ async def yjs_websocket(
             invited_by="open-room-link",
         )
     read_only = not permissions.can_write(workflow_id, effective_user_id)
-
     if not permissions.can_read(workflow_id, effective_user_id):
         await websocket.accept()
         await websocket.close(code=4403, reason="Forbidden")
         return
 
-    # ------------------------------------------------------------------
-    # 3. Accept WebSocket (binary subprotocol if offered)
-    # ------------------------------------------------------------------
     subprotocols = websocket.scope.get("subprotocols", [])
-    if "b-yjs" in subprotocols:
-        await websocket.accept(subprotocol="b-yjs")
-    else:
-        await websocket.accept()
+    await websocket.accept(subprotocol="b-yjs" if "b-yjs" in subprotocols else None)
 
-    # ------------------------------------------------------------------
-    # 4. Resolve managers
-    # ------------------------------------------------------------------
     rate_limiter = _rate_limiter_for_websocket(websocket)
     store = _store_for_websocket(websocket)
-
-    # ------------------------------------------------------------------
-    # 5. Room sockets (managed on app.state)
-    # ------------------------------------------------------------------
     room_sockets = websocket.app.state.yjs_room_sockets
-    if workflow_id not in room_sockets:
-        room_sockets[workflow_id] = []
+    room_sockets.setdefault(workflow_id, [])
+
     safe_session_id = session_id if session_id.replace("-", "").replace("_", "").isalnum() else ""
     websocket.state.yjs_presence = {
         "session_id": safe_session_id[:80] or uuid.uuid4().hex,
@@ -394,182 +340,34 @@ async def yjs_websocket(
     room_sockets[workflow_id].append(websocket)
     await _broadcast_room_presence(workflow_id, room_sockets)
 
-    # ------------------------------------------------------------------
-    # 6. Load / create pycrdt document
-    # ------------------------------------------------------------------
-    doc = await _get_doc(workflow_id)
+    room = await _get_room(workflow_id)
+    channel = FastAPIYChannel(
+        websocket,
+        workflow_id=workflow_id,
+        user_id=effective_user_id,
+        read_only=read_only,
+        rate_limiter=rate_limiter,
+        store=store,
+    )
 
-    # ------------------------------------------------------------------
-    # 7. Send initial SyncStep2 (full document update)
-    # ------------------------------------------------------------------
     try:
-        lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
-        async with lock:
-            full_update = doc.get_update(b"\x00")
-        if full_update:
-            # Native Yjs: [MSG_SYNC=0] [SYNC_STEP2=1] [full_update_bytes]
-            response = bytes([MSG_SYNC, SYNC_STEP2]) + full_update
-            await websocket.send_bytes(response)
-            logger.debug(
-                "Sent initial SyncStep2 (%d bytes) to %s",
-                len(full_update),
-                effective_user_id,
-            )
-    except Exception as exc:
-        logger.warning("Failed to send initial SyncStep2: %s", exc)
-
-    # ------------------------------------------------------------------
-    # 8. Main read loop
-    # ------------------------------------------------------------------
-    try:
-        while True:
-            try:
-                data = await websocket.receive_bytes()
-            except WebSocketDisconnect:
-                raise
-            except Exception as exc:
-                logger.debug("Receive error from %s: %s", effective_user_id, exc)
-                break
-
-            if len(data) < 1:
-                continue
-
-            msg_type = data[0]
-
-            # ---- Sync messages (type 0) ----
-            if msg_type == MSG_SYNC:
-                if len(data) < 2:
-                    continue
-
-                sync_type = data[1]
-                payload = data[2:]
-
-                # -- SyncStep1: client sends state vector, server replies with diff --
-                if sync_type == SYNC_STEP1:
-                    if not rate_limiter.check(websocket, "sync"):
-                        continue
-                    try:
-                        lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
-                        async with lock:
-                            diff = doc.get_update(bytes(payload))
-                        if diff:
-                            # Native Yjs: [MSG_SYNC=0] [SYNC_STEP2=1] [diff_bytes]
-                            response = bytes([MSG_SYNC, SYNC_STEP2]) + diff
-                            await websocket.send_bytes(response)
-                            logger.debug(
-                                "Sent SyncStep2 diff (%d bytes) to %s",
-                                len(diff),
-                                effective_user_id,
-                            )
-                    except Exception as exc:
-                        logger.warning("SyncStep1 failed for %s: %s", effective_user_id, exc)
-                    continue
-
-                # -- SyncStep2: client receiving diff (server-to-client only) --
-                elif sync_type == SYNC_STEP2:
-                    # Client shouldn't send SyncStep2; ignore gracefully
-                    logger.debug("Ignoring client-originated SyncStep2 from %s", effective_user_id)
-                    continue
-
-                # -- Update: client sends incremental update --
-                elif sync_type == SYNC_UPDATE:
-                    if read_only:
-                        continue
-
-                    # Rate limit
-                    if not rate_limiter.check(websocket, "update"):
-                        logger.debug(
-                            "Rate limit exceeded for update from %s", effective_user_id
-                        )
-                        continue
-
-                    try:
-                        lock = _doc_locks.setdefault(workflow_id, asyncio.Lock())
-                        async with lock:
-                            doc.apply_update(bytes(payload))
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to apply CRDT update from %s: %s",
-                            effective_user_id,
-                            exc,
-                        )
-                        continue
-
-                    # Broadcast to other room members (same native format)
-                    await _broadcast_to_room(
-                        workflow_id,
-                        data,  # already in native format: [0] [2] [payload]
-                        exclude=websocket,
-                        room_sockets=room_sockets,
-                    )
-
-                    # Audit log (fire-and-forget)
-                    try:
-                        store.add_audit_entry(
-                            CollabAuditLogEntry(
-                                workflow_id=workflow_id,
-                                user_id=effective_user_id,
-                                action="crdt_update",
-                                payload={"update_bytes": len(payload)},
-                            )
-                        )
-                    except Exception:
-                        pass
-                    continue
-
-            # ---- Awareness messages (type 1) ----
-            elif msg_type == MSG_AWARENESS:
-                payload = data[1:]
-
-                # Rate limit
-                if not rate_limiter.check(websocket, "awareness"):
-                    continue
-
-                # Transparent relay to all other room members
-                await _broadcast_to_room(
-                    workflow_id,
-                    data,  # already in native format: [1] [awareness_bytes]
-                    exclude=websocket,
-                    room_sockets=room_sockets,
-                )
-                continue
-
-            # ---- Unknown message type ----
-            else:
-                logger.debug(
-                    "Unknown Yjs message type %d from %s", msg_type, effective_user_id
-                )
-
+        await room.serve(channel)
     except WebSocketDisconnect:
-        logger.debug(
-            "Yjs WS disconnected: workflow=%s user=%s", workflow_id, effective_user_id
-        )
+        logger.debug("Yjs WS disconnected: workflow=%s user=%s", workflow_id, effective_user_id)
     except Exception as exc:
-        logger.warning(
-            "Yjs WS error: workflow=%s user=%s exc=%s",
-            workflow_id,
-            effective_user_id,
-            exc,
-        )
+        logger.warning("Yjs WS error: workflow=%s user=%s exc=%s", workflow_id, effective_user_id, exc)
     finally:
-        # ------------------------------------------------------------------
-        # 9. Cleanup
-        # ------------------------------------------------------------------
         rate_limiter.reset(websocket)
-
-        # Remove from room
         if workflow_id in room_sockets:
             try:
                 room_sockets[workflow_id].remove(websocket)
-                if not room_sockets[workflow_id]:
-                    del room_sockets[workflow_id]
-                    await _cleanup_doc_cache(workflow_id)
-                else:
-                    await _broadcast_room_presence(workflow_id, room_sockets)
             except ValueError:
                 pass
-
-        # Close websocket gracefully
+            if not room_sockets[workflow_id]:
+                del room_sockets[workflow_id]
+                await _cleanup_doc_cache(workflow_id)
+            else:
+                await _broadcast_room_presence(workflow_id, room_sockets)
         try:
             await websocket.close()
         except Exception:

@@ -1,5 +1,6 @@
 import React from 'react';
 import Icon from '../components/ui/Icon';
+import { getCommentPinSize } from './commentLayout';
 
 interface CommentPinProps {
   commentCount: number;
@@ -23,6 +24,8 @@ const CommentPin: React.FC<CommentPinProps> = ({
 }) => {
   if (commentCount === 0) return null;
 
+  const size = getCommentPinSize(commentCount);
+
   return (
     <div
       onClick={onClick}
@@ -30,15 +33,16 @@ const CommentPin: React.FC<CommentPinProps> = ({
       title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}${hasUnresolved ? ` (${commentCount} unresolved)` : ''}`}
       style={{
         position: 'absolute',
-        left: x + 8,
-        top: y - 28,
+        left: x,
+        top: y,
         zIndex: 30,
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        minWidth: 24,
-        height: 24,
+        width: size.width,
+        height: size.height,
+        boxSizing: 'border-box',
         borderRadius: 12,
         border: '1px solid var(--border)',
         background: 'var(--surface)',
@@ -73,4 +77,4 @@ const CommentPin: React.FC<CommentPinProps> = ({
   );
 };
 
-export default CommentPin;
+export default React.memo(CommentPin);

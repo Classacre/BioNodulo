@@ -16,6 +16,10 @@ from slowapi.extension import _rate_limit_exceeded_handler
 
 from bionodulo.api.rate_limits import RateLimitExceeded, SlowAPIMiddleware, limiter
 from bionodulo.api.routes import router
+from bionodulo.api.ai_routes import ai_router
+from bionodulo.api.auth_routes import auth_router
+from bionodulo.api.collab_runtime_routes import collab_runtime_router
+from bionodulo.api.settings_routes import settings_router
 from bionodulo.api.websocket import websocket_router
 from bionodulo.api.collab_routes import collab_api_router
 from bionodulo.collab.yjs_native_handler import yjs_router
@@ -143,6 +147,10 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
+    app.include_router(ai_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(collab_runtime_router, prefix="/api")
     app.include_router(collab_api_router, prefix="/api")
     app.include_router(websocket_router)
     app.include_router(yjs_router)

@@ -31,6 +31,7 @@ import uuid
 from typing import Any
 
 import jwt
+from fastapi_users.jwt import decode_jwt, generate_jwt
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ if not JWT_SECRET:
     )
 
 JWT_ALGORITHM = "HS256"
+JWT_AUDIENCE = "bionodulo:auth"
 DEFAULT_EXPIRY_HOURS = 24
 
 
@@ -71,10 +73,14 @@ def create_token(
         "name": name,
         "role": role,
         "iat": now,
-        "exp": now + (expiry_hours * 3600),
+        "aud": JWT_AUDIENCE,
     }
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    return token
+    return generate_jwt(
+        payload,
+        JWT_SECRET,
+        lifetime_seconds=expiry_hours * 3600,
+        algorithm=JWT_ALGORITHM,
+    )
 
 
 def validate_token(token: str) -> dict[str, Any] | None:
@@ -88,12 +94,14 @@ def validate_token(token: str) -> dict[str, Any] | None:
         malformed, or has an invalid signature.
     """
     try:
-        payload = jwt.decode(
+        payload = decode_jwt(
             token,
             JWT_SECRET,
+            audience=[JWT_AUDIENCE],
             algorithms=[JWT_ALGORITHM],
-            options={"require": ["sub", "exp"]},
         )
+        if not payload.get("sub"):
+            return None
         return payload
     except jwt.ExpiredSignatureError:
         logger.debug("JWT validation failed: expired signature")
