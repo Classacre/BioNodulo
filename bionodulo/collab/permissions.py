@@ -12,12 +12,38 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import casbin
+
 from bionodulo.collab.models import CollabStore, WorkflowShare
 
 logger = logging.getLogger(__name__)
 
 # Role precedence (higher index = more privileges)
 _ROLE_RANK = {"viewer": 0, "commenter": 1, "editor": 2, "owner": 3}
+
+_CASBIN_MODEL = """
+[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[role_definition]
+g = _, _, _
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = g(r.sub, p.sub, r.obj) && (p.obj == "*" || p.obj == r.obj) && r.act == p.act
+"""
+
+_ROLE_ACTIONS = {
+    "viewer": ("read",),
+    "commenter": ("read", "comment"),
+    "editor": ("read", "comment", "write", "execute"),
+    "owner": ("read", "comment", "write", "execute", "share"),
+}
 
 
 class PermissionChecker:
@@ -35,12 +61,16 @@ class PermissionChecker:
         self._store = store or CollabStore(":memory:")
         self._fallback_file = fallback_file
         self._cache: dict[str, dict[str, str]] = {}  # workflow_id -> {user_id: role}
+        self._enforcer = _build_enforcer()
         if fallback_file and fallback_file.exists():
             try:
                 raw = json.loads(fallback_file.read_text(encoding="utf-8"))
                 self._cache = raw.get("permissions", {})
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Could not load permission cache: %s", exc)
+        for workflow_id, users in self._cache.items():
+            for user_id, role in users.items():
+                self._sync_role(workflow_id, user_id, role)
 
     # ------------------------------------------------------------------
     # Core checks
@@ -48,33 +78,30 @@ class PermissionChecker:
 
     def can_read(self, workflow_id: str, user_id: str) -> bool:
         """Return True if the user has any role on the workflow."""
-        role = self.get_role(workflow_id, user_id)
-        return role is not None
+        return self._can(workflow_id, user_id, "read")
 
     def can_write(self, workflow_id: str, user_id: str) -> bool:
         """Return True if user is editor or owner."""
-        role = self.get_role(workflow_id, user_id)
-        return role in ("editor", "owner")
+        return self._can(workflow_id, user_id, "write")
 
     def can_comment(self, workflow_id: str, user_id: str) -> bool:
         """Return True if user can add comments without editing the graph."""
-        role = self.get_role(workflow_id, user_id)
-        return role in ("commenter", "editor", "owner")
+        return self._can(workflow_id, user_id, "comment")
 
     def can_execute(self, workflow_id: str, user_id: str) -> bool:
         """Return True if user is editor or owner."""
-        return self.can_write(workflow_id, user_id)
+        return self._can(workflow_id, user_id, "execute")
 
     def can_share(self, workflow_id: str, user_id: str) -> bool:
         """Return True if user is owner."""
-        role = self.get_role(workflow_id, user_id)
-        return role == "owner"
+        return self._can(workflow_id, user_id, "share")
 
     def get_role(self, workflow_id: str, user_id: str) -> str | None:
         """Resolve the user's role, falling back to cached / in-memory data."""
         # 1. In-memory cache
         cached = self._cache.get(workflow_id, {}).get(user_id)
         if cached:
+            self._sync_role(workflow_id, user_id, cached)
             return cached
 
         # 2. SQLite store
@@ -82,6 +109,7 @@ class PermissionChecker:
         if db_role:
             # Warm cache
             self._cache.setdefault(workflow_id, {})[user_id] = db_role
+            self._sync_role(workflow_id, user_id, db_role)
             return db_role
 
         # 3. Default: first user to touch a workflow becomes owner
@@ -101,6 +129,7 @@ class PermissionChecker:
             )
             self._store.add_share(share)
             self._cache.setdefault(workflow_id, {})[user_id] = "owner"
+            self._sync_role(workflow_id, user_id, "owner")
             logger.info("Auto-assigned owner for workflow %s to user %s", workflow_id, user_id)
 
     # ------------------------------------------------------------------
@@ -125,6 +154,7 @@ class PermissionChecker:
         )
         self._store.add_share(share)
         self._cache.setdefault(workflow_id, {})[user_id] = role
+        self._sync_role(workflow_id, user_id, role)
         self._persist_cache()
         return share
 
@@ -136,6 +166,7 @@ class PermissionChecker:
             return False
         self._store.delete_share(target.id)
         self._cache.get(workflow_id, {}).pop(user_id, None)
+        self._remove_role(workflow_id, user_id)
         self._persist_cache()
         return True
 
@@ -159,3 +190,29 @@ class PermissionChecker:
             )
         except OSError as exc:
             logger.warning("Failed to persist permission cache: %s", exc)
+
+    def _can(self, workflow_id: str, user_id: str, action: str) -> bool:
+        role = self.get_role(workflow_id, user_id)
+        if role is None:
+            return False
+        self._sync_role(workflow_id, user_id, role)
+        return bool(self._enforcer.enforce(user_id, workflow_id, action))
+
+    def _sync_role(self, workflow_id: str, user_id: str, role: str) -> None:
+        self._remove_role(workflow_id, user_id)
+        self._enforcer.add_grouping_policy(user_id, role, workflow_id)
+
+    def _remove_role(self, workflow_id: str, user_id: str) -> None:
+        for policy in list(self._enforcer.get_filtered_grouping_policy(0, user_id)):
+            if len(policy) >= 3 and policy[2] == workflow_id:
+                self._enforcer.remove_grouping_policy(*policy)
+
+
+def _build_enforcer() -> casbin.Enforcer:
+    model = casbin.Model()
+    model.load_model_from_text(_CASBIN_MODEL)
+    enforcer = casbin.Enforcer(model)
+    for role, actions in _ROLE_ACTIONS.items():
+        for action in actions:
+            enforcer.add_policy(role, "*", action)
+    return enforcer

@@ -6,8 +6,10 @@ via the workflow context.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shlex
+import tempfile
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Union
 
@@ -238,16 +240,23 @@ class CommandNode(BaseNode):
             output_dir = getattr(context, "node_dir", ".")
 
         real_output_dir = output_dir
-        symlink = None
+        symlink: Path | None = None
+        temp_workspace: tempfile.TemporaryDirectory[str] | None = None
         # Some bioinformatics tools crash when paths contain spaces.
         # Create a temporary symlink to a space-free path for command execution,
         # while keeping the real output_dir for planning returns.
         if output_dir is not None and " " in str(output_dir):
-            import os
-            import tempfile
-            symlink = tempfile.mktemp(prefix=f"{self.__class__.NODE_ID}_")
-            os.symlink(str(output_dir), symlink)
-            output_dir = symlink
+            real_output_path = Path(output_dir)
+            real_output_path.mkdir(parents=True, exist_ok=True)
+            temp_workspace = tempfile.TemporaryDirectory(prefix=f"{self.__class__.NODE_ID}_")
+            symlink = Path(temp_workspace.name) / "out"
+            try:
+                os.symlink(str(real_output_path), symlink, target_is_directory=True)
+                output_dir = symlink
+            except OSError:
+                temp_workspace.cleanup()
+                temp_workspace = None
+                symlink = None
 
         # Compute the node's output directory (where PLAN_OUTPUTS places files).
         # Use this for command rendering so that commands which write to
@@ -286,7 +295,7 @@ class CommandNode(BaseNode):
                 result = await context.run_command(
                     cmd,
                     env=self.__class__.ENV_VARS or None,
-                    cwd=self.__class__.WORKING_DIR,
+                    cwd=self.__class__.WORKING_DIR or output_dir,
                 )
             else:
                 # Fallback: direct subprocess execution via run_subprocess
@@ -311,5 +320,9 @@ class CommandNode(BaseNode):
             return tuple(str(p) for p in outputs)
         finally:
             if symlink is not None:
-                import os
-                os.unlink(symlink)
+                try:
+                    symlink.unlink()
+                except OSError:
+                    pass
+            if temp_workspace is not None:
+                temp_workspace.cleanup()

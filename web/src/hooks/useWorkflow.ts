@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../types';
 import { getToken } from '../collab/auth';
 
@@ -57,6 +57,7 @@ export function useWorkflow() {
   const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
   const [resolveReport, setResolveReport] = useState<ResolveReport | null>(null);
+  const resolveRequestIdRef = useRef(0);
 
   const clearResolveReport = useCallback(() => {
     setResolveReport(null);
@@ -140,6 +141,7 @@ export function useWorkflow() {
   }, []);
 
   const resolve = useCallback(async (wf: Workflow) => {
+    const requestId = ++resolveRequestIdRef.current;
     try {
       const r = await fetch('/api/manager/resolve', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -147,15 +149,17 @@ export function useWorkflow() {
       });
       if (r.ok) {
         const data = await r.json() as ResolveReport;
-        console.log('[useWorkflow.resolve] got report:', data.summary, 'has_issues:', data.has_issues);
-        setResolveReport(data);
+        if (requestId === resolveRequestIdRef.current) {
+          setResolveReport(data);
+        }
         return data;
       }
-      console.warn('[useWorkflow.resolve] server returned', r.status, await r.text());
     } catch (err) {
-      console.error('[useWorkflow.resolve] fetch failed:', err);
+      void err;
     }
-    setResolveReport(null);
+    if (requestId === resolveRequestIdRef.current) {
+      setResolveReport(null);
+    }
     return null;
   }, []);
 

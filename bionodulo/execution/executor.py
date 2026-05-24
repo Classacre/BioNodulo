@@ -114,7 +114,9 @@ class ExecutionContext:
         wrapped_cmd: str | list[str] = cmd
         if self.env_prefix:
             if isinstance(cmd, str):
-                wrapped_cmd = " ".join(self.env_prefix) + " " + cmd
+                import shlex
+
+                wrapped_cmd = " ".join(shlex.quote(part) for part in self.env_prefix) + " " + cmd
             else:
                 wrapped_cmd = self.env_prefix + list(cmd)
 
@@ -331,7 +333,8 @@ class WorkflowExecutor:
 
             # ---- Compute cache key ----
             cache_key = None
-            if not force:
+            forced_node = force or node_id in force_nodes
+            if not forced_node:
                 cache_key = self.cache.cache_key_for_node(
                     node_id=node_id,
                     node_type=node_type,
@@ -342,7 +345,7 @@ class WorkflowExecutor:
             node_cache_keys[node_id] = cache_key
 
             # ---- Cache hit check ----
-            if cache_key is not None and node_id not in force_nodes and self.cache.is_hit(cache_key):
+            if cache_key is not None and self.cache.is_hit(cache_key):
                 marker = self.cache.read_marker(cache_key)
                 cached_outputs = marker.get("outputs", {}) if marker else {}
                 emit(

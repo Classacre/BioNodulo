@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
-import { IndexeddbPersistence } from 'y-indexeddb';
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness';
 import { createWorkflowDoc, workflowToDoc, docToWorkflow } from './yjsDoc';
 import { useAwareness } from './useAwareness';
@@ -39,7 +38,7 @@ interface UseCollabReturn {
   localSessionId: string;
   connected: boolean;
   connecting: boolean;
-  offline: boolean; // true when browser is offline (IndexedDB active)
+  offline: boolean; // true when browser is offline
   activeUsers: AwarenessState[];
   localAwareness: AwarenessState;
   setCursor: (cursor: AwarenessState['cursor']) => void;
@@ -335,9 +334,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     setReconnectAttempt(0);
     shouldReconnectRef.current = true;
 
-    // Initialize offline IndexedDB persistence
-    const persistence = new IndexeddbPersistence(workflowId, ydoc);
-
     // Track browser online/offline state
     const handleOnline = () => setOffline(false);
     const handleOffline = () => setOffline(true);
@@ -436,7 +432,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       }
       aw.destroy();
       setAwareness(null);
-      persistence.destroy();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };

@@ -7,6 +7,8 @@ export {
 export {
   getToken,
   setToken,
+  setAuthUser,
+  setAuthSession,
   clearToken,
   getAuthUser,
   fetchToken,

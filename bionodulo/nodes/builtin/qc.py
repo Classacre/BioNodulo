@@ -24,6 +24,13 @@ class FastQCNode(CommandNode):
     REQUIRED_EXECUTABLES = ["fastqc"]
     DOCUMENTATION_URL = "https://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
     VERSION = "0.12.1"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        report_dir = Path(output_dir) / cls.NODE_ID / "report_dir.out"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        return [report_dir]
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         outdir = str(inputs.get("output", inputs.get("output_dir", ".")))
@@ -77,19 +84,6 @@ class FastQCNode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Run FastQC and return the output directory."""
-        output_dir = kwargs.get("output_dir")
-        ctx = kwargs.get("context")
-        if output_dir is None and ctx is not None:
-            output_dir = getattr(ctx, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        report_dir = Path(output_dir) / self.NODE_ID / "report_dir.out"
-        report_dir.mkdir(parents=True, exist_ok=True)
-        await super().run(**kwargs)
-        return {"outputs": {"report_dir": str(report_dir)}}
-
 
 class MultiQCNode(CommandNode):
     """Aggregate QC reports with MultiQC."""
@@ -104,6 +98,11 @@ class MultiQCNode(CommandNode):
     REQUIRED_EXECUTABLES = ["multiqc"]
     DOCUMENTATION_URL = "https://multiqc.info/"
     VERSION = "1.33"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [Path(output_dir) / cls.NODE_ID / str(inputs.get("filename") or "report.out")]
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         reports = inputs.get("reports", "")
@@ -113,7 +112,7 @@ class MultiQCNode(CommandNode):
             "multiqc",
             *reports,
             "--outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
-            "--filename", "report.out",
+            "--filename", str(inputs.get("filename") or "report.out"),
         ]
         if inputs.get("title"):
             cmd.extend(["--title", str(inputs["title"])])
@@ -140,19 +139,6 @@ class MultiQCNode(CommandNode):
             },
         }
 
-    async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Run MultiQC and return the report path."""
-        output_dir = kwargs.get("output_dir")
-        ctx = kwargs.get("context")
-        if output_dir is None and ctx is not None:
-            output_dir = getattr(ctx, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        await super().run(**kwargs)
-        from pathlib import Path
-        report = Path(output_dir) / self.NODE_ID / "report.out"
-        return {"outputs": {"report": str(report)}}
-
 
 class QualiMapNode(CommandNode):
     """Run QualiMap BAM QC analysis."""
@@ -167,6 +153,12 @@ class QualiMapNode(CommandNode):
     REQUIRED_CONDA_PACKAGES = ['qualimap']
     DOCUMENTATION_URL = "http://qualimap.conesalab.org/"
     VERSION = "2.3"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        return [out / "report.html", out / "report_dir.out"]
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         cmd = [
@@ -201,24 +193,12 @@ class QualiMapNode(CommandNode):
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Run QualiMap and return the report path and directory."""
-        output_dir = kwargs.get("output_dir")
-        ctx = kwargs.get("context")
-        if output_dir is None and ctx is not None:
-            output_dir = getattr(ctx, "node_dir", ".")
-        if output_dir is None:
-            output_dir = "."
-        await super().run(**kwargs)
-        from pathlib import Path
-        out = Path(output_dir) / self.NODE_ID
-        report = out / "report.html"
-        report_dir = out / "report_dir.out"
+        """Run QualiMap and normalize its report filename."""
+        result = await super().run(**kwargs)
+        outputs = result.get("outputs", {}) if isinstance(result, dict) else {}
+        report = Path(str(outputs.get("report", "")))
+        report_dir = Path(str(outputs.get("report_dir", "")))
         src = report_dir / "qualimapReport.html"
         if src.exists():
             src.rename(report)
-        return {
-            "outputs": {
-                "report": str(report),
-                "report_dir": str(report_dir),
-            }
-        }
+        return result

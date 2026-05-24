@@ -15,8 +15,9 @@ This module integrates with:
 from __future__ import annotations
 
 import logging
+import asyncio
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
@@ -245,17 +246,7 @@ class RoomManager:
         room = self.rooms.get(workflow_id)
         if room is None:
             return
-
-        dead: list[WebSocket] = []
-        for ws in room.iter_sockets(exclude=exclude):
-            try:
-                await ws.send_json(message)
-            except Exception:
-                dead.append(ws)
-
-        # Prune dead sockets silently
-        for ws in dead:
-            room.remove(ws)
+        await self._send_to_room(room, lambda ws: ws.send_json(message), exclude=exclude)
 
     async def broadcast_binary(
         self,
@@ -273,15 +264,18 @@ class RoomManager:
         room = self.rooms.get(workflow_id)
         if room is None:
             return
+        await self._send_to_room(room, lambda ws: ws.send_bytes(data), exclude=exclude)
 
-        dead: list[WebSocket] = []
-        for ws in room.iter_sockets(exclude=exclude):
-            try:
-                await ws.send_bytes(data)
-            except Exception:
-                dead.append(ws)
-
-        # Prune dead sockets silently
+    async def _send_to_room(
+        self,
+        room: Room,
+        sender: Callable[[WebSocket], Awaitable[Any]],
+        exclude: WebSocket | None = None,
+    ) -> None:
+        """Send to all room sockets concurrently and prune failures."""
+        sockets = room.iter_sockets(exclude=exclude)
+        results = await asyncio.gather(*(sender(ws) for ws in sockets), return_exceptions=True)
+        dead = [ws for ws, result in zip(sockets, results) if isinstance(result, Exception)]
         for ws in dead:
             room.remove(ws)
 

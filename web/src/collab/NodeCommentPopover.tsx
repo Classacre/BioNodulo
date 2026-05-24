@@ -55,6 +55,15 @@ export default function NodeCommentPopover({
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const width = 300;
+  const maxHeight = 380;
+  const viewportPadding = 12;
+  const left = typeof window === 'undefined'
+    ? x
+    : Math.max(viewportPadding, Math.min(x, window.innerWidth - width - viewportPadding));
+  const top = typeof window === 'undefined'
+    ? y
+    : Math.max(viewportPadding, Math.min(y, window.innerHeight - maxHeight - viewportPadding));
 
   const post = async (text: string, parentId: string | null) => {
     if (!text.trim()) return;
@@ -93,11 +102,11 @@ export default function NodeCommentPopover({
   return (
     <div style={{
       position: 'absolute',
-      left: x,
-      top: y,
+      left,
+      top,
       zIndex: 225,
-      width: 300,
-      maxHeight: 380,
+      width,
+      maxHeight,
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--surface)',

@@ -34,6 +34,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 import pycrdt
 
+from bionodulo.api.app_state import app_state_from_app
 from bionodulo.collab.auth import get_auth_ws, generate_user_id
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
 from bionodulo.collab.permissions import PermissionChecker
@@ -67,44 +68,23 @@ def _open_room_join_enabled() -> bool:
     }
 
 # ---------------------------------------------------------------------------
-# Singletons (event-loop single-threaded — safe without locks)
+# App-state accessors
 # ---------------------------------------------------------------------------
 
-_store: CollabStore | None = None
-_permissions: PermissionChecker | None = None
-_rate_limiter: RateLimiter | None = None
+
+def _store_for_websocket(websocket: WebSocket) -> CollabStore:
+    """Return the shared collab store for this FastAPI app."""
+    return app_state_from_app(websocket.app).collab_store
 
 
-def _get_store() -> CollabStore:
-    """Return the collab store singleton."""
-    global _store
-    if _store is None:
-        from bionodulo.collab.persistence import _resolve_workspace_root
-
-        db_path = _resolve_workspace_root() / "collab.db"
-        _store = CollabStore(str(db_path))
-    return _store
+def _permissions_for_websocket(websocket: WebSocket) -> PermissionChecker:
+    """Return the shared permission checker for this FastAPI app."""
+    return app_state_from_app(websocket.app).permission_checker
 
 
-def _get_permissions() -> PermissionChecker:
-    """Return the permission checker singleton."""
-    global _permissions
-    if _permissions is None:
-        from bionodulo.collab.persistence import _resolve_workspace_root
-
-        _permissions = PermissionChecker(
-            store=_get_store(),
-            fallback_file=_resolve_workspace_root() / "permissions.json",
-        )
-    return _permissions
-
-
-def _get_rate_limiter() -> RateLimiter:
-    """Return the rate limiter singleton."""
-    global _rate_limiter
-    if _rate_limiter is None:
-        _rate_limiter = RateLimiter()
-    return _rate_limiter
+def _rate_limiter_for_websocket(websocket: WebSocket) -> RateLimiter:
+    """Return the shared rate limiter for this FastAPI app."""
+    return app_state_from_app(websocket.app).rate_limiter
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +345,7 @@ async def yjs_websocket(
     # ------------------------------------------------------------------
     # 2. Permission check
     # ------------------------------------------------------------------
-    permissions = _get_permissions()
+    permissions = _permissions_for_websocket(websocket)
     permissions.ensure_owner(workflow_id, effective_user_id)
     if _open_room_join_enabled() and not permissions.can_read(workflow_id, effective_user_id):
         permissions.grant(
@@ -393,8 +373,8 @@ async def yjs_websocket(
     # ------------------------------------------------------------------
     # 4. Resolve managers
     # ------------------------------------------------------------------
-    rate_limiter = _get_rate_limiter()
-    store = _get_store()
+    rate_limiter = _rate_limiter_for_websocket(websocket)
+    store = _store_for_websocket(websocket)
 
     # ------------------------------------------------------------------
     # 5. Room sockets (managed on app.state)

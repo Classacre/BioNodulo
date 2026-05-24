@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +12,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from slowapi.extension import _rate_limit_exceeded_handler
 
+from bionodulo.api.rate_limits import RateLimitExceeded, SlowAPIMiddleware, limiter
 from bionodulo.api.routes import router
 from bionodulo.api.websocket import websocket_router
 from bionodulo.api.collab_routes import collab_api_router
@@ -22,6 +23,7 @@ from bionodulo.collab.heartbeat import HeartbeatManager
 from bionodulo.collab.redis_broadcaster import RedisBroadcaster
 from bionodulo.core.config import Settings, SettingsManager
 from bionodulo.core.events import EventHub
+from bionodulo.core.workspace import ensure_examples_link, ensure_workspace_root
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.nodes.registry import NodeRegistry
@@ -38,30 +40,18 @@ def _default_collab_workflow() -> str | None:
 
 
 def create_app() -> FastAPI:
-    # Default workspace to project_dir/workspace if not overridden
-    if "BIONODULO_ROOT" not in os.environ:
-        project_dir = Path(__file__).resolve().parent
-        default_root = (project_dir / "workspace").resolve()
-        # Many bioinformatics tools cannot handle spaces in paths.
-        # Use a space-free fallback under the home directory.
-        if " " in str(default_root):
-            default_root = (Path.home() / ".bionodulo" / "workspace").resolve()
-        os.environ["BIONODULO_ROOT"] = str(default_root)
-        # Symlink examples into the workspace so templates can resolve them
-        examples_src = project_dir / "examples"
-        examples_dst = default_root / "examples"
-        if examples_src.exists() and not examples_dst.exists():
-            default_root.mkdir(parents=True, exist_ok=True)
-            try:
-                os.symlink(str(examples_src), str(examples_dst))
-            except OSError:
-                shutil.copytree(examples_src, examples_dst, dirs_exist_ok=True)
+    project_dir = Path(__file__).resolve().parent
+    workspace_root = ensure_workspace_root(project_dir)
+    ensure_examples_link(workspace_root, project_dir)
 
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
-        version="0.1.3",
+        version="0.1.5",
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     # CORS
     app.add_middleware(

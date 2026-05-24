@@ -28,6 +28,7 @@ from typing import Any
 
 import pycrdt
 
+from bionodulo.core.workspace import resolve_workspace_root
 from bionodulo.collab.models import WorkflowVersion
 
 logger = logging.getLogger(__name__)
@@ -71,14 +72,7 @@ _local = threading.local()
 
 def _db_path() -> Path:
     """Resolve the SQLite database path for CRDT storage."""
-    import os
-
-    root = os.environ.get("BIONODULO_ROOT", "")
-    if root:
-        path = Path(root) / "crdt_docs.db"
-    else:
-        project_dir = Path(__file__).resolve().parent.parent.parent
-        path = (project_dir / "workspace" / "crdt_docs.db").resolve()
+    path = resolve_workspace_root() / "crdt_docs.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 

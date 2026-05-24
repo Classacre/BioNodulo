@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { fetchToken, setToken, generateGuestName } from './auth';
+import { fetchToken, setAuthSession, generateGuestName } from './auth';
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -25,8 +25,8 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
     setIsLoading(true);
     setError(null);
     try {
-      const token = await fetchToken(displayName);
-      setToken(token);
+      const session = await fetchToken(displayName);
+      setAuthSession(session);
       onLogin(displayName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join');
@@ -40,8 +40,8 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
     setIsLoading(true);
     setError(null);
     try {
-      const token = await fetchToken(guestName);
-      setToken(token);
+      const session = await fetchToken(guestName);
+      setAuthSession(session);
       onLogin(guestName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join as guest');

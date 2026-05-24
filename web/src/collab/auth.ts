@@ -2,32 +2,11 @@ import type { AuthUser } from './types';
 import { getUserColor } from './utils';
 
 const TOKEN_KEY = 'bionodulo_auth_token';
+const USER_KEY = 'bionodulo_auth_user';
 
-/** Decode a Base64Url-encoded string (JWT-safe variant of Base64) */
-function base64UrlDecode(str: string): string {
-  // Replace Base64Url chars with standard Base64
-  let normalized = str.replace(/-/g, '+').replace(/_/g, '/');
-  // Add padding if needed
-  while (normalized.length % 4) {
-    normalized += '=';
-  }
-  try {
-    return atob(normalized);
-  } catch {
-    return '{}';
-  }
-}
-
-/** Extract the JWT payload without verifying the signature */
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  try {
-    const payloadJson = base64UrlDecode(parts[1]);
-    return JSON.parse(payloadJson) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+interface AuthSession {
+  token: string;
+  user: AuthUser;
 }
 
 /** Get the stored JWT token from localStorage */
@@ -48,30 +27,50 @@ export function setToken(token: string): void {
   }
 }
 
+/** Store authenticated user details returned by the backend */
+export function setAuthUser(user: AuthUser): void {
+  try {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    // Storage may be disabled or full
+  }
+}
+
+/** Store a complete authenticated session */
+export function setAuthSession(session: AuthSession): void {
+  setToken(session.token);
+  setAuthUser(session.user);
+}
+
 /** Remove the stored JWT token */
 export function clearToken(): void {
   try {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   } catch {
     // Storage may be disabled
   }
 }
 
-/** Extract auth user info from the JWT payload (no signature verification) */
+/** Get stored auth user info returned by the server */
 export function getAuthUser(): AuthUser | null {
-  const token = getToken();
-  if (!token) return null;
-  const payload = decodeJwtPayload(token);
-  if (!payload) return null;
-  const id = String(payload.sub || payload.id || payload.user_id || '');
-  const name = String(payload.name || payload.display_name || 'Anonymous');
-  const color = String(payload.color || getUserColor(id));
-  if (!id) return null;
-  return { id, name, color };
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthUser>;
+    if (!parsed.id || !parsed.name) return null;
+    return {
+      id: String(parsed.id),
+      name: String(parsed.name),
+      color: String(parsed.color || getUserColor(String(parsed.id))),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Fetch a new JWT token from the auth endpoint */
-export async function fetchToken(name: string): Promise<string> {
+export async function fetchToken(name: string): Promise<AuthSession> {
   const res = await fetch('/api/auth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -81,11 +80,18 @@ export async function fetchToken(name: string): Promise<string> {
     const errText = await res.text().catch(() => 'Unknown error');
     throw new Error(`Auth failed (${res.status}): ${errText}`);
   }
-  const data = (await res.json()) as { token?: string };
-  if (!data.token) {
+  const data = (await res.json()) as { token?: string; user_id?: string; name?: string };
+  if (!data.token || !data.user_id) {
     throw new Error('Auth response missing token');
   }
-  return data.token;
+  return {
+    token: data.token,
+    user: {
+      id: data.user_id,
+      name: data.name || name,
+      color: getUserColor(data.user_id),
+    },
+  };
 }
 
 /** Validate the existing token by calling /api/auth/me */
@@ -100,6 +106,16 @@ export async function initAuth(): Promise<boolean> {
       },
     });
     if (res.ok) {
+      const data = (await res.json()) as { user_id?: string; name?: string };
+      if (!data.user_id) {
+        clearToken();
+        return false;
+      }
+      setAuthUser({
+        id: data.user_id,
+        name: data.name || 'Anonymous',
+        color: getUserColor(data.user_id),
+      });
       return true;
     }
     // Token is invalid — clear it
@@ -107,7 +123,7 @@ export async function initAuth(): Promise<boolean> {
     return false;
   } catch {
     // Network error — keep token for retry later
-    return true;
+    return getAuthUser() !== null;
   }
 }
 

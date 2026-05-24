@@ -20,8 +20,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from bionodulo.api.app_state import app_state
+from bionodulo.api.collab_dependencies import (
+    ensure_open_room_access,
+    open_collab_rooms_enabled,
+    require_workflow_role,
+)
 from bionodulo.api.system_stats import router as system_stats_router
 from bionodulo.api.previews import router as previews_router
+from bionodulo.api.rate_limits import limiter
 from bionodulo.api.schemas import (
     AIChatRequest,
     AuthMeResponse,
@@ -1733,7 +1740,8 @@ def _get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends
 
 
 @router.post("/auth/token", response_model=AuthTokenResponse)
-async def auth_create_token(body: AuthTokenRequest) -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def auth_create_token(request: Request, body: AuthTokenRequest) -> dict[str, Any]:
     """Create a new JWT authentication token.
 
     Generates a fresh user ID, creates a signed JWT with the provided name,
@@ -1775,33 +1783,15 @@ async def auth_me(user: dict[str, Any] | None = Depends(_get_current_user)) -> d
 # ---------------------------------------------------------------------------
 
 def _get_room_manager(request: Request) -> Any:
-    if not hasattr(request.app.state, "room_manager") or request.app.state.room_manager is None:
-        from bionodulo.collab.room_manager import RoomManager
-        request.app.state.room_manager = RoomManager()
-    return request.app.state.room_manager
+    return app_state(request).room_manager
 
 
 def _get_permissions(request: Request) -> Any:
-    if not hasattr(request.app.state, "permission_checker") or request.app.state.permission_checker is None:
-        from bionodulo.collab.permissions import PermissionChecker
-        from bionodulo.collab.models import CollabStore
-        from bionodulo.collab.persistence import _resolve_workspace_root
-        db_path = _resolve_workspace_root() / "collab.db"
-        fallback = _resolve_workspace_root() / "permissions.json"
-        request.app.state.permission_checker = PermissionChecker(
-            store=CollabStore(str(db_path)),
-            fallback_file=fallback,
-        )
-    return request.app.state.permission_checker
+    return app_state(request).permission_checker
 
 
 def _open_collab_rooms_enabled() -> bool:
-    return os.environ.get("BIONODULO_COLLAB_OPEN_ROOMS", "").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    return open_collab_rooms_enabled()
 
 
 def _require_auth_payload(request: Request) -> dict[str, Any]:
@@ -1820,17 +1810,7 @@ def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, r
     same behavior so follow, rosters, comments, and share checks do not race the
     socket connection and surface transient 403s.
     """
-    if not _open_collab_rooms_enabled():
-        return
-    permissions = _get_permissions(request)
-    permissions.ensure_owner(workflow_id, user_id)
-    if not permissions.can_read(workflow_id, user_id):
-        permissions.grant(
-            workflow_id=workflow_id,
-            user_id=user_id,
-            role=role,
-            invited_by="open-room-link",
-        )
+    ensure_open_room_access(request, workflow_id, user_id, role=role)
 
 
 def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -1883,11 +1863,7 @@ def _require_execute_permission(request: Request, workflow_id: str | None) -> di
         return None
     payload = _require_auth_payload(request)
     user_id = payload.get("sub", "")
-    _ensure_open_room_access(request, workflow_id, user_id)
-    permissions = _get_permissions(request)
-    permissions.ensure_owner(workflow_id, user_id)
-    if not permissions.can_execute(workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Execute permission required")
+    require_workflow_role(request, workflow_id, user_id, "execute")
     return payload
 
 
@@ -1913,13 +1889,9 @@ async def collab_share(
 
     The calling user must be the owner of the workflow.
     """
-    permissions = _get_permissions(request)
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    permissions.ensure_owner(body.workflow_id, caller_id)
-
-    if not permissions.can_share(body.workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Only the owner can share workflows")
+    permissions = require_workflow_role(request, body.workflow_id, caller_id, "share")
 
     share = permissions.grant(
         workflow_id=body.workflow_id,
@@ -1945,12 +1917,9 @@ async def collab_list_shares(
     workflow_id: str,
 ) -> dict[str, Any]:
     """List all shares for a given workflow."""
-    permissions = _get_permissions(request)
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    _ensure_open_room_access(request, workflow_id, caller_id)
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    permissions = require_workflow_role(request, workflow_id, caller_id, "read")
 
     shares = permissions.list_users(workflow_id)
     return {"workflow_id": workflow_id, "shares": shares, "count": len(shares)}
@@ -1963,14 +1932,18 @@ async def collab_presence(
     """List authenticated live Yjs sessions across workflow rooms."""
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    permissions = _get_permissions(request)
     rooms = getattr(request.app.state, "yjs_room_sockets", {})
     users: list[dict[str, Any]] = []
 
     open_rooms = _open_collab_rooms_enabled()
     for workflow_id, sockets in rooms.items():
-        if not open_rooms and not permissions.can_read(workflow_id, caller_id):
-            continue
+        if open_rooms:
+            ensure_open_room_access(request, workflow_id, caller_id)
+        else:
+            try:
+                require_workflow_role(request, workflow_id, caller_id, "read")
+            except HTTPException:
+                continue
         for socket in sockets:
             presence = getattr(socket.state, "yjs_presence", None)
             if isinstance(presence, dict):
@@ -1987,11 +1960,7 @@ async def collab_workflow_snapshot(
     """Return the current server-side CRDT workflow snapshot for follow/join."""
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    permissions = _get_permissions(request)
-    permissions.ensure_owner(workflow_id, caller_id)
-    _ensure_open_room_access(request, workflow_id, caller_id)
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, caller_id, "read")
 
     from bionodulo.collab.doc_store import extract_flat_snapshot
     from bionodulo.collab.yjs_native_handler import _get_doc
@@ -2011,11 +1980,7 @@ async def collab_publish_workflow_snapshot(
     """Replace and broadcast the server-side CRDT workflow snapshot."""
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    permissions = _get_permissions(request)
-    permissions.ensure_owner(workflow_id, caller_id)
-    _ensure_open_room_access(request, workflow_id, caller_id)
-    if not permissions.can_write(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Editor access required")
+    require_workflow_role(request, workflow_id, caller_id, "write")
 
     from bionodulo.collab.yjs_native_handler import publish_flat_snapshot_to_room
 
@@ -2037,11 +2002,7 @@ async def collab_revoke_share(
     share_id: str,
 ) -> dict[str, str]:
     """Revoke a share by its share record ID."""
-    from bionodulo.collab.models import CollabStore
-    from bionodulo.collab.persistence import _resolve_workspace_root
-
-    db_path = _resolve_workspace_root() / "collab.db"
-    store = CollabStore(str(db_path))
+    store = app_state(request).collab_store
     share = store.get_share(share_id)
     if share is None:
         raise HTTPException(status_code=404, detail="Share not found")
@@ -2049,8 +2010,7 @@ async def collab_revoke_share(
     permissions = _get_permissions(request)
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    if not permissions.can_share(share.workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Only the owner can revoke shares")
+    require_workflow_role(request, share.workflow_id, caller_id, "share")
 
     success = store.delete_share(share_id)
     if success:
@@ -2068,8 +2028,20 @@ async def collab_room_status(
     """Get the current collaboration room status for a workflow."""
     payload = _require_auth_payload(request)
     caller_id = payload["sub"]
-    permissions = _get_permissions(request)
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
-    room_manager = _get_room_manager(request)
-    return room_manager.room_status(workflow_id)
+    require_workflow_role(request, workflow_id, caller_id, "read")
+    room_status = _get_room_manager(request).room_status(workflow_id)
+    sockets = getattr(request.app.state, "yjs_room_sockets", {}).get(workflow_id, [])
+    if not sockets:
+        return room_status
+    users = [
+        presence
+        for socket in sockets
+        if isinstance((presence := getattr(socket.state, "yjs_presence", None)), dict)
+    ]
+    return {
+        "workflow_id": workflow_id,
+        "active": True,
+        "users": users,
+        "created_at": room_status.get("created_at"),
+        "client_count": len(sockets),
+    }

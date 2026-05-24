@@ -9,17 +9,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from pathlib import Path
 from typing import Any
+
+from diskcache import Cache as DiskCache
 
 
 class CacheStore:
     """Persistent cache store for workflow node execution results.
 
-    Each cached entry consists of:
-      - A ``.marker.json`` file with metadata (key, inputs, params, outputs)
-      - The actual output files written by the node
+    Each cached entry stores metadata (key, inputs, params, outputs) in
+    diskcache. Legacy ``.marker.json`` files are still read so older cache
+    directories remain valid.
 
     Cache keys are SHA-256 hashes over the node's type, parameters,
     resolved inputs, and upstream cache keys, making them deterministic
@@ -29,7 +30,8 @@ class CacheStore:
     def __init__(self, cache_dir: str | Path) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self._known_markers = {
+        self._metadata = DiskCache(str(self.cache_dir / "metadata"))
+        self._known_markers = set(map(str, self._metadata.iterkeys())) | {
             path.name.removesuffix(".marker.json")
             for path in self.cache_dir.glob("*.marker.json")
             if path.is_file()
@@ -84,6 +86,9 @@ class CacheStore:
         """Return *True* if a cached result exists for *cache_key*."""
         if cache_key in self._known_markers:
             return True
+        if cache_key in self._metadata:
+            self._known_markers.add(cache_key)
+            return True
         exists = self._marker_path(cache_key).is_file()
         if exists:
             self._known_markers.add(cache_key)
@@ -91,6 +96,10 @@ class CacheStore:
 
     def read_marker(self, cache_key: str) -> dict[str, Any] | None:
         """Read and return the cached metadata for *cache_key*, or *None*."""
+        marker = self._metadata.get(cache_key, default=None)
+        if isinstance(marker, dict):
+            self._known_markers.add(cache_key)
+            return marker
         path = self._marker_path(cache_key)
         if not path.is_file():
             return None
@@ -124,16 +133,12 @@ class CacheStore:
             "inputs": inputs or {},
             "upstream_keys": upstream_keys or {},
         }
-        path = self._marker_path(cache_key)
-        temp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-        with open(temp_path, "w", encoding="utf-8") as fh:
-            json.dump(marker, fh, indent=2, ensure_ascii=True)
-        temp_path.replace(path)
+        self._metadata.set(cache_key, marker)
         self._known_markers.add(cache_key)
 
     def clear(self) -> int:
         """Remove **all** cached markers and return the count deleted."""
-        count = 0
+        count = int(self._metadata.clear() or 0)
         for entry in self.cache_dir.iterdir():
             if entry.is_file():
                 try:
@@ -145,6 +150,10 @@ class CacheStore:
                     pass
         self._known_markers.clear()
         return count
+
+    def close(self) -> None:
+        """Close the disk-backed metadata store."""
+        self._metadata.close()
 
 
 def _sorted_json(obj: Any) -> Any:

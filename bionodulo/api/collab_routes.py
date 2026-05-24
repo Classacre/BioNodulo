@@ -12,15 +12,15 @@ All endpoints (except public template listing) require JWT authentication.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import PlainTextResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from bionodulo.api.app_state import app_state
+from bionodulo.api.collab_dependencies import require_workflow_role
 from bionodulo.api.schemas import (
     CreateCommentRequest,
     CreateTemplateRequest,
@@ -30,9 +30,6 @@ from bionodulo.api.schemas import (
 from bionodulo.collab.audit import AuditLogger
 from bionodulo.collab.auth import validate_token
 from bionodulo.collab.doc_store import extract_flat_snapshot, get_or_create_doc, load_doc_from_db
-from bionodulo.collab.models import CollabStore
-from bionodulo.collab.permissions import PermissionChecker
-from bionodulo.collab.templates import TemplateManager
 
 logger = logging.getLogger(__name__)
 
@@ -71,66 +68,23 @@ async def get_token_from_header_or_query(
 
 
 # ---------------------------------------------------------------------------
-# Workspace root resolver (shared with routes.py)
-# ---------------------------------------------------------------------------
-
-
-def _resolve_workspace_root() -> Path:
-    """Resolve the workspace root for DB paths."""
-    root = os.environ.get("BIONODULO_ROOT", "")
-    if root:
-        return Path(root).resolve()
-    project_dir = Path(__file__).resolve().parent.parent.parent
-    return (project_dir / "workspace").resolve()
-
-
-# ---------------------------------------------------------------------------
 # Dependency helpers — resolved per-request via Request.app.state
 # ---------------------------------------------------------------------------
 
 
-def _get_collab_store(request: Request) -> CollabStore:
+def _get_collab_store(request: Request) -> Any:
     """Get or create the shared CollabStore instance."""
-    attr = getattr(request.app.state, "collab_store", None)
-    if attr is None:
-        db_path = _resolve_workspace_root() / "collab.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        request.app.state.collab_store = CollabStore(str(db_path))
-    return request.app.state.collab_store
-
-
-def _get_permissions(request: Request) -> PermissionChecker:
-    """Get or create the PermissionChecker instance."""
-    attr = getattr(request.app.state, "permission_checker", None)
-    if attr is None:
-        from bionodulo.collab.permissions import PermissionChecker
-        db_path = _resolve_workspace_root() / "collab.db"
-        fallback = _resolve_workspace_root() / "permissions.json"
-        request.app.state.permission_checker = PermissionChecker(
-            store=CollabStore(str(db_path)),
-            fallback_file=fallback,
-        )
-    return request.app.state.permission_checker
+    return app_state(request).collab_store
 
 
 def _get_audit_logger(request: Request) -> AuditLogger:
     """Get or create the AuditLogger instance."""
-    attr = getattr(request.app.state, "audit_logger", None)
-    if attr is None:
-        db_path = _resolve_workspace_root() / "audit.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        request.app.state.audit_logger = AuditLogger(str(db_path))
-    return request.app.state.audit_logger
+    return app_state(request).audit_logger
 
 
-def _get_template_manager(request: Request) -> TemplateManager:
+def _get_template_manager(request: Request) -> Any:
     """Get or create the TemplateManager instance."""
-    attr = getattr(request.app.state, "template_manager", None)
-    if attr is None:
-        db_path = _resolve_workspace_root() / "collab.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        request.app.state.template_manager = TemplateManager(str(db_path))
-    return request.app.state.template_manager
+    return app_state(request).template_manager
 
 
 # ---------------------------------------------------------------------------
@@ -154,13 +108,10 @@ async def create_comment(
 ) -> dict[str, Any]:
     """Create a comment or reply on a workflow/node."""
     store = _get_collab_store(request)
-    permissions = _get_permissions(request)
 
     user_id = token_payload.get("sub", "")
     user_name = token_payload.get("name", "")
-
-    if not permissions.can_comment(workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Comment access required")
+    require_workflow_role(request, workflow_id, user_id, "comment", open_room_role="commenter")
 
     from bionodulo.collab.models import Comment
     comment = Comment(
@@ -197,11 +148,8 @@ async def list_comments(
 ) -> dict[str, Any]:
     """List all comments for a workflow, optionally filtered by node."""
     store = _get_collab_store(request)
-    permissions = _get_permissions(request)
-
     user_id = token_payload.get("sub", "")
-    if not permissions.can_read(workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, user_id, "read")
 
     comments = store.list_comments(workflow_id, node_id=node_id)
     return {"comments": [c.to_dict() for c in comments], "count": len(comments)}
@@ -283,9 +231,8 @@ async def resolve_comment(
         raise HTTPException(status_code=404, detail="Comment not found")
 
     user_id = token_payload.get("sub", "")
-    permissions = _get_permissions(request)
-    if comment.user_id != user_id and not permissions.can_write(comment.workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Not authorized to resolve this comment")
+    if comment.user_id != user_id:
+        require_workflow_role(request, comment.workflow_id, user_id, "write")
 
     resolved = store.resolve_comment(comment_id)
     if resolved is None:
@@ -317,13 +264,8 @@ async def delete_comment(
         raise HTTPException(status_code=404, detail="Comment not found")
 
     user_id = token_payload.get("sub", "")
-    permissions = _get_permissions(request)
-    can_delete = (
-        comment.user_id == user_id
-        or permissions.can_share(comment.workflow_id, user_id)  # owner
-    )
-    if not can_delete:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+    if comment.user_id != user_id:
+        require_workflow_role(request, comment.workflow_id, user_id, "share")
 
     store.delete_comment(comment_id)
 
@@ -351,11 +293,8 @@ async def create_version(
 ) -> dict[str, Any]:
     """Save a manual version snapshot."""
     store = _get_collab_store(request)
-    permissions = _get_permissions(request)
-
     user_id = token_payload.get("sub", "")
-    if not permissions.can_write(workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Editor access required")
+    require_workflow_role(request, workflow_id, user_id, "write")
 
     doc = load_doc_from_db(workflow_id)
     if doc is None:
@@ -398,11 +337,8 @@ async def list_versions(
 ) -> dict[str, Any]:
     """List version history."""
     store = _get_collab_store(request)
-    permissions = _get_permissions(request)
-
     user_id = token_payload.get("sub", "")
-    if not permissions.can_read(workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, user_id, "read")
 
     versions = store.list_versions(workflow_id, limit=limit)
     return {"versions": [v.to_dict() for v in versions], "count": len(versions)}
@@ -422,9 +358,7 @@ async def restore_version(
         raise HTTPException(status_code=404, detail="Version not found")
 
     user_id = token_payload.get("sub", "")
-    permissions = _get_permissions(request)
-    if not permissions.can_write(version.workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Editor access required")
+    require_workflow_role(request, version.workflow_id, user_id, "write")
 
     await _get_audit_logger(request).log(
         workflow_id=version.workflow_id,
@@ -464,9 +398,7 @@ async def diff_versions(
         raise HTTPException(status_code=400, detail="Versions belong to different workflows")
 
     user_id = token_payload.get("sub", "")
-    permissions = _get_permissions(request)
-    if not permissions.can_read(v_a.workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, v_a.workflow_id, user_id, "read")
 
     snap_a = v_a.snapshot if isinstance(v_a.snapshot, dict) else {}
     snap_b = v_b.snapshot if isinstance(v_b.snapshot, dict) else {}
@@ -523,9 +455,7 @@ async def delete_version(
         raise HTTPException(status_code=404, detail="Version not found")
 
     user_id = token_payload.get("sub", "")
-    permissions = _get_permissions(request)
-    if not permissions.can_write(version.workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Editor access required")
+    require_workflow_role(request, version.workflow_id, user_id, "write")
 
     store.delete_version(version_id)
 
@@ -557,11 +487,8 @@ async def query_audit(
     token_payload: dict[str, Any] = Depends(get_token_from_header_or_query),
 ) -> dict[str, Any]:
     """Query audit log with filters."""
-    permissions = _get_permissions(request)
-
     caller_id = token_payload.get("sub", "")
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, caller_id, "read")
 
     audit_logger = _get_audit_logger(request)
     entries = await audit_logger.query(
@@ -582,11 +509,8 @@ async def export_audit_csv(
     token_payload: dict[str, Any] = Depends(get_token_from_header_or_query),
 ) -> PlainTextResponse:
     """Export audit log as CSV."""
-    permissions = _get_permissions(request)
-
     caller_id = token_payload.get("sub", "")
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, caller_id, "read")
 
     audit_logger = _get_audit_logger(request)
     csv_data = await audit_logger.export_csv(workflow_id=workflow_id)
@@ -604,11 +528,8 @@ async def audit_summary(
     token_payload: dict[str, Any] = Depends(get_token_from_header_or_query),
 ) -> dict[str, Any]:
     """Get audit summary statistics."""
-    permissions = _get_permissions(request)
-
     caller_id = token_payload.get("sub", "")
-    if not permissions.can_read(workflow_id, caller_id):
-        raise HTTPException(status_code=403, detail="Access denied")
+    require_workflow_role(request, workflow_id, caller_id, "read")
 
     audit_logger = _get_audit_logger(request)
     return await audit_logger.get_summary(workflow_id)
@@ -639,11 +560,8 @@ async def create_template(
     token_payload: dict[str, Any] = Depends(get_token_from_header_or_query),
 ) -> dict[str, Any]:
     """Save a workflow as a template."""
-    permissions = _get_permissions(request)
-
     user_id = token_payload.get("sub", "")
-    if not permissions.can_write(body.workflow_id, user_id):
-        raise HTTPException(status_code=403, detail="Editor access required")
+    require_workflow_role(request, body.workflow_id, user_id, "write")
 
     manager = _get_template_manager(request)
     template_id = await manager.create(
