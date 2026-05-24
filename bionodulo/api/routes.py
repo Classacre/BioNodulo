@@ -537,6 +537,7 @@ async def set_setting(
 # ---------------------------------------------------------------------------
 
 @router.post("/ai/chat")
+@limiter.limit("20/minute")
 async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
     """Send a message to the AI assistant and get a tool-aware response."""
     settings = _get_settings(request)
@@ -1103,6 +1104,7 @@ async def manager_install(
 # ---------------------------------------------------------------------------
 
 @router.post("/manager/resolve")
+@limiter.limit("120/minute")
 async def manager_resolve(
     request: Request, body: DependencyTreeRequest
 ) -> dict[str, Any]:

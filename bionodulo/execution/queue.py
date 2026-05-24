@@ -309,6 +309,10 @@ class RunQueue:
                     await self._worker_task
                 except asyncio.CancelledError:
                     pass
+        cache = getattr(self.executor, "cache", None)
+        close = getattr(cache, "close", None)
+        if callable(close):
+            close()
 
     # ------------------------------------------------------------------
     # Worker

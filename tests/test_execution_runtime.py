@@ -89,3 +89,24 @@ async def test_run_queue_honors_max_concurrent() -> None:
     finally:
         executor.release.set()
         await queue.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_run_queue_shutdown_closes_executor_cache() -> None:
+    class Cache:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class Executor:
+        def __init__(self) -> None:
+            self.cache = Cache()
+
+    executor = Executor()
+    queue = RunQueue(executor=executor)
+
+    await queue.shutdown()
+
+    assert executor.cache.closed

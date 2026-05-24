@@ -327,57 +327,8 @@ def _comfy_type(bionodulo_type: str | list | tuple) -> str:
         bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"
     if not isinstance(bionodulo_type, str):
         bionodulo_type = str(bionodulo_type)
-    mapping = {
-        "STRING": "STRING",
-        "INT": "INT",
-        "FLOAT": "FLOAT",
-        "BOOLEAN": "BOOLEAN",
-        "FILE": "STRING",
-        "DIRECTORY": "STRING",
-        "FASTQ": "STRING",
-        "FASTQ_LIST": "STRING",
-        "FASTA": "STRING",
-        "SAM": "STRING",
-        "BAM": "STRING",
-        "VCF": "STRING",
-        "VCF_GZ": "STRING",
-        "GFF": "STRING",
-        "GTF": "STRING",
-        "GFF_GTF": "STRING",
-        "BED": "STRING",
-        "ASSEMBLY": "STRING",
-        "CONTIGS": "STRING",
-        "SCAFFOLDS": "STRING",
-        "ALIGNMENT": "STRING",
-        "PHYLOGENY_TREE": "STRING",
-        "INDEX_DIR": "STRING",
-        "QC_REPORT_DIR": "STRING",
-        "MULTIQC_REPORT": "STRING",
-        "HTML_REPORT": "STRING",
-        "STATS_FILE": "STRING",
-        "SAMPLE_SHEET": "STRING",
-        "COUNTS": "STRING",
-        "TPM_MATRIX": "STRING",
-        "ABUNDANCE": "STRING",
-        "GENE_EXPRESSION": "STRING",
-        "TX_EXPRESSION": "STRING",
-        "TRANSCRIPTS": "STRING",
-        "KRAKEN_REPORT": "STRING",
-        "KRAKEN_OUTPUT": "STRING",
-        "METAPHLAN_PROFILE": "STRING",
-        "HUMANN_OUTPUT": "STRING",
-        "BINS": "STRING",
-        "CELL_RANGER_OUT": "STRING",
-        "H5AD": "STRING",
-        "SEURAT_OBJ": "STRING",
-        "PEAKS": "STRING",
-        "BIGWIG": "STRING",
-        "NARROW_PEAK": "STRING",
-        "BROAD_PEAK": "STRING",
-        "JSON": "STRING",
-        "YAML": "STRING",
-        "CSV": "STRING",
-        "TSV": "STRING",
-        "ANY": "*",
-    }
-    return mapping.get(bionodulo_type, "STRING")
+    if bionodulo_type in {"STRING", "INT", "FLOAT", "BOOLEAN"}:
+        return bionodulo_type
+    if bionodulo_type == "ANY":
+        return "*"
+    return "STRING"
