@@ -144,10 +144,12 @@ async def _apply_remote_yjs_message(workflow_id: str, room: YRoom, envelope_byte
     if msg_type == MSG_SYNC:
         if len(message) < 2 or message[1] != SYNC_UPDATE:
             return
+        update = _read_length_prefixed_payload(message[2:])
+        if update is None:
+            logger.debug("Dropping malformed Redis Yjs update for %s", workflow_id)
+            return
         try:
-            from pycrdt._sync import handle_sync_message
-
-            handle_sync_message(message[1:], room.ydoc)
+            room.ydoc.apply_update(update)
         except Exception as exc:
             logger.debug("Failed to apply Redis Yjs update for %s: %s", workflow_id, exc)
     elif msg_type == MSG_AWARENESS:
@@ -328,7 +330,6 @@ async def stop_room_cache_cleanup() -> None:
 
 async def _subscribe_room_to_redis(
     workflow_id: str,
-    room: YRoom,
     broadcaster: RedisBroadcaster | None,
 ) -> None:
     if (
@@ -338,8 +339,11 @@ async def _subscribe_room_to_redis(
     ):
         return
 
-    async def _on_redis_message(message: bytes, *, room_id: str = workflow_id, yroom: YRoom = room) -> None:
-        await _apply_remote_yjs_message(room_id, yroom, message)
+    async def _on_redis_message(message: bytes, *, room_id: str = workflow_id) -> None:
+        current_room = _room_cache.get(room_id)
+        if current_room is None:
+            return
+        await _apply_remote_yjs_message(room_id, current_room, message)
 
     await broadcaster.subscribe(workflow_id, _on_redis_message)
     _room_redis_subscribed.add(workflow_id)
@@ -351,13 +355,15 @@ async def _get_room(workflow_id: str, broadcaster: RedisBroadcaster | None = Non
     await _ensure_room_cleanup_task()
     if workflow_id in _room_cache:
         room = _room_cache[workflow_id]
-        await _subscribe_room_to_redis(workflow_id, room, broadcaster)
+        await _subscribe_room_to_redis(workflow_id, broadcaster)
         return room
 
     lock = _room_locks.setdefault(workflow_id, asyncio.Lock())
     async with lock:
         if workflow_id in _room_cache:
-            return _room_cache[workflow_id]
+            room = _room_cache[workflow_id]
+            await _subscribe_room_to_redis(workflow_id, broadcaster)
+            return room
 
         room = YRoom(
             ready=True,
@@ -370,7 +376,7 @@ async def _get_room(workflow_id: str, broadcaster: RedisBroadcaster | None = Non
         await room.started.wait()
         _room_cache[workflow_id] = room
         _room_tasks[workflow_id] = task
-        await _subscribe_room_to_redis(workflow_id, room, broadcaster)
+        await _subscribe_room_to_redis(workflow_id, broadcaster)
         return room
 
 
@@ -383,7 +389,10 @@ async def _cleanup_doc_cache(workflow_id: str, broadcaster: RedisBroadcaster | N
     cleanup_broadcaster = broadcaster or _room_broadcasters.pop(workflow_id, None)
     if workflow_id in _room_redis_subscribed:
         if cleanup_broadcaster is not None:
-            await cleanup_broadcaster.unsubscribe(workflow_id)
+            try:
+                await cleanup_broadcaster.unsubscribe(workflow_id)
+            except Exception as exc:
+                logger.debug("Redis unsubscribe failed during YRoom cleanup for %s: %s", workflow_id, exc)
         _room_redis_subscribed.discard(workflow_id)
     if room is not None:
         try:

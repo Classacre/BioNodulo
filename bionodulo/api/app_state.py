@@ -16,6 +16,7 @@ from bionodulo.collab.rate_limiter import RateLimiter
 from bionodulo.collab.room_manager import RoomManager
 from bionodulo.collab.templates import TemplateManager
 from bionodulo.core.workspace import resolve_workspace_root
+from bionodulo.manager.installer import DependencyInstaller
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,14 @@ class AppState:
             manager = PresenceManager()
             self.state.presence_manager = manager
         return manager
+
+    @property
+    def dependency_installer(self) -> DependencyInstaller:
+        installer = getattr(self.state, "dependency_installer", None)
+        if installer is None:
+            installer = DependencyInstaller()
+            self.state.dependency_installer = installer
+        return installer
 
 
 def app_state(request: Request) -> AppState:

@@ -6,12 +6,12 @@ multiplayer workflow editing sessions.
 
 from __future__ import annotations
 
-from bionodulo.collab.room_manager import RoomManager
-from bionodulo.collab.presence import AwarenessManager
 from bionodulo.collab.permissions import PermissionChecker
+from bionodulo.collab.presence import PresenceManager
+from bionodulo.collab.room_manager import RoomManager
 
 __all__ = [
     "RoomManager",
-    "AwarenessManager",
+    "PresenceManager",
     "PermissionChecker",
 ]

@@ -334,67 +334,71 @@ class RunQueue:
                     self._pending.task_done()
                     continue
 
-            task = asyncio.create_task(self._run_request(request))
+            task = asyncio.create_task(self._run_and_mark_done(request))
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
 
         if self._active_tasks:
             await asyncio.gather(*self._active_tasks, return_exceptions=True)
 
-    async def _run_request(self, request: RunRequest) -> None:
-        """Execute one queued request and update queue state."""
+    async def _run_and_mark_done(self, request: RunRequest) -> None:
+        """Run one request and release the pending queue accounting."""
         try:
-            async with self._lock:
-                self._running[request.run_id] = request
-                request.status = RunStatus.RUNNING
-                request.started_at = time.time()
-
-            self.emit("queue_start", {"run_id": request.run_id})
-            await self._emit_queue()
-
-            try:
-                def _emit_wrapper(event: str, data: dict[str, Any]) -> None:
-                    data["run_id"] = request.run_id
-                    self.emit(event, data)
-
-                result = await self.executor.execute(
-                    run_id=request.run_id,
-                    workflow=request.workflow,
-                    force=request.force,
-                    force_nodes=request.force_nodes,
-                    options=request.options,
-                    cancel_event=request.cancel_event,
-                    emit=_emit_wrapper,
-                )
-                request.result = result
-                request.status = (
-                    RunStatus.COMPLETED
-                    if result.get("status") == "completed"
-                    else RunStatus.FAILED
-                    if result.get("status") == "failed"
-                    else RunStatus.CANCELLED
-                )
-            except Exception as exc:
-                request.result = {"status": "failed", "error": str(exc)}
-                request.status = RunStatus.FAILED
-                self.emit("queue_error", {"run_id": request.run_id, "error": str(exc)})
-
-            request.finished_at = time.time()
-
-            async with self._lock:
-                active = self._running.pop(request.run_id, request)
-                self._history.append(active)
-
-            self.emit(
-                "queue_finish",
-                {
-                    "run_id": request.run_id,
-                    "status": request.status.value,
-                },
-            )
-            await self._emit_queue()
+            await self._run_request(request)
         finally:
             self._pending.task_done()
+
+    async def _run_request(self, request: RunRequest) -> None:
+        """Execute one queued request and update queue state."""
+        async with self._lock:
+            self._running[request.run_id] = request
+            request.status = RunStatus.RUNNING
+            request.started_at = time.time()
+
+        self.emit("queue_start", {"run_id": request.run_id})
+        await self._emit_queue()
+
+        try:
+            def _emit_wrapper(event: str, data: dict[str, Any]) -> None:
+                data["run_id"] = request.run_id
+                self.emit(event, data)
+
+            result = await self.executor.execute(
+                run_id=request.run_id,
+                workflow=request.workflow,
+                force=request.force,
+                force_nodes=request.force_nodes,
+                options=request.options,
+                cancel_event=request.cancel_event,
+                emit=_emit_wrapper,
+            )
+            request.result = result
+            request.status = (
+                RunStatus.COMPLETED
+                if result.get("status") == "completed"
+                else RunStatus.FAILED
+                if result.get("status") == "failed"
+                else RunStatus.CANCELLED
+            )
+        except Exception as exc:
+            request.result = {"status": "failed", "error": str(exc)}
+            request.status = RunStatus.FAILED
+            self.emit("queue_error", {"run_id": request.run_id, "error": str(exc)})
+
+        request.finished_at = time.time()
+
+        async with self._lock:
+            active = self._running.pop(request.run_id, request)
+            self._history.append(active)
+
+        self.emit(
+            "queue_finish",
+            {
+                "run_id": request.run_id,
+                "status": request.status.value,
+            },
+        )
+        await self._emit_queue()
 
     async def _emit_queue(self) -> None:
         """Broadcast current queue state."""

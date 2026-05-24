@@ -3,13 +3,16 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from bionodulo.api.app_state import AppState
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
+from bionodulo.manager.diagnostics import _check_r_packages_env_aware
 from bionodulo.workflow.graph import (
     edge_source,
     edge_source_port,
@@ -124,6 +127,21 @@ async def test_run_queue_honors_max_concurrent() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_queue_releases_pending_join_accounting() -> None:
+    class Executor:
+        async def execute(self, **_: Any) -> dict[str, Any]:
+            return {"status": "completed"}
+
+    queue = RunQueue(executor=Executor(), max_concurrent=1)
+    try:
+        await queue.submit({"nodes": [], "edges": []}, run_id="joinable")
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+        assert queue.get_run("joinable")["status"] == "completed"
+    finally:
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_run_queue_shutdown_closes_executor_cache() -> None:
     class Cache:
         def __init__(self) -> None:
@@ -142,3 +160,17 @@ async def test_run_queue_shutdown_closes_executor_cache() -> None:
     await queue.shutdown()
 
     assert executor.cache.closed
+
+
+@pytest.mark.asyncio
+async def test_sync_r_diagnostics_do_not_block_running_event_loop() -> None:
+    result = _check_r_packages_env_aware(["DefinitelyMissingPackage"], {})
+    assert result["DefinitelyMissingPackage"]["available"] is False
+
+
+def test_dependency_installer_is_app_scoped() -> None:
+    state_one = AppState(SimpleNamespace())
+    state_two = AppState(SimpleNamespace())
+
+    assert state_one.dependency_installer is state_one.dependency_installer
+    assert state_one.dependency_installer is not state_two.dependency_installer

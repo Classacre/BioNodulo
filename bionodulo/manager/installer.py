@@ -212,15 +212,3 @@ class DependencyInstaller:
     def list_jobs(self) -> list[InstallProgress]:
         """List all jobs."""
         return [j.progress for j in self.jobs.values()]
-
-
-# Global singleton instance
-_installer: DependencyInstaller | None = None
-
-
-def get_installer() -> DependencyInstaller:
-    """Get or create the global DependencyInstaller singleton."""
-    global _installer
-    if _installer is None:
-        _installer = DependencyInstaller()
-    return _installer

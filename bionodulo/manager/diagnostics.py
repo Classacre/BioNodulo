@@ -5,9 +5,9 @@ report on the overall tool installation status.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
-import subprocess
 import time
 from typing import Any
 
@@ -28,6 +28,42 @@ _ENV_STATUS_TTL = 60.0  # seconds
 _R_PACKAGE_CACHE: dict[tuple[tuple[str, ...], str], dict[str, bool]] = {}
 
 
+async def _run_r_package_probe(cmd: list[str]) -> tuple[int, str]:
+    """Run an R package probe without blocking the event loop."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise
+    return proc.returncode or 0, stdout.decode("utf-8", errors="replace")
+
+
+def _r_cache_to_results(
+    packages: list[str],
+    cache: dict[tuple[tuple[str, ...], str], dict[str, bool]],
+) -> dict[str, dict[str, Any]]:
+    """Build package availability from the cache without doing I/O."""
+    sorted_pkgs = tuple(sorted(packages))
+    available_anywhere: dict[str, bool] = {}
+    for (cached_pkgs, _env_name), cached_values in cache.items():
+        if cached_pkgs == sorted_pkgs:
+            for pkg, available in cached_values.items():
+                if available:
+                    available_anywhere[pkg] = True
+    return {
+        pkg: {"available": True}
+        if available_anywhere.get(pkg)
+        else {"available": False, "error": "Not installed in any R environment"}
+        for pkg in packages
+    }
+
+
 def _check_r_packages_env_aware(
     packages: list[str],
     _cache: dict[tuple[tuple[str, ...], str], dict[str, bool]] | None = None,
@@ -45,6 +81,22 @@ def _check_r_packages_env_aware(
     """
     if _cache is None:
         _cache = _R_PACKAGE_CACHE
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_check_r_packages_env_aware_async(packages, _cache))
+
+    logger.warning("Synchronous R diagnostics called from a running event loop; returning cached results")
+    return _r_cache_to_results(packages, _cache)
+
+
+async def _check_r_packages_env_aware_async(
+    packages: list[str],
+    _cache: dict[tuple[tuple[str, ...], str], dict[str, bool]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Async R package availability check that never blocks the event loop."""
+    if _cache is None:
+        _cache = _R_PACKAGE_CACHE
 
     sorted_pkgs = tuple(sorted(packages))
     r_script = (
@@ -54,17 +106,17 @@ def _check_r_packages_env_aware(
     )
     available_anywhere: dict[str, bool] = {}
 
-    def _check(cmd: list[str], env_name: str) -> None:
+    async def _check(cmd: list[str], env_name: str) -> None:
         cache_key = (sorted_pkgs, env_name)
         cached = _cache.get(cache_key)
         if cached is not None:
             available_anywhere.update(cached)
             return
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         env_results: dict[str, bool] = {}
-        if result.returncode == 0:
-            for line in result.stdout.strip().split("\n"):
+        returncode, stdout = await _run_r_package_probe(cmd)
+        if returncode == 0:
+            for line in stdout.strip().split("\n"):
                 if ":" in line:
                     pkg_name, available = line.strip().rsplit(":", 1)
                     is_avail = available.strip().lower() == "true"
@@ -75,7 +127,7 @@ def _check_r_packages_env_aware(
 
     # Check via system PATH Rscript (per-workflow envs are checked separately)
     try:
-        _check(["Rscript", "-e", r_script], "__system__")
+        await _check(["Rscript", "-e", r_script], "__system__")
     except Exception:
         pass
 
@@ -138,6 +190,49 @@ def diagnose_workflow(nodes: list[type[BaseNode]]) -> dict[str, Any]:
     }
 
 
+async def diagnose_workflow_async(nodes: list[type[BaseNode]]) -> dict[str, Any]:
+    """Async variant of :func:`diagnose_workflow` for API handlers."""
+    required: set[str] = set()
+    required_r: set[str] = set()
+    for node_cls in nodes:
+        if getattr(node_cls, "REQUIRES_EXTERNAL_TOOLS", False):
+            required.update(getattr(node_cls, "REQUIRED_EXECUTABLES", []))
+        required_r.update(getattr(node_cls, "REQUIRED_R_PACKAGES", []))
+
+    results: dict[str, dict[str, Any]] = {}
+    all_available = True
+    for exe in sorted(required):
+        path = shutil.which(exe)
+        available = path is not None
+        results[exe] = {
+            "available": available,
+            "path": path,
+            "conda_package": KNOWN_EXECUTABLES.get(exe, "unknown"),
+        }
+        if not available:
+            all_available = False
+
+    r_results: dict[str, dict[str, Any]] = {}
+    r_available = True
+    if required_r:
+        r_results = await _check_r_packages_env_aware_async(list(required_r))
+        for info in r_results.values():
+            if not info.get("available"):
+                r_available = False
+                break
+
+    return {
+        "all_available": all_available and r_available,
+        "required": list(sorted(required)),
+        "results": results,
+        "missing": [exe for exe, info in results.items() if not info["available"]],
+        "install_command": _generate_install_command(results),
+        "required_r_packages": list(sorted(required_r)),
+        "r_packages": r_results,
+        "missing_r_packages": [pkg for pkg, info in r_results.items() if not info["available"]],
+    }
+
+
 def environment_status() -> dict[str, Any]:
     """Check which bioinformatics tools are installed on the system.
 
@@ -172,6 +267,52 @@ def environment_status() -> dict[str, Any]:
         "ape", "vegan", "ComplexHeatmap",
     ]
     r_results = _check_r_packages_env_aware(r_packages_check)
+    r_available_count = sum(1 for info in r_results.values() if info.get("available"))
+
+    total_available = available_count + r_available_count
+    total_known = len(KNOWN_EXECUTABLES) + len(r_packages_check)
+
+    _ENV_STATUS_CACHE = {
+        "total_known": total_known,
+        "available": total_available,
+        "missing": total_known - total_available,
+        "tools": results,
+        "r_packages": r_results,
+        "summary": {
+            "all_available": total_available == total_known,
+            "percent_ready": round(total_available / total_known * 100, 1) if total_known else 100,
+        },
+    }
+    _ENV_STATUS_TIMESTAMP = time.time()
+    return _ENV_STATUS_CACHE
+
+
+async def environment_status_async() -> dict[str, Any]:
+    """Async variant of :func:`environment_status` for API handlers."""
+    global _ENV_STATUS_CACHE, _ENV_STATUS_TIMESTAMP
+
+    if _ENV_STATUS_CACHE is not None and (time.time() - _ENV_STATUS_TIMESTAMP) < _ENV_STATUS_TTL:
+        return _ENV_STATUS_CACHE
+
+    results: dict[str, dict[str, Any]] = {}
+    available_count = 0
+    for exe, package in sorted(KNOWN_EXECUTABLES.items()):
+        path = shutil.which(exe)
+        available = path is not None
+        if available:
+            available_count += 1
+        results[exe] = {
+            "available": available,
+            "path": path,
+            "conda_package": package,
+        }
+
+    r_packages_check = [
+        "ggplot2", "dplyr", "tidyr", "readr", "pheatmap",
+        "DESeq2", "edgeR", "limma", "Biostrings", "GenomicRanges",
+        "ape", "vegan", "ComplexHeatmap",
+    ]
+    r_results = await _check_r_packages_env_aware_async(r_packages_check)
     r_available_count = sum(1 for info in r_results.values() if info.get("available"))
 
     total_available = available_count + r_available_count

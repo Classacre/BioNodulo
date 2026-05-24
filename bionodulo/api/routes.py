@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
-from bionodulo.api.app_state import setting_literal
+from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
 from bionodulo.api.collab_dependencies import (
     ensure_open_room_access,
@@ -66,7 +66,6 @@ from bionodulo.environments.manifest import (
 )
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
-from bionodulo.manager.installer import get_installer
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.validation import validate_workflow
@@ -895,9 +894,9 @@ async def manager_install_deps(
 
 
 @router.get("/manager/status/{job_id}")
-async def manager_job_status(job_id: str) -> dict[str, Any]:
+async def manager_job_status(request: Request, job_id: str) -> dict[str, Any]:
     """Get the status of an async install job."""
-    installer = get_installer()
+    installer = app_state(request).dependency_installer
     job = installer.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
@@ -1005,7 +1004,7 @@ async def manager_ensure_workflow_env(
             )
         )
 
-    installer = get_installer()
+    installer = app_state(request).dependency_installer
     job_id = await installer.install_workflow_env(
         body.workflow,
         registry,

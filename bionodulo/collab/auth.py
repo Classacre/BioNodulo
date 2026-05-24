@@ -91,6 +91,25 @@ def _validate_oidc_token(token: str) -> dict[str, Any] | None:
     return None
 
 
+def _looks_like_local_token(token: str) -> bool:
+    """Return True for BioNodulo-issued JWTs without verifying them."""
+    try:
+        header = jwt.get_unverified_header(token)
+        payload = jwt.decode(
+            token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_aud": False,
+            },
+        )
+    except jwt.InvalidTokenError:
+        return False
+    aud = payload.get("aud")
+    audiences = aud if isinstance(aud, list) else [aud]
+    return header.get("alg") == JWT_ALGORITHM and JWT_AUDIENCE in audiences
+
+
 def create_token(
     user_id: str,
     name: str,
@@ -149,6 +168,8 @@ def validate_token(token: str) -> dict[str, Any] | None:
         return None
     except jwt.InvalidTokenError as exc:
         logger.debug("JWT validation failed: %s", exc)
+        if _looks_like_local_token(token):
+            return None
         return _validate_oidc_token(token)
 
 

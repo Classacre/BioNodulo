@@ -4,12 +4,8 @@ A ``Room`` tracks all connected WebSockets for a given workflow and
 provides broadcast / presence primitives. ``RoomManager`` owns the map
 of active rooms.
 
-This module integrates with:
-
-- :class:`~bionodulo.collab.presence.AwarenessManager` for cursor / presence
-- :class:`~bionodulo.collab.heartbeat.HeartbeatManager` for connection health
-- :class:`~bionodulo.collab.redis_broadcaster.RedisBroadcaster` for
-  cross-server broadcast in horizontally-scaled deployments
+This module is retained for legacy room metadata. Native Yjs presence is
+tracked by :class:`~bionodulo.collab.presence.PresenceManager`.
 """
 
 from __future__ import annotations
@@ -20,8 +16,6 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
-
-from bionodulo.collab.presence import AwarenessManager
 
 logger = logging.getLogger(__name__)
 
@@ -94,12 +88,10 @@ class RoomManager:
 
     Attributes:
         rooms: Mapping of ``workflow_id`` -> :class:`Room`.
-        awareness: Shared :class:`AwarenessManager` for presence tracking.
     """
 
-    def __init__(self, awareness: AwarenessManager | None = None) -> None:
+    def __init__(self) -> None:
         self.rooms: dict[str, Room] = {}
-        self.awareness = awareness or AwarenessManager()
         self._client_counter = 0
 
     def _next_client_id(self) -> int:
@@ -200,9 +192,6 @@ class RoomManager:
         if removed is None:
             return None
 
-        # Clean up awareness for this client
-        self.awareness.remove(workflow_id, removed.client_id)
-
         logger.info(
             "User %s left room %s (clients=%d)",
             removed.user_id,
@@ -220,7 +209,6 @@ class RoomManager:
 
         # Tear down empty rooms to free memory
         if room.is_empty():
-            self.awareness.clear_room(workflow_id)
             del self.rooms[workflow_id]
             logger.info("Room %s destroyed (empty)", workflow_id)
 
