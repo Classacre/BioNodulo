@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.rate_limits import limiter
 from bionodulo.api.schemas import AIChatRequest
 
@@ -21,36 +22,23 @@ def _get_registry(request: Request) -> Any:
     return request.app.state.node_registry
 
 
-def _get_settings(request: Request) -> Any:
-    return request.app.state.settings
-
-
-def _get_settings_manager(request: Request) -> Any:
-    return request.app.state.settings_manager
-
-
-def _setting_literal(request: Request, key: str, default: Any = None) -> Any:
-    sm = _get_settings_manager(request)
-    try:
-        settings = sm.get_all()
-    except Exception:
-        settings = {}
-    return settings.get(key, default)
-
-
 @ai_router.post("/ai/chat")
 @limiter.limit("20/minute")
 async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
     """Send a message to the AI assistant and get a tool-aware response."""
-    settings = _get_settings(request)
-    settings_manager = _get_settings_manager(request)
+    state = app_state(request)
+    settings = state.settings
+    settings_manager = state.settings_manager
     registry = _get_registry(request)
 
-    provider = body.provider or _setting_literal(request, "bionodulo.llm.provider", "openai")
-    model = body.model or _setting_literal(request, "bionodulo.llm.model", None)
-    api_key = _setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
-    api_base = _setting_literal(request, "bionodulo.llm.baseUrl", None) or None
-    temperature = _setting_literal(request, "bionodulo.llm.temperature", 0.2)
+    provider = body.provider or setting_literal(request, "bionodulo.llm.provider", "openai")
+    model = body.model or setting_literal(request, "bionodulo.llm.model", None)
+    api_key = setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
+    api_base = setting_literal(request, "bionodulo.llm.baseUrl", None) or None
+    if str(provider).lower() == "litellm":
+        api_key = api_key or os.environ.get("LITELLM_API_KEY", "")
+        api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
+    temperature = setting_literal(request, "bionodulo.llm.temperature", 0.2)
     try:
         temperature = float(temperature)
     except (TypeError, ValueError):

@@ -140,11 +140,11 @@ class RedisBroadcaster:
     # Publish / Subscribe
     # ------------------------------------------------------------------
 
-    async def publish(self, room_id: str, message: bytes) -> None:
+    async def publish(self, room_id: str, message: bytes, *, deliver_local: bool = True) -> None:
         """Publish *message* to all subscribers of *room_id*.
 
         If Redis is available, the message is published to the Redis
-        channel.  Regardless, the message is also delivered to local
+        channel.  By default, the message is also delivered to local
         in-memory subscribers.
 
         Args:
@@ -153,8 +153,8 @@ class RedisBroadcaster:
         """
         channel = _CHANNEL_PREFIX + room_id
 
-        # Always deliver to local subscribers
-        await self._deliver_local(room_id, message)
+        if deliver_local:
+            await self._deliver_local(room_id, message)
 
         # Also publish to Redis if available
         if self._redis_available and self._redis_client is not None:

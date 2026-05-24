@@ -955,13 +955,10 @@ export default function App() {
   }, [consoleVisible, railTab]);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
-    console.log('[Template] loading:', template.filename);
     const wf = await fetchTemplateWorkflow(template);
     if (!wf) {
-      console.error('Failed to load template:', template.filename);
       return;
     }
-    console.log('[Template] loaded, nodes:', wf.nodes.length);
     if (collabEnabled) {
       // Keep a shared room on the same workflow id. Opening a new tab here
       // strands collaborators, presence, and comments in different rooms.

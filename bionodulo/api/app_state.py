@@ -11,6 +11,7 @@ from fastapi import Request
 from bionodulo.collab.audit import AuditLogger
 from bionodulo.collab.models import CollabStore
 from bionodulo.collab.permissions import PermissionChecker
+from bionodulo.collab.presence import PresenceManager
 from bionodulo.collab.rate_limiter import RateLimiter
 from bionodulo.collab.room_manager import RoomManager
 from bionodulo.collab.templates import TemplateManager
@@ -26,6 +27,14 @@ class AppState:
     @property
     def workspace_root(self) -> Path:
         return resolve_workspace_root()
+
+    @property
+    def settings(self) -> Any:
+        return self.state.settings
+
+    @property
+    def settings_manager(self) -> Any:
+        return self.state.settings_manager
 
     @property
     def collab_store(self) -> CollabStore:
@@ -84,6 +93,14 @@ class AppState:
             self.state.rate_limiter = limiter
         return limiter
 
+    @property
+    def presence_manager(self) -> PresenceManager:
+        manager = getattr(self.state, "presence_manager", None)
+        if manager is None:
+            manager = PresenceManager()
+            self.state.presence_manager = manager
+        return manager
+
 
 def app_state(request: Request) -> AppState:
     """Return a typed app-state accessor for dependency injection."""
@@ -93,3 +110,12 @@ def app_state(request: Request) -> AppState:
 def app_state_from_app(app: Any) -> AppState:
     """Return a typed app-state accessor from a FastAPI app object."""
     return AppState(app.state)
+
+
+def setting_literal(request: Request, key: str, default: Any = None) -> Any:
+    """Read frontend-style literal dotted settings keys."""
+    try:
+        settings = app_state(request).settings_manager.get_all()
+    except Exception:
+        settings = {}
+    return settings.get(key, default)

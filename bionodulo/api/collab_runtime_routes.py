@@ -72,11 +72,8 @@ def workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) ->
 
 async def close_yjs_user_sessions(request: Request, workflow_id: str, user_id: str) -> None:
     """Reconnect a live Yjs user so changed room permissions take effect."""
-    rooms = getattr(request.app.state, "yjs_room_sockets", {})
-    for socket in list(rooms.get(workflow_id, [])):
-        presence = getattr(socket.state, "yjs_presence", None)
-        if not isinstance(presence, dict) or presence.get("user_id") != user_id:
-            continue
+    presence_manager = app_state(request).presence_manager
+    for socket in presence_manager.sockets_for_user(workflow_id, user_id):
         try:
             await socket.close(code=4403, reason="Collaboration access changed")
         except Exception:
@@ -132,11 +129,12 @@ async def collab_presence(
     """List authenticated live Yjs sessions across workflow rooms."""
     payload = require_auth_payload(request)
     caller_id = payload["sub"]
-    rooms = getattr(request.app.state, "yjs_room_sockets", {})
+    presence_manager = app_state(request).presence_manager
     users: list[dict[str, Any]] = []
 
     open_rooms = open_collab_rooms_enabled()
-    for workflow_id, sockets in rooms.items():
+    workflow_ids = {user["workflow_id"] for user in presence_manager.users()}
+    for workflow_id in workflow_ids:
         if open_rooms:
             ensure_open_room_access(request, workflow_id, caller_id)
         else:
@@ -144,10 +142,7 @@ async def collab_presence(
                 require_workflow_role(request, workflow_id, caller_id, "read")
             except HTTPException:
                 continue
-        for socket in sockets:
-            presence = getattr(socket.state, "yjs_presence", None)
-            if isinstance(presence, dict):
-                users.append({**presence, "workflow_id": workflow_id})
+        users.extend(presence_manager.users(workflow_id))
 
     return {"users": users, "count": len(users)}
 
@@ -229,18 +224,8 @@ async def collab_room_status(
     caller_id = payload["sub"]
     require_workflow_role(request, workflow_id, caller_id, "read")
     room_status = app_state(request).room_manager.room_status(workflow_id)
-    sockets = getattr(request.app.state, "yjs_room_sockets", {}).get(workflow_id, [])
-    if not sockets:
-        return room_status
-    users = [
-        presence
-        for socket in sockets
-        if isinstance((presence := getattr(socket.state, "yjs_presence", None)), dict)
-    ]
-    return {
-        "workflow_id": workflow_id,
-        "active": True,
-        "users": users,
-        "created_at": room_status.get("created_at"),
-        "client_count": len(sockets),
-    }
+    live_status = app_state(request).presence_manager.room_status(
+        workflow_id,
+        created_at=room_status.get("created_at"),
+    )
+    return live_status if live_status["active"] else room_status

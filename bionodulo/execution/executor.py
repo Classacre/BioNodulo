@@ -16,8 +16,8 @@ Executes workflow graphs with support for:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
+import logging
 import traceback
 from collections import deque
 from dataclasses import dataclass, field
@@ -27,6 +27,13 @@ from typing import Any, Callable
 from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to_packages
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import run_subprocess
+from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
+
+logger = logging.getLogger(__name__)
+
+PREVIEWABLE_EXTENSIONS = frozenset({
+    ".html", ".htm", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".json", ".csv", ".tsv",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -203,25 +210,14 @@ class WorkflowExecutor:
         }
         edges: list[dict[str, Any]] = workflow.get("edges", [])
 
-        # File extensions considered previewable
-        preview_exts = {".html", ".htm", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".json", ".csv", ".tsv"}
-
         # Build adjacency lists
         upstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
         downstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
         edge_map: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
 
         for edge in edges:
-            # Support both formats:
-            #   ComfyUI-style: {"source": "node_id", "target": "node_id", ...}
-            #   BioNodulo-style: {"from": {"node": "id", "output": "port"},
-            #                    "to":   {"node": "id", "input": "port"}}
-            src = edge.get("source")
-            tgt = edge.get("target")
-            if src is None and "from" in edge:
-                src = edge["from"].get("node") if isinstance(edge["from"], dict) else edge["from"]
-            if tgt is None and "to" in edge:
-                tgt = edge["to"].get("node") if isinstance(edge["to"], dict) else edge["to"]
+            src = edge_source(edge)
+            tgt = edge_target(edge)
 
             if src in nodes and tgt in nodes:
                 upstream_of[tgt].append(src)
@@ -230,7 +226,7 @@ class WorkflowExecutor:
 
         # Topological sort
         try:
-            execution_order = self._topological_sort(nodes, upstream_of)
+            execution_order = self._topological_sort(nodes, upstream_of, downstream_of)
         except ValueError as exc:
             emit("error", {"run_id": run_id, "message": f"Cycle detected: {exc}"})
             return {"status": "failed", "error": str(exc)}
@@ -326,9 +322,9 @@ class WorkflowExecutor:
             # ---- Build upstream cache key map ----
             upstream_keys: dict[str, str | None] = {}
             for edge in edge_map.get(node_id, []):
-                src = str(edge.get("source", ""))
-                src_port = edge.get("source_output", "default")
-                tgt_port = edge.get("target_input", "default")
+                src = edge_source(edge)
+                src_port = edge_source_port(edge)
+                tgt_port = edge_target_port(edge)
                 upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
 
             # ---- Compute cache key ----
@@ -370,7 +366,7 @@ class WorkflowExecutor:
                         if not isinstance(p_str, (str, Path)):
                             continue
                         p = Path(p_str)
-                        if p.exists() and p.suffix.lower() in preview_exts:
+                        if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
                             previews.append(
                                 {
                                     "path": str(p),
@@ -483,7 +479,7 @@ class WorkflowExecutor:
                 from bionodulo.provenance.workflow_embed import embed_workflow_in_outputs
                 embed_workflow_in_outputs(workflow, artifacts)
             except Exception:
-                pass
+                logger.exception("Failed to embed workflow provenance for run %s", run_id)
 
         emit("complete", {"run_id": run_id, "status": final_status})
 
@@ -616,6 +612,7 @@ class WorkflowExecutor:
         self,
         nodes: dict[str, dict[str, Any]],
         upstream_of: dict[str, list[str]],
+        downstream_of: dict[str, list[str]],
     ) -> list[str]:
         """Return node IDs in topological order (Kahn's algorithm)."""
         in_degree = {nid: len(upstream_of[nid]) for nid in nodes}
@@ -625,12 +622,10 @@ class WorkflowExecutor:
         while queue:
             nid = queue.popleft()
             order.append(nid)
-            for downstream in nodes:
-                count = upstream_of[downstream].count(nid)
-                if count:
-                    in_degree[downstream] -= count
-                    if in_degree[downstream] == 0:
-                        queue.append(downstream)
+            for downstream in downstream_of.get(nid, []):
+                in_degree[downstream] -= 1
+                if in_degree[downstream] == 0:
+                    queue.append(downstream)
 
         if len(order) != len(nodes):
             remaining = [nid for nid in nodes if nid not in order]
@@ -663,24 +658,9 @@ class WorkflowExecutor:
 
         # Override with upstream connections
         for edge in edge_map.get(node_id, []):
-            # ComfyUI-style edges
-            src = edge.get("source")
-            src_port = edge.get("source_output", "default")
-            tgt_port = edge.get("target_input", "default")
-
-            # BioNodulo-style edges: {"from": {"node": ..., "output": ...},
-            #                         "to":   {"node": ..., "input": ...}}
-            if src is None and "from" in edge:
-                from_data = edge["from"]
-                if isinstance(from_data, dict):
-                    src = from_data.get("node")
-                    src_port = from_data.get("output", "default")
-                else:
-                    src = from_data
-            if "to" in edge:
-                to_data = edge["to"]
-                if isinstance(to_data, dict):
-                    tgt_port = to_data.get("input", "default")
+            src = edge_source(edge)
+            src_port = edge_source_port(edge)
+            tgt_port = edge_target_port(edge)
 
             if src in node_outputs:
                 upstream_out = node_outputs[src]
@@ -758,7 +738,6 @@ class WorkflowExecutor:
     ) -> list[dict[str, Any]]:
         """Collect previewable output files (HTML, images, JSON, etc.)."""
         previews: list[dict[str, Any]] = []
-        preview_exts = {".html", ".htm", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".json", ".csv", ".tsv"}
 
         for port, path in result.get("outputs", {}).items():
             paths = path if isinstance(path, (list, tuple)) else [path]
@@ -766,7 +745,7 @@ class WorkflowExecutor:
                 if not isinstance(p_str, (str, Path)):
                     continue
                 p = Path(p_str)
-                if p.exists() and p.suffix.lower() in preview_exts:
+                if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
                     previews.append(
                         {
                             "path": str(p),
@@ -870,17 +849,3 @@ class WorkflowExecutor:
         if env_type == "pixi" and env_name:
             return [exe, "run", "-e", env_name, "--"]
         return []
-
-    def _change_fingerprint(
-        self,
-        node_id: str,
-        params: dict[str, Any],
-        inputs: dict[str, Any],
-    ) -> str:
-        """Detect if node inputs changed by computing a fingerprint."""
-        payload = json.dumps(
-            {"params": params, "inputs": inputs},
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(payload.encode()).hexdigest()

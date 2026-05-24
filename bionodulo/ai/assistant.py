@@ -356,7 +356,7 @@ async def _call_llm(
     temperature: float,
     max_tokens: int,
 ) -> str:
-    if provider in ("openai", "custom"):
+    if provider in ("openai", "custom", "litellm"):
         return await _call_openai(
             messages, model or "gpt-4", api_key or "", api_base, temperature, max_tokens
         )

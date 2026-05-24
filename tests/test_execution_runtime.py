@@ -10,6 +10,13 @@ import pytest
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
+from bionodulo.workflow.graph import (
+    edge_source,
+    edge_source_port,
+    edge_target,
+    edge_target_port,
+    topological_sort,
+)
 
 
 @pytest.mark.asyncio
@@ -47,6 +54,31 @@ def test_cache_store_tracks_and_replaces_markers_atomically(tmp_path: Path) -> N
     store.write_marker("abc", outputs={"out": "two"})
     assert store.is_hit("abc")
     assert store.read_marker("abc")["outputs"] == {"out": "two"}
+
+
+def test_graph_helpers_support_frontend_and_legacy_edge_shapes() -> None:
+    frontend_edge = {
+        "from": {"node": "input", "output": "reads"},
+        "to": {"node": "qc", "input": "reads"},
+    }
+    legacy_edge = {
+        "source_node": "qc",
+        "target_node": "multiqc",
+        "source_output": "report",
+        "target_input": "reports",
+    }
+    workflow = {
+        "nodes": [{"id": "input"}, {"id": "qc"}, {"id": "multiqc"}],
+        "edges": [frontend_edge, legacy_edge],
+    }
+
+    assert edge_source(frontend_edge) == "input"
+    assert edge_source_port(frontend_edge) == "reads"
+    assert edge_target(frontend_edge) == "qc"
+    assert edge_target_port(frontend_edge) == "reads"
+    assert edge_source(legacy_edge) == "qc"
+    assert edge_target(legacy_edge) == "multiqc"
+    assert topological_sort(workflow) == ["input", "qc", "multiqc"]
 
 
 @pytest.mark.asyncio

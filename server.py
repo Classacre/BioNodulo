@@ -22,7 +22,7 @@ from bionodulo.api.collab_runtime_routes import collab_runtime_router
 from bionodulo.api.settings_routes import settings_router
 from bionodulo.api.websocket import websocket_router
 from bionodulo.api.collab_routes import collab_api_router
-from bionodulo.collab.yjs_native_handler import yjs_router
+from bionodulo.collab.yjs_native_handler import stop_room_cache_cleanup, yjs_router
 from bionodulo.collab.heartbeat import HeartbeatManager
 from bionodulo.collab.redis_broadcaster import RedisBroadcaster
 from bionodulo.core.config import Settings, SettingsManager
@@ -144,6 +144,12 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger = __import__("logging").getLogger(__name__)
             logger.warning("Error disconnecting Redis broadcaster: %s", exc)
+
+        try:
+            await stop_room_cache_cleanup()
+        except Exception as exc:
+            logger = __import__("logging").getLogger(__name__)
+            logger.warning("Error stopping Yjs room cleanup: %s", exc)
 
     # Include routers
     app.include_router(router, prefix="/api")

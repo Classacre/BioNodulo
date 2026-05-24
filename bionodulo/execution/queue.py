@@ -65,12 +65,14 @@ class RunQueue:
         self.emit = emit or (lambda _evt, _data: None)
 
         self._pending: asyncio.Queue[RunRequest] = asyncio.Queue()
+        self._pending_items: list[RunRequest] = []
         self._running: dict[str, RunRequest] = {}
         self._history: list[RunRequest] = []
         self._worker_task: asyncio.Task[None] | None = None
         self._active_tasks: set[asyncio.Task[None]] = set()
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._worker_start_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Public API
@@ -99,13 +101,13 @@ class RunQueue:
             force_nodes=force_nodes or set(),
             metadata=metadata or {},
         )
+        async with self._lock:
+            self._pending_items.append(request)
         await self._pending.put(request)
         self.emit("queue_submit", {"run_id": rid, "status": "pending"})
         await self._emit_queue()
 
-        # Start worker if not running
-        if self._worker_task is None or self._worker_task.done():
-            self._worker_task = asyncio.create_task(self._worker())
+        await self._ensure_worker()
 
         return rid
 
@@ -134,23 +136,18 @@ class RunQueue:
             return True
 
         if run_id:
-            temp_list: list[RunRequest] = []
             removed = False
-            while not self._pending.empty():
-                try:
-                    req = self._pending.get_nowait()
-                    if req.run_id == run_id:
-                        req.status = RunStatus.INTERRUPTED
-                        req.finished_at = time.time()
-                        self._history.append(req)
-                        removed = True
-                        self.emit("queue_interrupt", {"run_id": run_id})
-                    else:
-                        temp_list.append(req)
-                except asyncio.QueueEmpty:
+            async with self._lock:
+                for req in list(self._pending_items):
+                    if req.run_id != run_id:
+                        continue
+                    self._pending_items.remove(req)
+                    req.status = RunStatus.INTERRUPTED
+                    req.finished_at = time.time()
+                    self._history.append(req)
+                    removed = True
+                    self.emit("queue_interrupt", {"run_id": run_id})
                     break
-            for req in temp_list:
-                await self._pending.put(req)
             if removed:
                 await self._emit_queue()
                 return True
@@ -163,16 +160,14 @@ class RunQueue:
         Returns:
             Number of cleared runs.
         """
-        count = 0
-        while not self._pending.empty():
-            try:
-                req = self._pending.get_nowait()
+        async with self._lock:
+            pending = list(self._pending_items)
+            self._pending_items.clear()
+            for req in pending:
                 req.status = RunStatus.CANCELLED
                 req.finished_at = time.time()
                 self._history.append(req)
-                count += 1
-            except asyncio.QueueEmpty:
-                break
+        count = len(pending)
         self.emit("queue_clear", {"cleared": count})
         await self._emit_queue()
         return count
@@ -332,6 +327,13 @@ class RunQueue:
             except asyncio.TimeoutError:
                 continue
 
+            async with self._lock:
+                if request in self._pending_items:
+                    self._pending_items.remove(request)
+                if request.status is not RunStatus.PENDING:
+                    self._pending.task_done()
+                    continue
+
             task = asyncio.create_task(self._run_request(request))
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
@@ -398,17 +400,12 @@ class RunQueue:
         """Broadcast current queue state."""
         self.emit("queue_state", self.queue_state())
 
+    async def _ensure_worker(self) -> None:
+        """Start the scheduler exactly once, even under concurrent submits."""
+        async with self._worker_start_lock:
+            if self._worker_task is None or self._worker_task.done():
+                self._worker_task = asyncio.create_task(self._worker())
+
     def _queue_items(self) -> list[RunRequest]:
         """Return a snapshot of items currently in the pending queue."""
-        items: list[RunRequest] = []
-        temp: list[RunRequest] = []
-        while not self._pending.empty():
-            try:
-                req = self._pending.get_nowait()
-                items.append(req)
-                temp.append(req)
-            except asyncio.QueueEmpty:
-                break
-        for req in temp:
-            self._pending.put_nowait(req)
-        return items
+        return list(self._pending_items)

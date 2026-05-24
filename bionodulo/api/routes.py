@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+from bionodulo.api.app_state import setting_literal
 from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
 from bionodulo.api.collab_dependencies import (
     ensure_open_room_access,
@@ -164,26 +165,8 @@ def _get_event_hub(request: Request) -> EventHub:
     return request.app.state.event_hub
 
 
-def _get_settings_manager(request: Request) -> Any:
-    return request.app.state.settings_manager
-
-
-def _setting_literal(request: Request, key: str, default: Any = None) -> Any:
-    """Read frontend-style literal dotted settings keys.
-
-    SettingsManager also supports nested dotted access, but the React settings
-    store persists keys such as "bionodulo.collab.enabled" literally.
-    """
-    sm = _get_settings_manager(request)
-    try:
-        settings = sm.get_all()
-    except Exception:
-        settings = {}
-    return settings.get(key, default)
-
-
 def _setting_bool(request: Request, key: str, default: bool = False) -> bool:
-    value = _setting_literal(request, key, default)
+    value = setting_literal(request, key, default)
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -840,7 +823,7 @@ async def api_host_status() -> dict[str, Any]:
     Pixi can be auto-installed; everything else must be
     present on the host PATH.
     """
-    return host_diagnostics()
+    return await asyncio.to_thread(host_diagnostics)
 
 
 @router.post("/host_status/install-pixi")

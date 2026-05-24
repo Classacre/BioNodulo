@@ -9,10 +9,36 @@ interface AuthSession {
   user: AuthUser;
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const json = decodeURIComponent(
+      atob(padded).split('').map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''),
+    );
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function tokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  const exp = typeof payload?.exp === 'number' ? payload.exp : null;
+  return exp !== null && exp * 1000 <= Date.now();
+}
+
 /** Get the stored JWT token from localStorage */
 export function getToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token && tokenExpired(token)) {
+      clearToken();
+      return null;
+    }
+    return token;
   } catch {
     return null;
   }
@@ -98,6 +124,10 @@ export async function fetchToken(name: string): Promise<AuthSession> {
 export async function initAuth(): Promise<boolean> {
   const token = getToken();
   if (!token) return false;
+  if (tokenExpired(token)) {
+    clearToken();
+    return false;
+  }
 
   try {
     const res = await fetch('/api/auth/me', {

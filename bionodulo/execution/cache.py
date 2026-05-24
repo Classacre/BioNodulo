@@ -9,10 +9,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 from diskcache import Cache as DiskCache
+
+
+def _marker_memory_limit() -> int:
+    try:
+        return max(128, int(os.environ.get("BIONODULO_CACHE_MARKER_MEMORY_LIMIT", "8192")))
+    except ValueError:
+        return 8192
 
 
 class CacheStore:
@@ -31,15 +40,34 @@ class CacheStore:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._metadata = DiskCache(str(self.cache_dir / "metadata"))
-        self._known_markers = set(map(str, self._metadata.iterkeys())) | {
-            path.name.removesuffix(".marker.json")
-            for path in self.cache_dir.glob("*.marker.json")
-            if path.is_file()
-        }
+        self._known_limit = _marker_memory_limit()
+        self._known_markers: OrderedDict[str, None] = OrderedDict()
+        for key in self._metadata.iterkeys():
+            self._remember(str(key))
+        for path in self.cache_dir.glob("*.marker.json"):
+            if path.is_file():
+                self._remember(path.name.removesuffix(".marker.json"))
 
     def _marker_path(self, cache_key: str) -> Path:
         """Return the path to the marker file for *cache_key*."""
         return self.cache_dir / f"{cache_key}.marker.json"
+
+    def _remember(self, cache_key: str) -> None:
+        """Track a hot marker key without letting memory grow forever."""
+        if cache_key in self._known_markers:
+            self._known_markers.move_to_end(cache_key)
+        self._known_markers[cache_key] = None
+        while len(self._known_markers) > self._known_limit:
+            self._known_markers.popitem(last=False)
+
+    def _forget(self, cache_key: str) -> None:
+        self._known_markers.pop(cache_key, None)
+
+    def _is_remembered(self, cache_key: str) -> bool:
+        if cache_key not in self._known_markers:
+            return False
+        self._known_markers.move_to_end(cache_key)
+        return True
 
     def cache_key_for_node(
         self,
@@ -84,21 +112,21 @@ class CacheStore:
 
     def is_hit(self, cache_key: str) -> bool:
         """Return *True* if a cached result exists for *cache_key*."""
-        if cache_key in self._known_markers:
+        if self._is_remembered(cache_key):
             return True
         if cache_key in self._metadata:
-            self._known_markers.add(cache_key)
+            self._remember(cache_key)
             return True
         exists = self._marker_path(cache_key).is_file()
         if exists:
-            self._known_markers.add(cache_key)
+            self._remember(cache_key)
         return exists
 
     def read_marker(self, cache_key: str) -> dict[str, Any] | None:
         """Read and return the cached metadata for *cache_key*, or *None*."""
         marker = self._metadata.get(cache_key, default=None)
         if isinstance(marker, dict):
-            self._known_markers.add(cache_key)
+            self._remember(cache_key)
             return marker
         path = self._marker_path(cache_key)
         if not path.is_file():
@@ -134,7 +162,7 @@ class CacheStore:
             "upstream_keys": upstream_keys or {},
         }
         self._metadata.set(cache_key, marker)
-        self._known_markers.add(cache_key)
+        self._remember(cache_key)
 
     def clear(self) -> int:
         """Remove **all** cached markers and return the count deleted."""
@@ -145,7 +173,7 @@ class CacheStore:
                     entry.unlink()
                     count += 1
                     if entry.name.endswith(".marker.json"):
-                        self._known_markers.discard(entry.name.removesuffix(".marker.json"))
+                        self._forget(entry.name.removesuffix(".marker.json"))
                 except OSError:
                     pass
         self._known_markers.clear()

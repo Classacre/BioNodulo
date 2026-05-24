@@ -48,6 +48,47 @@ if not JWT_SECRET:
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "bionodulo:auth"
 DEFAULT_EXPIRY_HOURS = 24
+OIDC_ISSUER = os.environ.get("BIONODULO_OIDC_ISSUER", "").rstrip("/")
+OIDC_AUDIENCE = os.environ.get("BIONODULO_OIDC_AUDIENCE", JWT_AUDIENCE)
+OIDC_JWKS_URL = os.environ.get("BIONODULO_OIDC_JWKS_URL", "")
+_OIDC_JWKS_CLIENT: jwt.PyJWKClient | None = None
+
+
+def _oidc_jwks_client() -> jwt.PyJWKClient | None:
+    """Return a cached JWKS client for external OIDC providers."""
+    global _OIDC_JWKS_CLIENT
+    if not OIDC_ISSUER and not OIDC_JWKS_URL:
+        return None
+    if _OIDC_JWKS_CLIENT is None:
+        jwks_url = OIDC_JWKS_URL or f"{OIDC_ISSUER}/.well-known/jwks.json"
+        _OIDC_JWKS_CLIENT = jwt.PyJWKClient(jwks_url)
+    return _OIDC_JWKS_CLIENT
+
+
+def _validate_oidc_token(token: str) -> dict[str, Any] | None:
+    """Validate a JWT from Keycloak, SuperTokens, or another OIDC provider."""
+    client = _oidc_jwks_client()
+    if client is None:
+        return None
+    try:
+        signing_key = client.get_signing_key_from_jwt(token)
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+            audience=OIDC_AUDIENCE,
+            issuer=OIDC_ISSUER or None,
+        )
+        if not payload.get("sub"):
+            return None
+        payload.setdefault("role", "editor")
+        payload.setdefault("name", payload.get("preferred_username") or payload.get("email") or payload["sub"])
+        return payload
+    except jwt.InvalidTokenError as exc:
+        logger.debug("OIDC JWT validation failed: %s", exc)
+    except Exception as exc:
+        logger.debug("OIDC JWKS validation failed: %s", exc)
+    return None
 
 
 def create_token(
@@ -108,7 +149,7 @@ def validate_token(token: str) -> dict[str, Any] | None:
         return None
     except jwt.InvalidTokenError as exc:
         logger.debug("JWT validation failed: %s", exc)
-        return None
+        return _validate_oidc_token(token)
 
 
 def generate_user_id() -> str:

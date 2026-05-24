@@ -55,7 +55,7 @@ The notebook clones this repository, installs the backend dependencies, builds t
 cd bionodulo-v2
 
 # Install Python dependencies
-pip install -r requirements.txt
+pip install -e .
 
 # The frontend is pre-built in web/dist/
 # To rebuild it (optional):
@@ -121,7 +121,6 @@ bionodulo-v2/
 ├── main.py                    # Entry point
 ├── server.py                  # FastAPI app
 ├── pyproject.toml             # Package metadata
-├── requirements.txt           # Python dependencies
 ├── bionodulo.yaml.example     # Configuration template
 ├── Dockerfile                 # Container build
 ├── SPEC.md                    # Technical specification
@@ -161,6 +160,15 @@ bionodulo-v2/
     ├── dist/                  # Pre-built frontend
     └── src/                   # Source code
 ```
+
+## Optional Production Integrations
+
+BioNodulo runs locally with no external services. For larger deployments you can opt into battle-tested infrastructure:
+
+- **Redis** — set `BIONODULO_REDIS_URL` to replicate Yjs document updates and awareness across multiple backend instances.
+- **OIDC / Keycloak / SuperTokens** — set `BIONODULO_OIDC_ISSUER`, `BIONODULO_OIDC_AUDIENCE`, and optionally `BIONODULO_OIDC_JWKS_URL` to accept externally issued JWTs.
+- **LiteLLM Proxy** — choose the `litellm` AI provider and set `BIONODULO_LITELLM_BASE_URL` plus `LITELLM_API_KEY` to route models through a provider gateway.
+- **SlowAPI** — REST rate limiting is enabled by default; set `BIONODULO_RATE_LIMIT_REDIS_URL` or `BIONODULO_REDIS_URL` to share rate-limit state between instances.
 
 ## Node Categories
 

@@ -36,10 +36,21 @@ class NodeRegistry:
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._nodes = {}
-            cls._instance._loaded = set()
-            cls._instance._object_info_cache = None
+            cls._initialise_instance(cls._instance)
         return cls._instance
+
+    @classmethod
+    def create_isolated(cls) -> NodeRegistry:
+        """Create a non-singleton registry for tests and isolated runtimes."""
+        registry = super().__new__(cls)
+        cls._initialise_instance(registry)
+        return registry
+
+    @staticmethod
+    def _initialise_instance(registry: NodeRegistry) -> None:
+        registry._nodes = {}
+        registry._loaded = set()
+        registry._object_info_cache = None
 
     # ── Registration ─────────────────────────────────────────────────
 
