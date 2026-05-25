@@ -51,6 +51,8 @@ function saveLocal(settings: Record<string, unknown>) {
 
 // Global shared state so all components see the same settings
 let globalSettings = loadLocal();
+let globalHydrated = false;
+let globalFetchStarted = false;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -89,17 +91,22 @@ export function useSettings() {
 
   // Sync with backend when available
   useEffect(() => {
+    if (globalFetchStarted) return;
+    globalFetchStarted = true;
     fetch('/api/settings')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
           globalSettings = { ...globalSettings, ...data };
           saveLocal(globalSettings);
-          emit();
         }
       })
-      .catch(() => { /* offline */ });
+      .catch(() => { /* offline */ })
+      .finally(() => {
+        globalHydrated = true;
+        emit();
+      });
   }, []);
 
-  return { settings: globalSettings, get, getBool, set, setAll };
+  return { settings: globalSettings, ready: globalHydrated, get, getBool, set, setAll };
 }

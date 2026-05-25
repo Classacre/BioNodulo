@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from bionodulo.api.app_state import AppState
+from bionodulo.execution.arq_executor import ArqWorkflowExecutor, maybe_wrap_with_arq
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
@@ -174,3 +175,17 @@ def test_dependency_installer_is_app_scoped() -> None:
 
     assert state_one.dependency_installer is state_one.dependency_installer
     assert state_one.dependency_installer is not state_two.dependency_installer
+
+
+def test_arq_execution_backend_is_opt_in(monkeypatch) -> None:
+    executor = SimpleNamespace(workspace_dir="workspace", cache=SimpleNamespace(cache_dir="cache"))
+
+    monkeypatch.delenv("BIONODULO_EXECUTION_BACKEND", raising=False)
+    assert maybe_wrap_with_arq(executor) is executor
+
+    monkeypatch.setenv("BIONODULO_EXECUTION_BACKEND", "arq")
+    wrapped = maybe_wrap_with_arq(executor)
+
+    assert isinstance(wrapped, ArqWorkflowExecutor)
+    assert str(wrapped.workspace_dir) == "workspace"
+    assert str(wrapped.cache_dir) == "cache"

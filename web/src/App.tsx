@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useAtom } from 'jotai';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
@@ -33,6 +34,12 @@ import {
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { getLocalTemplateWorkflow } from './localTemplates';
+import {
+  authReadyAtom,
+  authUserAtom,
+  requestedWorkflowIdAtom,
+  showAuthDialogAtom,
+} from './state/appAtoms';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { AwarenessState, Comment, LivePresenceUser } from './collab';
 import type { HPCStatus } from './components/layout/TopBar';
@@ -149,7 +156,7 @@ async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow |
 }
 
 export default function App() {
-  const { get, getBool, set } = useSettings();
+  const { get, getBool, set, ready: settingsReady } = useSettings();
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
@@ -160,37 +167,58 @@ export default function App() {
 
   // Authentication state
   const collabEnabled = getBool('bionodulo.collab.enabled');
-  const [requestedWorkflowId, setRequestedWorkflowId] = useState(getRequestedWorkflowId);
-  const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(getAuthUser());
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const initialRequestedWorkflowId = useMemo(() => getRequestedWorkflowId(), []);
+  const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
+  const [authUser, setAuthUser] = useAtom(authUserAtom);
+  const [authReady, setAuthReady] = useAtom(authReadyAtom);
+  const [showAuthDialog, setShowAuthDialog] = useAtom(showAuthDialogAtom);
+  const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
 
   // Initialize auth on mount
   useEffect(() => {
-    if (!collabEnabled) {
+    let cancelled = false;
+    if (!collabEnabled || !settingsReady) {
+      setAuthReady(true);
       setShowAuthDialog(false);
       return;
     }
+    setAuthReady(false);
     initAuth().then(valid => {
+      if (cancelled) return;
       if (valid) {
         setAuthUser(getAuthUser());
+        setShowAuthDialog(false);
       } else {
+        setAuthUser(null);
         setShowAuthDialog(true);
       }
+    }).finally(() => {
+      if (!cancelled) setAuthReady(true);
     });
-  }, [collabEnabled]);
+    return () => {
+      cancelled = true;
+    };
+  }, [collabEnabled, settingsReady, setAuthReady, setAuthUser, setShowAuthDialog]);
+
+  useEffect(() => {
+    if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
+      setRequestedWorkflowId(initialRequestedWorkflowId);
+    }
+  }, [initialRequestedWorkflowId, requestedWorkflowId, setRequestedWorkflowId]);
 
   // Handle login from AuthDialog
-  const handleAuthLogin = useCallback((name: string) => {
+  const handleAuthLogin = useCallback((_name: string) => {
     setAuthUser(getAuthUser());
+    setAuthReady(true);
     setShowAuthDialog(false);
-  }, []);
+  }, [setAuthReady, setAuthUser, setShowAuthDialog]);
 
   // Handle auth dialog close (without login)
   const handleAuthClose = useCallback(() => {
     // If user closes without logging in, keep current state
     // They can still use the app; collaboration just won't connect
     setShowAuthDialog(false);
-  }, []);
+  }, [setShowAuthDialog]);
 
   // Collaboration setup
   const currentUser = useMemo(() => (
@@ -216,14 +244,23 @@ export default function App() {
 
   // Colab and copied room links pin each browser to the same Yjs room.
   useEffect(() => {
-    if (!requestedWorkflowId) return;
-    if (activeWorkflow.id !== requestedWorkflowId) {
-      updateWorkflow(activeIndex, { id: requestedWorkflowId });
+    if (!effectiveRequestedWorkflowId) return;
+    if (activeWorkflow.id !== effectiveRequestedWorkflowId) {
+      updateWorkflow(activeIndex, { id: effectiveRequestedWorkflowId });
     }
     if (!collabEnabled) {
       set('bionodulo.collab.enabled', true);
     }
-  }, [activeWorkflow.id, activeIndex, collabEnabled, requestedWorkflowId, set, updateWorkflow]);
+  }, [activeWorkflow.id, activeIndex, collabEnabled, effectiveRequestedWorkflowId, set, updateWorkflow]);
+
+  const requestedWorkflowPending = Boolean(effectiveRequestedWorkflowId && activeWorkflow.id !== effectiveRequestedWorkflowId);
+  const collabWorkflowId = (
+    collabEnabled
+    && settingsReady
+    && authReady
+    && Boolean(authUser)
+    && !requestedWorkflowPending
+  ) ? activeWorkflowId : null;
 
   const {
     doc: collabDoc,
@@ -241,7 +278,7 @@ export default function App() {
     error: collabError,
     reconnectAttempt: collabReconnectAttempt,
     offline: collabOffline,
-  } = useCollab(collabEnabled ? activeWorkflowId : null, currentUser);
+  } = useCollab(collabWorkflowId, currentUser);
 
   const bridgeRef = useRef<LiteGraphYjsBridge | null>(null);
   const suppressLocalSeedForWorkflowRef = useRef<string | null>(null);

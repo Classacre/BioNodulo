@@ -46,6 +46,9 @@ dependencies = [
     "fastapi-users>=15.0.0",
     "langchain>=1.0.0",
     "langgraph>=1.0.0",
+    "litellm>=1.60.0",
+    "arq>=0.28.0",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import re as re_mod
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
@@ -22,7 +21,7 @@ from bionodulo.ai.tools import (
     ALL_TOOLS,
     ToolContext,
     execute_tool,
-    format_tools_for_prompt,
+    tools_to_openai_schema,
 )
 
 
@@ -33,19 +32,15 @@ BioNodulo is a node-based visual editor for building bioinformatics pipelines. U
 When helping users:
 - Ask clarifying questions if the request is vague
 - Use tools to fetch context rather than guessing
-- Explain your reasoning with <thinking> tags
 - Propose concrete, step-by-step workflow changes
 - Warn about common bioinformatics pitfalls (missing QC, wrong reference format, etc.)
 - If the user attaches files, analyze their contents and reference them in your answer
 
-{tools_text}
-
 Response format rules:
-1. When you need information, use a <tool_call>.
-2. Show your reasoning in <thinking> tags BEFORE each tool call.
-3. After gathering information, you may propose changes with <propose_changes>.
-4. For your final response to the user, write plain text (no tags needed).
-5. You can make multiple tool calls in sequence; wait for each result before the next.
+1. Use the provided function tools whenever you need live workflow, node, dependency, environment, or settings context.
+2. For mutating tools, draft the change but explain that the user must confirm before applying it.
+3. Keep final responses plain text and concise, with concrete next steps when useful.
+4. You can make multiple tool calls in sequence; wait for each result before the next.
 '''
 
 
@@ -70,53 +65,6 @@ class ChatResponse:
     reply: str = ""
     proposed_workflow: dict[str, Any] | None = None
     proposed_description: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Parsing
-# ---------------------------------------------------------------------------
-
-_TOOL_CALL_RE = re_mod.compile(r'<tool_call\s+name="([^"]+)">\s*(.*?)\s*</tool_call>', re_mod.DOTALL)
-_THINKING_RE = re_mod.compile(r'<thinking>\s*(.*?)\s*</thinking>', re_mod.DOTALL)
-_PROPOSE_RE = re_mod.compile(r'<propose_changes>\s*(.*?)\s*</propose_changes>', re_mod.DOTALL)
-
-
-def _extract_tool_calls(text: str) -> list[dict[str, Any]]:
-    calls = []
-    for match in _TOOL_CALL_RE.finditer(text):
-        name = match.group(1)
-        args_str = match.group(2).strip()
-        try:
-            args = json.loads(args_str) if args_str else {}
-        except json.JSONDecodeError:
-            args = {}
-        calls.append({"name": name, "arguments": args})
-    return calls
-
-
-def _extract_thinking(text: str) -> str:
-    parts = []
-    for match in _THINKING_RE.finditer(text):
-        parts.append(match.group(1).strip())
-    return "\n\n".join(parts)
-
-
-def _extract_propose_changes(text: str) -> dict[str, Any] | None:
-    for match in _PROPOSE_RE.finditer(text):
-        try:
-            data = json.loads(match.group(1).strip())
-            return data
-        except json.JSONDecodeError:
-            continue
-    return None
-
-
-def _strip_tags(text: str) -> str:
-    text = _TOOL_CALL_RE.sub("", text)
-    text = _THINKING_RE.sub("", text)
-    text = _PROPOSE_RE.sub("", text)
-    text = re_mod.sub(r"\n{3,}", "\n\n", text).strip()
-    return text
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +295,83 @@ def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
 # LLM backend
 # ---------------------------------------------------------------------------
 
+@dataclass
+class LLMResponse:
+    content: str
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _provider_model(provider: str, model: str | None) -> str:
+    provider = provider.lower()
+    if provider == "anthropic":
+        chosen = model or "claude-3-5-sonnet-20241022"
+        return chosen if chosen.startswith("anthropic/") else f"anthropic/{chosen}"
+    if provider == "openrouter":
+        chosen = model or "openai/gpt-4.1-mini"
+        return chosen if chosen.startswith("openrouter/") else f"openrouter/{chosen}"
+    return model or "gpt-4.1-mini"
+
+
+def _provider_api_key(provider: str, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    normalized = provider.lower()
+    if normalized == "anthropic":
+        return os.environ.get("ANTHROPIC_API_KEY", "")
+    if normalized == "openrouter":
+        return os.environ.get("OPENROUTER_API_KEY", "")
+    if normalized in {"custom", "litellm"}:
+        return os.environ.get("LITELLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    return os.environ.get("OPENAI_API_KEY", "")
+
+
+def _parse_tool_call(call: Any) -> dict[str, Any] | None:
+    function = _obj_get(call, "function", {})
+    name = _obj_get(function, "name", "")
+    if not name:
+        return None
+    raw_args = _obj_get(function, "arguments", "{}")
+    if isinstance(raw_args, str):
+        try:
+            arguments = json.loads(raw_args or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+    elif isinstance(raw_args, dict):
+        arguments = raw_args
+    else:
+        arguments = {}
+    return {
+        "id": str(_obj_get(call, "id", f"call_{name}")),
+        "type": str(_obj_get(call, "type", "function")),
+        "name": str(name),
+        "arguments": arguments if isinstance(arguments, dict) else {},
+    }
+
+
+def _assistant_tool_call_message(content: str, tool_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "role": "assistant",
+        "content": content or "",
+        "tool_calls": [
+            {
+                "id": call["id"],
+                "type": "function",
+                "function": {
+                    "name": call["name"],
+                    "arguments": json.dumps(call.get("arguments", {}), default=str),
+                },
+            }
+            for call in tool_calls
+        ],
+    }
+
+
 async def _call_llm(
     messages: list[dict[str, Any]],
     provider: str,
@@ -355,107 +380,47 @@ async def _call_llm(
     api_base: str | None,
     temperature: float,
     max_tokens: int,
-) -> str:
-    if provider in ("openai", "custom", "litellm"):
-        return await _call_openai(
-            messages, model or "gpt-4", api_key or "", api_base, temperature, max_tokens
-        )
-    elif provider == "anthropic":
-        return await _call_anthropic(
-            messages, model or "claude-3-sonnet-20240229", api_key or "", api_base, temperature, max_tokens
-        )
-    else:
-        raise ValueError(f"Unsupported provider: {provider}")
-
-
-async def _call_openai(
-    messages: list[dict[str, Any]],
-    model: str,
-    api_key: str,
-    api_base: str | None,
-    temperature: float,
-    max_tokens: int,
-) -> str:
-    if not api_key:
-        raise ValueError("OpenAI API key is required.")
+    tools: list[dict[str, Any]] | None = None,
+) -> LLMResponse:
+    if not api_key and provider not in {"custom", "litellm"}:
+        raise ValueError(f"{provider} API key is required.")
     try:
-        import httpx
-    except ImportError:
-        raise RuntimeError("httpx is required. pip install httpx")
+        import litellm
+    except ImportError as exc:
+        raise RuntimeError("LiteLLM is required for AI chat. Install with `pip install litellm`.") from exc
 
-    base_url = api_base or "https://api.openai.com/v1"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {
-        "model": model,
+    kwargs: dict[str, Any] = {
+        "model": _provider_model(provider, model),
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
     }
+    if api_key:
+        kwargs["api_key"] = api_key
+    if api_base:
+        kwargs["api_base"] = api_base
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"OpenAI API error {response.status_code}: {response.text}")
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-
-
-async def _call_anthropic(
-    messages: list[dict[str, Any]],
-    model: str,
-    api_key: str,
-    api_base: str | None,
-    temperature: float,
-    max_tokens: int,
-) -> str:
-    if not api_key:
-        raise ValueError("Anthropic API key is required.")
     try:
-        import httpx
-    except ImportError:
-        raise RuntimeError("httpx is required. pip install httpx")
+        response = await litellm.acompletion(**kwargs)
+    except Exception as exc:
+        raise RuntimeError(f"LLM provider error: {exc}") from exc
 
-    system_content = ""
-    conversation: list[dict[str, Any]] = []
-    for msg in messages:
-        if msg.get("role") == "system":
-            system_content += (msg.get("content") or "") + "\n"
-        else:
-            conversation.append(_convert_message_for_anthropic(msg))
-
-    base_url = api_base or "https://api.anthropic.com"
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-    }
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": conversation,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": False,
-    }
-    if system_content:
-        payload["system"] = system_content.strip()
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{base_url}/v1/messages",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"Anthropic API error {response.status_code}: {response.text}")
-        data = response.json()
-        return data["content"][0]["text"]
+    choices = _obj_get(response, "choices", [])
+    if not choices:
+        return LLMResponse(content="")
+    message = _obj_get(choices[0], "message", {})
+    content = _obj_get(message, "content", "") or ""
+    raw_tool_calls = _obj_get(message, "tool_calls", []) or []
+    tool_calls = [
+        parsed
+        for parsed in (_parse_tool_call(call) for call in raw_tool_calls)
+        if parsed is not None
+    ]
+    return LLMResponse(content=str(content), tool_calls=tool_calls)
 
 
 # ---------------------------------------------------------------------------
@@ -560,8 +525,8 @@ async def chat_with_tools(
         settings=settings,
         settings_manager=settings_manager,
     )
-    tools_text = format_tools_for_prompt(ALL_TOOLS)
-    system_prompt = BIONODULO_SYSTEM_PROMPT.format(tools_text=tools_text)
+    tool_schemas = tools_to_openai_schema(ALL_TOOLS)
+    system_prompt = BIONODULO_SYSTEM_PROMPT
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -571,11 +536,7 @@ async def chat_with_tools(
         if msg.get("role") != "system":
             messages.append(dict(msg))
 
-    # Build provider-specific user message content
-    if provider == "anthropic":
-        user_content: str | list[dict[str, Any]] = _build_anthropic_content(user_message, files)
-    else:
-        user_content = _build_openai_content(user_message, files)
+    user_content: str | list[dict[str, Any]] = _build_openai_content(user_message, files)
 
     messages.append({"role": "user", "content": user_content})
 
@@ -587,25 +548,23 @@ async def chat_with_tools(
         messages_state = list(state["messages"])
         steps_state = list(state.get("steps", []))
         try:
-            content = await _call_llm(
+            llm_response = await _call_llm(
                 messages=messages_state,
                 provider=provider,
                 model=model,
-                api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
+                api_key=_provider_api_key(provider, api_key),
                 api_base=api_base,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                tools=tool_schemas,
             )
         except Exception as exc:
             reply = f"Sorry, I encountered an error: {exc}"
             steps_state.append(ChatStep(type="reply", content=reply))
             return {"steps": steps_state, "reply": reply, "error": reply}
 
-        thinking = _extract_thinking(content)
-        if thinking:
-            steps_state.append(ChatStep(type="thinking", content=thinking))
-
-        tool_calls = _extract_tool_calls(content)
+        content = llm_response.content
+        tool_calls = llm_response.tool_calls
         updates: AssistantGraphState = {
             "steps": steps_state,
             "last_content": content,
@@ -614,20 +573,9 @@ async def chat_with_tools(
         if tool_calls:
             return updates
 
-        propose = _extract_propose_changes(content)
         proposed_workflow = state.get("proposed_workflow")
         proposed_description = state.get("proposed_description", "")
-        if propose:
-            proposed_workflow = propose.get("workflow")
-            proposed_description = propose.get("description", "")
-            steps_state.append(
-                ChatStep(
-                    type="propose_changes",
-                    workflow=proposed_workflow,
-                    description=proposed_description,
-                )
-            )
-        elif state.get("mutated_workflow"):
+        if state.get("mutated_workflow"):
             graph_ctx = state["ctx"]
             proposed_workflow = graph_ctx.workflow
             proposed_description = "Apply the workflow changes drafted by the assistant tools."
@@ -638,7 +586,7 @@ async def chat_with_tools(
                     description=proposed_description,
                 )
             )
-        reply = _strip_tags(content)
+        reply = content.strip()
         if reply:
             steps_state.append(ChatStep(type="reply", content=reply))
         updates.update(
@@ -655,49 +603,53 @@ async def chat_with_tools(
         tool_calls = state.get("tool_calls", [])
         if not tool_calls:
             return {}
-        tool_call = tool_calls[0]
-        tool_name = str(tool_call.get("name", ""))
-        args = tool_call.get("arguments", {})
-        if not isinstance(args, dict):
-            args = {}
 
         steps_state = list(state.get("steps", []))
-        steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
-
-        tool = langchain_tools.get(tool_name)
-        if tool is None:
-            result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
-        else:
-            try:
-                result = tool.invoke(args)
-            except Exception as exc:
-                result = {"status": "error", "error": str(exc)}
-
-        steps_state.append(
-            ChatStep(
-                type="tool_result",
-                name=tool_name,
-                result=result,
-            )
-        )
-
+        messages_state = list(state["messages"])
+        messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
         graph_ctx = state["ctx"]
         mutated = bool(state.get("mutated_workflow"))
-        if isinstance(result, dict) and result.get("status") == "ok":
-            inner = result.get("result", {})
-            if isinstance(inner, dict) and "workflow" in inner:
-                graph_ctx.workflow = inner["workflow"]
-                mutated = True
 
-        result_text = json.dumps(result, default=str, indent=2)
-        messages_state = list(state["messages"])
-        messages_state.append({"role": "assistant", "content": state.get("last_content", "")})
-        messages_state.append(
-            {
-                "role": "user",
-                "content": f"Tool result for {tool_name}:\n{result_text}",
-            }
-        )
+        for tool_call in tool_calls:
+            tool_name = str(tool_call.get("name", ""))
+            args = tool_call.get("arguments", {})
+            if not isinstance(args, dict):
+                args = {}
+
+            steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
+
+            tool = langchain_tools.get(tool_name)
+            if tool is None:
+                result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
+            else:
+                try:
+                    result = tool.invoke(args)
+                except Exception as exc:
+                    result = {"status": "error", "error": str(exc)}
+
+            steps_state.append(
+                ChatStep(
+                    type="tool_result",
+                    name=tool_name,
+                    result=result,
+                )
+            )
+
+            if isinstance(result, dict) and result.get("status") == "ok":
+                inner = result.get("result", {})
+                if isinstance(inner, dict) and "workflow" in inner:
+                    graph_ctx.workflow = inner["workflow"]
+                    mutated = True
+
+            messages_state.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
+                    "name": tool_name,
+                    "content": json.dumps(result, default=str),
+                }
+            )
+
         return {
             "messages": messages_state,
             "steps": steps_state,

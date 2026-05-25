@@ -76,22 +76,58 @@ def format_tools_for_prompt(tools: list[ToolDefinition]) -> str:
         lines.append("")
     lines.append(
         """
-To call a tool, output exactly:
-<tool_call name="TOOL_NAME">
-{"param1": "value1", "param2": "value2"}
-</tool_call>
-
-Show your reasoning inside <thinking> tags before each tool call.
-
-When you want to propose changes to the workflow, output:
-<propose_changes>
-{"description": "human-readable summary", "workflow": {...full workflow JSON...}}
-</propose_changes>
-
+Use the model provider's native function calling interface to call tools.
 For mutating tools, the user must confirm before changes are applied.
 """
     )
     return "\n".join(lines)
+
+
+def _json_schema_type(type_name: str) -> dict[str, Any]:
+    normalized = type_name.lower()
+    if normalized in {"int", "integer"}:
+        return {"type": "integer"}
+    if normalized in {"float", "number"}:
+        return {"type": "number"}
+    if normalized in {"bool", "boolean"}:
+        return {"type": "boolean"}
+    if normalized in {"array", "list"}:
+        return {"type": "array", "items": {}}
+    if normalized in {"object", "dict", "json"}:
+        return {"type": "object"}
+    return {"type": "string"}
+
+
+def tools_to_openai_schema(tools: list[ToolDefinition]) -> list[dict[str, Any]]:
+    """Return LiteLLM/OpenAI-compatible function-calling schemas."""
+    schemas: list[dict[str, Any]] = []
+    for tool in tools:
+        properties: dict[str, Any] = {}
+        required: list[str] = []
+        for param in tool.parameters:
+            schema = _json_schema_type(param.type)
+            schema["description"] = param.description
+            if param.default is not None:
+                schema["default"] = param.default
+            properties[param.name] = schema
+            if param.required:
+                required.append(param.name)
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        )
+    return schemas
 
 
 def _new_id(prefix: str) -> str:

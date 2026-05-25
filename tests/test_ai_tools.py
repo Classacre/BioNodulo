@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.ai.tools import ToolContext, execute_tool
 
 
@@ -78,3 +84,50 @@ def test_ai_graph_tools_reject_unknown_slots():
 
     assert result["status"] == "error"
     assert "not_a_real_output" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_uses_litellm_native_tool_calls(monkeypatch):
+    calls = []
+
+    async def fake_acompletion(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content="",
+                            tool_calls=[
+                                SimpleNamespace(
+                                    id="call_1",
+                                    type="function",
+                                    function=SimpleNamespace(
+                                        name="get_current_workflow",
+                                        arguments="{}",
+                                    ),
+                                )
+                            ],
+                        )
+                    )
+                ]
+            )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="The workflow is empty.", tool_calls=[]))]
+        )
+
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(acompletion=fake_acompletion))
+
+    response = await chat_with_tools(
+        "What is on the canvas?",
+        workflow={"id": "wf-local", "nodes": [], "edges": []},
+        history=[],
+        workflow_id="wf-local",
+        registry=DummyRegistry(),
+        api_key="sk-test",
+    )
+
+    assert calls[0]["tools"]
+    assert "tool_choice" in calls[0]
+    assert any(step.type == "tool_call" and step.name == "get_current_workflow" for step in response.steps)
+    assert response.reply == "The workflow is empty."

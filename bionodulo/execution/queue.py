@@ -8,6 +8,7 @@ interruption, clearing, and state broadcast.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import time
 import uuid
@@ -16,6 +17,7 @@ from enum import Enum
 from typing import Any, Callable
 
 from bionodulo.execution.executor import WorkflowExecutor
+from bionodulo.execution.arq_executor import maybe_wrap_with_arq
 
 
 class RunStatus(str, Enum):
@@ -60,7 +62,7 @@ class RunQueue:
         max_concurrent: int = 0,
         emit: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
-        self.executor = executor or WorkflowExecutor()
+        self.executor = maybe_wrap_with_arq(executor or WorkflowExecutor())
         self.max_concurrent = max_concurrent if max_concurrent > 0 else min(4, os.cpu_count() or 1)
         self.emit = emit or (lambda _evt, _data: None)
 
@@ -308,6 +310,11 @@ class RunQueue:
         close = getattr(cache, "close", None)
         if callable(close):
             close()
+        executor_close = getattr(self.executor, "close", None)
+        if callable(executor_close):
+            maybe_close = executor_close()
+            if inspect.isawaitable(maybe_close):
+                await maybe_close
 
     # ------------------------------------------------------------------
     # Worker

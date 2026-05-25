@@ -106,7 +106,7 @@ export function useWorkflow() {
       if (next.length === 0) next.push(emptyWorkflow());
       return next;
     });
-    setActiveIndex(prev => Math.min(prev, workflows.length - 2));
+    setActiveIndex(prev => Math.max(0, Math.min(prev, Math.max(0, workflows.length - 2))));
   }, [workflows.length]);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {

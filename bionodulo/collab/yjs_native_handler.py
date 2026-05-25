@@ -439,7 +439,11 @@ async def _broadcast_room_presence(
     broadcaster: RedisBroadcaster | None = None,
 ) -> None:
     message = json.dumps(_room_presence_payload(workflow_id, room_sockets, presence_manager))
-    targets = tuple(room_sockets.get(workflow_id, []))
+    targets = tuple(
+        socket
+        for socket in room_sockets.get(workflow_id, [])
+        if not getattr(socket.state, "yjs_binary_only", False)
+    )
     if not targets:
         return
     results = await asyncio.gather(
@@ -504,6 +508,7 @@ async def yjs_websocket(
     name: str = Query(default=""),
     color: str = Query(default="#3b82f6"),
     session_id: str = Query(default=""),
+    client: str = Query(default=""),
 ) -> None:
     del token, name
     query_params = dict(websocket.query_params)
@@ -531,6 +536,7 @@ async def yjs_websocket(
 
     subprotocols = websocket.scope.get("subprotocols", [])
     await websocket.accept(subprotocol="b-yjs" if "b-yjs" in subprotocols else None)
+    websocket.state.yjs_binary_only = client in {"y-websocket", "y-websocket-provider"}
 
     rate_limiter = _rate_limiter_for_websocket(websocket)
     store = _store_for_websocket(websocket)
