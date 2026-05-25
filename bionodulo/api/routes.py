@@ -43,11 +43,13 @@ from bionodulo.api.schemas import (
     ManagerInstallPlanRequest,
     ManagerInstallRequest,
     ManagerPackageRequest,
+    QueueReorderRequest,
     RunCreateRequest,
     ValidationRequest,
     WorkspaceRootRequest,
     WorkflowEnvironmentRequest,
     WorkflowExportRequest,
+    WorkflowExtractRequest,
 )
 from bionodulo.core.config import Settings
 from bionodulo.core.events import EventHub
@@ -68,6 +70,7 @@ from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.manager.resolver import _resolve_workflow_async
+from bionodulo.workflow.graph import edge_source, edge_target
 from bionodulo.workflow.validation import validate_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -199,6 +202,105 @@ def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
 
 
+def _workflow_node_id(node: Any, fallback: str | None = None) -> str:
+    if isinstance(node, dict):
+        node_id = node.get("id", fallback)
+    else:
+        node_id = getattr(node, "id", fallback)
+    return str(node_id) if node_id is not None else ""
+
+
+def _workflow_node_as_dict(node: Any, node_id: str) -> dict[str, Any]:
+    if isinstance(node, dict):
+        data = dict(node)
+    elif hasattr(node, "model_dump"):
+        data = node.model_dump()
+    else:
+        data = dict(getattr(node, "__dict__", {}))
+    data.setdefault("id", node_id)
+    return data
+
+
+def _object_as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    return dict(getattr(value, "__dict__", {}))
+
+
+def _extract_workflow_subgraph(
+    workflow: dict[str, Any],
+    node_ids: list[str],
+    name: str,
+) -> dict[str, Any]:
+    selected = {
+        str(nid).strip()
+        for nid in node_ids
+        if nid is not None and str(nid).strip()
+    }
+    if not selected:
+        raise ValueError("At least one node_id is required")
+
+    raw_nodes = workflow.get("nodes", [])
+    node_map: dict[str, dict[str, Any]] = {}
+    if isinstance(raw_nodes, dict):
+        for node_id, node in raw_nodes.items():
+            nid = _workflow_node_id(node, str(node_id))
+            if nid:
+                node_map[nid] = _workflow_node_as_dict(node, nid)
+    else:
+        for node in raw_nodes or []:
+            nid = _workflow_node_id(node)
+            if nid:
+                node_map[nid] = _workflow_node_as_dict(node, nid)
+
+    missing = sorted(selected - set(node_map))
+    if missing:
+        raise KeyError(", ".join(missing))
+
+    extracted_nodes = [node_map[nid] for nid in node_map if nid in selected]
+    extracted_edges = [
+        edge
+        for edge in workflow.get("edges", [])
+        if edge_source(edge) in selected and edge_target(edge) in selected
+    ]
+    extracted_groups: list[dict[str, Any]] = []
+    for group in workflow.get("groups", []) or []:
+        group_data = _object_as_dict(group)
+        group_node_ids = [
+            str(node_id)
+            for node_id in group_data.get("node_ids", [])
+            if str(node_id) in selected
+        ]
+        if group_node_ids:
+            group_data["node_ids"] = group_node_ids
+            extracted_groups.append(group_data)
+
+    extracted_outputs: list[dict[str, Any]] = []
+    for output in workflow.get("outputs", []) or []:
+        output_data = _object_as_dict(output)
+        if str(output_data.get("node_id", "")) in selected:
+            extracted_outputs.append(output_data)
+
+    extracted: dict[str, Any] = {
+        key: value
+        for key, value in workflow.items()
+        if key not in {"id", "name", "nodes", "edges", "groups", "outputs"}
+    }
+    extracted.update(
+        {
+            "id": f"subgraph_{uuid.uuid4().hex[:12]}",
+            "name": name,
+            "nodes": extracted_nodes,
+            "edges": extracted_edges,
+            "groups": extracted_groups,
+            "outputs": extracted_outputs,
+        }
+    )
+    return extracted
+
+
 # ---------------------------------------------------------------------------
 # Registry / Object Info
 # ---------------------------------------------------------------------------
@@ -272,8 +374,15 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         await queue.submit(
             run_id=run_id,
             workflow=body.workflow,
-            metadata={"name": body.name, "environment": body.environment},
+            metadata={
+                "name": body.name,
+                "environment": body.environment,
+                "target_nodes": body.target_nodes,
+                "force_nodes": body.force_nodes,
+            },
+            options={"target_nodes": body.target_nodes} if body.target_nodes else {},
             force=body.no_cache,
+            force_nodes=set(body.force_nodes),
         )
     else:
         # Fallback: store in app state
@@ -283,6 +392,8 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
             "name": body.name,
             "status": "queued",
             "workflow": body.workflow,
+            "target_nodes": body.target_nodes,
+            "force_nodes": body.force_nodes,
         }
         request.app.state.runs = runs
 
@@ -331,12 +442,48 @@ async def get_queue_state(request: Request) -> dict[str, Any]:
 
 
 @router.post("/queue/clear")
-async def clear_queue(request: Request) -> dict[str, str]:
+async def clear_queue(request: Request) -> dict[str, Any]:
     """Clear all pending jobs from the queue."""
     queue = _get_queue(request)
     if hasattr(queue, "clear"):
-        await queue.clear()
-    return {"status": "cleared"}
+        cleared = await queue.clear()
+    elif hasattr(queue, "clear_pending"):
+        cleared = await queue.clear_pending()
+    else:
+        cleared = 0
+    return {"status": "cleared", "cleared": cleared}
+
+
+@router.post("/queue/{run_id}/cancel")
+async def cancel_queued_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Cancel a pending or running job."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "cancel"):
+        raise HTTPException(status_code=501, detail="Queue cancellation is not available")
+    cancelled = await queue.cancel(run_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return {"run_id": run_id, "status": "cancelled"}
+
+
+@router.post("/queue/reorder")
+async def reorder_pending_run(request: Request, body: QueueReorderRequest) -> dict[str, Any]:
+    """Move a pending job within the queue."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "reorder_pending"):
+        raise HTTPException(status_code=501, detail="Queue reordering is not available")
+    try:
+        pending = await queue.reorder_pending(
+            run_id=body.run_id,
+            index=body.index,
+            before_run_id=body.before_run_id,
+            after_run_id=body.after_run_id,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "reordered", "pending": pending}
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +514,19 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     if run_id in runs:
         return runs[run_id]
     raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
+
+
+@router.post("/runs/{run_id}/retry")
+async def retry_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Retry a stored pending, running, or historic run."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "retry"):
+        raise HTTPException(status_code=501, detail="Run retry is not available")
+    try:
+        new_run_id = await queue.retry(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    return {"run_id": new_run_id, "retry_of": run_id, "status": "queued"}
 
 
 @router.get("/runs/{run_id}/logs")
@@ -456,6 +616,71 @@ async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
     })
 
     return {"run_id": run_id, "logs": logs}
+
+
+@router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
+async def get_run_report(request: Request, run_id: str) -> PlainTextResponse:
+    """Render the provenance HTML execution report for a finished run."""
+    from bionodulo.provenance import generate_execution_report
+
+    settings = _get_settings(request)
+    run_dir = settings.project_root / "runs" / run_id
+    meta_path = run_dir / "run_metadata.json"
+    if not meta_path.exists():
+        raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
+    try:
+        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+
+    html_text = generate_execution_report(run_metadata, include_artifacts=True)
+    return PlainTextResponse(html_text, media_type="text/html; charset=utf-8")
+
+
+@router.get("/runs/{run_id}/manifest")
+async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
+    """Return the JSON provenance manifest for a finished run."""
+    from bionodulo.provenance import generate_provenance_report
+
+    settings = _get_settings(request)
+    run_dir = settings.project_root / "runs" / run_id
+    meta_path = run_dir / "run_metadata.json"
+    if not meta_path.exists():
+        raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
+    try:
+        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+
+    workflow: dict[str, Any] = {}
+    node_results: dict[str, dict[str, Any]] = {}
+    artifacts: list[dict[str, Any]] = []
+
+    queue = _get_queue(request)
+    if hasattr(queue, "get_run"):
+        try:
+            queue_record = queue.get_run(run_id)
+            if isinstance(queue_record, dict):
+                workflow = queue_record.get("workflow") or workflow
+                result = queue_record.get("result") or {}
+                if isinstance(result, dict):
+                    artifacts = result.get("artifacts") or artifacts
+                    node_results = result.get("nodes") or node_results
+        except Exception:  # noqa: BLE001 - missing queue data must not break manifest export
+            pass
+
+    manifest_json = generate_provenance_report(
+        workflow=workflow,
+        run_metadata=run_metadata,
+        node_results=node_results,
+        artifacts=artifacts,
+    )
+    return JSONResponse(
+        content=json.loads(manifest_json),
+        headers={
+            "Content-Disposition": f'attachment; filename="bionodulo-manifest-{run_id}.json"',
+        },
+    )
 
 
 @router.post("/cache/clear")
@@ -1135,6 +1360,15 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
                     if tags is None:
                         tags = _derive_tags(name, description, tools)
 
+                    preview_steps = [
+                        (node.get("ui") or {}).get("title") or str(node.get("type", "")).replace("_", " ")
+                        for node in nodes
+                        if node.get("type") and node.get("type") != "note"
+                    ][:5]
+
+                    thumbnail_path = entry.with_suffix(".png")
+                    thumbnail_url = f"/api/workflow_templates/{entry.name}/thumbnail.png" if thumbnail_path.exists() else None
+
                     templates.append({
                         "id": entry.stem,
                         "name": name,
@@ -1144,6 +1378,8 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
                         "tools": tools,
                         "category": category,
                         "tags": tags,
+                        "preview_steps": preview_steps,
+                        "thumbnail_url": thumbnail_url,
                     })
                 except (json.JSONDecodeError, OSError):
                     templates.append({
@@ -1175,6 +1411,23 @@ async def get_workflow_template(request: Request, filename: str) -> dict[str, An
         raise HTTPException(status_code=500, detail=f"Invalid template JSON: {exc}")
 
     return data
+
+
+@router.get("/workflow_templates/{filename}/thumbnail.png")
+async def get_workflow_template_thumbnail(request: Request, filename: str) -> FileResponse:
+    """Return the PNG thumbnail for a template (workflow JSON is embedded in tEXt)."""
+    templates_dir = REPO_ROOT / "templates"
+    json_path = templates_dir / filename
+    if not json_path.exists() or not json_path.is_file():
+        raise HTTPException(status_code=404, detail="Template not found")
+    thumbnail = json_path.with_suffix(".png")
+    if not thumbnail.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not generated; run scripts/relayout_templates.py")
+    return FileResponse(
+        path=thumbnail,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1217,6 +1470,19 @@ async def get_translations(locale: str = "en") -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Workflow Export
 # ---------------------------------------------------------------------------
+
+@router.post("/workflow/extract")
+async def workflow_extract(request: Request, body: WorkflowExtractRequest) -> dict[str, Any]:
+    """Extract a workflow containing selected nodes and internal edges."""
+    del request
+    try:
+        workflow = _extract_workflow_subgraph(body.workflow, body.node_ids, body.name)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown node_id(s): {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"workflow": workflow, "node_ids": body.node_ids, "extracted": True}
+
 
 @router.post("/workflow/export")
 async def workflow_export(request: Request, body: WorkflowExportRequest) -> Any:

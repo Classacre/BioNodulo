@@ -53,6 +53,7 @@ export interface WorkflowNode {
   ui?: {
     title?: string;
     color?: string;
+    shape?: 'round' | 'box' | 'card';
     collapsed?: boolean;
     pinned?: boolean;
     muted?: boolean;
@@ -261,6 +262,7 @@ export interface TemplateInfo {
   category: string;
   tags: string[];
   tools: string[];
+  preview_steps?: string[];
   node_count: number;
   filename: string;
 }

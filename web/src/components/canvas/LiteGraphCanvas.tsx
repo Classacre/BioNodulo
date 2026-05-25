@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImper
 import type { WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import Icon from '../ui/Icon';
+import { promptDialog } from '../ui';
 import NodePalette from '../nodes/NodePalette';
 import NodeContextMenu from '../nodes/NodeContextMenu';
 import NodeEditor from '../nodes/NodeEditor';
@@ -58,6 +59,8 @@ interface LiteGraphCanvasProps {
   onCollabDragStart?: (nodeId: string) => void;
   onCollabDragEnd?: () => void;
   onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
+  onExecuteSelected?: (nodeIds: string[]) => void;
+  onCreateSubgraph?: (nodeIds: string[]) => void;
 }
 
 export interface GraphNode {
@@ -79,6 +82,7 @@ export interface GraphNode {
   selected: boolean;
   collapsed: boolean;
   pinned: boolean;
+  shape: 'round' | 'box' | 'card';
   title: string;
   status?: NodeStatus['status'];
   visualOnly: boolean;
@@ -96,8 +100,90 @@ const COLORS: Record<string, string> = {
   'Single Cell': '#d946ef', HPC: '#6366f1', Utility: '#64748b',
 };
 
+// The Python registry emits lowercase categories like 'trimming', 'samtools',
+// 'metagenomics' — these don't match the COLORS keys above, so before falling
+// back to slate gray we run a substring search on category + id + display name.
+// Order matters: first match wins, so put more specific keywords earlier.
+const COLOR_KEYWORD_RULES: Array<[string, string]> = [
+  ['input', '#0d9488'],
+  ['qc', '#ec4899'],
+  ['quality', '#ec4899'],
+  ['preprocess', '#f59e0b'],
+  ['trim', '#f59e0b'],
+  ['cutadapt', '#f59e0b'],
+  ['fastp', '#f59e0b'],
+  ['samtools', '#60a5fa'],
+  ['sam/bam', '#60a5fa'],
+  ['align', '#3b82f6'],
+  ['hisat', '#3b82f6'],
+  ['bowtie', '#3b82f6'],
+  ['bwa', '#3b82f6'],
+  ['minimap', '#3b82f6'],
+  ['star', '#3b82f6'],
+  ['variant', '#ef4444'],
+  ['gatk', '#ef4444'],
+  ['bcftools', '#ef4444'],
+  ['freebayes', '#ef4444'],
+  ['vcftools', '#ef4444'],
+  ['assembly', '#22c55e'],
+  ['spades', '#22c55e'],
+  ['canu', '#22c55e'],
+  ['flye', '#22c55e'],
+  ['unicycler', '#22c55e'],
+  ['megahit', '#22c55e'],
+  ['quast', '#22c55e'],
+  ['annotation', '#a855f7'],
+  ['prokka', '#a855f7'],
+  ['bakta', '#a855f7'],
+  ['eggnog', '#a855f7'],
+  ['phylo', '#14b8a6'],
+  ['mafft', '#14b8a6'],
+  ['iqtree', '#14b8a6'],
+  ['fasttree', '#14b8a6'],
+  ['raxml', '#14b8a6'],
+  ['clustalo', '#14b8a6'],
+  ['single', '#d946ef'],
+  ['cellranger', '#d946ef'],
+  ['metag', '#8b5cf6'],
+  ['kraken', '#8b5cf6'],
+  ['bracken', '#8b5cf6'],
+  ['metaphlan', '#8b5cf6'],
+  ['humann', '#8b5cf6'],
+  ['checkm', '#8b5cf6'],
+  ['maxbin', '#8b5cf6'],
+  ['quantif', '#a855f7'],
+  ['count', '#a855f7'],
+  ['featurecounts', '#a855f7'],
+  ['kallisto', '#a855f7'],
+  ['salmon', '#a855f7'],
+  ['stringtie', '#a855f7'],
+  ['differential', '#ef4444'],
+  ['deseq', '#ef4444'],
+  ['expression', '#a855f7'],
+  ['peak', '#06b6d4'],
+  ['macs', '#06b6d4'],
+  ['chip', '#06b6d4'],
+  ['deeptools', '#3b82f6'],
+  ['bedtools', '#60a5fa'],
+  ['hpc', '#6366f1'],
+  ['biopython', '#a855f7'],
+  ['biostrings', '#a855f7'],
+  ['blast', '#a855f7'],
+  ['plot', '#ec4899'],
+  ['heatmap', '#ec4899'],
+  ['viz', '#ec4899'],
+  ['note', '#f59e0b'],
+];
+
 function nodeColor(meta: NodeMetadata | null): string {
-  return COLORS[meta?.category || ''] || '#64748b';
+  if (!meta) return '#64748b';
+  const category = meta.category || '';
+  if (COLORS[category]) return COLORS[category];
+  const haystack = `${category} ${meta.id || ''} ${meta.display_name || ''}`.toLowerCase();
+  for (const [keyword, color] of COLOR_KEYWORD_RULES) {
+    if (haystack.includes(keyword)) return color;
+  }
+  return '#64748b';
 }
 
 function calcNoteHeight(text: string, width: number): number {
@@ -108,6 +194,28 @@ function calcNoteHeight(text: string, width: number): number {
   return NODE_HEADER_H + Math.max(40, lines * 15 + 20);
 }
 
+function isInteractiveWidgetSpec(spec: unknown): boolean {
+  const s = spec as { type?: string; options?: unknown[]; forceInput?: boolean } | null | undefined;
+  if (!s) return false;
+  if (s.type === 'BOOLEAN') return true;
+  if (Array.isArray(s.options) && s.options.length > 0) return true;
+  if (s.type === 'INT' || s.type === 'FLOAT') return true;
+  if (s.type === 'STRING' && !s.forceInput) return true;
+  return false;
+}
+
+function countInteractiveWidgets(meta: NodeMetadata | null): number {
+  const all = { ...meta?.input_types?.required, ...meta?.input_types?.optional };
+  let count = 0;
+  for (const [, spec] of Object.entries(all)) {
+    if (isInteractiveWidgetSpec(spec)) count += 1;
+  }
+  return count;
+}
+
+const WIDGET_ROW_H = 24;
+const WIDGET_BLOCK_PAD = 8;
+
 function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: Record<string, unknown>, width?: number): number {
   if (collapsed) return NODE_HEADER_H;
   if (meta?.id === 'note') {
@@ -117,19 +225,24 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
   const ins = Object.keys(meta?.input_types?.required || {}).length + Object.keys(meta?.input_types?.optional || {}).length;
   const outs = (meta?.return_types || []).length;
   const ioHeight = Math.max(ins, outs, 1) * NODE_PIN_H;
-  // Count interactive widgets
-  const allParams = { ...meta?.input_types?.required, ...meta?.input_types?.optional };
-  let widgetCount = 0;
-  for (const [, spec] of Object.entries(allParams)) {
-    const s = spec as any;
-    if (s?.type === 'BOOLEAN') widgetCount++;
-    else if (s?.options && s.options.length > 0) widgetCount++;
-    else if ((s?.type === 'INT' || s?.type === 'FLOAT') && s?.display === 'slider') widgetCount++;
-  }
-  const widgetHeight = widgetCount > 0 ? widgetCount * 20 + 6 : 0;
-  const base = NODE_HEADER_H + ioHeight + widgetHeight + 12;
+  const widgetCount = countInteractiveWidgets(meta);
+  const widgetHeight = widgetCount > 0 ? widgetCount * WIDGET_ROW_H + WIDGET_BLOCK_PAD : 0;
+  const visibleParamCount = Object.keys(params || {}).filter(key => key !== 'text').length;
+  const summaryHeight = widgetCount === 0 && visibleParamCount > 0 ? Math.min(3, visibleParamCount) * 15 + 10 : 0;
+  const descriptionHeight = widgetCount === 0 && visibleParamCount === 0 && meta?.description ? 28 : 0;
+  const base = NODE_HEADER_H + ioHeight + widgetHeight + summaryHeight + descriptionHeight + 12;
   if (meta?.id === 'image_preview') return base + 120;
   return base;
+}
+
+function formatNodeParamValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/\.?0+$/, '');
+  if (Array.isArray(value)) return `${value.length} items`;
+  if (typeof value === 'object') return '{...}';
+  const text = String(value);
+  return text.length > 24 ? `${text.slice(0, 21)}...` : text;
 }
 
 function getNodesInGroup(group: WorkflowGroup, graphNodes: GraphNode[]): string[] {
@@ -295,6 +408,9 @@ export interface LiteGraphCanvasRef {
   fitView: () => void;
   focusNode: (nodeId: string) => void;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
+  getSelectedNodeIds: () => string[];
+  executeSelected: () => void;
+  createSubgraphFromSelection: () => void;
 }
 
 const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(function LiteGraphCanvas({
@@ -317,6 +433,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onCollabDragStart,
   onCollabDragEnd,
   onViewportChange,
+  onExecuteSelected,
+  onCreateSubgraph,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -349,6 +467,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [mouseWorld, setMouseWorld] = useState({ x: 0, y: 0 });
   const [hoveredSlot, setHoveredSlot] = useState<{ nodeId: string; type: 'input' | 'output'; index: number } | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkContextMenu, setLinkContextMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null);
   const [resizingNode, setResizingNode] = useState<string | null>(null);
   const [activeWidget, setActiveWidget] = useState<{ nodeId: string; name: string } | null>(null);
@@ -368,6 +487,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const onUndoRef = useRef(onUndo);
   const onRedoRef = useRef(onRedo);
   const onCollabSelectionRef = useRef(onCollabSelection);
+  const onExecuteSelectedRef = useRef(onExecuteSelected);
+  const onCreateSubgraphRef = useRef(onCreateSubgraph);
   const pendingSelectionRef = useRef<Set<string> | null>(null);
   const dragMovedRef = useRef(false);
   const dragCommitNeededRef = useRef(false);
@@ -394,6 +515,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { onUndoRef.current = onUndo; }, [onUndo]);
   useEffect(() => { onRedoRef.current = onRedo; }, [onRedo]);
   useEffect(() => { onCollabSelectionRef.current = onCollabSelection; }, [onCollabSelection]);
+  useEffect(() => { onExecuteSelectedRef.current = onExecuteSelected; }, [onExecuteSelected]);
+  useEffect(() => { onCreateSubgraphRef.current = onCreateSubgraph; }, [onCreateSubgraph]);
   useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
   useEffect(() => { mouseWorldRef.current = mouseWorld; }, [mouseWorld]);
   useEffect(() => { hoveredSlotRef.current = hoveredSlot; }, [hoveredSlot]);
@@ -426,6 +549,22 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const isNote = meta?.id === 'note';
         const isReroute = meta?.id === 'reroute';
         const visualOnly = meta?.visual_only ?? isNote;
+        const nodeWidth = isNote
+          ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH)
+          : (isReroute ? 20 : (wn.ui?.width ?? existing?.width ?? NODE_WIDTH));
+        let nodeHeight: number;
+        if (isReroute) {
+          nodeHeight = 20;
+        } else if (collapsed) {
+          nodeHeight = calcNodeHeight(meta, true, wn.params);
+        } else {
+          const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined);
+          const storedHeight = wn.ui?.height ?? existing?.height;
+          // Stored heights may have been computed by an older version that
+          // undersized widget rows; honour user-resized growth but never let
+          // the node clip its DOM-widget overlays.
+          nodeHeight = storedHeight ? Math.max(storedHeight, minHeight) : minHeight;
+        }
         return {
           id: wn.id,
           type: wn.type,
@@ -433,8 +572,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           category: meta?.category || 'Utility',
           x: wn.position[0],
           y: wn.position[1],
-          width: isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : (isReroute ? 20 : (wn.ui?.width ?? existing?.width ?? NODE_WIDTH)),
-          height: isReroute ? 20 : (collapsed ? calcNodeHeight(meta, true, wn.params) : (wn.ui?.height ?? existing?.height ?? calcNodeHeight(meta, false, wn.params, isNote ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH) : undefined))),
+          width: nodeWidth,
+          height: nodeHeight,
           inputs: (meta && !visualOnly) ? [
             ...Object.entries(meta.input_types?.required || {}).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
@@ -455,6 +594,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           selected: pending?.has(wn.id) ? true : (existing?.selected || false),
           collapsed,
           pinned: wn.ui?.pinned || false,
+          shape: wn.ui?.shape || (isNote ? 'card' : 'round'),
           title: wn.ui?.title || meta?.display_name || wn.type || 'Node',
           status: existing?.status,
           visualOnly,
@@ -488,6 +628,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     y: wy * scale + offset.y,
   }), [offset, scale]);
 
+  const getSelectedNodeIds = useCallback(() => (
+    graphNodesRef.current.filter(n => n.selected).map(n => n.id)
+  ), []);
+
+  const nodeRadius = useCallback((node: GraphNode) => {
+    if (node.shape === 'box') return 2;
+    if (node.shape === 'card') return 12;
+    return 8;
+  }, []);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -509,9 +659,10 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const currentLinkDrag = linkDragRef.current;
     const currentMouseWorld = mouseWorldRef.current;
     const currentHoveredSlot = hoveredSlotRef.current;
+    const lowQuality = isDraggingRef.current || panning || groupDragging || groupResizing || resizingNode || Boolean(activeWidgetRef.current);
 
     // Clear
-    ctx.fillStyle = isDark ? '#0f172a' : '#eef3f4';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim() || (isDark ? '#0f172a' : '#eef3f4');
     ctx.fillRect(0, 0, w * dpr, h * dpr);
 
     // Apply world transform
@@ -524,6 +675,15 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const minY = -offset.y / scale;
     const maxX = minX + w / scale;
     const maxY = minY + h / scale;
+    const visibleMargin = 240;
+    const visibleNodes = graphNodesRef.current.filter(node => (
+      node.x + node.width >= minX - visibleMargin
+      && node.x <= maxX + visibleMargin
+      && node.y + node.height >= minY - visibleMargin
+      && node.y <= maxY + visibleMargin
+    ));
+    const visibleNodeIds = new Set(visibleNodes.map(node => node.id));
+    const nodeById = new Map(graphNodesRef.current.map(node => [node.id, node]));
     const startX = Math.floor(minX / gridSize) * gridSize;
     const startY = Math.floor(minY / gridSize) * gridSize;
     ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
@@ -538,8 +698,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     // Edges
     if (!linksHidden) {
       for (const edge of edges) {
-        const fromNode = graphNodesRef.current.find(n => n.id === edge.from.node);
-        const toNode = graphNodesRef.current.find(n => n.id === edge.to.node);
+        if (!visibleNodeIds.has(edge.from.node) && !visibleNodeIds.has(edge.to.node)) continue;
+        const fromNode = nodeById.get(edge.from.node);
+        const toNode = nodeById.get(edge.to.node);
         if (!fromNode || !toNode) continue;
         const fromOutIndex = fromNode.outputs.findIndex(o => o.name === edge.from.output);
         const toInIndex = toNode.inputs.findIndex(i => i.name === edge.to.input);
@@ -559,7 +720,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const linkType = fromNode.outputs[fromOutIndex]?.type || '';
         const linkColor = edgeColorForSource(linkType);
         ctx.strokeStyle = linkColor;
-        ctx.lineWidth = isHovered ? 3.5 : 2;
+        ctx.lineWidth = lowQuality ? 1.5 : isHovered ? 3.5 : 2;
         if (isHovered) {
           ctx.shadowColor = linkColor + '88';
           ctx.shadowBlur = 10;
@@ -627,7 +788,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     }
 
     // Nodes
-    for (const node of graphNodesRef.current) {
+    for (const node of visibleNodes) {
       const isNote = node.type === 'note';
       const isVisualOnly = node.visualOnly;
       const isReroute = node.type === 'reroute';
@@ -660,20 +821,28 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         continue;
       }
 
+      const radius = nodeRadius(node);
+      const isCard = node.shape === 'card';
+      const isBox = node.shape === 'box';
+
       // Shadow
-      ctx.shadowColor = 'rgba(0,0,0,0.15)';
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetY = 3;
+      if (!lowQuality) {
+        ctx.shadowColor = isCard ? 'rgba(0,0,0,0.22)' : (isBox ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.15)');
+        ctx.shadowBlur = isCard ? 14 : (isBox ? 3 : 8);
+        ctx.shadowOffsetY = isCard ? 4 : (isBox ? 1 : 3);
+      }
 
       // Body
       if (isNote) {
         ctx.fillStyle = isDark ? '#3f3820' : '#fef9c3';
+      } else if (isCard) {
+        ctx.fillStyle = isDark ? '#0f172a' : '#fafafa';
       } else {
         ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
       }
       if (node.selected) ctx.fillStyle = isDark ? '#334155' : '#f0fdfa';
       if (node.muted) ctx.globalAlpha = 0.5;
-      roundRect(ctx, node.x, node.y, nw, nh, 8);
+      roundRect(ctx, node.x, node.y, nw, nh, radius);
       ctx.fill();
 
       ctx.shadowColor = 'transparent';
@@ -681,12 +850,26 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.shadowOffsetY = 0;
       ctx.globalAlpha = 1;
 
+      // Card shape: vertical colored stripe on the left edge (visible below the header)
+      if (isCard && !isNote && !node.collapsed) {
+        ctx.fillStyle = node.color;
+        ctx.fillRect(node.x, node.y + NODE_HEADER_H, 3, nh - NODE_HEADER_H);
+      }
+
+      // Box shape: thin sharp border
+      if (isBox && !isNote) {
+        ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+        ctx.lineWidth = 1;
+        roundRect(ctx, node.x + 0.5, node.y + 0.5, nw - 1, nh - 1, radius);
+        ctx.stroke();
+      }
+
       // Header
       ctx.fillStyle = isNote ? '#f59e0b' : node.color;
       if (node.collapsed) {
-        roundRect(ctx, node.x, node.y, nw, NODE_HEADER_H, 8);
+        roundRect(ctx, node.x, node.y, nw, NODE_HEADER_H, radius);
       } else {
-        roundRect(ctx, node.x, node.y, nw, NODE_HEADER_H, { tl: 8, tr: 8, bl: 0, br: 0 });
+        roundRect(ctx, node.x, node.y, nw, NODE_HEADER_H, { tl: radius, tr: radius, bl: 0, br: 0 });
       }
       ctx.fill();
 
@@ -703,6 +886,26 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const title = node.title;
       const maxTitleChars = node.collapsed ? 20 : Math.floor((nw - (isNote ? 20 : 36)) / 7);
       ctx.fillText(title.length > maxTitleChars ? title.slice(0, maxTitleChars) + '...' : title, node.x + (isNote ? 10 : 22), node.y + 20);
+
+      // Compact metadata badges in the title bar.
+      if (!isNote && !lowQuality) {
+        const badges: string[] = [];
+        if (node.pinned) badges.push('L');
+        if (node.meta?.version) badges.push(String(node.meta.version).slice(0, 8));
+        if (node.meta?.experimental) badges.push('EXP');
+        let badgeX = node.x + nw - 12;
+        ctx.font = '700 8px Inter, sans-serif';
+        for (const badge of badges.reverse()) {
+          const bw = Math.min(48, ctx.measureText(badge).width + 8);
+          badgeX -= bw;
+          ctx.fillStyle = 'rgba(255,255,255,0.22)';
+          roundRect(ctx, badgeX, node.y + 8, bw, 14, 7);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(badge, badgeX + 4, node.y + 18);
+          badgeX -= 4;
+        }
+      }
 
       if (node.collapsed && !isVisualOnly) {
         // Collapsed: show first connected input on left, first connected output on right
@@ -776,7 +979,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             ctx.fillText(out.name, node.x + nw - tw - 10, py + 3);
           });
 
-          // Draw interactive widgets
+          // Track widget hit areas (kept for legacy slider/select drag handlers).
+          // Visible rendering happens entirely via the DOM overlay below, so the
+          // canvas itself no longer draws toggles/sliders/combos/etc.
           const nodeMeta = node.meta;
           const metaRequired = nodeMeta?.input_types?.required || {};
           const metaOptional = nodeMeta?.input_types?.optional || {};
@@ -791,78 +996,45 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
           for (const [key, spec] of Object.entries(allSpecs)) {
             const s = spec as any;
-            const val = node.params[key] ?? s?.default;
             let wtype = 'text';
             if (s?.type === 'BOOLEAN') wtype = 'toggle';
             else if (s?.options && s.options.length > 0) wtype = 'combo';
             else if ((s?.type === 'INT' || s?.type === 'FLOAT') && s?.display === 'slider') wtype = 'slider';
             else if (s?.type === 'INT' || s?.type === 'FLOAT') wtype = 'number';
-            else continue; // Skip non-interactive params from widgets
-
+            else if (s?.type === 'STRING' && !s?.forceInput) wtype = 'text';
+            else continue;
             nodeWidgets.push({ name: key, type: wtype, x: wx, y: wy, w: ww, h: widgetH });
-
-            // Label
-            ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
-            ctx.font = '9px Inter, sans-serif';
-            ctx.fillText(s?.label || key, wx, wy + 9);
-
-            const valX = wx + ww;
-
-            if (wtype === 'toggle') {
-              const on = !!val;
-              const tw = 24;
-              const th = 12;
-              const tx = valX - tw;
-              const ty = wy + 3;
-              ctx.fillStyle = on ? '#22c55e' : (isDark ? '#475569' : '#cbd5e1');
-              roundRect(ctx, tx, ty, tw, th, 6);
-              ctx.fill();
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.arc(tx + (on ? tw - 6 : 6), ty + th / 2, 4, 0, Math.PI * 2);
-              ctx.fill();
-            } else if (wtype === 'slider') {
-              const min = s?.min ?? 0;
-              const max = s?.max ?? 100;
-              const t = max === min ? 0 : (Number(val) - min) / (max - min);
-              const barY = wy + 8;
-              const barH = 4;
-              ctx.fillStyle = isDark ? '#334155' : '#e2e8f0';
-              roundRect(ctx, wx + 60, barY, ww - 60, barH, 2);
-              ctx.fill();
-              ctx.fillStyle = node.color;
-              roundRect(ctx, wx + 60, barY, (ww - 60) * t, barH, 2);
-              ctx.fill();
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.arc(wx + 60 + (ww - 60) * t, barY + barH / 2, 5, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
-              ctx.font = '9px JetBrains Mono, monospace';
-              ctx.textAlign = 'right';
-              ctx.fillText(String(val), wx + 55, wy + 12);
-              ctx.textAlign = 'left';
-            } else if (wtype === 'combo') {
-              const opt = String(val ?? s?.options?.[0] ?? '');
-              ctx.fillStyle = isDark ? '#334155' : '#f1f5f9';
-              roundRect(ctx, wx + 60, wy + 2, ww - 60, widgetH - 2, 4);
-              ctx.fill();
-              ctx.fillStyle = isDark ? '#e2e8f0' : '#334155';
-              ctx.font = '9px Inter, sans-serif';
-              ctx.fillText(opt.length > 16 ? opt.slice(0, 16) + '…' : opt, wx + 64, wy + 13);
-              ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
-              ctx.font = '8px sans-serif';
-              ctx.fillText('▼', valX - 10, wy + 12);
-            } else if (wtype === 'number') {
-              ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
-              ctx.font = '9px JetBrains Mono, monospace';
-              ctx.textAlign = 'right';
-              ctx.fillText(String(val), valX, wy + 12);
-              ctx.textAlign = 'left';
-            }
             wy += widgetH + widgetGap;
           }
           widgetsRef.current.set(node.id, nodeWidgets);
+          if (nodeWidgets.length === 0) {
+            const paramEntries = Object.entries(node.params || {})
+              .filter(([key, value]) => key !== 'text' && value !== undefined && value !== null && value !== '')
+              .slice(0, 3);
+            let summaryY = widgetY0 + 2;
+            if (paramEntries.length > 0) {
+              ctx.font = '9px Inter, sans-serif';
+              for (const [key, value] of paramEntries) {
+                const label = key.replace(/_/g, ' ');
+                const brief = `${label}: ${formatNodeParamValue(value)}`;
+                ctx.fillStyle = isDark ? '#334155' : '#f1f5f9';
+                roundRect(ctx, wx, summaryY - 2, ww, 13, 5);
+                ctx.fill();
+                ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+                ctx.fillText(brief.length > 34 ? `${brief.slice(0, 31)}...` : brief, wx + 5, summaryY + 8);
+                summaryY += 15;
+              }
+            } else if (node.meta?.description) {
+              const description = node.meta.description;
+              ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+              ctx.font = '9px Inter, sans-serif';
+              const maxChars = Math.max(24, Math.floor((ww - 4) / 5.3));
+              const lineA = description.slice(0, maxChars);
+              const lineB = description.slice(maxChars, maxChars * 2);
+              ctx.fillText(lineA, wx + 2, summaryY + 8);
+              if (lineB) ctx.fillText(`${lineB.slice(0, maxChars - 3)}...`, wx + 2, summaryY + 21);
+            }
+          }
         }
       }
 
@@ -876,7 +1048,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.strokeStyle = statusOutline
         || (missingDependency ? '#f97316' : node.selected ? node.color : (isDark ? '#334155' : '#e2e8f0'));
       ctx.lineWidth = statusOutline || missingDependency ? 3 : node.selected ? 2 : 1;
-      roundRect(ctx, node.x, node.y, nw, nh, 8);
+      roundRect(ctx, node.x, node.y, nw, nh, radius);
       ctx.stroke();
 
       const nodeCollaborators = collabUsersRef.current.filter(user =>
@@ -968,7 +1140,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.setLineDash([]);
       ctx.restore();
     }
-  }, [edges, offset, scale, linksHidden, selectBox]);
+  }, [edges, offset, scale, linksHidden, selectBox, panning, groupDragging, groupResizing, resizingNode, nodeRadius]);
   useEffect(() => { drawRef.current = draw; }, [draw]);
 
   // Keyboard shortcuts
@@ -1434,6 +1606,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     onCollabCursor?.({ x: cx, y: cy, worldX: world.x, worldY: world.y, visible: true });
     mouseWorldRef.current = world;
 
+    const hoveredNode = [...graphNodes].reverse().find(n => {
+      if (n.type === 'reroute') {
+        const rx = n.x + n.width / 2;
+        const ry = n.y + n.height / 2;
+        return Math.hypot(world.x - rx, world.y - ry) < 12;
+      }
+      return world.x >= n.x && world.x <= n.x + n.width &&
+        world.y >= n.y && world.y <= n.y + n.height;
+    });
+    setHoveredNodeId(hoveredNode?.id ?? null);
+
     // Slot hover detection
     let foundSlot: { nodeId: string; type: 'input' | 'output'; index: number } | null = null;
     const linkOutputType = linkDragRef.current?.fromOutputType;
@@ -1631,6 +1814,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       setGraphNodes(prev => {
         const next = prev.map(n => {
           if (!n.selected) return n;
+          if (n.pinned) return n;
           const nx = n.x + dx;
           const ny = n.y + dy;
           return {
@@ -1915,6 +2099,24 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     }
   }, [graphNodes, toWorld, nodes, onNodesChange]);
 
+  const animateViewport = useCallback((targetOffset: { x: number; y: number }, targetScale: number, duration = 220) => {
+    const startOffset = { ...offset };
+    const startScale = scale;
+    const start = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const k = ease(t);
+      setScale(startScale + (targetScale - startScale) * k);
+      setOffset({
+        x: startOffset.x + (targetOffset.x - startOffset.x) * k,
+        y: startOffset.y + (targetOffset.y - startOffset.y) * k,
+      });
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [offset, scale]);
+
   const fitView = useCallback((onlySelected?: boolean) => {
     const targets = onlySelected ? graphNodes.filter(n => n.selected) : graphNodes;
     if (targets.length === 0) return;
@@ -1926,12 +2128,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const maxY = Math.max(...targets.map(n => n.y + n.height)) + 50;
     const { w, h } = sizeRef.current;
     const newScale = Math.min(w / (maxX - minX), h / (maxY - minY), 1);
-    setScale(newScale);
-    setOffset({
+    animateViewport({
       x: -minX * newScale + (w - (maxX - minX) * newScale) / 2,
       y: -minY * newScale + (h - (maxY - minY) * newScale) / 2,
-    });
-  }, [graphNodes]);
+    }, newScale);
+  }, [animateViewport, graphNodes]);
 
   const focusNode = useCallback((nodeId: string) => {
     const node = graphNodesRef.current.find(candidate => candidate.id === nodeId);
@@ -1939,24 +2140,43 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     pendingSelectionRef.current = new Set([nodeId]);
     setGraphNodes(prev => prev.map(candidate => ({ ...candidate, selected: candidate.id === nodeId })));
     publishCollabSelection({ nodeIds: [nodeId], box: null });
-    setOffset({
+    animateViewport({
       x: sizeRef.current.w / 2 - (node.x + node.width / 2) * scale,
       y: sizeRef.current.h / 2 - (node.y + node.height / 2) * scale,
-    });
-  }, [publishCollabSelection, scale]);
+    }, scale);
+  }, [animateViewport, publishCollabSelection, scale]);
 
   const setViewportFromAwareness = useCallback((viewport: { x: number; y: number; scale: number }) => {
-    setOffset({ x: viewport.x, y: viewport.y });
-    setScale(clamp(viewport.scale, 0.1, 5));
-  }, []);
+    animateViewport({ x: viewport.x, y: viewport.y }, clamp(viewport.scale, 0.1, 5), 280);
+  }, [animateViewport]);
+
+  const animateZoom = useCallback((factor: number) => {
+    const targetScale = clamp(scale * factor, 0.1, 5);
+    if (Math.abs(targetScale - scale) < 1e-3) return;
+    const { w, h } = sizeRef.current;
+    const cx = w / 2;
+    const cy = h / 2;
+    const worldX = (cx - offset.x) / scale;
+    const worldY = (cy - offset.y) / scale;
+    animateViewport({ x: cx - worldX * targetScale, y: cy - worldY * targetScale }, targetScale, 160);
+  }, [animateViewport, offset, scale]);
 
   useImperativeHandle(ref, () => ({
     fitView,
     focusNode,
     setViewport: setViewportFromAwareness,
-  }), [fitView, focusNode, setViewportFromAwareness]);
+    getSelectedNodeIds,
+    executeSelected: () => {
+      const ids = getSelectedNodeIds();
+      if (ids.length > 0) onExecuteSelectedRef.current?.(ids);
+    },
+    createSubgraphFromSelection: () => {
+      const ids = getSelectedNodeIds();
+      if (ids.length > 0) onCreateSubgraphRef.current?.(ids);
+    },
+  }), [fitView, focusNode, getSelectedNodeIds, setViewportFromAwareness]);
 
-  const handleContextAction = useCallback((action: string, nodeId: string, extra?: string) => {
+  const handleContextAction = useCallback(async (action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
     if (action === 'delete') {
       onNodesChange(nodes.filter(n => n.id !== nodeId));
@@ -1972,7 +2192,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     } else if (action === 'rename') {
       const node = graphNodes.find(n => n.id === nodeId);
       if (node) {
-        const newTitle = window.prompt('Rename node:', node.title);
+        const newTitle = await promptDialog({
+          title: 'Rename node',
+          message: 'Choose a display name for this node.',
+          inputLabel: 'Node name',
+          defaultValue: node.title,
+        });
         if (newTitle !== null && newTitle.trim() !== '') {
           const trimmed = newTitle.trim();
           setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, title: trimmed } : n));
@@ -1991,6 +2216,14 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const newBypassed = !graphNodes.find(n => n.id === nodeId)?.bypassed;
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, bypassed: newBypassed } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, bypassed: newBypassed } } : n));
+    } else if (action === 'pin') {
+      const newPinned = !graphNodes.find(n => n.id === nodeId)?.pinned;
+      setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, pinned: newPinned } : n));
+      onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, pinned: newPinned } } : n));
+    } else if (action === 'shape' && extra) {
+      const shape = (extra === 'box' || extra === 'card') ? extra : 'round';
+      setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, shape } : n));
+      onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, shape } } : n));
     } else if (action === 'color' && extra) {
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, color: extra } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, color: extra } } : n));
@@ -2010,6 +2243,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const newGroup = createGroupFromNodes(nodesToGroup);
         onGroupsChange([...groups, newGroup]);
       }
+    } else if (action === 'subgraph') {
+      const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
+      onCreateSubgraphRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
+    } else if (action === 'executeSelected') {
+      const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
+      onExecuteSelectedRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
     }
     onPushHistory();
   }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory]);
@@ -2061,6 +2300,54 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       onPushHistory();
     }
   }, [graphNodes, nodes, groups, handleContextAction, onNodesChange, onGroupsChange, onPushHistory]);
+
+  const insertRerouteOnEdge = useCallback((edgeId: string) => {
+    const edge = edges.find(candidate => candidate.id === edgeId);
+    if (!edge) return;
+    const fromNode = graphNodes.find(candidate => candidate.id === edge.from.node);
+    const toNode = graphNodes.find(candidate => candidate.id === edge.to.node);
+    const rerouteMeta = objectInfo.reroute;
+    if (!fromNode || !toNode || !rerouteMeta) return;
+
+    const fromOutIndex = fromNode.outputs.findIndex(output => output.name === edge.from.output);
+    const toInIndex = toNode.inputs.findIndex(input => input.name === edge.to.input);
+    const fy = fromNode.collapsed
+      ? fromNode.y + NODE_HEADER_H / 2
+      : fromNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (fromOutIndex >= 0 ? fromOutIndex : 0) * NODE_PIN_H;
+    const ty = toNode.collapsed
+      ? toNode.y + NODE_HEADER_H / 2
+      : toNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (toInIndex >= 0 ? toInIndex : 0) * NODE_PIN_H;
+    const fx = fromNode.x + fromNode.width;
+    const tx = toNode.x;
+    const id = `reroute_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const rerouteNode: WorkflowNode = {
+      id,
+      type: 'reroute',
+      position: [Math.round((fx + tx) / 2 - 10), Math.round((fy + ty) / 2 - 10)],
+      params: defaultsFor(rerouteMeta),
+      node_info: rerouteMeta,
+      ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
+    };
+    const nextEdges: WorkflowEdge[] = edges
+      .filter(candidate => candidate.id !== edgeId)
+      .concat([
+        {
+          id: `e_${Date.now()}_a_${Math.random().toString(36).slice(2, 6)}`,
+          from: edge.from,
+          to: { node: id, input: 'input' },
+        },
+        {
+          id: `e_${Date.now()}_b_${Math.random().toString(36).slice(2, 6)}`,
+          from: { node: id, output: 'output' },
+          to: edge.to,
+        },
+      ]);
+    onNodesChange([...nodes, rerouteNode]);
+    onEdgesChange(nextEdges);
+    pendingSelectionRef.current = new Set([id]);
+    onPushHistory();
+    setLinkContextMenu(null);
+  }, [edges, graphNodes, nodes, objectInfo, onEdgesChange, onNodesChange, onPushHistory]);
 
   return (
     <div ref={hostRef} className="litegraph-host" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -2157,6 +2444,118 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         );
       })}
 
+      {/* Full DOM widget overlays for node controls. These mirror ComfyUI's
+          portal-style widgets while preserving BioNodulo's custom canvas model.
+          With `transform: scale(scale)` they now scale uniformly with the node
+          so the previous zoom-out fallback to canvas-drawn widgets is gone. */}
+      {graphNodes.filter(node => (
+        !node.collapsed
+        && !node.visualOnly
+        && node.type !== 'reroute'
+      )).flatMap(node => {
+        const allSpecs = {
+          ...(node.meta?.input_types?.required || {}),
+          ...(node.meta?.input_types?.optional || {}),
+        };
+        const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
+        let top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 6) * scale;
+        const left = node.x * scale + offset.x + 8 * scale;
+        // Lay widgets out in WORLD units (so child controls keep their natural
+        // sizing) and use `transform: scale(scale)` to align with the canvas.
+        // This makes widgets grow/shrink in lockstep with the node at any zoom
+        // instead of clipping when scale > 1 or jittering when scale < 1.
+        const layoutWidth = node.width - 16;
+        const layoutHeight = 24;
+        return Object.entries(allSpecs).map(([key, rawSpec]) => {
+          const spec = rawSpec as any;
+          const value = node.params[key] ?? spec.default ?? '';
+          const rowTop = top;
+          top += layoutHeight * scale;
+          const common = {
+            position: 'absolute' as const,
+            left,
+            top: rowTop,
+            width: layoutWidth,
+            height: layoutHeight,
+            zIndex: 12,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          };
+          const commit = (nextValue: unknown, push = true) => {
+            handleNodeParamChange(node.id, key, nextValue);
+            if (push) onPushHistory();
+          };
+          if (spec?.type === 'BOOLEAN') {
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-boolean" style={common}>
+                <span>{spec.label || key}</span>
+                <input type="checkbox" checked={Boolean(value)} onChange={event => commit(event.target.checked)} />
+              </label>
+            );
+          }
+          if (spec?.options?.length) {
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+                <span>{spec.label || key}</span>
+                <select value={String(value)} onChange={event => commit(event.target.value)}>
+                  {spec.options.map((option: string) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+            );
+          }
+          if ((spec?.type === 'INT' || spec?.type === 'FLOAT') && spec?.display === 'slider') {
+            const min = Number(spec.min ?? 0);
+            const max = Number(spec.max ?? 100);
+            const step = Number(spec.step ?? (spec.type === 'FLOAT' ? 0.01 : 1));
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-slider" style={common}>
+                <span>{spec.label || key}</span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={Number(value)}
+                  onChange={event => handleNodeParamChange(node.id, key, spec.type === 'INT' ? parseInt(event.target.value, 10) : parseFloat(event.target.value))}
+                  onMouseUp={() => onPushHistory()}
+                />
+                <output>{String(value)}</output>
+              </label>
+            );
+          }
+          if (spec?.type === 'INT' || spec?.type === 'FLOAT') {
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+                <span>{spec.label || key}</span>
+                <input
+                  type="number"
+                  value={Number(value)}
+                  min={spec.min}
+                  max={spec.max}
+                  step={spec.step ?? (spec.type === 'FLOAT' ? 0.01 : 1)}
+                  onChange={event => handleNodeParamChange(node.id, key, spec.type === 'INT' ? parseInt(event.target.value, 10) : parseFloat(event.target.value))}
+                  onBlur={() => onPushHistory()}
+                />
+              </label>
+            );
+          }
+          if (spec?.type === 'STRING' && !spec?.forceInput) {
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+                <span>{spec.label || key}</span>
+                <input
+                  type="text"
+                  value={String(value)}
+                  onChange={event => handleNodeParamChange(node.id, key, event.target.value)}
+                  onBlur={() => onPushHistory()}
+                />
+              </label>
+            );
+          }
+          return null;
+        }).filter(Boolean);
+      })}
+
       {nodeCommentsMap && graphNodes.filter(node => nodeCommentsMap.has(node.id)).map(node => {
         const summary = nodeCommentsMap.get(node.id)!;
         const point = getCommentPinPosition(toScreenNodeRect(node), canvasBounds, summary.count);
@@ -2194,6 +2593,29 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         );
       })()}
 
+      {hoveredNodeId && !dragging && !panning && !linkDrag && (() => {
+        const node = graphNodes.find(candidate => candidate.id === hoveredNodeId);
+        if (!node || !node.meta || node.type === 'reroute') return null;
+        const rect = toScreenNodeRect(node);
+        const left = Math.min(canvasBounds.width - 292, Math.max(12, rect.x + rect.width + 12));
+        const top = Math.min(canvasBounds.height - 180, Math.max(12, rect.y));
+        return (
+          <div className="node-hover-card" style={{ left, top }}>
+            <div className="node-hover-card-title">
+              <span className="node-hover-card-swatch" style={{ background: node.color }} />
+              <strong>{node.title}</strong>
+            </div>
+            <div className="node-hover-card-meta">{node.category}</div>
+            {node.meta.description && <p>{node.meta.description}</p>}
+            <div className="node-hover-card-grid">
+              <span>Inputs</span><strong>{node.inputs.length}</strong>
+              <span>Outputs</span><strong>{node.outputs.length}</strong>
+              {node.meta.version && <><span>Version</span><strong>{node.meta.version}</strong></>}
+            </div>
+          </div>
+        );
+      })()}
+
       <SelectionToolbox
         graphNodes={graphNodes}
         groups={groups}
@@ -2208,7 +2630,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       <div className="canvas-controls">
         <button className="btn btn-icon btn-sm" onClick={() => fitView()} title="Fit view"><Icon name="maximize" size={14} /></button>
         <button className="btn btn-icon btn-sm" onClick={() => fitView(true)} title="Fit selection"><Icon name="target" size={14} /></button>
-        <button className="btn btn-icon btn-sm" onClick={() => setScale(s => clamp(s * 1.2, 0.1, 5))} title="Zoom in"><Icon name="plus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1.2)} title="Zoom in"><Icon name="plus" size={14} /></button>
         {editingZoom ? (
           <input
             type="text"
@@ -2236,7 +2658,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             style={{ fontSize: 11, color: 'var(--muted)', minWidth: 40, textAlign: 'center', cursor: 'text', userSelect: 'none' }}
           >{Math.round(scale * 100)}%</span>
         )}
-        <button className="btn btn-icon btn-sm" onClick={() => setScale(s => clamp(s / 1.2, 0.1, 5))} title="Zoom out"><Icon name="minus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1 / 1.2)} title="Zoom out"><Icon name="minus" size={14} /></button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button className={`btn btn-icon btn-sm ${showMinimap ? 'active' : ''}`} onClick={onToggleMinimap} title="Toggle minimap"><Icon name="map" size={14} /></button>
         <button className={`btn btn-icon btn-sm ${!linksHidden ? 'active' : ''}`} onClick={onToggleLinksHidden} title="Toggle links"><Icon name="link" size={14} /></button>
@@ -2401,6 +2823,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       {linkContextMenu && (
         <div className="context-menu" style={{ left: linkContextMenu.x, top: linkContextMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
+            <div className="context-menu-item" onClick={() => insertRerouteOnEdge(linkContextMenu.edgeId)}>Insert Reroute</div>
             <div className="context-menu-item" onClick={() => {
               onEdgesChange(edges.filter(e => e.id !== linkContextMenu.edgeId));
               onPushHistory();

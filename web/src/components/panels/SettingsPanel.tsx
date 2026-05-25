@@ -1,4 +1,7 @@
 import { useSettings } from '../../hooks/useSettings';
+import { usePaletteTheme } from '../../hooks/usePaletteTheme';
+import { addCustomPalette, type ThemePalette } from '../../state/palettes';
+import { toast } from '../ui';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -6,8 +9,33 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps) {
   const { get, getBool, set } = useSettings();
+  const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
 
   const toggle = (key: string) => set(key, !getBool(key));
+
+  const exportPalette = () => {
+    const palette = palettes.find(item => item.id === paletteId);
+    if (!palette) return;
+    const blob = new Blob([JSON.stringify(palette, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${palette.id}.palette.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success('Palette exported', { message: link.download });
+  };
+
+  const importPalette = async (file: File) => {
+    try {
+      const palette = JSON.parse(await file.text()) as ThemePalette;
+      if (!palette.id || !palette.name || !palette.light || !palette.dark) throw new Error('Invalid palette file');
+      addCustomPalette(palette);
+      setPalette(palette.id);
+      toast.success('Palette imported', { message: palette.name });
+    } catch (err) {
+      toast.error('Could not import palette', { message: err instanceof Error ? err.message : String(err) });
+    }
+  };
 
   return (
     <div className="rail-panel">
@@ -26,6 +54,39 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
           <SettingRow label="Tooltips" desc="Show tooltips on hover">
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
+          <SettingRow label="Palette" desc="Switch color palette">
+            <div className="palette-setting">
+              <select className="select-input" value={paletteId} onChange={event => setPalette(event.target.value)}>
+                {palettes.map(palette => (
+                  <option key={palette.id} value={palette.id}>{palette.name}</option>
+                ))}
+              </select>
+              <button className="btn btn-sm" onClick={resetPalette} type="button">Reset</button>
+            </div>
+          </SettingRow>
+          <div className="palette-actions">
+            <button className="btn btn-sm" onClick={exportPalette} type="button">Export Palette</button>
+            <label className="btn btn-sm">
+              Import Palette
+              <input accept=".json,application/json" onChange={event => event.target.files?.[0] && void importPalette(event.target.files[0])} type="file" />
+            </label>
+          </div>
+          <div className="palette-preview-list">
+            {palettes.map(palette => (
+              <button
+                className={`palette-preview-card ${paletteId === palette.id ? 'active' : ''}`}
+                key={palette.id}
+                onClick={() => setPalette(palette.id)}
+                title={palette.description}
+                type="button"
+              >
+                <span>{palette.name}</span>
+                <span className="palette-swatches">
+                  {palette.preview.map(color => <i key={color} style={{ background: color }} />)}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Canvas */}
@@ -78,12 +139,12 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
                   const r = await fetch('/api/cache/clear', { method: 'POST' });
                   if (r.ok) {
                     const data = await r.json();
-                    alert(`Cache cleared (${data.entries_deleted || 0} entries deleted)`);
+                    toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries deleted` });
                   } else {
-                    alert('Failed to clear cache');
+                    toast.error('Failed to clear cache');
                   }
                 } catch {
-                  alert('Failed to clear cache (server unreachable)');
+                  toast.error('Failed to clear cache', { message: 'Server unreachable' });
                 }
               }}
             >

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { WorkflowGroup } from '../../types';
+import { promptDialog } from '../ui';
 
 const PRESET_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
@@ -55,9 +56,14 @@ export default function GroupContextMenu({ x, y, groupId, groups, onGroupsChange
   return (
     <div ref={ref} className="context-menu" style={{ left: x, top: y, zIndex: 200 }}>
       <div className="context-menu-body">
-        <div className="context-menu-item" onClick={() => {
+        <div className="context-menu-item" onClick={async () => {
           const g = groups.find(gg => gg.id === groupId);
-          const name = window.prompt('Group name:', g?.name || 'Group');
+          const name = await promptDialog({
+            title: 'Rename group',
+            message: 'Choose a group name.',
+            inputLabel: 'Group name',
+            defaultValue: g?.name || 'Group',
+          });
           if (name !== null) {
             onGroupsChange(groups.map(gg => gg.id === groupId ? { ...gg, name } : gg));
           }

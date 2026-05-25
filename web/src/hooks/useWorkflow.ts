@@ -15,7 +15,7 @@ function normalizeWorkflow(wf: Workflow): Workflow {
 
 function emptyWorkflow(): Workflow {
   return {
-    id: createWorkflowId(), version: 'Alpha 1.5', app: 'bionodulo', name: 'Untitled', description: '',
+    id: createWorkflowId(), version: '2.0', app: 'bionodulo', name: 'Untitled', description: '',
     nodes: [], edges: [], groups: [], outputs: {},
   };
 }
@@ -163,7 +163,13 @@ export function useWorkflow() {
     return null;
   }, []);
 
-  const submitRun = useCallback(async (wf: Workflow, options?: { no_cache?: boolean; name?: string; environment?: string }) => {
+  const submitRun = useCallback(async (wf: Workflow, options?: {
+    no_cache?: boolean;
+    name?: string;
+    environment?: string;
+    force_nodes?: string[];
+    target_nodes?: string[];
+  }) => {
     const token = getToken();
     const r = await fetch('/api/runs', {
       method: 'POST',
@@ -177,6 +183,8 @@ export function useWorkflow() {
         name: options?.name || wf.name || 'Untitled',
         no_cache: options?.no_cache || false,
         environment: options?.environment || null,
+        force_nodes: options?.force_nodes || [],
+        target_nodes: options?.target_nodes || [],
       }),
     });
     if (!r.ok) {

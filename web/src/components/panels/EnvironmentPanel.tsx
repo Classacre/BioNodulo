@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
+import { confirmDialog } from '../ui';
 
 interface PackageInfo {
   name: string;
@@ -89,7 +90,13 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
 
   const handleDelete = async (env: EnvInfo) => {
     setMenuOpenId(null);
-    if (!confirm(`Delete environment '${env.name}'? This cannot be undone.`)) return;
+    const ok = await confirmDialog({
+      title: 'Delete environment?',
+      message: `Delete environment '${env.name}'? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/manager/environments/${encodeURIComponent(env.id)}`, { method: 'DELETE' });
       if (r.ok) {
@@ -124,7 +131,13 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
   };
 
   const handleRemovePackage = async (env: EnvInfo, pkg: PackageInfo) => {
-    if (!confirm(`Remove package '${pkg.name}' from environment '${env.name}'?`)) return;
+    const ok = await confirmDialog({
+      title: 'Remove package?',
+      message: `Remove package '${pkg.name}' from environment '${env.name}'?`,
+      confirmLabel: 'Remove',
+      tone: 'warning',
+    });
+    if (!ok) return;
     try {
       const r = await fetch(
         `/api/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`,

@@ -487,7 +487,7 @@ async def publish_flat_snapshot_to_room(
     snapshot = dict(snapshot)
     meta = dict(snapshot.get("meta") or {})
     meta["id"] = workflow_id
-    meta.setdefault("version", "Alpha 1.5")
+    meta.setdefault("version", "2.0")
     meta.setdefault("name", "Untitled")
     meta["lastModified"] = datetime.now(timezone.utc).isoformat()
     snapshot["meta"] = meta

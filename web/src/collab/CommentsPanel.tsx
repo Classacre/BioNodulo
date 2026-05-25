@@ -3,6 +3,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { getToken } from './auth';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
+import { confirmDialog } from '../components/ui';
 
 const API_BASE = '/api/collab';
 
@@ -169,7 +170,13 @@ export default function CommentsPanel({ workflowId, selectedNodeId, currentUser,
   };
 
   const handleDelete = async (commentId: string) => {
-    if (!confirm('Delete this comment?')) return;
+    const ok = await confirmDialog({
+      title: 'Delete comment?',
+      message: 'Delete this comment?',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const token = getToken();
       const headers: Record<string, string> = {};

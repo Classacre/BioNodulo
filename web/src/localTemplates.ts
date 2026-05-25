@@ -44,6 +44,14 @@ function deriveTags(name: string, description: string, tools: string[]): string[
   return Array.from(tags);
 }
 
+function derivePreviewSteps(nodes: Workflow['nodes']): string[] {
+  return nodes
+    .filter(node => node.type !== 'note')
+    .slice(0, 5)
+    .map(node => node.ui?.title || node.type.replace(/_/g, ' '))
+    .filter(Boolean);
+}
+
 export function listLocalTemplates(): TemplateInfo[] {
   return Object.entries(modules).map(([path, module]) => {
     const filename = filenameFromPath(path);
@@ -62,6 +70,7 @@ export function listLocalTemplates(): TemplateInfo[] {
       category: meta.category || deriveCategory(name, description, tools),
       tags: meta.tags || deriveTags(name, description, tools),
       tools,
+      preview_steps: derivePreviewSteps(nodes),
       node_count: nodes.filter(node => node.type !== 'note').length,
     };
   }).sort((a, b) => a.name.localeCompare(b.name));

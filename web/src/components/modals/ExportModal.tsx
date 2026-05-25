@@ -1,45 +1,76 @@
 import { useState } from 'react';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
+import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
+import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
 
 interface ExportModalProps {
   workflow: Workflow;
   onClose: () => void;
 }
 
-type ExportFormat = 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
+type ExportFormat = 'json' | 'png' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
 
 const FORMATS: { id: ExportFormat; name: string; ext: string }[] = [
   { id: 'json', name: 'BioNodulo JSON', ext: '.json' },
+  { id: 'png', name: 'PNG (workflow embedded)', ext: '.png' },
   { id: 'snakemake', name: 'SnakeMake', ext: '.smk' },
   { id: 'nextflow', name: 'NextFlow', ext: '.nf' },
   { id: 'cwl', name: 'CWL', ext: '.cwl' },
   { id: 'galaxy', name: 'Galaxy (.ga)', ext: '.ga' },
 ];
 
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   const [format, setFormat] = useState<ExportFormat>('json');
   const [content, setContent] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [pngPreview, setPngPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const resetState = () => {
+    setContent('');
+    setPngPreview(null);
+    setError(null);
+  };
 
   const generate = async () => {
     setGenerating(true);
+    setError(null);
     try {
       if (format === 'json') {
         setContent(JSON.stringify(workflow, null, 2));
+        setPngPreview(null);
+      } else if (format === 'png') {
+        const dataUrl = renderWorkflowThumbnail(workflow);
+        setPngPreview(dataUrl);
+        setContent('');
       } else {
-        const r = await fetch('/api/workflow/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const response = await fetch('/api/workflow/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workflow, format }),
         });
-        if (r.ok) {
-          const data = await r.json();
+        if (response.ok) {
+          const data = await response.json();
           setContent(data.content || data.workflow || JSON.stringify(workflow, null, 2));
         } else {
-          setContent(`# ${format} export\n# TODO: Backend converter not available\n\n${JSON.stringify(workflow, null, 2)}`);
+          setContent(`# ${format} export\n# Backend converter not available\n\n${JSON.stringify(workflow, null, 2)}`);
         }
+        setPngPreview(null);
       }
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
       setContent(JSON.stringify(workflow, null, 2));
     }
     setGenerating(false);
@@ -47,26 +78,65 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
 
   const download = () => {
     const fmt = FORMATS.find(f => f.id === format);
-    saveToFile(content, `${workflow.name || 'workflow'}${fmt?.ext || '.txt'}`, 'text/plain');
+    const baseName = workflow.name?.trim() || 'workflow';
+    if (format === 'png' && pngPreview) {
+      try {
+        const blob = embedWorkflowInPngDataUrl(pngPreview, workflow);
+        triggerDownload(blob, `${baseName}.png`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+      return;
+    }
+    saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, 'text/plain');
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 700, maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-content" style={{ width: 720, maxHeight: '80vh' }} onClick={event => event.stopPropagation()}>
         <div className="modal-header">Export Workflow</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {FORMATS.map(f => (
-              <button key={f.id} className={`env-type-tab ${format === f.id ? 'active' : ''}`} onClick={() => { setFormat(f.id); setContent(''); }}>
+              <button
+                key={f.id}
+                className={`env-type-tab ${format === f.id ? 'active' : ''}`}
+                onClick={() => { setFormat(f.id); resetState(); }}
+                type="button"
+              >
                 {f.name}
               </button>
             ))}
           </div>
 
-          {!content && (
+          {format === 'png' && (
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
+              The PNG carries the full workflow JSON in a tEXt chunk; drag it back into Import to restore the graph.
+            </div>
+          )}
+
+          {!content && !pngPreview && (
             <button className="btn btn-primary" onClick={generate} disabled={generating}>
-              {generating ? 'Generating...' : 'Generate'}
+              {generating ? 'Generating...' : format === 'png' ? 'Render thumbnail' : 'Generate'}
             </button>
+          )}
+
+          {error && (
+            <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12, marginBottom: 8 }}>{error}</div>
+          )}
+
+          {pngPreview && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+              <img
+                src={pngPreview}
+                alt="Workflow thumbnail preview"
+                style={{ width: '100%', maxWidth: 640, borderRadius: 6, border: '1px solid var(--border)' }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" onClick={download}>Download PNG</button>
+                <button className="btn" onClick={generate}>Regenerate</button>
+              </div>
+            </div>
           )}
 
           {content && (

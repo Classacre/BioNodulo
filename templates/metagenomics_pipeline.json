@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Metagenomics Profiling",
   "description": "Taxonomic and functional profiling of microbial communities",
@@ -9,7 +9,7 @@
       "type": "note",
       "position": [
         -240,
-        265
+        80
       ],
       "params": {
         "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN.\n\nData source: Zenodo record 17661262 (Galaxy Training Network).\nreads_forward.fastq (3.0M), reads_reverse.fastq (3.0M).\nCoffee fermentation metagenome subset for assembly tutorial.\nURL: https://zenodo.org/records/17661262\nNote: Kraken2 database directory is a placeholder. Provide your own database."
@@ -42,7 +42,7 @@
       "type": "input_directory",
       "position": [
         80,
-        280
+        276
       ],
       "params": {
         "directory": "kraken2_db"
@@ -55,7 +55,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        360,
+        440,
         80
       ],
       "params": {
@@ -69,7 +69,7 @@
       "id": "kraken2_001",
       "type": "kraken2",
       "position": [
-        640,
+        800,
         80
       ],
       "params": {
@@ -83,7 +83,7 @@
       "id": "bracken_001",
       "type": "bracken",
       "position": [
-        920,
+        1160,
         80
       ],
       "params": {
@@ -97,8 +97,8 @@
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
-        640,
-        280
+        800,
+        528
       ],
       "params": {
         "threads": 8,
@@ -112,8 +112,8 @@
       "id": "humann_001",
       "type": "humann",
       "position": [
-        920,
-        280
+        800,
+        976
       ],
       "params": {
         "threads": 8
@@ -126,8 +126,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        360,
-        450
+        440,
+        444
       ],
       "params": {
         "threads": 4
@@ -140,8 +140,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        640,
-        450
+        800,
+        1340
       ],
       "params": {
         "title": "Metagenomics QC"

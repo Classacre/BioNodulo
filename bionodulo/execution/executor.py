@@ -204,11 +204,52 @@ class WorkflowExecutor:
             emit = _noop_emit
 
         _VISUAL_ONLY_TYPES = frozenset({"note"})
-        raw_nodes = workflow.get("nodes", [])
+        raw_nodes_data = workflow.get("nodes", [])
+        if isinstance(raw_nodes_data, dict):
+            raw_nodes = []
+            for node_id, node in raw_nodes_data.items():
+                if isinstance(node, dict):
+                    node_data = dict(node)
+                elif hasattr(node, "model_dump"):
+                    node_data = node.model_dump()
+                else:
+                    node_data = dict(getattr(node, "__dict__", {}))
+                node_data.setdefault("id", str(node_id))
+                raw_nodes.append(node_data)
+        else:
+            raw_nodes = list(raw_nodes_data or [])
         nodes: dict[str, dict[str, Any]] = {
-            n["id"]: n for n in raw_nodes if n.get("type") not in _VISUAL_ONLY_TYPES
+            str(n["id"]): n
+            for n in raw_nodes
+            if isinstance(n, dict) and n.get("id") is not None and n.get("type") not in _VISUAL_ONLY_TYPES
         }
         edges: list[dict[str, Any]] = workflow.get("edges", [])
+        target_nodes = self._coerce_node_id_set(options.get("target_nodes"))
+
+        if target_nodes:
+            raw_node_ids = {
+                str(n["id"])
+                for n in raw_nodes
+                if isinstance(n, dict) and n.get("id") is not None
+            }
+            unknown_targets = sorted(target_nodes - raw_node_ids)
+            if unknown_targets:
+                msg = f"Unknown target node(s): {', '.join(unknown_targets)}"
+                emit("error", {"run_id": run_id, "message": msg})
+                return {"status": "failed", "error": msg}
+
+            executable_targets = target_nodes & set(nodes)
+            if executable_targets:
+                required_nodes = self._upstream_closure(executable_targets, nodes, edges)
+                nodes = {nid: node for nid, node in nodes.items() if nid in required_nodes}
+                edges = [
+                    edge
+                    for edge in edges
+                    if edge_source(edge) in nodes and edge_target(edge) in nodes
+                ]
+            else:
+                nodes = {}
+                edges = []
 
         # Build adjacency lists
         upstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
@@ -243,6 +284,7 @@ class WorkflowExecutor:
         run_metadata: dict[str, Any] = {
             "run_id": run_id,
             "forced": force,
+            "target_nodes": sorted(target_nodes),
             "nodes": {},
         }
 
@@ -496,6 +538,48 @@ class WorkflowExecutor:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _coerce_node_id_set(self, value: Any) -> set[str]:
+        """Normalize an option value into a set of non-empty node IDs."""
+        if value is None:
+            return set()
+        if isinstance(value, str):
+            values = [value]
+        else:
+            try:
+                values = list(value)
+            except TypeError:
+                values = [value]
+        return {
+            str(node_id).strip()
+            for node_id in values
+            if node_id is not None and str(node_id).strip()
+        }
+
+    def _upstream_closure(
+        self,
+        target_nodes: set[str],
+        nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> set[str]:
+        """Return target nodes plus all executable upstream dependencies."""
+        upstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
+        for edge in edges:
+            src = edge_source(edge)
+            tgt = edge_target(edge)
+            if src in nodes and tgt in nodes:
+                upstream_of[tgt].append(src)
+
+        required = set(target_nodes)
+        queue = deque(target_nodes)
+        while queue:
+            current = queue.popleft()
+            for upstream in upstream_of.get(current, []):
+                if upstream in required:
+                    continue
+                required.add(upstream)
+                queue.append(upstream)
+        return required
 
     # Types that indicate a file or directory path parameter
     _FILE_TYPES: set[str] = {

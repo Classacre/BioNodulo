@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
+import { alertDialog } from '../ui';
 
 interface FileEntry {
   name: string;
@@ -289,13 +290,13 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
               {previewFile.endsWith('.json') && onImportWorkflow && (
                 <button
                   className="btn btn-primary"
-                  onClick={() => {
+                  onClick={async () => {
                     try {
                       const wf = JSON.parse(previewContent);
                       onImportWorkflow(wf);
                       setPreviewFile(null);
                     } catch {
-                      alert('Invalid workflow JSON');
+                      await alertDialog('Invalid workflow JSON');
                     }
                   }}
                 >

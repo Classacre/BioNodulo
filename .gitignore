@@ -40,3 +40,6 @@ server.pid
 
 # Example template data (large files; user downloads via Getting Started)
 examples/data/
+
+# Ad-hoc QA / screenshot output produced by local tooling
+artifacts/

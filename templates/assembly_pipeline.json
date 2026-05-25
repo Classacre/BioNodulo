@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Genome Assembly",
   "description": "De novo genome assembly with quality assessment",
@@ -8,8 +8,8 @@
       "id": "note_assembly_pipeline",
       "type": "note",
       "position": [
-        -220,
-        225
+        -240,
+        80
       ],
       "params": {
         "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast.\n\nReads: shovill test data (https://github.com/tseemann/shovill/tree/master/test). Paired-end bacterial Illumina reads (~50,000 reads each).\nReference: E. coli K-12 substr. MG1655 (NCBI GCF_000005845.2_ASM584v2, https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/)."
@@ -23,8 +23,8 @@
       "id": "reads_001",
       "type": "input_fastq",
       "position": [
-        100,
-        100
+        80,
+        80
       ],
       "params": {
         "sample_name": "genome1",
@@ -41,8 +41,8 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        380,
-        100
+        440,
+        80
       ],
       "params": {
         "threads": 4
@@ -55,8 +55,8 @@
       "id": "spades_001",
       "type": "spades",
       "position": [
-        660,
-        100
+        800,
+        80
       ],
       "params": {
         "threads": 8
@@ -69,8 +69,8 @@
       "id": "ref_001",
       "type": "input_fasta",
       "position": [
-        380,
-        350
+        80,
+        276
       ],
       "params": {
         "reference": "examples/data/assembly/ecoli_reference.fna"
@@ -83,8 +83,8 @@
       "id": "quast_001",
       "type": "quast",
       "position": [
-        940,
-        100
+        1160,
+        80
       ],
       "params": {
         "threads": 4
@@ -97,8 +97,8 @@
       "id": "prokka_001",
       "type": "prokka",
       "position": [
-        940,
-        350
+        1160,
+        360
       ],
       "params": {
         "kingdom": "Bacteria"

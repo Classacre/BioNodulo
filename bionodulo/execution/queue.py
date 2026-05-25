@@ -8,6 +8,7 @@ interruption, clearing, and state broadcast.
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import os
 import time
@@ -156,6 +157,50 @@ class RunQueue:
 
         return False
 
+    async def cancel(self, run_id: str | None = None) -> bool:
+        """Cancel a running or pending run.
+
+        If *run_id* is *None*, cancels the first currently running run.
+        Pending runs are removed from the visible queue and moved to history.
+
+        Returns:
+            *True* if a run was cancelled.
+        """
+        if run_id and run_id in self._running:
+            self._running[run_id].cancel_event.set()
+            self._running[run_id].status = RunStatus.CANCELLED
+            self.emit("queue_cancel", {"run_id": run_id})
+            await self._emit_queue()
+            return True
+
+        if not run_id and self._running:
+            rid, req = next(iter(self._running.items()))
+            req.cancel_event.set()
+            req.status = RunStatus.CANCELLED
+            self.emit("queue_cancel", {"run_id": rid})
+            await self._emit_queue()
+            return True
+
+        if run_id:
+            removed = False
+            async with self._lock:
+                for req in list(self._pending_items):
+                    if req.run_id != run_id:
+                        continue
+                    self._pending_items.remove(req)
+                    req.cancel_event.set()
+                    req.status = RunStatus.CANCELLED
+                    req.finished_at = time.time()
+                    self._history.append(req)
+                    removed = True
+                    self.emit("queue_cancel", {"run_id": run_id})
+                    break
+            if removed:
+                await self._emit_queue()
+                return True
+
+        return False
+
     async def clear_pending(self) -> int:
         """Clear all pending runs from the queue.
 
@@ -166,6 +211,7 @@ class RunQueue:
             pending = list(self._pending_items)
             self._pending_items.clear()
             for req in pending:
+                req.cancel_event.set()
                 req.status = RunStatus.CANCELLED
                 req.finished_at = time.time()
                 self._history.append(req)
@@ -173,6 +219,98 @@ class RunQueue:
         self.emit("queue_clear", {"cleared": count})
         await self._emit_queue()
         return count
+
+    async def clear(self) -> int:
+        """Compatibility alias for clearing all pending runs."""
+        return await self.clear_pending()
+
+    async def reorder_pending(
+        self,
+        run_id: str,
+        index: int | None = None,
+        before_run_id: str | None = None,
+        after_run_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Move a pending run to a new position.
+
+        Exactly one destination may be supplied: ``index``, ``before_run_id``,
+        or ``after_run_id``. Returns the updated pending queue snapshot.
+        """
+        destinations = [index is not None, before_run_id is not None, after_run_id is not None]
+        if sum(destinations) != 1:
+            raise ValueError("Specify exactly one of index, before_run_id, or after_run_id")
+
+        async with self._lock:
+            pending = self._pending_items
+            current_index = next((idx for idx, req in enumerate(pending) if req.run_id == run_id), None)
+            if current_index is None:
+                raise KeyError(f"Pending run '{run_id}' not found")
+
+            request = pending.pop(current_index)
+
+            if before_run_id is not None:
+                if before_run_id == run_id:
+                    target_index = current_index
+                else:
+                    target_index = next(
+                        (idx for idx, req in enumerate(pending) if req.run_id == before_run_id),
+                        None,
+                    )
+                    if target_index is None:
+                        pending.insert(current_index, request)
+                        raise KeyError(f"Pending run '{before_run_id}' not found")
+            elif after_run_id is not None:
+                if after_run_id == run_id:
+                    target_index = current_index
+                else:
+                    anchor_index = next(
+                        (idx for idx, req in enumerate(pending) if req.run_id == after_run_id),
+                        None,
+                    )
+                    if anchor_index is None:
+                        pending.insert(current_index, request)
+                        raise KeyError(f"Pending run '{after_run_id}' not found")
+                    target_index = anchor_index + 1
+            else:
+                target_index = min(index or 0, len(pending))
+
+            pending.insert(target_index, request)
+            snapshot = [self._run_to_dict(req, include_result=False) for req in pending]
+
+        self.emit(
+            "queue_reorder",
+            {"run_id": run_id, "pending": [entry["run_id"] for entry in snapshot]},
+        )
+        await self._emit_queue()
+        return snapshot
+
+    async def retry(self, run_id: str, new_run_id: str | None = None) -> str:
+        """Submit a new run using the stored workflow from an existing run."""
+        async with self._lock:
+            original = self._find_request_locked(run_id)
+            if original is None:
+                raise KeyError(f"Run '{run_id}' not found")
+
+            try:
+                workflow = copy.deepcopy(original.workflow)
+            except Exception:
+                workflow = dict(original.workflow)
+            options = copy.deepcopy(original.options)
+            metadata = copy.deepcopy(original.metadata)
+            force_nodes = set(original.force_nodes)
+            force = original.force
+
+        metadata["retry_of"] = run_id
+        metadata.setdefault("name", f"{run_id} retry")
+        rid = new_run_id or f"{run_id}_retry_{uuid.uuid4().hex[:6]}"
+        return await self.submit(
+            workflow=workflow,
+            run_id=rid,
+            options=options,
+            force=force,
+            force_nodes=force_nodes,
+            metadata=metadata,
+        )
 
     def _run_to_dict(self, r: RunRequest, include_result: bool = True) -> dict[str, Any]:
         """Serialize a RunRequest to a dict with optional result fields."""
@@ -328,15 +466,17 @@ class RunQueue:
                 continue
 
             try:
-                request = await asyncio.wait_for(
+                await asyncio.wait_for(
                     self._pending.get(), timeout=0.5
                 )
             except asyncio.TimeoutError:
                 continue
 
             async with self._lock:
-                if request in self._pending_items:
-                    self._pending_items.remove(request)
+                if not self._pending_items:
+                    self._pending.task_done()
+                    continue
+                request = self._pending_items.pop(0)
                 if request.status is not RunStatus.PENDING:
                     self._pending.task_done()
                     continue
@@ -420,3 +560,15 @@ class RunQueue:
     def _queue_items(self) -> list[RunRequest]:
         """Return a snapshot of items currently in the pending queue."""
         return list(self._pending_items)
+
+    def _find_request_locked(self, run_id: str) -> RunRequest | None:
+        """Find a run while ``self._lock`` is held."""
+        for req in self._pending_items:
+            if req.run_id == run_id:
+                return req
+        if run_id in self._running:
+            return self._running[run_id]
+        for req in self._history:
+            if req.run_id == run_id:
+                return req
+        return None

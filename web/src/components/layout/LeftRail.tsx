@@ -1,6 +1,7 @@
 import Icon from '../ui/Icon';
+import { usePanelRegistry } from '../../state/panels';
 
-export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'help' | 'console' | 'settings' | 'hpc' | null;
+export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'help' | 'console' | 'settings' | 'hpc' | string | null;
 
 interface LeftRailProps {
   active: RailTab;
@@ -9,6 +10,7 @@ interface LeftRailProps {
 
 export default function LeftRail({ active, onChange }: LeftRailProps) {
   const toggle = (tab: RailTab) => onChange(active === tab ? null : tab);
+  const registered = usePanelRegistry();
 
   return (
     <nav className="left-rail">
@@ -28,6 +30,17 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
       <button className={`rail-btn ${active === 'hpc' ? 'active' : ''}`} onClick={() => toggle('hpc')} title="HPC (Ctrl+5)">
         <Icon name="server" size={18} />
       </button>
+      {registered.length > 0 && <div className="rail-sep" />}
+      {registered.map(panel => (
+        <button
+          key={panel.id}
+          className={`rail-btn ${active === panel.id ? 'active' : ''}`}
+          onClick={() => toggle(panel.id)}
+          title={`${panel.title}${panel.shortcutTitle ? ` (${panel.shortcutTitle})` : ''}`}
+        >
+          <Icon name={panel.icon} size={18} />
+        </button>
+      ))}
       <div className="rail-sep" />
       <button className={`rail-btn ${active === 'help' ? 'active' : ''}`} onClick={() => toggle('help')} title="Help / Wiki (Ctrl+6)">
         <Icon name="help" size={18} />

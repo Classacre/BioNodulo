@@ -29,6 +29,23 @@ class RunCreateRequest(BaseModel):
     name: str = Field("Untitled", description="Human-readable run name")
     environment: str | None = Field(None, description="Conda env or container to use")
     no_cache: bool = Field(False, description="Force re-execution by bypassing cache")
+    force_nodes: list[str] = Field(
+        default_factory=list,
+        description="Specific node IDs to force re-execution",
+    )
+    target_nodes: list[str] = Field(
+        default_factory=list,
+        description="Node IDs to execute, together with their upstream dependencies",
+    )
+
+
+class QueueReorderRequest(BaseModel):
+    """Request body for POST /queue/reorder."""
+
+    run_id: str = Field(..., description="Pending run ID to move")
+    index: int | None = Field(None, ge=0, description="Zero-based destination index")
+    before_run_id: str | None = Field(None, description="Move before this pending run ID")
+    after_run_id: str | None = Field(None, description="Move after this pending run ID")
 
 
 class WorkflowExportRequest(BaseModel):

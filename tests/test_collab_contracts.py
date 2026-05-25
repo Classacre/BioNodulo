@@ -226,7 +226,7 @@ def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:
         "wf-room",
         {
             "workflow": {
-                "version": "Alpha 1.5",
+                "version": "2.0",
                 "name": "Genome Assembly",
                 "nodes": [{"id": "n1", "type": "input_fastq"}],
                 "edges": [{"id": "e1", "from": {"node": "n1"}, "to": {"node": "n2"}}],
@@ -238,7 +238,7 @@ def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:
         "wf-room",
         {
             "workflow": {
-                "version": "Alpha 1.5",
+                "version": "2.0",
                 "name": "Variant Calling",
                 "nodes": [{"id": "n2", "type": "input_vcf"}],
                 "edges": [],

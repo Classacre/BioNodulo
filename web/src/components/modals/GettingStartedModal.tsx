@@ -19,6 +19,18 @@ const TABS: { id: TabId; label: string }[] = [
 
 const CHANGELOG = [
   {
+    version: '2.0',
+    date: '2026-05',
+    items: [
+      'ComfyUI-inspired command palette, keybindings, toasts, dialogs, and panel workflow',
+      'Resizable/floating side panels with improved dock controls',
+      'Template gallery redesign with previews, search ranking, tags, and workflow step summaries',
+      'Canvas upgrades for node badges, hover details, reroute workflows, selected execution, and subgraph extraction',
+      'Queue controls for cancel, retry, reorder, clear, progress tracking, and batch execution',
+      'Collaboration, autosave, i18n, theme palette, and performance mode refinements',
+    ],
+  },
+  {
     version: 'Alpha 1.5',
     date: '2025-05',
     items: [

@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Phylogenetics Pipeline",
   "description": "Multiple sequence alignment and phylogenetic tree construction",
@@ -8,8 +8,8 @@
       "id": "note_phylogenetics_pipeline",
       "type": "note",
       "position": [
-        -220,
-        150
+        -240,
+        80
       ],
       "params": {
         "text": "Phylogenetics pipeline: aligns sequences with MAFFT and builds trees with IQ-TREE.\n\nData source: NCBI RefSeq 16S ribosomal RNA sequences fetched via E-utilities (https://eutils.ncbi.nlm.nih.gov/).\nSequences:\n- NR_024570.1 Escherichia coli\n- NR_027552.1 Bacillus subtilis\n- NR_036781.1 Staphylococcus aureus\n- NR_026078.1 Pseudomonas aeruginosa\n- NR_028747.1 Salmonella enterica\nFile: 16s_sequences.fasta (~8 KB, 5 sequences)."
@@ -23,8 +23,8 @@
       "id": "seqs_001",
       "type": "input_fasta",
       "position": [
-        100,
-        150
+        80,
+        80
       ],
       "params": {
         "reference": "examples/data/phylogenetics/16s_sequences.fasta"
@@ -37,8 +37,8 @@
       "id": "mafft_001",
       "type": "mafft",
       "position": [
-        400,
-        150
+        440,
+        80
       ],
       "params": {
         "threads": 4,
@@ -52,8 +52,8 @@
       "id": "iqtree_001",
       "type": "iqtree",
       "position": [
-        700,
-        150
+        800,
+        80
       ],
       "params": {
         "threads": 4,

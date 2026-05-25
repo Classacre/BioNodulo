@@ -137,7 +137,7 @@ def _new_id(prefix: str) -> str:
 
 def _normalize_workflow(workflow: dict[str, Any], workflow_id: str | None = None) -> dict[str, Any]:
     wf = copy.deepcopy(workflow)
-    wf.setdefault("version", "Alpha 1.5")
+    wf.setdefault("version", "2.0")
     wf.setdefault("app", "bionodulo")
     wf.setdefault("name", "Untitled")
     wf.setdefault("description", "")

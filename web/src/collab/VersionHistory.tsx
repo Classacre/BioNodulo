@@ -3,6 +3,7 @@ import { getToken } from './auth';
 import type { WorkflowVersion, VersionDiffResult } from './types';
 import VersionDiff from './VersionDiff';
 import Icon from '../components/ui/Icon';
+import { confirmDialog, promptDialog } from '../components/ui';
 
 const API_BASE = '/api/collab';
 
@@ -53,7 +54,13 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
   }, [isOpen, fetchVersions]);
 
   const handleSaveVersion = async () => {
-    const name = prompt('Version name (optional):');
+    const name = await promptDialog({
+      title: 'Save version',
+      message: 'Name this workflow version.',
+      inputLabel: 'Version name',
+      placeholder: 'Optional',
+      confirmLabel: 'Save Version',
+    });
     if (name === null) return;
     setSaving(true);
     try {
@@ -75,7 +82,13 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
   };
 
   const handleRestore = async (versionId: string) => {
-    if (!confirm('Restore this version? This will create a new branch of the current workflow.')) return;
+    const ok = await confirmDialog({
+      title: 'Restore version?',
+      message: 'Restore this version? This will create a new branch of the current workflow.',
+      confirmLabel: 'Restore',
+      tone: 'warning',
+    });
+    if (!ok) return;
     try {
       const token = getToken();
       const headers: Record<string, string> = {};
@@ -94,7 +107,13 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
   };
 
   const handleDelete = async (versionId: string) => {
-    if (!confirm('Delete this version?')) return;
+    const ok = await confirmDialog({
+      title: 'Delete version?',
+      message: 'Delete this version?',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       const token = getToken();
       const headers: Record<string, string> = {};

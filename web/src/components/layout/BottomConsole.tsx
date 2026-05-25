@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
 
-type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews';
+type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
+export type QueueMoveDirection = 'up' | 'down';
 
 interface BottomConsoleProps {
   logs: LogEntry[];
@@ -11,6 +12,11 @@ interface BottomConsoleProps {
   onClose: () => void;
   onOpenLightbox?: (images: { src: string; alt: string; filename: string }[], startIndex: number) => void;
   onClearLogs?: () => void;
+  onCancelRun?: (run: RunRecord) => void;
+  onRetryRun?: (run: RunRecord) => void;
+  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
+  onClearQueue?: () => void;
+  batchCount?: number;
 }
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp']);
@@ -66,7 +72,281 @@ function groupLogsByRun(logs: LogEntry[]): Map<string, LogEntry[]> {
   return groups;
 }
 
-export default function BottomConsole({ logs, queue, history, onClose, onOpenLightbox, onClearLogs }: BottomConsoleProps) {
+const COMPLETE_NODE_STATUSES = new Set<NodeStatus['status']>(['completed', 'cached', 'skipped']);
+
+interface RunProgress {
+  total: number;
+  completed: number;
+  running: number;
+  pending: number;
+  failed: number;
+  percent: number;
+}
+
+function progressForRun(run: RunRecord): RunProgress {
+  const statuses = Array.isArray(run.node_statuses) ? run.node_statuses : [];
+  const total = Math.max(run.execution_plan?.length || 0, statuses.length);
+  const completed = statuses.filter(node => COMPLETE_NODE_STATUSES.has(node.status)).length;
+  const running = statuses.filter(node => node.status === 'running').length;
+  const failed = statuses.filter(node => node.status === 'error').length;
+  const pending = Math.max(0, total - completed - running - failed);
+
+  let percent = total > 0 ? Math.round(((completed + running * 0.5) / total) * 100) : 0;
+  if (run.status === 'completed') percent = 100;
+  if (run.status === 'running' && total === 0) percent = 8;
+  if (run.status === 'error' && total === 0) percent = 100;
+  if (run.status === 'cancelled') percent = Math.max(percent, 5);
+
+  return { total, completed, running, pending, failed, percent: Math.min(100, Math.max(0, percent)) };
+}
+
+function shortRunId(runId: string): string {
+  return runId.length > 12 ? `${runId.slice(0, 8)}...${runId.slice(-4)}` : runId;
+}
+
+function RunProgressBar({ progress, status }: { progress: RunProgress; status: RunRecord['status'] }) {
+  return (
+    <div className={`queue-progress is-${status}`} title={`${progress.percent}% complete`}>
+      <div className="queue-progress-fill" style={{ width: `${progress.percent}%` }} />
+    </div>
+  );
+}
+
+function RunActionButton({
+  title,
+  icon,
+  onClick,
+  disabled = false,
+}: {
+  title: string;
+  icon: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      className="btn btn-icon btn-sm queue-action-btn"
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <Icon name={icon} size={12} />
+    </button>
+  );
+}
+
+function QueueRunCard({
+  run,
+  index,
+  totalRuns,
+  onCancelRun,
+  onRetryRun,
+  onMoveRun,
+}: {
+  run: RunRecord;
+  index: number;
+  totalRuns: number;
+  onCancelRun?: (run: RunRecord) => void;
+  onRetryRun?: (run: RunRecord) => void;
+  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
+}) {
+  const progress = progressForRun(run);
+  const canCancel = run.status === 'pending' || run.status === 'running';
+  const canRetry = run.status === 'error' || run.status === 'cancelled';
+  const canMove = run.status === 'pending';
+
+  return (
+    <div className={`queue-run-card is-${run.status}`}>
+      <div className="queue-run-main">
+        <div className="queue-run-title-row">
+          <span className={`queue-status-pill is-${run.status}`}>{run.status}</span>
+          <strong className="queue-run-name">{run.workflow_name || 'Untitled workflow'}</strong>
+          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
+        </div>
+        <RunProgressBar progress={progress} status={run.status} />
+        <div className="queue-run-meta">
+          <span>{progress.total > 0 ? `${progress.completed}/${progress.total} nodes` : 'No node plan'}</span>
+          {progress.running > 0 && <span>{progress.running} running</span>}
+          {progress.pending > 0 && <span>{progress.pending} pending</span>}
+          {progress.failed > 0 && <span className="queue-run-error">{progress.failed} failed</span>}
+        </div>
+      </div>
+      <div className="queue-run-actions">
+        {onMoveRun && (
+          <>
+            <RunActionButton title="Move earlier" icon="chevronUp" onClick={() => onMoveRun(run, 'up')} disabled={!canMove || index === 0} />
+            <RunActionButton title="Move later" icon="chevronDown" onClick={() => onMoveRun(run, 'down')} disabled={!canMove || index === totalRuns - 1} />
+          </>
+        )}
+        {onRetryRun && canRetry && (
+          <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
+        )}
+        {onCancelRun && canCancel && (
+          <RunActionButton title="Cancel run" icon="stop" onClick={() => onCancelRun(run)} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryRunCard({ run, onRetryRun }: { run: RunRecord; onRetryRun?: (run: RunRecord) => void }) {
+  const progress = progressForRun(run);
+  const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
+  return (
+    <div className={`queue-run-card history-run-card is-${run.status}`}>
+      <div className="queue-run-main">
+        <div className="queue-run-title-row">
+          <span className={`queue-status-pill is-${run.status}`}>{run.status}</span>
+          <strong className="queue-run-name">{run.workflow_name || 'Untitled workflow'}</strong>
+          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
+        </div>
+        <RunProgressBar progress={progress} status={run.status} />
+        <div className="queue-run-meta">
+          <span>{run.end_time ? new Date(run.end_time).toLocaleString() : 'in progress'}</span>
+          <span>{progress.total > 0 ? `${progress.completed}/${progress.total} nodes` : 'No node plan'}</span>
+        </div>
+      </div>
+      {onRetryRun && canRetry && (
+        <div className="queue-run-actions">
+          <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReportPanel({ history }: { history: RunRecord[] }) {
+  const completed = history.filter(r => r.status === 'completed' || r.status === 'error' || r.status === 'cancelled');
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(completed[0]?.run_id ?? null);
+  const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedRunId === null && completed.length > 0) {
+      setSelectedRunId(completed[0].run_id);
+    }
+  }, [completed, selectedRunId]);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      setReportHtml(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/runs/${encodeURIComponent(selectedRunId)}/report`)
+      .then(async response => {
+        if (!response.ok) throw new Error(`Report unavailable (HTTP ${response.status})`);
+        const text = await response.text();
+        if (!cancelled) setReportHtml(text);
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedRunId]);
+
+  const downloadManifest = () => {
+    if (!selectedRunId) return;
+    const url = `/api/runs/${encodeURIComponent(selectedRunId)}/manifest`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bionodulo-manifest-${selectedRunId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (completed.length === 0) {
+    return (
+      <div style={{ color: 'var(--muted)', padding: 12 }}>
+        Provenance reports become available once a run completes or fails.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: 'var(--muted)' }}>Run:</label>
+        <select
+          value={selectedRunId ?? ''}
+          onChange={event => setSelectedRunId(event.target.value || null)}
+          style={{
+            minWidth: 240,
+            padding: '4px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            fontSize: 12,
+          }}
+        >
+          {completed.map(run => (
+            <option key={run.run_id} value={run.run_id}>
+              {run.workflow_name || run.run_id} - {run.status}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn btn-sm"
+          onClick={downloadManifest}
+          disabled={!selectedRunId}
+          title="Download JSON provenance manifest"
+        >
+          <Icon name="export" size={12} /> Manifest (JSON)
+        </button>
+        {selectedRunId && (
+          <a
+            className="btn btn-sm"
+            href={`/api/runs/${encodeURIComponent(selectedRunId)}/report`}
+            target="_blank"
+            rel="noreferrer"
+            title="Open report in a new tab"
+          >
+            <Icon name="link" size={12} /> Open report
+          </a>
+        )}
+      </div>
+      <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', minHeight: 200 }}>
+        {loading && (
+          <div style={{ padding: 12, color: 'var(--muted)' }}>Loading provenance report...</div>
+        )}
+        {error && !loading && (
+          <div style={{ padding: 12, color: 'var(--danger, #dc3545)' }}>{error}</div>
+        )}
+        {!loading && !error && reportHtml && (
+          <iframe
+            title="Run report"
+            srcDoc={reportHtml}
+            sandbox=""
+            style={{ width: '100%', height: '100%', minHeight: 200, border: 'none', background: 'white' }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function BottomConsole({
+  logs,
+  queue,
+  history,
+  onClose,
+  onOpenLightbox,
+  onClearLogs,
+  onCancelRun,
+  onRetryRun,
+  onMoveRun,
+  onClearQueue,
+  batchCount,
+}: BottomConsoleProps) {
   const [tab, setTab] = useState<ConsoleTab>('logs');
   const [showVerbose, setShowVerbose] = useState(true);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -241,6 +521,14 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
   };
 
   const allRunIds = groupedEntries.map(([runId]) => runId);
+  const queueStats = queue.reduce((stats, run) => {
+    stats.totalNodes += Math.max(run.execution_plan?.length || 0, run.node_statuses?.length || 0);
+    if (run.status === 'running') stats.running += 1;
+    else if (run.status === 'pending') stats.pending += 1;
+    else if (run.status === 'error') stats.failed += 1;
+    return stats;
+  }, { running: 0, pending: 0, failed: 0, totalNodes: 0 });
+  const visibleBatchCount = batchCount ?? queue.length;
 
   return (
     <div className="bottom-console">
@@ -256,6 +544,9 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
         </button>
         <button className={`console-tab ${tab === 'previews' ? 'active' : ''}`} onClick={() => setTab('previews')}>
           Previews {imagePreviews.length > 0 && `(${imagePreviews.length})`}
+        </button>
+        <button className={`console-tab ${tab === 'report' ? 'active' : ''}`} onClick={() => setTab('report')}>
+          Report
         </button>
         <div style={{ flex: 1 }} />
         {tab === 'logs' && allRunIds.length > 0 && (
@@ -279,6 +570,11 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
         {tab === 'logs' && safeLogs.length > 0 && onClearLogs && (
           <button className="btn btn-sm btn-ghost" onClick={onClearLogs} title="Clear all logs">
             Clear
+          </button>
+        )}
+        {tab === 'queue' && queue.length > 0 && onClearQueue && (
+          <button className="btn btn-sm btn-ghost" onClick={onClearQueue} title="Clear queued runs">
+            Clear Queue
           </button>
         )}
         {tab === 'logs' && solverLogs.length > 0 && (
@@ -366,20 +662,41 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
         {tab === 'queue' && (
           queue.length === 0
             ? <div style={{ color: 'var(--muted)' }}>Queue is empty.</div>
-            : queue.map(r => (
-              <div key={r.run_id} className="console-log-line">
-                [{r.status}] {r.workflow_name} ({r.node_statuses?.length || 0} nodes)
+            : (
+              <div className="queue-panel">
+                <div className="queue-summary">
+                  <span className="queue-summary-item"><strong>{visibleBatchCount}</strong> batch</span>
+                  <span className="queue-summary-item"><strong>{queueStats.running}</strong> running</span>
+                  <span className="queue-summary-item"><strong>{queueStats.pending}</strong> pending</span>
+                  <span className="queue-summary-item"><strong>{queueStats.totalNodes}</strong> nodes</span>
+                  {queueStats.failed > 0 && <span className="queue-summary-item is-error"><strong>{queueStats.failed}</strong> failed</span>}
+                </div>
+                <div className="queue-run-list">
+                  {queue.map((r, index) => (
+                    <QueueRunCard
+                      key={r.run_id}
+                      run={r}
+                      index={index}
+                      totalRuns={queue.length}
+                      onCancelRun={onCancelRun}
+                      onRetryRun={onRetryRun}
+                      onMoveRun={onMoveRun}
+                    />
+                  ))}
+                </div>
               </div>
-            ))
+            )
         )}
         {tab === 'history' && (
           history.length === 0
             ? <div style={{ color: 'var(--muted)' }}>No completed runs yet.</div>
-            : history.map(r => (
-              <div key={r.run_id} className={`console-log-line ${r.status === 'error' ? 'error' : 'success'}`}>
-                [{r.status}] {r.workflow_name} - {r.end_time ? new Date(r.end_time).toLocaleString() : 'in progress'}
+            : (
+              <div className="queue-run-list history-run-list">
+                {history.map(r => (
+                  <HistoryRunCard key={r.run_id} run={r} onRetryRun={onRetryRun} />
+                ))}
               </div>
-            ))
+            )
         )}
         {tab === 'previews' && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', overflowY: 'auto' }}>
@@ -404,6 +721,9 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
               ))
             )}
           </div>
+        )}
+        {tab === 'report' && (
+          <ReportPanel history={history} />
         )}
       </div>
     </div>

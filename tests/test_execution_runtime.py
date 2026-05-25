@@ -9,8 +9,11 @@ from typing import Any
 import pytest
 
 from bionodulo.api.app_state import AppState
+from bionodulo.api.routes import _extract_workflow_subgraph
+from bionodulo.api.schemas import RunCreateRequest, WorkflowExtractRequest
 from bionodulo.execution.arq_executor import ArqWorkflowExecutor, maybe_wrap_with_arq
 from bionodulo.execution.cache import CacheStore
+from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.manager.diagnostics import _check_r_packages_env_aware
@@ -159,6 +162,108 @@ async def test_run_queue_releases_pending_join_accounting() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_queue_reorders_pending_before_execution() -> None:
+    class BlockingExecutor:
+        def __init__(self) -> None:
+            self.started: list[str] = []
+            self.first_started = asyncio.Event()
+            self.release_first = asyncio.Event()
+
+        async def execute(self, run_id: str, **_: Any) -> dict[str, Any]:
+            self.started.append(run_id)
+            if run_id == "one":
+                self.first_started.set()
+                await self.release_first.wait()
+            return {"status": "completed"}
+
+    executor = BlockingExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit({"nodes": [], "edges": []}, run_id="one")
+        await asyncio.wait_for(executor.first_started.wait(), timeout=1.0)
+        await queue.submit({"nodes": [], "edges": []}, run_id="two")
+        await queue.submit({"nodes": [], "edges": []}, run_id="three")
+
+        pending = await queue.reorder_pending("three", index=0)
+
+        assert [entry["run_id"] for entry in pending] == ["three", "two"]
+
+        executor.release_first.set()
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        assert executor.started == ["one", "three", "two"]
+    finally:
+        executor.release_first.set()
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_run_queue_cancel_pending_moves_run_to_history() -> None:
+    class BlockingExecutor:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def execute(self, **_: Any) -> dict[str, Any]:
+            self.started.set()
+            await self.release.wait()
+            return {"status": "completed"}
+
+    executor = BlockingExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit({"nodes": [], "edges": []}, run_id="running")
+        await asyncio.wait_for(executor.started.wait(), timeout=1.0)
+        await queue.submit({"nodes": [], "edges": []}, run_id="pending")
+
+        assert await queue.cancel("pending") is True
+
+        state = queue.queue_state()
+        assert state["pending"] == []
+        assert queue.get_run("pending")["status"] == "cancelled"
+    finally:
+        executor.release.set()
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_run_queue_retry_uses_stored_workflow_options_and_force_nodes() -> None:
+    class RecordingExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        async def execute(self, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append(kwargs)
+            return {"status": "completed"}
+
+    workflow = {"name": "Retry Me", "nodes": [{"id": "a", "type": "demo"}], "edges": []}
+    executor = RecordingExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit(
+            workflow,
+            run_id="original",
+            options={"target_nodes": ["a"]},
+            force_nodes={"a"},
+            metadata={"name": "Retry Me"},
+        )
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        await queue.retry("original", new_run_id="retry")
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        assert len(executor.calls) == 2
+        assert executor.calls[1]["workflow"] == workflow
+        assert executor.calls[1]["options"] == {"target_nodes": ["a"]}
+        assert executor.calls[1]["force_nodes"] == {"a"}
+    finally:
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_run_queue_shutdown_closes_executor_cache() -> None:
     class Cache:
         def __init__(self) -> None:
@@ -177,6 +282,91 @@ async def test_run_queue_shutdown_closes_executor_cache() -> None:
     await queue.shutdown()
 
     assert executor.cache.closed
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_target_nodes_execute_upstream_dependencies_only(tmp_path: Path) -> None:
+    class RecordingNode:
+        RETURN_NAMES = ("out",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": context.node_id}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[RecordingNode]:
+            return RecordingNode
+
+    workflow = {
+        "nodes": [
+            {"id": "a", "type": "record", "outputs": {"out": {}}},
+            {"id": "b", "type": "record", "outputs": {"out": {}}},
+            {"id": "c", "type": "record", "outputs": {"out": {}}},
+            {"id": "d", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "a", "target_node": "b", "source_output": "out", "target_input": "in"},
+            {"source_node": "b", "target_node": "c", "source_output": "out", "target_input": "in"},
+            {"source_node": "a", "target_node": "d", "source_output": "out", "target_input": "in"},
+        ],
+    }
+    RecordingNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("targeted", workflow, options={"target_nodes": ["c"]})
+
+    assert result["status"] == "completed"
+    assert RecordingNode.calls == ["a", "b", "c"]
+    assert set(result["outputs"]) == {"a", "b", "c"}
+    assert result["metadata"]["target_nodes"] == ["c"]
+
+
+def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
+    run_request = RunCreateRequest(
+        workflow={"nodes": [], "edges": []},
+        force_nodes=["qc"],
+        target_nodes=["report"],
+    )
+    extract_request = WorkflowExtractRequest(
+        workflow={"nodes": [{"id": "qc"}], "edges": []},
+        node_ids=["qc"],
+        name="QC only",
+    )
+
+    assert run_request.force_nodes == ["qc"]
+    assert run_request.target_nodes == ["report"]
+    assert extract_request.node_ids == ["qc"]
+
+
+def test_workflow_subgraph_extraction_keeps_only_internal_references() -> None:
+    workflow = {
+        "id": "wf",
+        "name": "Full",
+        "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+        "edges": [
+            {"source_node": "a", "target_node": "b"},
+            {"source_node": "b", "target_node": "c"},
+            {"source_node": "a", "target_node": "c"},
+        ],
+        "groups": [{"id": "g", "node_ids": ["a", "c"]}],
+        "outputs": [
+            {"name": "keep", "node_id": "b", "output_name": "out"},
+            {"name": "drop", "node_id": "c", "output_name": "out"},
+        ],
+    }
+
+    extracted = _extract_workflow_subgraph(workflow, ["a", "b"], "Sub")
+
+    assert extracted["name"] == "Sub"
+    assert [node["id"] for node in extracted["nodes"]] == ["a", "b"]
+    assert extracted["edges"] == [{"source_node": "a", "target_node": "b"}]
+    assert extracted["groups"] == [{"id": "g", "node_ids": ["a"]}]
+    assert extracted["outputs"] == [{"name": "keep", "node_id": "b", "output_name": "out"}]
 
 
 @pytest.mark.asyncio

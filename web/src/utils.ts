@@ -68,7 +68,7 @@ export function edgeColorForSource(type: string): string {
 
 export function workflowFromCanvas(nodes: unknown[], edges: unknown[], groups: unknown[]): Workflow {
   return {
-    version: 'Alpha 1.5',
+    version: '2.0',
     app: 'bionodulo',
     name: 'Untitled Workflow',
     description: '',

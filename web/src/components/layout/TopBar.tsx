@@ -10,11 +10,15 @@ interface TopBarProps {
   onExport: () => void;
   onImport: () => void;
   onAI: () => void;
+  onBatchSheet?: () => void;
   hpcStatus: HPCStatus;
   isRunning: boolean;
   queueCount: number;
+  batchCount: number;
   onToggleQueue: () => void;
+  onBatchCountChange: (count: number) => void;
   collabControls?: ReactNode;
+  autoSaveLabel?: string;
 }
 
 function BrandMark() {
@@ -31,7 +35,7 @@ function BrandMark() {
 
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport, onImport,
-  onAI, hpcStatus, isRunning, queueCount, onToggleQueue, collabControls,
+  onAI, onBatchSheet, hpcStatus, isRunning, queueCount, batchCount, onToggleQueue, onBatchCountChange, collabControls, autoSaveLabel,
 }: TopBarProps) {
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
@@ -48,7 +52,7 @@ export default function TopBar({
       <div className="brand">
         <BrandMark />
         <strong>BioNodulo</strong>
-        <small>Alpha 1.5</small>
+        <small>2.0</small>
       </div>
 
       <div className="validation-badge" style={{ visibility: validationErrors.length ? 'visible' : 'hidden' }}>
@@ -66,11 +70,58 @@ export default function TopBar({
 
       {collabControls}
 
+      {autoSaveLabel && (
+        <span className="autosave-badge" title={autoSaveLabel}>
+          <Icon name="check" size={12} /> {autoSaveLabel}
+        </span>
+      )}
+
       <div className="run-cluster">
         <button className="btn btn-sm" onClick={onToggleQueue} title="Show queue">
           {queueCount > 0 && <span className="pulse-dot" />}
           Queue: {queueCount}
         </button>
+        <div className="batch-stepper" title="Batch count">
+          <button
+            className="btn btn-icon btn-sm"
+            disabled={batchCount <= 1 || isRunning}
+            onClick={() => onBatchCountChange(batchCount - 1)}
+            type="button"
+          >
+            <Icon name="minus" size={12} />
+          </button>
+          <input
+            aria-label="Batch count"
+            disabled={isRunning}
+            max={99}
+            min={1}
+            onChange={(event) => {
+              const next = Number.parseInt(event.target.value, 10);
+              onBatchCountChange(Number.isFinite(next) ? next : 1);
+            }}
+            type="number"
+            value={batchCount}
+          />
+          <button
+            className="btn btn-icon btn-sm"
+            disabled={batchCount >= 99 || isRunning}
+            onClick={() => onBatchCountChange(batchCount + 1)}
+            type="button"
+          >
+            <Icon name="plus" size={12} />
+          </button>
+        </div>
+        {onBatchSheet && (
+          <button
+            className="btn btn-sm"
+            onClick={onBatchSheet}
+            disabled={isRunning}
+            title="Batch from sample sheet (CSV/TSV)"
+            type="button"
+          >
+            <Icon name="template" size={12} /> Sheet
+          </button>
+        )}
         <button className="btn btn-primary btn-sm" onClick={onRun} disabled={isRunning}>
           {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
         </button>

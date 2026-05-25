@@ -113,27 +113,41 @@ def validate_workflow(
         if meta and isinstance(meta, dict):
             inputs = meta.get("inputs", {})
         elif meta and hasattr(meta, "INPUT_TYPES"):
+            # Preserve the raw ComfyUI v3 spec tuples so we can read defaults
+            # below. Each entry is either a (type, options) tuple/list or a
+            # bare type name.
             input_types = meta.INPUT_TYPES()
             inputs = {
-                name: {"required": True}
-                for name in input_types.get("required", {})
+                name: {"required": True, "spec": spec}
+                for name, spec in input_types.get("required", {}).items()
             }
         else:
             inputs = {}
         if isinstance(inputs, dict):
             for in_name, in_spec in inputs.items():
-                if isinstance(in_spec, dict) and in_spec.get("required", False):
-                    if in_name not in connected_inputs.get(node_id, set()):
-                        params = (
-                            node.get("params", {})
-                            if isinstance(node, dict)
-                            else getattr(node, "params", {})
-                        )
-                        if in_name not in params:
-                            errors.append(
-                                f"Node '{node_id}' ({node_type}) "
-                                f"missing required input '{in_name}'"
-                            )
+                if not isinstance(in_spec, dict) or not in_spec.get("required", False):
+                    continue
+                if in_name in connected_inputs.get(node_id, set()):
+                    continue
+                params = (
+                    node.get("params", {})
+                    if isinstance(node, dict)
+                    else getattr(node, "params", {})
+                )
+                if in_name in params:
+                    continue
+                # A required input is also satisfied when its schema declares a
+                # default value — the engine will substitute it at run time, so
+                # the user never needs to wire or set it. This matches the
+                # behaviour described in the validator's docstring.
+                if _spec_has_default(in_spec.get("spec")):
+                    continue
+                if "default" in in_spec:
+                    continue
+                errors.append(
+                    f"Node '{node_id}' ({node_type}) "
+                    f"missing required input '{in_name}'"
+                )
 
     valid = len(errors) == 0
     return ValidationResult(
@@ -142,3 +156,19 @@ def validate_workflow(
         warnings=warnings,
         sorted_node_order=sorted_order if valid else [],
     )
+
+
+def _spec_has_default(spec: Any) -> bool:
+    """Return True when a ComfyUI v3 input spec declares a default value.
+
+    Specs come in three shapes: a flat dict ``{"type": "INT", "default": ...}``,
+    a tuple ``("INT", {"default": ...})`` carried verbatim from INPUT_TYPES(),
+    or a bare type name string with no options. Only the first two can carry a
+    default; treat the third as "no default".
+    """
+    if isinstance(spec, dict):
+        return "default" in spec
+    if isinstance(spec, (list, tuple)):
+        if len(spec) >= 2 and isinstance(spec[1], dict):
+            return "default" in spec[1]
+    return False

@@ -9,7 +9,7 @@ import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/Li
 import HardwareMonitor from './components/canvas/HardwareMonitor';
 import SettingsPanel from './components/panels/SettingsPanel';
 import HelpWikiPanel from './components/panels/HelpWikiPanel';
-import TemplatesPanel from './components/panels/TemplatesPanel';
+import TemplatesPanel, { type TemplateSaveDraft } from './components/panels/TemplatesPanel';
 import EnvironmentPanel from './components/panels/EnvironmentPanel';
 import HPCPanel from './components/panels/HPCPanel';
 import NodeLibraryPanel from './components/panels/NodeLibraryPanel';
@@ -17,15 +17,33 @@ import WorkspacePanel from './components/panels/WorkspacePanel';
 import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
+import BatchSampleSheetModal from './components/modals/BatchSampleSheetModal';
+import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import ImageLightbox from './components/modals/ImageLightbox';
 import GettingStartedModal from './components/modals/GettingStartedModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
+import Icon from './components/ui/Icon';
+import {
+  CommandPaletteHost,
+  ConfirmDialogHost,
+  KeyboardShortcutsModal,
+  NotificationHost,
+  alertDialog,
+  confirmDialog,
+  toast,
+  toggleCommandPalette,
+  type CommandItem,
+} from './components/ui';
 import { useSettings } from './hooks/useSettings';
 import { useWorkflow } from './hooks/useWorkflow';
 import { useObjectInfo } from './hooks/useObjectInfo';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useRegisteredCommands } from './hooks/useCommandPalette';
+import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';
+import { usePaletteTheme } from './hooks/usePaletteTheme';
+import { usePanelRegistry } from './state/panels';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge, ShareDialog,
@@ -46,6 +64,33 @@ import type { HPCStatus } from './components/layout/TopBar';
 
 const EMPTY_COLLAB_USERS: AwarenessState[] = [];
 const EMPTY_STRING_ARRAY: string[] = [];
+const PANEL_WIDTHS_KEY = 'bionodulo.panel.widths';
+const PANEL_FLOATS_KEY = 'bionodulo.panel.floats';
+const AUTO_SAVE_LAST_KEY = 'bionodulo.autoSave.last';
+type OpenPanelTab = Exclude<RailTab, null | 'console'>;
+type FloatingPanelLayout = Record<string, { x: number; y: number }>;
+
+function loadPanelWidths(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PANEL_WIDTHS_KEY);
+    return raw ? JSON.parse(raw) as Record<string, number> : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadFloatingPanels(): FloatingPanelLayout {
+  try {
+    const raw = localStorage.getItem(PANEL_FLOATS_KEY);
+    return raw ? JSON.parse(raw) as FloatingPanelLayout : {};
+  } catch {
+    return {};
+  }
+}
+
+function clampPanelWidth(width: number): number {
+  return Math.max(280, Math.min(620, Math.round(width)));
+}
 
 function workflowNameSignature(workflows: Workflow[]): string {
   return JSON.stringify(workflows.map(workflow => [workflow.id ?? '', workflow.name || 'Untitled']));
@@ -103,7 +148,7 @@ function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId
 function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
   return {
     id,
-    version: 'Alpha 1.5',
+    version: '2.0',
     app: 'bionodulo',
     name,
     description: '',
@@ -118,7 +163,7 @@ function workflowFromCollabSnapshot(workflowId: string, snapshot: Record<string,
   const meta = (snapshot.meta && typeof snapshot.meta === 'object' ? snapshot.meta : {}) as Record<string, unknown>;
   return {
     id: workflowId,
-    version: String(meta.version || 'Alpha 1.5'),
+    version: String(meta.version || '2.0'),
     app: 'bionodulo',
     name: String(meta.name || fallbackName),
     description: '',
@@ -163,7 +208,10 @@ export default function App() {
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
   } = useWorkflow();
   useTheme();
+  const { palettes, setPalette } = usePaletteTheme();
+  const { getBinding } = useKeybindings();
   const { objectInfo } = useObjectInfo();
+  const registeredPanels = usePanelRegistry();
 
   // Authentication state
   const collabEnabled = getBool('bionodulo.collab.enabled');
@@ -672,13 +720,18 @@ export default function App() {
     });
   }, [activeIndex, updateWorkflow]);
 
-  const [railTab, setRailTab] = useState<RailTab>(null);
   const [consoleVisible, setConsoleVisible] = useState(false);
+  const [railTab, setRailTabState] = useState<RailTab>(null);
+  const [openPanelTabs, setOpenPanelTabs] = useState<OpenPanelTab[]>([]);
+  const [panelWidths, setPanelWidths] = useState<Record<string, number>>(() => loadPanelWidths());
+  const [floatingPanels, setFloatingPanels] = useState<FloatingPanelLayout>(() => loadFloatingPanels());
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
+  const [showBatchSheet, setShowBatchSheet] = useState(false);
   const [showGettingStarted, setShowGettingStarted] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -691,7 +744,87 @@ export default function App() {
     setLightboxOpen(true);
   }, []);
   const [isRunning, setIsRunning] = useState(false);
+  const [batchCount, setBatchCount] = useState(1);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [lastAutoSaveAt, setLastAutoSaveAt] = useState<string | null>(() => {
+    try { return localStorage.getItem(AUTO_SAVE_LAST_KEY); } catch { return null; }
+  });
+
+  const setPanelWidth = useCallback((tab: OpenPanelTab, width: number) => {
+    setPanelWidths(prev => {
+      const next = { ...prev, [tab]: clampPanelWidth(width) };
+      try { localStorage.setItem(PANEL_WIDTHS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const startPanelResize = useCallback((tab: OpenPanelTab, startClientX: number, startWidth: number) => {
+    const onMove = (event: MouseEvent) => {
+      setPanelWidth(tab, startWidth + event.clientX - startClientX);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [setPanelWidth]);
+
+  const setFloatingPanel = useCallback((tab: OpenPanelTab, layout: { x: number; y: number } | null) => {
+    setFloatingPanels(prev => {
+      const next = { ...prev };
+      if (layout) {
+        next[tab] = {
+          x: Math.max(12, Math.min(window.innerWidth - 320, Math.round(layout.x))),
+          y: Math.max(8, Math.min(window.innerHeight - 180, Math.round(layout.y))),
+        };
+      } else {
+        delete next[tab];
+      }
+      try { localStorage.setItem(PANEL_FLOATS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const toggleFloatingPanel = useCallback((tab: OpenPanelTab, index: number) => {
+    if (floatingPanels[tab]) {
+      setFloatingPanel(tab, null);
+      return;
+    }
+    setFloatingPanel(tab, { x: 80 + index * 28, y: 72 + index * 24 });
+  }, [floatingPanels, setFloatingPanel]);
+
+  const startPanelDrag = useCallback((tab: OpenPanelTab, startClientX: number, startClientY: number, origin: { x: number; y: number }) => {
+    const onMove = (event: MouseEvent) => {
+      setFloatingPanel(tab, {
+        x: origin.x + event.clientX - startClientX,
+        y: origin.y + event.clientY - startClientY,
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [setFloatingPanel]);
+
+  const setRailTab = useCallback((next: RailTab | ((prev: RailTab) => RailTab)) => {
+    setRailTabState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      if (resolved && resolved !== 'console') {
+        setOpenPanelTabs(current => (
+          current.includes(resolved) ? current : [...current, resolved]
+        ));
+      } else if (resolved === null && prev && prev !== 'console') {
+        setOpenPanelTabs(current => current.filter(tab => tab !== prev));
+      } else if (resolved === 'console') {
+        setConsoleVisible(true);
+      }
+      return resolved;
+    });
+  }, []);
 
   // WebSocket connection for real-time logs
   const wsUrl = useMemo(() => {
@@ -865,6 +998,7 @@ export default function App() {
   );
   const queueCount = queuedRuns.length;
 
+  const autoSaveSetting = String(get('bionodulo.autoSave') || 'off');
   const cacheEnabled = getBool('bionodulo.cacheEnabled');
   const collabPresenceEnabled = getBool('bionodulo.collab.presence');
   const hpcEnabled = getBool('bionodulo.hpc.enabled');
@@ -933,6 +1067,7 @@ export default function App() {
       bridgeRef.current.onNodesChanged(nodes);
     }
     pendingStateRef.current = { ...pendingStateRef.current, nodes };
+    setDirty(true);
     updateActive({ nodes });
   }, [updateActive]);
 
@@ -941,6 +1076,7 @@ export default function App() {
       bridgeRef.current.onEdgesChanged(edges);
     }
     pendingStateRef.current = { ...pendingStateRef.current, edges };
+    setDirty(true);
     updateActive({ edges });
   }, [updateActive]);
 
@@ -949,6 +1085,7 @@ export default function App() {
       bridgeRef.current.onGroupsChanged(groups);
     }
     pendingStateRef.current = { ...pendingStateRef.current, groups };
+    setDirty(true);
     updateActive({ groups });
   }, [updateActive]);
 
@@ -956,19 +1093,25 @@ export default function App() {
     setIsRunning(true);
     try {
       await validate(activeWorkflow);
-      const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled });
-      // Add to local runs so it appears in console immediately
-      addRun({
-        run_id: result.run_id,
-        status: 'pending',
-        workflow_name: result.workflow_name || activeWorkflow.name || 'Untitled',
-        node_statuses: [],
-        node_outputs: {},
-        execution_plan: [],
-        previews: {},
-        artifacts: {},
-        start_time: new Date().toISOString(),
-      });
+      const count = Math.max(1, Math.min(99, batchCount));
+      for (let index = 0; index < count; index += 1) {
+        const batchName = count > 1
+          ? `${activeWorkflow.name || 'Untitled'} (${index + 1}/${count})`
+          : activeWorkflow.name || 'Untitled';
+        const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled, name: batchName });
+        addRun({
+          run_id: result.run_id,
+          status: 'pending',
+          workflow_name: result.workflow_name || batchName,
+          node_statuses: [],
+          node_outputs: {},
+          execution_plan: [],
+          previews: {},
+          artifacts: {},
+          start_time: new Date().toISOString(),
+        });
+      }
+      toast.success(count > 1 ? `${count} runs queued` : 'Run queued');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       addLog({
@@ -983,7 +1126,254 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, setRailTab]);
+
+  const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
+    if (runs.length === 0) return;
+    setIsRunning(true);
+    try {
+      await validate(activeWorkflow);
+      for (const sampleRun of runs) {
+        const result = await submitRun(sampleRun.workflow, {
+          no_cache: !cacheEnabled,
+          name: sampleRun.name,
+        });
+        addRun({
+          run_id: result.run_id,
+          status: 'pending',
+          workflow_name: result.workflow_name || sampleRun.name,
+          node_statuses: [],
+          node_outputs: {},
+          execution_plan: [],
+          previews: {},
+          artifacts: {},
+          start_time: new Date().toISOString(),
+        });
+      }
+      toast.success(`${runs.length} runs queued from sample sheet`);
+      setConsoleVisible(true);
+      setRailTab('console');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Sample sheet batch failed', { message: msg });
+      addLog({
+        run_id: 'workflow',
+        node_id: 'engine',
+        level: 'error',
+        message: `Sample sheet batch failed: ${msg}`,
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  }, [activeWorkflow, addLog, addRun, cacheEnabled, setRailTab, submitRun, validate]);
+
+  const handleRunSelected = useCallback(async (nodeIds: string[]) => {
+    if (nodeIds.length === 0) return;
+    setIsRunning(true);
+    try {
+      await validate(activeWorkflow);
+      const result = await submitRun(activeWorkflow, {
+        no_cache: !cacheEnabled,
+        target_nodes: nodeIds,
+        name: `${activeWorkflow.name || 'Untitled'} (selection)`,
+      });
+      addRun({
+        run_id: result.run_id,
+        status: 'pending',
+        workflow_name: result.workflow_name || `${activeWorkflow.name || 'Untitled'} (selection)`,
+        node_statuses: [],
+        node_outputs: {},
+        execution_plan: nodeIds,
+        previews: {},
+        artifacts: {},
+        start_time: new Date().toISOString(),
+      });
+      setConsoleVisible(true);
+      setRailTab('console');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog({
+        run_id: 'workflow',
+        node_id: 'engine',
+        level: 'error',
+        message: `Selected run failed: ${msg}`,
+        timestamp: new Date().toISOString(),
+      });
+      setConsoleVisible(true);
+      setRailTab('console');
+    }
+    setIsRunning(false);
+  }, [activeWorkflow, addLog, addRun, cacheEnabled, submitRun, validate, setRailTab]);
+
+  const handleCreateSubgraph = useCallback(async (nodeIds: string[]) => {
+    if (nodeIds.length === 0) return;
+    const selected = new Set(nodeIds);
+    let subWorkflow: Workflow | null = null;
+    try {
+      const response = await fetch('/api/workflow/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflow: activeWorkflow,
+          node_ids: nodeIds,
+          name: `${activeWorkflow.name || 'Untitled'} subgraph`,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json() as { workflow?: Workflow };
+        subWorkflow = data.workflow ?? null;
+      }
+    } catch {
+      // Local fallback below keeps this useful when the backend is not running.
+    }
+    if (!subWorkflow) {
+      subWorkflow = {
+        ...activeWorkflow,
+        id: createWorkflowId(),
+        name: `${activeWorkflow.name || 'Untitled'} subgraph`,
+        nodes: activeWorkflow.nodes.filter(node => selected.has(node.id)),
+        edges: activeWorkflow.edges.filter(edge => selected.has(edge.from.node) && selected.has(edge.to.node)),
+        groups: activeWorkflow.groups.filter(group => {
+          const gx1 = group.position[0];
+          const gy1 = group.position[1];
+          const gx2 = gx1 + group.width;
+          const gy2 = gy1 + group.height;
+          return activeWorkflow.nodes.some(node => (
+            selected.has(node.id)
+            && node.position[0] >= gx1 && node.position[0] <= gx2
+            && node.position[1] >= gy1 && node.position[1] <= gy2
+          ));
+        }),
+      };
+    }
+    addWorkflow(withWorkflowId(subWorkflow));
+    setRailTab(null);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => canvasRef.current?.fitView());
+    });
+  }, [activeWorkflow, addWorkflow, setRailTab]);
+
+  const handleCancelRun = useCallback(async (run: RunRecord) => {
+    const ok = await confirmDialog({
+      title: 'Cancel run?',
+      message: `Cancel ${run.workflow_name || run.run_id}?`,
+      confirmLabel: 'Cancel Run',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      const response = await fetch(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`, { method: 'POST' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      updateRun(run.run_id, { status: 'cancelled', end_time: new Date().toISOString() });
+      toast.warning('Run cancelled', { message: run.workflow_name || run.run_id });
+    } catch (err) {
+      toast.error('Could not cancel run', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [updateRun]);
+
+  const handleRetryRun = useCallback(async (run: RunRecord) => {
+    try {
+      const response = await fetch(`/api/runs/${encodeURIComponent(run.run_id)}/retry`, { method: 'POST' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json() as { run_id: string; status?: string };
+      addRun({
+        run_id: data.run_id,
+        status: 'pending',
+        workflow_name: `${run.workflow_name || 'Untitled'} (retry)`,
+        node_statuses: [],
+        node_outputs: {},
+        execution_plan: run.execution_plan ?? [],
+        previews: {},
+        artifacts: {},
+        start_time: new Date().toISOString(),
+      });
+      setConsoleVisible(true);
+      setRailTab('console');
+      toast.success('Retry queued', { message: data.run_id });
+    } catch (err) {
+      toast.error('Could not retry run', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [addRun, setRailTab]);
+
+  const handleMoveRun = useCallback(async (run: RunRecord, direction: 'up' | 'down') => {
+    const pending = queuedRuns.filter(candidate => candidate.status === 'pending');
+    const currentIndex = pending.findIndex(candidate => candidate.run_id === run.run_id);
+    if (currentIndex < 0) return;
+    const nextIndex = direction === 'up' ? Math.max(0, currentIndex - 1) : Math.min(pending.length - 1, currentIndex + 1);
+    if (nextIndex === currentIndex) return;
+    try {
+      const response = await fetch('/api/queue/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: run.run_id, index: nextIndex }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setRuns(prev => {
+        const next = [...prev];
+        const from = next.findIndex(candidate => candidate.run_id === run.run_id);
+        const targetRunId = pending[nextIndex]?.run_id;
+        const to = next.findIndex(candidate => candidate.run_id === targetRunId);
+        if (from < 0 || to < 0) return prev;
+        const [removed] = next.splice(from, 1);
+        next.splice(to, 0, removed);
+        return next;
+      });
+    } catch (err) {
+      toast.error('Could not reorder queue', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [queuedRuns, setRuns]);
+
+  const handleClearQueue = useCallback(async () => {
+    const ok = await confirmDialog({
+      title: 'Clear queue?',
+      message: 'Remove all pending runs from the queue?',
+      confirmLabel: 'Clear Queue',
+      tone: 'warning',
+    });
+    if (!ok) return;
+    try {
+      const response = await fetch('/api/queue/clear', { method: 'POST' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setRuns(prev => prev.filter(run => run.status !== 'pending'));
+      toast.success('Queue cleared');
+    } catch (err) {
+      toast.error('Could not clear queue', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [setRuns]);
+
+  const handleSaveTemplate = useCallback(async (draft: TemplateSaveDraft) => {
+    const token = getToken();
+    if (!collabEnabled || !token || !activeWorkflowId) {
+      await alertDialog({
+        title: 'Template sharing unavailable',
+        message: 'Enable collaboration and sign in to save shared workflow templates.',
+      });
+      return;
+    }
+    try {
+      await publishCollabWorkflowSnapshot(activeWorkflow);
+      const response = await fetch('/api/collab/templates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          workflow_id: activeWorkflowId,
+          title: draft.name,
+          description: draft.description,
+          category: draft.category,
+          tags: draft.tags,
+          is_public: false,
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast.success('Template saved', { message: draft.name });
+    } catch (err) {
+      toast.error('Could not save template', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [activeWorkflow, activeWorkflowId, collabEnabled, publishCollabWorkflowSnapshot]);
 
   const handleToggleQueue = useCallback(() => {
     const isVisible = consoleVisible || railTab === 'console';
@@ -994,7 +1384,7 @@ export default function App() {
       setConsoleVisible(true);
       setRailTab('console');
     }
-  }, [consoleVisible, railTab]);
+  }, [consoleVisible, railTab, setRailTab]);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
     const wf = await fetchTemplateWorkflow(template);
@@ -1069,6 +1459,178 @@ export default function App() {
     reorderWorkflows(from, to);
   }, [reorderWorkflows]);
 
+  const togglePanel = useCallback((tab: Exclude<RailTab, null>) => {
+    if (tab === 'console') {
+      handleToggleQueue();
+      return;
+    }
+    setRailTab(prev => prev === tab ? null : tab);
+  }, [handleToggleQueue, setRailTab]);
+
+  const appCommands = useMemo<CommandItem[]>(() => {
+    const baseCommands: CommandItem[] = [
+      {
+        id: 'workflow.run',
+        label: 'Run workflow',
+        description: activeWorkflow.name || 'Current workflow',
+        group: 'Workflow',
+        shortcut: getBinding('workflow.run') ?? undefined,
+        onSelect: () => void handleRun(),
+      },
+      {
+        id: 'workflow.runSelected',
+        label: 'Run selected nodes',
+        description: 'Execute selected nodes and their dependencies',
+        group: 'Workflow',
+        onSelect: () => canvasRef.current?.executeSelected(),
+      },
+      {
+        id: 'workflow.extractSelection',
+        label: 'Create subgraph from selection',
+        description: 'Open selected nodes as a new workflow tab',
+        group: 'Workflow',
+        onSelect: () => canvasRef.current?.createSubgraphFromSelection(),
+      },
+      {
+        id: 'workflow.export',
+        label: 'Export workflow',
+        group: 'Workflow',
+        shortcut: getBinding('workflow.export') ?? undefined,
+        onSelect: () => setShowExport(true),
+      },
+      {
+        id: 'workflow.import',
+        label: 'Import workflow',
+        group: 'Workflow',
+        shortcut: getBinding('workflow.import') ?? undefined,
+        onSelect: () => setShowImport(true),
+      },
+      {
+        id: 'nodes.search',
+        label: 'Search nodes',
+        description: 'Open the fuzzy node library',
+        group: 'Panels',
+        shortcut: getBinding('nodes.search') ?? undefined,
+        onSelect: () => setRailTab('nodes'),
+      },
+      {
+        id: 'rail.workspace',
+        label: 'Open workspace',
+        group: 'Panels',
+        shortcut: getBinding('rail.workspace') ?? undefined,
+        onSelect: () => togglePanel('data'),
+      },
+      {
+        id: 'rail.nodes',
+        label: 'Open nodes',
+        group: 'Panels',
+        shortcut: getBinding('rail.nodes') ?? undefined,
+        onSelect: () => togglePanel('nodes'),
+      },
+      {
+        id: 'rail.templates',
+        label: 'Open templates',
+        group: 'Panels',
+        shortcut: getBinding('rail.templates') ?? undefined,
+        onSelect: () => togglePanel('templates'),
+      },
+      {
+        id: 'rail.environment',
+        label: 'Open environments',
+        group: 'Panels',
+        shortcut: getBinding('rail.environment') ?? undefined,
+        onSelect: () => togglePanel('environments'),
+      },
+      {
+        id: 'rail.hpc',
+        label: 'Open HPC',
+        group: 'Panels',
+        shortcut: getBinding('rail.hpc') ?? undefined,
+        onSelect: () => togglePanel('hpc'),
+      },
+      {
+        id: 'rail.help',
+        label: 'Open help',
+        group: 'Panels',
+        shortcut: getBinding('rail.help') ?? undefined,
+        onSelect: () => togglePanel('help'),
+      },
+      {
+        id: 'rail.console',
+        label: 'Open console',
+        group: 'Panels',
+        shortcut: getBinding('rail.console') ?? undefined,
+        onSelect: () => togglePanel('console'),
+      },
+      {
+        id: 'console.toggle',
+        label: 'Toggle console',
+        group: 'Panels',
+        shortcut: getBinding('console.toggle') ?? undefined,
+        onSelect: handleToggleQueue,
+      },
+      {
+        id: 'settings.toggle',
+        label: 'Toggle settings',
+        group: 'Panels',
+        shortcut: getBinding('settings.toggle') ?? undefined,
+        onSelect: () => togglePanel('settings'),
+      },
+      {
+        id: 'ai.open',
+        label: 'Open AI workflow builder',
+        group: 'Tools',
+        shortcut: getBinding('ai.open') ?? undefined,
+        onSelect: () => setShowAI(true),
+      },
+      {
+        id: 'shortcuts.open',
+        label: 'Keyboard shortcuts',
+        group: 'Tools',
+        shortcut: getBinding('shortcuts.open') ?? undefined,
+        onSelect: () => setShowShortcuts(true),
+      },
+    ];
+
+    const paletteCommands = palettes.map(palette => ({
+      id: `palette.${palette.id}`,
+      label: `Use ${palette.name} palette`,
+      description: palette.description,
+      group: 'Appearance',
+      onSelect: () => setPalette(palette.id),
+    }));
+
+    return [...baseCommands, ...paletteCommands];
+  }, [
+    activeWorkflow.name,
+    getBinding,
+    handleRun,
+    handleToggleQueue,
+    palettes,
+    setPalette,
+    setRailTab,
+    togglePanel,
+  ]);
+
+  useRegisteredCommands('app', appCommands);
+
+  useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
+  useGlobalShortcut('shortcuts.open', () => setShowShortcuts(true));
+  useGlobalShortcut('nodes.search', () => setRailTab('nodes'));
+  useGlobalShortcut('workflow.run', () => { void handleRun(); });
+  useGlobalShortcut('workflow.export', () => setShowExport(true));
+  useGlobalShortcut('workflow.import', () => setShowImport(true));
+  useGlobalShortcut('settings.toggle', () => togglePanel('settings'));
+  useGlobalShortcut('console.toggle', handleToggleQueue);
+  useGlobalShortcut('ai.open', () => setShowAI(true));
+  useGlobalShortcut('rail.workspace', () => togglePanel('data'));
+  useGlobalShortcut('rail.nodes', () => togglePanel('nodes'));
+  useGlobalShortcut('rail.templates', () => togglePanel('templates'));
+  useGlobalShortcut('rail.environment', () => togglePanel('environments'));
+  useGlobalShortcut('rail.hpc', () => togglePanel('hpc'));
+  useGlobalShortcut('rail.help', () => togglePanel('help'));
+  useGlobalShortcut('rail.console', () => togglePanel('console'));
+
   const latestWorkflowRef = useRef(activeWorkflow);
   useEffect(() => {
     latestWorkflowRef.current = activeWorkflow;
@@ -1091,31 +1653,6 @@ export default function App() {
     ]),
   }), [activeWorkflow.id, activeWorkflow.nodes, activeWorkflow.edges]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      const key = e.key.toLowerCase();
-      const isCtrl = e.ctrlKey || e.metaKey;
-
-      if (isCtrl && key === 'f') { e.preventDefault(); setRailTab('nodes'); }
-      else if (isCtrl && key === 'r') { e.preventDefault(); handleRun(); }
-      else if (isCtrl && key === 'e') { e.preventDefault(); setShowExport(true); }
-      else if (isCtrl && key === 'i') { e.preventDefault(); setShowImport(true); }
-      else if (isCtrl && key === ',') { e.preventDefault(); setRailTab(prev => prev === 'settings' ? null : 'settings'); }
-      else if (isCtrl && key === '`') { e.preventDefault(); setConsoleVisible(v => !v); }
-      else if (isCtrl && key >= '1' && key <= '7') {
-        e.preventDefault();
-        const tabs: RailTab[] = ['data', 'nodes', 'templates', 'environments', 'hpc', 'help', 'console'];
-        const idx = parseInt(key) - 1;
-        setRailTab(prev => prev === tabs[idx] ? null : tabs[idx]);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleRun]);
-
   // Auto-validate and resolve on workflow change
   useEffect(() => {
     if (latestWorkflowRef.current.nodes.length === 0) {
@@ -1129,6 +1666,35 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [workflowResolveKey, validate, resolve, clearResolveReport]);
+
+  useEffect(() => {
+    if (autoSaveSetting === 'off') return;
+    const seconds = parseInt(autoSaveSetting.replace('s', ''), 10);
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    const timer = setInterval(() => {
+      const workflow = latestWorkflowRef.current;
+      try {
+        localStorage.setItem(AUTO_SAVE_LAST_KEY, new Date().toISOString());
+      } catch { /* ignore */ }
+      if (collabEnabled) {
+        void publishCollabWorkflowSnapshot(workflow);
+      }
+      const savedAt = new Date().toISOString();
+      setLastAutoSaveAt(savedAt);
+      setDirty(false);
+    }, seconds * 1000);
+    return () => clearInterval(timer);
+  }, [autoSaveSetting, collabEnabled, publishCollabWorkflowSnapshot]);
+
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   // Reset banners when workflow changes
   useEffect(() => {
@@ -1204,8 +1770,92 @@ export default function App() {
     showComments ? 'comments-open' : '',
     (consoleVisible || railTab === 'console') ? 'console-open' : '',
   ].filter(Boolean).join(' ')), [consoleVisible, railTab, showAI, showComments]);
+  const autoSaveLabel = useMemo(() => {
+    if (autoSaveSetting === 'off') return dirty ? 'Unsaved changes' : '';
+    if (dirty) return 'Autosave pending';
+    if (!lastAutoSaveAt) return 'Autosave on';
+    return `Saved ${new Date(lastAutoSaveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }, [autoSaveSetting, dirty, lastAutoSaveAt]);
+
+  const closePanel = useCallback((tab: OpenPanelTab) => {
+    setOpenPanelTabs(current => current.filter(item => item !== tab));
+    setRailTabState(prev => (prev === tab ? null : prev));
+  }, []);
+
+  const renderPanelContent = (tab: OpenPanelTab) => {
+    if (tab === 'settings') return <SettingsPanel onClose={() => closePanel(tab)} />;
+    if (tab === 'help') return <HelpWikiPanel onClose={() => closePanel(tab)} />;
+    if (tab === 'templates') {
+      return (
+        <TemplatesPanel
+          onClose={() => closePanel(tab)}
+          onLoadTemplate={handleLoadTemplate}
+          onSaveTemplate={handleSaveTemplate}
+          showSaveTemplateAction
+          saveTemplateInitialName={activeWorkflow.name || 'Untitled workflow'}
+          saveTemplateInitialDescription={activeWorkflow.description || ''}
+        />
+      );
+    }
+    if (tab === 'environments') return <EnvironmentPanel onClose={() => closePanel(tab)} currentWorkflow={activeWorkflow} />;
+    if (tab === 'hpc') {
+      return (
+        <HPCPanel
+          config={hpcConfig}
+          onChange={(cfg) => {
+            set('bionodulo.hpc.enabled', cfg.enabled);
+            set('bionodulo.hpc.backend', cfg.backend);
+            set('bionodulo.hpc.partition', cfg.partition || '');
+            set('bionodulo.hpc.account', cfg.account || '');
+            set('bionodulo.hpc.modules', cfg.modules || []);
+            set('bionodulo.hpc.container', cfg.container || '');
+            set('bionodulo.hpc.walltime', cfg.walltime || '01:00:00');
+            set('bionodulo.hpc.cpus_per_task', cfg.cpus_per_task || 4);
+            set('bionodulo.hpc.mem_per_cpu', cfg.mem_per_cpu || '4G');
+          }}
+          onClose={() => closePanel(tab)}
+        />
+      );
+    }
+    if (tab === 'nodes') {
+      return (
+        <NodeLibraryPanel objectInfo={objectInfo} onAddNode={(meta) => {
+          const newNode: WorkflowNode = {
+            id: `${meta.id}_${Date.now()}`,
+            type: meta.id,
+            position: [200 + Math.random() * 40, 200 + Math.random() * 40],
+            params: defaultsFor(meta),
+            node_info: meta,
+            ui: { title: meta.display_name },
+          };
+          handleNodesChange([...activeWorkflow.nodes, newNode]);
+          pushHistory();
+        }} onClose={() => closePanel(tab)} />
+      );
+    }
+    if (tab === 'data') {
+      return (
+        <WorkspacePanel
+          onClose={() => closePanel(tab)}
+          onOpenSettings={() => setRailTab('settings')}
+          onImportWorkflow={handleImport}
+        />
+      );
+    }
+    const registered = registeredPanels.find(panel => panel.id === tab);
+    if (registered) {
+      return registered.render();
+    }
+    return null;
+  };
+
   return (
     <div className={appShellClassName}>
+      <NotificationHost />
+      <ConfirmDialogHost />
+      <CommandPaletteHost />
+      <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
+
       <TopBar
         validationValid={validation.valid}
         validationErrors={validation.errors}
@@ -1213,10 +1863,14 @@ export default function App() {
         onExport={() => setShowExport(true)}
         onImport={() => setShowImport(true)}
         onAI={() => setShowAI(true)}
+        onBatchSheet={() => setShowBatchSheet(true)}
         hpcStatus={hpcStatus}
         isRunning={isRunning}
         queueCount={queueCount}
+        batchCount={batchCount}
         onToggleQueue={handleToggleQueue}
+        onBatchCountChange={(count) => setBatchCount(Math.max(1, Math.min(99, count)))}
+        autoSaveLabel={autoSaveLabel}
         collabControls={(
           <CollabBadge
             enabled={collabEnabled}
@@ -1341,51 +1995,46 @@ export default function App() {
           onCollabNodeMove={collabEnabled ? publishCollabNodeMove : undefined}
           onCollabDragStart={collabEnabled ? handleCollabDragStart : undefined}
           onCollabDragEnd={collabEnabled ? handleCollabDragEnd : undefined}
+          onExecuteSelected={handleRunSelected}
+          onCreateSubgraph={handleCreateSubgraph}
         />
 
-        {/* Rail panels */}
-        {railTab === 'settings' && <SettingsPanel onClose={() => setRailTab(null)} />}
-        {railTab === 'help' && <HelpWikiPanel onClose={() => setRailTab(null)} />}
-        {railTab === 'templates' && <TemplatesPanel onClose={() => setRailTab(null)} onLoadTemplate={handleLoadTemplate} />}
-        {railTab === 'environments' && (
-          <EnvironmentPanel onClose={() => setRailTab(null)} currentWorkflow={activeWorkflow} />
-        )}
-        {railTab === 'hpc' && (
-          <HPCPanel
-            config={hpcConfig}
-            onChange={(cfg) => {
-              set('bionodulo.hpc.enabled', cfg.enabled);
-              set('bionodulo.hpc.backend', cfg.backend);
-              set('bionodulo.hpc.partition', cfg.partition || '');
-              set('bionodulo.hpc.account', cfg.account || '');
-              set('bionodulo.hpc.modules', cfg.modules || []);
-              set('bionodulo.hpc.container', cfg.container || '');
-              set('bionodulo.hpc.walltime', cfg.walltime || '01:00:00');
-              set('bionodulo.hpc.cpus_per_task', cfg.cpus_per_task || 4);
-              set('bionodulo.hpc.mem_per_cpu', cfg.mem_per_cpu || '4G');
-            }}
-            onClose={() => setRailTab(null)}
-          />
-        )}
-        {railTab === 'nodes' && <NodeLibraryPanel objectInfo={objectInfo} onAddNode={(meta) => {
-          const newNode: WorkflowNode = {
-            id: `${meta.id}_${Date.now()}`,
-            type: meta.id,
-            position: [200 + Math.random() * 40, 200 + Math.random() * 40],
-            params: defaultsFor(meta),
-            node_info: meta,
-            ui: { title: meta.display_name },
-          };
-          handleNodesChange([...activeWorkflow.nodes, newNode]);
-          pushHistory();
-        }} onClose={() => setRailTab(null)} />}
-        {railTab === 'data' && (
-          <WorkspacePanel
-            onClose={() => setRailTab(null)}
-            onOpenSettings={() => setRailTab('settings')}
-            onImportWorkflow={handleImport}
-          />
-        )}
+        {/* Registered rail panels */}
+        {openPanelTabs.map((tab, index) => {
+          const left = openPanelTabs.slice(0, index).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
+          const width = panelWidths[tab] ?? 340;
+          const floating = floatingPanels[tab];
+          return (
+            <div
+              key={tab}
+              className={`rail-panel-wrap ${floating ? 'floating' : ''}`}
+              style={floating ? { left: floating.x, top: floating.y, width } : { left, width }}
+            >
+              {floating && (
+                <div
+                  className="rail-panel-drag-handle"
+                  onMouseDown={event => startPanelDrag(tab, event.clientX, event.clientY, floating)}
+                  role="presentation"
+                />
+              )}
+              <button
+                className="rail-panel-float"
+                onClick={() => toggleFloatingPanel(tab, index)}
+                title={floating ? 'Dock panel' : 'Float panel'}
+                type="button"
+              >
+                <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
+              </button>
+              {renderPanelContent(tab)}
+              <div
+                className="rail-panel-resizer"
+                role="separator"
+                aria-label={`Resize ${tab} panel`}
+                onMouseDown={event => startPanelResize(tab, event.clientX, width)}
+              />
+            </div>
+          );
+        })}
 
         <HardwareMonitor />
         {(consoleVisible || railTab === 'console') && (
@@ -1397,6 +2046,11 @@ export default function App() {
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
               onOpenLightbox={openLightbox}
               onClearLogs={clearLogs}
+              onCancelRun={handleCancelRun}
+              onRetryRun={handleRetryRun}
+              onMoveRun={handleMoveRun}
+              onClearQueue={handleClearQueue}
+              batchCount={batchCount}
             />
           </ErrorBoundary>
         )}
@@ -1460,6 +2114,13 @@ export default function App() {
           workflow={activeWorkflow}
           onClose={() => setShowAI(false)}
           onApplyWorkflow={handleApplyWorkflow}
+        />
+      )}
+      {showBatchSheet && (
+        <BatchSampleSheetModal
+          workflow={activeWorkflow}
+          onClose={() => setShowBatchSheet(false)}
+          onSubmit={handleBatchSheetSubmit}
         />
       )}
       {showGettingStarted && (

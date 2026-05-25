@@ -3,6 +3,7 @@ import { getToken } from './auth';
 import type { WorkflowTemplate } from './types';
 import type { Workflow } from '../types';
 import Icon from '../components/ui/Icon';
+import { promptDialog } from '../components/ui';
 
 const API_BASE = '/api/collab';
 
@@ -93,10 +94,26 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       setError('No active workflow to save as a template');
       return;
     }
-    const title = prompt('Template title:');
+    const title = await promptDialog({
+      title: 'Save template',
+      message: 'Name this shared workflow template.',
+      inputLabel: 'Template title',
+      confirmLabel: 'Next',
+    });
     if (!title) return;
-    const description = prompt('Description:') || '';
-    const tags = prompt('Tags (comma-separated):') || '';
+    const description = await promptDialog({
+      title: 'Template description',
+      message: 'Add a short description for this template.',
+      inputLabel: 'Description',
+      confirmLabel: 'Next',
+    }) || '';
+    const tags = await promptDialog({
+      title: 'Template tags',
+      message: 'Add comma-separated tags.',
+      inputLabel: 'Tags',
+      placeholder: 'rna, alignment, qc',
+      confirmLabel: 'Save Template',
+    }) || '';
     setSavingWorkflowId(currentWorkflowId);
     try {
       const token = getToken();

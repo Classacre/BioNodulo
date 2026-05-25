@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Biopython Analysis Pipeline",
   "description": "Sequence parsing, statistics, translation, and local BLAST using Biopython",
@@ -8,7 +8,7 @@
       "id": "note_biopython",
       "type": "note",
       "position": [
-        -220,
+        -240,
         80
       ],
       "params": {
@@ -23,7 +23,7 @@
       "id": "seqs_001",
       "type": "input_fasta",
       "position": [
-        100,
+        80,
         80
       ],
       "params": {
@@ -38,8 +38,8 @@
       "id": "seqio_read_001",
       "type": "bp_seqio_read",
       "position": [
-        400,
-        50
+        440,
+        80
       ],
       "params": {
         "input_file": "",
@@ -53,8 +53,8 @@
       "id": "seq_stats_001",
       "type": "bp_seq_stats",
       "position": [
-        400,
-        200
+        440,
+        318
       ],
       "params": {
         "input_file": "",
@@ -68,8 +68,8 @@
       "id": "blast_001",
       "type": "bp_blast",
       "position": [
-        700,
-        50
+        440,
+        514
       ],
       "params": {
         "query": "",
@@ -87,8 +87,8 @@
       "id": "seqio_write_001",
       "type": "bp_seqio_write",
       "position": [
-        700,
-        200
+        800,
+        80
       ],
       "params": {
         "sequences_json": "",
@@ -103,8 +103,8 @@
       "id": "coding_001",
       "type": "input_fasta",
       "position": [
-        100,
-        400
+        80,
+        234
       ],
       "params": {
         "file_path": "examples/data/biopython/coding_sequences.fasta",
@@ -118,8 +118,8 @@
       "id": "translate_001",
       "type": "bp_translate",
       "position": [
-        400,
-        400
+        440,
+        878
       ],
       "params": {
         "input_file": "",
@@ -134,8 +134,8 @@
       "id": "biostrings_001",
       "type": "r_biostrings_stats",
       "position": [
-        700,
-        400
+        440,
+        1116
       ],
       "params": {
         "input_fasta": "",

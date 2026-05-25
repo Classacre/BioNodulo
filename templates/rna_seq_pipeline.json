@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "RNA-Seq Pipeline",
   "description": "Complete RNA sequencing analysis from reads to counts",
@@ -9,7 +9,7 @@
       "type": "note",
       "position": [
         -240,
-        220
+        80
       ],
       "params": {
         "text": "RNA-Seq pipeline: aligns reads with HISAT2, sorts BAM, and counts features with featureCounts.\nData: S. cerevisiae RNA-seq reads SRR6357070 (subsampled) from nf-core/test-datasets GSE110004. Reference genome + GFF from NCBI RefSeq GCF_000146045.2 (R64).\nSources: https://github.com/nf-core/test-datasets | https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000146045.2/"
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        60
+        80
       ],
       "params": {
         "sample_name": "sample1",
@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        220
+        276
       ],
       "params": {
         "reference": "examples/data/rna_seq/genome.fa"
@@ -55,8 +55,8 @@
       "id": "hisat2_build_001",
       "type": "hisat2_build",
       "position": [
-        340,
-        220
+        440,
+        444
       ],
       "params": {
         "threads": 4
@@ -69,8 +69,8 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        340,
-        60
+        440,
+        80
       ],
       "params": {
         "threads": 4
@@ -83,8 +83,8 @@
       "id": "hisat2_001",
       "type": "hisat2_align",
       "position": [
-        600,
-        60
+        800,
+        80
       ],
       "params": {
         "threads": 8
@@ -97,8 +97,8 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        730,
-        60
+        1160,
+        80
       ],
       "params": {
         "threads": 4
@@ -111,8 +111,8 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        860,
-        60
+        1520,
+        80
       ],
       "params": {
         "threads": 4
@@ -125,8 +125,8 @@
       "id": "annot_001",
       "type": "input_gff",
       "position": [
-        600,
-        280
+        80,
+        430
       ],
       "params": {
         "annotation": "examples/data/rna_seq/annotation.gff"
@@ -139,8 +139,8 @@
       "id": "counts_001",
       "type": "featurecounts",
       "position": [
-        1120,
-        60
+        1880,
+        80
       ],
       "params": {
         "feature_type": "gene",
@@ -154,8 +154,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        340,
-        380
+        440,
+        640
       ],
       "params": {
         "threads": 4
@@ -168,8 +168,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        860,
-        380
+        800,
+        570
       ],
       "params": {
         "title": "RNA-Seq QC"

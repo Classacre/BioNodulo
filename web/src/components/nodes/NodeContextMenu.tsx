@@ -56,12 +56,18 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
     null,
     { label: 'Mute Node', action: 'mute' },
     { label: 'Bypass Node', action: 'bypass' },
+    { label: 'Pin / Lock Node', action: 'pin' },
     { label: 'Collapse/Expand', action: 'collapse' },
     null,
     { label: 'Set as Output', action: 'output' },
     { label: 'Set Color', action: 'color', handler: () => setShowColors(true) },
+    { label: 'Round Shape', action: 'shape:round' },
+    { label: 'Box Shape', action: 'shape:box' },
+    { label: 'Card Shape', action: 'shape:card' },
     null,
     { label: 'Group Selected', action: 'group' },
+    { label: 'Create Subgraph', action: 'subgraph' },
+    { label: 'Execute Selected', action: 'executeSelected' },
     null,
     { label: 'Delete', action: 'delete' },
   ] : [
@@ -84,7 +90,8 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
                 if ('handler' in item && item.handler) {
                   item.handler();
                 } else {
-                  if (nodeId) onAction(item.action, nodeId);
+                  if (nodeId && item.action.startsWith('shape:')) onAction('shape', nodeId, item.action.split(':')[1]);
+                  else if (nodeId) onAction(item.action, nodeId);
                   else onAction(item.action, '');
                 }
               }}>

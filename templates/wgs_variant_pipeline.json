@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "WGS Variant Pipeline",
   "description": "Whole genome sequencing variant calling with BWA and FreeBayes",
@@ -9,7 +9,7 @@
       "type": "note",
       "position": [
         -240,
-        230
+        80
       ],
       "params": {
         "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data.\n\nData source: ENA PRJEB2138 (E. coli K-12 Illumina paired-end) + NCBI RefSeq E. coli K-12 MG1655.\nFiles: R1.fq (18M), R2.fq (18M), ecoli_k12_mg1655.fna (4.5M reference).\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        60
+        80
       ],
       "params": {
         "sample_name": "wgs1",
@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        220
+        276
       ],
       "params": {
         "reference": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
@@ -55,8 +55,8 @@
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        340,
-        220
+        440,
+        444
       ],
       "params": {},
       "ui": {
@@ -67,8 +67,8 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        340,
-        60
+        440,
+        80
       ],
       "params": {
         "threads": 4
@@ -81,8 +81,8 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        730,
-        60
+        1160,
+        80
       ],
       "params": {
         "threads": 4
@@ -95,8 +95,8 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        600,
-        60
+        800,
+        80
       ],
       "params": {
         "threads": 16
@@ -109,8 +109,8 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        860,
-        60
+        1520,
+        80
       ],
       "params": {
         "threads": 4
@@ -123,8 +123,8 @@
       "id": "idx_001",
       "type": "samtools_index",
       "position": [
-        860,
-        220
+        1880,
+        80
       ],
       "params": {},
       "ui": {
@@ -135,8 +135,8 @@
       "id": "fb_001",
       "type": "freebayes",
       "position": [
-        1120,
-        60
+        1880,
+        360
       ],
       "params": {
         "ploidy": 2
@@ -149,8 +149,8 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        1380,
-        60
+        2240,
+        80
       ],
       "params": {
         "expr": "QUAL>20 && DP>5"
@@ -163,8 +163,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        340,
-        400
+        440,
+        640
       ],
       "params": {
         "threads": 4
@@ -177,8 +177,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        860,
-        400
+        800,
+        528
       ],
       "params": {
         "title": "WGS QC"
