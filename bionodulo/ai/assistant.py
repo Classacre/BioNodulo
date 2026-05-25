@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, TypedDict
 
 from bionodulo.ai.tools import (
@@ -444,6 +445,14 @@ class AssistantGraphState(TypedDict, total=False):
     reply: str
     rounds: int
     error: str
+    provider: str
+    model: str | None
+    api_key: str | None
+    api_base: str | None
+    temperature: float
+    max_tokens: int
+    tool_schemas: list[dict[str, Any]]
+    langchain_tools: dict[str, Any]
 
 
 def _tool_param_type(type_name: str) -> Any:
@@ -497,6 +506,146 @@ def _build_langchain_tools(ctx: ToolContext) -> dict[str, Any]:
     return wrapped
 
 
+async def _graph_call_model(state: AssistantGraphState) -> AssistantGraphState:
+    messages_state = list(state["messages"])
+    steps_state = list(state.get("steps", []))
+    try:
+        llm_response = await _call_llm(
+            messages=messages_state,
+            provider=state["provider"],
+            model=state.get("model"),
+            api_key=_provider_api_key(state["provider"], state.get("api_key")),
+            api_base=state.get("api_base"),
+            temperature=state["temperature"],
+            max_tokens=state["max_tokens"],
+            tools=state["tool_schemas"],
+        )
+    except Exception as exc:
+        reply = f"Sorry, I encountered an error: {exc}"
+        steps_state.append(ChatStep(type="reply", content=reply))
+        return {"steps": steps_state, "reply": reply, "error": reply}
+
+    content = llm_response.content
+    tool_calls = llm_response.tool_calls
+    updates: AssistantGraphState = {
+        "steps": steps_state,
+        "last_content": content,
+        "tool_calls": tool_calls,
+    }
+    if tool_calls:
+        return updates
+
+    proposed_workflow = state.get("proposed_workflow")
+    proposed_description = state.get("proposed_description", "")
+    if state.get("mutated_workflow"):
+        graph_ctx = state["ctx"]
+        proposed_workflow = graph_ctx.workflow
+        proposed_description = "Apply the workflow changes drafted by the assistant tools."
+        steps_state.append(
+            ChatStep(
+                type="propose_changes",
+                workflow=proposed_workflow,
+                description=proposed_description,
+            )
+        )
+    reply = content.strip()
+    if reply:
+        steps_state.append(ChatStep(type="reply", content=reply))
+    updates.update(
+        {
+            "steps": steps_state,
+            "reply": reply,
+            "proposed_workflow": proposed_workflow,
+            "proposed_description": proposed_description,
+        }
+    )
+    return updates
+
+
+async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
+    tool_calls = state.get("tool_calls", [])
+    if not tool_calls:
+        return {}
+
+    steps_state = list(state.get("steps", []))
+    messages_state = list(state["messages"])
+    messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
+    graph_ctx = state["ctx"]
+    langchain_tools = state["langchain_tools"]
+    mutated = bool(state.get("mutated_workflow"))
+
+    for tool_call in tool_calls:
+        tool_name = str(tool_call.get("name", ""))
+        args = tool_call.get("arguments", {})
+        if not isinstance(args, dict):
+            args = {}
+
+        steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
+
+        tool = langchain_tools.get(tool_name)
+        if tool is None:
+            result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
+        else:
+            try:
+                result = tool.invoke(args)
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+
+        steps_state.append(
+            ChatStep(
+                type="tool_result",
+                name=tool_name,
+                result=result,
+            )
+        )
+
+        if isinstance(result, dict) and result.get("status") == "ok":
+            inner = result.get("result", {})
+            if isinstance(inner, dict) and "workflow" in inner:
+                graph_ctx.workflow = inner["workflow"]
+                mutated = True
+
+        messages_state.append(
+            {
+                "role": "tool",
+                "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
+                "name": tool_name,
+                "content": json.dumps(result, default=str),
+            }
+        )
+
+    return {
+        "messages": messages_state,
+        "steps": steps_state,
+        "ctx": graph_ctx,
+        "mutated_workflow": mutated,
+        "rounds": int(state.get("rounds", 0)) + 1,
+        "tool_calls": [],
+    }
+
+
+def _route_after_model(state: AssistantGraphState) -> str:
+    if state.get("error"):
+        return "__end__"
+    if state.get("tool_calls") and int(state.get("rounds", 0)) < MAX_TOOL_ROUNDS:
+        return "tool"
+    return "__end__"
+
+
+@lru_cache(maxsize=1)
+def _compiled_assistant_graph() -> Any:
+    """Compile the LangGraph assistant once per process."""
+    from langgraph.graph import END, StateGraph
+
+    graph = StateGraph(AssistantGraphState)
+    graph.add_node("model", _graph_call_model)
+    graph.add_node("tool", _graph_run_tool)
+    graph.set_entry_point("model")
+    graph.add_conditional_edges("model", _route_after_model, {"tool": "tool", "__end__": END})
+    graph.add_edge("tool", "model")
+    return graph.compile()
+
+
 async def chat_with_tools(
     user_message: str,
     workflow: dict[str, Any] | None,
@@ -540,139 +689,8 @@ async def chat_with_tools(
 
     messages.append({"role": "user", "content": user_content})
 
-    from langgraph.graph import END, StateGraph
-
     langchain_tools = _build_langchain_tools(ctx)
-
-    async def call_model(state: AssistantGraphState) -> AssistantGraphState:
-        messages_state = list(state["messages"])
-        steps_state = list(state.get("steps", []))
-        try:
-            llm_response = await _call_llm(
-                messages=messages_state,
-                provider=provider,
-                model=model,
-                api_key=_provider_api_key(provider, api_key),
-                api_base=api_base,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tools=tool_schemas,
-            )
-        except Exception as exc:
-            reply = f"Sorry, I encountered an error: {exc}"
-            steps_state.append(ChatStep(type="reply", content=reply))
-            return {"steps": steps_state, "reply": reply, "error": reply}
-
-        content = llm_response.content
-        tool_calls = llm_response.tool_calls
-        updates: AssistantGraphState = {
-            "steps": steps_state,
-            "last_content": content,
-            "tool_calls": tool_calls,
-        }
-        if tool_calls:
-            return updates
-
-        proposed_workflow = state.get("proposed_workflow")
-        proposed_description = state.get("proposed_description", "")
-        if state.get("mutated_workflow"):
-            graph_ctx = state["ctx"]
-            proposed_workflow = graph_ctx.workflow
-            proposed_description = "Apply the workflow changes drafted by the assistant tools."
-            steps_state.append(
-                ChatStep(
-                    type="propose_changes",
-                    workflow=proposed_workflow,
-                    description=proposed_description,
-                )
-            )
-        reply = content.strip()
-        if reply:
-            steps_state.append(ChatStep(type="reply", content=reply))
-        updates.update(
-            {
-                "steps": steps_state,
-                "reply": reply,
-                "proposed_workflow": proposed_workflow,
-                "proposed_description": proposed_description,
-            }
-        )
-        return updates
-
-    async def run_tool(state: AssistantGraphState) -> AssistantGraphState:
-        tool_calls = state.get("tool_calls", [])
-        if not tool_calls:
-            return {}
-
-        steps_state = list(state.get("steps", []))
-        messages_state = list(state["messages"])
-        messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
-        graph_ctx = state["ctx"]
-        mutated = bool(state.get("mutated_workflow"))
-
-        for tool_call in tool_calls:
-            tool_name = str(tool_call.get("name", ""))
-            args = tool_call.get("arguments", {})
-            if not isinstance(args, dict):
-                args = {}
-
-            steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
-
-            tool = langchain_tools.get(tool_name)
-            if tool is None:
-                result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
-            else:
-                try:
-                    result = tool.invoke(args)
-                except Exception as exc:
-                    result = {"status": "error", "error": str(exc)}
-
-            steps_state.append(
-                ChatStep(
-                    type="tool_result",
-                    name=tool_name,
-                    result=result,
-                )
-            )
-
-            if isinstance(result, dict) and result.get("status") == "ok":
-                inner = result.get("result", {})
-                if isinstance(inner, dict) and "workflow" in inner:
-                    graph_ctx.workflow = inner["workflow"]
-                    mutated = True
-
-            messages_state.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
-                    "name": tool_name,
-                    "content": json.dumps(result, default=str),
-                }
-            )
-
-        return {
-            "messages": messages_state,
-            "steps": steps_state,
-            "ctx": graph_ctx,
-            "mutated_workflow": mutated,
-            "rounds": int(state.get("rounds", 0)) + 1,
-            "tool_calls": [],
-        }
-
-    def route_after_model(state: AssistantGraphState) -> str:
-        if state.get("error"):
-            return END
-        if state.get("tool_calls") and int(state.get("rounds", 0)) < MAX_TOOL_ROUNDS:
-            return "tool"
-        return END
-
-    graph = StateGraph(AssistantGraphState)
-    graph.add_node("model", call_model)
-    graph.add_node("tool", run_tool)
-    graph.set_entry_point("model")
-    graph.add_conditional_edges("model", route_after_model, {"tool": "tool", END: END})
-    graph.add_edge("tool", "model")
-    compiled = graph.compile()
+    compiled = _compiled_assistant_graph()
 
     final_state = await compiled.ainvoke(
         {
@@ -685,6 +703,14 @@ async def chat_with_tools(
             "proposed_description": "",
             "reply": "",
             "rounds": 0,
+            "provider": provider,
+            "model": model,
+            "api_key": api_key,
+            "api_base": api_base,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "tool_schemas": tool_schemas,
+            "langchain_tools": langchain_tools,
         }
     )
 

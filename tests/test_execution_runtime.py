@@ -60,6 +60,22 @@ def test_cache_store_tracks_and_replaces_markers_atomically(tmp_path: Path) -> N
     assert store.read_marker("abc")["outputs"] == {"out": "two"}
 
 
+def test_cache_clear_preserves_unrelated_files(tmp_path: Path) -> None:
+    store = CacheStore(tmp_path)
+    store.write_marker("abc", outputs={"out": "cached"})
+    legacy_marker = tmp_path / "legacy.marker.json"
+    legacy_marker.write_text("{}", encoding="utf-8")
+    unrelated = tmp_path / "do-not-delete.txt"
+    unrelated.write_text("keep me", encoding="utf-8")
+
+    count = store.clear()
+
+    assert count >= 1
+    assert unrelated.read_text(encoding="utf-8") == "keep me"
+    assert not legacy_marker.exists()
+    assert not store.is_hit("abc")
+
+
 def test_graph_helpers_support_frontend_and_legacy_edge_shapes() -> None:
     frontend_edge = {
         "from": {"node": "input", "output": "reads"},

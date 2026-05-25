@@ -9,7 +9,7 @@ export function useWebSocket(url: string) {
     readyState,
   } = useReactWebSocket(url, {
     share: true,
-    shouldReconnect: () => true,
+    shouldReconnect: event => ![4401, 4403].includes(event.code),
     reconnectInterval: 3000,
     retryOnError: true,
   });

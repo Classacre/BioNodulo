@@ -29,7 +29,7 @@ from bionodulo.api.schemas import (
 )
 from bionodulo.collab.audit import AuditLogger
 from bionodulo.collab.auth import validate_token
-from bionodulo.collab.doc_store import extract_flat_snapshot, get_or_create_doc, load_doc_from_db
+from bionodulo.collab.doc_store import extract_flat_snapshot, get_or_create_doc_async, load_doc_from_db_async
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ async def list_accessible_comments(
     for workflow_id in workflow_ids:
         workflow_comments = store.list_comments(workflow_id)
         comments.extend(comment.to_dict() for comment in workflow_comments)
-        doc = load_doc_from_db(workflow_id)
+        doc = await load_doc_from_db_async(workflow_id)
         if doc is not None:
             name = extract_flat_snapshot(doc).get("meta", {}).get("name")
             if name:
@@ -296,9 +296,9 @@ async def create_version(
     user_id = token_payload.get("sub", "")
     require_workflow_role(request, workflow_id, user_id, "write")
 
-    doc = load_doc_from_db(workflow_id)
+    doc = await load_doc_from_db_async(workflow_id)
     if doc is None:
-        doc = get_or_create_doc(workflow_id)
+        doc = await get_or_create_doc_async(workflow_id)
 
     snapshot = extract_flat_snapshot(doc)
 

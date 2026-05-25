@@ -165,17 +165,17 @@ class CacheStore:
         self._remember(cache_key)
 
     def clear(self) -> int:
-        """Remove **all** cached markers and return the count deleted."""
+        """Remove cache-owned metadata without touching unrelated files."""
         count = int(self._metadata.clear() or 0)
-        for entry in self.cache_dir.iterdir():
-            if entry.is_file():
-                try:
-                    entry.unlink()
-                    count += 1
-                    if entry.name.endswith(".marker.json"):
-                        self._forget(entry.name.removesuffix(".marker.json"))
-                except OSError:
-                    pass
+        for entry in self.cache_dir.glob("*.marker.json"):
+            if not entry.is_file():
+                continue
+            try:
+                entry.unlink()
+                count += 1
+                self._forget(entry.name.removesuffix(".marker.json"))
+            except OSError:
+                pass
         self._known_markers.clear()
         return count
 

@@ -694,7 +694,12 @@ export default function App() {
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
 
   // WebSocket connection for real-time logs
-  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+  const wsUrl = useMemo(() => {
+    const token = getToken();
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const params = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${proto}://${window.location.host}/ws${params}`;
+  }, [authUser?.id]);
   const { onMessage } = useWebSocket(wsUrl);
 
   useEffect(() => {

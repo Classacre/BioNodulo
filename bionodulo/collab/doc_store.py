@@ -18,7 +18,6 @@ use, add explicit locking.
 from __future__ import annotations
 
 import asyncio
-import queue
 import logging
 import sqlite3
 import threading
@@ -173,36 +172,12 @@ def ystore_for_workflow(workflow_id: str) -> BioNoduloSQLiteYStore:
 
 
 def _run_ystore_sync(async_fn: Any, *args: Any) -> Any:
-    """Run a pycrdt-store coroutine from sync code.
-
-    Some existing API paths are synchronous while pycrdt-store is async. When
-    called from inside FastAPI's event loop, run the store operation in a short
-    worker thread to avoid nested event-loop errors.
-    """
+    """Run a pycrdt-store coroutine only from synchronous code."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        import anyio
-
-        return anyio.run(async_fn, *args)
-
-    results: queue.Queue[tuple[bool, Any]] = queue.Queue(maxsize=1)
-
-    def _worker() -> None:
-        import anyio
-
-        try:
-            results.put((True, anyio.run(async_fn, *args)))
-        except Exception as exc:
-            results.put((False, exc))
-
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-    thread.join()
-    ok, value = results.get()
-    if ok:
-        return value
-    raise value
+        return asyncio.run(async_fn(*args))
+    raise RuntimeError("pycrdt-store sync bridge called from an event loop; use the async doc_store API")
 
 
 async def load_doc_from_ystore(workflow_id: str) -> pycrdt.Doc | None:
@@ -224,9 +199,38 @@ async def persist_doc_update_async(workflow_id: str, update: bytes) -> None:
         await ystore.write(update)
 
 
+def _fresh_doc(workflow_id: str) -> pycrdt.Doc:
+    """Create a fresh CRDT doc with BioNodulo's flat top-level maps."""
+    doc = pycrdt.Doc()
+    meta = doc.get("meta", type=pycrdt.Map)
+    meta["id"] = workflow_id
+    meta["version"] = 1
+    meta["name"] = "Untitled"
+    meta["createdAt"] = datetime.now(timezone.utc).isoformat()
+    meta["lastModified"] = ""
+    doc.get("nodes", type=pycrdt.Map)
+    doc.get("edges", type=pycrdt.Map)
+    doc.get("groups", type=pycrdt.Map)
+    viewport = doc.get("viewport", type=pycrdt.Map)
+    viewport["x"] = 0
+    viewport["y"] = 0
+    viewport["scale"] = 1.0
+    return doc
+
+
 # ---------------------------------------------------------------------------
 # Document lifecycle
 # ---------------------------------------------------------------------------
+
+async def get_or_create_doc_async(workflow_id: str) -> pycrdt.Doc:
+    """Async version of :func:`get_or_create_doc` for FastAPI handlers."""
+    doc = await load_doc_from_db_async(workflow_id)
+    if doc is not None:
+        logger.debug("Loaded CRDT doc for %s from DB", workflow_id)
+        return doc
+    logger.debug("Created new CRDT doc for %s", workflow_id)
+    return _fresh_doc(workflow_id)
+
 
 def get_or_create_doc(workflow_id: str) -> pycrdt.Doc:
     """Return a :class:`pycrdt.Doc` for *workflow_id*, loading from DB if it exists.
@@ -243,25 +247,8 @@ def get_or_create_doc(workflow_id: str) -> pycrdt.Doc:
         logger.debug("Loaded CRDT doc for %s from DB", workflow_id)
         return doc
 
-    # Create a fresh document with default structure (flat top-level maps,
-    # matching the frontend Yjs schema exactly).
-    doc = pycrdt.Doc()
-    meta = doc.get("meta", type=pycrdt.Map)
-    meta["id"] = workflow_id
-    meta["version"] = 1
-    meta["name"] = "Untitled"
-    meta["createdAt"] = datetime.now(timezone.utc).isoformat()
-    meta["lastModified"] = ""
-    doc.get("nodes", type=pycrdt.Map)
-    doc.get("edges", type=pycrdt.Map)
-    doc.get("groups", type=pycrdt.Map)
-    viewport = doc.get("viewport", type=pycrdt.Map)
-    viewport["x"] = 0
-    viewport["y"] = 0
-    viewport["scale"] = 1.0
-
     logger.debug("Created new CRDT doc for %s", workflow_id)
-    return doc
+    return _fresh_doc(workflow_id)
 
 
 def persist_doc_update(workflow_id: str, update: bytes) -> None:
@@ -278,19 +265,8 @@ def persist_doc_update(workflow_id: str, update: bytes) -> None:
     logger.debug("Persisted %d-byte update for %s via pycrdt-store", len(update), workflow_id)
 
 
-def load_doc_from_db(workflow_id: str) -> pycrdt.Doc | None:
-    """Load a workflow document by replaying all stored binary updates.
-
-    Args:
-        workflow_id: Unique workflow identifier.
-
-    Returns:
-        A reconstructed :class:`pycrdt.Doc`, or ``None`` if no data exists.
-    """
-    doc = _run_ystore_sync(load_doc_from_ystore, workflow_id)
-    if doc is not None:
-        return doc
-
+def _load_doc_from_legacy_sqlite(workflow_id: str) -> pycrdt.Doc | None:
+    """Load legacy CRDT rows from the old SQLite update log."""
     conn = _get_connection()
     rows = conn.execute(
         "SELECT update_data FROM crdt_updates WHERE workflow_id = ? ORDER BY id ASC",
@@ -323,6 +299,26 @@ def load_doc_from_db(workflow_id: str) -> pycrdt.Doc | None:
         workflow_id,
     )
     return doc
+
+
+async def load_doc_from_db_async(workflow_id: str) -> pycrdt.Doc | None:
+    """Load a workflow document without blocking the running event loop."""
+    doc = await load_doc_from_ystore(workflow_id)
+    if doc is not None:
+        return doc
+    return await asyncio.to_thread(_load_doc_from_legacy_sqlite, workflow_id)
+
+
+def load_doc_from_db(workflow_id: str) -> pycrdt.Doc | None:
+    """Load a workflow document by replaying all stored binary updates.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+
+    Returns:
+        A reconstructed :class:`pycrdt.Doc`, or ``None`` if no data exists.
+    """
+    return _run_ystore_sync(load_doc_from_db_async, workflow_id)
 
 
 def consolidate_doc(workflow_id: str, doc: pycrdt.Doc) -> None:

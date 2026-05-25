@@ -18,9 +18,9 @@ from bionodulo.collab.models import CollabStore, WorkflowTemplate
 from bionodulo.collab.doc_store import (
     apply_flat_snapshot,
     extract_flat_snapshot,
-    get_or_create_doc,
-    load_doc_from_db,
-    persist_doc_update,
+    get_or_create_doc_async,
+    load_doc_from_db_async,
+    persist_doc_update_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,11 @@ class TemplateManager:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _doc_snapshot(self, workflow_id: str) -> dict[str, Any]:
+    async def _doc_snapshot(self, workflow_id: str) -> dict[str, Any]:
         """Extract a JSON-serialisable snapshot from a CRDT document."""
-        doc = load_doc_from_db(workflow_id) or get_or_create_doc(workflow_id)
+        doc = await load_doc_from_db_async(workflow_id)
+        if doc is None:
+            doc = await get_or_create_doc_async(workflow_id)
         return extract_flat_snapshot(doc)
 
     def _workflow_id_from_doc(self, snapshot: dict[str, Any]) -> str:
@@ -88,7 +90,7 @@ class TemplateManager:
         if doc is not None:
             snapshot = extract_flat_snapshot(doc)
         else:
-            snapshot = self._doc_snapshot(workflow_id)
+            snapshot = await self._doc_snapshot(workflow_id)
 
         # Enrich snapshot meta with template provenance
         snapshot.setdefault("meta", {})
@@ -185,7 +187,7 @@ class TemplateManager:
 
         # Persist the initial state as a full update
         full_update = doc.get_update(b"\x00")
-        persist_doc_update(new_workflow_id, full_update)
+        await persist_doc_update_async(new_workflow_id, full_update)
 
         # Increment fork counter
         self._store.increment_template_forks(template_id)

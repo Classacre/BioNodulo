@@ -27,8 +27,8 @@ from bionodulo.api.app_state import app_state_from_app
 from bionodulo.collab.auth import generate_user_id, get_auth_ws
 from bionodulo.collab.doc_store import (
     CRDT_TOP_LEVEL_MAPS,
-    load_doc_from_db,
-    persist_doc_update,
+    load_doc_from_db_async,
+    persist_doc_update_async,
     ystore_for_workflow,
 )
 from bionodulo.collab.models import CollabAuditLogEntry, CollabStore
@@ -269,7 +269,7 @@ class FastAPIYChannel:
 
 
 async def _new_doc(workflow_id: str) -> pycrdt.Doc:
-    doc = await asyncio.to_thread(load_doc_from_db, workflow_id)
+    doc = await load_doc_from_db_async(workflow_id)
     if doc is not None:
         return doc
 
@@ -496,7 +496,7 @@ async def publish_flat_snapshot_to_room(
     doc = active_room.ydoc if active_room is not None else await _new_doc(workflow_id)
     _replace_flat_snapshot(doc, snapshot)
     if active_room is None:
-        await asyncio.to_thread(persist_doc_update, workflow_id, doc.get_update(b"\x00"))
+        await persist_doc_update_async(workflow_id, doc.get_update(b"\x00"))
     return snapshot
 
 

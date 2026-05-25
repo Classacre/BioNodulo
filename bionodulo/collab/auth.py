@@ -1,8 +1,8 @@
 """JWT authentication system for collaborative editing.
 
 Provides token creation, validation, and WebSocket query-parameter
-extraction. The secret key is read from ``BIONODULO_JWT_SECRET`` or
-auto-generated on first import (sufficient for single-instance deployments).
+extraction. The secret key is read lazily from ``BIONODULO_JWT_SECRET`` or
+from a workspace-local secret file.
 
 Token payload
 -------------
@@ -35,16 +35,6 @@ from fastapi_users.jwt import decode_jwt, generate_jwt
 
 logger = logging.getLogger(__name__)
 
-# JWT secret — read from env or generate a random 32-byte hex string.
-# In production, always set BIONODULO_JWT_SECRET to a stable value.
-JWT_SECRET: str = os.environ.get("BIONODULO_JWT_SECRET", "")
-if not JWT_SECRET:
-    JWT_SECRET = secrets.token_hex(32)
-    logger.warning(
-        "BIONODULO_JWT_SECRET not set — using auto-generated secret. "
-        "Tokens will not survive server restarts."
-    )
-
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "bionodulo:auth"
 DEFAULT_EXPIRY_HOURS = 24
@@ -52,6 +42,60 @@ OIDC_ISSUER = os.environ.get("BIONODULO_OIDC_ISSUER", "").rstrip("/")
 OIDC_AUDIENCE = os.environ.get("BIONODULO_OIDC_AUDIENCE", JWT_AUDIENCE)
 OIDC_JWKS_URL = os.environ.get("BIONODULO_OIDC_JWKS_URL", "")
 _OIDC_JWKS_CLIENT: jwt.PyJWKClient | None = None
+_JWT_SECRET_CACHE: str | None = None
+JWT_SECRET = ""
+
+
+def _jwt_secret() -> str:
+    """Resolve the local JWT secret lazily and keep it stable per workspace."""
+    global _JWT_SECRET_CACHE, JWT_SECRET
+    if _JWT_SECRET_CACHE:
+        return _JWT_SECRET_CACHE
+
+    env_secret = os.environ.get("BIONODULO_JWT_SECRET", "").strip()
+    if env_secret:
+        _JWT_SECRET_CACHE = env_secret
+        JWT_SECRET = env_secret
+        return env_secret
+
+    from bionodulo.core.workspace import resolve_workspace_root
+
+    secret_path = resolve_workspace_root() / ".bionodulo_jwt_secret"
+    try:
+        existing = secret_path.read_text(encoding="utf-8").strip()
+        if existing:
+            _JWT_SECRET_CACHE = existing
+            JWT_SECRET = existing
+            return existing
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.warning("Could not read workspace JWT secret file: %s", exc)
+
+    generated = secrets.token_hex(32)
+    try:
+        secret_path.parent.mkdir(parents=True, exist_ok=True)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        fd = os.open(str(secret_path), flags, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(generated)
+            fh.write("\n")
+    except FileExistsError:
+        existing = secret_path.read_text(encoding="utf-8").strip()
+        if existing:
+            generated = existing
+    except OSError as exc:
+        logger.warning(
+            "BIONODULO_JWT_SECRET not set and workspace secret could not be persisted: %s. "
+            "Tokens will not survive server restarts.",
+            exc,
+        )
+    else:
+        logger.info("Created workspace-local JWT secret at %s", secret_path)
+
+    _JWT_SECRET_CACHE = generated
+    JWT_SECRET = generated
+    return generated
 
 
 def _oidc_jwks_client() -> jwt.PyJWKClient | None:
@@ -137,7 +181,7 @@ def create_token(
     }
     return generate_jwt(
         payload,
-        JWT_SECRET,
+        _jwt_secret(),
         lifetime_seconds=expiry_hours * 3600,
         algorithm=JWT_ALGORITHM,
     )
@@ -156,7 +200,7 @@ def validate_token(token: str) -> dict[str, Any] | None:
     try:
         payload = decode_jwt(
             token,
-            JWT_SECRET,
+            _jwt_secret(),
             audience=[JWT_AUDIENCE],
             algorithms=[JWT_ALGORITHM],
         )
