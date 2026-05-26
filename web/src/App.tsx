@@ -53,6 +53,8 @@ import {
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
+import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
+import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import {
   authReadyAtom,
@@ -666,7 +668,7 @@ export default function App() {
 
   // History stack for undo/redo
   const canvasRef = useRef<LiteGraphCanvasRef>(null);
-  const historyRef = useRef<{ nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups'] }[]>([]);
+  const historyRef = useRef<{ nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups']; viewport?: { x: number; y: number; scale: number } }[]>([]);
   const historyIndexRef = useRef(-1);
   const pendingStateRef = useRef<Partial<Workflow>>({});
 
@@ -674,6 +676,17 @@ export default function App() {
     historyRef.current = [];
     historyIndexRef.current = -1;
   }, [activeIndex]);
+
+  // Structural fingerprint used to deduplicate identical successive snapshots
+  // (e.g. when a drag commit reports the same coordinates twice). Deliberately
+  // ignores viewport so pan/zoom alone doesn't burn a slot.
+  const snapshotSignature = useCallback((snapshot: { nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups']; viewport?: { x: number; y: number; scale: number } }) => {
+    return JSON.stringify([
+      snapshot.nodes.map(n => [n.id, n.type, n.position, n.params, n.ui]),
+      snapshot.edges.map(e => [e.from.node, e.from.output, e.to.node, e.to.input]),
+      snapshot.groups.map(g => [g.id, g.name, g.position, g.width, g.height, g.color, g.collapsed]),
+    ]);
+  }, []);
 
   const pushHistory = useCallback(() => {
     const pending = pendingStateRef.current;
@@ -684,13 +697,56 @@ export default function App() {
       nodes: wf.nodes,
       edges: wf.edges,
       groups: wf.groups,
+      viewport: canvasRef.current?.getViewport?.(),
     };
+    const tip = historyRef.current[historyIndexRef.current];
+    if (tip && snapshotSignature(tip) === snapshotSignature(snapshot)) {
+      // No-op push: stack tip is already identical (deduplication).
+      // Still refresh the viewport on the tip so future undo restores the
+      // latest pan/zoom even when the graph structure hasn't changed.
+      if (snapshot.viewport) tip.viewport = snapshot.viewport;
+      return;
+    }
     const next = historyRef.current.slice(0, historyIndexRef.current + 1);
     next.push({ ...snapshot });
     if (next.length > 50) next.shift();
     historyRef.current = next;
     historyIndexRef.current = next.length - 1;
-  }, [activeWorkflow]);
+  }, [activeWorkflow, snapshotSignature]);
+
+  // Auto-history: whenever the active workflow's structure changes, queue a
+  // debounced push so callers no longer have to remember onPushHistory(). The
+  // dedup check above ensures double-pushes from explicit + auto are harmless.
+  useEffect(() => {
+    if (Object.keys(pendingStateRef.current).length === 0) return;
+    const timer = setTimeout(() => pushHistory(), 350);
+    return () => clearTimeout(timer);
+  }, [activeWorkflow.nodes, activeWorkflow.edges, activeWorkflow.groups, pushHistory]);
+
+  // Mirror ComfyUI's eager capture triggers: a mouseup or keyup signals that
+  // a user gesture (drag, widget edit, key shortcut) just ended, so commit
+  // any pending state instead of waiting for the 350 ms debounce.
+  useEffect(() => {
+    const flush = () => {
+      if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
+    };
+    window.addEventListener('mouseup', flush);
+    window.addEventListener('keyup', flush);
+    return () => {
+      window.removeEventListener('mouseup', flush);
+      window.removeEventListener('keyup', flush);
+    };
+  }, [pushHistory]);
+
+  // Snapshot the current workflow as a transaction boundary — useful for
+  // multi-step edits (e.g. group operations) so they undo as a single step.
+  const beginTransaction = useCallback(() => {
+    if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
+  }, [pushHistory]);
+
+  const endTransaction = useCallback(() => {
+    if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
+  }, [pushHistory]);
 
   const undo = useCallback(() => {
     if (historyIndexRef.current <= 0) return;
@@ -706,6 +762,7 @@ export default function App() {
       edges: state.edges,
       groups: state.groups,
     });
+    if (state.viewport) canvasRef.current?.setViewport(state.viewport);
   }, [activeIndex, updateWorkflow]);
 
   const redo = useCallback(() => {
@@ -722,6 +779,7 @@ export default function App() {
       edges: state.edges,
       groups: state.groups,
     });
+    if (state.viewport) canvasRef.current?.setViewport(state.viewport);
   }, [activeIndex, updateWorkflow]);
 
   const [consoleVisible, setConsoleVisible] = useState(false);
@@ -749,6 +807,11 @@ export default function App() {
   }, []);
   const [isRunning, setIsRunning] = useState(false);
   const [batchCount, setBatchCount] = useState(1);
+  // Subgraph navigation: a breadcrumb of (parent workflow, subgraph node id)
+  // pairs. While the stack is non-empty the canvas renders the inner workflow
+  // of the topmost subgraph node; exiting writes the edits back to the parent.
+  type SubgraphFrame = { workflowId: string; parentWorkflow: Workflow; subgraphNodeId: string; subgraphName: string };
+  const [subgraphPath, setSubgraphPath] = useState<SubgraphFrame[]>([]);
   const [focusMode, setFocusMode] = useState<boolean>(() => {
     try { return localStorage.getItem('bionodulo.focusMode') === '1'; } catch { return false; }
   });
@@ -1236,51 +1299,140 @@ export default function App() {
 
   const handleCreateSubgraph = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
-    const selected = new Set(nodeIds);
-    let subWorkflow: Workflow | null = null;
-    try {
-      const response = await fetch('/api/workflow/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflow: activeWorkflow,
-          node_ids: nodeIds,
-          name: `${activeWorkflow.name || 'Untitled'} subgraph`,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json() as { workflow?: Workflow };
-        subWorkflow = data.workflow ?? null;
-      }
-    } catch {
-      // Local fallback below keeps this useful when the backend is not running.
-    }
-    if (!subWorkflow) {
-      subWorkflow = {
-        ...activeWorkflow,
-        id: createWorkflowId(),
-        name: `${activeWorkflow.name || 'Untitled'} subgraph`,
-        nodes: activeWorkflow.nodes.filter(node => selected.has(node.id)),
-        edges: activeWorkflow.edges.filter(edge => selected.has(edge.from.node) && selected.has(edge.to.node)),
-        groups: activeWorkflow.groups.filter(group => {
-          const gx1 = group.position[0];
-          const gy1 = group.position[1];
-          const gx2 = gx1 + group.width;
-          const gy2 = gy1 + group.height;
-          return activeWorkflow.nodes.some(node => (
-            selected.has(node.id)
-            && node.position[0] >= gx1 && node.position[0] <= gx2
-            && node.position[1] >= gy1 && node.position[1] <= gy2
-          ));
-        }),
-      };
-    }
-    addWorkflow(withWorkflowId(subWorkflow));
+    // Compute a position for the new subgraph node — centred on the average
+    // position of the selection, so it lands where the nodes used to live.
+    const selectedNodes = activeWorkflow.nodes.filter(n => nodeIds.includes(n.id));
+    const avgX = selectedNodes.reduce((sum, n) => sum + n.position[0], 0) / Math.max(1, selectedNodes.length);
+    const avgY = selectedNodes.reduce((sum, n) => sum + n.position[1], 0) / Math.max(1, selectedNodes.length);
+    const subgraphName = `${activeWorkflow.name || 'Untitled'} block`;
+    const result = extractSubgraph(activeWorkflow, nodeIds, subgraphName, [Math.round(avgX), Math.round(avgY)]);
+    const nextParent: Workflow = {
+      ...activeWorkflow,
+      nodes: result.nodes,
+      edges: result.edges,
+      groups: result.outerGroups,
+    };
+    updateWorkflow(activeIndex, nextParent);
     setRailTab(null);
+    toast.success('Selection converted to subgraph', { message: subgraphName });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
-  }, [activeWorkflow, addWorkflow, setRailTab]);
+  }, [activeIndex, activeWorkflow, setRailTab, updateWorkflow]);
+
+  const handlePromoteWidgets = useCallback((innerNodeId: string) => {
+    if (subgraphPath.length === 0) {
+      toast.info('Enter a subgraph first to promote its widgets');
+      return;
+    }
+    const innerNode = activeWorkflow.nodes.find(n => n.id === innerNodeId);
+    if (!innerNode) return;
+    const required = (innerNode.node_info?.input_types?.required || {}) as Record<string, unknown>;
+    const optional = (innerNode.node_info?.input_types?.optional || {}) as Record<string, unknown>;
+    const allSpecs = { ...required, ...optional };
+    const isInteractive = (spec: unknown): boolean => {
+      if (Array.isArray(spec)) {
+        const t = spec[0];
+        const config = (spec[1] && typeof spec[1] === 'object') ? spec[1] as Record<string, unknown> : {};
+        if (t === 'BOOLEAN') return true;
+        if (Array.isArray(t)) return true;
+        if (Array.isArray(config.options) && config.options.length) return true;
+        if (t === 'INT' || t === 'FLOAT') return true;
+        if (t === 'STRING' && !config.forceInput) return true;
+        return false;
+      }
+      if (spec && typeof spec === 'object') {
+        const s = spec as { type?: string; options?: unknown[]; forceInput?: boolean };
+        if (s.type === 'BOOLEAN') return true;
+        if (Array.isArray(s.options) && s.options.length) return true;
+        if (s.type === 'INT' || s.type === 'FLOAT') return true;
+        if (s.type === 'STRING' && !s.forceInput) return true;
+      }
+      return false;
+    };
+
+    setSubgraphPath(prev => {
+      if (prev.length === 0) return prev;
+      const top = prev[prev.length - 1];
+      // Write current inner edits back into the parent's subgraph node first,
+      // so promotions land on the same snapshot the user is editing.
+      let parent = writeSubgraphBack(top.parentWorkflow, top.subgraphNodeId, activeWorkflow);
+      let added = 0;
+      for (const [key, spec] of Object.entries(allSpecs)) {
+        if (!isInteractive(spec)) continue;
+        parent = promoteWidget(parent, top.subgraphNodeId, innerNodeId, key, spec);
+        added += 1;
+      }
+      if (added === 0) {
+        toast.info(`${innerNode.ui?.title || innerNode.type} has no promotable widgets`);
+        return prev;
+      }
+      toast.success(`Promoted ${added} widget${added === 1 ? '' : 's'} to ${top.subgraphName}`);
+      const updatedFrames = prev.slice(0, -1).concat({ ...top, parentWorkflow: parent });
+      return updatedFrames;
+    });
+  }, [activeWorkflow, subgraphPath]);
+
+  const handleEnterSubgraph = useCallback((nodeId: string) => {    const node = activeWorkflow.nodes.find(n => n.id === nodeId);
+    if (!node || node.type !== 'subgraph') return;
+    const innerWorkflow = (node.params?.workflow as Workflow | undefined);
+    if (!innerWorkflow) {
+      toast.warning('Subgraph has no embedded workflow');
+      return;
+    }
+    // Push the parent snapshot onto the breadcrumb and swap the current tab's
+    // contents with the inner workflow. The tab id stays the same so the
+    // collab room / autosave keep tracking the parent workflow correctly.
+    setSubgraphPath(prev => [
+      ...prev,
+      {
+        workflowId: activeWorkflow.id || activeWorkflowId,
+        parentWorkflow: activeWorkflow,
+        subgraphNodeId: nodeId,
+        subgraphName: String(node.ui?.title || node.node_info?.display_name || 'Subgraph'),
+      },
+    ]);
+    const inner: Workflow = {
+      ...innerWorkflow,
+      id: activeWorkflow.id || activeWorkflowId,
+      name: String(node.ui?.title || innerWorkflow.name || 'Subgraph'),
+    };
+    setWorkflow(activeIndex, () => inner);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => canvasRef.current?.fitView());
+    });
+  }, [activeIndex, activeWorkflow, activeWorkflowId, setWorkflow]);
+
+  const handleExitSubgraph = useCallback((depth: number) => {
+    if (subgraphPath.length === 0) return;
+    setSubgraphPath(prev => {
+      let parent = prev[prev.length - 1]?.parentWorkflow;
+      let popped = prev.slice();
+      // Walk frames from the top down, writing the current inner workflow back
+      // into each parent's subgraph node as we unwind to the target depth.
+      let inner = activeWorkflow;
+      while (popped.length > depth) {
+        const frame = popped[popped.length - 1];
+        const updatedParent = writeSubgraphBack(frame.parentWorkflow, frame.subgraphNodeId, inner);
+        inner = updatedParent;
+        parent = updatedParent;
+        popped = popped.slice(0, -1);
+      }
+      if (parent) {
+        setWorkflow(activeIndex, () => parent!);
+      }
+      return popped;
+    });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => canvasRef.current?.fitView());
+    });
+  }, [activeIndex, activeWorkflow, setWorkflow, subgraphPath]);
+
+  // Reset the subgraph navigation whenever the user switches to a different
+  // workflow tab — the breadcrumb is per-tab and would otherwise dangle.
+  useEffect(() => {
+    setSubgraphPath([]);
+  }, [activeIndex]);
 
   const handleCancelRun = useCallback(async (run: RunRecord) => {
     const ok = await confirmDialog({
@@ -2047,18 +2199,27 @@ export default function App() {
     }
     if (tab === 'nodes') {
       return (
-        <NodeLibraryPanel objectInfo={objectInfo} onAddNode={(meta) => {
-          const newNode: WorkflowNode = {
-            id: `${meta.id}_${Date.now()}`,
-            type: meta.id,
-            position: [200 + Math.random() * 40, 200 + Math.random() * 40],
-            params: defaultsFor(meta),
-            node_info: meta,
-            ui: { title: meta.display_name },
-          };
-          handleNodesChange([...activeWorkflow.nodes, newNode]);
-          pushHistory();
-        }} onClose={() => closePanel(tab)} />
+        <NodeLibraryPanel
+          objectInfo={objectInfo}
+          onAddNode={(meta) => {
+            const newNode: WorkflowNode = {
+              id: `${meta.id}_${Date.now()}`,
+              type: meta.id,
+              position: [200 + Math.random() * 40, 200 + Math.random() * 40],
+              params: defaultsFor(meta),
+              node_info: meta,
+              ui: { title: meta.display_name },
+            };
+            handleNodesChange([...activeWorkflow.nodes, newNode]);
+            pushHistory();
+          }}
+          onAddBlueprint={(bp) => {
+            const newNode = instantiateBlueprint(bp, [200 + Math.random() * 40, 200 + Math.random() * 40]);
+            handleNodesChange([...activeWorkflow.nodes, newNode]);
+            pushHistory();
+          }}
+          onClose={() => closePanel(tab)}
+        />
       );
     }
     if (tab === 'data') {
@@ -2169,6 +2330,59 @@ export default function App() {
           } catch { /* ignore */ }
         }}
       >
+        {subgraphPath.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              right: 8,
+              zIndex: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '6px 10px',
+              borderRadius: 8,
+              background: 'color-mix(in srgb, var(--surface) 94%, transparent)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow)',
+              fontSize: 12,
+              color: 'var(--text)',
+            }}
+          >
+            <span style={{ color: 'var(--muted)' }}>Subgraph:</span>
+            <button
+              type="button"
+              onClick={() => handleExitSubgraph(0)}
+              style={{
+                background: 'transparent', border: 'none', color: 'var(--text)',
+                cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
+              }}
+              title="Back to top-level workflow"
+            >
+              {subgraphPath[0]?.parentWorkflow?.name || 'Workflow'}
+            </button>
+            {subgraphPath.map((frame, idx) => (
+              <span key={`${frame.subgraphNodeId}-${idx}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--muted)' }}>›</span>
+                {idx < subgraphPath.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleExitSubgraph(idx + 1)}
+                    style={{
+                      background: 'transparent', border: 'none', color: 'var(--text)',
+                      cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
+                    }}
+                  >
+                    {frame.subgraphName}
+                  </button>
+                ) : (
+                  <span style={{ fontWeight: 600, padding: '2px 6px' }}>{frame.subgraphName}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         {hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
@@ -2227,6 +2441,8 @@ export default function App() {
           onCollabDragEnd={collabEnabled ? handleCollabDragEnd : undefined}
           onExecuteSelected={handleRunSelected}
           onCreateSubgraph={handleCreateSubgraph}
+          onEnterSubgraph={handleEnterSubgraph}
+          onPromoteWidgets={handlePromoteWidgets}
         />
 
         {/* Registered rail panels */}

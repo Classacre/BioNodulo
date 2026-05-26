@@ -1,8 +1,9 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
-import type { WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
+import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import Icon from '../ui/Icon';
-import { promptDialog } from '../ui';
+import { promptDialog, toast } from '../ui';
+import { saveBlueprint } from '../../state/subgraphLibrary';
 import NodePalette from '../nodes/NodePalette';
 import NodeContextMenu from '../nodes/NodeContextMenu';
 import NodeEditor from '../nodes/NodeEditor';
@@ -61,6 +62,8 @@ interface LiteGraphCanvasProps {
   onViewportChange?: (offset: { x: number; y: number }, scale: number) => void;
   onExecuteSelected?: (nodeIds: string[]) => void;
   onCreateSubgraph?: (nodeIds: string[]) => void;
+  onEnterSubgraph?: (nodeId: string) => void;
+  onPromoteWidgets?: (innerNodeId: string) => void;
 }
 
 export interface GraphNode {
@@ -408,6 +411,7 @@ export interface LiteGraphCanvasRef {
   fitView: () => void;
   focusNode: (nodeId: string) => void;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
+  getViewport: () => { x: number; y: number; scale: number };
   getSelectedNodeIds: () => string[];
   executeSelected: () => void;
   createSubgraphFromSelection: () => void;
@@ -435,6 +439,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onViewportChange,
   onExecuteSelected,
   onCreateSubgraph,
+  onEnterSubgraph,
+  onPromoteWidgets,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -456,7 +462,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
-  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
+  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
   const [nodeCommentTarget, setNodeCommentTarget] = useState<{ nodeId: string; compose: boolean } | null>(null);
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
   const [groupDragging, setGroupDragging] = useState<string | null>(null);
@@ -469,7 +475,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [hoveredSlot, setHoveredSlot] = useState<{ nodeId: string; type: 'input' | 'output'; index: number } | null>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [linkContextMenu, setLinkContextMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null);
+  const [linkContextMenu, setLinkContextMenu] = useState<{ x: number; y: number; edgeId: string; worldX: number; worldY: number } | null>(null);
   const [resizingNode, setResizingNode] = useState<string | null>(null);
   const [activeWidget, setActiveWidget] = useState<{ nodeId: string; name: string } | null>(null);
   const activeWidgetRef = useRef(activeWidget);
@@ -490,6 +496,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const onCollabSelectionRef = useRef(onCollabSelection);
   const onExecuteSelectedRef = useRef(onExecuteSelected);
   const onCreateSubgraphRef = useRef(onCreateSubgraph);
+  const onEnterSubgraphRef = useRef(onEnterSubgraph);
+  const onPromoteWidgetsRef = useRef(onPromoteWidgets);
   const pendingSelectionRef = useRef<Set<string> | null>(null);
   const dragMovedRef = useRef(false);
   const dragCommitNeededRef = useRef(false);
@@ -518,6 +526,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { onCollabSelectionRef.current = onCollabSelection; }, [onCollabSelection]);
   useEffect(() => { onExecuteSelectedRef.current = onExecuteSelected; }, [onExecuteSelected]);
   useEffect(() => { onCreateSubgraphRef.current = onCreateSubgraph; }, [onCreateSubgraph]);
+  useEffect(() => { onEnterSubgraphRef.current = onEnterSubgraph; }, [onEnterSubgraph]);
+  useEffect(() => { onPromoteWidgetsRef.current = onPromoteWidgets; }, [onPromoteWidgets]);
   useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
   useEffect(() => { mouseWorldRef.current = mouseWorld; }, [mouseWorld]);
   useEffect(() => { hoveredSlotRef.current = hoveredSlot; }, [hoveredSlot]);
@@ -545,7 +555,10 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (pending) pendingSelectionRef.current = null;
       return nodes.map(wn => {
         const existing = map.get(wn.id);
-        const meta = wn.type ? (objectInfo[wn.type] || null) : null;
+        // Subgraph nodes carry their port shape on `wn.node_info` directly
+        // since they're synthesized client-side and don't exist in the
+        // registry-derived objectInfo map.
+        const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
         const collapsed = wn.ui?.collapsed ?? existing?.collapsed ?? false;
         const isNote = meta?.id === 'note';
         const isReroute = meta?.id === 'reroute';
@@ -698,6 +711,40 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
     // Edges
     if (!linksHidden) {
+      // Reroute geometry: anchors at the reroute centre and control-point
+      // tangents borrowed from the neighbour on the other side of the
+      // reroute so chains draw as a single smooth curve.
+      const REROUTE_HALF = 10; // half of the 20px reroute footprint
+      const rerouteCentre = (node: GraphNode) => ({
+        x: node.x + REROUTE_HALF,
+        y: node.y + REROUTE_HALF,
+      });
+      const slotPoint = (node: GraphNode, side: 'output' | 'input', slotIndex: number): { x: number; y: number } => {
+        if (node.type === 'reroute') return rerouteCentre(node);
+        const slotY = node.collapsed
+          ? node.y + NODE_HEADER_H / 2
+          : node.y + NODE_HEADER_H + NODE_PIN_H / 2 + Math.max(0, slotIndex) * NODE_PIN_H;
+        return { x: side === 'output' ? node.x + node.width : node.x, y: slotY };
+      };
+      // Look up the neighbour endpoint that continues past a reroute, so its
+      // bezier control point keeps the chain tangent.
+      const neighbourThroughReroute = (rerouteId: string, side: 'output' | 'input'): { x: number; y: number } | null => {
+        // 'output' side means we are drawing an edge whose SOURCE is the
+        // reroute, so we want the previous link feeding INTO the reroute.
+        const target = side === 'output'
+          ? edges.find(e => e.to.node === rerouteId)
+          : edges.find(e => e.from.node === rerouteId);
+        if (!target) return null;
+        const otherNode = side === 'output'
+          ? nodeById.get(target.from.node)
+          : nodeById.get(target.to.node);
+        if (!otherNode) return null;
+        const slotIndex = side === 'output'
+          ? otherNode.outputs.findIndex(o => o.name === target.from.output)
+          : otherNode.inputs.findIndex(i => i.name === target.to.input);
+        return slotPoint(otherNode, side === 'output' ? 'output' : 'input', slotIndex);
+      };
+
       for (const edge of edges) {
         if (!visibleNodeIds.has(edge.from.node) && !visibleNodeIds.has(edge.to.node)) continue;
         const fromNode = nodeById.get(edge.from.node);
@@ -705,30 +752,72 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         if (!fromNode || !toNode) continue;
         const fromOutIndex = fromNode.outputs.findIndex(o => o.name === edge.from.output);
         const toInIndex = toNode.inputs.findIndex(i => i.name === edge.to.input);
-        const fromCollapsed = fromNode.collapsed;
-        const toCollapsed = toNode.collapsed;
-        const fy = fromCollapsed
-          ? fromNode.y + NODE_HEADER_H / 2
-          : fromNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (fromOutIndex >= 0 ? fromOutIndex : 0) * NODE_PIN_H;
-        const ty = toCollapsed
-          ? toNode.y + NODE_HEADER_H / 2
-          : toNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (toInIndex >= 0 ? toInIndex : 0) * NODE_PIN_H;
-        const fx = fromNode.x + fromNode.width;
-        const tx = toNode.x;
-        const dist = Math.hypot(tx - fx, ty - fy);
+        const from = slotPoint(fromNode, 'output', fromOutIndex);
+        const to = slotPoint(toNode, 'input', toInIndex);
+        const dist = Math.hypot(to.x - from.x, to.y - from.y);
         const cd = Math.max(30, dist * 0.25);
         const isHovered = hoveredLinkRef.current === edge.id;
-        const linkType = fromNode.outputs[fromOutIndex]?.type || '';
-        const linkColor = edgeColorForSource(linkType);
+        // Color resolves from the original source's slot type so the colour
+        // propagates faithfully across a reroute chain.
+        let originType = fromNode.outputs[fromOutIndex]?.type || '';
+        if (fromNode.type === 'reroute') {
+          let cursor: GraphNode | undefined = fromNode;
+          let guard = 0;
+          while (cursor && cursor.type === 'reroute' && guard < 16) {
+            const incoming = edges.find(e => e.to.node === cursor!.id);
+            if (!incoming) break;
+            const upstream = nodeById.get(incoming.from.node);
+            if (!upstream) break;
+            if (upstream.type !== 'reroute') {
+              const sIdx = upstream.outputs.findIndex(o => o.name === incoming.from.output);
+              originType = upstream.outputs[sIdx]?.type || originType;
+              break;
+            }
+            cursor = upstream;
+            guard += 1;
+          }
+        }
+        const linkColor = edgeColorForSource(originType);
         ctx.strokeStyle = linkColor;
         ctx.lineWidth = lowQuality ? 1.5 : isHovered ? 3.5 : 2;
         if (isHovered) {
           ctx.shadowColor = linkColor + '88';
           ctx.shadowBlur = 10;
         }
+        // Control points. For a normal node end the control point juts out
+        // horizontally by cd. For a reroute end, mirror the neighbour around
+        // the reroute centre so adjacent segments share a tangent.
+        let c1: { x: number; y: number };
+        let c2: { x: number; y: number };
+        if (fromNode.type === 'reroute') {
+          const neighbour = neighbourThroughReroute(fromNode.id, 'output');
+          if (neighbour) {
+            const dx = from.x - neighbour.x;
+            const dy = from.y - neighbour.y;
+            const len = Math.hypot(dx, dy) || 1;
+            c1 = { x: from.x + (dx / len) * cd, y: from.y + (dy / len) * cd };
+          } else {
+            c1 = { x: from.x + cd, y: from.y };
+          }
+        } else {
+          c1 = { x: from.x + cd, y: from.y };
+        }
+        if (toNode.type === 'reroute') {
+          const neighbour = neighbourThroughReroute(toNode.id, 'input');
+          if (neighbour) {
+            const dx = to.x - neighbour.x;
+            const dy = to.y - neighbour.y;
+            const len = Math.hypot(dx, dy) || 1;
+            c2 = { x: to.x + (dx / len) * cd, y: to.y + (dy / len) * cd };
+          } else {
+            c2 = { x: to.x - cd, y: to.y };
+          }
+        } else {
+          c2 = { x: to.x - cd, y: to.y };
+        }
         ctx.beginPath();
-        ctx.moveTo(fx, fy);
-        ctx.bezierCurveTo(fx + cd, fy, tx - cd, ty, tx, ty);
+        ctx.moveTo(from.x, from.y);
+        ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, to.x, to.y);
         ctx.stroke();
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
@@ -1460,6 +1549,30 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     });
 
     if (clicked) {
+      // Shift+click on a connected input slot detaches the link and lets the
+      // user re-route the source's output to a new target. Mirrors ComfyUI.
+      if (e.shiftKey && clicked.inputs.length > 0 && !clicked.visualOnly && !clicked.collapsed) {
+        for (let i = 0; i < clicked.inputs.length; i += 1) {
+          if (!clicked.inputs[i].connected) continue;
+          const slotY = clicked.y + NODE_HEADER_H + NODE_PIN_H / 2 + i * NODE_PIN_H;
+          const dist = Math.hypot(world.x - clicked.x, world.y - slotY);
+          if (dist > 12) continue;
+          const existingEdge = edges.find(edge => edge.to.node === clicked.id && edge.to.input === clicked.inputs[i].name);
+          if (!existingEdge) break;
+          const sourceNode = graphNodes.find(n => n.id === existingEdge.from.node);
+          if (!sourceNode) break;
+          const sourceOutIdx = sourceNode.outputs.findIndex(o => o.name === existingEdge.from.output);
+          if (sourceOutIdx < 0) break;
+          onEdgesChange(edges.filter(edge => edge.id !== existingEdge.id));
+          setLinkDrag({
+            fromNodeId: sourceNode.id,
+            fromOutputIndex: sourceOutIdx,
+            fromOutputName: existingEdge.from.output,
+            fromOutputType: sourceNode.outputs[sourceOutIdx].type,
+          });
+          return;
+        }
+      }
       // Check output slot hit (for link drag)
       if (clicked.outputs.length > 0 && !clicked.visualOnly) {
         if (clicked.collapsed) {
@@ -2071,7 +2184,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         }
       }
       if (clickedLink) {
-        setLinkContextMenu({ x: e.clientX, y: e.clientY, edgeId: clickedLink });
+        setLinkContextMenu({ x: e.clientX, y: e.clientY, edgeId: clickedLink, worldX: world.x, worldY: world.y });
         setCanvasMenu(null);
         setContextMenu(null);
         setGroupContextMenu(null);
@@ -2086,7 +2199,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           setContextMenu(null);
           setLinkContextMenu(null);
         } else {
-          setCanvasMenu({ x: e.clientX, y: e.clientY });
+          setCanvasMenu({ x: e.clientX, y: e.clientY, worldX: world.x, worldY: world.y });
           setContextMenu(null);
           setGroupContextMenu(null);
           setLinkContextMenu(null);
@@ -2112,6 +2225,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       world.y >= n.y && world.y <= n.y + n.height
     );
     if (clicked) {
+      // Subgraph nodes — double-click enters the embedded workflow.
+      if (clicked.type === 'subgraph' && onEnterSubgraphRef.current) {
+        onEnterSubgraphRef.current(clicked.id);
+        return;
+      }
       // Double-click header to toggle collapse (ComfyUI behavior)
       const inHeader = world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
       if (inHeader && !clicked.visualOnly) {
@@ -2196,6 +2314,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     fitView,
     focusNode,
     setViewport: setViewportFromAwareness,
+    getViewport: () => ({ x: offset.x, y: offset.y, scale }),
     getSelectedNodeIds,
     executeSelected: () => {
       const ids = getSelectedNodeIds();
@@ -2205,7 +2324,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const ids = getSelectedNodeIds();
       if (ids.length > 0) onCreateSubgraphRef.current?.(ids);
     },
-  }), [fitView, focusNode, getSelectedNodeIds, setViewportFromAwareness]);
+  }), [fitView, focusNode, getSelectedNodeIds, offset.x, offset.y, scale, setViewportFromAwareness]);
 
   const handleContextAction = useCallback(async (action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
@@ -2277,6 +2396,32 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     } else if (action === 'subgraph') {
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
       onCreateSubgraphRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
+    } else if (action === 'saveSubgraphBlueprint') {
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node || node.type !== 'subgraph') {
+        toast.warning('Save to library only works on subgraph nodes');
+      } else {
+        const innerWorkflow = node.params?.workflow as Workflow | undefined;
+        const inputPorts = (node.params?.input_ports as unknown[] | undefined) ?? [];
+        const outputPorts = (node.params?.output_ports as unknown[] | undefined) ?? [];
+        if (!innerWorkflow) {
+          toast.error('Subgraph has no embedded workflow');
+        } else {
+          const name = node.ui?.title || node.node_info?.display_name || 'Subgraph';
+          saveBlueprint({
+            name: String(name),
+            workflow: innerWorkflow,
+            inputPorts: inputPorts as never,
+            outputPorts: outputPorts as never,
+          });
+          toast.success('Saved to subgraph library', { message: String(name) });
+        }
+      }
+    } else if (action === 'promoteWidgets') {
+      // Mark the requested inner node's interactive widgets for promotion.
+      // Actual promotion happens in App.tsx via onPromoteWidgets so it can
+      // mutate the parent workflow that owns this subgraph view.
+      onPromoteWidgetsRef.current?.(nodeId);
     } else if (action === 'executeSelected') {
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
       onExecuteSelectedRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
@@ -2332,7 +2477,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     }
   }, [graphNodes, nodes, groups, handleContextAction, onNodesChange, onGroupsChange, onPushHistory]);
 
-  const insertRerouteOnEdge = useCallback((edgeId: string) => {
+  const insertRerouteOnEdge = useCallback((edgeId: string, atWorld?: { x: number; y: number }) => {
     const edge = edges.find(candidate => candidate.id === edgeId);
     if (!edge) return;
     const fromNode = graphNodes.find(candidate => candidate.id === edge.from.node);
@@ -2351,10 +2496,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const fx = fromNode.x + fromNode.width;
     const tx = toNode.x;
     const id = `reroute_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const px = atWorld ? Math.round(atWorld.x - 10) : Math.round((fx + tx) / 2 - 10);
+    const py = atWorld ? Math.round(atWorld.y - 10) : Math.round((fy + ty) / 2 - 10);
     const rerouteNode: WorkflowNode = {
       id,
       type: 'reroute',
-      position: [Math.round((fx + tx) / 2 - 10), Math.round((fy + ty) / 2 - 10)],
+      position: [px, py],
       params: defaultsFor(rerouteMeta),
       node_info: rerouteMeta,
       ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
@@ -2770,6 +2917,24 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         <div className="context-menu" style={{ left: canvasMenu.x, top: canvasMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
             <div className="context-menu-item" onClick={() => { setPalettePos({ x: canvasMenu.x, y: canvasMenu.y }); setCanvasMenu(null); }}>Add Node</div>
+            <div className="context-menu-item" onClick={() => {
+              const rerouteMeta = objectInfo.reroute;
+              if (rerouteMeta) {
+                const id = `reroute_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                const newNode: WorkflowNode = {
+                  id,
+                  type: 'reroute',
+                  position: [Math.round(canvasMenu.worldX - 10), Math.round(canvasMenu.worldY - 10)],
+                  params: defaultsFor(rerouteMeta),
+                  node_info: rerouteMeta,
+                  ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
+                };
+                onNodesChange([...nodes, newNode]);
+                pendingSelectionRef.current = new Set([id]);
+                onPushHistory();
+              }
+              setCanvasMenu(null);
+            }}>Add Reroute Here</div>
             <div className="context-menu-item" onClick={() => { fitView(); setCanvasMenu(null); }}>Fit View</div>
             <div className="context-menu-sep" />
             <div className="context-menu-item" onClick={() => {
@@ -2886,7 +3051,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       {linkContextMenu && (
         <div className="context-menu" style={{ left: linkContextMenu.x, top: linkContextMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
-            <div className="context-menu-item" onClick={() => insertRerouteOnEdge(linkContextMenu.edgeId)}>Insert Reroute</div>
+            <div className="context-menu-item" onClick={() => insertRerouteOnEdge(linkContextMenu.edgeId, { x: linkContextMenu.worldX, y: linkContextMenu.worldY })}>Insert Reroute</div>
             <div className="context-menu-item" onClick={() => {
               onEdgesChange(edges.filter(e => e.id !== linkContextMenu.edgeId));
               onPushHistory();

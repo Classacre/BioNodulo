@@ -5,10 +5,12 @@ import { groupNodesByCategory } from '../../utils';
 import { useNodeSearch, useRecentNodes } from '../../utils/nodeSearch';
 import Icon from '../ui/Icon';
 import { SkeletonList } from '../ui/Skeleton';
+import { deleteBlueprint, listBlueprints, subscribeBlueprints, type SubgraphBlueprint } from '../../state/subgraphLibrary';
 
 interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
   onAddNode: (meta: NodeMetadata) => void;
+  onAddBlueprint?: (blueprint: SubgraphBlueprint) => void;
   onClose: () => void;
 }
 
@@ -83,9 +85,19 @@ function NodeLibraryResult({
   );
 }
 
-export default function NodeLibraryPanel({ objectInfo, onAddNode, onClose }: NodeLibraryPanelProps) {
+export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control']));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control', 'Subgraphs']));
+  const [blueprints, setBlueprints] = useState<SubgraphBlueprint[]>(() => listBlueprints());
+  useEffect(() => {
+    const unsubscribe = subscribeBlueprints(() => setBlueprints(listBlueprints()));
+    return unsubscribe;
+  }, []);
+  const filteredBlueprints = useMemo(() => {
+    if (!query.trim()) return blueprints;
+    const q = query.toLowerCase();
+    return blueprints.filter(bp => bp.name.toLowerCase().includes(q) || (bp.description ?? '').toLowerCase().includes(q));
+  }, [blueprints, query]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
   const searchResults = useNodeSearch(objectInfo, query);
@@ -197,6 +209,57 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onClose }: Nod
             <div className="node-search-group" style={{ padding: '8px 12px' }}>
               <SkeletonList count={6} rowHeight={18} widths={['65%', '90%', '40%', '75%', '85%', '55%']} />
             </div>
+          )}
+          {filteredBlueprints.length > 0 && onAddBlueprint && (
+            <section className="node-search-group">
+              <button
+                type="button"
+                className="node-category-toggle"
+                onClick={() => toggle('Subgraphs')}
+                title={expanded.has('Subgraphs') ? 'Collapse Subgraphs' : 'Expand Subgraphs'}
+              >
+                <Icon name={expanded.has('Subgraphs') ? 'chevronDown' : 'chevronRight'} size={12} />
+                <span>Subgraphs</span>
+                <span className="node-category-count">{filteredBlueprints.length}</span>
+              </button>
+              {expanded.has('Subgraphs') && (
+                <div className="node-result-list">
+                  {filteredBlueprints.map(bp => (
+                    <div
+                      key={bp.id}
+                      className="node-search-result node-library-result"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 8 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onAddBlueprint(bp)}
+                        style={{
+                          flex: 1, background: 'transparent', border: 'none', color: 'inherit',
+                          cursor: 'pointer', textAlign: 'left', padding: 0,
+                        }}
+                        title={`Add ${bp.name}`}
+                      >
+                        <span className="node-search-result-main">
+                          <span className="node-search-result-title">{bp.name}</span>
+                          <span className="node-search-result-desc">
+                            {bp.workflow.nodes?.length ?? 0} nodes · {bp.inputPorts.length} in / {bp.outputPorts.length} out
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteBlueprint(bp.id)}
+                        title="Delete blueprint"
+                        style={{
+                          background: 'transparent', border: 'none', color: 'var(--muted)',
+                          cursor: 'pointer', padding: '0 4px', fontSize: 14,
+                        }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
           {groups.map(group => {
             const expandedGroup = group.recent || hasQuery || expanded.has(group.label);
