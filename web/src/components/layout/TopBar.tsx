@@ -15,6 +15,8 @@ interface TopBarProps {
   isRunning: boolean;
   queueCount: number;
   batchCount: number;
+  queueMode?: 'manual' | 'change' | 'instant';
+  onQueueModeChange?: (mode: 'manual' | 'change' | 'instant') => void;
   onToggleQueue: () => void;
   onBatchCountChange: (count: number) => void;
   collabControls?: ReactNode;
@@ -35,7 +37,9 @@ function BrandMark() {
 
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport, onImport,
-  onAI, onBatchSheet, hpcStatus, isRunning, queueCount, batchCount, onToggleQueue, onBatchCountChange, collabControls, autoSaveLabel,
+  onAI, onBatchSheet, hpcStatus, isRunning, queueCount, batchCount,
+  queueMode = 'manual', onQueueModeChange,
+  onToggleQueue, onBatchCountChange, collabControls, autoSaveLabel,
 }: TopBarProps) {
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
@@ -125,6 +129,25 @@ export default function TopBar({
         <button className="btn btn-primary btn-sm" onClick={onRun} disabled={isRunning}>
           {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
         </button>
+        {onQueueModeChange && (
+          <select
+            value={queueMode}
+            onChange={event => onQueueModeChange(event.target.value as 'manual' | 'change' | 'instant')}
+            title="Auto-queue mode"
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: queueMode === 'manual' ? 'var(--surface-2)' : 'color-mix(in srgb, var(--accent) 18%, var(--surface-2))',
+              color: 'var(--text)',
+            }}
+          >
+            <option value="manual">Manual</option>
+            <option value="change">On change</option>
+            <option value="instant">Instant</option>
+          </select>
+        )}
         <button className="btn btn-sm" onClick={onExport} title="Export workflow">
           <Icon name="export" size={14} />
         </button>

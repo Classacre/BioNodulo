@@ -54,16 +54,46 @@ export function defaultsFor(meta: NodeMetadata): Record<string, unknown> {
 }
 
 export function edgeColorForSource(type: string): string {
-  const colors: Record<string, string> = {
-    FASTQ: '#f59e0b', FASTQ_LIST: '#f59e0b', FASTA: '#8b5cf6',
-    BAM: '#3b82f6', SAM: '#60a5fa', VCF: '#ef4444', GFF: '#10b981',
-    DIRECTORY: '#64748b', FILE: '#94a3b8', STRING: '#334155',
-    QC_REPORT_DIR: '#ec4899', MULTIQC_REPORT: '#ec4899', HTML_REPORT: '#f97316',
-    INDEX_DIR: '#06b6d4', SAMPLE_SHEET: '#a855f7', ASSEMBLY: '#22c55e',
-    PHYLOGENY_TREE: '#14b8a6', INT: '#6366f1', BOOLEAN: '#eab308',
-    FLOAT: '#f43f5e',
-  };
-  return colors[type] || '#94a3b8';
+  if (!type) return '#94a3b8';
+  const upper = String(type).toUpperCase();
+  if (upper in EDGE_TYPE_COLORS) return EDGE_TYPE_COLORS[upper];
+  // Stable deterministic fallback so unknown types always get a consistent
+  // hue across renders (and across users sharing a workflow).
+  return EDGE_FALLBACK_PALETTE[hashString(upper) % EDGE_FALLBACK_PALETTE.length];
+}
+
+// Stable colors for known bioinformatics data types. Sequencing reads lean
+// warm; alignment formats lean blue; variants lean red; quantification lean
+// purple; numeric scalars get desaturated jewel tones.
+const EDGE_TYPE_COLORS: Record<string, string> = {
+  FASTQ: '#f59e0b', FASTQ_LIST: '#f59e0b', FASTQ_PAIRED: '#f59e0b',
+  FASTA: '#8b5cf6', FASTA_LIST: '#8b5cf6', BIOSEQ: '#8b5cf6', BIOSEQ_LIST: '#8b5cf6',
+  BAM: '#3b82f6', BAM_INDEXED: '#2563eb', SAM: '#60a5fa', CRAM: '#1d4ed8',
+  VCF: '#ef4444', VCF_INDEXED: '#dc2626', BCF: '#f43f5e',
+  GFF: '#10b981', GTF: '#10b981', BED: '#22c55e', BEDGRAPH: '#84cc16', BIGWIG: '#65a30d',
+  ASSEMBLY: '#22c55e', ASSEMBLY_DIR: '#16a34a',
+  PHYLOGENY_TREE: '#14b8a6', NEWICK: '#14b8a6', MSA: '#0d9488',
+  INDEX_DIR: '#06b6d4', KRAKEN2_DB: '#0891b2',
+  BWA_INDEX: '#06b6d4', HISAT2_INDEX: '#06b6d4', BOWTIE2_INDEX: '#06b6d4',
+  KALLISTO_INDEX: '#06b6d4', SALMON_INDEX: '#06b6d4',
+  QC_REPORT_DIR: '#ec4899', MULTIQC_REPORT: '#ec4899',
+  HTML_REPORT: '#f97316', PDF: '#f97316', PNG: '#fb7185', IMAGE: '#fb7185',
+  CSV: '#a855f7', TSV: '#a855f7', COUNT_MATRIX: '#a855f7', SAMPLE_SHEET: '#a855f7',
+  DIRECTORY: '#64748b', OUTPUT_DIR: '#475569', FILE: '#94a3b8',
+  STRING: '#334155', INT: '#6366f1', FLOAT: '#f43f5e', BOOLEAN: '#eab308',
+};
+
+const EDGE_FALLBACK_PALETTE = [
+  '#94a3b8', '#a78bfa', '#fb923c', '#34d399', '#fbbf24',
+  '#f472b6', '#60a5fa', '#a3e635', '#22d3ee', '#fda4af',
+];
+
+function hashString(value: string): number {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
 }
 
 export function workflowFromCanvas(nodes: unknown[], edges: unknown[], groups: unknown[]): Workflow {

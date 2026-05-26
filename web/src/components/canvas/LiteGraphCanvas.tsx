@@ -452,6 +452,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [selectBox, setSelectBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string | null } | null>(null);
   const [palettePos, setPalettePos] = useState<{ x: number; y: number } | null>(null);
+  const [pendingLinkPickup, setPendingLinkPickup] = useState<{ fromNodeId: string; fromOutputName: string; fromOutputType: string } | null>(null);
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
@@ -1095,6 +1096,23 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         ctx.stroke();
       }
 
+      // Inline progress bar for running nodes. We don't have per-node duration
+      // estimates from the backend yet, so we render an indeterminate sweep —
+      // a 30%-wide highlight bouncing back and forth on a 1.4s loop. The bar
+      // sits just under the header so it doesn't fight with widgets.
+      if (node.status === 'running' && !isVisualOnly && !isReroute && !isNote) {
+        const barY = node.y + NODE_HEADER_H - 2;
+        const barH = 2.5;
+        const t = (performance.now() / 1400) % 1;
+        const phase = t < 0.5 ? t * 2 : 2 - t * 2; // 0->1->0 ping-pong
+        const knobW = nw * 0.3;
+        const knobX = node.x + (nw - knobW) * phase;
+        ctx.fillStyle = isDark ? 'rgba(34,197,94,0.18)' : 'rgba(34,197,94,0.22)';
+        ctx.fillRect(node.x, barY, nw, barH);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(knobX, barY, knobW, barH);
+      }
+
       // Resize handle (bottom-right corner)
       if (!isReroute) {
         ctx.fillStyle = isDark ? '#475569' : '#cbd5e1';
@@ -1381,7 +1399,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     height: node.height * scale,
   }), [offset.x, offset.y, scale]);
 
-  const addNode = useCallback((meta: NodeMetadata, cx: number, cy: number) => {
+  const addNode = useCallback((meta: NodeMetadata, cx: number, cy: number): WorkflowNode => {
     const world = toWorld(cx, cy);
     const x = snapToGrid ? Math.round(world.x / 20) * 20 : world.x;
     const y = snapToGrid ? Math.round(world.y / 20) * 20 : world.y;
@@ -1396,6 +1414,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     };
     onNodesChange([...nodes, newNode]);
     onPushHistory();
+    return newNode;
   }, [nodes, onNodesChange, onPushHistory, toWorld, snapToGrid]);
 
   // Mouse handlers
@@ -1928,6 +1947,18 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       }
       setLinkDrag(null);
       setHoveredSlot(null);
+      if (!created) {
+        // Dropped on empty canvas — open the node palette filtered to nodes
+        // that have a compatible input slot, and remember the link source so
+        // we can auto-connect when the user picks one.
+        const screen = fromWorld(mouseWorldRef.current.x, mouseWorldRef.current.y);
+        setPendingLinkPickup({
+          fromNodeId: ld.fromNodeId,
+          fromOutputName: ld.fromOutputName,
+          fromOutputType: ld.fromOutputType,
+        });
+        setPalettePos({ x: screen.x, y: screen.y });
+      }
       return;
     }
 
@@ -2692,12 +2723,44 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         />
       )}
 
-      {/* Node Palette (right-click canvas) */}
+      {/* Node Palette (right-click canvas or link-drop on empty space) */}
       {palettePos && (
         <NodePalette
           objectInfo={objectInfo}
-          onSelect={(meta) => { addNode(meta, palettePos.x, palettePos.y); setPalettePos(null); }}
-          onClose={() => setPalettePos(null)}
+          requireInputType={pendingLinkPickup?.fromOutputType}
+          onSelect={(meta) => {
+            const created = addNode(meta, palettePos.x, palettePos.y);
+            if (pendingLinkPickup && created) {
+              const inputs = {
+                ...(meta.input_types?.required || {}),
+                ...(meta.input_types?.optional || {}),
+              };
+              // Prefer a slot whose type exactly matches the dragged link's
+              // output type. Fall back to '*' / 'ANY', then the first input.
+              const entries = Object.entries(inputs);
+              const match = entries.find(([, spec]) => (
+                (spec as { type?: string }).type === pendingLinkPickup.fromOutputType
+              ))
+                ?? entries.find(([, spec]) => {
+                  const t = (spec as { type?: string }).type;
+                  return t === '*' || t === 'ANY';
+                })
+                ?? entries[0];
+              if (match) {
+                const [inputName] = match;
+                const newEdge: WorkflowEdge = {
+                  id: `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                  from: { node: pendingLinkPickup.fromNodeId, output: pendingLinkPickup.fromOutputName },
+                  to: { node: created.id, input: inputName },
+                };
+                onEdgesChangeRef.current([...edgesRef.current, newEdge]);
+                onPushHistoryRef.current();
+              }
+            }
+            setPendingLinkPickup(null);
+            setPalettePos(null);
+          }}
+          onClose={() => { setPendingLinkPickup(null); setPalettePos(null); }}
           style={{ position: 'absolute', left: palettePos.x + 10, top: palettePos.y, zIndex: 150 }}
         />
       )}

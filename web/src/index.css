@@ -106,6 +106,52 @@ body {
   overflow: hidden;
 }
 
+/* Focus mode: hide all chrome and let the canvas occupy the entire viewport.
+   Toggle with Ctrl+. or via the floating exit pill in the bottom-right. */
+.app-shell.focus-mode {
+  grid-template-rows: 0 0 1fr;
+  grid-template-columns: 0 1fr;
+}
+.app-shell.focus-mode > .topbar,
+.app-shell.focus-mode > .workflow-tabs,
+.app-shell.focus-mode > .left-rail {
+  display: none;
+}
+.app-shell.focus-mode .rail-panel-wrap,
+.app-shell.focus-mode .bottom-console {
+  display: none !important;
+}
+.focus-mode-exit {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.focus-mode-exit:hover {
+  border-color: var(--accent);
+}
+.focus-mode-exit kbd {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(148,163,184,0.18);
+  border: 1px solid rgba(148,163,184,0.35);
+}
+
 /* Top Bar */
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand .mark {

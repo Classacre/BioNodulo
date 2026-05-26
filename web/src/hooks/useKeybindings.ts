@@ -10,6 +10,7 @@ import {
   subscribeKeybindings,
   type KeybindingRecord,
 } from '../state/keybindings';
+import { hasOpenOverlay } from '../state/overlays';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -63,6 +64,10 @@ export interface GlobalShortcutOptions {
   enabled?: boolean;
   allowInInputs?: boolean;
   preventDefault?: boolean;
+  // When true (default), the handler is suppressed while any modal/dropdown
+  // overlay is open. Set to false for shortcuts that must always fire — e.g.
+  // a global "close any overlay" Escape.
+  respectOverlays?: boolean;
 }
 
 export function useGlobalShortcut(
@@ -76,6 +81,7 @@ export function useGlobalShortcut(
   const enabled = options.enabled ?? true;
   const allowInInputs = options.allowInInputs ?? false;
   const preventDefault = options.preventDefault ?? true;
+  const respectOverlays = options.respectOverlays ?? true;
 
   useEffect(() => {
     handlerRef.current = handler;
@@ -87,11 +93,14 @@ export function useGlobalShortcut(
     const onKeyDown = (event: KeyboardEvent) => {
       if (!allowInInputs && isEditableTarget(event.target)) return;
       if (!keybindingMatchesEvent(binding.binding, event)) return;
+      // If any modal/dropdown is open, defer to its own Escape/Enter handler
+      // instead of triggering a global shortcut beneath it.
+      if (respectOverlays && hasOpenOverlay()) return;
       if (preventDefault) event.preventDefault();
       handlerRef.current(event, binding);
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [allowInInputs, binding, enabled, preventDefault]);
+  }, [allowInInputs, binding, enabled, preventDefault, respectOverlays]);
 }

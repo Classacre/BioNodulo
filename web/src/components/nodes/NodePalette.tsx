@@ -10,6 +10,28 @@ interface NodePaletteProps {
   onSelect: (meta: NodeMetadata) => void;
   onClose: () => void;
   style?: CSSProperties;
+  // When set, only show nodes that have at least one matching slot. Used by
+  // the canvas when the user drops a link on empty space so the next pick is
+  // automatically a valid drop target.
+  requireInputType?: string;
+  requireOutputType?: string;
+}
+
+function nodeHasInputType(meta: NodeMetadata, type: string): boolean {
+  const inputs = meta.input_types || {};
+  for (const section of ['required', 'optional'] as const) {
+    const specs = inputs[section] || {};
+    for (const spec of Object.values(specs)) {
+      const specType = (spec as { type?: string }).type;
+      if (specType === type || specType === '*' || specType === 'ANY') return true;
+    }
+  }
+  return false;
+}
+
+function nodeHasOutputType(meta: NodeMetadata, type: string): boolean {
+  const outputs = meta.return_types || [];
+  return outputs.some(t => t === type || t === '*' || t === 'ANY');
 }
 
 interface NodePaletteGroup {
@@ -76,12 +98,22 @@ function NodePaletteResult({
   );
 }
 
-export default function NodePalette({ objectInfo, onSelect, onClose, style }: NodePaletteProps) {
+export default function NodePalette({ objectInfo, onSelect, onClose, style, requireInputType, requireOutputType }: NodePaletteProps) {
+  const filteredObjectInfo = useMemo(() => {
+    if (!requireInputType && !requireOutputType) return objectInfo;
+    const out: ObjectInfo = {};
+    for (const [id, meta] of Object.entries(objectInfo)) {
+      if (requireInputType && !nodeHasInputType(meta, requireInputType)) continue;
+      if (requireOutputType && !nodeHasOutputType(meta, requireOutputType)) continue;
+      out[id] = meta;
+    }
+    return out;
+  }, [objectInfo, requireInputType, requireOutputType]);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control']));
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
-  const searchResults = useNodeSearch(objectInfo, query);
-  const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(objectInfo);
+  const searchResults = useNodeSearch(filteredObjectInfo, query);
+  const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(filteredObjectInfo);
   const searchedNodes = useMemo(() => searchResults.map(result => result.meta), [searchResults]);
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
@@ -155,7 +187,7 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style }: No
   return (
     <div className="context-menu node-palette-menu" style={{ ...style, width: 320, maxHeight: 520 }}>
       <div className="context-menu-header">
-        <span>Add Node</span>
+        <span>{requireInputType ? `Add node with ${requireInputType} input` : requireOutputType ? `Add node with ${requireOutputType} output` : 'Add Node'}</span>
         <button className="btn btn-icon btn-sm" onClick={onClose} title="Close node palette"><Icon name="close" size={14} /></button>
       </div>
       <div className="node-palette-body">
@@ -177,7 +209,11 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style }: No
           </span>
         </div>
         <div className="node-search-summary">
-          <span>{hasQuery ? `${searchResults.length} fuzzy matches` : `${Object.values(objectInfo).length} nodes`}</span>
+          <span>
+            {hasQuery
+              ? `${searchResults.length} fuzzy matches`
+              : `${Object.values(filteredObjectInfo).length} nodes${(requireInputType || requireOutputType) ? ' (filtered)' : ''}`}
+          </span>
           {!hasQuery && recentNodes.length > 0 && (
             <button className="node-search-clear" type="button" onClick={clearRecentNodes} title="Clear recent nodes">
               Clear recent

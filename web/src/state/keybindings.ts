@@ -26,6 +26,7 @@ const listeners = new Set<() => void>();
 export const DEFAULT_KEYBINDINGS: KeybindingDefinition[] = [
   { id: 'commandPalette.open', category: 'global', label: 'Open command palette', defaultBinding: 'Ctrl+K' },
   { id: 'shortcuts.open', category: 'global', label: 'Open keyboard shortcuts', defaultBinding: 'Ctrl+Shift+/' },
+  { id: 'view.focusMode', category: 'global', label: 'Toggle focus mode (hide chrome)', defaultBinding: 'Ctrl+.' },
   { id: 'nodes.search', category: 'panels', label: 'Open node search', defaultBinding: 'Ctrl+F' },
   { id: 'workflow.run', category: 'workflow', label: 'Run workflow', defaultBinding: 'Ctrl+R' },
   { id: 'workflow.export', category: 'workflow', label: 'Export workflow', defaultBinding: 'Ctrl+E' },

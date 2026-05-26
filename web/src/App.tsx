@@ -44,6 +44,8 @@ import { useRegisteredCommands } from './hooks/useCommandPalette';
 import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { usePanelRegistry } from './state/panels';
+import { rememberRecentWorkflow } from './state/recentWorkflows';
+import { installDomOverlayBridge } from './state/overlays';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge, ShareDialog,
@@ -221,6 +223,8 @@ export default function App() {
   const [authReady, setAuthReady] = useAtom(authReadyAtom);
   const [showAuthDialog, setShowAuthDialog] = useAtom(showAuthDialogAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
+
+  useEffect(() => installDomOverlayBridge(), []);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -745,6 +749,30 @@ export default function App() {
   }, []);
   const [isRunning, setIsRunning] = useState(false);
   const [batchCount, setBatchCount] = useState(1);
+  const [focusMode, setFocusMode] = useState<boolean>(() => {
+    try { return localStorage.getItem('bionodulo.focusMode') === '1'; } catch { return false; }
+  });
+  const toggleFocusMode = useCallback(() => {
+    setFocusMode(prev => {
+      const next = !prev;
+      try { localStorage.setItem('bionodulo.focusMode', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+  type QueueMode = 'manual' | 'change' | 'instant';
+  const [queueMode, setQueueModeState] = useState<QueueMode>(() => {
+    try {
+      const stored = localStorage.getItem('bionodulo.queueMode');
+      if (stored === 'change' || stored === 'instant' || stored === 'manual') return stored;
+    } catch { /* ignore */ }
+    return 'manual';
+  });
+  const setQueueMode = useCallback((mode: QueueMode) => {
+    setQueueModeState(mode);
+    try { localStorage.setItem('bionodulo.queueMode', mode); } catch { /* ignore */ }
+  }, []);
+  const queueModeRef = useRef<QueueMode>(queueMode);
+  useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
   const [dirty, setDirty] = useState(false);
   const [lastAutoSaveAt, setLastAutoSaveAt] = useState<string | null>(() => {
@@ -1403,6 +1431,14 @@ export default function App() {
     } else {
       addWorkflow(withWorkflowId(wf));
     }
+    rememberRecentWorkflow({
+      id: wf.id || activeWorkflowId,
+      name: wf.name || template.name || 'Untitled',
+      source: 'template',
+      filename: template.filename,
+      thumbnailUrl: (template as { thumbnail_url?: string }).thumbnail_url,
+      nodeCount: wf.nodes?.length ?? 0,
+    });
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
@@ -1421,6 +1457,12 @@ export default function App() {
     } else {
       addWorkflow(withWorkflowId(wf));
     }
+    rememberRecentWorkflow({
+      id: wf.id || activeWorkflowId,
+      name: wf.name || 'Imported workflow',
+      source: 'import',
+      nodeCount: wf.nodes?.length ?? 0,
+    });
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
@@ -1590,6 +1632,149 @@ export default function App() {
         shortcut: getBinding('shortcuts.open') ?? undefined,
         onSelect: () => setShowShortcuts(true),
       },
+      // --- View / canvas ----------------------------------------------------
+      {
+        id: 'view.focusMode',
+        label: focusMode ? 'Exit focus mode' : 'Enter focus mode',
+        description: 'Hide chrome and maximize the canvas',
+        group: 'View',
+        shortcut: getBinding('view.focusMode') ?? undefined,
+        onSelect: toggleFocusMode,
+      },
+      {
+        id: 'view.fitAll',
+        label: 'Fit all nodes',
+        description: 'Frame every node in the current workflow',
+        group: 'View',
+        onSelect: () => canvasRef.current?.fitView(),
+      },
+      {
+        id: 'view.fitSelection',
+        label: 'Fit selection',
+        description: 'Frame only selected nodes',
+        group: 'View',
+        onSelect: () => {
+          const ids = canvasRef.current?.getSelectedNodeIds() ?? [];
+          if (ids.length === 0) {
+            toast.info('Select a node first');
+            return;
+          }
+          canvasRef.current?.focusNode(ids[0]);
+        },
+      },
+      {
+        id: 'view.toggleMinimap',
+        label: 'Toggle minimap',
+        group: 'View',
+        onSelect: () => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap')),
+      },
+      {
+        id: 'view.toggleLinks',
+        label: 'Toggle link visibility',
+        group: 'View',
+        onSelect: () => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden')),
+      },
+      {
+        id: 'view.toggleSnapGrid',
+        label: 'Toggle snap-to-grid',
+        group: 'View',
+        onSelect: () => set('bionodulo.snapToGrid', !getBool('bionodulo.snapToGrid')),
+      },
+      {
+        id: 'view.toggleLockViewport',
+        label: 'Toggle viewport lock',
+        group: 'View',
+        onSelect: () => set('bionodulo.viewportLocked', !getBool('bionodulo.viewportLocked')),
+      },
+      // --- History ----------------------------------------------------------
+      {
+        id: 'edit.undo',
+        label: 'Undo',
+        group: 'Edit',
+        shortcut: 'Ctrl+Z',
+        onSelect: undo,
+      },
+      {
+        id: 'edit.redo',
+        label: 'Redo',
+        group: 'Edit',
+        shortcut: 'Ctrl+Shift+Z',
+        onSelect: redo,
+      },
+      // --- Workflow tabs ----------------------------------------------------
+      {
+        id: 'workflow.new',
+        label: 'New workflow tab',
+        group: 'Workflow',
+        onSelect: addTab,
+      },
+      {
+        id: 'workflow.closeTab',
+        label: 'Close current workflow tab',
+        group: 'Workflow',
+        onSelect: () => closeTab(activeIndex),
+      },
+      {
+        id: 'workflow.duplicateTab',
+        label: 'Duplicate current workflow tab',
+        group: 'Workflow',
+        onSelect: () => handleDuplicateTab(activeIndex),
+      },
+      {
+        id: 'workflow.batchSheet',
+        label: 'Batch from sample sheet...',
+        description: 'Queue one run per CSV/TSV row',
+        group: 'Workflow',
+        onSelect: () => setShowBatchSheet(true),
+      },
+      // --- Cache / runtime --------------------------------------------------
+      {
+        id: 'cache.toggle',
+        label: 'Toggle execution cache',
+        group: 'Workflow',
+        onSelect: () => set('bionodulo.cacheEnabled', !getBool('bionodulo.cacheEnabled')),
+      },
+      {
+        id: 'cache.clear',
+        label: 'Clear execution cache',
+        group: 'Workflow',
+        onSelect: async () => {
+          try {
+            const response = await fetch('/api/cache/clear', { method: 'POST' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries` });
+          } catch (err) {
+            toast.error('Could not clear cache', { message: err instanceof Error ? err.message : String(err) });
+          }
+        },
+      },
+      {
+        id: 'queue.clear',
+        label: 'Clear pending queue',
+        group: 'Workflow',
+        onSelect: () => void handleClearQueue(),
+      },
+      // --- Logs / console ---------------------------------------------------
+      {
+        id: 'logs.clear',
+        label: 'Clear console logs',
+        group: 'Tools',
+        onSelect: clearLogs,
+      },
+      // --- Help / onboarding ------------------------------------------------
+      {
+        id: 'help.gettingStarted',
+        label: 'Open Getting Started',
+        group: 'Tools',
+        onSelect: () => setShowGettingStarted(true),
+      },
+      {
+        id: 'help.shortcuts',
+        label: 'Open keyboard shortcuts (alias)',
+        group: 'Tools',
+        onSelect: () => setShowShortcuts(true),
+      },
     ];
 
     const paletteCommands = palettes.map(palette => ({
@@ -1602,20 +1787,34 @@ export default function App() {
 
     return [...baseCommands, ...paletteCommands];
   }, [
+    activeIndex,
     activeWorkflow.name,
+    addTab,
+    clearLogs,
+    closeTab,
+    focusMode,
+    get,
     getBinding,
+    getBool,
+    handleClearQueue,
+    handleDuplicateTab,
     handleRun,
     handleToggleQueue,
     palettes,
+    redo,
+    set,
     setPalette,
     setRailTab,
+    toggleFocusMode,
     togglePanel,
+    undo,
   ]);
 
   useRegisteredCommands('app', appCommands);
 
   useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
   useGlobalShortcut('shortcuts.open', () => setShowShortcuts(true));
+  useGlobalShortcut('view.focusMode', toggleFocusMode);
   useGlobalShortcut('nodes.search', () => setRailTab('nodes'));
   useGlobalShortcut('workflow.run', () => { void handleRun(); });
   useGlobalShortcut('workflow.export', () => setShowExport(true));
@@ -1666,6 +1865,34 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [workflowResolveKey, validate, resolve, clearResolveReport]);
+
+  // Auto-queue: 'change' mode debounces a run when the workflow becomes dirty;
+  // 'instant' mode re-runs as soon as the most recent run finishes successfully.
+  const handleRunRef = useRef(handleRun);
+  useEffect(() => { handleRunRef.current = handleRun; }, [handleRun]);
+
+  useEffect(() => {
+    if (queueMode !== 'change') return;
+    if (!dirty || isRunning) return;
+    if (activeWorkflow.nodes.length === 0) return;
+    const timer = setTimeout(() => { void handleRunRef.current(); }, 1500);
+    return () => clearTimeout(timer);
+  }, [queueMode, dirty, isRunning, activeWorkflow.nodes.length]);
+
+  const lastInstantRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (queueMode !== 'instant') return;
+    if (isRunning) return;
+    const latest = runs[0];
+    if (!latest) return;
+    if (latest.status !== 'completed') return;
+    if (lastInstantRunRef.current === latest.run_id) return;
+    lastInstantRunRef.current = latest.run_id;
+    // Tiny delay so the UI can settle and the user can still cancel
+    // the auto-queue by switching mode before the next run fires.
+    const timer = setTimeout(() => { void handleRunRef.current(); }, 250);
+    return () => clearTimeout(timer);
+  }, [queueMode, isRunning, runs]);
 
   useEffect(() => {
     if (autoSaveSetting === 'off') return;
@@ -1769,7 +1996,8 @@ export default function App() {
     showAI ? 'ai-open' : '',
     showComments ? 'comments-open' : '',
     (consoleVisible || railTab === 'console') ? 'console-open' : '',
-  ].filter(Boolean).join(' ')), [consoleVisible, railTab, showAI, showComments]);
+    focusMode ? 'focus-mode' : '',
+  ].filter(Boolean).join(' ')), [consoleVisible, focusMode, railTab, showAI, showComments]);
   const autoSaveLabel = useMemo(() => {
     if (autoSaveSetting === 'off') return dirty ? 'Unsaved changes' : '';
     if (dirty) return 'Autosave pending';
@@ -1866,6 +2094,8 @@ export default function App() {
         onBatchSheet={() => setShowBatchSheet(true)}
         hpcStatus={hpcStatus}
         isRunning={isRunning}
+        queueMode={queueMode}
+        onQueueModeChange={setQueueMode}
         queueCount={queueCount}
         batchCount={batchCount}
         onToggleQueue={handleToggleQueue}
@@ -2037,6 +2267,16 @@ export default function App() {
         })}
 
         <HardwareMonitor />
+        {focusMode && (
+          <button
+            type="button"
+            className="focus-mode-exit"
+            onClick={toggleFocusMode}
+            title="Exit focus mode"
+          >
+            Exit focus mode <kbd>{getBinding('view.focusMode') ?? 'Ctrl+.'}</kbd>
+          </button>
+        )}
         {(consoleVisible || railTab === 'console') && (
           <ErrorBoundary>
             <BottomConsole
@@ -2142,6 +2382,20 @@ export default function App() {
             }
           }}
           showOnStartup={getBool('bionodulo.getting_started.show_on_startup')}
+          onOpenRecent={async (entry) => {
+            if (entry.source === 'template' && entry.filename) {
+              const template = {
+                id: entry.id,
+                name: entry.name,
+                filename: entry.filename,
+                description: '',
+                node_count: entry.nodeCount ?? 0,
+              } as TemplateInfo;
+              await handleLoadTemplate(template);
+            } else if (collabEnabled) {
+              setRequestedWorkflowId(entry.id);
+            }
+          }}
         />
       )}
       <ImageLightbox

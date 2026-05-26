@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, type RecentWorkflow } from '../../state/recentWorkflows';
 
 interface GettingStartedModalProps {
   onClose: () => void;
@@ -6,6 +7,7 @@ interface GettingStartedModalProps {
   collabEnabled: boolean;
   onSetCollabEnabled: (enabled: boolean) => void;
   showOnStartup: boolean;
+  onOpenRecent?: (entry: RecentWorkflow) => void;
 }
 
 type TabId = 'welcome' | 'data' | 'news' | 'resources';
@@ -80,8 +82,14 @@ export default function GettingStartedModal({
   collabEnabled,
   onSetCollabEnabled,
   showOnStartup,
+  onOpenRecent,
 }: GettingStartedModalProps) {
   const [tab, setTab] = useState<TabId>('welcome');
+  const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
+  useEffect(() => {
+    const unsubscribe = subscribeRecentWorkflows(() => setRecents(getRecentWorkflows()));
+    return unsubscribe;
+  }, []);
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -175,6 +183,77 @@ export default function GettingStartedModal({
                 Welcome to <strong>BioNodulo</strong> — a visual workflow builder for bioinformatics.
                 Build, run, and share reproducible pipelines using a node-based canvas.
               </p>
+
+              {recents.length > 0 && onOpenRecent && (
+                <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Recent workflows</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {recents.slice(0, 5).map(entry => (
+                      <div
+                        key={entry.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 8px',
+                          borderRadius: 6,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => { onOpenRecent(entry); onClose(); }}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            padding: 0,
+                          }}
+                          title={`Open ${entry.name}`}
+                        >
+                          {entry.thumbnailUrl ? (
+                            <img
+                              src={entry.thumbnailUrl}
+                              alt=""
+                              style={{ width: 42, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)' }}
+                            />
+                          ) : (
+                            <div style={{ width: 42, height: 28, borderRadius: 4, background: 'var(--surface-2)', border: '1px solid var(--border)' }} />
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.name}</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                              {entry.source} · {entry.nodeCount ?? 0} nodes · {timeAgo(entry.openedAt)}
+                            </span>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => forgetRecentWorkflow(entry.id)}
+                          title="Forget this entry"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            padding: '0 4px',
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Quick Start</div>
@@ -371,4 +450,17 @@ export default function GettingStartedModal({
       </div>
     </div>
   );
+}
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
