@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
+import { useSettings } from '../../hooks/useSettings';
 import Icon from '../ui/Icon';
 import { promptDialog, toast } from '../ui';
 import { saveBlueprint } from '../../state/subgraphLibrary';
@@ -447,6 +448,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
 
+  // Render quality preferences (auto/high/low + shadow + smoothing toggles).
+  // Read on every render so settings changes propagate immediately. The
+  // values are forwarded into the draw loop via a ref to avoid invalidating
+  // the memoised `draw` callback on every settings change.
+  const { get, getBool } = useSettings();
+  const qualityModeSetting = String(get('bionodulo.canvas.quality') || 'auto') as 'auto' | 'high' | 'low';
+  const shadowsEnabled = getBool('bionodulo.canvas.shadows', true);
+  const smoothLinksEnabled = getBool('bionodulo.canvas.smoothLinks', true);
+  const qualityPrefsRef = useRef({ qualityModeSetting, shadowsEnabled, smoothLinksEnabled });
+  qualityPrefsRef.current = { qualityModeSetting, shadowsEnabled, smoothLinksEnabled };
+
   useEffect(() => {
     onViewportChange?.(offset, scale);
   }, [offset, scale, onViewportChange]);
@@ -502,6 +514,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const dragMovedRef = useRef(false);
   const dragCommitNeededRef = useRef(false);
   const dragOwnershipStartedRef = useRef(false);
+  // Snapshot of each dragged node's original rect so we can render faint
+  // "ghost" outlines at the origin during a node drag.
+  const dragGhostsRef = useRef<Array<{ id: string; x: number; y: number; w: number; h: number; radius: number; isReroute: boolean }>>([]);
   // Refs for high-frequency values to avoid recreating draw callback
   const linkDragRef = useRef(linkDrag);
   const mouseWorldRef = useRef(mouseWorld);
@@ -673,10 +688,42 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const currentLinkDrag = linkDragRef.current;
     const currentMouseWorld = mouseWorldRef.current;
     const currentHoveredSlot = hoveredSlotRef.current;
-    const lowQuality = isDraggingRef.current || panning || groupDragging || groupResizing || resizingNode || Boolean(activeWidgetRef.current);
+    const qualityPrefs = qualityPrefsRef.current;
+    const interacting = isDraggingRef.current || panning || groupDragging || groupResizing || resizingNode || Boolean(activeWidgetRef.current);
+    // `auto` honours the interaction heuristic; `high` always renders rich;
+    // `low` always renders cheap (best for huge graphs on weak hardware).
+    const lowQuality =
+      qualityPrefs.qualityModeSetting === 'low'
+        ? true
+        : qualityPrefs.qualityModeSetting === 'high'
+        ? false
+        : interacting;
+    const allowShadows = qualityPrefs.shadowsEnabled && !lowQuality;
+    ctx.imageSmoothingEnabled = qualityPrefs.smoothLinksEnabled && !lowQuality;
+    ctx.imageSmoothingQuality = lowQuality ? 'low' : 'high';
+
+    // Resolve palette tokens once per frame so the canvas follows the active
+    // theme (`bionodulo`, `clinical`, `field`, `contrast`, custom) instead of
+    // hard-coding teal everywhere. Each token has a sensible fallback.
+    const rootStyle = getComputedStyle(document.documentElement);
+    const token = (name: string, fallback: string): string => {
+      const value = rootStyle.getPropertyValue(name).trim();
+      return value || fallback;
+    };
+    const palette = {
+      canvas: token('--canvas', isDark ? '#0f172a' : '#eef3f4'),
+      accent: token('--accent', '#2dd4bf'),
+      surface: token('--surface', isDark ? '#1e293b' : '#ffffff'),
+      surface2: token('--surface-2', isDark ? '#334155' : '#f3f6f7'),
+      border: token('--border', isDark ? '#334155' : '#cbd5e1'),
+      border2: token('--border-2', isDark ? '#475569' : '#cbd5e1'),
+      muted: token('--muted', isDark ? '#94a3b8' : '#64748b'),
+      text: token('--text', isDark ? '#cbd5e1' : '#475569'),
+    };
+    const gridStroke = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
 
     // Clear
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim() || (isDark ? '#0f172a' : '#eef3f4');
+    ctx.fillStyle = palette.canvas;
     ctx.fillRect(0, 0, w * dpr, h * dpr);
 
     // Apply world transform
@@ -700,7 +747,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const nodeById = new Map(graphNodesRef.current.map(node => [node.id, node]));
     const startX = Math.floor(minX / gridSize) * gridSize;
     const startY = Math.floor(minY / gridSize) * gridSize;
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+    ctx.strokeStyle = gridStroke;
     ctx.lineWidth = 1;
     for (let x = startX; x <= maxX; x += gridSize) {
       ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, maxY); ctx.stroke();
@@ -836,7 +883,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const ty = currentMouseWorld.y;
         const dist = Math.hypot(tx - fx, ty - fy);
         const cd = Math.max(30, dist * 0.25);
-        ctx.strokeStyle = '#2dd4bf';
+        ctx.strokeStyle = palette.accent;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
@@ -845,7 +892,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         ctx.stroke();
         ctx.setLineDash([]);
         // Target cursor dot
-        ctx.fillStyle = '#2dd4bf';
+        ctx.fillStyle = palette.accent;
         ctx.beginPath();
         ctx.arc(tx, ty, 4, 0, Math.PI * 2);
         ctx.fill();
@@ -877,6 +924,32 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       ctx.fill();
     }
 
+    // Ghost outlines: where the dragged nodes started. Drawn under the live
+    // nodes so users can compare the new position with the origin during a
+    // drag. Only renders when the drag has actually moved.
+    if (dragGhostsRef.current.length && dragMovedRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = palette.muted;
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.25;
+      for (const ghost of dragGhostsRef.current) {
+        if (ghost.isReroute) {
+          const r = 10;
+          const cx = ghost.x + ghost.w / 2;
+          const cy = ghost.y + ghost.h / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          roundRect(ctx, ghost.x, ghost.y, ghost.w, ghost.h, ghost.radius);
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     // Nodes
     for (const node of visibleNodes) {
       const isNote = node.type === 'note';
@@ -890,15 +963,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         const cx = node.x + nw / 2;
         const cy = node.y + nh / 2;
         const r = 10;
-        ctx.shadowColor = 'rgba(0,0,0,0.2)';
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = node.selected ? node.color : (isDark ? '#475569' : '#cbd5e1');
+        if (allowShadows) {
+          ctx.shadowColor = 'rgba(0,0,0,0.2)';
+          ctx.shadowBlur = 6;
+        }
+        ctx.fillStyle = node.selected ? node.color : palette.border2;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
-        ctx.strokeStyle = node.selected ? '#2dd4bf' : (isDark ? '#94a3b8' : '#64748b');
+        ctx.strokeStyle = node.selected ? palette.accent : palette.muted;
         ctx.lineWidth = node.selected ? 2.5 : 1.5;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -916,7 +991,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const isBox = node.shape === 'box';
 
       // Shadow
-      if (!lowQuality) {
+      if (allowShadows) {
         ctx.shadowColor = isCard ? 'rgba(0,0,0,0.22)' : (isBox ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.15)');
         ctx.shadowBlur = isCard ? 14 : (isBox ? 3 : 8);
         ctx.shadowOffsetY = isCard ? 4 : (isBox ? 1 : 3);
@@ -926,11 +1001,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (isNote) {
         ctx.fillStyle = isDark ? '#3f3820' : '#fef9c3';
       } else if (isCard) {
-        ctx.fillStyle = isDark ? '#0f172a' : '#fafafa';
+        ctx.fillStyle = palette.canvas;
       } else {
-        ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
+        ctx.fillStyle = palette.surface;
       }
-      if (node.selected) ctx.fillStyle = isDark ? '#334155' : '#f0fdfa';
+      if (node.selected) ctx.fillStyle = palette.surface2;
       if (node.muted) ctx.globalAlpha = 0.5;
       roundRect(ctx, node.x, node.y, nw, nh, radius);
       ctx.fill();
@@ -948,7 +1023,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       // Box shape: thin sharp border
       if (isBox && !isNote) {
-        ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+        ctx.strokeStyle = palette.border;
         ctx.lineWidth = 1;
         roundRect(ctx, node.x + 0.5, node.y + 0.5, nw - 1, nh - 1, radius);
         ctx.stroke();
@@ -1022,7 +1097,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         if (isNote) {
           // Note body text
           const text = String(node.params?.text || '');
-          ctx.fillStyle = isDark ? '#e2e8f0' : '#475569';
+          ctx.fillStyle = palette.text;
           ctx.font = '11px Inter, sans-serif';
           const maxCharsPerLine = Math.floor((nw - 20) / 6.5);
           const lines = text.split('\n').flatMap(line => {
@@ -1043,12 +1118,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             const py = node.y + NODE_HEADER_H + NODE_PIN_H / 2 + i * NODE_PIN_H;
             const isHovered = currentHoveredSlot?.nodeId === node.id && currentHoveredSlot?.type === 'input' && currentHoveredSlot?.index === i;
             const pinR = isHovered ? 6 : 5;
-            ctx.fillStyle = inp.connected ? edgeColorForSource(inp.type) : (isDark ? '#475569' : '#cbd5e1');
-            if (isHovered) ctx.fillStyle = '#2dd4bf';
+            ctx.fillStyle = inp.connected ? edgeColorForSource(inp.type) : palette.border2;
+            if (isHovered) ctx.fillStyle = palette.accent;
             ctx.beginPath();
             ctx.arc(node.x, py, pinR, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+            ctx.fillStyle = palette.text;
             ctx.font = '10px Inter, sans-serif';
             ctx.fillText(inp.name, node.x + 10, py + 3);
           });
@@ -1058,12 +1133,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             const py = node.y + NODE_HEADER_H + NODE_PIN_H / 2 + i * NODE_PIN_H;
             const isHovered = currentHoveredSlot?.nodeId === node.id && currentHoveredSlot?.type === 'output' && currentHoveredSlot?.index === i;
             const pinR = isHovered ? 6 : 5;
-            ctx.fillStyle = out.connected ? edgeColorForSource(out.type) : (isDark ? '#475569' : '#cbd5e1');
-            if (isHovered) ctx.fillStyle = '#2dd4bf';
+            ctx.fillStyle = out.connected ? edgeColorForSource(out.type) : palette.border2;
+            if (isHovered) ctx.fillStyle = palette.accent;
             ctx.beginPath();
             ctx.arc(node.x + nw, py, pinR, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+            ctx.fillStyle = palette.text;
             ctx.font = '10px Inter, sans-serif';
             const tw = ctx.measureText(out.name).width;
             ctx.fillText(out.name, node.x + nw - tw - 10, py + 3);
@@ -1217,12 +1292,14 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     if (selectBox) {
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.strokeStyle = '#0d9488';
+      ctx.strokeStyle = palette.accent;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.strokeRect(selectBox.x, selectBox.y, selectBox.w, selectBox.h);
-      ctx.fillStyle = 'rgba(13, 148, 136, 0.08)';
+      ctx.fillStyle = palette.accent;
+      ctx.globalAlpha = 0.08;
       ctx.fillRect(selectBox.x, selectBox.y, selectBox.w, selectBox.h);
+      ctx.globalAlpha = 1;
       ctx.setLineDash([]);
       ctx.restore();
     }
@@ -1646,17 +1723,32 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         setPalettePos(null);
         return;
       }
+      let willBeSelectedIds: Set<string>;
       if (e.shiftKey) {
         const next = graphNodes.map(n => n.id === clicked.id ? { ...n, selected: !n.selected } : n);
         setGraphNodes(next);
-        publishCollabSelection({ nodeIds: next.filter(n => n.selected).map(n => n.id), box: null });
+        willBeSelectedIds = new Set(next.filter(n => n.selected).map(n => n.id));
+        publishCollabSelection({ nodeIds: Array.from(willBeSelectedIds), box: null });
       } else {
         setGraphNodes(prev => prev.map(n => ({ ...n, selected: n.id === clicked.id })));
+        willBeSelectedIds = new Set([clicked.id]);
         publishCollabSelection({ nodeIds: [clicked.id], box: null });
       }
       dragMovedRef.current = false;
       dragCommitNeededRef.current = false;
       dragOwnershipStartedRef.current = false;
+      // Capture origin rects for ghost outlines during the drag.
+      dragGhostsRef.current = graphNodesRef.current
+        .filter(n => willBeSelectedIds.has(n.id) && !n.pinned)
+        .map(n => ({
+          id: n.id,
+          x: n.x,
+          y: n.y,
+          w: n.width,
+          h: n.height,
+          radius: nodeRadius(n),
+          isReroute: n.type === 'reroute',
+        }));
       setDragging(clicked.id);
       isDraggingRef.current = true;
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -2114,6 +2206,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     dragMovedRef.current = false;
     dragCommitNeededRef.current = false;
     dragOwnershipStartedRef.current = false;
+    dragGhostsRef.current = [];
     setDragging(null);
     setPanning(false);
     setSelectBox(null);
@@ -2869,9 +2962,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       {/* Zoom controls */}
       <div className="canvas-controls">
-        <button className="btn btn-icon btn-sm" onClick={() => fitView()} title="Fit view"><Icon name="maximize" size={14} /></button>
-        <button className="btn btn-icon btn-sm" onClick={() => fitView(true)} title="Fit selection"><Icon name="target" size={14} /></button>
-        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1.2)} title="Zoom in"><Icon name="plus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => fitView()} title="Fit view" aria-label="Fit view"><Icon name="maximize" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => fitView(true)} title="Fit selection" aria-label="Fit selection"><Icon name="target" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1.2)} title="Zoom in" aria-label="Zoom in"><Icon name="plus" size={14} /></button>
         {editingZoom ? (
           <input
             type="text"
@@ -2899,7 +2992,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             style={{ fontSize: 11, color: 'var(--muted)', minWidth: 40, textAlign: 'center', cursor: 'text', userSelect: 'none' }}
           >{Math.round(scale * 100)}%</span>
         )}
-        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1 / 1.2)} title="Zoom out"><Icon name="minus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1 / 1.2)} title="Zoom out" aria-label="Zoom out"><Icon name="minus" size={14} /></button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button className={`btn btn-icon btn-sm ${showMinimap ? 'active' : ''}`} onClick={onToggleMinimap} title="Toggle minimap"><Icon name="map" size={14} /></button>
         <button className={`btn btn-icon btn-sm ${!linksHidden ? 'active' : ''}`} onClick={onToggleLinksHidden} title="Toggle links"><Icon name="link" size={14} /></button>

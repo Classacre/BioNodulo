@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useAtom } from 'jotai';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
@@ -7,13 +7,14 @@ import BottomConsole from './components/layout/BottomConsole';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
 import HardwareMonitor from './components/canvas/HardwareMonitor';
-import SettingsPanel from './components/panels/SettingsPanel';
-import HelpWikiPanel from './components/panels/HelpWikiPanel';
-import TemplatesPanel, { type TemplateSaveDraft } from './components/panels/TemplatesPanel';
-import EnvironmentPanel from './components/panels/EnvironmentPanel';
-import HPCPanel from './components/panels/HPCPanel';
-import NodeLibraryPanel from './components/panels/NodeLibraryPanel';
-import WorkspacePanel from './components/panels/WorkspacePanel';
+import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
+const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
+const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
+const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
+const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel'));
+const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
+const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
+const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
 import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
@@ -29,6 +30,7 @@ import {
   ConfirmDialogHost,
   KeyboardShortcutsModal,
   NotificationHost,
+  Spinner,
   alertDialog,
   confirmDialog,
   toast,
@@ -70,6 +72,7 @@ const EMPTY_COLLAB_USERS: AwarenessState[] = [];
 const EMPTY_STRING_ARRAY: string[] = [];
 const PANEL_WIDTHS_KEY = 'bionodulo.panel.widths';
 const PANEL_FLOATS_KEY = 'bionodulo.panel.floats';
+const PANEL_RIGHT_DOCKED_KEY = 'bionodulo.panel.rightDocked';
 const AUTO_SAVE_LAST_KEY = 'bionodulo.autoSave.last';
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
 type FloatingPanelLayout = Record<string, { x: number; y: number }>;
@@ -87,6 +90,21 @@ function loadFloatingPanels(): FloatingPanelLayout {
   try {
     const raw = localStorage.getItem(PANEL_FLOATS_KEY);
     return raw ? JSON.parse(raw) as FloatingPanelLayout : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadRightDockedPanels(): Record<string, true> {
+  try {
+    const raw = localStorage.getItem(PANEL_RIGHT_DOCKED_KEY);
+    const parsed = raw ? JSON.parse(raw) as unknown : null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result: Record<string, true> = {};
+    for (const key of Object.keys(parsed as Record<string, unknown>)) {
+      if ((parsed as Record<string, unknown>)[key]) result[key] = true;
+    }
+    return result;
   } catch {
     return {};
   }
@@ -787,6 +805,21 @@ export default function App() {
   const [openPanelTabs, setOpenPanelTabs] = useState<OpenPanelTab[]>([]);
   const [panelWidths, setPanelWidths] = useState<Record<string, number>>(() => loadPanelWidths());
   const [floatingPanels, setFloatingPanels] = useState<FloatingPanelLayout>(() => loadFloatingPanels());
+  const [rightDockedPanels, setRightDockedPanels] = useState<Record<string, true>>(() => loadRightDockedPanels());
+
+  const toggleRightDocked = useCallback((tab: OpenPanelTab) => {
+    setRightDockedPanels(prev => {
+      const next = { ...prev };
+      if (next[tab]) delete next[tab];
+      else next[tab] = true;
+      try {
+        localStorage.setItem(PANEL_RIGHT_DOCKED_KEY, JSON.stringify(next));
+      } catch {
+        // localStorage failures are non-fatal for a UI preference.
+      }
+      return next;
+    });
+  }, []);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
 
@@ -1556,6 +1589,29 @@ export default function App() {
       toast.error('Could not cancel run', { message: err instanceof Error ? err.message : String(err) });
     }
   }, [updateRun]);
+
+  const handleLoadRunWorkflow = useCallback(async (run: RunRecord) => {
+    try {
+      const response = await fetch(`/api/runs/${encodeURIComponent(run.run_id)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json() as { workflow?: Workflow; workflow_name?: string };
+      const workflow = data.workflow;
+      if (!workflow || !Array.isArray(workflow.nodes)) {
+        throw new Error('Run does not have an associated workflow snapshot');
+      }
+      const named: Workflow = {
+        ...workflow,
+        name: workflow.name || `${run.workflow_name || 'Run'} ${run.run_id.slice(0, 8)}`,
+      };
+      addWorkflow(withWorkflowId(named));
+      toast.success('Workflow loaded from run', { message: named.name });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => canvasRef.current?.fitView());
+      });
+    } catch (err) {
+      toast.error('Could not load workflow', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [addWorkflow]);
 
   const handleRetryRun = useCallback(async (run: RunRecord) => {
     try {
@@ -2559,42 +2615,81 @@ export default function App() {
           onPromoteWidgets={handlePromoteWidgets}
         />
 
-        {/* Registered rail panels */}
-        {openPanelTabs.map((tab, index) => {
-          const left = openPanelTabs.slice(0, index).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
-          const width = panelWidths[tab] ?? 340;
-          const floating = floatingPanels[tab];
-          return (
-            <div
-              key={tab}
-              className={`rail-panel-wrap ${floating ? 'floating' : ''}`}
-              style={floating ? { left: floating.x, top: floating.y, width } : { left, width }}
-            >
-              {floating && (
-                <div
-                  className="rail-panel-drag-handle"
-                  onMouseDown={event => startPanelDrag(tab, event.clientX, event.clientY, floating)}
-                  role="presentation"
-                />
-              )}
-              <button
-                className="rail-panel-float"
-                onClick={() => toggleFloatingPanel(tab, index)}
-                title={floating ? 'Dock panel' : 'Float panel'}
-                type="button"
-              >
-                <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
-              </button>
-              {renderPanelContent(tab)}
+        {/* Registered rail panels: docked panels stack from the left edge by
+            default, but each panel can be flipped to the right edge so two
+            related panels (e.g. node library + node info) can sit side by
+            side without the user having to float either of them. */}
+        {(() => {
+          const leftPanels = openPanelTabs.filter(tab => !rightDockedPanels[tab] && !floatingPanels[tab]);
+          const rightPanels = openPanelTabs.filter(tab => rightDockedPanels[tab] && !floatingPanels[tab]);
+          const floatingTabs = openPanelTabs.filter(tab => floatingPanels[tab]);
+          const renderPanel = (tab: OpenPanelTab, side: 'left' | 'right' | 'float', offset: number) => {
+            const index = openPanelTabs.indexOf(tab);
+            const width = panelWidths[tab] ?? 340;
+            const floating = floatingPanels[tab];
+            const isRight = side === 'right';
+            const style = floating
+              ? { left: floating.x, top: floating.y, width }
+              : isRight
+                ? { right: offset, width }
+                : { left: offset, width };
+            return (
               <div
-                className="rail-panel-resizer"
-                role="separator"
-                aria-label={`Resize ${tab} panel`}
-                onMouseDown={event => startPanelResize(tab, event.clientX, width)}
-              />
-            </div>
-          );
-        })}
+                key={tab}
+                className={`rail-panel-wrap ${floating ? 'floating' : ''} ${isRight ? 'docked-right' : ''}`}
+                style={style}
+              >
+                {floating && (
+                  <div
+                    className="rail-panel-drag-handle"
+                    onMouseDown={event => startPanelDrag(tab, event.clientX, event.clientY, floating)}
+                    role="presentation"
+                  />
+                )}
+                <div className="rail-panel-toolbar">
+                  {!floating && (
+                    <button
+                      className="rail-panel-dock-side"
+                      onClick={() => toggleRightDocked(tab)}
+                      title={isRight ? 'Dock to left side' : 'Dock to right side'}
+                      aria-label={isRight ? 'Move panel to left side' : 'Move panel to right side'}
+                      type="button"
+                    >
+                      <Icon name={isRight ? 'chevronLeft' : 'chevronRight'} size={13} />
+                    </button>
+                  )}
+                  <button
+                    className="rail-panel-float"
+                    onClick={() => toggleFloatingPanel(tab, index)}
+                    title={floating ? 'Dock panel' : 'Float panel'}
+                    type="button"
+                  >
+                    <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
+                  </button>
+                </div>
+                <Suspense fallback={<div className="panel-suspense-fallback"><Spinner size="lg" label={`Loading ${tab}…`} /></div>}>
+                  {renderPanelContent(tab)}
+                </Suspense>
+                <div
+                  className={`rail-panel-resizer ${isRight ? 'on-left' : ''}`}
+                  role="separator"
+                  aria-label={`Resize ${tab} panel`}
+                  onMouseDown={event => startPanelResize(tab, event.clientX, width)}
+                />
+              </div>
+            );
+          };
+          const leftRendered = leftPanels.map((tab, idx) => {
+            const offset = leftPanels.slice(0, idx).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
+            return renderPanel(tab, 'left', offset);
+          });
+          const rightRendered = rightPanels.map((tab, idx) => {
+            const offset = rightPanels.slice(0, idx).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
+            return renderPanel(tab, 'right', offset);
+          });
+          const floatingRendered = floatingTabs.map(tab => renderPanel(tab, 'float', 0));
+          return [...leftRendered, ...rightRendered, ...floatingRendered];
+        })()}
 
         <HardwareMonitor />
         {focusMode && (
@@ -2618,6 +2713,7 @@ export default function App() {
               onClearLogs={clearLogs}
               onCancelRun={handleCancelRun}
               onRetryRun={handleRetryRun}
+              onLoadRunWorkflow={handleLoadRunWorkflow}
               onMoveRun={handleMoveRun}
               onClearQueue={handleClearQueue}
               batchCount={batchCount}

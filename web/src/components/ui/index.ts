@@ -8,6 +8,8 @@ export { NotificationHost } from './NotificationHost';
 export type { NotificationHostProps } from './NotificationHost';
 export { Skeleton, SkeletonCard, SkeletonList } from './Skeleton';
 export type { SkeletonCardProps, SkeletonListProps, SkeletonProps } from './Skeleton';
+export { Spinner } from './Spinner';
+export type { SpinnerProps } from './Spinner';
 export { Tooltip } from './Tooltip';
 export type { TooltipPlacement, TooltipProps } from './Tooltip';
 

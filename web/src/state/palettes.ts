@@ -301,6 +301,23 @@ export function addCustomPalette(palette: ThemePalette): void {
   emit();
 }
 
+/**
+ * Merge a custom palette with the first built-in palette's tokens so any
+ * missing key falls back to a known-good default. Users authoring custom
+ * palettes can ship just the tokens they want to override; everything else
+ * stays consistent. Returns a fresh palette with both light and dark fully
+ * populated.
+ */
+export function completePalette(palette: ThemePalette): ThemePalette {
+  const base = BUILT_IN_PALETTES[0];
+  if (!base) return palette;
+  return {
+    ...palette,
+    light: { ...base.light, ...(palette.light || {}) },
+    dark: { ...base.dark, ...(palette.dark || {}) },
+  };
+}
+
 export function getResolvedPaletteMode(mode?: PaletteMode): PaletteMode {
   if (mode) return mode;
   if (typeof document === 'undefined') return 'light';
@@ -310,7 +327,8 @@ export function getResolvedPaletteMode(mode?: PaletteMode): PaletteMode {
 
 export function applyPalette(id = activePaletteId, mode?: PaletteMode, target?: HTMLElement): ThemePalette | null {
   if (typeof document === 'undefined') return null;
-  const palette = getPaletteDefinition(id) ?? BUILT_IN_PALETTES[0];
+  const raw = getPaletteDefinition(id) ?? BUILT_IN_PALETTES[0];
+  const palette = completePalette(raw);
   const resolvedMode = getResolvedPaletteMode(mode);
   const root = target ?? document.documentElement;
   const tokens = palette[resolvedMode];

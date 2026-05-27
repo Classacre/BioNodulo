@@ -370,6 +370,7 @@ class RunQueue:
                     "run_id": r.run_id,
                     "status": r.status.value,
                     "workflow_name": r.metadata.get("name", "Untitled"),
+                    "workflow": r.workflow,
                     "created_at": r.created_at,
                     "result": r.result,
                 }
@@ -379,6 +380,7 @@ class RunQueue:
                 "run_id": r.run_id,
                 "status": r.status.value,
                 "workflow_name": r.metadata.get("name", "Untitled"),
+                "workflow": r.workflow,
                 "created_at": r.created_at,
                 "started_at": r.started_at,
                 "result": r.result,
@@ -389,6 +391,7 @@ class RunQueue:
                     "run_id": r.run_id,
                     "status": r.status.value,
                     "workflow_name": r.metadata.get("name", "Untitled"),
+                    "workflow": r.workflow,
                     "created_at": r.created_at,
                     "started_at": r.started_at,
                     "finished_at": r.finished_at,

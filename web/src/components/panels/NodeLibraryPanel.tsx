@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
-import { useNodeSearch, useRecentNodes } from '../../utils/nodeSearch';
+import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
 import Icon from '../ui/Icon';
 import { SkeletonList } from '../ui/Skeleton';
 import { deleteBlueprint, listBlueprints, subscribeBlueprints, type SubgraphBlueprint } from '../../state/subgraphLibrary';
@@ -18,6 +18,7 @@ interface NodeGroup {
   label: string;
   nodes: NodeMetadata[];
   recent?: boolean;
+  frequent?: boolean;
 }
 
 function safeNodeDomId(scope: string, id: string): string {
@@ -33,10 +34,24 @@ function uniqueNodes(nodes: NodeMetadata[]): NodeMetadata[] {
   });
 }
 
-function buildGroups(searchResults: NodeMetadata[], recentNodes: NodeMetadata[], showRecent: boolean): NodeGroup[] {
+function buildGroups(
+  searchResults: NodeMetadata[],
+  recentNodes: NodeMetadata[],
+  frequentNodes: NodeMetadata[],
+  showHeuristicGroups: boolean,
+): NodeGroup[] {
   const groups: NodeGroup[] = [];
-  if (showRecent && recentNodes.length > 0) {
-    groups.push({ label: 'Recently Used', nodes: recentNodes, recent: true });
+  if (showHeuristicGroups && frequentNodes.length > 0) {
+    groups.push({ label: 'Most Used', nodes: frequentNodes, frequent: true });
+  }
+  if (showHeuristicGroups && recentNodes.length > 0) {
+    // De-duplicate against the "Most Used" group so the same node isn't shown
+    // twice in the top section.
+    const frequentIds = new Set(frequentNodes.map(meta => meta.id));
+    const filteredRecent = recentNodes.filter(meta => !frequentIds.has(meta.id));
+    if (filteredRecent.length > 0) {
+      groups.push({ label: 'Recently Used', nodes: filteredRecent, recent: true });
+    }
   }
 
   const grouped = groupNodesByCategory(searchResults);
@@ -50,12 +65,14 @@ function NodeLibraryResult({
   meta,
   active,
   recent,
+  usageCount,
   onChoose,
   onFocus,
 }: {
   meta: NodeMetadata;
   active: boolean;
   recent?: boolean;
+  usageCount?: number;
   onChoose: (meta: NodeMetadata) => void;
   onFocus: (id: string) => void;
 }) {
@@ -68,10 +85,17 @@ function NodeLibraryResult({
       className={`node-search-result node-library-result ${active ? 'is-active' : ''} ${recent ? 'is-recent' : ''}`}
       onClick={() => onChoose(meta)}
       onMouseEnter={() => onFocus(meta.id)}
-      title={`Add ${meta.display_name}`}
+      title={usageCount ? `Add ${meta.display_name} (used ${usageCount}×)` : `Add ${meta.display_name}`}
     >
       <span className="node-search-result-main">
-        <span className="node-search-result-title">{meta.display_name}</span>
+        <span className="node-search-result-title">
+          {meta.display_name}
+          {usageCount !== undefined && usageCount > 0 && (
+            <span className="node-usage-badge" aria-label={`Used ${usageCount} times`}>
+              {usageCount}×
+            </span>
+          )}
+        </span>
         <span className="node-search-result-desc">{subtitle}</span>
         <span className="node-search-result-meta">
           {meta.category || 'Other'}
@@ -102,11 +126,13 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
 
   const searchResults = useNodeSearch(objectInfo, query);
   const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(objectInfo);
+  const { frequentNodes, recordNodeUsage, getNodeUsageCount, clearUsageStats } = useNodeUsageStats(objectInfo);
+  const frequentMetas = useMemo(() => frequentNodes.map(entry => entry.meta), [frequentNodes]);
   const searchedNodes = useMemo(() => searchResults.map(result => result.meta), [searchResults]);
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
-    () => buildGroups(searchedNodes, recentNodes, !hasQuery),
-    [hasQuery, recentNodes, searchedNodes],
+    () => buildGroups(searchedNodes, recentNodes, frequentMetas, !hasQuery),
+    [hasQuery, recentNodes, frequentMetas, searchedNodes],
   );
   const keyboardNodes = useMemo(() => uniqueNodes(groups.flatMap(group => group.nodes)), [groups]);
   const totalNodes = Object.values(objectInfo).length;
@@ -134,6 +160,7 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
 
   const chooseNode = (meta: NodeMetadata) => {
     rememberNode(meta);
+    recordNodeUsage(meta);
     onAddNode(meta);
   };
 
@@ -262,13 +289,26 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
             </section>
           )}
           {groups.map(group => {
-            const expandedGroup = group.recent || hasQuery || expanded.has(group.label);
+            const isHeuristic = group.recent || group.frequent;
+            const expandedGroup = isHeuristic || hasQuery || expanded.has(group.label);
+            const sectionKey = group.frequent ? '__frequent' : group.recent ? '__recent' : group.label;
             return (
-              <section key={group.recent ? '__recent' : group.label} className={`node-search-group ${group.recent ? 'is-recent' : ''}`}>
-                {group.recent ? (
+              <section key={sectionKey} className={`node-search-group ${group.recent ? 'is-recent' : ''} ${group.frequent ? 'is-frequent' : ''}`}>
+                {isHeuristic ? (
                   <div className="node-search-group-label">
-                    <Icon name="clock" size={12} />
+                    <Icon name={group.frequent ? 'star' : 'clock'} size={12} />
                     <span>{group.label}</span>
+                    {group.frequent && (
+                      <button
+                        type="button"
+                        className="node-search-clear"
+                        onClick={clearUsageStats}
+                        title="Reset usage frequency"
+                        style={{ marginLeft: 'auto' }}
+                      >
+                        Reset
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -286,10 +326,11 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
                   <div className="node-result-list">
                     {group.nodes.map(meta => (
                       <NodeLibraryResult
-                        key={`${group.recent ? 'recent' : group.label}-${meta.id}`}
+                        key={`${sectionKey}-${meta.id}`}
                         meta={meta}
                         active={activeNodeId === meta.id}
                         recent={group.recent}
+                        usageCount={group.frequent ? getNodeUsageCount(meta.id) : undefined}
                         onChoose={chooseNode}
                         onFocus={setActiveNodeId}
                       />

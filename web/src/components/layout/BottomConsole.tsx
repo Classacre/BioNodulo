@@ -1,6 +1,49 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
+
+type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
+
+interface HistoryBucket {
+  label: string;
+  runs: RunRecord[];
+}
+
+function runTimestamp(run: RunRecord): number {
+  const value = run.end_time || run.start_time;
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function bucketLabelForRun(run: RunRecord, now: Date): string {
+  const ts = runTimestamp(run);
+  if (!ts) return 'Earlier';
+  const runDate = new Date(ts);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+  const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+  if (ts >= todayStart) return 'Today';
+  if (ts >= yesterdayStart) return 'Yesterday';
+  if (ts >= weekStart) return 'Past Week';
+  if (runDate.getFullYear() === now.getFullYear()) return runDate.toLocaleString(undefined, { month: 'long' });
+  return runDate.getFullYear().toString();
+}
+
+function bucketHistory(history: RunRecord[]): HistoryBucket[] {
+  const now = new Date();
+  const order: string[] = [];
+  const groups = new Map<string, RunRecord[]>();
+  for (const run of history) {
+    const label = bucketLabelForRun(run, now);
+    if (!groups.has(label)) {
+      groups.set(label, []);
+      order.push(label);
+    }
+    groups.get(label)!.push(run);
+  }
+  return order.map(label => ({ label, runs: groups.get(label)! }));
+}
 
 type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
 export type QueueMoveDirection = 'up' | 'down';
@@ -14,6 +57,7 @@ interface BottomConsoleProps {
   onClearLogs?: () => void;
   onCancelRun?: (run: RunRecord) => void;
   onRetryRun?: (run: RunRecord) => void;
+  onLoadRunWorkflow?: (run: RunRecord) => void;
   onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
   onClearQueue?: () => void;
   batchCount?: number;
@@ -190,7 +234,11 @@ function QueueRunCard({
   );
 }
 
-function HistoryRunCard({ run, onRetryRun }: { run: RunRecord; onRetryRun?: (run: RunRecord) => void }) {
+function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow }: {
+  run: RunRecord;
+  onRetryRun?: (run: RunRecord) => void;
+  onLoadRunWorkflow?: (run: RunRecord) => void;
+}) {
   const progress = progressForRun(run);
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
   return (
@@ -207,11 +255,18 @@ function HistoryRunCard({ run, onRetryRun }: { run: RunRecord; onRetryRun?: (run
           <span>{progress.total > 0 ? `${progress.completed}/${progress.total} nodes` : 'No node plan'}</span>
         </div>
       </div>
-      {onRetryRun && canRetry && (
-        <div className="queue-run-actions">
+      <div className="queue-run-actions">
+        {onLoadRunWorkflow && (
+          <RunActionButton
+            title="Load this workflow into a new tab"
+            icon="import"
+            onClick={() => onLoadRunWorkflow(run)}
+          />
+        )}
+        {onRetryRun && canRetry && (
           <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -343,6 +398,7 @@ export default function BottomConsole({
   onClearLogs,
   onCancelRun,
   onRetryRun,
+  onLoadRunWorkflow,
   onMoveRun,
   onClearQueue,
   batchCount,
@@ -351,8 +407,39 @@ export default function BottomConsole({
   const [showVerbose, setShowVerbose] = useState(true);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
+  const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<string>>(new Set());
   const logsBodyRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
+
+  const filteredHistory = useMemo(() => {
+    const trimmed = historyQuery.trim().toLowerCase();
+    return history.filter(run => {
+      if (historyStatusFilter !== 'all' && run.status !== historyStatusFilter) return false;
+      if (!trimmed) return true;
+      const name = (run.workflow_name || '').toLowerCase();
+      return name.includes(trimmed) || run.run_id.toLowerCase().includes(trimmed);
+    });
+  }, [history, historyQuery, historyStatusFilter]);
+
+  const historyBuckets = useMemo(() => bucketHistory(filteredHistory), [filteredHistory]);
+  const historyCountsByStatus = useMemo(() => {
+    const counts: Record<HistoryStatusFilter, number> = { all: history.length, completed: 0, error: 0, cancelled: 0 };
+    for (const run of history) {
+      if (run.status === 'completed') counts.completed += 1;
+      else if (run.status === 'error') counts.error += 1;
+      else if (run.status === 'cancelled') counts.cancelled += 1;
+    }
+    return counts;
+  }, [history]);
+  const toggleHistoryBucket = (label: string) => {
+    setCollapsedHistoryBuckets(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+  };
 
 
   // Defensive: ensure logs is an array of valid objects
@@ -691,10 +778,68 @@ export default function BottomConsole({
           history.length === 0
             ? <div style={{ color: 'var(--muted)' }}>No completed runs yet.</div>
             : (
-              <div className="queue-run-list history-run-list">
-                {history.map(r => (
-                  <HistoryRunCard key={r.run_id} run={r} onRetryRun={onRetryRun} />
-                ))}
+              <div className="history-tab">
+                <div className="history-toolbar">
+                  <input
+                    type="search"
+                    className="text-input history-search"
+                    placeholder="Filter by name or run ID"
+                    value={historyQuery}
+                    onChange={e => setHistoryQuery(e.target.value)}
+                    aria-label="Filter history"
+                  />
+                  <div className="history-status-filters" role="group" aria-label="Filter history by status">
+                    {(['all', 'completed', 'error', 'cancelled'] as HistoryStatusFilter[]).map(status => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={`history-status-chip ${historyStatusFilter === status ? 'is-active' : ''} is-${status}`}
+                        onClick={() => setHistoryStatusFilter(status)}
+                        title={`Show ${status === 'all' ? 'all runs' : status + ' runs'}`}
+                      >
+                        {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                        <span className="history-status-chip-count">{historyCountsByStatus[status]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {filteredHistory.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', padding: '8px 4px' }}>
+                    No runs match the current filter.
+                  </div>
+                ) : (
+                  <div className="history-bucket-list">
+                    {historyBuckets.map(bucket => {
+                      const collapsed = collapsedHistoryBuckets.has(bucket.label);
+                      return (
+                        <section key={bucket.label} className="history-bucket">
+                          <button
+                            type="button"
+                            className="history-bucket-header"
+                            onClick={() => toggleHistoryBucket(bucket.label)}
+                            aria-expanded={!collapsed}
+                          >
+                            <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={12} />
+                            <span className="history-bucket-label">{bucket.label}</span>
+                            <span className="history-bucket-count">{bucket.runs.length}</span>
+                          </button>
+                          {!collapsed && (
+                            <div className="queue-run-list history-run-list">
+                              {bucket.runs.map(r => (
+                                <HistoryRunCard
+                                  key={r.run_id}
+                                  run={r}
+                                  onRetryRun={onRetryRun}
+                                  onLoadRunWorkflow={onLoadRunWorkflow}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )
         )}

@@ -3,6 +3,7 @@ import Fuse from 'fuse.js';
 import type { NodeMetadata, ObjectInfo } from '../types';
 
 const DEFAULT_RECENT_NODE_KEY = 'bionodulo.recentNodes';
+const DEFAULT_USAGE_STATS_KEY = 'bionodulo.nodeUsageStats';
 
 export interface NodeSearchResult {
   meta: NodeMetadata;
@@ -120,4 +121,121 @@ export function useRecentNodes(
   }, [storageKey]);
 
   return { recentNodes, rememberNode, clearRecentNodes };
+}
+
+// ---------------------------------------------------------------------------
+// Node usage frequency tracking
+//
+// Tracks how often each node has been added. Distinct from "recent" which is
+// strictly insertion-ordered; this hook exposes a top-N "most used" list that
+// gives discovery surfaces ([Node Library, Command Palette]) a way to
+// highlight workflow-defining nodes for the current user.
+// ---------------------------------------------------------------------------
+
+export interface NodeUsageEntry {
+  meta: NodeMetadata;
+  count: number;
+  lastUsedAt: number;
+}
+
+interface NodeUsageStatsRecord {
+  count: number;
+  lastUsedAt: number;
+}
+
+type StoredStats = Record<string, NodeUsageStatsRecord>;
+
+interface UsageStatsOptions {
+  limit?: number;
+  storageKey?: string;
+}
+
+function readUsageStats(storageKey: string): StoredStats {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result: StoredStats = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof key !== 'string') continue;
+      const record = value as Partial<NodeUsageStatsRecord> | null;
+      if (!record || typeof record !== 'object') continue;
+      const count = typeof record.count === 'number' && record.count > 0 ? Math.floor(record.count) : 0;
+      const lastUsedAt = typeof record.lastUsedAt === 'number' ? record.lastUsedAt : 0;
+      if (count > 0) result[key] = { count, lastUsedAt };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function persistUsageStats(storageKey: string, stats: StoredStats): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(stats));
+  } catch {
+    // Usage stats are decoration only; failing to persist is non-fatal.
+  }
+}
+
+export function useNodeUsageStats(
+  objectInfo: ObjectInfo,
+  { limit = 6, storageKey = DEFAULT_USAGE_STATS_KEY }: UsageStatsOptions = {},
+) {
+  const [stats, setStats] = useState<StoredStats>(() => readUsageStats(storageKey));
+
+  // Prune entries for nodes that no longer exist in the registry.
+  useEffect(() => {
+    setStats(prev => {
+      let changed = false;
+      const next: StoredStats = {};
+      for (const [id, record] of Object.entries(prev)) {
+        if (objectInfo[id]) {
+          next[id] = record;
+        } else {
+          changed = true;
+        }
+      }
+      if (!changed) return prev;
+      persistUsageStats(storageKey, next);
+      return next;
+    });
+  }, [objectInfo, storageKey]);
+
+  const frequentNodes = useMemo<NodeUsageEntry[]>(() => {
+    return Object.entries(stats)
+      .map(([id, record]) => ({ meta: objectInfo[id], ...record }))
+      .filter((entry): entry is NodeUsageEntry => Boolean(entry.meta))
+      // Sort by count desc, then by recency to break ties consistently.
+      .sort((a, b) => b.count - a.count || b.lastUsedAt - a.lastUsedAt)
+      .slice(0, limit);
+  }, [stats, objectInfo, limit]);
+
+  const recordNodeUsage = useCallback((meta: NodeMetadata) => {
+    setStats(prev => {
+      const existing = prev[meta.id];
+      const next: StoredStats = {
+        ...prev,
+        [meta.id]: {
+          count: (existing?.count ?? 0) + 1,
+          lastUsedAt: Date.now(),
+        },
+      };
+      persistUsageStats(storageKey, next);
+      return next;
+    });
+  }, [storageKey]);
+
+  const getNodeUsageCount = useCallback((nodeId: string): number => {
+    return stats[nodeId]?.count ?? 0;
+  }, [stats]);
+
+  const clearUsageStats = useCallback(() => {
+    persistUsageStats(storageKey, {});
+    setStats({});
+  }, [storageKey]);
+
+  return { frequentNodes, recordNodeUsage, getNodeUsageCount, clearUsageStats };
 }

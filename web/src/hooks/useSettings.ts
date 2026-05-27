@@ -70,11 +70,42 @@ export function useSettings() {
 
   const get = useCallback((key: string) => globalSettings[key], []);
 
-  const getBool = useCallback((key: string) => {
+  const getBool = useCallback((key: string, fallback = false) => {
     const val = globalSettings[key];
     if (typeof val === 'boolean') return val;
     if (typeof val === 'string') return val === 'true' || val === '1';
+    if (val === undefined || val === null) return fallback;
     return !!val;
+  }, []);
+
+  // Typed accessors: validate at the boundary instead of forcing every caller
+  // to sprinkle `as string` casts. Each falls back to a sensible default when
+  // the value isn't the expected shape.
+  const getString = useCallback((key: string, fallback = ''): string => {
+    const val = globalSettings[key];
+    return typeof val === 'string' ? val : fallback;
+  }, []);
+
+  const getNumber = useCallback((key: string, fallback = 0): number => {
+    const val = globalSettings[key];
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val === 'string') {
+      const parsed = Number(val);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+  }, []);
+
+  const getStringArray = useCallback((key: string, fallback: string[] = []): string[] => {
+    const val = globalSettings[key];
+    if (Array.isArray(val)) return val.filter((item): item is string => typeof item === 'string');
+    return fallback;
+  }, []);
+
+  const getRecord = useCallback(<T = unknown>(key: string, fallback: Record<string, T> = {}): Record<string, T> => {
+    const val = globalSettings[key];
+    if (val && typeof val === 'object' && !Array.isArray(val)) return val as Record<string, T>;
+    return fallback;
   }, []);
 
   const set = useCallback((key: string, value: unknown) => {
@@ -108,5 +139,5 @@ export function useSettings() {
       });
   }, []);
 
-  return { settings: globalSettings, ready: globalHydrated, get, getBool, set, setAll };
+  return { settings: globalSettings, ready: globalHydrated, get, getBool, getString, getNumber, getStringArray, getRecord, set, setAll };
 }

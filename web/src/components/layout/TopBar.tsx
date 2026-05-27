@@ -91,6 +91,8 @@ export default function TopBar({
             disabled={batchCount <= 1 || isRunning}
             onClick={() => onBatchCountChange(batchCount - 1)}
             type="button"
+            aria-label="Decrease batch count"
+            title="Decrease batch count"
           >
             <Icon name="minus" size={12} />
           </button>
@@ -111,6 +113,8 @@ export default function TopBar({
             disabled={batchCount >= 99 || isRunning}
             onClick={() => onBatchCountChange(batchCount + 1)}
             type="button"
+            aria-label="Increase batch count"
+            title="Increase batch count"
           >
             <Icon name="plus" size={12} />
           </button>
@@ -148,13 +152,13 @@ export default function TopBar({
             <option value="instant">Instant</option>
           </select>
         )}
-        <button className="btn btn-sm" onClick={onExport} title="Export workflow">
+        <button className="btn btn-sm" onClick={onExport} title="Export workflow" aria-label="Export workflow">
           <Icon name="export" size={14} />
         </button>
-        <button className="btn btn-sm" onClick={onImport} title="Import workflow">
+        <button className="btn btn-sm" onClick={onImport} title="Import workflow" aria-label="Import workflow">
           <Icon name="import" size={14} />
         </button>
-        <button className="btn btn-ai btn-sm" onClick={onAI} title="AI Assistant">
+        <button className="btn btn-ai btn-sm" onClick={onAI} title="AI Assistant" aria-label="Open AI assistant">
           <Icon name="wand" size={14} />
         </button>
       </div>

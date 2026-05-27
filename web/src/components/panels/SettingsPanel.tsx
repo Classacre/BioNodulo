@@ -135,6 +135,23 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
               <option value="60s">Every minute</option>
             </select>
           </SettingRow>
+          <SettingRow query={query} label="Render Quality" desc="Visual fidelity vs. performance on large graphs" keywords="quality performance shadows smoothing antialias fps">
+            <select
+              className="select-input"
+              value={String(get('bionodulo.canvas.quality') || 'auto')}
+              onChange={e => set('bionodulo.canvas.quality', e.target.value)}
+            >
+              <option value="auto">Auto (recommended)</option>
+              <option value="high">High (always)</option>
+              <option value="low">Low (fast)</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label="Node Shadows" desc="Draw drop shadows behind nodes" keywords="shadow depth performance">
+            <div className={`toggle ${getBool('bionodulo.canvas.shadows', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.shadows', !getBool('bionodulo.canvas.shadows', true))} />
+          </SettingRow>
+          <SettingRow query={query} label="Smooth Links" desc="Anti-alias bezier connections" keywords="antialias smoothing links edges">
+            <div className={`toggle ${getBool('bionodulo.canvas.smoothLinks', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.smoothLinks', !getBool('bionodulo.canvas.smoothLinks', true))} />
+          </SettingRow>
         </SettingsGroup>
 
         {/* Collaboration */}
