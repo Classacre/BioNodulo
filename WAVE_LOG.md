@@ -90,7 +90,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Dynamic help: when a node is selected, HelpWikiPanel surfaces objectInfo-driven docs (description, ports, requires, experimental/version pills).
 - Telemetry: opt-in local-only ring buffer (200 events) with toggle, export-as-text, clear in Settings; `logTelemetry()` hooks at workflow run/import/template-load.
 
-## Wave L — `TBD` — UI polish: top bar, overlays, runs, palette, panels
+## Wave L — `0911439` — UI polish: top bar, overlays, runs, palette, panels
 
 - Top bar overhaul (`TopBar.tsx`, `App.tsx`): HPC badge now only renders when `bionodulo.hpc.enabled` is on; CollabBadge is only mounted when `bionodulo.collab.enabled` is on (instead of being shown in offline state); the "Unsaved changes / Autosave" pill is gone (the per-tab amber dot covers dirty signalling); batch-count stepper collapsed to chevron-up / value / chevron-down with no `-`/`+` duplicates; Run is now a split-button — the connected chevron opens a popover with `Manual` / `On change` / `Instant` queue-mode radios plus `Batch from sheet…`; standalone Sheet button + bare `<select>` queue mode removed; standalone Import button removed (drag-drop covers import); Export icon swapped to read as out-of-app.
 - Export modal (`ExportModal.tsx`, `workflowThumbnail.ts`): PNG is now the default format. New options block: transparent-background checkbox (renders the preview on a CSS checkerboard so users see the alpha), resolution slider (50–100 % of base, drives canvas dimensions since PNG is lossless), and a "JSON only (skip PNG wrapper)" checkbox for the case where the user just wants the workflow JSON. Auto-regenerate on option change once a preview is on screen.
