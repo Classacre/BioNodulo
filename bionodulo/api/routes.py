@@ -456,14 +456,28 @@ async def clear_queue(request: Request) -> dict[str, Any]:
 
 @router.post("/queue/{run_id}/cancel")
 async def cancel_queued_run(request: Request, run_id: str) -> dict[str, Any]:
-    """Cancel a pending or running job."""
+    """Cancel a pending or running job.
+
+    Returns 200 with ``status: "cancelled"`` for active cancels, and 200
+    with ``status: "already_finished"`` when the run has already moved into
+    history (so a slightly-late click from the UI is a no-op instead of an
+    error toast). Only an unknown ``run_id`` is treated as 404.
+    """
     queue = _get_queue(request)
     if not hasattr(queue, "cancel"):
         raise HTTPException(status_code=501, detail="Queue cancellation is not available")
     cancelled = await queue.cancel(run_id)
-    if not cancelled:
-        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
-    return {"run_id": run_id, "status": "cancelled"}
+    if cancelled:
+        return {"run_id": run_id, "status": "cancelled"}
+
+    # Fall back: was the run already in history (completed / failed / cancelled)?
+    history = getattr(queue, "_history", None)
+    if history is not None:
+        for entry in history:
+            if getattr(entry, "run_id", None) == run_id:
+                return {"run_id": run_id, "status": "already_finished"}
+
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
 
 @router.post("/queue/reorder")

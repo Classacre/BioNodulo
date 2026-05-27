@@ -4,6 +4,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
+import Icon from '../ui/Icon';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
 import {
   isTelemetryEnabled,
@@ -27,7 +28,7 @@ function matchesQuery(query: string, ...needles: Array<string | undefined>): boo
   return tokens.every(token => haystack.includes(token));
 }
 
-export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps) {
+export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { get, getBool, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
@@ -78,7 +79,18 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
 
   return (
     <div className="rail-panel">
-      <div className="rail-panel-header">Settings</div>
+      <div className="rail-panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Settings</span>
+        <button
+          type="button"
+          className="btn btn-icon btn-sm"
+          onClick={onClose}
+          title="Close settings"
+          aria-label="Close settings"
+        >
+          <Icon name="close" size={14} />
+        </button>
+      </div>
       <div className="rail-panel-body" ref={bodyRef}>
         <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 2, paddingBottom: 8, marginBottom: 4 }}>
           <input

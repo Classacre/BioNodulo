@@ -1,8 +1,10 @@
-import Icon from '../ui/Icon';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import Icon from '../ui/Icon';
 import { useKeybindings } from '../../hooks/useKeybindings';
 
 export type HPCStatus = 'off' | 'error' | 'on';
+export type QueueMode = 'manual' | 'change' | 'instant';
 
 function withShortcut(label: string, binding?: string | null): string {
   return binding ? `${label} (${binding})` : label;
@@ -13,19 +15,24 @@ interface TopBarProps {
   validationErrors: string[];
   onRun: () => void;
   onExport: () => void;
-  onImport: () => void;
   onAI: () => void;
   onBatchSheet?: () => void;
   hpcStatus: HPCStatus;
+  /** When false, the HPC badge is hidden entirely (settings.hpc.enabled is off). */
+  hpcEnabled?: boolean;
   isRunning: boolean;
   queueCount: number;
   batchCount: number;
-  queueMode?: 'manual' | 'change' | 'instant';
-  onQueueModeChange?: (mode: 'manual' | 'change' | 'instant') => void;
+  queueMode?: QueueMode;
+  onQueueModeChange?: (mode: QueueMode) => void;
   onToggleQueue: () => void;
   onBatchCountChange: (count: number) => void;
+  /**
+   * When defined, rendered to the right of the validation badge — usually the
+   * `<CollabBadge />`. When collab is disabled in settings the caller should
+   * pass `null` so nothing is rendered (instead of a hollow placeholder).
+   */
   collabControls?: ReactNode;
-  autoSaveLabel?: string;
 }
 
 function BrandMark() {
@@ -40,17 +47,43 @@ function BrandMark() {
   );
 }
 
+const QUEUE_MODE_LABELS: Record<QueueMode, string> = {
+  manual: 'Manual',
+  change: 'On change',
+  instant: 'Instant',
+};
+
 export default function TopBar({
-  validationValid, validationErrors, onRun, onExport, onImport,
-  onAI, onBatchSheet, hpcStatus, isRunning, queueCount, batchCount,
+  validationValid, validationErrors, onRun, onExport,
+  onAI, onBatchSheet, hpcStatus, hpcEnabled = false,
+  isRunning, queueCount, batchCount,
   queueMode = 'manual', onQueueModeChange,
-  onToggleQueue, onBatchCountChange, collabControls, autoSaveLabel,
+  onToggleQueue, onBatchCountChange, collabControls,
 }: TopBarProps) {
   const { getBinding } = useKeybindings();
   const runShortcut = getBinding('workflow.run');
   const exportShortcut = getBinding('workflow.export');
-  const importShortcut = getBinding('workflow.import');
   const aiShortcut = getBinding('ai.open');
+
+  // Split-button menu next to Run: queue mode radios + sheet action.
+  const [runMenuOpen, setRunMenuOpen] = useState(false);
+  const runMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!runMenuOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      if (!runMenuRef.current) return;
+      if (!runMenuRef.current.contains(event.target as Node)) setRunMenuOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRunMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [runMenuOpen]);
 
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
@@ -61,6 +94,8 @@ export default function TopBar({
     hpcStatus === 'on' ? 'HPC ON' :
     hpcStatus === 'error' ? 'HPC ERROR' :
     'HPC OFF';
+
+  const clampedCount = Math.max(1, Math.min(99, batchCount));
 
   return (
     <header className="topbar">
@@ -79,109 +114,121 @@ export default function TopBar({
 
       <div className="topbar-spacer" />
 
-      <span className={hpcBadgeClass} title={`HPC ${hpcStatus.toUpperCase()}`}>
-        <Icon name="server" size={14} /> {hpcLabel}
-      </span>
-
-      {collabControls}
-
-      {autoSaveLabel && (
-        <span className="autosave-badge" title={autoSaveLabel}>
-          <Icon name="check" size={12} /> {autoSaveLabel}
+      {hpcEnabled && (
+        <span className={hpcBadgeClass} title={`HPC ${hpcStatus.toUpperCase()}`}>
+          <Icon name="server" size={14} /> {hpcLabel}
         </span>
       )}
+
+      {collabControls}
 
       <div className="run-cluster">
         <button className="btn btn-sm" onClick={onToggleQueue} title="Show queue">
           {queueCount > 0 && <span className="pulse-dot" />}
           Queue: {queueCount}
         </button>
-        <div className="batch-stepper" title="Batch count">
+
+        {/* Compact batch stepper: chevron-up / count / chevron-down on the
+            left of the Run button, no `-` / `+` duplicates. The number itself
+            is a readout only — power users can still wheel-scroll the up/down
+            arrows. */}
+        <div className="batch-stepper batch-stepper-compact" title={`Batch: ${clampedCount} run${clampedCount === 1 ? '' : 's'}`}>
           <button
-            className="btn btn-icon btn-sm"
-            disabled={batchCount <= 1 || isRunning}
-            onClick={() => onBatchCountChange(batchCount - 1)}
             type="button"
-            aria-label="Decrease batch count"
-            title="Decrease batch count"
-          >
-            <Icon name="minus" size={12} />
-          </button>
-          <input
-            aria-label="Batch count"
-            disabled={isRunning}
-            max={99}
-            min={1}
-            onChange={(event) => {
-              const next = Number.parseInt(event.target.value, 10);
-              onBatchCountChange(Number.isFinite(next) ? next : 1);
-            }}
-            type="number"
-            value={batchCount}
-          />
-          <button
-            className="btn btn-icon btn-sm"
-            disabled={batchCount >= 99 || isRunning}
-            onClick={() => onBatchCountChange(batchCount + 1)}
-            type="button"
+            className="batch-stepper-arrow"
             aria-label="Increase batch count"
             title="Increase batch count"
+            disabled={clampedCount >= 99 || isRunning}
+            onClick={() => onBatchCountChange(clampedCount + 1)}
           >
-            <Icon name="plus" size={12} />
+            <Icon name="chevronUp" size={10} />
+          </button>
+          <span className="batch-stepper-value" aria-label="Batch count">{clampedCount}</span>
+          <button
+            type="button"
+            className="batch-stepper-arrow"
+            aria-label="Decrease batch count"
+            title="Decrease batch count"
+            disabled={clampedCount <= 1 || isRunning}
+            onClick={() => onBatchCountChange(clampedCount - 1)}
+          >
+            <Icon name="chevronDown" size={10} />
           </button>
         </div>
-        {onBatchSheet && (
+
+        {/* Split-button: primary Run on the left, chevron dropdown on the
+            right (queue mode + sheet). The two buttons share a visual border
+            so they read as one control. */}
+        <div className="run-split-button" ref={runMenuRef}>
           <button
-            className="btn btn-sm"
-            onClick={onBatchSheet}
+            className="btn btn-primary btn-sm run-split-main"
+            onClick={onRun}
             disabled={isRunning}
-            title="Batch from sample sheet (CSV/TSV)"
-            type="button"
+            title={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
+            aria-label={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
           >
-            <Icon name="template" size={12} /> Sheet
+            {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
           </button>
-        )}
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={onRun}
-          disabled={isRunning}
-          title={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
-          aria-label={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
-        >
-          {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
-        </button>
-        {onQueueModeChange && (
-          <select
-            value={queueMode}
-            onChange={event => onQueueModeChange(event.target.value as 'manual' | 'change' | 'instant')}
-            title="Auto-queue mode"
-            style={{
-              padding: '4px 8px',
-              fontSize: 11,
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: queueMode === 'manual' ? 'var(--surface-2)' : 'color-mix(in srgb, var(--accent) 18%, var(--surface-2))',
-              color: 'var(--text)',
-            }}
+          <button
+            type="button"
+            className={`btn btn-primary btn-sm run-split-toggle ${runMenuOpen ? 'is-open' : ''}`}
+            onClick={() => setRunMenuOpen(open => !open)}
+            aria-haspopup="menu"
+            aria-expanded={runMenuOpen}
+            aria-label="Run options"
+            title={`Run options — current: ${QUEUE_MODE_LABELS[queueMode]}`}
           >
-            <option value="manual">Manual</option>
-            <option value="change">On change</option>
-            <option value="instant">Instant</option>
-          </select>
-        )}
+            <Icon name="chevronDown" size={12} />
+          </button>
+
+          {runMenuOpen && (
+            <div className="run-split-menu" role="menu">
+              <div className="run-split-menu-header">Queue mode</div>
+              {(['manual', 'change', 'instant'] as QueueMode[]).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={queueMode === mode}
+                  className={`run-split-menu-item ${queueMode === mode ? 'is-active' : ''}`}
+                  onClick={() => {
+                    onQueueModeChange?.(mode);
+                    setRunMenuOpen(false);
+                  }}
+                >
+                  <span className="run-split-menu-radio">{queueMode === mode ? '●' : '○'}</span>
+                  {QUEUE_MODE_LABELS[mode]}
+                </button>
+              ))}
+              {onBatchSheet && (
+                <>
+                  <div className="run-split-menu-divider" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="run-split-menu-item"
+                    onClick={() => {
+                      onBatchSheet();
+                      setRunMenuOpen(false);
+                    }}
+                    disabled={isRunning}
+                  >
+                    <Icon name="template" size={12} /> Batch from sheet…
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Drag-and-drop into the canvas already covers import, so the
+            standalone Import button has been removed. Export icon swapped to
+            visually match its action (out-of-app). */}
         <button
           className="btn btn-sm"
           onClick={onExport}
           title={withShortcut('Export workflow', exportShortcut)}
           aria-label={withShortcut('Export workflow', exportShortcut)}
-        >
-          <Icon name="export" size={14} />
-        </button>
-        <button
-          className="btn btn-sm"
-          onClick={onImport}
-          title={withShortcut('Import workflow', importShortcut)}
-          aria-label={withShortcut('Import workflow', importShortcut)}
         >
           <Icon name="import" size={14} />
         </button>

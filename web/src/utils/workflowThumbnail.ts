@@ -95,8 +95,17 @@ export interface RenderOptions {
   background?: string;
   /** Output encoding for the dataURL. JPEG is ~10x smaller — good for localStorage. */
   format?: 'png' | 'jpeg';
-  /** JPEG quality 0-1. Ignored for PNG. */
+  /**
+   * For JPEG: encoder quality (0-1, default 0.85).
+   * For PNG: rendering scale (PNG is lossless, so we drive output resolution
+   * instead). 1.0 keeps the requested width/height; 0.5 halves them, etc.
+   */
   quality?: number;
+  /**
+   * When `true`, the background fill is skipped and the canvas remains
+   * transparent. Useful for embedding the thumbnail in slide decks / docs.
+   */
+  transparent?: boolean;
 }
 
 // Smaller, JPEG-encoded variant used to stamp recents in localStorage. Keeps
@@ -116,26 +125,38 @@ export function renderRecentThumbnail(workflow: Workflow): string {
 }
 
 export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptions = {}): string {
-  const width = options.width ?? 640;
-  const height = options.height ?? 400;
-  const background = options.background ?? '#0f172a';
+  const baseWidth = options.width ?? 640;
+  const baseHeight = options.height ?? 400;
   const format = options.format ?? 'png';
-  const quality = options.quality ?? 0.85;
+  const quality = options.quality ?? (format === 'jpeg' ? 0.85 : 1);
+  const transparent = options.transparent === true;
+  const background = transparent ? null : (options.background ?? '#0f172a');
+  // PNG uses `quality` as a resolution multiplier (it's lossless). Clamp so
+  // we never produce an absurdly large or near-empty canvas.
+  const pngScale = format === 'png' ? Math.max(0.25, Math.min(1, quality)) : 1;
+  const width = Math.max(64, Math.round(baseWidth * pngScale));
+  const height = Math.max(64, Math.round(baseHeight * pngScale));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, width, height);
+  if (background) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.clearRect(0, 0, width, height);
+  }
 
   const nodes = workflow.nodes || [];
   if (nodes.length === 0) {
     ctx.fillStyle = '#94a3b8';
     ctx.font = '14px Inter, sans-serif';
     ctx.fillText('(empty workflow)', 16, 24);
-    return canvas.toDataURL('image/png');
+    return format === 'jpeg'
+      ? canvas.toDataURL('image/jpeg', quality)
+      : canvas.toDataURL('image/png');
   }
 
   let minX = Infinity;

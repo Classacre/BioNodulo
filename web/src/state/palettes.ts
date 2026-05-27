@@ -343,8 +343,12 @@ export function applyPalette(id = activePaletteId, mode?: PaletteMode, target?: 
   const root = target ?? document.documentElement;
   const tokens = palette[resolvedMode];
 
+  // Use `important` so palette tokens override dark/light theme CSS defaults
+  // (e.g. `[data-theme="dark"] :root { --accent: ... }`) which otherwise win
+  // the cascade against inline styles and make palette swaps look like no-ops
+  // in dark mode.
   Object.entries(tokens).forEach(([token, value]) => {
-    if (value) root.style.setProperty(`--${token}`, value);
+    if (value) root.style.setProperty(`--${token}`, value, 'important');
   });
 
   root.dataset.palette = palette.id;

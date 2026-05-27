@@ -6,7 +6,6 @@ import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
-import HardwareMonitor from './components/canvas/HardwareMonitor';
 import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
@@ -934,7 +933,7 @@ export default function App() {
   useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [lastAutoSaveAt, setLastAutoSaveAt] = useState<string | null>(() => {
+  const [, setLastAutoSaveAt] = useState<string | null>(() => {
     try { return localStorage.getItem(AUTO_SAVE_LAST_KEY); } catch { return null; }
   });
 
@@ -1158,6 +1157,16 @@ export default function App() {
         const finalStatus = payload.status === 'completed' ? 'completed' : payload.status === 'failed' ? 'error' : 'cancelled';
         const finishedRunId = String(payload.run_id);
         updateRun(finishedRunId, { status: finalStatus, end_time: ts });
+        // A failed run drops out of the active queue automatically (the queue
+        // view filters on pending/running) but stays in history. Surface a
+        // toast so the user notices the failure without scanning the console.
+        if (finalStatus === 'error') {
+          const failedRun = runs.find(r => r.run_id === finishedRunId);
+          const wfName = failedRun?.workflow_name || 'Workflow';
+          toast.error('Run failed', {
+            message: `${wfName} — see the console for details.`,
+          });
+        }
         // Fetch full run details to populate previews/artifacts
         fetch(`/api/runs/${finishedRunId}`)
           .then(r => r.ok ? r.json() : null)
@@ -1185,6 +1194,15 @@ export default function App() {
       } else if (data.type === 'queue_error') {
         addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'error', message: `Run error: ${payload.error}`, timestamp: ts });
         updateRun(String(payload.run_id), { status: 'error', end_time: ts });
+        // queue_error fires for errors that don't go through queue_finish
+        // (early validation failures, executor crashes). Always toast.
+        const erroredRunId = String(payload.run_id);
+        const erroredRun = runs.find(r => r.run_id === erroredRunId);
+        const wfName = erroredRun?.workflow_name || 'Workflow';
+        const errMsg = typeof payload.error === 'string' && payload.error
+          ? payload.error.split('\n')[0].slice(0, 160)
+          : 'see the console for details';
+        toast.error('Run failed', { message: `${wfName} — ${errMsg}` });
       } else if (data.type === 'queue_interrupt') {
         addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'warn', message: `Run interrupted`, timestamp: ts });
         updateRun(String(payload.run_id), { status: 'cancelled', end_time: ts });
@@ -1224,6 +1242,21 @@ export default function App() {
     [runs],
   );
   const queueCount = queuedRuns.length;
+
+  // Friendly name lookup for log lines: prefer the user-set node title, fall
+  // back to the type. Built from every node across every open workflow tab so
+  // logs from a historic run still resolve names from whichever tab still has
+  // the source node loaded.
+  const nodeIdToNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const wf of workflows) {
+      for (const node of wf.nodes || []) {
+        const name = (node.ui?.title && node.ui.title.trim()) || node.type;
+        if (node.id && name) map.set(node.id, name);
+      }
+    }
+    return map;
+  }, [workflows]);
 
   const autoSaveSetting = String(get('bionodulo.autoSave') || 'off');
   const cacheEnabled = getBool('bionodulo.cacheEnabled');
@@ -2515,9 +2548,15 @@ export default function App() {
     ]),
   }), [activeWorkflow.id, activeWorkflow.nodes, activeWorkflow.edges]);
 
-  // Auto-validate and resolve on workflow change
+  // Auto-validate and resolve on workflow change. Notes / reroutes are
+  // visual-only and the backend executor already filters them out, so a
+  // workflow that contains only notes should be treated as "empty" for
+  // resolve/validate purposes.
   useEffect(() => {
-    if (latestWorkflowRef.current.nodes.length === 0) {
+    const realNodes = (latestWorkflowRef.current.nodes || []).filter(
+      n => n.type !== 'note' && n.type !== 'reroute',
+    );
+    if (realNodes.length === 0) {
       clearResolveReport();
       return;
     }
@@ -2537,10 +2576,15 @@ export default function App() {
   useEffect(() => {
     if (queueMode !== 'change') return;
     if (!dirty || isRunning) return;
-    if (activeWorkflow.nodes.length === 0) return;
+    // Skip auto-queue when the workflow is empty *of executable nodes*. Notes
+    // alone shouldn't trigger a backend run.
+    const realNodes = (activeWorkflow.nodes || []).filter(
+      n => n.type !== 'note' && n.type !== 'reroute',
+    );
+    if (realNodes.length === 0) return;
     const timer = setTimeout(() => { void handleRunRef.current(); }, 1500);
     return () => clearTimeout(timer);
-  }, [queueMode, dirty, isRunning, activeWorkflow.nodes.length]);
+  }, [queueMode, dirty, isRunning, activeWorkflow.nodes]);
 
   const lastInstantRunRef = useRef<string | null>(null);
   useEffect(() => {
@@ -2700,12 +2744,21 @@ export default function App() {
     (consoleVisible || railTab === 'console') ? 'console-open' : '',
     focusMode ? 'focus-mode' : '',
   ].filter(Boolean).join(' ')), [consoleVisible, focusMode, railTab, showAI, showComments]);
-  const autoSaveLabel = useMemo(() => {
-    if (autoSaveSetting === 'off') return dirty ? 'Unsaved changes' : '';
-    if (dirty) return 'Autosave pending';
-    if (!lastAutoSaveAt) return 'Autosave on';
-    return `Saved ${new Date(lastAutoSaveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [autoSaveSetting, dirty, lastAutoSaveAt]);
+  // Total pixel width of all panels currently docked to the RIGHT edge —
+  // exposed as `--right-panel-inset` so .minimap / .canvas-controls slide
+  // left to stay visible instead of being clipped by the panel.
+  const rightPanelInset = useMemo(() => {
+    let total = 0;
+    for (const tab of openPanelTabs) {
+      if (!rightDockedPanels[tab] || floatingPanels[tab]) continue;
+      total += (panelWidths[tab] ?? 340);
+    }
+    return total;
+  }, [openPanelTabs, rightDockedPanels, floatingPanels, panelWidths]);
+  // NOTE: The "Unsaved changes / Autosave" pill that used to live in the top
+  // bar was removed in Wave L. The amber dot on each workflow tab now carries
+  // the dirty signal, and pre-flight save state is still surfaced inline when
+  // it matters (e.g. close-tab confirm dialog), so a global pill became noise.
 
   const closePanel = useCallback((tab: OpenPanelTab) => {
     setOpenPanelTabs(current => current.filter(item => item !== tab));
@@ -2803,7 +2856,10 @@ export default function App() {
   };
 
   return (
-    <div className={appShellClassName}>
+    <div
+      className={appShellClassName}
+      style={{ '--right-panel-inset': `${rightPanelInset}px` } as Record<string, string>}
+    >
       <NotificationHost />
       <ConfirmDialogHost />
       <CommandPaletteHost />
@@ -2827,10 +2883,10 @@ export default function App() {
         validationErrors={validation.errors}
         onRun={handleRun}
         onExport={() => setShowExport(true)}
-        onImport={() => setShowImport(true)}
         onAI={() => setShowAI(true)}
         onBatchSheet={() => setShowBatchSheet(true)}
         hpcStatus={hpcStatus}
+        hpcEnabled={hpcEnabled}
         isRunning={isRunning}
         queueMode={queueMode}
         onQueueModeChange={setQueueMode}
@@ -2838,8 +2894,7 @@ export default function App() {
         batchCount={batchCount}
         onToggleQueue={handleToggleQueue}
         onBatchCountChange={(count) => setBatchCount(Math.max(1, Math.min(99, count)))}
-        autoSaveLabel={autoSaveLabel}
-        collabControls={(
+        collabControls={collabEnabled ? (
           <CollabBadge
             enabled={collabEnabled}
             connected={collabConnected}
@@ -2860,9 +2915,9 @@ export default function App() {
             onOpenSettings={() => setRailTab('settings')}
             reconnectAttempt={collabReconnectAttempt}
             error={collabError}
-            offline={collabOffline || !collabEnabled}
+            offline={collabOffline}
           />
-        )}
+        ) : null}
       />
 
       <AuthDialog
@@ -3110,28 +3165,32 @@ export default function App() {
                     role="presentation"
                   />
                 )}
-                <div className="rail-panel-toolbar">
-                  {!floating && (
+                {/* Toolbar + content share a single Suspense boundary so the
+                    float / dock buttons no longer flash onscreen before the
+                    lazy panel chunk has resolved. The fallback covers the
+                    full panel area until the real UI is ready. */}
+                <Suspense fallback={<div className="panel-suspense-fallback"><Spinner size="lg" label={`Loading ${tab}…`} /></div>}>
+                  <div className="rail-panel-toolbar">
+                    {!floating && (
+                      <button
+                        className="rail-panel-dock-side"
+                        onClick={() => toggleRightDocked(tab)}
+                        title={isRight ? 'Dock to left side' : 'Dock to right side'}
+                        aria-label={isRight ? 'Move panel to left side' : 'Move panel to right side'}
+                        type="button"
+                      >
+                        <Icon name={isRight ? 'chevronLeft' : 'chevronRight'} size={13} />
+                      </button>
+                    )}
                     <button
-                      className="rail-panel-dock-side"
-                      onClick={() => toggleRightDocked(tab)}
-                      title={isRight ? 'Dock to left side' : 'Dock to right side'}
-                      aria-label={isRight ? 'Move panel to left side' : 'Move panel to right side'}
+                      className="rail-panel-float"
+                      onClick={() => toggleFloatingPanel(tab, index)}
+                      title={floating ? 'Dock panel' : 'Float panel'}
                       type="button"
                     >
-                      <Icon name={isRight ? 'chevronLeft' : 'chevronRight'} size={13} />
+                      <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
                     </button>
-                  )}
-                  <button
-                    className="rail-panel-float"
-                    onClick={() => toggleFloatingPanel(tab, index)}
-                    title={floating ? 'Dock panel' : 'Float panel'}
-                    type="button"
-                  >
-                    <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
-                  </button>
-                </div>
-                <Suspense fallback={<div className="panel-suspense-fallback"><Spinner size="lg" label={`Loading ${tab}…`} /></div>}>
+                  </div>
                   {renderPanelContent(tab)}
                 </Suspense>
                 <div
@@ -3155,7 +3214,6 @@ export default function App() {
           return [...leftRendered, ...rightRendered, ...floatingRendered];
         })()}
 
-        <HardwareMonitor />
         <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} />
         {focusMode && (
           <button
@@ -3185,6 +3243,7 @@ export default function App() {
               onClearHistory={handleClearHistory}
               onCompareRuns={() => setShowOutputDiff(true)}
               batchCount={batchCount}
+              nodeIdToName={nodeIdToNameMap}
             />
           </ErrorBoundary>
         )}

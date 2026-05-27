@@ -307,14 +307,65 @@ function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Arr
     if (!layerMap.has(l)) layerMap.set(l, []);
     layerMap.get(l)!.push(n);
   }
-  const colWidth = 280;
-  const rowHeight = 140;
+
+  // Use per-node dimensions instead of fixed column/row sizes — otherwise
+  // nodes with tall widget stacks (or user-widened columns) overlap.
+  const COL_GAP = 80;
+  const ROW_GAP = 40;
+  const measure = (n: GraphNode) => {
+    const width = Math.max(NODE_WIDTH, n.width || NODE_WIDTH);
+    if (n.collapsed) {
+      return { width, height: NODE_HEADER_H + 8 };
+    }
+    const widgetSpecs = n.meta
+      ? {
+        ...(n.meta.input_types?.required || {}),
+        ...(n.meta.input_types?.optional || {}),
+      }
+      : {};
+    const widgetCount = Object.keys(widgetSpecs).length;
+    const portRows = Math.max(n.inputs?.length || 0, n.outputs?.length || 0, 1);
+    const measuredH = n.height && n.height > 0
+      ? n.height
+      : NODE_HEADER_H + portRows * NODE_PIN_H + widgetCount * 24 + 16;
+    return { width, height: measuredH };
+  };
+
+  // Pre-compute per-layer column width (max measured width) and per-layer
+  // node heights so the row offsets can step by each node's own height.
+  const layerWidth = new Map<number, number>();
+  const layerNodeHeights = new Map<number, number[]>();
+  for (const [l, nodes] of layerMap) {
+    let maxW = 0;
+    const heights: number[] = [];
+    for (const n of nodes) {
+      const { width, height } = measure(n);
+      maxW = Math.max(maxW, width);
+      heights.push(height);
+    }
+    layerWidth.set(l, maxW);
+    layerNodeHeights.set(l, heights);
+  }
+  // Cumulative X by layer.
+  const layerX = new Map<number, number>();
+  let xCursor = 60;
+  const sortedLayers = Array.from(layerWidth.keys()).sort((a, b) => a - b);
+  for (const l of sortedLayers) {
+    layerX.set(l, xCursor);
+    xCursor += (layerWidth.get(l) || NODE_WIDTH) + COL_GAP;
+  }
+
   const result: Array<{ id: string; x: number; y: number }> = [];
   for (const n of graphNodes) {
     const l = layer.get(n.id) || 0;
     const nodesInLayer = layerMap.get(l)!;
     const idx = nodesInLayer.findIndex(nn => nn.id === n.id);
-    result.push({ id: n.id, x: l * colWidth + 60, y: idx * rowHeight + 60 });
+    const heights = layerNodeHeights.get(l) || [];
+    let y = 60;
+    for (let i = 0; i < idx; i++) {
+      y += (heights[i] || 80) + ROW_GAP;
+    }
+    result.push({ id: n.id, x: layerX.get(l) ?? 60, y });
   }
   return result;
 }
@@ -1263,7 +1314,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         }
       }
 
-      // Border
+      // Border. When selected we draw an accent-coloured outline so it
+      // contrasts against the node body — using `node.color` here meant a
+      // green-bodied node got a green outline that read as no highlight at
+      // all on plain clicks (the drag path additionally renders a translucent
+      // outline so the bug only surfaced for click-without-drag).
       const statusOutline = node.status === 'running'
         ? '#22c55e'
         : node.status === 'error'
@@ -1271,8 +1326,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           : null;
       const missingDependency = missingDependencyNodeIdsRef.current?.has(node.id);
       ctx.strokeStyle = statusOutline
-        || (missingDependency ? '#f97316' : node.selected ? node.color : (isDark ? '#334155' : '#e2e8f0'));
-      ctx.lineWidth = statusOutline || missingDependency ? 3 : node.selected ? 2 : 1;
+        || (missingDependency ? '#f97316' : node.selected ? palette.accent : (isDark ? '#334155' : '#e2e8f0'));
+      ctx.lineWidth = statusOutline || missingDependency ? 3 : node.selected ? 2.5 : 1;
       roundRect(ctx, node.x, node.y, nw, nh, radius);
       ctx.stroke();
 
@@ -3136,6 +3191,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         // instead of clipping when scale > 1 or jittering when scale < 1.
         const layoutWidth = node.width - 16;
         const layoutHeight = 24;
+        // Mid-drag, widget overlays must not capture pointer events: otherwise
+        // dragging a node OVER another node lets the moving node's widgets
+        // intercept the mouse and halt the drag. The dragged node's own
+        // widgets also fade + drop in z-order so the static target node
+        // remains visually on top until the drop lands.
+        const isAnyDragging = dragging !== null || groupDragging !== null;
+        const isThisDragging = dragging === node.id || (groupDragging !== null && node.selected);
+        const widgetZ = isThisDragging ? 1 : 12;
+        const widgetPointer: 'auto' | 'none' = isAnyDragging ? 'none' : 'auto';
+        const widgetOpacity = isThisDragging ? 0.35 : 1;
         return Object.entries(allSpecs).map(([key, rawSpec]) => {
           const spec = rawSpec as any;
           const value = node.params[key] ?? spec.default ?? '';
@@ -3147,9 +3212,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             top: rowTop,
             width: layoutWidth,
             height: layoutHeight,
-            zIndex: 12,
+            zIndex: widgetZ,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
+            pointerEvents: widgetPointer,
+            opacity: widgetOpacity,
           };
           const commit = (nextValue: unknown, push = true) => {
             handleNodeParamChange(node.id, key, nextValue);

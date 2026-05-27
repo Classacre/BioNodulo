@@ -64,6 +64,13 @@ interface BottomConsoleProps {
   onClearHistory?: () => void;
   onCompareRuns?: () => void;
   batchCount?: number;
+  /**
+   * Mapping from internal node UUID to its human-friendly title/type. When a
+   * log entry's `node_id` matches an entry here, we render the friendly name
+   * instead of the long UUID. Logs are already grouped by run/workflow so the
+   * raw UUID was pure clutter.
+   */
+  nodeIdToName?: ReadonlyMap<string, string>;
 }
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp']);
@@ -73,11 +80,14 @@ function isImagePath(path: string): boolean {
   return Array.from(IMAGE_EXTS).some(ext => lower.endsWith(ext));
 }
 
-function LogLine({ entry }: { entry: LogEntry }) {
+function LogLine({ entry, nodeIdToName }: { entry: LogEntry; nodeIdToName?: ReadonlyMap<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const level = entry.level || 'info';
   const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : '';
-  const nodeId = typeof entry.node_id === 'string' ? entry.node_id : 'unknown';
+  const rawNodeId = typeof entry.node_id === 'string' ? entry.node_id : 'unknown';
+  // Prefer the friendly node title when we have it. We still keep the raw id
+  // accessible via the title attribute for debugging.
+  const nodeLabel = nodeIdToName?.get(rawNodeId) ?? rawNodeId;
   const message = typeof entry.message === 'string' ? entry.message : '';
   const detail = typeof entry.detail === 'string' ? entry.detail : '';
   const hasDetail = detail.length > 0;
@@ -86,7 +96,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
     <div className={`console-log-line ${level}`}>
       <div className="console-log-main">
         <span className="console-log-ts">[{timestamp ? timestamp.slice(11, 19) : '--:--:--'}]</span>
-        <span className="console-log-node">[{nodeId}]</span>
+        <span className="console-log-node" title={rawNodeId !== nodeLabel ? rawNodeId : undefined}>[{nodeLabel}]</span>
         <span className="console-log-msg">{message}</span>
         {hasDetail && (
           <button
@@ -416,6 +426,7 @@ export default function BottomConsole({
   onClearHistory,
   onCompareRuns,
   batchCount,
+  nodeIdToName,
 }: BottomConsoleProps) {
   const [tab, setTab] = useState<ConsoleTab>('logs');
   const [showVerbose, setShowVerbose] = useState(true);
@@ -729,6 +740,7 @@ export default function BottomConsole({
                           {Array.from(nodeGroups.entries()).map(([nodeId, nodeLogs]) => {
                             const nodeKey = `${runId}:${nodeId}`;
                             const isNodeExpanded = expandedNodes.has(nodeKey);
+                            const nodeTitle = nodeIdToName?.get(nodeId) ?? nodeId;
                             return (
                               <div key={nodeId} className="console-log-node-group">
                                 <button
@@ -737,7 +749,7 @@ export default function BottomConsole({
                                   title={isNodeExpanded ? 'Collapse node' : 'Expand node'}
                                 >
                                   <Icon name={isNodeExpanded ? 'chevronDown' : 'chevronRight'} size={10} />
-                                  <span className="console-log-node-title">{nodeId}</span>
+                                  <span className="console-log-node-title" title={nodeTitle !== nodeId ? nodeId : undefined}>{nodeTitle}</span>
                                   <span className="console-log-node-count">({nodeLogs.length})</span>
                                 </button>
                                 {isNodeExpanded && (() => {
@@ -762,10 +774,14 @@ export default function BottomConsole({
                                         </button>
                                       )}
                                       {visible.map((l, i) => (
-                                        <LogLine key={`${nodeKey}-${nodeLogs.length - visible.length + i}`} entry={{
-                                          ...l,
-                                          detail: showVerbose ? l.detail : undefined,
-                                        }} />
+                                        <LogLine
+                                          key={`${nodeKey}-${nodeLogs.length - visible.length + i}`}
+                                          nodeIdToName={nodeIdToName}
+                                          entry={{
+                                            ...l,
+                                            detail: showVerbose ? l.detail : undefined,
+                                          }}
+                                        />
                                       ))}
                                     </div>
                                   );
