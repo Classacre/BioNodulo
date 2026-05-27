@@ -6,6 +6,7 @@ import '../../i18n';
 import Icon from './Icon';
 import { useFoundationStyles } from './FoundationStyles';
 import {
+  compareCommandGroups,
   setCommandPaletteOpen,
   useCommandPaletteStore,
   type CommandItem,
@@ -67,7 +68,7 @@ export function CommandPalette({
       const group = item.group || t('commandPalette.defaultGroup');
       groups.set(group, [...(groups.get(group) ?? []), item]);
     });
-    return Array.from(groups.entries());
+    return Array.from(groups.entries()).sort(([a], [b]) => compareCommandGroups(a, b));
   }, [filteredItems, t]);
   const visibleItems = useMemo(() => groupedItems.flatMap(([, groupItems]) => groupItems), [groupedItems]);
 

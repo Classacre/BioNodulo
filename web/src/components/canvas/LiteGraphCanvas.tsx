@@ -419,6 +419,9 @@ export interface LiteGraphCanvasRef {
   getSelectedNodeIds: () => string[];
   executeSelected: () => void;
   createSubgraphFromSelection: () => void;
+  /** Topological auto-layout: lays out the selection (or all nodes if none
+   *  selected) in horizontal columns based on dependency depth. */
+  autoLayout: () => void;
 }
 
 const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(function LiteGraphCanvas({
@@ -482,6 +485,10 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [palettePos, setPalettePos] = useState<{ x: number; y: number } | null>(null);
   const [pendingLinkPickup, setPendingLinkPickup] = useState<{ fromNodeId: string; fromOutputName: string; fromOutputType: string } | null>(null);
   const [editingNode, setEditingNode] = useState<string | null>(null);
+  // Node id whose title is being renamed in-place (F2 or Alt+double-click).
+  // `null` means no rename active. The DOM input is rendered by an overlay
+  // positioned over the node's header.
+  const [renamingNode, setRenamingNode] = useState<{ id: string; value: string } | null>(null);
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ label: string; key: number } | null>(null);
@@ -1633,6 +1640,19 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onPushHistoryRef.current();
       }
 
+      // F2 starts rename on the currently selected node (single selection).
+      // Falls through silently when 0 or 2+ are selected — the multi-select
+      // semantics of rename are unclear and ComfyUI/IDEs both gate on single.
+      if (e.key === 'F2') {
+        const selected = graphNodesRef.current.filter(n => n.selected);
+        if (selected.length !== 1) return;
+        const target = selected[0];
+        if (target.type === 'reroute') return; // reroutes have no user title
+        e.preventDefault();
+        setRenamingNode({ id: target.id, value: target.title || '' });
+        return;
+      }
+
       // Group selected nodes (Ctrl+G)
       if (isCtrl && key === 'g') {
         e.preventDefault();
@@ -2187,17 +2207,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const x = Math.min(dragStart.x, cx);
       const y = Math.min(dragStart.y, cy);
       setSelectBox({ x, y, w: Math.abs(cx - dragStart.x), h: Math.abs(cy - dragStart.y) });
-      // Select nodes in box
+      // Select nodes touching the box. Intersection (not containment) matches
+      // ComfyUI behaviour and is forgiving for small nodes like reroutes,
+      // which the previous "wholly inside" test could miss with a quick drag.
       const w1 = toWorld(x, y);
       const w2 = toWorld(x + Math.abs(cx - dragStart.x), y + Math.abs(cy - dragStart.y));
-      const isInSelectionBox = (n: GraphNode) => (
-        n.x >= w1.x && n.x + n.width <= w2.x && n.y >= w1.y && n.y + n.height <= w2.y
+      const intersects = (n: GraphNode) => (
+        n.x + n.width >= w1.x && n.x <= w2.x
+        && n.y + n.height >= w1.y && n.y <= w2.y
       );
-      const selectedIds = graphNodesRef.current.filter(isInSelectionBox).map(n => n.id);
-      setGraphNodes(prev => prev.map(n => {
-        const inBox = n.x >= w1.x && n.x + n.width <= w2.x && n.y >= w1.y && n.y + n.height <= w2.y;
-        return { ...n, selected: inBox };
-      }));
+      const selectedIds = graphNodesRef.current.filter(intersects).map(n => n.id);
+      setGraphNodes(prev => prev.map(n => ({ ...n, selected: intersects(n) })));
       publishCollabSelection({
         nodeIds: selectedIds,
         box: {
@@ -2453,9 +2473,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onEnterSubgraphRef.current(clicked.id);
         return;
       }
-      // Double-click header to toggle collapse (ComfyUI behavior)
+      // Double-click header to toggle collapse (ComfyUI behavior). Alt held
+      // diverts to inline rename so mouse-only users have a non-keyboard
+      // path; plain double-click still collapses to stay faithful to muscle
+      // memory from ComfyUI.
       const inHeader = world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
       if (inHeader && !clicked.visualOnly) {
+        if (e.altKey) {
+          setRenamingNode({ id: clicked.id, value: clicked.title || '' });
+          return;
+        }
         setGraphNodes(prev => prev.map(n => {
           if (n.id !== clicked.id) return n;
           const newCollapsed = !n.collapsed;
@@ -2533,6 +2560,78 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     animateViewport({ x: cx - worldX * targetScale, y: cy - worldY * targetScale }, targetScale, 160);
   }, [animateViewport, offset, scale]);
 
+  const autoLayout = useCallback(() => {
+    // Topological column-rank layout. Picks the working set (selected nodes
+    // if any, otherwise the whole workflow), computes each node's depth as
+    // longest predecessor chain among in-set nodes, then places columns
+    // left-to-right at fixed COL_W spacing with nodes stacked vertically
+    // by their incoming order within the column.
+    const COL_W = 280;
+    const ROW_H = 160;
+    const selectedIds = new Set(graphNodesRef.current.filter(n => n.selected).map(n => n.id));
+    const workingSet = selectedIds.size > 0
+      ? graphNodesRef.current.filter(n => selectedIds.has(n.id))
+      : graphNodesRef.current.slice();
+    if (workingSet.length === 0) return;
+
+    const inSet = new Set(workingSet.map(n => n.id));
+    const inEdges = new Map<string, string[]>();
+    for (const edge of edgesRef.current) {
+      if (!inSet.has(edge.from.node) || !inSet.has(edge.to.node)) continue;
+      const list = inEdges.get(edge.to.node) ?? [];
+      list.push(edge.from.node);
+      inEdges.set(edge.to.node, list);
+    }
+
+    // Depth via memoised longest-predecessor-chain. Cycles (shouldn't exist
+    // in BioNodulo workflows but defensive) stop at the guarded depth so the
+    // layout always terminates.
+    const depths = new Map<string, number>();
+    const visiting = new Set<string>();
+    const depthOf = (id: string): number => {
+      if (depths.has(id)) return depths.get(id)!;
+      if (visiting.has(id)) return 0; // cycle: pin to column 0
+      visiting.add(id);
+      const parents = inEdges.get(id) ?? [];
+      const depth = parents.length === 0 ? 0 : Math.max(...parents.map(depthOf)) + 1;
+      visiting.delete(id);
+      depths.set(id, depth);
+      return depth;
+    };
+    for (const node of workingSet) depthOf(node.id);
+
+    // Group by depth, then position each column.
+    const columns = new Map<number, typeof workingSet>();
+    for (const node of workingSet) {
+      const d = depths.get(node.id) ?? 0;
+      const list = columns.get(d) ?? [];
+      list.push(node);
+      columns.set(d, list);
+    }
+
+    // Anchor the layout at the working set's current top-left so unrelated
+    // nodes stay roughly where they were.
+    const anchorX = Math.min(...workingSet.map(n => n.x));
+    const anchorY = Math.min(...workingSet.map(n => n.y));
+
+    const positions = new Map<string, [number, number]>();
+    Array.from(columns.entries()).sort(([a], [b]) => a - b).forEach(([depth, nodesInCol]) => {
+      nodesInCol.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
+      nodesInCol.forEach((node, row) => {
+        positions.set(node.id, [anchorX + depth * COL_W, anchorY + row * ROW_H]);
+      });
+    });
+
+    const updated = nodesRef.current.map(wn => {
+      const next = positions.get(wn.id);
+      if (!next) return wn;
+      return { ...wn, position: next };
+    });
+    onNodesChangeRef.current(updated);
+    onPushHistoryRef.current();
+    flashAction('Auto layout');
+  }, [flashAction]);
+
   useImperativeHandle(ref, () => ({
     fitView,
     focusNode,
@@ -2547,7 +2646,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const ids = getSelectedNodeIds();
       if (ids.length > 0) onCreateSubgraphRef.current?.(ids);
     },
-  }), [fitView, focusNode, getSelectedNodeIds, offset.x, offset.y, scale, setViewportFromAwareness]);
+    autoLayout,
+  }), [fitView, focusNode, getSelectedNodeIds, offset.x, offset.y, scale, setViewportFromAwareness, autoLayout]);
 
   const handleContextAction = useCallback(async (action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
@@ -3423,6 +3523,60 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           />
         </div>
       )}
+
+      {/* Inline rename overlay. Sized & positioned over the header of the
+          renaming node so it visually replaces the title text. Commits on
+          Enter / blur; aborts on Escape. */}
+      {renamingNode && (() => {
+        const target = graphNodes.find(n => n.id === renamingNode.id);
+        if (!target) return null;
+        const left = target.x * scale + offset.x + 6 * scale;
+        const top = target.y * scale + offset.y + 6 * scale;
+        const width = (target.width - 12) * scale;
+        const height = (NODE_HEADER_H - 12) * scale;
+        const commit = () => {
+          const value = renamingNode.value.trim();
+          if (value !== (target.title || '').trim()) {
+            const updated = nodes.map(wn => wn.id === target.id
+              ? { ...wn, ui: { ...wn.ui, title: value || target.type } }
+              : wn);
+            onNodesChange(updated);
+            onPushHistory();
+          }
+          setRenamingNode(null);
+        };
+        return (
+          <input
+            autoFocus
+            value={renamingNode.value}
+            onChange={e => setRenamingNode({ id: renamingNode.id, value: e.target.value })}
+            onBlur={commit}
+            onKeyDown={e => {
+              e.stopPropagation();
+              if (e.key === 'Enter') { e.preventDefault(); commit(); }
+              else if (e.key === 'Escape') { e.preventDefault(); setRenamingNode(null); }
+            }}
+            style={{
+              position: 'absolute',
+              left,
+              top,
+              width: Math.max(60, width),
+              height: Math.max(18, height),
+              fontSize: Math.max(11, 13 * scale),
+              fontWeight: 600,
+              padding: '0 6px',
+              border: '1px solid var(--accent, #2dd4bf)',
+              borderRadius: 4,
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              zIndex: 90,
+              outline: 'none',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+            }}
+            aria-label="Rename node"
+          />
+        );
+      })()}
     </div>
   );
 });

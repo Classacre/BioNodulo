@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { InputSpec, ObjectInfo, NodeMetadata } from '../types';
+import { safeValidateObjectInfo } from '../api/validators';
 
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {
@@ -74,7 +75,16 @@ export function useObjectInfo() {
       const r = await fetch('/api/object_info');
       if (r.ok) {
         const data = await r.json();
-        setObjectInfo(normalizeObjectInfo(data));
+        // Reject the whole payload only if the top-level shape is wrong; the
+        // per-key normaliser already tolerates missing inner fields.
+        const validation = safeValidateObjectInfo(data);
+        if (validation.ok) {
+          setObjectInfo(normalizeObjectInfo(validation.value));
+        } else {
+          // Fall back to the raw normaliser so a backend rolling out a
+          // schema change doesn't leave the panel empty.
+          setObjectInfo(normalizeObjectInfo(data));
+        }
       }
     } catch {
       // Will be empty initially without backend

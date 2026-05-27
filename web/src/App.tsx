@@ -2139,6 +2139,13 @@ export default function App() {
         shortcut: 'Ctrl+Shift+Z',
         onSelect: redo,
       },
+      {
+        id: 'edit.autoLayout',
+        label: 'Auto-layout (selected nodes)',
+        description: 'Arrange selected nodes (or all nodes) in topological columns',
+        group: 'Edit',
+        onSelect: () => canvasRef.current?.autoLayout(),
+      },
       // --- Workflow tabs ----------------------------------------------------
       {
         id: 'workflow.new',

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '../ui/Dialog';
 import { apiGet, ApiError } from '../../api/client';
+import { safeValidateRunRecord } from '../../api/validators';
 import type { RunRecord } from '../../types';
 
 interface OutputDiffModalProps {
@@ -83,8 +84,17 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
     let cancelled = false;
     setLoadingLeft(true);
     setError(null);
-    apiGet<RunRecord>(`/runs/${leftId}`)
-      .then(record => { if (!cancelled) setLeftRecord(record); })
+    apiGet<unknown>(`/runs/${leftId}`)
+      .then(raw => {
+        if (cancelled) return;
+        const result = safeValidateRunRecord(raw);
+        if (!result.ok) {
+          setLeftRecord(null);
+          setError(`Left run: ${result.error.message}`);
+          return;
+        }
+        setLeftRecord(raw as RunRecord);
+      })
       .catch((err: unknown) => {
         if (cancelled) return;
         setLeftRecord(null);
@@ -99,8 +109,17 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
     let cancelled = false;
     setLoadingRight(true);
     setError(null);
-    apiGet<RunRecord>(`/runs/${rightId}`)
-      .then(record => { if (!cancelled) setRightRecord(record); })
+    apiGet<unknown>(`/runs/${rightId}`)
+      .then(raw => {
+        if (cancelled) return;
+        const result = safeValidateRunRecord(raw);
+        if (!result.ok) {
+          setRightRecord(null);
+          setError(`Right run: ${result.error.message}`);
+          return;
+        }
+        setRightRecord(raw as RunRecord);
+      })
       .catch((err: unknown) => {
         if (cancelled) return;
         setRightRecord(null);

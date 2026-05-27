@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, type RecentWorkflow } from '../../state/recentWorkflows';
+import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface GettingStartedModalProps {
@@ -140,6 +140,10 @@ export default function GettingStartedModal({
 }: GettingStartedModalProps) {
   const [tab, setTab] = useState<TabId>('welcome');
   const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
+  // Tag filter. Empty string == "All". Set by clicking a tag chip.
+  const [recentTagFilter, setRecentTagFilter] = useState<string>('');
+  const [taggingRecentId, setTaggingRecentId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState('');
   const [liveReleases, setLiveReleases] = useState<ReleaseNote[] | null>(() => loadCachedReleases());
   const [releasesLoading, setReleasesLoading] = useState(false);
   const [releasesError, setReleasesError] = useState<string | null>(null);
@@ -287,11 +291,37 @@ export default function GettingStartedModal({
                 Build, run, and share reproducible pipelines using a node-based canvas.
               </p>
 
-              {recents.length > 0 && onOpenRecent && (
+              {recents.length > 0 && onOpenRecent && (() => {
+                const allTags = Array.from(new Set(recents.flatMap(r => r.tags || []))).sort();
+                const filtered = recentTagFilter
+                  ? recents.filter(r => (r.tags || []).includes(recentTagFilter))
+                  : recents;
+                return (
                 <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Recent workflows</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>Recent workflows</div>
+                    {allTags.length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => setRecentTagFilter('')}
+                          className={`env-type-tab ${!recentTagFilter ? 'active' : ''}`}
+                          style={{ fontSize: 10, padding: '2px 8px' }}
+                        >All</button>
+                        {allTags.map(tag => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setRecentTagFilter(tag === recentTagFilter ? '' : tag)}
+                            className={`env-type-tab ${recentTagFilter === tag ? 'active' : ''}`}
+                            style={{ fontSize: 10, padding: '2px 8px' }}
+                          >#{tag}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {recents.slice(0, 5).map(entry => (
+                    {filtered.slice(0, 8).map(entry => (
                       <div
                         key={entry.id}
                         style={{
@@ -335,8 +365,48 @@ export default function GettingStartedModal({
                             <span style={{ fontSize: 10, color: 'var(--muted)' }}>
                               {entry.source} · {entry.nodeCount ?? 0} nodes · {timeAgo(entry.openedAt)}
                             </span>
+                            {(entry.tags && entry.tags.length > 0) && (
+                              <span style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
+                                {entry.tags.map(tag => (
+                                  <span key={tag} style={{ fontSize: 9, padding: '1px 5px', borderRadius: 8, background: 'rgba(45,212,191,0.14)', color: 'var(--accent, #2dd4bf)' }}>#{tag}</span>
+                                ))}
+                              </span>
+                            )}
                           </div>
                         </button>
+                        {taggingRecentId === entry.id ? (
+                          <input
+                            autoFocus
+                            value={tagDraft}
+                            onChange={e => setTagDraft(e.target.value)}
+                            placeholder="tag1, tag2"
+                            onBlur={() => {
+                              const tags = tagDraft.split(',').map(t => t.trim()).filter(Boolean);
+                              setRecentTags(entry.id, tags);
+                              setRecents(getRecentWorkflows());
+                              setTaggingRecentId(null);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                              else if (e.key === 'Escape') setTaggingRecentId(null);
+                            }}
+                            style={{
+                              width: 120, fontSize: 11, padding: '2px 6px',
+                              background: 'var(--surface)', border: '1px solid var(--accent, #2dd4bf)',
+                              color: 'var(--text)', borderRadius: 4,
+                            }}
+                            aria-label="Edit tags (comma-separated)"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setTaggingRecentId(entry.id); setTagDraft((entry.tags || []).join(', ')); }}
+                            title="Edit tags"
+                            style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}
+                          >
+                            #
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => forgetRecentWorkflow(entry.id)}
@@ -356,7 +426,8 @@ export default function GettingStartedModal({
                     ))}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Quick Start</div>

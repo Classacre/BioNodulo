@@ -12,6 +12,8 @@ export interface RecentWorkflow {
   filename?: string;
   thumbnailUrl?: string;
   nodeCount?: number;
+  /** Free-form user tags so a workflow can be grouped/filtered in recents. */
+  tags?: string[];
 }
 
 type Listener = () => void;
@@ -56,6 +58,20 @@ export function rememberRecentWorkflow(entry: Omit<RecentWorkflow, 'openedAt'> &
   const existing = readStorage().filter(item => item.id !== stamped.id);
   writeStorage([stamped, ...existing]);
   listeners.forEach(listener => listener());
+}
+
+/**
+ * Set the tags on an existing recent entry without bumping its position in
+ * the list. Returns false if the entry isn't tracked yet (the caller should
+ * fall back to rememberRecentWorkflow).
+ */
+export function setRecentTags(id: string, tags: string[]): boolean {
+  const entries = readStorage();
+  const next = entries.map(entry => entry.id === id ? { ...entry, tags: tags.slice() } : entry);
+  if (next.every((entry, i) => entry === entries[i])) return false;
+  writeStorage(next);
+  listeners.forEach(listener => listener());
+  return true;
 }
 
 /**

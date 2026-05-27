@@ -16,8 +16,8 @@ export { Tooltip } from './Tooltip';
 export type { TooltipPlacement, TooltipProps } from './Tooltip';
 
 export { alertAction, alertDialog, confirmAction, confirmDialog, promptAction, promptDialog } from '../../state/dialogs';
-export { closeCommandPalette, openCommandPalette, registerCommandItem, registerCommandItems, toggleCommandPalette } from '../../state/commandPalette';
-export type { CommandItem, RegisteredCommandItem } from '../../state/commandPalette';
+export { closeCommandPalette, openCommandPalette, registerCommandItem, registerCommandItems, toggleCommandPalette, COMMAND_GROUPS, COMMAND_GROUP_ORDER, compareCommandGroups } from '../../state/commandPalette';
+export type { CommandItem, RegisteredCommandItem, CommandGroup } from '../../state/commandPalette';
 export { toast } from '../../state/notifications';
 export type { NotificationAction, NotificationOptions, NotificationTone } from '../../state/notifications';
 export { registerPanel, registerPanels, usePanelRegistry } from '../../state/panels';
