@@ -10,9 +10,11 @@ interface WorkflowTabsProps {
   onRename?: (index: number, name: string) => void;
   onDuplicate?: (index: number) => void;
   onReorder?: (from: number, to: number) => void;
+  /** Indices whose workflow has unsaved changes; rendered with a small dot. */
+  dirtyIndices?: ReadonlySet<number>;
 }
 
-export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, onRename, onDuplicate, onReorder }: WorkflowTabsProps) {
+export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, onRename, onDuplicate, onReorder, dirtyIndices }: WorkflowTabsProps) {
   const [menu, setMenu] = useState<{ x: number; y: number; index: number } | null>(null);
   const [renaming, setRenaming] = useState<{ index: number; name: string } | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -148,6 +150,13 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
             />
           ) : (
             <span onDoubleClick={() => setRenaming({ index: i, name: name || 'Untitled' })}>
+              {dirtyIndices?.has(i) && (
+                <span
+                  className="wf-tab-dirty"
+                  aria-label="unsaved changes"
+                  title="Unsaved changes"
+                />
+              )}
               {name || 'Untitled'}
             </span>
           )}

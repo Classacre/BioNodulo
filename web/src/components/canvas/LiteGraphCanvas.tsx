@@ -2765,6 +2765,54 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       // Actual promotion happens in App.tsx via onPromoteWidgets so it can
       // mutate the parent workflow that owns this subgraph view.
       onPromoteWidgetsRef.current?.(nodeId);
+    } else if (action === 'savePreset') {
+      const node = nodes.find(n => n.id === nodeId);
+      if (node) {
+        const { savePreset } = await import('../../state/nodePresets');
+        const defaultName = `${node.ui?.title || node.type} preset`;
+        const name = await promptDialog({
+          title: 'Save parameter preset',
+          message: 'The current parameter values will be saved for this node type.',
+          inputLabel: 'Preset name',
+          defaultValue: defaultName,
+        });
+        if (name) {
+          savePreset(node.type, name, node.params || {});
+          toast.success('Preset saved', { message: name });
+        }
+      }
+    } else if (action === 'applyPreset') {
+      const node = nodes.find(n => n.id === nodeId);
+      if (node) {
+        const { listPresetsForType } = await import('../../state/nodePresets');
+        const presets = listPresetsForType(node.type);
+        if (presets.length === 0) {
+          toast.info('No presets saved for this node type yet');
+        } else {
+          const labels = presets.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
+          const choice = await promptDialog({
+            title: 'Apply preset',
+            message: `Pick a preset by number:\n${labels}`,
+            inputLabel: 'Number',
+            defaultValue: '1',
+          });
+          const index = Math.max(1, Math.min(presets.length, parseInt(choice || '1', 10))) - 1;
+          if (!Number.isNaN(index)) {
+            const preset = presets[index];
+            // Only overwrite keys that already exist on the node so a preset
+            // saved for a slightly different variant doesn't introduce stray
+            // params the executor doesn't know about.
+            const nextParams = { ...node.params };
+            for (const [key, value] of Object.entries(preset.params)) {
+              if (Object.prototype.hasOwnProperty.call(nextParams, key)) {
+                nextParams[key] = value;
+              }
+            }
+            onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, params: nextParams } : n));
+            toast.success('Preset applied', { message: preset.name });
+          }
+        }
+      }
     } else if (action === 'executeSelected') {
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
       onExecuteSelectedRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
@@ -3117,10 +3165,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             event.stopPropagation();
             copyParamToSelection(node.id, key);
           };
+          // Build the title attribute from the spec's tooltip / description
+          // when present so hovering a widget surfaces backend-authored docs.
+          // Fall back to the copy-to-selection hint when no doc is available.
+          const tooltipText = (spec?.tooltip || spec?.description || '').toString().trim();
+          const labelTitle = tooltipText
+            ? `${tooltipText}\n\n(Right-click to copy this value to selected nodes)`
+            : 'Right-click to copy this value to selected nodes';
           const labelProps = {
             style: common,
             onContextMenu: onWidgetContextMenu,
-            title: 'Right-click to copy this value to selected nodes',
+            title: labelTitle,
           };
           if (spec?.type === 'BOOLEAN') {
             return (

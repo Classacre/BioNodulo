@@ -90,6 +90,17 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Dynamic help: when a node is selected, HelpWikiPanel surfaces objectInfo-driven docs (description, ports, requires, experimental/version pills).
 - Telemetry: opt-in local-only ring buffer (200 events) with toggle, export-as-text, clear in Settings; `logTelemetry()` hooks at workflow run/import/template-load.
 
+## Wave K — Doctor, share URL, presets, dirty UX
+
+- Workflow doctor: `WorkflowDoctorModal` scans the active workflow for missing required inputs (with default-value fallback check), unused outputs (excluding `output_node` sinks), empty graph / disconnected graph, and dependency hints; each finding has a Jump button that focuses the offending node. Surfaced via the `workflow.doctor` command.
+- URL-hash share: `utils/workflowShare.ts` encodes the workflow as base64-url JSON in `#wf=…`. `workflow.copyShareUrl` command builds + copies; mount-time hook decodes any incoming hash, replays through `handleImport`, then strips the hash so refresh doesn't re-import.
+- Inline param help tooltips: widget labels read `spec.tooltip` / `spec.description` for their `title` attribute so hover surfaces backend-authored docs alongside the existing copy-to-selection hint.
+- Node parameter presets: `state/nodePresets.ts` (per-type, localStorage, max 30 each). Context-menu entries "Save Params as Preset…" and "Apply Preset…" wired through `handleContextAction`; apply only overwrites keys the target node already has so cross-variant presets don't bolt stray params on.
+- Per-tab dirty indicator: `WorkflowTabs` gains a `dirtyIndices?: ReadonlySet<number>` prop; renders a small amber dot before the tab label. Active tab only (single-source `dirty` flag — multi-tab dirty tracking is a future polish).
+- Close-tab dirty confirm: `onClose` wrapper invokes `confirmDialog({ tone: 'danger' })` when the active tab is dirty so accidentally closing the X doesn't lose work. `beforeunload` already guarded refresh / close-window.
+- Workflow auto-naming: `utils/workflowNaming.ts`'s `suggestWorkflowName` builds names like `BWA + samtools alignment` from the dominant tools/categories. `workflow.autoName` command renames the current tab; `TemplatesPanel`'s save dialog now defaults to the auto-name instead of "Untitled workflow".
+- API client migration round 3: `HardwareMonitor`, `AIWorkflowModal` moved off raw `fetch('/api/...')` to `apiGet` / `apiPost` with `ApiError`-aware local-fallback path for the AI chat.
+
 ## Wave J — `fa93ad1` — Snippets, drag-drop, bulk edit, unified search, strict TS
 
 - Workflow snippets: `state/workflowSnippets.ts` (localStorage, max 100, `instantiateSnippet` remaps ids + anchors at world position). `workflow.saveSnippet` / `workflow.insertSnippet` commands captured a selection or stamps a saved snippet at canvas centre.

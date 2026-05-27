@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { apiGet } from '../../api/client';
 
 interface SystemStats {
   system: {
@@ -50,9 +51,7 @@ export default function HardwareMonitor() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/system_stats');
-      if (!res.ok) throw new Error('failed');
-      const data = await res.json();
+      const data = await apiGet<SystemStats>('/system_stats');
       setStats(data);
       setError(false);
     } catch {

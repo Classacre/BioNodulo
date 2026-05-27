@@ -396,6 +396,15 @@ body {
 .wf-tab.drag-over { border-left: 2px solid var(--accent); }
 .wf-tab-close { opacity: 0.5; padding: 0 2px; }
 .wf-tab-close:hover { opacity: 1; color: var(--danger); }
+.wf-tab-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--warning, #f59e0b);
+  vertical-align: middle;
+}
 
 /* Left Rail */
 .rail-btn {

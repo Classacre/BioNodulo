@@ -69,6 +69,8 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
     { label: 'Create Subgraph', action: 'subgraph' },
     { label: 'Save Subgraph to Library', action: 'saveSubgraphBlueprint' },
     { label: 'Promote Widgets to Parent', action: 'promoteWidgets' },
+    { label: 'Save Params as Preset…', action: 'savePreset' },
+    { label: 'Apply Preset…', action: 'applyPreset' },
     { label: 'Execute Selected', action: 'executeSelected' },
     null,
     { label: 'Delete', action: 'delete' },

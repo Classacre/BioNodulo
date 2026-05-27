@@ -25,6 +25,7 @@ import ImageLightbox from './components/modals/ImageLightbox';
 import GettingStartedModal from './components/modals/GettingStartedModal';
 const OutputDiffModal = lazy(() => import('./components/modals/OutputDiffModal'));
 const BulkParamModal = lazy(() => import('./components/modals/BulkParamModal'));
+const WorkflowDoctorModal = lazy(() => import('./components/modals/WorkflowDoctorModal'));
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
@@ -52,6 +53,8 @@ import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { usePanelRegistry } from './state/panels';
 import { rememberRecentWorkflow, refreshRecentThumbnail } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
+import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
+import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
@@ -252,6 +255,17 @@ export default function App() {
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
 
   useEffect(() => installDomOverlayBridge(), []);
+
+  // Stash the hash payload at app mount so we can replay it once
+  // handleImport is wired up. We strip the hash immediately so a refresh
+  // doesn't keep stomping the workspace if the import fails mid-flight.
+  const pendingHashWorkflowRef = useRef<Workflow | null>(null);
+  useEffect(() => {
+    const wf = readWorkflowFromHash();
+    if (!wf) return;
+    pendingHashWorkflowRef.current = wf;
+    clearShareHash();
+  }, []);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -852,6 +866,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showOutputDiff, setShowOutputDiff] = useState(false);
   const [showBulkParam, setShowBulkParam] = useState(false);
+  const [showDoctor, setShowDoctor] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
   const [showBatchSheet, setShowBatchSheet] = useState(false);
@@ -1974,6 +1989,16 @@ export default function App() {
     // Resolve is auto-triggered by the activeWorkflow useEffect
   }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
 
+  // Replay any URL-hash workflow that mount stashed before handleImport
+  // existed. Runs once handleImport stabilises.
+  useEffect(() => {
+    const pending = pendingHashWorkflowRef.current;
+    if (!pending) return;
+    pendingHashWorkflowRef.current = null;
+    handleImport(pending);
+    toast.success('Loaded workflow from URL', { message: pending.name || 'untitled' });
+  }, [handleImport]);
+
   const handleApplyWorkflow = useCallback((wf: Workflow) => {
     const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
     setWorkflow(activeIndex, () => sharedWorkflow);
@@ -2050,6 +2075,49 @@ export default function App() {
         description: 'Pick from saved snippets and stamp at canvas centre',
         group: 'Workflow',
         onSelect: () => handleInsertSnippet(),
+      },
+      {
+        id: 'workflow.doctor',
+        label: 'Run workflow doctor',
+        description: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints',
+        group: 'Workflow',
+        onSelect: () => setShowDoctor(true),
+      },
+      {
+        id: 'workflow.copyShareUrl',
+        label: 'Copy share URL',
+        description: 'Encode the current workflow into a URL hash and copy to clipboard',
+        group: 'Workflow',
+        onSelect: async () => {
+          const url = buildShareUrl(activeWorkflow);
+          if (!url) { toast.error('Could not build share URL'); return; }
+          if (url.length > 32_000) {
+            toast.warning('URL exceeds 32 KB', { message: 'Some chat tools may truncate. Consider exporting instead.' });
+          }
+          try {
+            await navigator.clipboard.writeText(url);
+            toast.success('Share URL copied', { message: `${(url.length / 1024).toFixed(1)} KB` });
+          } catch {
+            // Some browsers block clipboard from non-user gestures — surface
+            // the URL inline as a fallback.
+            await alertDialog({ title: 'Share URL', message: url });
+          }
+        },
+      },
+      {
+        id: 'workflow.autoName',
+        label: 'Suggest workflow name',
+        description: 'Rename the current tab based on the dominant tools in the workflow',
+        group: 'Workflow',
+        onSelect: () => {
+          const suggestion = suggestWorkflowName(activeWorkflow);
+          if (!suggestion) {
+            toast.info('Add a few real nodes before auto-naming');
+            return;
+          }
+          handleRenameTab(activeIndex, suggestion);
+          toast.success('Workflow renamed', { message: suggestion });
+        },
       },
       {
         id: 'edit.bulkParams',
@@ -2667,7 +2735,7 @@ export default function App() {
           onLoadTemplate={handleLoadTemplate}
           onSaveTemplate={handleSaveTemplate}
           showSaveTemplateAction
-          saveTemplateInitialName={activeWorkflow.name || 'Untitled workflow'}
+          saveTemplateInitialName={resolveWorkflowName(activeWorkflow)}
           saveTemplateInitialDescription={activeWorkflow.description || ''}
         />
       );
@@ -2807,11 +2875,27 @@ export default function App() {
         tabs={tabNames}
         active={activeIndex}
         onChange={setActiveIndex}
-        onClose={closeTab}
+        onClose={async (index) => {
+          // Guard the active tab if it has unsaved changes; other tabs
+          // currently don't track dirtiness individually so we close them
+          // without confirmation (autosave covers the common case).
+          if (index === activeIndex && dirty) {
+            const wfName = workflows[index]?.name || 'this workflow';
+            const ok = await confirmDialog({
+              title: 'Close tab with unsaved changes?',
+              message: `${wfName} has unsaved changes. Close anyway?`,
+              confirmLabel: 'Close',
+              tone: 'danger',
+            });
+            if (!ok) return;
+          }
+          closeTab(index);
+        }}
         onAdd={addTab}
         onRename={handleRenameTab}
         onDuplicate={handleDuplicateTab}
         onReorder={handleReorderTabs}
+        dirtyIndices={dirty ? new Set([activeIndex]) : undefined}
       />
 
       <LeftRail active={railTab} onChange={setRailTab} />
@@ -3162,6 +3246,16 @@ export default function App() {
       {showOutputDiff && (
         <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading run diff" /></div>}>
           <OutputDiffModal runs={runs} onClose={() => setShowOutputDiff(false)} />
+        </Suspense>
+      )}
+      {showDoctor && (
+        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading doctor" /></div>}>
+          <WorkflowDoctorModal
+            workflow={activeWorkflow}
+            objectInfo={objectInfo}
+            onClose={() => setShowDoctor(false)}
+            onJumpToNode={(id) => { canvasRef.current?.focusNode(id); setShowDoctor(false); }}
+          />
         </Suspense>
       )}
       {showBulkParam && (() => {

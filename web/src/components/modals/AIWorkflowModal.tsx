@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
+import { apiPost, ApiError } from '../../api/client';
 
 interface AIWorkflowModalProps {
   workflow: Workflow;
@@ -259,20 +260,21 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         content: t.content || t.steps?.map(s => s.content).join('\n') || '',
       }));
 
-      const r = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const respondLocally = () => setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            : s
+        )
+      );
+      try {
+        const data = await apiPost<{ steps?: ChatStep[]; model?: string }>('/ai/chat', {
           message: userMsg,
           workflow,
           workflow_id: workflow.id || null,
           history,
           files: currentAttachments,
-        }),
-      });
-
-      if (r.ok) {
-        const data = await r.json();
+        });
         const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
           ...s,
           workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>) : undefined,
@@ -289,14 +291,12 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
               : s
           )
         );
-      } else {
-        setSessions(prev =>
-          prev.map(s =>
-            s.id === activeSessionId
-              ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
-              : s
-          )
-        );
+      } catch (err) {
+        if (err instanceof ApiError || err instanceof Error) {
+          respondLocally();
+        } else {
+          throw err;
+        }
       }
     } catch {
       setSessions(prev =>
