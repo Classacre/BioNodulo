@@ -90,7 +90,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Dynamic help: when a node is selected, HelpWikiPanel surfaces objectInfo-driven docs (description, ports, requires, experimental/version pills).
 - Telemetry: opt-in local-only ring buffer (200 events) with toggle, export-as-text, clear in Settings; `logTelemetry()` hooks at workflow run/import/template-load.
 
-## Wave J — Snippets, drag-drop, bulk edit, unified search, strict TS
+## Wave J — `fa93ad1` — Snippets, drag-drop, bulk edit, unified search, strict TS
 
 - Workflow snippets: `state/workflowSnippets.ts` (localStorage, max 100, `instantiateSnippet` remaps ids + anchors at world position). `workflow.saveSnippet` / `workflow.insertSnippet` commands captured a selection or stamps a saved snippet at canvas centre.
 - Drag workspace file → canvas: new `application/bionodulo-workspace-file` dataTransfer mime; every file row in `WorkspacePanel` is now draggable; drop on canvas spawns an `input_file` node at the cursor position with the file path pre-filled.
