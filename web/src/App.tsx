@@ -24,6 +24,7 @@ import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import ImageLightbox from './components/modals/ImageLightbox';
 import GettingStartedModal from './components/modals/GettingStartedModal';
 const OutputDiffModal = lazy(() => import('./components/modals/OutputDiffModal'));
+const BulkParamModal = lazy(() => import('./components/modals/BulkParamModal'));
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
@@ -35,6 +36,7 @@ import {
   Spinner,
   alertDialog,
   confirmDialog,
+  promptDialog,
   toast,
   toggleCommandPalette,
   type CommandItem,
@@ -350,7 +352,6 @@ export default function App() {
     setViewport: setCollabViewport,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
-    shareWorkflow,
     isShared: collabIsShared,
     error: collabError,
     reconnectAttempt: collabReconnectAttempt,
@@ -793,16 +794,6 @@ export default function App() {
     };
   }, [pushHistory]);
 
-  // Snapshot the current workflow as a transaction boundary — useful for
-  // multi-step edits (e.g. group operations) so they undo as a single step.
-  const beginTransaction = useCallback(() => {
-    if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
-  }, [pushHistory]);
-
-  const endTransaction = useCallback(() => {
-    if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
-  }, [pushHistory]);
-
   const undo = useCallback(() => {
     if (historyIndexRef.current <= 0) return;
     historyIndexRef.current -= 1;
@@ -860,6 +851,7 @@ export default function App() {
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showOutputDiff, setShowOutputDiff] = useState(false);
+  const [showBulkParam, setShowBulkParam] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
   const [showBatchSheet, setShowBatchSheet] = useState(false);
@@ -1526,6 +1518,62 @@ export default function App() {
     setIsRunning(false);
   }, [activeWorkflow, addLog, addRun, cacheEnabled, submitRun, validate, setRailTab]);
 
+  const handleSaveSnippet = useCallback(async () => {
+    const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
+    if (selectedIds.length === 0) {
+      toast.info('Select at least one node to save as a snippet');
+      return;
+    }
+    const idSet = new Set(selectedIds);
+    const snippetNodes = activeWorkflow.nodes.filter(n => idSet.has(n.id));
+    const snippetEdges = activeWorkflow.edges.filter(e => idSet.has(e.from.node) && idSet.has(e.to.node));
+    const defaultName = snippetNodes.length === 1
+      ? `${snippetNodes[0].ui?.title || snippetNodes[0].type} snippet`
+      : `${snippetNodes.length}-node snippet`;
+    const name = await promptDialog({
+      title: 'Save selection as snippet',
+      message: 'The selected nodes and the edges between them will be saved locally for reuse.',
+      inputLabel: 'Snippet name',
+      defaultValue: defaultName,
+    });
+    if (!name) return;
+    const { saveWorkflowSnippet } = await import('./state/workflowSnippets');
+    saveWorkflowSnippet({ name, nodes: snippetNodes, edges: snippetEdges });
+    toast.success('Snippet saved', { message: `${snippetNodes.length} nodes` });
+  }, [activeWorkflow]);
+
+  const handleInsertSnippet = useCallback(async () => {
+    const { listWorkflowSnippets, instantiateSnippet } = await import('./state/workflowSnippets');
+    const snippets = listWorkflowSnippets();
+    if (snippets.length === 0) {
+      toast.info('No snippets yet — select nodes and run "Save selection as snippet"');
+      return;
+    }
+    // Quick "pick one" via prompt — full chooser modal is a future polish item.
+    const labels = snippets.map((s, i) => `${i + 1}. ${s.name} (${s.nodes.length}n)`).join('\n');
+    const choice = await promptDialog({
+      title: 'Insert snippet',
+      message: `Pick a snippet by number:\n${labels}`,
+      inputLabel: 'Number',
+      defaultValue: '1',
+    });
+    const index = Math.max(1, Math.min(snippets.length, parseInt(choice || '1', 10))) - 1;
+    if (Number.isNaN(index)) return;
+    const snippet = snippets[index];
+    const vp = canvasRef.current?.getViewport();
+    const centreWorld = vp
+      ? { x: (-vp.x + window.innerWidth / 2) / vp.scale, y: (-vp.y + window.innerHeight / 2) / vp.scale }
+      : { x: 100, y: 100 };
+    const { nodes: newNodes, edges: newEdges } = instantiateSnippet(snippet, centreWorld);
+    const next: Workflow = {
+      ...activeWorkflow,
+      nodes: [...activeWorkflow.nodes, ...newNodes],
+      edges: [...activeWorkflow.edges, ...newEdges],
+    };
+    updateWorkflow(activeIndex, next);
+    toast.success('Snippet inserted', { message: `${snippet.name}` });
+  }, [activeWorkflow, activeIndex, updateWorkflow]);
+
   const handleCreateSubgraph = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
     // Compute a position for the new subgraph node — centred on the average
@@ -1990,6 +2038,34 @@ export default function App() {
         onSelect: () => canvasRef.current?.createSubgraphFromSelection(),
       },
       {
+        id: 'workflow.saveSnippet',
+        label: 'Save selection as snippet',
+        description: 'Capture selected nodes + their interconnections to the snippet library',
+        group: 'Workflow',
+        onSelect: () => handleSaveSnippet(),
+      },
+      {
+        id: 'workflow.insertSnippet',
+        label: 'Insert snippet…',
+        description: 'Pick from saved snippets and stamp at canvas centre',
+        group: 'Workflow',
+        onSelect: () => handleInsertSnippet(),
+      },
+      {
+        id: 'edit.bulkParams',
+        label: 'Bulk edit parameters (selection)…',
+        description: 'Edit parameters shared across all selected nodes at once',
+        group: 'Edit',
+        onSelect: () => {
+          const selected = canvasRef.current?.getSelectedNodeIds() ?? [];
+          if (selected.length < 2) {
+            toast.info('Select 2+ nodes to bulk-edit their shared parameters');
+            return;
+          }
+          setShowBulkParam(true);
+        },
+      },
+      {
         id: 'workflow.export',
         label: 'Export workflow',
         group: 'Workflow',
@@ -2274,6 +2350,62 @@ export default function App() {
   ]);
 
   useRegisteredCommands('app', appCommands);
+
+  // Unified search: surface "Add {Node}" entries for every registered node
+  // type plus "Open recent: {Name}" entries so Ctrl+P doubles as a way to
+  // create nodes and reopen workflows without leaving the keyboard. Capped
+  // to keep the palette snappy — the regular Node Library + Getting Started
+  // panels remain the place for full browsing.
+  const NODE_PALETTE_LIMIT = 40;
+  const dynamicCommands = useMemo<CommandItem[]>(() => {
+    const items: CommandItem[] = [];
+    const metas = Object.values(objectInfo).slice(0, NODE_PALETTE_LIMIT);
+    for (const meta of metas) {
+      items.push({
+        id: `addNode.${meta.id}`,
+        label: `Add: ${meta.display_name}`,
+        description: meta.description || meta.category,
+        group: 'Add Node',
+        keywords: [meta.id, meta.category, ...(meta.requires_external_tools || [])],
+        onSelect: () => {
+          const vp = canvasRef.current?.getViewport();
+          const world = vp
+            ? { x: (-vp.x + window.innerWidth / 2) / vp.scale, y: (-vp.y + window.innerHeight / 2) / vp.scale }
+            : { x: 100, y: 100 };
+          const newNode: WorkflowNode = {
+            id: `${meta.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            type: meta.id,
+            position: [Math.round(world.x), Math.round(world.y)],
+            params: defaultsFor(meta),
+            node_info: meta,
+            ui: { title: meta.display_name },
+          };
+          updateWorkflow(activeIndex, { ...activeWorkflow, nodes: [...activeWorkflow.nodes, newNode] });
+        },
+      });
+    }
+    // Recent workflows: dynamic require to avoid pulling the module on first
+    // paint if nothing is open yet.
+    try {
+      const recents = JSON.parse(localStorage.getItem('bionodulo.recentWorkflows') || '[]') as Array<{ id: string; name: string; filename?: string }>;
+      for (const entry of recents.slice(0, 12)) {
+        items.push({
+          id: `recent.${entry.id}`,
+          label: `Open recent: ${entry.name}`,
+          description: entry.filename || 'recent workflow',
+          group: 'Workflow',
+          onSelect: async () => {
+            if (entry.filename) {
+              const template = { id: entry.id, name: entry.name, filename: entry.filename, category: '', tags: [], tools: [], description: '', node_count: 0 } as TemplateInfo;
+              await handleLoadTemplate(template);
+            }
+          },
+        });
+      }
+    } catch { /* ignore */ }
+    return items;
+  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate]);
+  useRegisteredCommands('dynamic', dynamicCommands);
 
   useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
   useGlobalShortcut('shortcuts.open', () => setShowShortcuts(true));
@@ -2687,24 +2819,63 @@ export default function App() {
       <div
         className="main-canvas"
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('application/bionodulo-workflow-path')) {
+          const types = e.dataTransfer.types;
+          if (
+            types.includes('application/bionodulo-workflow-path')
+            || types.includes('application/bionodulo-workspace-file')
+          ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
           }
         }}
         onDrop={async (e) => {
-          e.preventDefault();
-          const path = e.dataTransfer.getData('application/bionodulo-workflow-path');
-          if (!path) return;
-          try {
-            const r = await fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`);
-            if (!r.ok) return;
-            const text = await r.text();
-            const wf = JSON.parse(text);
-            if (wf && (wf.nodes || Array.isArray(wf))) {
-              handleImport(wf);
+          // Workflow JSON drop: import the workflow into the active tab.
+          const workflowPath = e.dataTransfer.getData('application/bionodulo-workflow-path');
+          if (workflowPath) {
+            e.preventDefault();
+            try {
+              const r = await fetch(`/api/workspace/file?path=${encodeURIComponent(workflowPath)}`);
+              if (!r.ok) return;
+              const text = await r.text();
+              const wf = JSON.parse(text);
+              if (wf && (wf.nodes || Array.isArray(wf))) {
+                handleImport(wf);
+              }
+            } catch { /* ignore */ }
+            return;
+          }
+          // Workspace file drop: spawn an input_file node wired to the path so
+          // the user can drop e.g. a FASTQ and have it ready to feed into the
+          // first downstream node. Lands at the drop location in world coords.
+          const filePath = e.dataTransfer.getData('application/bionodulo-workspace-file');
+          if (filePath) {
+            e.preventDefault();
+            const inputMeta = objectInfo['input_file'];
+            if (!inputMeta) {
+              toast.warning('No input_file node registered; cannot create node for dropped file');
+              return;
             }
-          } catch { /* ignore */ }
+            const vp = canvasRef.current?.getViewport();
+            const target = e.currentTarget as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            const world = vp
+              ? { x: (cx - vp.x) / vp.scale, y: (cy - vp.y) / vp.scale }
+              : { x: cx, y: cy };
+            const fileName = filePath.split(/[\\/]/).pop() || 'file';
+            const newNode: WorkflowNode = {
+              id: `input_file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              type: 'input_file',
+              position: [Math.round(world.x), Math.round(world.y)],
+              params: { ...defaultsFor(inputMeta), path: filePath },
+              node_info: inputMeta,
+              ui: { title: fileName },
+            };
+            const next: Workflow = { ...activeWorkflow, nodes: [...activeWorkflow.nodes, newNode] };
+            updateWorkflow(activeIndex, next);
+            toast.success('File dropped', { message: fileName });
+          }
         }}
       >
         {subgraphPath.length > 0 && (
@@ -2993,6 +3164,33 @@ export default function App() {
           <OutputDiffModal runs={runs} onClose={() => setShowOutputDiff(false)} />
         </Suspense>
       )}
+      {showBulkParam && (() => {
+        const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
+        const selectedNodes = activeWorkflow.nodes.filter(n => selectedIds.includes(n.id));
+        return (
+          <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading bulk editor" /></div>}>
+            <BulkParamModal
+              nodes={selectedNodes}
+              onClose={() => setShowBulkParam(false)}
+              onApply={(changes) => {
+                if (changes.length === 0) return;
+                const idSet = new Set(selectedIds);
+                const nextNodes = activeWorkflow.nodes.map(n => {
+                  if (!idSet.has(n.id)) return n;
+                  const nextParams = { ...n.params };
+                  for (const { key, value } of changes) {
+                    if (!Object.prototype.hasOwnProperty.call(nextParams, key)) continue;
+                    nextParams[key] = value;
+                  }
+                  return { ...n, params: nextParams };
+                });
+                updateWorkflow(activeIndex, { ...activeWorkflow, nodes: nextNodes });
+                toast.success('Bulk edit applied', { message: `${changes.length} param${changes.length === 1 ? '' : 's'} → ${selectedNodes.length} node${selectedNodes.length === 1 ? '' : 's'}` });
+              }}
+            />
+          </Suspense>
+        );
+      })()}
       {showAI && (
         <AIWorkflowModal
           workflow={activeWorkflow}

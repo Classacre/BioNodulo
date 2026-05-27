@@ -90,6 +90,17 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Dynamic help: when a node is selected, HelpWikiPanel surfaces objectInfo-driven docs (description, ports, requires, experimental/version pills).
 - Telemetry: opt-in local-only ring buffer (200 events) with toggle, export-as-text, clear in Settings; `logTelemetry()` hooks at workflow run/import/template-load.
 
+## Wave J — Snippets, drag-drop, bulk edit, unified search, strict TS
+
+- Workflow snippets: `state/workflowSnippets.ts` (localStorage, max 100, `instantiateSnippet` remaps ids + anchors at world position). `workflow.saveSnippet` / `workflow.insertSnippet` commands captured a selection or stamps a saved snippet at canvas centre.
+- Drag workspace file → canvas: new `application/bionodulo-workspace-file` dataTransfer mime; every file row in `WorkspacePanel` is now draggable; drop on canvas spawns an `input_file` node at the cursor position with the file path pre-filled.
+- Bulk parameter editor: `BulkParamModal` shows the intersection of params shared by all selected nodes, with `[varies]` placeholder; touched fields apply to every selected node on Apply.
+- Unified search palette: a `'dynamic'` command source registers up to 40 `Add: {Node}` commands (sourced from `objectInfo`) and 12 `Open recent: {Name}` commands so `Ctrl+P` doubles as node-add and workflow-recall.
+- Widget right-click copy-to-selection: `copyParamToSelection` on the canvas; every DOM widget label spreads `labelProps` containing `onContextMenu` so right-clicking any widget broadcasts its current value to other selected nodes that expose the same key. Flashes a "Copied X → N nodes" chip.
+- Collapsed node port-count badge: when a node is collapsed, the title bar renders an `N→M` badge so the user knows what's hidden underneath.
+- API client migration round 2: `WorkspacePanel`, `ImportModal`, `MissingDependenciesBanner`, `HostPrerequisitesBanner` moved off `fetch('/api/...')` to `apiGet` / `apiPost` with `ApiError`-aware fallback paths.
+- Strict TS `noUnusedLocals` enabled in `tsconfig.json`; cleaned up 8 unused locals (App.tsx `shareWorkflow`/`beginTransaction`/`endTransaction`, bridge.ts dead handler fields, HostPrerequisitesBanner `missingOptional`, WorkspacePanel `rootPath` value, pngMetadata `writeUint32BE`).
+
 ## Wave I — `3beab04` — Search, bookmarks, minimap, validation, tokens
 
 - Node bookmarks: `state/nodeBookmarks.ts` (localStorage Set); star button per row in NodeLibraryPanel; new "Bookmarks" group renders above Most Used / Recently Used.

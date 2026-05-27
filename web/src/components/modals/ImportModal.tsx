@@ -3,6 +3,7 @@ import type { Workflow } from '../../types';
 import { alertDialog } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { apiPost, ApiError } from '../../api/client';
 
 interface ImportModalProps {
   onImport: (workflow: Workflow) => void;
@@ -33,17 +34,17 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         onClose();
         return;
       }
-      const r = await fetch('/api/workflow/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source, format }),
-      });
-      if (r.ok) {
-        const data = await r.json();
+      try {
+        const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source, format });
         if (data.workflow) {
-          onImport(data.workflow as Workflow);
+          onImport(data.workflow);
           onClose();
           return;
         }
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        // Backend converter unavailable: fall through to the local JSON
+        // parse attempt below.
       }
       // Fallback: try JSON
       try {

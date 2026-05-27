@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Icon from '../ui/Icon';
 import type { ResolveReport, InstallJobStatus, Workflow } from '../../types';
+import { apiGet, apiPost } from '../../api/client';
 
 interface Props {
   report: ResolveReport;
@@ -26,17 +27,14 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
     setInstalling(true);
     onOpenConsole();
     try {
-      const r = await fetch('/api/manager/ensure-workflow-env', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow }),
-      });
-      if (!r.ok) {
+      let jobId: string | undefined;
+      try {
+        const data = await apiPost<{ job_id?: string }>('/manager/ensure-workflow-env', { workflow });
+        jobId = data.job_id;
+      } catch {
         setInstalling(false);
         return;
       }
-      const data = await r.json();
-      const jobId = data.job_id as string | undefined;
       if (!jobId) {
         setInstalling(false);
         onResolve();
@@ -44,9 +42,8 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
       }
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch(`/api/manager/status/${jobId}`);
-          if (sr.ok) {
-            const status = await sr.json() as InstallJobStatus;
+          const status = await apiGet<InstallJobStatus>(`/manager/status/${jobId}`);
+          {
             setJobStatus(status);
             if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
               if (pollRef.current) clearInterval(pollRef.current);

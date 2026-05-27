@@ -1113,6 +1113,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         if (node.pinned) badges.push('L');
         if (node.meta?.version) badges.push(String(node.meta.version).slice(0, 8));
         if (node.meta?.experimental) badges.push('EXP');
+        // Port-count badge for collapsed nodes so the user knows what's
+        // hidden underneath the header — easier than expanding to check.
+        if (node.collapsed && !isReroute && !isVisualOnly && (node.inputs.length > 0 || node.outputs.length > 0)) {
+          badges.push(`${node.inputs.length}→${node.outputs.length}`);
+        }
         let badgeX = node.x + nw - 12;
         ctx.font = '700 8px Inter, sans-serif';
         for (const badge of badges.reverse()) {
@@ -2773,6 +2778,33 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     ));
   }, [nodes, onNodesChange]);
 
+  // Right-click on a node's widget label: stamp that key=value onto every
+  // other selected node that exposes the same param key. Skips the source
+  // node itself and any selected node without the param so we don't bolt
+  // mismatched values onto unrelated nodes. Acknowledges with a transient
+  // flash chip so the user sees the action took effect.
+  const copyParamToSelection = useCallback((sourceId: string, key: string) => {
+    const source = nodesRef.current.find(n => n.id === sourceId);
+    if (!source) return;
+    const value = source.params?.[key];
+    const selectedIds = graphNodesRef.current.filter(n => n.selected && n.id !== sourceId).map(n => n.id);
+    if (selectedIds.length === 0) {
+      flashAction('Select other nodes first');
+      return;
+    }
+    const targets = nodesRef.current.filter(n => selectedIds.includes(n.id) && Object.prototype.hasOwnProperty.call(n.params || {}, key));
+    if (targets.length === 0) {
+      flashAction(`No selected node has "${key}"`);
+      return;
+    }
+    const targetIds = new Set(targets.map(n => n.id));
+    onNodesChange(nodesRef.current.map(n =>
+      targetIds.has(n.id) ? { ...n, params: { ...n.params, [key]: value } } : n
+    ));
+    onPushHistory();
+    flashAction(`Copied ${key} → ${targets.length} node${targets.length === 1 ? '' : 's'}`);
+  }, [flashAction, onNodesChange, onPushHistory]);
+
   const cursorStyle = panning ? 'grabbing' : dragging || groupDragging || groupResizing ? 'grabbing' : resizingNode ? 'nwse-resize' : activeWidget ? 'ew-resize' : linkDrag ? 'crosshair' : hoveredLink ? 'pointer' : 'default';
 
   const handleToolboxAction = useCallback((action: string, extra?: string) => {
@@ -3075,9 +3107,24 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             handleNodeParamChange(node.id, key, nextValue);
             if (push) onPushHistory();
           };
+          // Right-click any widget to broadcast this param's value to every
+          // other selected node that has the same key. Spread `labelProps`
+          // onto each rendered <label> below so the handler lives at the
+          // widget container (not its inner input, which would lose the
+          // signal when the click lands on text).
+          const onWidgetContextMenu = (event: React.MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            copyParamToSelection(node.id, key);
+          };
+          const labelProps = {
+            style: common,
+            onContextMenu: onWidgetContextMenu,
+            title: 'Right-click to copy this value to selected nodes',
+          };
           if (spec?.type === 'BOOLEAN') {
             return (
-              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-boolean" style={common}>
+              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-boolean" {...labelProps}>
                 <span>{spec.label || key}</span>
                 <input type="checkbox" checked={Boolean(value)} onChange={event => commit(event.target.checked)} />
               </label>
@@ -3085,7 +3132,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           }
           if (spec?.options?.length) {
             return (
-              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+              <label key={`${node.id}-${key}`} className="node-dom-widget" {...labelProps}>
                 <span>{spec.label || key}</span>
                 <select value={String(value)} onChange={event => commit(event.target.value)}>
                   {spec.options.map((option: string) => <option key={option} value={option}>{option}</option>)}
@@ -3098,7 +3145,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             const max = Number(spec.max ?? 100);
             const step = Number(spec.step ?? (spec.type === 'FLOAT' ? 0.01 : 1));
             return (
-              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-slider" style={common}>
+              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-slider" {...labelProps}>
                 <span>{spec.label || key}</span>
                 <input
                   type="range"
@@ -3115,7 +3162,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           }
           if (spec?.type === 'INT' || spec?.type === 'FLOAT') {
             return (
-              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+              <label key={`${node.id}-${key}`} className="node-dom-widget" {...labelProps}>
                 <span>{spec.label || key}</span>
                 <input
                   type="number"
@@ -3131,7 +3178,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           }
           if (spec?.type === 'STRING' && !spec?.forceInput) {
             return (
-              <label key={`${node.id}-${key}`} className="node-dom-widget" style={common}>
+              <label key={`${node.id}-${key}`} className="node-dom-widget" {...labelProps}>
                 <span>{spec.label || key}</span>
                 <input
                   type="text"

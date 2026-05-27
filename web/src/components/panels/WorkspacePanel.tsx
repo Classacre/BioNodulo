@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
+import { apiGet, apiPost, ApiError } from '../../api/client';
 
 interface FileEntry {
   name: string;
@@ -19,7 +20,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   const [path, setPath] = useState('/');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [rootPath, setRootPath] = useState('');
+  const [, setRootPath] = useState('');
   const [rootInput, setRootInput] = useState('');
   const [rootLoading, setRootLoading] = useState(false);
   const [rootError, setRootError] = useState('');
@@ -32,15 +33,12 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
 
   const loadRoot = useCallback(async () => {
     try {
-      const r = await fetch('/api/workspace/root');
-      if (r.ok) {
-        const data = await r.json();
-        if (data.root) {
-          setRootPath(data.root);
-          setRootInput(data.root);
-        }
+      const data = await apiGet<{ root?: string }>('/workspace/root');
+      if (data.root) {
+        setRootPath(data.root);
+        setRootInput(data.root);
       }
-    } catch { /* ignore */ }
+    } catch { /* backend unavailable */ }
   }, []);
 
   const loadFiles = useCallback(async (p: string) => {
@@ -48,14 +46,9 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     setSelected(new Set());
     lastSelectedRef.current = null;
     try {
-      const r = await fetch(`/api/workspace/files?path=${encodeURIComponent(p)}`);
-      if (r.ok) {
-        const data = await r.json();
-        setFiles(data.entries || []);
-        setPath(data.path || p);
-      } else {
-        setFiles([]);
-      }
+      const data = await apiGet<{ entries?: FileEntry[]; path?: string }>(`/workspace/files?path=${encodeURIComponent(p)}`);
+      setFiles(data.entries || []);
+      setPath(data.path || p);
     } catch {
       setFiles([]);
     }
@@ -72,21 +65,19 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     if (!rootInput.trim()) return;
     setRootLoading(true);
     try {
-      const r = await fetch('/api/workspace/root', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: rootInput.trim() }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setRootError(data.detail || 'Failed to change workspace');
-      } else {
+      const data = await apiPost<{ root?: string; detail?: string }>('/workspace/root', { path: rootInput.trim() });
+      if (data.root) {
         setRootPath(data.root);
         setRootInput(data.root);
         loadFiles('/');
       }
-    } catch {
-      setRootError('Network error');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const detail = (err.body as { detail?: string } | null)?.detail;
+        setRootError(detail || 'Failed to change workspace');
+      } else {
+        setRootError('Network error');
+      }
     }
     setRootLoading(false);
   };
@@ -160,8 +151,14 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   };
 
   const handleDragStart = (e: React.DragEvent, file: FileEntry) => {
-    if (!file.name.endsWith('.json')) return;
-    e.dataTransfer.setData('application/bionodulo-workflow-path', file.path);
+    if (file.type === 'directory') return;
+    if (file.name.endsWith('.json')) {
+      // Workflow JSON: prefer workflow-import semantics when dropped on canvas.
+      e.dataTransfer.setData('application/bionodulo-workflow-path', file.path);
+    }
+    // Always set the generic workspace-file mime so non-workflow files (FASTQ,
+    // FASTA, ...) can be dropped onto the canvas to spawn an input_file node.
+    e.dataTransfer.setData('application/bionodulo-workspace-file', file.path);
     e.dataTransfer.setData('text/plain', file.path);
     e.dataTransfer.effectAllowed = 'copy';
   };
@@ -245,9 +242,9 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                   className={`workspace-file-row ${isSelected ? 'selected' : ''}`}
                   onClick={(e) => handleSelect(e, file)}
                   onDoubleClick={() => handleDoubleClick(file)}
-                  draggable={isWorkflowFile(file.name)}
+                  draggable={file.type === 'file'}
                   onDragStart={(e) => handleDragStart(e, file)}
-                  title={file.type === 'directory' ? 'Double-click to open' : isWorkflowFile(file.name) ? 'Double-click to preview, drag to canvas' : 'Double-click to preview'}
+                  title={file.type === 'directory' ? 'Double-click to open' : isWorkflowFile(file.name) ? 'Double-click to preview, drag to canvas to import' : 'Double-click to preview, drag to canvas to add as input'}
                 >
                   <input
                     type="checkbox"

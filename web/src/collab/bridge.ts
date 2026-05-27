@@ -29,8 +29,6 @@ export class LiteGraphYjsBridge {
   private _positionThrottleTimer: ReturnType<typeof setTimeout> | null = null;
   private _pendingPositionUpdates: Map<string, WorkflowNode> = new Map();
   private _unsubscribers: (() => void)[] = [];
-  private _onDragStartHandler: ((nodeId: string) => void) | null = null;
-  private _onDragEndHandler: (() => void) | null = null;
 
   constructor(
     private ydoc: Y.Doc,
@@ -56,12 +54,6 @@ export class LiteGraphYjsBridge {
       () => yGroups.unobserve(groupsHandler),
     );
 
-    this._onDragStartHandler = (nodeId: string) => {
-      this.onDragStart(nodeId);
-    };
-    this._onDragEndHandler = () => {
-      this.onDragEnd();
-    };
   }
 
   unbind() {
@@ -71,8 +63,6 @@ export class LiteGraphYjsBridge {
       clearTimeout(this._positionThrottleTimer);
       this._positionThrottleTimer = null;
     }
-    this._onDragStartHandler = null;
-    this._onDragEndHandler = null;
   }
 
   // Local changes from canvas → Yjs
