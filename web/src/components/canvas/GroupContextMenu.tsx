@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { WorkflowGroup } from '../../types';
+import type { WorkflowGroup, WorkflowNode } from '../../types';
 import { promptDialog } from '../ui';
 
 const PRESET_COLORS = [
@@ -14,13 +14,42 @@ interface GroupContextMenuProps {
   y: number;
   groupId: string;
   groups: WorkflowGroup[];
+  nodes: WorkflowNode[];
   onGroupsChange: (groups: WorkflowGroup[]) => void;
+  onNodesChange: (nodes: WorkflowNode[]) => void;
   onClose: () => void;
 }
 
-export default function GroupContextMenu({ x, y, groupId, groups, onGroupsChange, onClose }: GroupContextMenuProps) {
+function nodesInsideGroup(group: WorkflowGroup, nodes: WorkflowNode[]): WorkflowNode[] {
+  const gx1 = group.position[0];
+  const gy1 = group.position[1];
+  const gx2 = gx1 + group.width;
+  const gy2 = gy1 + group.height;
+  return nodes.filter(node => (
+    node.position[0] >= gx1 && node.position[0] <= gx2
+    && node.position[1] >= gy1 && node.position[1] <= gy2
+  ));
+}
+
+function applyToGroupNodes(
+  group: WorkflowGroup | undefined,
+  nodes: WorkflowNode[],
+  patch: (node: WorkflowNode) => Partial<WorkflowNode['ui']>,
+): WorkflowNode[] {
+  if (!group) return nodes;
+  const insideIds = new Set(nodesInsideGroup(group, nodes).map(n => n.id));
+  return nodes.map(node => (
+    insideIds.has(node.id)
+      ? { ...node, ui: { ...node.ui, ...patch(node) } }
+      : node
+  ));
+}
+
+export default function GroupContextMenu({ x, y, groupId, groups, nodes, onGroupsChange, onNodesChange, onClose }: GroupContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [showColors, setShowColors] = useState(false);
+
+  const group = groups.find(gg => gg.id === groupId);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -70,6 +99,31 @@ export default function GroupContextMenu({ x, y, groupId, groups, onGroupsChange
           onClose();
         }}>Rename</div>
         <div className="context-menu-item" onClick={() => setShowColors(true)}>Set Color</div>
+        <div className="context-menu-sep" />
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ muted: true })));
+          onClose();
+        }}>Mute All</div>
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ muted: false })));
+          onClose();
+        }}>Unmute All</div>
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ bypassed: true })));
+          onClose();
+        }}>Bypass All</div>
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ bypassed: false })));
+          onClose();
+        }}>Enable All</div>
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ pinned: true })));
+          onClose();
+        }}>Pin All</div>
+        <div className="context-menu-item" onClick={() => {
+          onNodesChange(applyToGroupNodes(group, nodes, () => ({ pinned: false })));
+          onClose();
+        }}>Unpin All</div>
         <div className="context-menu-sep" />
         <div className="context-menu-item" onClick={() => {
           onGroupsChange(groups.filter(gg => gg.id !== groupId));

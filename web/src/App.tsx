@@ -812,6 +812,24 @@ export default function App() {
   // of the topmost subgraph node; exiting writes the edits back to the parent.
   type SubgraphFrame = { workflowId: string; parentWorkflow: Workflow; subgraphNodeId: string; subgraphName: string };
   const [subgraphPath, setSubgraphPath] = useState<SubgraphFrame[]>([]);
+  // Viewport-per-workflow-tab: switching tabs restores the pan/zoom you left
+  // them in instead of always re-fitting. Keyed by workflow id; survives a
+  // page reload via localStorage.
+  const VIEWPORT_STORE_KEY = 'bionodulo.viewport.byWorkflow';
+  const viewportByWorkflowRef = useRef<Record<string, { x: number; y: number; scale: number }>>({});
+  // Hydrate on first render only — refs don't trigger re-renders so this is
+  // safe to do unconditionally per mount.
+  const viewportHydratedRef = useRef(false);
+  if (!viewportHydratedRef.current) {
+    viewportHydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(VIEWPORT_STORE_KEY);
+      if (raw) viewportByWorkflowRef.current = JSON.parse(raw);
+    } catch { /* ignore */ }
+  }
+  const persistViewportStore = useCallback(() => {
+    try { localStorage.setItem(VIEWPORT_STORE_KEY, JSON.stringify(viewportByWorkflowRef.current)); } catch { /* ignore */ }
+  }, []);
   const [focusMode, setFocusMode] = useState<boolean>(() => {
     try { return localStorage.getItem('bionodulo.focusMode') === '1'; } catch { return false; }
   });
@@ -1180,6 +1198,65 @@ export default function App() {
     updateActive({ groups });
   }, [updateActive]);
 
+  // Media paste: pasting a clipboard image / audio / generic file blob
+  // (Ctrl+V outside any text input) uploads it to the workspace and spawns
+  // an input_file node wired to the new path.
+  useEffect(() => {
+    const handler = async (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable) return;
+      }
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.kind !== 'file') continue;
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+      if (files.length === 0) return;
+      event.preventDefault();
+      const meta = objectInfo.input_file;
+      if (!meta) {
+        toast.warning('No input_file node registered; cannot wire pasted file');
+        return;
+      }
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        const form = new FormData();
+        form.append('file', file, file.name || `pasted_${Date.now()}`);
+        form.append('subdir', 'uploads');
+        try {
+          const response = await fetch('/api/workspace/upload', { method: 'POST', body: form });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json() as { path?: string; original_name?: string; content_type?: string };
+          if (!data.path) throw new Error('Upload response missing path');
+          const baseX = 200 + Math.random() * 40;
+          const baseY = 200 + i * 120;
+          const newNode: WorkflowNode = {
+            id: `${meta.id}_${Date.now()}_${i}`,
+            type: meta.id,
+            position: [baseX, baseY],
+            params: { ...defaultsFor(meta), path: data.path },
+            node_info: meta,
+            ui: { title: data.original_name || meta.display_name },
+          };
+          handleNodesChange([...activeWorkflowRef.current.nodes, newNode]);
+          pushHistory();
+          toast.success('Pasted file added', {
+            message: `${data.original_name || file.name} (${data.content_type || 'file'})`,
+          });
+        } catch (err) {
+          toast.error('Could not upload pasted file', { message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+    };
+    window.addEventListener('paste', handler);
+    return () => window.removeEventListener('paste', handler);
+  }, [handleNodesChange, objectInfo, pushHistory]);
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
     try {
@@ -1430,9 +1507,37 @@ export default function App() {
 
   // Reset the subgraph navigation whenever the user switches to a different
   // workflow tab — the breadcrumb is per-tab and would otherwise dangle.
+  // We also restore the saved viewport for the incoming tab here.
+  const prevActiveIndexRef = useRef(activeIndex);
   useEffect(() => {
     setSubgraphPath([]);
-  }, [activeIndex]);
+    // Save the outgoing tab's viewport.
+    const prev = prevActiveIndexRef.current;
+    if (prev !== activeIndex) {
+      const prevWorkflow = workflows[prev];
+      const prevId = prevWorkflow?.id;
+      if (prevId) {
+        const vp = canvasRef.current?.getViewport?.();
+        if (vp) {
+          viewportByWorkflowRef.current[prevId] = vp;
+          persistViewportStore();
+        }
+      }
+    }
+    prevActiveIndexRef.current = activeIndex;
+    // Restore the incoming tab's viewport, if any. Wait two RAFs so the
+    // canvas has finished laying out the new workflow's nodes before we set
+    // the viewport — otherwise fitView from elsewhere could clobber us.
+    const incomingId = workflows[activeIndex]?.id;
+    if (incomingId) {
+      const saved = viewportByWorkflowRef.current[incomingId];
+      if (saved) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => canvasRef.current?.setViewport(saved));
+        });
+      }
+    }
+  }, [activeIndex, persistViewportStore, workflows]);
 
   const handleCancelRun = useCallback(async (run: RunRecord) => {
     const ok = await confirmDialog({
@@ -2067,13 +2172,22 @@ export default function App() {
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
+      // Snapshot the current tab's viewport so refreshing doesn't reset it.
+      const currentId = workflows[activeIndex]?.id;
+      if (currentId) {
+        const vp = canvasRef.current?.getViewport?.();
+        if (vp) {
+          viewportByWorkflowRef.current[currentId] = vp;
+          persistViewportStore();
+        }
+      }
       if (!dirty) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  }, [activeIndex, dirty, persistViewportStore, workflows]);
 
   // Reset banners when workflow changes
   useEffect(() => {

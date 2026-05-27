@@ -2474,6 +2474,69 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       });
       onNodesChange(updatedNodes);
       onPushHistory();
+    } else if (action === 'alignLeft' || action === 'alignRight' || action === 'alignTop' || action === 'alignBottom' || action === 'alignCenterH' || action === 'alignCenterV' || action === 'distributeH' || action === 'distributeV') {
+      const selected = graphNodes.filter(n => n.selected);
+      if (selected.length < 2) return;
+      // Compute target positions for the selection.
+      const positions = new Map<string, [number, number]>();
+      if (action === 'alignLeft') {
+        const minX = Math.min(...selected.map(n => n.x));
+        for (const n of selected) positions.set(n.id, [minX, n.y]);
+      } else if (action === 'alignRight') {
+        const maxRight = Math.max(...selected.map(n => n.x + n.width));
+        for (const n of selected) positions.set(n.id, [maxRight - n.width, n.y]);
+      } else if (action === 'alignTop') {
+        const minY = Math.min(...selected.map(n => n.y));
+        for (const n of selected) positions.set(n.id, [n.x, minY]);
+      } else if (action === 'alignBottom') {
+        const maxBottom = Math.max(...selected.map(n => n.y + n.height));
+        for (const n of selected) positions.set(n.id, [n.x, maxBottom - n.height]);
+      } else if (action === 'alignCenterH') {
+        const centers = selected.map(n => n.x + n.width / 2);
+        const avg = centers.reduce((a, b) => a + b, 0) / centers.length;
+        for (const n of selected) positions.set(n.id, [avg - n.width / 2, n.y]);
+      } else if (action === 'alignCenterV') {
+        const centers = selected.map(n => n.y + n.height / 2);
+        const avg = centers.reduce((a, b) => a + b, 0) / centers.length;
+        for (const n of selected) positions.set(n.id, [n.x, avg - n.height / 2]);
+      } else if (action === 'distributeH') {
+        if (selected.length < 3) return;
+        const sorted = [...selected].sort((a, b) => a.x - b.x);
+        const minX = sorted[0].x;
+        const maxRight = sorted[sorted.length - 1].x + sorted[sorted.length - 1].width;
+        const totalWidth = sorted.reduce((sum, n) => sum + n.width, 0);
+        const span = maxRight - minX;
+        const gap = (span - totalWidth) / Math.max(1, sorted.length - 1);
+        let cursor = minX;
+        for (const n of sorted) {
+          positions.set(n.id, [cursor, n.y]);
+          cursor += n.width + gap;
+        }
+      } else {
+        // distributeV
+        if (selected.length < 3) return;
+        const sorted = [...selected].sort((a, b) => a.y - b.y);
+        const minY = sorted[0].y;
+        const maxBottom = sorted[sorted.length - 1].y + sorted[sorted.length - 1].height;
+        const totalHeight = sorted.reduce((sum, n) => sum + n.height, 0);
+        const span = maxBottom - minY;
+        const gap = (span - totalHeight) / Math.max(1, sorted.length - 1);
+        let cursor = minY;
+        for (const n of sorted) {
+          positions.set(n.id, [n.x, cursor]);
+          cursor += n.height + gap;
+        }
+      }
+      setGraphNodes(prev => prev.map(n => {
+        const pos = positions.get(n.id);
+        return pos ? { ...n, x: pos[0], y: pos[1] } : n;
+      }));
+      const updatedNodes = nodes.map(wn => {
+        const pos = positions.get(wn.id);
+        return pos ? { ...wn, position: pos } : wn;
+      });
+      onNodesChange(updatedNodes);
+      onPushHistory();
     }
   }, [graphNodes, nodes, groups, handleContextAction, onNodesChange, onGroupsChange, onPushHistory]);
 
@@ -3042,7 +3105,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           y={groupContextMenu.y}
           groupId={groupContextMenu.groupId}
           groups={groups}
+          nodes={nodes}
           onGroupsChange={onGroupsChange}
+          onNodesChange={onNodesChange}
           onClose={() => setGroupContextMenu(null)}
         />
       )}

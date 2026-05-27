@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 from bionodulo.api.app_state import app_state, setting_literal
@@ -833,6 +833,58 @@ async def read_file(request: Request, path: str) -> Any:
         except json.JSONDecodeError:
             return PlainTextResponse(content)
     return PlainTextResponse(content)
+
+
+@router.post("/workspace/upload")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    subdir: str = Form("uploads"),
+) -> dict[str, Any]:
+    """Accept a multipart file upload and store it under workspace/{subdir}/.
+
+    Used by features like media paste on the canvas: the browser hands over a
+    pasted image / audio blob and we drop it inside the user's workspace so
+    a workflow node can reference it by path.
+    """
+    settings = _get_settings(request)
+    safe_subdir = subdir.strip().strip('/').replace('..', '_') or 'uploads'
+    target_dir = settings.project_root / safe_subdir
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not create upload dir: {exc}") from exc
+
+    raw_name = file.filename or 'pasted'
+    # Strip any directory components and reserve a stable, unique filename.
+    base = Path(raw_name).name or 'pasted'
+    stem = Path(base).stem or 'pasted'
+    suffix = Path(base).suffix
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    short = uuid.uuid4().hex[:6]
+    safe_name = ''.join(c if c.isalnum() or c in '._-' else '_' for c in stem)[:60]
+    final_name = f"{stamp}_{short}_{safe_name}{suffix}"
+    out_path = target_dir / final_name
+
+    try:
+        with open(out_path, 'wb') as fh:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                fh.write(chunk)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write upload: {exc}") from exc
+
+    rel = out_path.relative_to(settings.project_root)
+    return {
+        'status': 'ok',
+        'path': str(rel).replace('\\', '/'),
+        'absolute_path': str(out_path),
+        'size': out_path.stat().st_size,
+        'content_type': file.content_type or 'application/octet-stream',
+        'original_name': raw_name,
+    }
 
 
 @router.post("/workspace/file-operation")
