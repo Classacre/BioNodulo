@@ -381,6 +381,46 @@ body {
 .rail-panel-wrap.floating > .rail-panel {
   border-right: 0;
 }
+.rail-panel-wrap.is-dragging {
+  opacity: 0.85;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  transform: scale(1.02);
+  transition: transform 80ms ease;
+}
+body.is-dragging-panel {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.panel-dropzone {
+  position: fixed;
+  top: 12vh;
+  bottom: 12vh;
+  width: 80px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 12px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--accent-dark, var(--accent));
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: background 120ms, opacity 120ms;
+}
+.panel-dropzone-left { left: 8px; }
+.panel-dropzone-right { right: 8px; }
+.panel-dropzone.is-active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-style: solid;
+  opacity: 1;
+}
 .rail-panel-wrap > .rail-panel {
   position: static;
   width: 100%;
@@ -394,6 +434,74 @@ body {
   color: var(--muted);
   min-height: 160px;
 }
+.node-error-overlay {
+  position: absolute;
+  z-index: 55;
+}
+.node-error-badge {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger, #dc2626);
+  border: 2px solid var(--surface);
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
+}
+.node-error-badge:hover {
+  transform: scale(1.1);
+}
+.node-error-popover {
+  position: absolute;
+  left: 22px;
+  top: -4px;
+  width: 280px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--danger, #dc2626);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.2));
+  color: var(--text);
+  font-size: 11px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease, visibility 120ms;
+}
+.node-error-overlay:hover .node-error-popover,
+.node-error-overlay:focus-within .node-error-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.node-error-popover-title {
+  font-weight: 700;
+  color: var(--danger, #dc2626);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 9px;
+}
+.node-error-popover-message {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 6px 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  color: var(--text);
+}
+.node-error-popover-hint {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .canvas-action-feedback {
   position: absolute;
   top: 16px;
@@ -542,8 +650,44 @@ body {
 /* Canvas */
 .litegraph-host {
   width: 100%; height: 100%; position: relative;
+  background: var(--canvas);
 }
-.litegraph-host canvas { display: block; }
+.litegraph-host canvas { display: block; position: relative; z-index: 1; }
+
+/* Palette-specific decorative backgrounds. The patterns sit behind the
+   canvas's own paint so the lines from the grid renderer still appear on
+   top. Each pattern uses currentColor-relative opacity so it adapts to
+   light/dark modes automatically. */
+html[data-canvas-pattern="dots"] .litegraph-host::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 18%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  z-index: 0;
+}
+html[data-canvas-pattern="grid"] .litegraph-host::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--muted) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--muted) 10%, transparent) 1px, transparent 1px);
+  background-size: 80px 80px;
+  z-index: 0;
+}
+html[data-canvas-pattern="mesh"] .litegraph-host::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 8%, transparent) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--muted) 8%, transparent) 0 1px, transparent 1px 24px);
+  z-index: 0;
+}
 
 .node-dom-widget {
   display: grid;
@@ -2123,6 +2267,70 @@ kbd {
   border-radius: 6px;
 }
 
+.node-category-row {
+  display: flex;
+  align-items: center;
+}
+.node-category-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.node-category-filter:hover {
+  color: var(--text);
+  border-color: var(--border-2, var(--border));
+}
+.node-category-filter.is-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border-color: var(--accent);
+  color: var(--accent-dark, var(--accent));
+}
+
+.node-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+.node-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent-dark, var(--accent));
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.node-filter-chip:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+.node-filter-chip-clear {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.node-filter-chip-clear:hover {
+  color: var(--text);
+}
+
 .node-category-count {
   margin-left: auto;
   padding: 1px 6px;
@@ -2186,6 +2394,89 @@ kbd {
   font-size: 9px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.node-search-result {
+  position: relative;
+}
+.node-preview-tooltip {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 0;
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.2));
+  color: var(--text);
+  font-size: 11px;
+  z-index: 60;
+  pointer-events: auto;
+  animation: bnNodePreviewFade 140ms ease-out;
+  text-align: left;
+}
+@keyframes bnNodePreviewFade {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.node-preview-tooltip-title {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.node-preview-tooltip-id {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.node-preview-tooltip-desc {
+  color: var(--text-2, var(--text));
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.node-preview-tooltip-section {
+  margin-top: 6px;
+}
+.node-preview-tooltip-heading {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.node-preview-tooltip-port {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.node-preview-tooltip-port-name {
+  color: var(--text);
+}
+.node-preview-tooltip-port-type {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--accent-dark, var(--accent));
+}
+.node-preview-tooltip-tools {
+  color: var(--text-2, var(--text));
+  line-height: 1.4;
+}
+/* If the tooltip would overflow the right edge of the rail panel, the
+   parent .node-search-result-list lives inside a panel with overflow-y
+   auto. Pulling it left from the row keeps it on-screen for right-docked
+   panels. */
+@container (max-width: 360px) {
+  .node-preview-tooltip {
+    left: auto;
+    right: calc(100% + 6px);
+  }
 }
 .node-search-group.is-frequent .node-search-group-label {
   color: var(--accent);

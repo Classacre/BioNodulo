@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
 import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
 import Icon from '../ui/Icon';
 import { SkeletonList } from '../ui/Skeleton';
+import { Spinner } from '../ui';
 import { deleteBlueprint, listBlueprints, subscribeBlueprints, type SubgraphBlueprint } from '../../state/subgraphLibrary';
 
 interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
+  loading?: boolean;
   onAddNode: (meta: NodeMetadata) => void;
   onAddBlueprint?: (blueprint: SubgraphBlueprint) => void;
   onClose: () => void;
@@ -61,6 +63,24 @@ function buildGroups(
   return groups;
 }
 
+interface PortPreview { name: string; type: string }
+
+function collectPorts(meta: NodeMetadata): { inputs: PortPreview[]; outputs: PortPreview[] } {
+  const inputsMap = {
+    ...(meta.input_types?.required || {}),
+    ...(meta.input_types?.optional || {}),
+  } as Record<string, { type?: string } | unknown>;
+  const inputs: PortPreview[] = Object.entries(inputsMap).map(([name, spec]) => ({
+    name,
+    type: (spec as { type?: string })?.type || 'ANY',
+  }));
+  const outputs: PortPreview[] = (meta.return_types || []).map((type, index) => ({
+    name: (meta.return_names && meta.return_names[index]) || type || `out${index + 1}`,
+    type: type || 'ANY',
+  }));
+  return { inputs, outputs };
+}
+
 function NodeLibraryResult({
   meta,
   active,
@@ -78,13 +98,40 @@ function NodeLibraryResult({
 }) {
   const tools = meta.requires_external_tools || [];
   const subtitle = meta.description || meta.id;
+  const [showPreview, setShowPreview] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  // 350ms hover delay so the preview doesn't flash up while a user is
+  // scanning the list. Cleared on leave / unmount.
+  const scheduleShow = () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setShowPreview(true), 350);
+  };
+  const cancelShow = () => {
+    if (hoverTimer.current) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+    setShowPreview(false);
+  };
+  useEffect(() => () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+  }, []);
+
+  const ports = useMemo(() => collectPorts(meta), [meta]);
+
   return (
     <button
+      ref={buttonRef}
       id={safeNodeDomId('node-library-result', meta.id)}
       type="button"
       className={`node-search-result node-library-result ${active ? 'is-active' : ''} ${recent ? 'is-recent' : ''}`}
       onClick={() => onChoose(meta)}
-      onMouseEnter={() => onFocus(meta.id)}
+      onMouseEnter={() => { onFocus(meta.id); scheduleShow(); }}
+      onMouseLeave={cancelShow}
+      onFocus={() => onFocus(meta.id)}
+      onBlur={cancelShow}
       title={usageCount ? `Add ${meta.display_name} (used ${usageCount}×)` : `Add ${meta.display_name}`}
     >
       <span className="node-search-result-main">
@@ -105,11 +152,48 @@ function NodeLibraryResult({
       <span className="node-search-result-action" aria-hidden="true">
         <Icon name="plus" size={12} />
       </span>
+      {showPreview && (
+        <div className="node-preview-tooltip" role="tooltip" onMouseEnter={cancelShow}>
+          <div className="node-preview-tooltip-title">{meta.display_name}</div>
+          <div className="node-preview-tooltip-id">{meta.id}</div>
+          {meta.description && (
+            <div className="node-preview-tooltip-desc">{meta.description}</div>
+          )}
+          {ports.inputs.length > 0 && (
+            <div className="node-preview-tooltip-section">
+              <div className="node-preview-tooltip-heading">Inputs</div>
+              {ports.inputs.map(port => (
+                <div key={port.name} className="node-preview-tooltip-port">
+                  <span className="node-preview-tooltip-port-name">{port.name}</span>
+                  <span className="node-preview-tooltip-port-type">{port.type}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {ports.outputs.length > 0 && (
+            <div className="node-preview-tooltip-section">
+              <div className="node-preview-tooltip-heading">Outputs</div>
+              {ports.outputs.map(port => (
+                <div key={port.name} className="node-preview-tooltip-port">
+                  <span className="node-preview-tooltip-port-name">{port.name}</span>
+                  <span className="node-preview-tooltip-port-type">{port.type}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {tools.length > 0 && (
+            <div className="node-preview-tooltip-section">
+              <div className="node-preview-tooltip-heading">Tools</div>
+              <div className="node-preview-tooltip-tools">{tools.join(', ')}</div>
+            </div>
+          )}
+        </div>
+      )}
     </button>
   );
 }
 
-export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
+export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control', 'Subgraphs']));
   const [blueprints, setBlueprints] = useState<SubgraphBlueprint[]>(() => listBlueprints());
@@ -124,15 +208,31 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
   }, [blueprints, query]);
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
+  // Active category filters: chips above the search input that narrow the
+  // result list to those categories. Clicking a category header toggles it.
+  const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
+  const toggleCategoryFilter = (label: string) => {
+    setCategoryFilters(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+  };
+  const clearCategoryFilters = () => setCategoryFilters(new Set());
+
   const searchResults = useNodeSearch(objectInfo, query);
   const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(objectInfo);
   const { frequentNodes, recordNodeUsage, getNodeUsageCount, clearUsageStats } = useNodeUsageStats(objectInfo);
   const frequentMetas = useMemo(() => frequentNodes.map(entry => entry.meta), [frequentNodes]);
-  const searchedNodes = useMemo(() => searchResults.map(result => result.meta), [searchResults]);
+  const searchedNodes = useMemo(() => {
+    const all = searchResults.map(result => result.meta);
+    if (categoryFilters.size === 0) return all;
+    return all.filter(meta => categoryFilters.has(meta.category || 'Other'));
+  }, [searchResults, categoryFilters]);
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
-    () => buildGroups(searchedNodes, recentNodes, frequentMetas, !hasQuery),
-    [hasQuery, recentNodes, frequentMetas, searchedNodes],
+    () => buildGroups(searchedNodes, recentNodes, frequentMetas, !hasQuery && categoryFilters.size === 0),
+    [hasQuery, recentNodes, frequentMetas, searchedNodes, categoryFilters],
   );
   const keyboardNodes = useMemo(() => uniqueNodes(groups.flatMap(group => group.nodes)), [groups]);
   const totalNodes = Object.values(objectInfo).length;
@@ -224,13 +324,47 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
           <span className="node-search-icon"><Icon name="search" size={14} /></span>
         </div>
         <div className="node-search-summary">
-          <span>{hasQuery ? `${searchResults.length} fuzzy matches` : `${totalNodes} nodes available`}</span>
+          <span>
+            {loading && totalNodes === 0 ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Spinner size="sm" label="Loading nodes" /> Loading node registry…
+              </span>
+            ) : hasQuery
+              ? `${searchedNodes.length} match${searchedNodes.length === 1 ? '' : 'es'}${categoryFilters.size ? ' (filtered)' : ''}`
+              : `${totalNodes} nodes available`}
+          </span>
           {!hasQuery && recentNodes.length > 0 && (
             <button className="node-search-clear" type="button" onClick={clearRecentNodes} title="Clear recent nodes">
               Clear recent
             </button>
           )}
         </div>
+        {categoryFilters.size > 0 && (
+          <div className="node-filter-chips" role="group" aria-label="Active category filters">
+            {Array.from(categoryFilters).map(label => (
+              <button
+                key={label}
+                type="button"
+                className="node-filter-chip"
+                onClick={() => toggleCategoryFilter(label)}
+                title={`Remove "${label}" filter`}
+              >
+                <span>{label}</span>
+                <Icon name="close" size={10} />
+              </button>
+            ))}
+            {categoryFilters.size > 1 && (
+              <button
+                type="button"
+                className="node-filter-chip-clear"
+                onClick={clearCategoryFilters}
+                title="Clear all filters"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        )}
         <div className="node-search-results node-library-results">
           {totalNodes === 0 && (
             <div className="node-search-group" style={{ padding: '8px 12px' }}>
@@ -311,16 +445,27 @@ export default function NodeLibraryPanel({ objectInfo, onAddNode, onAddBlueprint
                     )}
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    className="node-category-toggle"
-                    onClick={() => toggle(group.label)}
-                    title={expandedGroup ? `Collapse ${group.label}` : `Expand ${group.label}`}
-                  >
-                    <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
-                    <span>{group.label}</span>
-                    <span className="node-category-count">{group.nodes.length}</span>
-                  </button>
+                  <div className="node-category-row">
+                    <button
+                      type="button"
+                      className="node-category-toggle"
+                      onClick={() => toggle(group.label)}
+                      title={expandedGroup ? `Collapse ${group.label}` : `Expand ${group.label}`}
+                    >
+                      <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
+                      <span>{group.label}</span>
+                      <span className="node-category-count">{group.nodes.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`node-category-filter ${categoryFilters.has(group.label) ? 'is-active' : ''}`}
+                      onClick={(event) => { event.stopPropagation(); toggleCategoryFilter(group.label); }}
+                      title={categoryFilters.has(group.label) ? `Remove filter for ${group.label}` : `Filter to ${group.label}`}
+                      aria-pressed={categoryFilters.has(group.label)}
+                    >
+                      <Icon name={categoryFilters.has(group.label) ? 'check' : 'plus'} size={10} />
+                    </button>
+                  </div>
                 )}
                 {expandedGroup && (
                   <div className="node-result-list">

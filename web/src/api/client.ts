@@ -102,6 +102,62 @@ export async function apiGet<T = unknown>(path: string, init: ApiRequestInit = {
   return response.json() as Promise<T>;
 }
 
+// ---------------------------------------------------------------------------
+// Lightweight in-memory cache for read-heavy endpoints. Use sparingly: the
+// cache lives for the lifetime of the page, has no eviction beyond TTL, and
+// doesn't follow auth changes. Suitable for things like /object_info or
+// /environments which barely change during a session.
+// ---------------------------------------------------------------------------
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+  inFlight?: Promise<T>;
+}
+
+const responseCache = new Map<string, CacheEntry<unknown>>();
+
+export interface CachedGetOptions extends ApiRequestInit {
+  /** Cache TTL in ms. Defaults to 30s. */
+  ttl?: number;
+  /** Custom cache key (defaults to `<METHOD> <path>`). */
+  cacheKey?: string;
+  /** Force a fresh fetch and overwrite the cache entry. */
+  force?: boolean;
+}
+
+export async function apiGetCached<T = unknown>(path: string, options: CachedGetOptions = {}): Promise<T> {
+  const { ttl = 30_000, cacheKey, force, ...init } = options;
+  const key = cacheKey || `GET ${path}`;
+  const now = Date.now();
+  const cached = responseCache.get(key) as CacheEntry<T> | undefined;
+  if (!force && cached) {
+    // If a request is already in flight, deduplicate concurrent callers.
+    if (cached.inFlight) return cached.inFlight;
+    if (cached.expiresAt > now) return cached.value;
+  }
+  const inFlight = apiGet<T>(path, init).then(value => {
+    responseCache.set(key, { value, expiresAt: Date.now() + ttl });
+    return value;
+  }).catch(err => {
+    // Failed fetches should not poison the cache.
+    responseCache.delete(key);
+    throw err;
+  });
+  responseCache.set(key, { value: cached?.value as T, expiresAt: cached?.expiresAt ?? 0, inFlight });
+  return inFlight;
+}
+
+export function clearApiCache(predicate?: (key: string) => boolean): void {
+  if (!predicate) {
+    responseCache.clear();
+    return;
+  }
+  for (const key of Array.from(responseCache.keys())) {
+    if (predicate(key)) responseCache.delete(key);
+  }
+}
+
 /** POST <path>, optionally with JSON body, parse JSON response as `T`. */
 export async function apiPost<T = unknown>(
   path: string,

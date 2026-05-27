@@ -4,6 +4,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
+import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -267,8 +268,34 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
             <input type="number" className="text-input" style={{ width: 60 }} min={0} max={2} step={0.1} value={Number(get('bionodulo.llm.temperature'))} onChange={e => set('bionodulo.llm.temperature', parseFloat(e.target.value))} />
           </SettingRow>
         </SettingsGroup>
+
+        <FeatureFlagsGroup query={query} />
       </div>
     </div>
+  );
+}
+
+function FeatureFlagsGroup({ query }: { query: string }) {
+  // Subscribe via useFeatureFlag for the first flag (forces re-render) — the
+  // hook below handles the rest. We re-read the definitions list every render
+  // since registerFlag() is cheap and is the source of truth.
+  const flags = listFeatureFlags();
+  if (flags.length === 0) return null;
+  return (
+    <SettingsGroup query={query} title="Feature Flags">
+      {flags.map(flag => (
+        <FeatureFlagRow key={flag.key} query={query} flag={flag} />
+      ))}
+    </SettingsGroup>
+  );
+}
+
+function FeatureFlagRow({ query, flag }: { query: string; flag: { key: string; label: string; description?: string } }) {
+  const enabled = useFeatureFlag(flag as never);
+  return (
+    <SettingRow query={query} label={flag.label} desc={flag.description || flag.key} keywords={`flag experimental ${flag.key}`}>
+      <div className={`toggle ${enabled ? 'on' : ''}`} onClick={() => setFeatureFlag(flag as never, !enabled)} />
+    </SettingRow>
   );
 }
 

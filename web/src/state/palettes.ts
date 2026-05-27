@@ -20,6 +20,11 @@ export type PaletteToken =
 
 export type PaletteTokens = Partial<Record<PaletteToken, string>>;
 
+// Optional per-palette canvas decoration. Renders as a CSS background-image
+// behind the canvas grid so each palette can have a subtly distinct feel
+// without changing the actual node rendering.
+export type CanvasPattern = 'none' | 'dots' | 'grid' | 'mesh';
+
 export interface ThemePalette {
   id: string;
   name: string;
@@ -27,6 +32,7 @@ export interface ThemePalette {
   preview: string[];
   light: PaletteTokens;
   dark: PaletteTokens;
+  canvasPattern?: CanvasPattern;
 }
 
 const STORAGE_KEY = 'bionodulo.palette';
@@ -39,6 +45,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'bionodulo',
     name: 'BioNodulo',
     description: 'Default teal workbench palette.',
+    canvasPattern: 'dots',
     preview: ['#0d9488', '#eef3f4', '#1d2930'],
     light: {
       canvas: '#eef3f4',
@@ -81,6 +88,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'clinical',
     name: 'Clinical',
     description: 'Clean blue-green palette with high scan contrast.',
+    canvasPattern: 'grid',
     preview: ['#2563eb', '#f7fafc', '#0f172a'],
     light: {
       canvas: '#f7fafc',
@@ -123,6 +131,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'field',
     name: 'Field Station',
     description: 'Muted green and graphite palette for long sessions.',
+    canvasPattern: 'mesh',
     preview: ['#15803d', '#f1f5f2', '#18231d'],
     light: {
       canvas: '#f1f5f2',
@@ -165,6 +174,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'contrast',
     name: 'High Contrast',
     description: 'Sharp contrast palette for dense review work.',
+    canvasPattern: 'none',
     preview: ['#f97316', '#ffffff', '#0b0f19'],
     light: {
       canvas: '#f4f6f8',
@@ -338,6 +348,7 @@ export function applyPalette(id = activePaletteId, mode?: PaletteMode, target?: 
   });
 
   root.dataset.palette = palette.id;
+  root.dataset.canvasPattern = palette.canvasPattern || 'none';
   return palette;
 }
 

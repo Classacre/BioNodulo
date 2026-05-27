@@ -233,7 +233,7 @@ export default function App() {
   useTheme();
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
-  const { objectInfo } = useObjectInfo();
+  const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
 
   // Authentication state
@@ -970,16 +970,50 @@ export default function App() {
     setFloatingPanel(tab, { x: 80 + index * 28, y: 72 + index * 24 });
   }, [floatingPanels, setFloatingPanel]);
 
+  const [draggingPanelTab, setDraggingPanelTab] = useState<OpenPanelTab | null>(null);
+  const [panelDropZone, setPanelDropZone] = useState<'left' | 'right' | null>(null);
   const startPanelDrag = useCallback((tab: OpenPanelTab, startClientX: number, startClientY: number, origin: { x: number; y: number }) => {
+    setDraggingPanelTab(tab);
+    document.body.classList.add('is-dragging-panel');
+    const detectZone = (clientX: number): 'left' | 'right' | null => {
+      // 80-pixel hot zones along each canvas edge act as dock targets.
+      const width = window.innerWidth;
+      if (clientX < 80) return 'left';
+      if (clientX > width - 80) return 'right';
+      return null;
+    };
     const onMove = (event: MouseEvent) => {
       setFloatingPanel(tab, {
         x: origin.x + event.clientX - startClientX,
         y: origin.y + event.clientY - startClientY,
       });
+      setPanelDropZone(detectZone(event.clientX));
     };
-    const onUp = () => {
+    const onUp = (event: MouseEvent) => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      const zone = detectZone(event.clientX);
+      setPanelDropZone(null);
+      setDraggingPanelTab(null);
+      document.body.classList.remove('is-dragging-panel');
+      // Drop on an edge: snap-dock the panel to that side and clear the
+      // float position so it goes back into the docked stack.
+      if (zone) {
+        setFloatingPanels(prev => {
+          if (!(tab in prev)) return prev;
+          const next = { ...prev };
+          delete next[tab];
+          try { localStorage.setItem(PANEL_FLOATS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+          return next;
+        });
+        setRightDockedPanels(prev => {
+          const next = { ...prev };
+          if (zone === 'right') next[tab] = true;
+          else delete next[tab];
+          try { localStorage.setItem(PANEL_RIGHT_DOCKED_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+          return next;
+        });
+      }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -1250,6 +1284,24 @@ export default function App() {
     pendingStateRef.current = { ...pendingStateRef.current, nodes };
     setDirty(true);
     updateActive({ nodes });
+    // Auto-clear error overlays for any node whose params changed. Compare
+    // against the previous active workflow so dismissals only fire on real
+    // edits (not on selection/UI churn).
+    const previousById = new Map(activeWorkflowRef.current.nodes.map(n => [n.id, n]));
+    setDismissedErrorNodeIds(prev => {
+      let next = prev;
+      for (const node of nodes) {
+        const previous = previousById.get(node.id);
+        if (!previous) continue;
+        if (previous.params === node.params) continue;
+        if (JSON.stringify(previous.params) === JSON.stringify(node.params)) continue;
+        if (!next.has(node.id)) {
+          if (next === prev) next = new Set(prev);
+          next.add(node.id);
+        }
+      }
+      return next;
+    });
   }, [updateActive]);
 
   const handleEdgesChange = useCallback((edges: Workflow['edges']) => {
@@ -2332,6 +2384,25 @@ export default function App() {
   const nodeStatusMap = useMemo<Map<string, NodeStatus['status']>>(() => (
     new Map(latestNodeStatuses.map(ns => [ns.node_id, ns.status]))
   ), [latestNodeStatusKey]);
+  // Node error messages from the latest run. Cleared per-node when the user
+  // edits that node so a stale "missing arg" message doesn't linger after a
+  // fix. The clear happens in handleNodesChange below.
+  const [dismissedErrorNodeIds, setDismissedErrorNodeIds] = useState<Set<string>>(new Set());
+  const nodeErrorsMap = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const ns of latestNodeStatuses) {
+      if (ns.status === 'error' && ns.error && !dismissedErrorNodeIds.has(ns.node_id)) {
+        map.set(ns.node_id, ns.error);
+      }
+    }
+    return map;
+  }, [latestNodeStatusKey, dismissedErrorNodeIds]);
+  // Clear dismissed errors when a new run starts so a fresh failure on the
+  // same node surfaces again.
+  const latestRunId = runs[0]?.run_id;
+  useEffect(() => {
+    setDismissedErrorNodeIds(new Set());
+  }, [latestRunId]);
   const latestPreviewsKey = useMemo(() => previewsSignature(runs[0]), [runs]);
   const nodePreviewsMap = useMemo(() => {
     const latest = runs[0];
@@ -2431,6 +2502,7 @@ export default function App() {
       return (
         <NodeLibraryPanel
           objectInfo={objectInfo}
+          loading={objectInfoLoading}
           onAddNode={(meta) => {
             const newNode: WorkflowNode = {
               id: `${meta.id}_${Date.now()}`,
@@ -2474,6 +2546,19 @@ export default function App() {
       <ConfirmDialogHost />
       <CommandPaletteHost />
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
+
+      {draggingPanelTab && (
+        <>
+          <div className={`panel-dropzone panel-dropzone-left ${panelDropZone === 'left' ? 'is-active' : ''}`}>
+            <Icon name="dockPanel" size={18} />
+            <span>Dock left</span>
+          </div>
+          <div className={`panel-dropzone panel-dropzone-right ${panelDropZone === 'right' ? 'is-active' : ''}`}>
+            <Icon name="dockPanel" size={18} />
+            <span>Dock right</span>
+          </div>
+        </>
+      )}
 
       <TopBar
         validationValid={validation.valid}
@@ -2653,6 +2738,7 @@ export default function App() {
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
           nodeStatusMap={nodeStatusMap}
           nodeProgressMap={nodeRunProgress}
+          nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
           nodeComments={workflowComments}
@@ -2697,7 +2783,7 @@ export default function App() {
             return (
               <div
                 key={tab}
-                className={`rail-panel-wrap ${floating ? 'floating' : ''} ${isRight ? 'docked-right' : ''}`}
+                className={`rail-panel-wrap ${floating ? 'floating' : ''} ${isRight ? 'docked-right' : ''} ${draggingPanelTab === tab ? 'is-dragging' : ''}`}
                 style={style}
               >
                 {floating && (

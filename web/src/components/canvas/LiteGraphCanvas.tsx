@@ -49,6 +49,7 @@ interface LiteGraphCanvasProps {
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
   nodeProgressMap?: Map<string, { current: number; total: number; startedAt: number }>;
+  nodeErrorsMap?: Map<string, string>;
   nodePreviewsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   nodeCommentsMap?: Map<string, NodeCommentSummary>;
@@ -427,6 +428,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
   nodeProgressMap,
+  nodeErrorsMap,
   nodePreviewsMap,
   missingDependencyNodeIds,
   nodeCommentsMap,
@@ -737,9 +739,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     };
     const gridStroke = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
 
-    // Clear
-    ctx.fillStyle = palette.canvas;
-    ctx.fillRect(0, 0, w * dpr, h * dpr);
+    // Clear (transparent so palette-specific CSS patterns on the host can
+    // show through; the host has `background: var(--canvas)`).
+    ctx.clearRect(0, 0, w * dpr, h * dpr);
 
     // Apply world transform
     ctx.save();
@@ -3012,6 +3014,41 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           return null;
         }).filter(Boolean);
       })}
+
+      {/* Per-node error overlays. The badge sits at the top-right corner of
+          the node and expands into a popover on hover/click with the full
+          error message. Auto-clears when the user edits the node's params
+          (the dismissal happens upstream in App.handleNodesChange). */}
+      {nodeErrorsMap && nodeErrorsMap.size > 0 && graphNodes
+        .filter(node => nodeErrorsMap.has(node.id))
+        .map(node => {
+          const message = nodeErrorsMap.get(node.id)!;
+          const rect = toScreenNodeRect(node);
+          return (
+            <div
+              key={`error-${node.id}`}
+              className="node-error-overlay"
+              style={{
+                left: rect.x + rect.width - 14,
+                top: rect.y - 6,
+              }}
+            >
+              <button
+                type="button"
+                className="node-error-badge"
+                title={message}
+                aria-label={`Error: ${message.slice(0, 80)}`}
+              >
+                !
+              </button>
+              <div className="node-error-popover">
+                <div className="node-error-popover-title">Node error</div>
+                <pre className="node-error-popover-message">{message}</pre>
+                <div className="node-error-popover-hint">Edit the node's parameters to dismiss.</div>
+              </div>
+            </div>
+          );
+        })}
 
       {nodeCommentsMap && graphNodes.filter(node => nodeCommentsMap.has(node.id)).map(node => {
         const summary = nodeCommentsMap.get(node.id)!;
