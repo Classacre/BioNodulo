@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { HPCConfig } from '../../types';
 import Icon from '../ui/Icon';
+import { apiGet, ApiError } from '../../api/client';
 
 interface HPCPanelProps {
   config: HPCConfig;
@@ -18,15 +19,14 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
     setTesting(true);
     setTestResult(null);
     try {
-      const r = await fetch('/api/hpc/status');
-      if (r.ok) {
-        const data = await r.json();
-        setTestResult(`Connected: ${data.backend || config.backend}${data.partition ? ` (partition: ${data.partition})` : ''}`);
+      const data = await apiGet<{ backend?: string; partition?: string }>('/hpc/status');
+      setTestResult(`Connected: ${data.backend || config.backend}${data.partition ? ` (partition: ${data.partition})` : ''}`);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setTestResult(`Failed to connect (${err.status}). Check your HPC configuration.`);
       } else {
-        setTestResult('Failed to connect. Check your HPC configuration.');
+        setTestResult('Backend not available. Ensure the HPC module is configured.');
       }
-    } catch {
-      setTestResult('Backend not available. Ensure the HPC module is configured.');
     }
     setTesting(false);
   };

@@ -3,6 +3,12 @@ import type { KeyboardEvent } from 'react';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
 import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
+import {
+  isNodeBookmarked,
+  listNodeBookmarks,
+  subscribeNodeBookmarks,
+  toggleNodeBookmark,
+} from '../../state/nodeBookmarks';
 import Icon from '../ui/Icon';
 import { SkeletonList } from '../ui/Skeleton';
 import { Spinner } from '../ui';
@@ -21,6 +27,7 @@ interface NodeGroup {
   nodes: NodeMetadata[];
   recent?: boolean;
   frequent?: boolean;
+  bookmarked?: boolean;
 }
 
 function safeNodeDomId(scope: string, id: string): string {
@@ -40,17 +47,28 @@ function buildGroups(
   searchResults: NodeMetadata[],
   recentNodes: NodeMetadata[],
   frequentNodes: NodeMetadata[],
+  bookmarkedNodes: NodeMetadata[],
   showHeuristicGroups: boolean,
 ): NodeGroup[] {
   const groups: NodeGroup[] = [];
+  // Bookmarks sit at the top regardless of search/category state — they're an
+  // explicit user signal and should win over both frequency and recency.
+  if (showHeuristicGroups && bookmarkedNodes.length > 0) {
+    groups.push({ label: 'Bookmarks', nodes: bookmarkedNodes, bookmarked: true });
+  }
+  const bookmarkedIds = new Set(bookmarkedNodes.map(meta => meta.id));
   if (showHeuristicGroups && frequentNodes.length > 0) {
-    groups.push({ label: 'Most Used', nodes: frequentNodes, frequent: true });
+    const filteredFrequent = frequentNodes.filter(meta => !bookmarkedIds.has(meta.id));
+    if (filteredFrequent.length > 0) {
+      groups.push({ label: 'Most Used', nodes: filteredFrequent, frequent: true });
+    }
   }
   if (showHeuristicGroups && recentNodes.length > 0) {
-    // De-duplicate against the "Most Used" group so the same node isn't shown
-    // twice in the top section.
-    const frequentIds = new Set(frequentNodes.map(meta => meta.id));
-    const filteredRecent = recentNodes.filter(meta => !frequentIds.has(meta.id));
+    // De-duplicate against bookmarks + frequent so the same node isn't shown
+    // multiple times in the top section.
+    const seen = new Set<string>(bookmarkedIds);
+    frequentNodes.forEach(meta => seen.add(meta.id));
+    const filteredRecent = recentNodes.filter(meta => !seen.has(meta.id));
     if (filteredRecent.length > 0) {
       groups.push({ label: 'Recently Used', nodes: filteredRecent, recent: true });
     }
@@ -86,15 +104,19 @@ function NodeLibraryResult({
   active,
   recent,
   usageCount,
+  bookmarked,
   onChoose,
   onFocus,
+  onToggleBookmark,
 }: {
   meta: NodeMetadata;
   active: boolean;
   recent?: boolean;
   usageCount?: number;
+  bookmarked?: boolean;
   onChoose: (meta: NodeMetadata) => void;
   onFocus: (id: string) => void;
+  onToggleBookmark: (meta: NodeMetadata) => void;
 }) {
   const tools = meta.requires_external_tools || [];
   const subtitle = meta.description || meta.id;
@@ -148,6 +170,16 @@ function NodeLibraryResult({
           {meta.category || 'Other'}
           {tools.length > 0 && ` - ${tools.slice(0, 2).join(', ')}`}
         </span>
+      </span>
+      <span
+        className={`node-bookmark-toggle ${bookmarked ? 'is-on' : ''}`}
+        role="button"
+        tabIndex={-1}
+        aria-label={bookmarked ? `Remove ${meta.display_name} from bookmarks` : `Bookmark ${meta.display_name}`}
+        onClick={event => { event.stopPropagation(); onToggleBookmark(meta); }}
+        title={bookmarked ? 'Bookmarked — click to remove' : 'Bookmark this node'}
+      >
+        <Icon name="star" size={12} />
       </span>
       <span className="node-search-result-action" aria-hidden="true">
         <Icon name="plus" size={12} />
@@ -224,6 +256,16 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
   const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(objectInfo);
   const { frequentNodes, recordNodeUsage, getNodeUsageCount, clearUsageStats } = useNodeUsageStats(objectInfo);
   const frequentMetas = useMemo(() => frequentNodes.map(entry => entry.meta), [frequentNodes]);
+
+  // Bookmarked node types, refreshed via the subscribe callback so toggling
+  // from another panel (or another tab) is reflected without a remount.
+  const [bookmarkVersion, setBookmarkVersion] = useState(0);
+  useEffect(() => subscribeNodeBookmarks(() => setBookmarkVersion(v => v + 1)), []);
+  const bookmarkedMetas = useMemo(() => {
+    const ids = listNodeBookmarks();
+    return ids.map(id => objectInfo[id]).filter((meta): meta is NodeMetadata => Boolean(meta));
+  }, [objectInfo, bookmarkVersion]);
+
   const searchedNodes = useMemo(() => {
     const all = searchResults.map(result => result.meta);
     if (categoryFilters.size === 0) return all;
@@ -231,8 +273,8 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
   }, [searchResults, categoryFilters]);
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
-    () => buildGroups(searchedNodes, recentNodes, frequentMetas, !hasQuery && categoryFilters.size === 0),
-    [hasQuery, recentNodes, frequentMetas, searchedNodes, categoryFilters],
+    () => buildGroups(searchedNodes, recentNodes, frequentMetas, bookmarkedMetas, !hasQuery && categoryFilters.size === 0),
+    [hasQuery, recentNodes, frequentMetas, bookmarkedMetas, searchedNodes, categoryFilters],
   );
   const keyboardNodes = useMemo(() => uniqueNodes(groups.flatMap(group => group.nodes)), [groups]);
   const totalNodes = Object.values(objectInfo).length;
@@ -476,8 +518,10 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                         active={activeNodeId === meta.id}
                         recent={group.recent}
                         usageCount={group.frequent ? getNodeUsageCount(meta.id) : undefined}
+                        bookmarked={isNodeBookmarked(meta.id)}
                         onChoose={chooseNode}
                         onFocus={setActiveNodeId}
+                        onToggleBookmark={(m) => toggleNodeBookmark(m.id)}
                       />
                     ))}
                   </div>

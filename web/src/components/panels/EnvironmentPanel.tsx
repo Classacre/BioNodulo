@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { confirmDialog } from '../ui';
+import { apiGet } from '../../api/client';
 
 interface PackageInfo {
   name: string;
@@ -40,12 +41,9 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
   const fetchEnvs = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/manager/environments');
-      if (r.ok) {
-        const data = await r.json();
-        setEnvs(data.environments || []);
-      }
-    } catch { /* offline */ }
+      const data = await apiGet<{ environments?: EnvInfo[] }>('/manager/environments');
+      setEnvs(data.environments || []);
+    } catch { /* offline / backend unavailable — keep prior list */ }
     setLoading(false);
   }, []);
 

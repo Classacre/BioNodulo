@@ -469,8 +469,13 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   // reroutes / type coercion) are visually obvious; 'uniform' is the classic
   // single-tone look for users who find the rainbow noisy.
   const linkColorMode = String(get('bionodulo.canvas.linkColorMode') || 'type') as 'type' | 'gradient' | 'uniform';
-  const qualityPrefsRef = useRef({ qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode });
-  qualityPrefsRef.current = { qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode };
+  // When on, the node header tint follows the most recent run status
+  // (completed = green, error = red, cached = purple, ...). Helps at-a-glance
+  // health reading on big workflows; off by default so colour tokens still
+  // reflect the user-chosen palette.
+  const colorByStatus = getBool('bionodulo.canvas.colorByStatus', false);
+  const qualityPrefsRef = useRef({ qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode, colorByStatus });
+  qualityPrefsRef.current = { qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode, colorByStatus };
 
   useEffect(() => {
     onViewportChange?.(offset, scale);
@@ -1069,8 +1074,18 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         ctx.stroke();
       }
 
-      // Header
-      ctx.fillStyle = isNote ? '#f59e0b' : node.color;
+      // Header. When `colorByStatus` is on, override the nominal `node.color`
+      // with a status-derived tint so completed/error/cached nodes are obvious
+      // from the header colour alone, not just the corner badge.
+      let headerFill: string = isNote ? '#f59e0b' : node.color;
+      if (qualityPrefs.colorByStatus && !isNote && node.status) {
+        const statusFill: Record<string, string> = {
+          completed: '#22c55e', error: '#ef4444', cached: '#a855f7',
+          skipped: '#f97316', running: '#3b82f6',
+        };
+        headerFill = statusFill[node.status] || headerFill;
+      }
+      ctx.fillStyle = headerFill;
       if (node.collapsed) {
         roundRect(ctx, node.x, node.y, nw, NODE_HEADER_H, radius);
       } else {

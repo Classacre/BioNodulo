@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import Icon from '../ui/Icon';
-import type { NodeMetadata } from '../../types';
+import type { NodeMetadata, ObjectInfo } from '../../types';
 
 interface HelpWikiPanelProps {
   onClose: () => void;
   /** Currently selected node — when set, the panel surfaces node-specific docs first. */
   selectedNode?: { id: string; type: string; meta?: NodeMetadata; title?: string } | null;
+  /** Optional registry so search can look across node names + descriptions. */
+  objectInfo?: ObjectInfo;
 }
 
 function escapeHtml(value: string): string {
@@ -357,7 +359,7 @@ function highlightQuery(text: string, query: string): string {
   return text.replace(re, '<mark style="background:#fde047;color:#000;padding:0 2px;border-radius:2px;">$1</mark>');
 }
 
-export default function HelpWikiPanel({ onClose, selectedNode }: HelpWikiPanelProps) {
+export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: HelpWikiPanelProps) {
   const [page, setPage] = useState<WikiPage>('getting-started');
   const [query, setQuery] = useState('');
   // Auto-switch to node docs whenever the canvas selection changes — but
@@ -381,6 +383,27 @@ export default function HelpWikiPanel({ onClose, selectedNode }: HelpWikiPanelPr
       return { ...p, snippet: snippet + (snippet.length < plain.length ? '…' : '') };
     });
   }, [query]);
+
+  // Search across registered node metadata so the help search field doubles
+  // as a node lookup — typing a tool name surfaces both the wiki section and
+  // any node whose name/description/category matches.
+  const nodeSearchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !objectInfo) return [];
+    const hits: { meta: NodeMetadata; snippet: string }[] = [];
+    for (const meta of Object.values(objectInfo)) {
+      const haystack = [meta.display_name, meta.id, meta.description, meta.category].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) continue;
+      const source = meta.description || meta.category || '';
+      const idx = source.toLowerCase().indexOf(q);
+      const snippet = idx >= 0
+        ? source.slice(Math.max(0, idx - 40), idx + 120)
+        : source.slice(0, 120);
+      hits.push({ meta, snippet });
+      if (hits.length >= 12) break;
+    }
+    return hits;
+  }, [query, objectInfo]);
 
   const currentContent = CONTENT[page] || '';
 
@@ -411,22 +434,43 @@ export default function HelpWikiPanel({ onClose, selectedNode }: HelpWikiPanelPr
 
         {query.trim() ? (
           <div className="wiki-search-results">
-            {searchResults.length === 0 ? (
+            {searchResults.length === 0 && nodeSearchResults.length === 0 ? (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No results for "{query}"
               </div>
             ) : (
-              searchResults.map(r => (
-                <div
-                  key={r.id}
-                  className="wiki-result-item"
-                  style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: 'var(--surface-2)' }}
-                  onClick={() => { setPage(r.id); setQuery(''); }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.title, query) }} />
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.snippet, query) }} />
-                </div>
-              ))
+              <>
+                {searchResults.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '4px 0' }}>Wiki pages</div>
+                )}
+                {searchResults.map(r => (
+                  <div
+                    key={r.id}
+                    className="wiki-result-item"
+                    style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: 'var(--surface-2)' }}
+                    onClick={() => { setPage(r.id); setQuery(''); }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.title, query) }} />
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.snippet, query) }} />
+                  </div>
+                ))}
+                {nodeSearchResults.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0 4px' }}>Nodes</div>
+                )}
+                {nodeSearchResults.map(hit => (
+                  <div
+                    key={`node-${hit.meta.id}`}
+                    className="wiki-result-item"
+                    style={{ padding: '8px 12px', borderRadius: 6, cursor: 'default', marginBottom: 4, background: 'var(--surface-2)' }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.meta.display_name, query) }} />
+                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{hit.meta.category || 'Other'}</div>
+                    {hit.snippet && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.snippet, query) }} />
+                    )}
+                  </div>
+                ))}
+              </>
             )}
           </div>
         ) : (

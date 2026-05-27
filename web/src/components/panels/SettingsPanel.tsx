@@ -188,6 +188,9 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
           <SettingRow query={query} label="Smooth Links" desc="Anti-alias bezier connections" keywords="antialias smoothing links edges">
             <div className={`toggle ${getBool('bionodulo.canvas.smoothLinks', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.smoothLinks', !getBool('bionodulo.canvas.smoothLinks', true))} />
           </SettingRow>
+          <SettingRow query={query} label="Color by Status" desc="Tint node headers by last run status (completed/error/cached)" keywords="color status run completed error cached tint">
+            <div className={`toggle ${getBool('bionodulo.canvas.colorByStatus') ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.colorByStatus', !getBool('bionodulo.canvas.colorByStatus'))} />
+          </SettingRow>
           <SettingRow query={query} label="Link Color" desc="How connection lines are colored" keywords="color edge link data type gradient">
             <select
               className="select-input"

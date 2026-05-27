@@ -7,6 +7,7 @@ import BottomConsole from './components/layout/BottomConsole';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
 import HardwareMonitor from './components/canvas/HardwareMonitor';
+import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
@@ -1394,7 +1395,24 @@ export default function App() {
       cacheEnabled,
     });
     try {
-      await validate(activeWorkflow);
+      const v = await validate(activeWorkflow);
+      if (v && v.valid === false && Array.isArray(v.errors) && v.errors.length > 0) {
+        // Try to extract a node id from the first error so the "Jump" action
+        // can centre the canvas on it. Errors are free-form strings, so we
+        // match any token that exists in the current workflow's node ids.
+        const firstError = String(v.errors[0]);
+        const nodeIds = new Set(activeWorkflow.nodes.map(n => n.id));
+        const tokens = firstError.match(/[A-Za-z0-9_\-]+/g) || [];
+        const targetId = tokens.find(token => nodeIds.has(token));
+        toast.error(`Validation failed (${v.errors.length})`, {
+          message: firstError,
+          actions: targetId
+            ? [{ label: 'Jump to node', onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
+            : undefined,
+        });
+        setIsRunning(false);
+        return;
+      }
       const count = Math.max(1, Math.min(99, batchCount));
       for (let index = 0; index < count; index += 1) {
         const batchName = count > 1
@@ -2508,7 +2526,7 @@ export default function App() {
           title: selected.ui?.title || objectInfo[selected.type]?.display_name || selected.type,
         }
         : null;
-      return <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} />;
+      return <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} objectInfo={objectInfo} />;
     }
     if (tab === 'templates') {
       return (
@@ -2883,6 +2901,7 @@ export default function App() {
         })()}
 
         <HardwareMonitor />
+        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} />
         {focusMode && (
           <button
             type="button"

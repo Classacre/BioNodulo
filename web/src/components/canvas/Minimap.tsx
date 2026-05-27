@@ -139,12 +139,26 @@ export default function Minimap({ graphNodes, groups, edges, offset, scale, canv
       return { key: e.id, x1: fx, y1: fy, x2: tx, y2: ty };
     }).filter(Boolean) as Array<{ key: string; x1: number; y1: number; x2: number; y2: number }>;
 
+    // Status colors override the node's nominal tint so the minimap acts as
+    // an at-a-glance run health indicator. Selection still wins so the user
+    // can find what they just clicked on a tall workflow.
+    const statusFill = (n: GraphNode): string => {
+      if (n.selected) return '#2dd4bf';
+      switch (n.status) {
+        case 'running': return '#3b82f6';
+        case 'error': return '#ef4444';
+        case 'completed': return '#22c55e';
+        case 'cached': return '#a855f7';
+        case 'skipped': return '#94a3b8';
+        default: return n.color || '#64748b';
+      }
+    };
     const nodesSvg = graphNodes.map(n => {
       const nx = ((n.x - bounds.minX) / bw) * MINIMAP_W;
       const ny = ((n.y - bounds.minY) / bh) * MINIMAP_H;
       const nw = Math.max((n.width / bw) * MINIMAP_W, 3);
       const nh = Math.max(((n.collapsed ? 32 : n.height) / bh) * MINIMAP_H, 3);
-      return { key: n.id, x: nx, y: ny, w: nw, h: nh, fill: n.selected ? '#2dd4bf' : (n.color || '#64748b') };
+      return { key: n.id, x: nx, y: ny, w: nw, h: nh, fill: statusFill(n) };
     });
 
     return { groupRects: groupsSvg, linkLines: linksSvg, nodeRects: nodesSvg };

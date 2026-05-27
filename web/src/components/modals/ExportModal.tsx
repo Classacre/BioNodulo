@@ -4,6 +4,7 @@ import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { apiPost, ApiError } from '../../api/client';
 
 interface ExportModalProps {
   workflow: Workflow;
@@ -57,16 +58,20 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         setPngPreview(dataUrl);
         setContent('');
       } else {
-        const response = await fetch('/api/workflow/export', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workflow, format }),
-        });
-        if (response.ok) {
-          const data = await response.json();
+        try {
+          const data = await apiPost<{ content?: string; workflow?: string }>(
+            '/workflow/export',
+            { workflow, format },
+          );
           setContent(data.content || data.workflow || JSON.stringify(workflow, null, 2));
-        } else {
-          setContent(`# ${format} export\n# Backend converter not available\n\n${JSON.stringify(workflow, null, 2)}`);
+        } catch (err) {
+          if (err instanceof ApiError) {
+            // Backend converter unavailable — keep the JSON fallback so the
+            // user always has something to copy.
+            setContent(`# ${format} export\n# Backend converter not available (${err.status})\n\n${JSON.stringify(workflow, null, 2)}`);
+          } else {
+            throw err;
+          }
         }
         setPngPreview(null);
       }

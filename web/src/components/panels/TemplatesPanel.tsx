@@ -5,6 +5,7 @@ import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
 import { listLocalTemplates } from '../../localTemplates';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
+import { apiGet, ApiError } from '../../api/client';
 
 export type TemplateSortMode = 'ranked' | 'name' | 'category' | 'node_count' | 'recent';
 
@@ -179,14 +180,10 @@ export default function TemplatesPanel({
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/workflow_templates')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+    apiGet<{ templates?: unknown[] }>('/workflow_templates')
       .then(data => {
         if (cancelled) return;
-        const items: TemplateCardInfo[] = (data.templates || []).map((t: any) => ({
+        const items: TemplateCardInfo[] = ((data.templates || []) as Record<string, unknown>[]).map((t: any) => ({
           id: t.id || t.filename.replace('.json', ''),
           name: t.name || t.filename.replace('.json', '').replace(/_/g, ' '),
           description: t.description || '',
@@ -203,11 +200,12 @@ export default function TemplatesPanel({
         setTemplates(items);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         const localTemplates = listLocalTemplates() as TemplateCardInfo[];
         setTemplates(localTemplates);
-        setError(localTemplates.length > 0 ? null : err.message);
+        const message = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);
+        setError(localTemplates.length > 0 ? null : message);
         setLoading(false);
       });
     return () => { cancelled = true; };

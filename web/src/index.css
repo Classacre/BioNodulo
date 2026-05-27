@@ -152,6 +152,61 @@ body {
   border: 1px solid rgba(148,163,184,0.35);
 }
 
+/* Workflow stats overlay (bottom-left) */
+.workflow-stats-overlay {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 50;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 11px;
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+.workflow-stats-pill {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.workflow-stats-collapse {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.workflow-stats-collapse:hover { color: var(--text); }
+.workflow-stats-row { display: flex; gap: 4px; align-items: baseline; padding-right: 16px; flex-wrap: wrap; }
+.workflow-stats-count { font-weight: 700; color: var(--accent, #2dd4bf); }
+.workflow-stats-label { color: var(--muted); margin-right: 4px; }
+.workflow-stats-categories { display: flex; gap: 4px; flex-wrap: wrap; }
+.workflow-stats-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+.workflow-stats-cat-label { color: var(--text); }
+.workflow-stats-cat-count { color: var(--muted); font-weight: 600; }
+
 /* Top Bar */
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand .mark {
@@ -2565,6 +2620,25 @@ kbd {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+
+.node-bookmark-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+  margin-right: 4px;
+}
+.node-bookmark-toggle:hover { color: #eab308; border-color: var(--border); }
+.node-bookmark-toggle.is-on { color: #eab308; }
+.node-bookmark-toggle.is-on svg { fill: currentColor; }
 
 .node-search-empty {
   padding: 16px;
