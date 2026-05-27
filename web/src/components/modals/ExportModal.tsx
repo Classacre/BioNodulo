@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ExportModalProps {
   workflow: Workflow;
@@ -91,9 +92,20 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
     saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, 'text/plain');
   };
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 720, maxHeight: '80vh' }} onClick={event => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Export workflow"
+        style={{ width: 720, maxHeight: '80vh' }}
+        onClick={event => event.stopPropagation()}
+      >
         <div className="modal-header">Export Workflow</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>

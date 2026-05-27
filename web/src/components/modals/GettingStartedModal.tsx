@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, type RecentWorkflow } from '../../state/recentWorkflows';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface GettingStartedModalProps {
   onClose: () => void;
@@ -76,6 +77,59 @@ interface DataStatus {
   total_size_mb: number;
 }
 
+interface ReleaseNote {
+  version: string;
+  date: string;
+  url?: string;
+  body?: string;
+  items?: string[];
+}
+
+const RELEASES_CACHE_KEY = 'bionodulo.releases.cache';
+const RELEASES_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function parseChangelogBody(body: string): string[] {
+  // Extract bullet items from a GitHub release body. Tolerates `-`, `*`, and
+  // `+` list markers and strips leading "## What's Changed" headers.
+  const lines = body
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.trim());
+  const items: string[] = [];
+  for (const line of lines) {
+    const match = line.match(/^[-*+]\s+(.+)$/);
+    if (match) {
+      // Drop trailing "by @user in #PR" suffixes for readability.
+      const cleaned = match[1].replace(/\s+by @\S+\s+in\s+\S+$/i, '').trim();
+      if (cleaned) items.push(cleaned);
+    }
+  }
+  return items;
+}
+
+function loadCachedReleases(): ReleaseNote[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(RELEASES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { fetchedAt?: number; releases?: ReleaseNote[] } | null;
+    if (!parsed?.releases || !parsed.fetchedAt) return null;
+    if (Date.now() - parsed.fetchedAt > RELEASES_CACHE_TTL_MS) return null;
+    return parsed.releases;
+  } catch {
+    return null;
+  }
+}
+
+function persistCachedReleases(releases: ReleaseNote[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RELEASES_CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), releases }));
+  } catch {
+    // Cache write failures are non-fatal — we'll just re-fetch next time.
+  }
+}
+
 export default function GettingStartedModal({
   onClose,
   onDontShowAgain,
@@ -86,6 +140,45 @@ export default function GettingStartedModal({
 }: GettingStartedModalProps) {
   const [tab, setTab] = useState<TabId>('welcome');
   const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
+  const [liveReleases, setLiveReleases] = useState<ReleaseNote[] | null>(() => loadCachedReleases());
+  const [releasesLoading, setReleasesLoading] = useState(false);
+  const [releasesError, setReleasesError] = useState<string | null>(null);
+
+  // Fetch live release notes when the News tab opens. Cached for 6 hours so
+  // repeated opens don't hammer the GitHub API and offline users still see
+  // the last-known good list.
+  useEffect(() => {
+    if (tab !== 'news') return;
+    if (liveReleases && liveReleases.length > 0) return;
+    const controller = new AbortController();
+    setReleasesLoading(true);
+    setReleasesError(null);
+    fetch('https://api.github.com/repos/Classacre/BioNodulo/releases?per_page=10', {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then(response => {
+        if (!response.ok) throw new Error(`GitHub ${response.status}`);
+        return response.json() as Promise<Array<{ tag_name?: string; name?: string; published_at?: string; html_url?: string; body?: string }>>;
+      })
+      .then(items => {
+        const releases: ReleaseNote[] = items.map(item => ({
+          version: item.name || item.tag_name || 'unreleased',
+          date: item.published_at ? item.published_at.slice(0, 10) : '',
+          url: item.html_url,
+          body: item.body || '',
+          items: parseChangelogBody(item.body || ''),
+        }));
+        setLiveReleases(releases);
+        persistCachedReleases(releases);
+      })
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return;
+        setReleasesError(err.message);
+      })
+      .finally(() => setReleasesLoading(false));
+    return () => controller.abort();
+  }, [tab, liveReleases]);
   useEffect(() => {
     const unsubscribe = subscribeRecentWorkflows(() => setRecents(getRecentWorkflows()));
     return unsubscribe;
@@ -153,9 +246,19 @@ export default function GettingStartedModal({
     setDownloading(false);
   };
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 500 }}>
-      <div className="modal-content getting-started-modal" onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content getting-started-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Getting started"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 4 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>Getting Started</div>
@@ -374,19 +477,56 @@ export default function GettingStartedModal({
 
           {tab === 'news' && (
             <div>
-              {CHANGELOG.map(entry => (
-                <div key={entry.version} style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>{entry.version}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.date}</span>
-                  </div>
-                  <ul style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-2)', paddingLeft: 16 }}>
-                    {entry.items.map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {liveReleases && liveReleases.length > 0
+                    ? `Live from GitHub releases · ${liveReleases.length} entries`
+                    : releasesLoading
+                      ? 'Fetching latest releases…'
+                      : releasesError
+                        ? `Offline mode — showing bundled changelog`
+                        : 'Showing bundled changelog'}
                 </div>
-              ))}
+                {liveReleases && (
+                  <button
+                    type="button"
+                    onClick={() => { setLiveReleases(null); }}
+                    style={{ background: 'transparent', border: 0, color: 'var(--accent-dark, var(--accent))', fontSize: 11, cursor: 'pointer' }}
+                    title="Refetch release notes"
+                  >
+                    Refresh
+                  </button>
+                )}
+              </div>
+              {(liveReleases && liveReleases.length > 0 ? liveReleases : CHANGELOG).map(entry => {
+                const items = 'items' in entry && entry.items ? entry.items : [];
+                const liveUrl = 'url' in entry ? entry.url : undefined;
+                return (
+                  <div key={entry.version} style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{entry.version}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.date}</span>
+                      {liveUrl && (
+                        <a
+                          href={liveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: 10, color: 'var(--accent-dark, var(--accent))' }}
+                        >
+                          View on GitHub
+                        </a>
+                      )}
+                    </div>
+                    {items.length > 0 ? (
+                      <ul style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-2)', paddingLeft: 16 }}>
+                        {items.map((item, i) => (<li key={i}>{item}</li>))}
+                      </ul>
+                    ) : 'body' in entry && entry.body ? (
+                      <pre style={{ fontSize: 11, color: 'var(--text-2)', whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>{entry.body.slice(0, 600)}{entry.body.length > 600 ? '…' : ''}</pre>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
 

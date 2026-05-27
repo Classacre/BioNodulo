@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import { useKeybindings } from '../../hooks/useKeybindings';
 import { eventToKeybinding, type KeybindingCategory, type KeybindingRecord } from '../../state/keybindings';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import Icon from './Icon';
 import { useFoundationStyles } from './FoundationStyles';
 
@@ -108,11 +109,15 @@ export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardSh
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onOpenChange, open, recordingId]);
 
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef, open, () => onOpenChange(false));
+
   if (typeof document === 'undefined' || !open) return null;
 
   return createPortal(
     <div className="bn-ui-overlay" role="presentation" onMouseDown={() => onOpenChange(false)}>
       <section
+        ref={dialogRef}
         aria-label={title ?? t('shortcuts.title')}
         aria-modal="true"
         className="bn-ui-shortcuts"

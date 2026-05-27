@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import Icon from '../ui/Icon';
 import { Skeleton } from '../ui/Skeleton';
 import type { Workflow, WorkflowNode } from '../../types';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 export interface SampleSheetRun {
   rowIndex: number;
@@ -227,9 +228,20 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
     }
   };
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 760, maxHeight: '85vh' }} onClick={event => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Batch run from sample sheet"
+        style={{ width: 760, maxHeight: '85vh' }}
+        onClick={event => event.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Batch run from sample sheet</h3>
           <button className="btn btn-icon btn-sm" onClick={onClose} title="Close">

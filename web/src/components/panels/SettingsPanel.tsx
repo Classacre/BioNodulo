@@ -1,4 +1,4 @@
-import { Children, isValidElement, useMemo, useState } from 'react';
+import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { useSettings } from '../../hooks/useSettings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
@@ -49,16 +49,35 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
     }
   };
 
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const trimmedQuery = query.trim();
+
+  // Recount visible rows after each render so the toolbar can show "X matches"
+  // and a "no matches" hint when the query rules everything out. We sample the
+  // DOM (rather than rebuilding the filter graph in JS) because the visibility
+  // logic already lives in SettingsGroup/SettingRow.
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!trimmedQuery) {
+      setMatchCount(null);
+      return;
+    }
+    const node = bodyRef.current;
+    if (!node) return;
+    setMatchCount(node.querySelectorAll('.setting-row').length);
+  }, [trimmedQuery, query]);
+
   return (
     <div className="rail-panel">
       <div className="rail-panel-header">Settings</div>
-      <div className="rail-panel-body">
+      <div className="rail-panel-body" ref={bodyRef}>
         <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 2, paddingBottom: 8, marginBottom: 4 }}>
           <input
             type="search"
             placeholder="Search settings... (e.g. theme, cache, hpc)"
             value={query}
             onChange={event => setQuery(event.target.value)}
+            aria-label="Search settings"
             style={{
               width: '100%',
               padding: '6px 10px',
@@ -69,6 +88,14 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
               fontSize: 12,
             }}
           />
+          {trimmedQuery && (
+            <div className="settings-search-summary">
+              {matchCount === 0
+                ? <span className="settings-search-empty">No settings match "{trimmedQuery}"</span>
+                : <span>{matchCount ?? '…'} match{matchCount === 1 ? '' : 'es'}</span>}
+              <button type="button" className="settings-search-clear" onClick={() => setQuery('')}>Clear</button>
+            </div>
+          )}
         </div>
         {/* Appearance */}
         <SettingsGroup query={query} title="Appearance">

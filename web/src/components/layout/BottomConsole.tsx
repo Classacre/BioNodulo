@@ -58,8 +58,10 @@ interface BottomConsoleProps {
   onCancelRun?: (run: RunRecord) => void;
   onRetryRun?: (run: RunRecord) => void;
   onLoadRunWorkflow?: (run: RunRecord) => void;
+  onDeleteHistoryEntry?: (run: RunRecord) => void;
   onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
   onClearQueue?: () => void;
+  onClearHistory?: () => void;
   batchCount?: number;
 }
 
@@ -234,10 +236,11 @@ function QueueRunCard({
   );
 }
 
-function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow }: {
+function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEntry }: {
   run: RunRecord;
   onRetryRun?: (run: RunRecord) => void;
   onLoadRunWorkflow?: (run: RunRecord) => void;
+  onDeleteHistoryEntry?: (run: RunRecord) => void;
 }) {
   const progress = progressForRun(run);
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
@@ -265,6 +268,13 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow }: {
         )}
         {onRetryRun && canRetry && (
           <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
+        )}
+        {onDeleteHistoryEntry && (
+          <RunActionButton
+            title="Delete this run from history"
+            icon="close"
+            onClick={() => onDeleteHistoryEntry(run)}
+          />
         )}
       </div>
     </div>
@@ -399,8 +409,10 @@ export default function BottomConsole({
   onCancelRun,
   onRetryRun,
   onLoadRunWorkflow,
+  onDeleteHistoryEntry,
   onMoveRun,
   onClearQueue,
+  onClearHistory,
   batchCount,
 }: BottomConsoleProps) {
   const [tab, setTab] = useState<ConsoleTab>('logs');
@@ -802,6 +814,16 @@ export default function BottomConsole({
                       </button>
                     ))}
                   </div>
+                  {onClearHistory && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={onClearHistory}
+                      title="Clear all completed runs from history"
+                    >
+                      <Icon name="trash" size={12} /> Clear history
+                    </button>
+                  )}
                 </div>
                 {filteredHistory.length === 0 ? (
                   <div style={{ color: 'var(--muted)', padding: '8px 4px' }}>
@@ -831,6 +853,7 @@ export default function BottomConsole({
                                   run={r}
                                   onRetryRun={onRetryRun}
                                   onLoadRunWorkflow={onLoadRunWorkflow}
+                                  onDeleteHistoryEntry={onDeleteHistoryEntry}
                                 />
                               ))}
                             </div>

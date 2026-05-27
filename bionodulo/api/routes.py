@@ -500,6 +500,29 @@ async def get_history(request: Request) -> dict[str, Any]:
     return {"history": [], "count": 0}
 
 
+@router.post("/history/clear")
+async def clear_history(request: Request) -> dict[str, Any]:
+    """Remove all completed runs from history."""
+    queue = _get_queue(request)
+    if hasattr(queue, "clear_history"):
+        cleared = queue.clear_history()
+    else:
+        cleared = 0
+    return {"status": "cleared", "cleared": cleared}
+
+
+@router.delete("/history/{run_id}")
+async def delete_history_entry(request: Request, run_id: str) -> dict[str, Any]:
+    """Remove a single completed run from history."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "delete_history_entry"):
+        raise HTTPException(status_code=501, detail="History deletion is not available")
+    removed = queue.delete_history_entry(run_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not in history")
+    return {"run_id": run_id, "status": "deleted"}
+
+
 @router.get("/runs/{run_id}")
 async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     """Get details for a specific run."""

@@ -596,6 +596,34 @@ export default function App() {
     setLogs([]);
   }, []);
 
+  // Per-node run progress for inline canvas captions. Populated on node_start
+  // events ({ current, total } parsed from the payload's "i/N" progress hint)
+  // and cleared once the node finishes/errors so the caption only sits on
+  // actively-running nodes.
+  const [nodeRunProgress, setNodeRunProgress] = useState<Map<string, { current: number; total: number; startedAt: number }>>(() => new Map());
+  const recordNodeStart = useCallback((nodeId: string, progress: string | undefined) => {
+    const [currentStr, totalStr] = String(progress || '').split('/');
+    const current = Number.parseInt(currentStr, 10);
+    const total = Number.parseInt(totalStr, 10);
+    setNodeRunProgress(prev => {
+      const next = new Map(prev);
+      next.set(nodeId, {
+        current: Number.isFinite(current) ? current : 0,
+        total: Number.isFinite(total) ? total : 0,
+        startedAt: Date.now(),
+      });
+      return next;
+    });
+  }, []);
+  const clearNodeRunProgress = useCallback((nodeId: string) => {
+    setNodeRunProgress(prev => {
+      if (!prev.has(nodeId)) return prev;
+      const next = new Map(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, []);
+
   const updateNodeRunStatus = useCallback((runId: string, nodeId: string, status: NodeStatus['status'], error?: string) => {
     setRuns(prev => prev.map(run => {
       if (run.run_id !== runId) return run;
@@ -1023,21 +1051,27 @@ export default function App() {
         addLog({ run_id: runId, node_id: 'engine', level: 'info', message: `Workflow started (${payload.total_nodes} nodes)`, timestamp: ts });
       } else if (data.type === 'node_start') {
         updateNodeRunStatus(runId, String(payload.node_id), 'running');
+        recordNodeStart(String(payload.node_id), payload.progress as string | undefined);
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Node start [${payload.progress}] ${payload.node_type}`, timestamp: ts });
       } else if (data.type === 'node_complete') {
         updateNodeRunStatus(runId, String(payload.node_id), 'completed');
+        clearNodeRunProgress(String(payload.node_id));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'success', message: `Node completed`, timestamp: ts });
       } else if (data.type === 'node_error') {
         updateNodeRunStatus(runId, String(payload.node_id), 'error', String(payload.error || 'Node error'));
+        clearNodeRunProgress(String(payload.node_id));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'error', message: `Node error: ${payload.error}`, timestamp: ts });
       } else if (data.type === 'node_skip') {
         updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
+        clearNodeRunProgress(String(payload.node_id));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node skipped (${payload.reason})`, timestamp: ts });
       } else if (data.type === 'node_bypass') {
         updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
+        clearNodeRunProgress(String(payload.node_id));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node bypassed`, timestamp: ts });
       } else if (data.type === 'node_cache_hit') {
         updateNodeRunStatus(runId, String(payload.node_id), 'cached');
+        clearNodeRunProgress(String(payload.node_id));
         addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Cache hit — skipping execution`, timestamp: ts });
       } else if (data.type === 'complete') {
         addLog({ run_id: runId, node_id: 'engine', level: payload.status === 'completed' ? 'success' : 'error', message: `Workflow ${payload.status}`, timestamp: ts });
@@ -1680,6 +1714,34 @@ export default function App() {
       toast.success('Queue cleared');
     } catch (err) {
       toast.error('Could not clear queue', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [setRuns]);
+
+  const handleClearHistory = useCallback(async () => {
+    const ok = await confirmDialog({
+      title: 'Clear history?',
+      message: 'Remove all completed runs from history? This cannot be undone.',
+      confirmLabel: 'Clear History',
+      tone: 'warning',
+    });
+    if (!ok) return;
+    try {
+      const response = await fetch('/api/history/clear', { method: 'POST' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setRuns(prev => prev.filter(run => run.status === 'pending' || run.status === 'running'));
+      toast.success('History cleared');
+    } catch (err) {
+      toast.error('Could not clear history', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }, [setRuns]);
+
+  const handleDeleteHistoryEntry = useCallback(async (run: RunRecord) => {
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(run.run_id)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setRuns(prev => prev.filter(r => r.run_id !== run.run_id));
+    } catch (err) {
+      toast.error('Could not delete run', { message: err instanceof Error ? err.message : String(err) });
     }
   }, [setRuns]);
 
@@ -2592,6 +2654,7 @@ export default function App() {
           onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
           nodeStatusMap={nodeStatusMap}
+          nodeProgressMap={nodeRunProgress}
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
           nodeComments={workflowComments}
@@ -2714,8 +2777,10 @@ export default function App() {
               onCancelRun={handleCancelRun}
               onRetryRun={handleRetryRun}
               onLoadRunWorkflow={handleLoadRunWorkflow}
+              onDeleteHistoryEntry={handleDeleteHistoryEntry}
               onMoveRun={handleMoveRun}
               onClearQueue={handleClearQueue}
+              onClearHistory={handleClearHistory}
               batchCount={batchCount}
             />
           </ErrorBoundary>

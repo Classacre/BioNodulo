@@ -399,6 +399,20 @@ class RunQueue:
                 }
         return None
 
+    def clear_history(self) -> int:
+        """Remove all completed runs from history. Returns the number cleared."""
+        cleared = len(self._history)
+        self._history.clear()
+        return cleared
+
+    def delete_history_entry(self, run_id: str) -> bool:
+        """Remove a single completed run from history. Returns True if removed."""
+        for i, r in enumerate(self._history):
+            if r.run_id == run_id:
+                del self._history[i]
+                return True
+        return False
+
     def list_history(self) -> list[dict[str, Any]]:
         """List completed (historic) runs."""
         history = []

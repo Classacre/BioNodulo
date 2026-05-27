@@ -1,7 +1,12 @@
 import Icon from '../ui/Icon';
 import type { ReactNode } from 'react';
+import { useKeybindings } from '../../hooks/useKeybindings';
 
 export type HPCStatus = 'off' | 'error' | 'on';
+
+function withShortcut(label: string, binding?: string | null): string {
+  return binding ? `${label} (${binding})` : label;
+}
 
 interface TopBarProps {
   validationValid: boolean;
@@ -41,6 +46,12 @@ export default function TopBar({
   queueMode = 'manual', onQueueModeChange,
   onToggleQueue, onBatchCountChange, collabControls, autoSaveLabel,
 }: TopBarProps) {
+  const { getBinding } = useKeybindings();
+  const runShortcut = getBinding('workflow.run');
+  const exportShortcut = getBinding('workflow.export');
+  const importShortcut = getBinding('workflow.import');
+  const aiShortcut = getBinding('ai.open');
+
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
     hpcStatus === 'error' ? 'hpc-badge hpc-error' :
@@ -130,7 +141,13 @@ export default function TopBar({
             <Icon name="template" size={12} /> Sheet
           </button>
         )}
-        <button className="btn btn-primary btn-sm" onClick={onRun} disabled={isRunning}>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={onRun}
+          disabled={isRunning}
+          title={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
+          aria-label={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
+        >
           {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
         </button>
         {onQueueModeChange && (
@@ -152,13 +169,28 @@ export default function TopBar({
             <option value="instant">Instant</option>
           </select>
         )}
-        <button className="btn btn-sm" onClick={onExport} title="Export workflow" aria-label="Export workflow">
+        <button
+          className="btn btn-sm"
+          onClick={onExport}
+          title={withShortcut('Export workflow', exportShortcut)}
+          aria-label={withShortcut('Export workflow', exportShortcut)}
+        >
           <Icon name="export" size={14} />
         </button>
-        <button className="btn btn-sm" onClick={onImport} title="Import workflow" aria-label="Import workflow">
+        <button
+          className="btn btn-sm"
+          onClick={onImport}
+          title={withShortcut('Import workflow', importShortcut)}
+          aria-label={withShortcut('Import workflow', importShortcut)}
+        >
           <Icon name="import" size={14} />
         </button>
-        <button className="btn btn-ai btn-sm" onClick={onAI} title="AI Assistant" aria-label="Open AI assistant">
+        <button
+          className="btn btn-ai btn-sm"
+          onClick={onAI}
+          title={withShortcut('AI Assistant', aiShortcut)}
+          aria-label={withShortcut('Open AI assistant', aiShortcut)}
+        >
           <Icon name="wand" size={14} />
         </button>
       </div>

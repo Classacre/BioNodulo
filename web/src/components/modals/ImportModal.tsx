@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Workflow } from '../../types';
 import { alertDialog } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ImportModalProps {
   onImport: (workflow: Workflow) => void;
@@ -64,9 +65,20 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
     setParsing(false);
   };
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 700, maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Import workflow"
+        style={{ width: 700, maxHeight: '80vh' }}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="modal-header">Import Workflow</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>

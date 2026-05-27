@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImper
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import { useSettings } from '../../hooks/useSettings';
+import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
 import { promptDialog, toast } from '../ui';
 import { saveBlueprint } from '../../state/subgraphLibrary';
@@ -47,6 +48,7 @@ interface LiteGraphCanvasProps {
   onToggleMinimap: () => void;
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
+  nodeProgressMap?: Map<string, { current: number; total: number; startedAt: number }>;
   nodePreviewsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   nodeCommentsMap?: Map<string, NodeCommentSummary>;
@@ -424,6 +426,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   snapToGrid, showMinimap, viewportLocked, linksHidden,
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
+  nodeProgressMap,
   nodePreviewsMap,
   missingDependencyNodeIds,
   nodeCommentsMap,
@@ -525,6 +528,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const resizingNodeRef = useRef(resizingNode);
   const collabUsersRef = useRef(collabUsers);
   const missingDependencyNodeIdsRef = useRef(missingDependencyNodeIds);
+  const nodeProgressMapRef = useRef(nodeProgressMap);
   const isDraggingRef = useRef(false);
   const drawRef = useRef<() => void>(() => {});
 
@@ -550,6 +554,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { resizingNodeRef.current = resizingNode; }, [resizingNode]);
   useEffect(() => { collabUsersRef.current = collabUsers; }, [collabUsers]);
   useEffect(() => { missingDependencyNodeIdsRef.current = missingDependencyNodeIds; }, [missingDependencyNodeIds]);
+  useEffect(() => { nodeProgressMapRef.current = nodeProgressMap; }, [nodeProgressMap]);
   useEffect(() => { widgetsRef.current.clear(); }, [graphNodes]);
 
   const publishCollabSelection = useCallback((selection: AwarenessState['selection']) => {
@@ -1275,6 +1280,26 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         ctx.fillRect(node.x, barY, nw, barH);
         ctx.fillStyle = '#22c55e';
         ctx.fillRect(knobX, barY, knobW, barH);
+
+        // "3/12 · 6s" caption rendered in the header strip so the user can see
+        // queue position + how long the node has been running without scrolling
+        // to the console.
+        const progress = nodeProgressMapRef.current?.get(node.id);
+        if (progress) {
+          const parts: string[] = [];
+          if (progress.total > 0) parts.push(`${progress.current}/${progress.total}`);
+          if (progress.startedAt > 0) {
+            const elapsed = Math.max(0, Math.floor((Date.now() - progress.startedAt) / 1000));
+            parts.push(elapsed >= 60 ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s` : `${elapsed}s`);
+          }
+          if (parts.length) {
+            ctx.font = '600 9px Inter, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            const text = parts.join(' · ');
+            const textWidth = ctx.measureText(text).width;
+            ctx.fillText(text, node.x + nw - textWidth - 22, node.y + 20);
+          }
+        }
       }
 
       // Resize handle (bottom-right corner)
@@ -1332,6 +1357,24 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const handleKeyDown = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable) return;
+      // Suppress every canvas shortcut while a modal/dropdown/popover is open
+      // so Backspace inside a dialog cannot delete the user's selection and
+      // Ctrl+A inside a settings search cannot select every node.
+      if (hasOpenOverlay()) return;
+
+      // Scope canvas shortcuts to the canvas host. If focus is on a panel,
+      // top-bar button, or other UI chrome, Backspace/Ctrl+A/etc. should not
+      // affect the graph. document.body == "nothing focused" counts as
+      // canvas-eligible, matching how users typically interact with the
+      // canvas (click background, then keyboard).
+      const host = hostRef.current;
+      const focused = document.activeElement;
+      const isCanvasFocus =
+        !focused
+        || focused === document.body
+        || focused === host
+        || (host && host.contains(focused));
+      if (!isCanvasFocus) return;
 
       const isCtrl = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
