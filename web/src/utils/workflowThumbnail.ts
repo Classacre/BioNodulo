@@ -93,12 +93,34 @@ export interface RenderOptions {
   width?: number;
   height?: number;
   background?: string;
+  /** Output encoding for the dataURL. JPEG is ~10x smaller — good for localStorage. */
+  format?: 'png' | 'jpeg';
+  /** JPEG quality 0-1. Ignored for PNG. */
+  quality?: number;
+}
+
+// Smaller, JPEG-encoded variant used to stamp recents in localStorage. Keeps
+// the per-entry payload to ~3-6 KB so we stay well under the 5 MB origin quota
+// even with the full 12-entry MAX_ENTRIES recents list.
+export function renderRecentThumbnail(workflow: Workflow): string {
+  try {
+    return renderWorkflowThumbnail(workflow, {
+      width: 240,
+      height: 150,
+      format: 'jpeg',
+      quality: 0.72,
+    });
+  } catch {
+    return '';
+  }
 }
 
 export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptions = {}): string {
   const width = options.width ?? 640;
   const height = options.height ?? 400;
   const background = options.background ?? '#0f172a';
+  const format = options.format ?? 'png';
+  const quality = options.quality ?? 0.85;
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -205,5 +227,7 @@ export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptio
   roundRect(ctx, 0.5, 0.5, width - 1, height - 1, 8);
   ctx.stroke();
 
-  return canvas.toDataURL('image/png');
+  return format === 'jpeg'
+    ? canvas.toDataURL('image/jpeg', quality)
+    : canvas.toDataURL('image/png');
 }

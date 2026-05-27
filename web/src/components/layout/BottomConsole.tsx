@@ -62,6 +62,7 @@ interface BottomConsoleProps {
   onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
   onClearQueue?: () => void;
   onClearHistory?: () => void;
+  onCompareRuns?: () => void;
   batchCount?: number;
 }
 
@@ -413,6 +414,7 @@ export default function BottomConsole({
   onMoveRun,
   onClearQueue,
   onClearHistory,
+  onCompareRuns,
   batchCount,
 }: BottomConsoleProps) {
   const [tab, setTab] = useState<ConsoleTab>('logs');
@@ -840,6 +842,17 @@ export default function BottomConsole({
                       </button>
                     ))}
                   </div>
+                  {onCompareRuns && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={onCompareRuns}
+                      disabled={history.length < 1}
+                      title="Compare outputs of two completed runs"
+                    >
+                      <Icon name="layers" size={12} /> Compare runs
+                    </button>
+                  )}
                   {onClearHistory && (
                     <button
                       type="button"

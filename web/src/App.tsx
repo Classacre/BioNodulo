@@ -22,6 +22,7 @@ import BatchSampleSheetModal from './components/modals/BatchSampleSheetModal';
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import ImageLightbox from './components/modals/ImageLightbox';
 import GettingStartedModal from './components/modals/GettingStartedModal';
+const OutputDiffModal = lazy(() => import('./components/modals/OutputDiffModal'));
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
@@ -46,7 +47,9 @@ import { useRegisteredCommands } from './hooks/useCommandPalette';
 import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { usePanelRegistry } from './state/panels';
-import { rememberRecentWorkflow } from './state/recentWorkflows';
+import { rememberRecentWorkflow, refreshRecentThumbnail } from './state/recentWorkflows';
+import { renderRecentThumbnail } from './utils/workflowThumbnail';
+import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
@@ -855,6 +858,7 @@ export default function App() {
   }, []);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showOutputDiff, setShowOutputDiff] = useState(false);
 
   const [showAI, setShowAI] = useState(false);
   const [showBatchSheet, setShowBatchSheet] = useState(false);
@@ -1383,6 +1387,12 @@ export default function App() {
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
+    logTelemetry('workflow.run.start', {
+      workflow: activeWorkflow.name,
+      nodes: activeWorkflow.nodes?.length ?? 0,
+      batch: batchCount,
+      cacheEnabled,
+    });
     try {
       await validate(activeWorkflow);
       const count = Math.max(1, Math.min(99, batchCount));
@@ -1840,6 +1850,7 @@ export default function App() {
   }, [consoleVisible, railTab, setRailTab]);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
+    logTelemetry('template.load', { id: template.id, name: template.name, category: template.category });
     const wf = await fetchTemplateWorkflow(template);
     if (!wf) {
       return;
@@ -1861,7 +1872,7 @@ export default function App() {
       name: wf.name || template.name || 'Untitled',
       source: 'template',
       filename: template.filename,
-      thumbnailUrl: (template as { thumbnail_url?: string }).thumbnail_url,
+      thumbnailUrl: (template as { thumbnail_url?: string }).thumbnail_url || renderRecentThumbnail(wf),
       nodeCount: wf.nodes?.length ?? 0,
     });
     // Auto-fit view after nodes render
@@ -1872,6 +1883,7 @@ export default function App() {
   }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
+    logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
     if (collabEnabled) {
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
       updateWorkflow(activeIndex, sharedWorkflow);
@@ -1886,6 +1898,7 @@ export default function App() {
       id: wf.id || activeWorkflowId,
       name: wf.name || 'Imported workflow',
       source: 'import',
+      thumbnailUrl: renderRecentThumbnail(wf),
       nodeCount: wf.nodes?.length ?? 0,
     });
     // Auto-fit view after nodes render
@@ -2331,6 +2344,17 @@ export default function App() {
       if (collabEnabled) {
         void publishCollabWorkflowSnapshot(workflow);
       }
+      // Keep the recents thumbnail current so reopening from Getting Started
+      // reflects the current shape of the workflow, not the moment of import.
+      if (workflow?.id && (workflow.nodes?.length ?? 0) > 0) {
+        const thumbnail = renderRecentThumbnail(workflow);
+        if (thumbnail) {
+          refreshRecentThumbnail(workflow.id, thumbnail, {
+            name: workflow.name,
+            nodeCount: workflow.nodes?.length ?? 0,
+          });
+        }
+      }
       const savedAt = new Date().toISOString();
       setLastAutoSaveAt(savedAt);
       setDirty(false);
@@ -2465,7 +2489,20 @@ export default function App() {
 
   const renderPanelContent = (tab: OpenPanelTab) => {
     if (tab === 'settings') return <SettingsPanel onClose={() => closePanel(tab)} />;
-    if (tab === 'help') return <HelpWikiPanel onClose={() => closePanel(tab)} />;
+    if (tab === 'help') {
+      const selected = selectedNodeId
+        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId)
+        : null;
+      const helpSelectedNode = selected
+        ? {
+          id: selected.id,
+          type: selected.type,
+          meta: objectInfo[selected.type],
+          title: selected.ui?.title || objectInfo[selected.type]?.display_name || selected.type,
+        }
+        : null;
+      return <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} />;
+    }
     if (tab === 'templates') {
       return (
         <TemplatesPanel
@@ -2865,6 +2902,7 @@ export default function App() {
               onMoveRun={handleMoveRun}
               onClearQueue={handleClearQueue}
               onClearHistory={handleClearHistory}
+              onCompareRuns={() => setShowOutputDiff(true)}
               batchCount={batchCount}
             />
           </ErrorBoundary>
@@ -2924,6 +2962,11 @@ export default function App() {
       {/* Modals */}
       {showExport && <ExportModal workflow={activeWorkflow} onClose={() => setShowExport(false)} />}
       {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />}
+      {showOutputDiff && (
+        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading run diff" /></div>}>
+          <OutputDiffModal runs={runs} onClose={() => setShowOutputDiff(false)} />
+        </Suspense>
+      )}
       {showAI && (
         <AIWorkflowModal
           workflow={activeWorkflow}

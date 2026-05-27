@@ -4,6 +4,7 @@ import Fuse from 'fuse.js';
 import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
 import { listLocalTemplates } from '../../localTemplates';
+import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
 
 export type TemplateSortMode = 'ranked' | 'name' | 'category' | 'node_count' | 'recent';
 
@@ -58,15 +59,19 @@ function templateThumbnailUrl(template: TemplateCardInfo): string | undefined {
   return template.thumbnail_url || template.thumbnail || template.preview_url;
 }
 
-function scoreTemplate(template: TemplateCardInfo, searchScore: number, index: number): number {
+function scoreTemplate(template: TemplateCardInfo, searchScore: number, index: number, localUsage: number): number {
   const hasDescription = template.description.trim().length > 0 ? 0.08 : 0;
   const tagDepth = Math.min(template.tags.length, 6) * 0.015;
   const toolDepth = Math.min(template.tools.length, 6) * 0.01;
   const nodeBalance = template.node_count > 0 ? Math.min(template.node_count, 12) * 0.006 : 0;
   const usageBoost = Math.min(template.usage_count || 0, 10) * 0.006;
+  // Local usage carries more weight than server usage_count: it reflects what
+  // *this* user reaches for, not a global popularity score. Cap at 20 so a
+  // single power-user template doesn't sit on top forever.
+  const localUsageBoost = Math.min(localUsage, 20) * 0.012;
   const positionalPenalty = index * 0.002;
   const base = 1 - Math.min(searchScore, 1);
-  return Math.max(0, Math.min(1, base + hasDescription + tagDepth + toolDepth + nodeBalance + usageBoost - positionalPenalty));
+  return Math.max(0, Math.min(1, base + hasDescription + tagDepth + toolDepth + nodeBalance + usageBoost + localUsageBoost - positionalPenalty));
 }
 
 function templateSummary(template: TemplateCardInfo): string {
@@ -166,6 +171,12 @@ export default function TemplatesPanel({
   });
   const activeSortMode = sortMode || internalSortMode;
 
+  // Re-render on local usage changes so the "ranked" sort picks up freshly-
+  // loaded templates without a page refresh.
+  const [usageVersion, setUsageVersion] = useState(0);
+  useEffect(() => subscribeTemplateUsage(() => setUsageVersion(v => v + 1)), []);
+  const localUsageMap = useMemo(() => getTemplateUsageMap(), [usageVersion]);
+
   useEffect(() => {
     let cancelled = false;
     fetch('/api/workflow_templates')
@@ -222,19 +233,20 @@ export default function TemplatesPanel({
 
   const rankedTemplates = useMemo(() => {
     const q = filter.trim();
+    const localUsageFor = (id: string) => localUsageMap[id]?.count ?? 0;
     const base: RankedTemplate[] = q
       ? fuse.search(q).map((result, index) => ({
         template: result.item,
-        score: scoreTemplate(result.item, result.score ?? 0, index),
+        score: scoreTemplate(result.item, result.score ?? 0, index, localUsageFor(result.item.id)),
       }))
       : templates.map((template, index) => ({
         template,
-        score: scoreTemplate(template, 0.18, index),
+        score: scoreTemplate(template, 0.18, index, localUsageFor(template.id)),
       }));
 
     const categoryFiltered = base.filter(item => catFilter === 'All' || item.template.category === catFilter);
     return sortRankedTemplates(categoryFiltered, activeSortMode);
-  }, [activeSortMode, catFilter, filter, fuse, templates]);
+  }, [activeSortMode, catFilter, filter, fuse, templates, localUsageMap]);
 
   const setSort = (nextSort: TemplateSortMode) => {
     setInternalSortMode(nextSort);
@@ -374,12 +386,17 @@ export default function TemplatesPanel({
         {error && <div className="template-error">Error: {error}</div>}
         {!loading && !error && (
           <div className="template-grid">
-            {rankedTemplates.map(({ template, score }, index) => (
+            {rankedTemplates.map(({ template, score }, index) => {
+              const localUses = localUsageMap[template.id]?.count ?? 0;
+              return (
               <button
                 key={template.id}
                 className="template-card"
                 type="button"
-                onClick={() => onLoadTemplate(template)}
+                onClick={() => {
+                  recordTemplateUse(template.id);
+                  onLoadTemplate(template);
+                }}
                 title={`Load ${template.name}`}
               >
                 <TemplateThumbnail template={template} />
@@ -403,10 +420,16 @@ export default function TemplatesPanel({
                   <div className="tags">
                     {template.tags.slice(0, 2).map(tag => <span key={tag} className="template-tag">{tag}</span>)}
                     <span className="template-tag template-tag-muted">{template.node_count} nodes</span>
+                    {localUses > 0 && (
+                      <span className="template-tag template-tag-used" title="You've loaded this template before">
+                        {localUses}× used
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
             {rankedTemplates.length === 0 && <div className="template-empty">No templates match your search.</div>}
           </div>
         )}

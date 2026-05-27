@@ -461,8 +461,13 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const qualityModeSetting = String(get('bionodulo.canvas.quality') || 'auto') as 'auto' | 'high' | 'low';
   const shadowsEnabled = getBool('bionodulo.canvas.shadows', true);
   const smoothLinksEnabled = getBool('bionodulo.canvas.smoothLinks', true);
-  const qualityPrefsRef = useRef({ qualityModeSetting, shadowsEnabled, smoothLinksEnabled });
-  qualityPrefsRef.current = { qualityModeSetting, shadowsEnabled, smoothLinksEnabled };
+  // 'type' (default) colors each link by its data type; 'gradient' blends the
+  // source and destination colors along the curve so type changes (via
+  // reroutes / type coercion) are visually obvious; 'uniform' is the classic
+  // single-tone look for users who find the rainbow noisy.
+  const linkColorMode = String(get('bionodulo.canvas.linkColorMode') || 'type') as 'type' | 'gradient' | 'uniform';
+  const qualityPrefsRef = useRef({ qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode });
+  qualityPrefsRef.current = { qualityModeSetting, shadowsEnabled, smoothLinksEnabled, linkColorMode };
 
   useEffect(() => {
     onViewportChange?.(offset, scale);
@@ -841,8 +846,19 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             guard += 1;
           }
         }
-        const linkColor = edgeColorForSource(originType);
-        ctx.strokeStyle = linkColor;
+        const linkColorMode = qualityPrefs.linkColorMode || 'type';
+        const sourceColor = linkColorMode === 'uniform' ? palette.text + '99' : edgeColorForSource(originType);
+        const destType = toNode.inputs[toInIndex]?.type || originType;
+        const destColor = linkColorMode === 'uniform' ? palette.text + '99' : edgeColorForSource(destType);
+        const linkColor = sourceColor;
+        if (linkColorMode === 'gradient' && sourceColor !== destColor && !lowQuality) {
+          const gradient = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
+          gradient.addColorStop(0, sourceColor);
+          gradient.addColorStop(1, destColor);
+          ctx.strokeStyle = gradient;
+        } else {
+          ctx.strokeStyle = linkColor;
+        }
         ctx.lineWidth = lowQuality ? 1.5 : isHovered ? 3.5 : 2;
         if (isHovered) {
           ctx.shadowColor = linkColor + '88';

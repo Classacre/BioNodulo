@@ -1,6 +1,8 @@
 export { CommandPalette, CommandPaletteHost } from './CommandPalette';
 export type { CommandPaletteHostProps, CommandPaletteProps } from './CommandPalette';
 export { ConfirmDialogHost } from './ConfirmDialogHost';
+export { Dialog } from './Dialog';
+export type { DialogProps } from './Dialog';
 export { FoundationStyles, ensureFoundationStyles, useFoundationStyles } from './FoundationStyles';
 export { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 export type { KeyboardShortcutsModalProps } from './KeyboardShortcutsModal';

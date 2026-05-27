@@ -5,6 +5,14 @@ import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
+import {
+  isTelemetryEnabled,
+  setTelemetryEnabled,
+  getTelemetryEvents,
+  clearTelemetry,
+  exportTelemetryAsText,
+  subscribeTelemetry,
+} from '../../state/telemetry';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -180,6 +188,17 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
           <SettingRow query={query} label="Smooth Links" desc="Anti-alias bezier connections" keywords="antialias smoothing links edges">
             <div className={`toggle ${getBool('bionodulo.canvas.smoothLinks', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.smoothLinks', !getBool('bionodulo.canvas.smoothLinks', true))} />
           </SettingRow>
+          <SettingRow query={query} label="Link Color" desc="How connection lines are colored" keywords="color edge link data type gradient">
+            <select
+              className="select-input"
+              value={String(get('bionodulo.canvas.linkColorMode') || 'type')}
+              onChange={e => set('bionodulo.canvas.linkColorMode', e.target.value)}
+            >
+              <option value="type">By data type</option>
+              <option value="gradient">Gradient (mismatch highlight)</option>
+              <option value="uniform">Uniform</option>
+            </select>
+          </SettingRow>
         </SettingsGroup>
 
         {/* Collaboration */}
@@ -270,8 +289,50 @@ export default function SettingsPanel({ onClose: _onClose }: SettingsPanelProps)
         </SettingsGroup>
 
         <FeatureFlagsGroup query={query} />
+        <TelemetryGroup query={query} />
       </div>
     </div>
+  );
+}
+
+function TelemetryGroup({ query }: { query: string }) {
+  const [enabled, setEnabled] = useState(() => isTelemetryEnabled());
+  const [eventCount, setEventCount] = useState(() => getTelemetryEvents().length);
+  useEffect(() => subscribeTelemetry(events => setEventCount(events.length)), []);
+
+  const handleToggle = () => {
+    const next = !enabled;
+    setEnabled(next);
+    setTelemetryEnabled(next);
+  };
+
+  const handleExport = () => {
+    const text = exportTelemetryAsText();
+    if (!text) {
+      toast.info('No telemetry events recorded yet');
+      return;
+    }
+    const blob = new Blob([text], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `bionodulo-telemetry-${Date.now()}.log`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success('Telemetry exported', { message: link.download });
+  };
+
+  return (
+    <SettingsGroup query={query} title="Telemetry (local-only)">
+      <SettingRow query={query} label="Record diagnostic events" desc="Capture a local ring buffer of UI events for debugging. Never leaves your machine." keywords="telemetry diagnostics analytics debug">
+        <div className={`toggle ${enabled ? 'on' : ''}`} onClick={handleToggle} />
+      </SettingRow>
+      <SettingRow query={query} label="Buffer" desc={`${eventCount} events stored (capped at 200)`} keywords="telemetry buffer">
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="btn btn-sm" onClick={handleExport} disabled={eventCount === 0}>Export</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => clearTelemetry()} disabled={eventCount === 0}>Clear</button>
+        </div>
+      </SettingRow>
+    </SettingsGroup>
   );
 }
 
