@@ -422,6 +422,12 @@ export default function BottomConsole({
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
   const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<string>>(new Set());
+  // Per-node log render caps. Default cap keeps the DOM bounded even when a
+  // run dumps tens of thousands of lines (e.g. `--verbose` aligners) — the
+  // user can opt to render more on demand.
+  const [expandedNodeCaps, setExpandedNodeCaps] = useState<Map<string, number>>(new Map());
+  const LOG_RENDER_CAP = 250;
+  const LOG_RENDER_STEP = 1000;
   const logsBodyRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
 
@@ -732,16 +738,36 @@ export default function BottomConsole({
                                   <span className="console-log-node-title">{nodeId}</span>
                                   <span className="console-log-node-count">({nodeLogs.length})</span>
                                 </button>
-                                {isNodeExpanded && (
-                                  <div className="console-log-node-body">
-                                    {nodeLogs.map((l, i) => (
-                                      <LogLine key={i} entry={{
-                                        ...l,
-                                        detail: showVerbose ? l.detail : undefined,
-                                      }} />
-                                    ))}
-                                  </div>
-                                )}
+                                {isNodeExpanded && (() => {
+                                  const cap = expandedNodeCaps.get(nodeKey) ?? LOG_RENDER_CAP;
+                                  // Always show the tail (most recent lines) — for execution logs
+                                  // the newest output is by far the most useful.
+                                  const visible = nodeLogs.length > cap ? nodeLogs.slice(-cap) : nodeLogs;
+                                  const hidden = nodeLogs.length - visible.length;
+                                  return (
+                                    <div className="console-log-node-body">
+                                      {hidden > 0 && (
+                                        <button
+                                          type="button"
+                                          className="console-log-load-more"
+                                          onClick={() => setExpandedNodeCaps(prev => {
+                                            const next = new Map(prev);
+                                            next.set(nodeKey, cap + LOG_RENDER_STEP);
+                                            return next;
+                                          })}
+                                        >
+                                          Show {Math.min(LOG_RENDER_STEP, hidden)} earlier lines ({hidden} hidden)
+                                        </button>
+                                      )}
+                                      {visible.map((l, i) => (
+                                        <LogLine key={`${nodeKey}-${nodeLogs.length - visible.length + i}`} entry={{
+                                          ...l,
+                                          detail: showVerbose ? l.detail : undefined,
+                                        }} />
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}

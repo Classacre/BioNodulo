@@ -477,6 +477,16 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ label: string; key: number } | null>(null);
+  const actionFeedbackTimer = useRef<number | null>(null);
+  const flashAction = useCallback((label: string) => {
+    if (actionFeedbackTimer.current) window.clearTimeout(actionFeedbackTimer.current);
+    setActionFeedback({ label, key: Date.now() });
+    actionFeedbackTimer.current = window.setTimeout(() => setActionFeedback(null), 900);
+  }, []);
+  useEffect(() => () => {
+    if (actionFeedbackTimer.current) window.clearTimeout(actionFeedbackTimer.current);
+  }, []);
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
   const [nodeCommentTarget, setNodeCommentTarget] = useState<{ nodeId: string; compose: boolean } | null>(null);
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
@@ -1388,7 +1398,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         if (selectedIds.size === 0) return;
         const nodesToCopy = currentNodes.filter(n => selectedIds.has(n.id));
         const edgesToCopy = edgesRef.current.filter(e => selectedIds.has(e.from.node) && selectedIds.has(e.to.node));
-        const payload = JSON.stringify({ nodes: nodesToCopy, edges: edgesToCopy });
+        // External edges: link the copied subgraph to nodes that did NOT make
+        // it into the selection. Stored under their own key so plain Ctrl+V
+        // ignores them and Ctrl+Shift+V can re-attach the originals.
+        const incomingEdges = edgesRef.current.filter(e => !selectedIds.has(e.from.node) && selectedIds.has(e.to.node));
+        const outgoingEdges = edgesRef.current.filter(e => selectedIds.has(e.from.node) && !selectedIds.has(e.to.node));
+        const payload = JSON.stringify({
+          nodes: nodesToCopy,
+          edges: edgesToCopy,
+          externalIncoming: incomingEdges,
+          externalOutgoing: outgoingEdges,
+        });
         const text = `bionodulo_clipboard:${payload}`;
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1408,15 +1428,21 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         return;
       }
 
-      // Paste
+      // Paste (Ctrl+V replaces with copy, Ctrl+Shift+V keeps external links)
       if (isCtrl && key === 'v') {
         e.preventDefault();
+        const includeExternal = e.shiftKey;
         try {
           if (!navigator.clipboard || !navigator.clipboard.readText) return;
           const text = await navigator.clipboard.readText();
           if (!text) return;
 
-          let payload: { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] } | null = null;
+          let payload: {
+            nodes?: WorkflowNode[];
+            edges?: WorkflowEdge[];
+            externalIncoming?: WorkflowEdge[];
+            externalOutgoing?: WorkflowEdge[];
+          } | null = null;
 
           if (text.startsWith('bionodulo_clipboard:')) {
             payload = JSON.parse(text.slice('bionodulo_clipboard:'.length));
@@ -1437,6 +1463,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           if (!payload || !payload.nodes || !Array.isArray(payload.nodes)) return;
 
           const currentNodes = nodesRef.current;
+          const currentNodeIds = new Set(currentNodes.map(n => n.id));
           const timestamp = Date.now();
           const oldToNew = new Map<string, string>();
           const pastedNodes: WorkflowNode[] = payload.nodes.map((n: WorkflowNode, i: number) => {
@@ -1455,9 +1482,40 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
             to: { ...e.to, node: oldToNew.get(e.to.node) || e.to.node },
           }));
 
+          // Ctrl+Shift+V: re-attach edges from/to the original neighbours when
+          // those neighbours are still on the canvas. External edges to nodes
+          // that no longer exist are silently dropped.
+          const externalEdges: WorkflowEdge[] = [];
+          if (includeExternal) {
+            const incoming = payload.externalIncoming || [];
+            const outgoing = payload.externalOutgoing || [];
+            incoming.forEach((edge, i) => {
+              if (!currentNodeIds.has(edge.from.node)) return;
+              const remappedTo = oldToNew.get(edge.to.node);
+              if (!remappedTo) return;
+              externalEdges.push({
+                ...edge,
+                id: `${edge.id}_${timestamp}_inc${i}`,
+                from: { ...edge.from },
+                to: { ...edge.to, node: remappedTo },
+              });
+            });
+            outgoing.forEach((edge, i) => {
+              if (!currentNodeIds.has(edge.to.node)) return;
+              const remappedFrom = oldToNew.get(edge.from.node);
+              if (!remappedFrom) return;
+              externalEdges.push({
+                ...edge,
+                id: `${edge.id}_${timestamp}_out${i}`,
+                from: { ...edge.from, node: remappedFrom },
+                to: { ...edge.to },
+              });
+            });
+          }
+
           pendingSelectionRef.current = new Set(pastedNodes.map(n => n.id));
           onNodesChangeRef.current([...currentNodes, ...pastedNodes]);
-          onEdgesChangeRef.current([...edgesRef.current, ...pastedEdges]);
+          onEdgesChangeRef.current([...edgesRef.current, ...pastedEdges, ...externalEdges]);
           onPushHistoryRef.current();
         } catch { /* ignore */ }
         return;
@@ -1523,6 +1581,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (isCtrl && key === 'z' && !e.shiftKey) {
         e.preventDefault();
         onUndoRef.current();
+        flashAction('Undo');
         return;
       }
 
@@ -1530,6 +1589,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if ((isCtrl && key === 'y') || (isCtrl && key === 'z' && e.shiftKey)) {
         e.preventDefault();
         onRedoRef.current();
+        flashAction('Redo');
         return;
       }
 
@@ -1767,8 +1827,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         return;
       }
       let willBeSelectedIds: Set<string>;
-      if (e.shiftKey) {
-        const next = graphNodes.map(n => n.id === clicked.id ? { ...n, selected: !n.selected } : n);
+      // Shift+click toggles, Ctrl/Cmd+click adds to selection. Plain click
+      // replaces. Treating Cmd separately from Shift mirrors ComfyUI and lets
+      // users grow a selection without un-selecting nodes they already had.
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (additive) {
+        const next = graphNodes.map(n => {
+          if (n.id !== clicked.id) return n;
+          // Shift toggles, Cmd/Ctrl additively selects (never de-selects).
+          if (e.ctrlKey || e.metaKey) return { ...n, selected: true };
+          return { ...n, selected: !n.selected };
+        });
         setGraphNodes(next);
         willBeSelectedIds = new Set(next.filter(n => n.selected).map(n => n.id));
         publishCollabSelection({ nodeIds: Array.from(willBeSelectedIds), box: null });
@@ -2739,6 +2808,17 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
       />
+
+      {actionFeedback && (
+        <div
+          key={actionFeedback.key}
+          className="canvas-action-feedback"
+          role="status"
+          aria-live="polite"
+        >
+          {actionFeedback.label}
+        </div>
+      )}
 
       {collabUsers.filter(user => user.cursor?.visible).map(user => {
         const cursor = user.cursor!;

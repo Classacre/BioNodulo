@@ -394,6 +394,33 @@ body {
   color: var(--muted);
   min-height: 160px;
 }
+.canvas-action-feedback {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 60;
+  animation: bnCanvasActionFeedback 900ms ease-out forwards;
+}
+@keyframes bnCanvasActionFeedback {
+  0%   { opacity: 0; transform: translate(-50%, -6px) scale(0.96); }
+  20%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  70%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -2px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-action-feedback { animation-duration: 1.4s; }
+}
 .rail-panel-drag-handle {
   position: absolute;
   top: 0;
@@ -842,6 +869,23 @@ input[type="range"]::-moz-range-thumb {
 }
 @keyframes consoleUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
+.console-log-load-more {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-2, var(--border));
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  cursor: pointer;
+}
+.console-log-load-more:hover {
+  color: var(--text);
+  border-style: solid;
+}
 .console-tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); }
 .console-tab { padding: 8px 14px; border: none; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; border-bottom: 2px solid transparent; }
 .console-tab.active { color: var(--accent-dark); border-bottom-color: var(--accent); }

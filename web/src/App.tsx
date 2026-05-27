@@ -55,6 +55,7 @@ import {
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
+import { apiGet, apiPost, apiDelete, ApiError } from './api/client';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
@@ -640,9 +641,13 @@ export default function App() {
 
   // Load queue and execution history from backend on startup
   useEffect(() => {
+    // Backend payload shape: snake-case fields (started_at, finished_at) and
+    // mixed status strings — accept as Record<string, unknown> and narrow at
+    // each call-site.
+    type BackendRun = Record<string, unknown> & { run_id: string };
     Promise.all([
-      fetch('/api/queue').then(r => r.ok ? r.json() : null),
-      fetch('/api/history').then(r => r.ok ? r.json() : null),
+      apiGet<{ pending?: BackendRun[]; running?: BackendRun[] }>('/queue').catch(() => null),
+      apiGet<{ history: BackendRun[] }>('/history').catch(() => null),
     ]).then(([queueData, historyData]) => {
       const allRuns: RunRecord[] = [];
       const seen = new Set<string>();
@@ -1678,12 +1683,7 @@ export default function App() {
     const nextIndex = direction === 'up' ? Math.max(0, currentIndex - 1) : Math.min(pending.length - 1, currentIndex + 1);
     if (nextIndex === currentIndex) return;
     try {
-      const response = await fetch('/api/queue/reorder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_id: run.run_id, index: nextIndex }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await apiPost('/queue/reorder', { run_id: run.run_id, index: nextIndex });
       setRuns(prev => {
         const next = [...prev];
         const from = next.findIndex(candidate => candidate.run_id === run.run_id);
@@ -1708,8 +1708,7 @@ export default function App() {
     });
     if (!ok) return;
     try {
-      const response = await fetch('/api/queue/clear', { method: 'POST' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await apiPost('/queue/clear');
       setRuns(prev => prev.filter(run => run.status !== 'pending'));
       toast.success('Queue cleared');
     } catch (err) {
@@ -1726,8 +1725,7 @@ export default function App() {
     });
     if (!ok) return;
     try {
-      const response = await fetch('/api/history/clear', { method: 'POST' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await apiPost('/history/clear');
       setRuns(prev => prev.filter(run => run.status === 'pending' || run.status === 'running'));
       toast.success('History cleared');
     } catch (err) {
@@ -1737,11 +1735,11 @@ export default function App() {
 
   const handleDeleteHistoryEntry = useCallback(async (run: RunRecord) => {
     try {
-      const response = await fetch(`/api/history/${encodeURIComponent(run.run_id)}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await apiDelete(`/history/${encodeURIComponent(run.run_id)}`);
       setRuns(prev => prev.filter(r => r.run_id !== run.run_id));
     } catch (err) {
-      toast.error('Could not delete run', { message: err instanceof Error ? err.message : String(err) });
+      const detail = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);
+      toast.error('Could not delete run', { message: detail });
     }
   }, [setRuns]);
 

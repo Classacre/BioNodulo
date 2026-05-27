@@ -55,8 +55,39 @@ let globalHydrated = false;
 let globalFetchStarted = false;
 const listeners = new Set<() => void>();
 
+// Per-key change subscribers: lets feature code react to a specific setting
+// without reading every render. Receives (newValue, oldValue, key) so a hook
+// can ignore no-op flips and short-circuit when the new value matches state.
+type SettingChangeListener = (newValue: unknown, oldValue: unknown, key: string) => void;
+const keyListeners = new Map<string, Set<SettingChangeListener>>();
+
+export function subscribeSetting(key: string, listener: SettingChangeListener): () => void {
+  let bucket = keyListeners.get(key);
+  if (!bucket) {
+    bucket = new Set();
+    keyListeners.set(key, bucket);
+  }
+  bucket.add(listener);
+  return () => {
+    bucket?.delete(listener);
+    if (bucket && bucket.size === 0) keyListeners.delete(key);
+  };
+}
+
 function emit() {
   listeners.forEach(fn => fn());
+}
+
+function emitKeyChange(key: string, newValue: unknown, oldValue: unknown): void {
+  const bucket = keyListeners.get(key);
+  if (!bucket) return;
+  bucket.forEach(listener => {
+    try {
+      listener(newValue, oldValue, key);
+    } catch {
+      // Side-effect hooks must not crash the settings system.
+    }
+  });
 }
 
 export function useSettings() {
@@ -109,14 +140,20 @@ export function useSettings() {
   }, []);
 
   const set = useCallback((key: string, value: unknown) => {
+    const previous = globalSettings[key];
     globalSettings = { ...globalSettings, [key]: value };
     saveLocal(globalSettings);
+    emitKeyChange(key, value, previous);
     emit();
   }, []);
 
   const setAll = useCallback((newSettings: Record<string, unknown>) => {
+    const previous = globalSettings;
     globalSettings = { ...globalSettings, ...newSettings };
     saveLocal(globalSettings);
+    for (const [key, value] of Object.entries(newSettings)) {
+      emitKeyChange(key, value, previous[key]);
+    }
     emit();
   }, []);
 
@@ -140,4 +177,13 @@ export function useSettings() {
   }, []);
 
   return { settings: globalSettings, ready: globalHydrated, get, getBool, getString, getNumber, getStringArray, getRecord, set, setAll };
+}
+
+/**
+ * React-friendly subscription to a single setting key. The handler runs on
+ * every change to `key`; pass a stable callback (useCallback) so the
+ * subscription isn't torn down on every render.
+ */
+export function useSettingChange(key: string, handler: SettingChangeListener): void {
+  useEffect(() => subscribeSetting(key, handler), [key, handler]);
 }
