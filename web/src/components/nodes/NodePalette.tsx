@@ -112,7 +112,7 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control']));
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
-  const searchResults = useNodeSearch(filteredObjectInfo, query);
+  const searchResults = useNodeSearch(filteredObjectInfo, query, requireInputType);
   const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(filteredObjectInfo);
   const searchedNodes = useMemo(() => searchResults.map(result => result.meta), [searchResults]);
   const hasQuery = query.trim().length > 0;

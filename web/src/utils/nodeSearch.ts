@@ -44,9 +44,32 @@ function persistRecentNodeIds(storageKey: string, ids: string[]): void {
   }
 }
 
-export function useNodeSearch(objectInfo: ObjectInfo, query: string): NodeSearchResult[] {
+export function useNodeSearch(
+  objectInfo: ObjectInfo,
+  query: string,
+  compatibleInputType?: string,
+): NodeSearchResult[] {
   const nodes = useMemo(() => Object.values(objectInfo).sort(nodeSort), [objectInfo]);
   const normalizedQuery = query.trim();
+  const targetType = compatibleInputType?.toUpperCase();
+
+  // Precompute which nodes accept the dangling link's source type so the
+  // ranking pass can boost them without re-scanning input_types per result.
+  const compatibleNodeIds = useMemo(() => {
+    if (!targetType) return null;
+    const ids = new Set<string>();
+    for (const meta of nodes) {
+      const required = meta.input_types?.required ?? {};
+      const optional = meta.input_types?.optional ?? {};
+      const specs = [...Object.values(required), ...Object.values(optional)];
+      const compatible = specs.some((spec) => {
+        const t = String(spec.type ?? '').toUpperCase();
+        return t === targetType || t === '*' || t === 'ANY';
+      });
+      if (compatible) ids.add(meta.id);
+    }
+    return ids;
+  }, [nodes, targetType]);
 
   const fuse = useMemo(() => new Fuse(nodes, {
     includeScore: true,
@@ -64,7 +87,22 @@ export function useNodeSearch(objectInfo: ObjectInfo, query: string): NodeSearch
   }), [nodes]);
 
   return useMemo(() => {
+    // Empty-query path: when a compatible type is known, surface compatible
+    // nodes first so the palette opens straight onto useful options.
     if (!normalizedQuery) {
+      if (compatibleNodeIds) {
+        const ordered = [...nodes].sort((a, b) => {
+          const ac = compatibleNodeIds.has(a.id) ? 0 : 1;
+          const bc = compatibleNodeIds.has(b.id) ? 0 : 1;
+          if (ac !== bc) return ac - bc;
+          return nodeSort(a, b);
+        });
+        return ordered.map((meta, rank) => ({
+          meta,
+          rank,
+          score: compatibleNodeIds.has(meta.id) ? -0.2 : 0,
+        }));
+      }
       return nodes.map((meta, rank) => ({ meta, rank, score: 0 }));
     }
 
@@ -76,14 +114,18 @@ export function useNodeSearch(objectInfo: ObjectInfo, query: string): NodeSearch
         const id = meta.id.toLowerCase();
         const exactBoost = name.startsWith(q) || id.startsWith(q) ? -0.08 : 0;
         const containsBoost = name.includes(q) || id.includes(q) ? -0.03 : 0;
+        // Type-compat boost: Fuse uses lower-is-better, so we subtract.
+        // Tuned to 0.18 so a strong typed match outranks a weak string match
+        // (Fuse threshold is 0.36) without overpowering an exact-name hit.
+        const typeBoost = compatibleNodeIds?.has(meta.id) ? -0.18 : 0;
         return {
           meta,
           rank,
-          score: Math.max(0, (result.score ?? 0) + exactBoost + containsBoost),
+          score: Math.max(0, (result.score ?? 0) + exactBoost + containsBoost + typeBoost),
         };
       })
       .sort((a, b) => a.score - b.score || a.meta.display_name.localeCompare(b.meta.display_name));
-  }, [fuse, nodes, normalizedQuery]);
+  }, [fuse, nodes, normalizedQuery, compatibleNodeIds]);
 }
 
 export function useRecentNodes(

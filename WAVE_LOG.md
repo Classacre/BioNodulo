@@ -112,7 +112,15 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§1 — `__PENDING__` — Pluggable history store with transactions
+## Wave O.§15 — `__PENDING__` — Connection-aware node search ranking
+
+- `web/src/utils/nodeSearch.ts`: `useNodeSearch` now accepts an optional `compatibleInputType` arg. When set, the hook precomputes which nodes accept that source type (including `*` / `ANY` slots) and applies a `-0.18` boost to their Fuse score so they outrank weaker string matches. With an empty query, compatible nodes are surfaced first so the palette opens directly on useful options.
+- `web/src/components/nodes/NodePalette.tsx`: forwards its existing `requireInputType` prop into the ranking hook — both filter mode (only show compatible) and ranked mode (compatible bubble up) now use the same signal.
+- `web/src/test/nodeSearch.test.ts`: 4 cases — empty query no-filter returns all nodes, empty query with type boosts all type-compatible nodes to the top three, a strict string match still appears when the typed filter would exclude it, and a weak Fuse match loses to a strong typed match (`"qc"` + FASTQ ranks `fastqc` above `multiqc`).
+
+
+
+## Wave O.§1 — `50abf93` — Pluggable history store with transactions
 
 - Rewrote `web/src/hooks/useHistory.ts`. Old hook was 43 lines of `JSON.parse(JSON.stringify(...))` deep clone with no dedup, no viewport, no transactions. New hook offers `push(workflow, viewport?)` (no-op when the signature matches the current tip), `begin()` (returns a `commit()` thunk; sequential pushes inside a transaction collapse into a single snapshot at commit so users undo a whole drag/paste gesture at once), `undo()`/`redo()` returning the popped `HistorySnapshot` (workflow + viewport + sig), and reactive `canUndo`/`canRedo`.
 - `structuredClone` replaces `JSON.parse(JSON.stringify(...))` so node params keep `undefined`/Date/Map/Set correctly; a JSON fallback covers older jsdom.
