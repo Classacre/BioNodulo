@@ -1174,6 +1174,18 @@ export default function App() {
           toast.error('Run failed', {
             message: `${wfName} — see the console for details.`,
           });
+          // Defense-in-depth: if a per-node `node_error` event was missed
+          // (executor crashes, transports drops, race conditions), any nodes
+          // still stuck on `running` after a `failed` queue_finish are also
+          // failures — flip them to `error` so the canvas border turns red
+          // instead of staying green forever.
+          setRuns(prev => prev.map(run => {
+            if (run.run_id !== finishedRunId) return run;
+            const promoted = run.node_statuses.map(ns =>
+              ns.status === 'running' ? { ...ns, status: 'error' as const } : ns,
+            );
+            return { ...run, node_statuses: promoted };
+          }));
         }
         // Fetch full run details to populate previews/artifacts
         fetch(`/api/runs/${finishedRunId}`)
@@ -1211,6 +1223,15 @@ export default function App() {
           ? payload.error.split('\n')[0].slice(0, 160)
           : 'see the console for details';
         toast.error('Run failed', { message: `${wfName} — ${errMsg}` });
+        // Same defense as queue_finish: promote any stuck `running` nodes to
+        // `error` so the canvas reflects the failure visually.
+        setRuns(prev => prev.map(run => {
+          if (run.run_id !== erroredRunId) return run;
+          const promoted = run.node_statuses.map(ns =>
+            ns.status === 'running' ? { ...ns, status: 'error' as const } : ns,
+          );
+          return { ...run, node_statuses: promoted };
+        }));
       } else if (data.type === 'queue_interrupt') {
         addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'warn', message: `Run interrupted`, timestamp: ts });
         updateRun(String(payload.run_id), { status: 'cancelled', end_time: ts });

@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "ctrl_rep1",
         "reads": [
-          "examples/data/differential_expression/SRR6357071_1.fastq",
-          "examples/data/differential_expression/SRR6357071_2.fastq"
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_1.fastq.gz",
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_2.fastq.gz"
         ]
       },
       "ui": {
@@ -45,7 +45,7 @@
         276
       ],
       "params": {
-        "reference": "examples/data/differential_expression/transcriptome.fa"
+        "reference": "https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.fa.gz"
       },
       "ui": {
         "title": "Transcriptome FASTA"

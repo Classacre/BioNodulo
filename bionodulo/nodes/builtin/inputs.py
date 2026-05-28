@@ -122,6 +122,92 @@ def _download_to_cache(url: str, context: Any) -> Path:
     return dest
 
 
+def _materialise_example_entry(entry: Any, dest: Path, context: Any) -> bool:
+    """Download or generate a single manifest entry into *dest*."""
+    if dest.exists():
+        return True
+    if getattr(entry, "url", None):
+        try:
+            cached = _download_to_cache(entry.url, context)
+            shutil.copy2(cached, dest)
+            return dest.exists()
+        except Exception as exc:
+            logger.warning(
+                "Failed to download example data %s/%s: %s",
+                entry.category, entry.filename, exc,
+            )
+            return False
+    generator = getattr(entry, "generator", None)
+    if callable(generator):
+        try:
+            generator(dest)
+            return dest.exists()
+        except Exception as exc:
+            logger.warning(
+                "Failed to generate example data %s/%s: %s",
+                entry.category, entry.filename, exc,
+            )
+            return False
+    return False
+
+
+def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
+    """Materialise an `examples/data/<category>[/file]` path on demand.
+
+    A template that ships synthetic example data (chip-seq, metagenomics,
+    single-cell, biopython, phylogenetics) references local paths under
+    ``examples/data/<category>/<file>``. Those files used to be created by
+    the up-front Example Data download in the start menu; that flow was
+    removed when input nodes learned to fetch URLs, so a missing path here
+    is the cue to consult the same ``EXAMPLE_DATA_MANIFEST`` and either
+    download (URL entries) or run the generator (synthetic entries) into
+    the workspace cache.
+
+    Category-level paths (``examples/data/<category>``, no filename)
+    materialise *every* manifest entry for that category and return the
+    cached directory — this covers `InputDirectoryNode` templates such as
+    single-cell which expect a folder of pre-staged FASTQs.
+    """
+    if not isinstance(source, str):
+        return None
+    parts = [p for p in source.replace("\\", "/").split("/") if p]
+    try:
+        idx = parts.index("examples")
+    except ValueError:
+        return None
+    if idx + 2 >= len(parts) or parts[idx + 1] != "data":
+        return None
+    category = parts[idx + 2]
+    filename = parts[-1] if len(parts) > idx + 3 else None
+    try:
+        from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
+    except Exception:
+        return None
+    cache_dir = _cache_root(context) / "examples_data" / category
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if filename is None:
+        entries = [df for df in EXAMPLE_DATA_MANIFEST if df.category == category]
+        if not entries:
+            return None
+        ok_any = False
+        for entry in entries:
+            dest = cache_dir / entry.filename
+            if _materialise_example_entry(entry, dest, context):
+                ok_any = True
+        return cache_dir if ok_any else None
+
+    entry = next(
+        (df for df in EXAMPLE_DATA_MANIFEST if df.category == category and df.filename == filename),
+        None,
+    )
+    if entry is None:
+        return None
+    dest = cache_dir / filename
+    logger.info("Materialising example data: %s/%s -> %s", category, filename, dest)
+    return dest if _materialise_example_entry(entry, dest, context) else None
+
+
 class CopyInputNode(CommandNode):
     """Shared copy behavior for workflow input nodes."""
 
@@ -156,7 +242,11 @@ class CopyInputNode(CommandNode):
         URLs are downloaded into a workspace-scoped cache directory on
         first use; the cached path is returned. Relative paths are resolved
         against the run workspace directory. Absolute local paths pass
-        through unchanged.
+        through unchanged. Missing `examples/data/<category>/<file>` paths
+        fall back to the `EXAMPLE_DATA_MANIFEST` — URL-backed entries are
+        downloaded, generator entries are materialised on the fly — so
+        templates that ship synthetic example data keep working even
+        without an up-front bulk download.
         """
         if isinstance(source, str) and _looks_like_url(source):
             return _download_to_cache(source, context)
@@ -164,6 +254,10 @@ class CopyInputNode(CommandNode):
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
             src = (workspace / src).resolve()
+        if not src.exists():
+            fallback = _resolve_example_data_fallback(source, context)
+            if fallback is not None:
+                return fallback
         return src
 
     @classmethod

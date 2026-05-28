@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/variant_calling/mutant_R1.fastq",
-          "examples/data/variant_calling/mutant_R2.fastq"
+          "https://zenodo.org/record/582600/files/mutant_R1.fastq",
+          "https://zenodo.org/record/582600/files/mutant_R2.fastq"
         ]
       },
       "ui": {
@@ -45,7 +45,7 @@
         276
       ],
       "params": {
-        "reference": "examples/data/variant_calling/wildtype.fna"
+        "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA"

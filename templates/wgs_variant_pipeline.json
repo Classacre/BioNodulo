@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "wgs1",
         "reads": [
-          "examples/data/assembly/R1.fq",
-          "examples/data/assembly/R2.fq"
+          "https://github.com/tseemann/shovill/raw/master/test/R1.fq",
+          "https://github.com/tseemann/shovill/raw/master/test/R2.fq"
         ]
       },
       "ui": {
@@ -45,7 +45,7 @@
         276
       ],
       "params": {
-        "reference": "examples/data/wgs_variant/ecoli_k12_mg1655.fna"
+        "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
       },
       "ui": {
         "title": "Reference FASTA"

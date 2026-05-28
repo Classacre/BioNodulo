@@ -348,7 +348,12 @@ class WorkflowExecutor:
                 )
             except Exception as exc:
                 msg = f"Input resolution failed for {node_id}: {exc}"
-                emit("error", {"run_id": run_id, "node_id": node_id, "message": msg})
+                # Emit `node_error` (not the generic `error`) so the frontend
+                # WS handler can flip the node's status to 'error' and the
+                # canvas border switches from green to red. The earlier
+                # `error` event was a queue-level signal and never updated
+                # per-node status.
+                emit("node_error", {"run_id": run_id, "node_id": node_id, "error": msg})
                 node_results[node_id] = {"status": "failed", "error": msg}
                 failed_nodes.add(node_id)
                 if stop_on_error:

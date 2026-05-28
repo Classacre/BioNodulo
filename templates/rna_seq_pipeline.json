@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/rna_seq/SRR6357070_1.fastq",
-          "examples/data/rna_seq/SRR6357070_2.fastq"
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/000/SRR6357070/SRR6357070_1.fastq.gz",
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/000/SRR6357070/SRR6357070_2.fastq.gz"
         ]
       },
       "ui": {
@@ -45,7 +45,7 @@
         276
       ],
       "params": {
-        "reference": "examples/data/rna_seq/genome.fa"
+        "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -129,7 +129,7 @@
         430
       ],
       "params": {
-        "annotation": "examples/data/rna_seq/annotation.gff"
+        "annotation": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.gff.gz"
       },
       "ui": {
         "title": "Annotation GFF"

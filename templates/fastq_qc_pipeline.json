@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/fastq_qc/R1.fq",
-          "examples/data/fastq_qc/R2.fq"
+          "https://github.com/OpenGene/fastp/raw/master/testdata/R1.fq",
+          "https://github.com/OpenGene/fastp/raw/master/testdata/R2.fq"
         ]
       },
       "ui": {
