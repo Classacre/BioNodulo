@@ -112,7 +112,14 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§16 — `__PENDING__` — Shortcut scoping
+## Wave O.§13 — `__PENDING__` — Per-panel error boundaries
+
+- `web/src/components/layout/ErrorBoundary.tsx` rewritten. New props: `name` (becomes the `panel.<name>` log scope and labels the fallback so the user sees which surface failed), `variant: 'inline' | 'panel'` (compact vs full fallback), `resetKeys: ReadonlyArray<unknown>` (boundary auto-resets when any key changes — handy when the user navigates away from the broken surface). `componentDidCatch` now routes through `logError` from §12 instead of bare `console.error`.
+- `web/src/App.tsx` `renderPanelContent` wraps every panel branch (`settings`, `help`, `templates`, `environments`, `hpc`, `nodes`, `data`, plugin-registered panels, console) in its own `ErrorBoundary` with `name`, `variant="inline"`, and `resetKeys={[tab]}` so switching tabs heals a crashed sibling. The bottom-console boundary now passes `name="console"` plus reset keys, and the App-root boundary that wraps the canvas keeps its existing default fallback.
+
+
+
+## Wave O.§16 — `716b7a6` — Shortcut scoping
 
 - `web/src/state/keybindings.ts`: `KeybindingDefinition` gains an optional `scope?: 'global' | 'canvas' | 'modal'`. Independent from the visual `category` grouping. `'global'` is the default and preserves today's behavior exactly. The 10 `canvas.*` bindings (select-all, copy, cut, paste, undo, redo, redo-alternate, group, collapse, delete) are now scoped `'canvas'` so they don't fire while a modal is open.
 - `web/src/hooks/useKeybindings.ts`: dispatcher reads the scope and enforces it. `'modal'` bindings only fire while `hasOpenOverlay()` is true; `'canvas'` bindings stay silent while an overlay is open. The legacy `respectOverlays` option still works and is now scope-aware — modal-scoped bindings are exempt from it.

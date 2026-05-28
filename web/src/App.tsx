@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom } from 'jotai';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
@@ -2820,7 +2820,10 @@ export default function App() {
   }, []);
 
   const renderPanelContent = (tab: OpenPanelTab) => {
-    if (tab === 'settings') return <SettingsPanel onClose={() => closePanel(tab)} />;
+    const wrap = (name: string, node: ReactNode): ReactNode => (
+      <ErrorBoundary name={name} variant="inline" resetKeys={[tab]}>{node}</ErrorBoundary>
+    );
+    if (tab === 'settings') return wrap('settings', <SettingsPanel onClose={() => closePanel(tab)} />);
     if (tab === 'help') {
       const selected = selectedNodeId
         ? activeWorkflow.nodes.find(n => n.id === selectedNodeId)
@@ -2833,10 +2836,10 @@ export default function App() {
           title: selected.ui?.title || objectInfo[selected.type]?.display_name || selected.type,
         }
         : null;
-      return <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} objectInfo={objectInfo} />;
+      return wrap('help', <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} objectInfo={objectInfo} />);
     }
     if (tab === 'templates') {
-      return (
+      return wrap('templates', (
         <TemplatesPanel
           onClose={() => closePanel(tab)}
           onLoadTemplate={handleLoadTemplate}
@@ -2845,11 +2848,11 @@ export default function App() {
           saveTemplateInitialName={resolveWorkflowName(activeWorkflow)}
           saveTemplateInitialDescription={activeWorkflow.description || ''}
         />
-      );
+      ));
     }
-    if (tab === 'environments') return <EnvironmentPanel onClose={() => closePanel(tab)} currentWorkflow={activeWorkflow} />;
+    if (tab === 'environments') return wrap('environments', <EnvironmentPanel onClose={() => closePanel(tab)} currentWorkflow={activeWorkflow} />);
     if (tab === 'hpc') {
-      return (
+      return wrap('hpc', (
         <HPCPanel
           config={hpcConfig}
           onChange={(cfg) => {
@@ -2865,10 +2868,10 @@ export default function App() {
           }}
           onClose={() => closePanel(tab)}
         />
-      );
+      ));
     }
     if (tab === 'nodes') {
-      return (
+      return wrap('nodes', (
         <NodeLibraryPanel
           objectInfo={objectInfo}
           loading={objectInfoLoading}
@@ -2891,20 +2894,20 @@ export default function App() {
           }}
           onClose={() => closePanel(tab)}
         />
-      );
+      ));
     }
     if (tab === 'data') {
-      return (
+      return wrap('data', (
         <WorkspacePanel
           onClose={() => closePanel(tab)}
           onOpenSettings={() => setRailTab('settings')}
           onImportWorkflow={handleImport}
         />
-      );
+      ));
     }
     const registered = registeredPanels.find(panel => panel.id === tab);
     if (registered) {
-      return registered.render();
+      return wrap(`plugin.${tab}`, registered.render());
     }
     return null;
   };
@@ -3281,7 +3284,7 @@ export default function App() {
           </button>
         )}
         {(consoleVisible || railTab === 'console') && (
-          <ErrorBoundary>
+          <ErrorBoundary name="console" variant="inline" resetKeys={[railTab, consoleVisible]}>
             <BottomConsole
               logs={logs}
               queue={queuedRuns}
