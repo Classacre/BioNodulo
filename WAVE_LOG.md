@@ -90,7 +90,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Dynamic help: when a node is selected, HelpWikiPanel surfaces objectInfo-driven docs (description, ports, requires, experimental/version pills).
 - Telemetry: opt-in local-only ring buffer (200 events) with toggle, export-as-text, clear in Settings; `logTelemetry()` hooks at workflow run/import/template-load.
 
-## Wave M — `TBD` — HTML preview in canvas + AI assistant overhaul
+## Wave M — `d0d3926` — HTML preview in canvas + AI assistant overhaul
 
 - HTML preview node (`bionodulo/nodes/builtin/utils.py`): new `html_preview` built-in node mirrors `image_preview` but accepts `.html`/`.htm` files. `VALIDATE_INPUTS` rejects non-HTML extensions; `run()` registers the file with the run context so it lands in the previews map. Auto-registers via the existing `bionodulo.nodes.builtin.utils` import.
 - Canvas HTML overlay (`web/src/components/canvas/LiteGraphCanvas.tsx`): new `nodeHtmlPreviewsMap` prop renders a sandboxed `<iframe>` inside any `html_preview` node, alongside the existing `nodePreviewsMap` image overlay. `sandbox="allow-scripts"` is used **without** `allow-same-origin` so the embedded report lives on an opaque origin — it can run JS for tabs/plots (MultiQC, FastQC, plotly) but cannot reach the parent DOM, cookies, or storage even if a node emits malicious markup. Per-type node-height bumped by +200 px for `html_preview`.
