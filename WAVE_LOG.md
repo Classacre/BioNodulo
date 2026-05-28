@@ -112,7 +112,18 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§18 — `__PENDING__` — Validation enforcement on selected runs
+## Wave O.§11 — `__PENDING__` — Raw fetch() migration to api/client
+
+- All `/api/...` raw `fetch()` calls in the web app are migrated to the centralised `api/client` helpers (`apiGet`, `apiPost`, `apiDelete`, `apiGetText`). The client already runs through `getToken()` and injects `Authorization: Bearer <token>` once in `buildHeaders` — call sites no longer hand-roll the header dictionary, JSON serialisation, or `Content-Type: application/json`.
+- Migrated files: `web/src/App.tsx` (16 fetches: workflow templates, collab comments / presence / snapshot publish + fetch, host status x2, run logs, run details, hpc status, queue cancel, run load, run retry, workspace upload, collab templates, cache clear, workspace file), `web/src/components/layout/BottomConsole.tsx` (run report HTML), `web/src/hooks/useSettings.ts` (`/api/settings`), `web/src/collab/ShareDialog.tsx` (4 calls — list, create, refresh, revoke), `web/src/collab/useCollab.ts` (2 calls — share list, share create).
+- `getToken()` guards (`if (!token) return;`) are kept where they short-circuit before the request — they're now an authentication-required pre-check, not a header-construction step.
+- Behaviour change: 4xx / 5xx responses now throw `ApiError` instead of being silently swallowed by `r.ok ? r.json() : null` patterns. Every migrated site already had a `try/catch` or `.catch(() => …)` for offline / unauthorised states, so the visible behaviour is the same except errors are now log-friendly rather than null-coalesced.
+- The one `fetch()` left in the web app on purpose: `GettingStartedModal.tsx`'s call to `https://api.github.com/repos/Classacre/BioNodulo/releases?per_page=10`. That hits an external host, not `/api/...`, and `api/client` is intentionally scoped to first-party endpoints. A comment-block-free rule of thumb: if the path doesn't start with `/api/` or `/ws/`, don't route it through the client.
+- BottomConsole's report effect needed a small TS adjustment: hoisting `selectedRunId` into a local `runId` const so the inner `async fetchReport` could use it without TS narrowing complaining about the closure capture of a possibly-null state. Pure refactor — no behaviour change.
+
+
+
+## Wave O.§18 — `9dda701` — Validation enforcement on selected runs
 
 - `web/src/App.tsx` `handleRunSelected` previously called `validate()` and discarded the result — selected-node runs would silently submit a known-invalid workflow. Now it mirrors `handleRun`: when `validate()` returns `valid: false`, the selected run is aborted, a `toast.error("Validation failed (N)")` shows the first error string, and a "Jump to node" toast action focuses the offending node when the error message contains a node-id token. `setIsRunning(false)` is reset on the early return so the run button doesn't stick.
 - The full-workflow `handleRun` already had this enforcement — this commit closes the gap that selected-run mode was the only escape hatch around the validator. Errors continue to land in TopBar (`validationValid` / `validationErrors`) for at-rest visibility; runtime enforcement is now consistent across both run paths.

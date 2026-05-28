@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
+import { apiGetText } from '../../api/client';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
 
@@ -317,21 +318,21 @@ function ReportPanel({ history }: { history: RunRecord[] }) {
       setReportHtml(null);
       return;
     }
+    const runId = selectedRunId;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/runs/${encodeURIComponent(selectedRunId)}/report`)
-      .then(async response => {
-        if (!response.ok) throw new Error(`Report unavailable (HTTP ${response.status})`);
-        const text = await response.text();
+    fetchReport();
+    async function fetchReport() {
+      try {
+        const text = await apiGetText(`/api/runs/${encodeURIComponent(runId)}/report`);
         if (!cancelled) setReportHtml(text);
-      })
-      .catch(err => {
+      } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }
     return () => { cancelled = true; };
   }, [selectedRunId]);
 

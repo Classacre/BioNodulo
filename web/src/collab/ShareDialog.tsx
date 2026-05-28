@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getToken } from './auth';
+import { apiGet, apiPost, apiDelete } from '../api/client';
 
 interface ShareDialogProps {
   workflowId: string | null;
@@ -20,63 +20,36 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
   const [shares, setShares] = useState<ShareEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const refreshShares = useCallback(async (id: string) => {
+    try {
+      const data = await apiGet<{ shares?: ShareEntry[] }>(`/api/collab/shares/${id}`);
+      setShares(Array.isArray(data.shares) ? data.shares : []);
+    } catch {
+      setShares([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen || !workflowId) return;
     setLoading(true);
-    const token = getToken();
-    fetch(`/api/collab/shares/${workflowId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.shares)) {
-          setShares(data.shares as ShareEntry[]);
-        } else {
-          setShares([]);
-        }
-      })
-      .catch(() => setShares([]))
-      .finally(() => setLoading(false));
-  }, [isOpen, workflowId]);
+    refreshShares(workflowId).finally(() => setLoading(false));
+  }, [isOpen, workflowId, refreshShares]);
 
   const handleShare = useCallback(async () => {
     if (!workflowId || !userId.trim()) return;
-    const token = getToken();
-    const r = await fetch('/api/collab/share', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ workflow_id: workflowId, user_id: userId.trim(), role }),
-    });
-    if (r.ok) {
+    try {
+      await apiPost('/api/collab/share', { workflow_id: workflowId, user_id: userId.trim(), role });
       setUserId('');
-      // Refresh the shares list
-      const token2 = getToken();
-      fetch(`/api/collab/shares/${workflowId}`, {
-        headers: token2 ? { Authorization: `Bearer ${token2}` } : {},
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data && Array.isArray(data.shares)) {
-            setShares(data.shares as ShareEntry[]);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [workflowId, userId, role]);
+      await refreshShares(workflowId);
+    } catch { /* surfaced via dialog state */ }
+  }, [workflowId, userId, role, refreshShares]);
 
   const handleRevoke = useCallback(async (shareId: string) => {
     if (!workflowId || !shareId) return;
-    const token = getToken();
-    const r = await fetch(`/api/collab/share/${shareId}`, {
-      method: 'DELETE',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (r.ok) {
+    try {
+      await apiDelete(`/api/collab/share/${shareId}`);
       setShares(prev => prev.filter(s => s.id !== shareId));
-    }
+    } catch { /* surfaced via dialog state */ }
   }, [workflowId]);
 
   const roomLink = workflowId

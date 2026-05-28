@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { apiGet } from '../api/client';
 
 const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.theme': 'system',
@@ -161,8 +162,7 @@ export function useSettings() {
   useEffect(() => {
     if (globalFetchStarted) return;
     globalFetchStarted = true;
-    fetch('/api/settings')
-      .then(r => r.ok ? r.json() : null)
+    apiGet<Partial<typeof globalSettings>>('/api/settings')
       .then(data => {
         if (data) {
           globalSettings = { ...globalSettings, ...data };

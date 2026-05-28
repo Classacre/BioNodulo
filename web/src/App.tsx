@@ -65,7 +65,7 @@ import {
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
-import { apiGet, apiPost, apiDelete, ApiError } from './api/client';
+import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
@@ -224,8 +224,7 @@ function remapTemplateWorkflow(data: Workflow): Workflow {
 
 async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow | null> {
   try {
-    const r = await fetch(`/api/workflow_templates/${template.filename}`);
-    const data = r.ok ? await r.json() as Workflow : getLocalTemplateWorkflow(template.filename);
+    const data = await apiGet<Workflow>(`/api/workflow_templates/${template.filename}`);
     return data ? remapTemplateWorkflow(data) : null;
   } catch {
     const data = getLocalTemplateWorkflow(template.filename);
@@ -443,11 +442,7 @@ export default function App() {
     const token = getToken();
     if (!token) return;
     try {
-      const response = await fetch(`/api/collab/workflows/${activeWorkflowId}/comments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return;
-      const data = await response.json() as { comments?: Comment[] };
+      const data = await apiGet<{ comments?: Comment[] }>(`/api/collab/workflows/${activeWorkflowId}/comments`);
       setWorkflowComments(data.comments ?? []);
     } catch (err) {
       logError('collab.comments.fetch', err);
@@ -468,11 +463,7 @@ export default function App() {
     const token = getToken();
     if (!token) return;
     try {
-      const response = await fetch('/api/collab/presence', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return;
-      const data = await response.json() as { users?: LivePresenceUser[] };
+      const data = await apiGet<{ users?: LivePresenceUser[] }>('/api/collab/presence');
       setLivePresenceUsers(data.users ?? []);
     } catch (err) {
       logError('collab.presence.fetch', err);
@@ -520,14 +511,7 @@ export default function App() {
     const token = getToken();
     if (!token) return;
     try {
-      await fetch(`/api/collab/workflows/${encodeURIComponent(workflow.id)}/snapshot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ workflow }),
-      });
+      await apiPost(`/api/collab/workflows/${encodeURIComponent(workflow.id)}/snapshot`, { workflow });
     } catch (err) {
       logError('collab.snapshot.publish', err);
       // The socket bridge still handles normal collaboration when REST is unavailable.
@@ -537,11 +521,14 @@ export default function App() {
   const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
     const token = getToken();
     if (!token) return null;
-    const response = await fetch(`/api/collab/workflows/${encodeURIComponent(workflowId)}/snapshot`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return null;
-    const data = await response.json() as { snapshot?: Record<string, unknown> };
+    let data: { snapshot?: Record<string, unknown> };
+    try {
+      data = await apiGet<{ snapshot?: Record<string, unknown> }>(
+        `/api/collab/workflows/${encodeURIComponent(workflowId)}/snapshot`,
+      );
+    } catch {
+      return null;
+    }
     if (!data.snapshot) return null;
     return workflowFromCollabSnapshot(workflowId, data.snapshot, fallbackName);
   }, []);
@@ -600,11 +587,8 @@ export default function App() {
   const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
 
   useEffect(() => {
-    fetch('/api/host_status')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) setHostStatus(data as HostStatus);
-      })
+    apiGet<HostStatus>('/api/host_status')
+      .then(data => { if (data) setHostStatus(data); })
       .catch(() => { /* offline */ });
   }, []);
 
@@ -723,9 +707,8 @@ export default function App() {
       // Fetch logs for the most recent runs (queue + recent history)
       const runsToFetch = allRuns.slice(0, 10);
       for (const run of runsToFetch) {
-        fetch(`/api/runs/${run.run_id}/logs`)
-          .then(r => r.ok ? r.json() : null)
-          .then((logData: { logs?: Array<Record<string, unknown>>; run_id?: string } | null) => {
+        apiGet<{ logs?: Array<Record<string, unknown>>; run_id?: string }>(`/api/runs/${run.run_id}/logs`)
+          .then((logData) => {
             if (!logData || !Array.isArray(logData.logs)) return;
             const newLogs: LogEntry[] = logData.logs.map(l => ({
               run_id: String(l.run_id || run.run_id),
@@ -1196,9 +1179,8 @@ export default function App() {
           });
         }
         // Fetch full run details to populate previews/artifacts
-        fetch(`/api/runs/${finishedRunId}`)
-          .then(r => r.ok ? r.json() : null)
-          .then((runData: Record<string, unknown> | null) => {
+        apiGet<Record<string, unknown>>(`/api/runs/${finishedRunId}`)
+          .then((runData) => {
             if (!runData) return;
             const result = runData.result as Record<string, unknown> | undefined;
             if (!result) return;
@@ -1338,16 +1320,15 @@ export default function App() {
   useEffect(() => {
     const checkHpcStatus = async () => {
       try {
-        const r = await fetch('/api/hpc/status');
-        if (r.ok) {
-          const data = await r.json() as { status?: HPCStatus; connected?: boolean };
-          setHpcStatus(data.status || (data.connected ? 'on' : 'off'));
+        const data = await apiGet<{ status?: HPCStatus; connected?: boolean }>('/api/hpc/status');
+        setHpcStatus(data.status || (data.connected ? 'on' : 'off'));
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setHpcStatus('off');
         } else {
+          logError('hpc.status.poll', err);
           setHpcStatus('off');
         }
-      } catch (err) {
-        logError('hpc.status.poll', err);
-        setHpcStatus('off');
       }
     };
     checkHpcStatus();
@@ -1436,9 +1417,11 @@ export default function App() {
         form.append('file', file, file.name || `pasted_${Date.now()}`);
         form.append('subdir', 'uploads');
         try {
-          const response = await fetch('/api/workspace/upload', { method: 'POST', body: form });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const data = await response.json() as { path?: string; original_name?: string; content_type?: string };
+          const data = await apiPost<{ path?: string; original_name?: string; content_type?: string }>(
+            '/api/workspace/upload',
+            undefined,
+            { body: form },
+          );
           if (!data.path) throw new Error('Upload response missing path');
           const baseX = 200 + Math.random() * 40;
           const baseY = 200 + i * 120;
@@ -1848,8 +1831,7 @@ export default function App() {
     });
     if (!ok) return;
     try {
-      const response = await fetch(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`, { method: 'POST' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await apiPost(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`);
       updateRun(run.run_id, { status: 'cancelled', end_time: new Date().toISOString() });
       toast.warning('Run cancelled', { message: run.workflow_name || run.run_id });
     } catch (err) {
@@ -1859,9 +1841,9 @@ export default function App() {
 
   const handleLoadRunWorkflow = useCallback(async (run: RunRecord) => {
     try {
-      const response = await fetch(`/api/runs/${encodeURIComponent(run.run_id)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json() as { workflow?: Workflow; workflow_name?: string };
+      const data = await apiGet<{ workflow?: Workflow; workflow_name?: string }>(
+        `/api/runs/${encodeURIComponent(run.run_id)}`,
+      );
       const workflow = data.workflow;
       if (!workflow || !Array.isArray(workflow.nodes)) {
         throw new Error('Run does not have an associated workflow snapshot');
@@ -1882,9 +1864,9 @@ export default function App() {
 
   const handleRetryRun = useCallback(async (run: RunRecord) => {
     try {
-      const response = await fetch(`/api/runs/${encodeURIComponent(run.run_id)}/retry`, { method: 'POST' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json() as { run_id: string; status?: string };
+      const data = await apiPost<{ run_id: string; status?: string }>(
+        `/api/runs/${encodeURIComponent(run.run_id)}/retry`,
+      );
       addRun({
         run_id: data.run_id,
         status: 'pending',
@@ -1982,22 +1964,14 @@ export default function App() {
     }
     try {
       await publishCollabWorkflowSnapshot(activeWorkflow);
-      const response = await fetch('/api/collab/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          workflow_id: activeWorkflowId,
-          title: draft.name,
-          description: draft.description,
-          category: draft.category,
-          tags: draft.tags,
-          is_public: false,
-        }),
+      await apiPost('/api/collab/templates', {
+        workflow_id: activeWorkflowId,
+        title: draft.name,
+        description: draft.description,
+        category: draft.category,
+        tags: draft.tags,
+        is_public: false,
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       toast.success('Template saved', { message: draft.name });
     } catch (err) {
       toast.error('Could not save template', { message: err instanceof Error ? err.message : String(err) });
@@ -2432,9 +2406,7 @@ export default function App() {
         group: 'Workflow',
         onSelect: async () => {
           try {
-            const response = await fetch('/api/cache/clear', { method: 'POST' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
+            const data = await apiPost<{ entries_deleted?: number }>('/api/cache/clear');
             toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries` });
           } catch (err) {
             toast.error('Could not clear cache', { message: err instanceof Error ? err.message : String(err) });
@@ -3044,9 +3016,7 @@ export default function App() {
           if (workflowPath) {
             e.preventDefault();
             try {
-              const r = await fetch(`/api/workspace/file?path=${encodeURIComponent(workflowPath)}`);
-              if (!r.ok) return;
-              const text = await r.text();
+              const text = await apiGetText(`/api/workspace/file?path=${encodeURIComponent(workflowPath)}`);
               const wf = JSON.parse(text);
               if (wf && (wf.nodes || Array.isArray(wf))) {
                 handleImport(wf);
@@ -3147,8 +3117,9 @@ export default function App() {
             onDismiss={() => setDismissedHostStatus(hostStatus)}
             onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
             onRecheck={async () => {
-              const r = await fetch('/api/host_status');
-              if (r.ok) setHostStatus(await r.json() as HostStatus);
+              try {
+                setHostStatus(await apiGet<HostStatus>('/api/host_status'));
+              } catch { /* offline */ }
             }}
           />
         )}

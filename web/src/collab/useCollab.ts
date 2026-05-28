@@ -5,6 +5,7 @@ import { Awareness } from 'y-protocols/awareness';
 import { createWorkflowDoc, workflowToDoc, docToWorkflow } from './yjsDoc';
 import { useAwareness } from './useAwareness';
 import { getToken } from './auth';
+import { apiGet, apiPost } from '../api/client';
 import type { CollabUser, AwarenessState } from './types';
 
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -193,12 +194,9 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       setIsShared(false);
       return;
     }
-    fetch(`/api/collab/shares/${workflowId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => (r.ok ? r.json() : null))
+    apiGet<{ shares?: unknown[] }>(`/api/collab/shares/${workflowId}`)
       .then(data => {
-        setIsShared(data?.shares?.length > 0);
+        setIsShared(Array.isArray(data?.shares) && data.shares.length > 0);
       })
       .catch(() => setIsShared(false));
   }, [workflowId]);
@@ -207,16 +205,12 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     if (!workflowId) return;
     const token = getToken();
     if (!token) throw new Error('Sign in before sharing workflows');
-    const r = await fetch('/api/collab/share', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ workflow_id: workflowId, user_id: userId, role }),
-    });
-    if (!r.ok) throw new Error('Failed to share workflow');
-    setIsShared(true);
+    try {
+      await apiPost('/api/collab/share', { workflow_id: workflowId, user_id: userId, role });
+      setIsShared(true);
+    } catch {
+      throw new Error('Failed to share workflow');
+    }
   }, [workflowId]);
 
   return {
