@@ -112,7 +112,14 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§7 — `__PENDING__` — Runtime validation expansion (zod-style, dependency-free)
+## Wave O.§3 — `__PENDING__` — i18n expansion to 500+ keys
+
+- `web/src/i18n/locales/en.ts` rebuilt as a comprehensive surface-organised dictionary: top-level keys per panel / dialog / domain (`common`, `notifications`, `dialogs`, `commandPalette`, `shortcuts`, `palettes`, `topbar`, `panels`, `nodeLibrary`, `parameters`, `workspace`, `templates`, `runs`, `inspector`, `console`, `hpc`, `settings`, `helpWiki`, `errors`, `validation`, `nodes`, `runStatus`, `a11y`, `toasts`). 582 leaf keys total, 669 lines. Keys are stable identifiers — screen-reader / keyboard-help components read them directly, so renames are user-visible.
+- `web/src/i18n/locales/es.ts` mirrors the en structure 1:1 (same keys, same nesting). 171 leaf strings have Spanish translations applied via `web/scripts/es-overlay.ts` — anything not yet translated falls back to English at runtime through i18next's `fallbackLng: 'en'`. To extend Spanish coverage, add entries to `es-overlay.ts` and re-run the small Node generator embedded in this wave's commit (no separate npm script — it's a one-shot used during wave authoring).
+- Plurals use i18next's `_plural` suffix convention (`{{count}} node` / `{{count}} nodes`). Interpolation tokens (`{{count}}`, `{{name}}`, `{{action}}`) are preserved verbatim across both locales.
+- No production code reads these keys yet — wiring is deferred. The point of this wave is to publish the *contract*: every panel author can now use `t('panels.workspace')` instead of hard-coding strings, knowing the keys exist and an es fallback is in place. The actual `useTranslation()` migration is a per-panel exercise that will happen wave-by-wave alongside cosmetic refactors.
+
+## Wave O.§7 — `082d2f4` — Runtime validation expansion (zod-style, dependency-free)
 
 - The hand-rolled validators in `web/src/api/validators.ts` (added in Wave G.51) are extended to cover the recently-migrated endpoints: `host_status`, `hpc/status`, and a generic `runs_list` shape that tolerates both `{ runs: [...] }` and a top-level array.
 - Decision: **don't ship zod**. The existing module already mirrors zod's `safeParse` API (`safeValidateX → { ok, value | error }`), is ~5kB, and a real `zod` dependency would add ~10kB min+gz. Validation coverage at this point is ~7 endpoints — not worth the bundle.
