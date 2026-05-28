@@ -112,7 +112,19 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§5 — `__PENDING__` — ESLint + Prettier toolchain
+## Wave O.§6 — `__PENDING__` — Vitest + Playwright test infrastructure
+
+- `web/vitest.config.ts`: jsdom env, `src/test/setup.ts` setup file pulling in `@testing-library/jest-dom/vitest` matchers, test file glob limited to `src/**/*.{test,spec}.{ts,tsx}`.
+- `web/playwright.config.ts`: e2e test dir, headless chrome, auto-starts `npm run dev` for runs.
+- First test suite (11 tests, all green): `src/test/palettes.test.ts` (completePalette deep-merge + getResolvedPaletteMode), `src/test/client.test.ts` (apiGet/apiPost JSON parsing, ApiError thrown on 4xx, empty body handling, body stringification), `src/test/useHistory.test.ts` (initial state, push + undo + redo round-trip using renderHook).
+- Playwright smoke (`web/e2e/smoke.spec.ts`): app-shell mounts, title matches, skips gracefully when dev server is not running.
+- `web/package.json` scripts: `test`, `test:watch`, `test:ui`, `test:e2e`.
+- `web/tsconfig.json` excludes `src/test/**`, `*.test.ts(x)`, `*.spec.ts(x)`, and `e2e/**` from the production build so test code never ships to the bundle.
+- `.github/workflows/ci.yml` frontend job runs `npm test` between lint and build.
+
+
+
+## Wave O.§5 — `a1c5db1` — ESLint + Prettier toolchain
 
 - Added `web/eslint.config.js` (flat config) wiring `@typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, and `eslint-config-prettier`. Lean rule set focused on real bugs (hooks rules, unused vars warning, useless escape error) so the existing codebase passes without a 100-file reformat. Cleaned 5 genuine lint errors uncovered by the new config: a useless escape `\-` in App.tsx's error-token regex, two `\"` escapes inside single-quoted strings in ImportModal, a `useState` called after an early `return null` in NodeEditor (real hooks-rules violation), and a useless `let wtype = 'text'` initial in LiteGraphCanvas where every branch reassigns.
 - Added `.prettierrc.json` + `.prettierignore` with house style (single quotes, trailing comma all, 100-col, semis, 2-space). Not running `prettier --write` across the codebase in this commit — the 108-file reformat would dwarf every future Wave O diff. The script is wired so future code follows the rule and a dedicated formatting commit can land it later.
