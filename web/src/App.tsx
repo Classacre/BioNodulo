@@ -15,6 +15,7 @@ const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel
 const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
+const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
 import ExportModal from './components/modals/ExportModal';
 import ImportModal from './components/modals/ImportModal';
 import AIWorkflowModal from './components/modals/AIWorkflowModal';
@@ -61,7 +62,7 @@ import { installDomOverlayBridge } from './state/overlays';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge, ShareDialog,
-  getUserColor, getAuthUser, getToken, initAuth, AuthDialog,
+  getUserColor, getToken, AuthDialog,
   CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
@@ -70,11 +71,9 @@ import { safeValidateHostStatus, safeValidateHpcStatus } from './api/validators'
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
+import { useAuth } from './hooks/useAuth';
 import {
-  authReadyAtom,
-  authUserAtom,
   requestedWorkflowIdAtom,
-  showAuthDialogAtom,
 } from './state/appAtoms';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { AwarenessState, Comment, LivePresenceUser } from './collab';
@@ -246,13 +245,18 @@ export default function App() {
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
 
-  // Authentication state
+  // Authentication state — extracted to useAuth.
   const collabEnabled = getBool('bionodulo.collab.enabled');
   const initialRequestedWorkflowId = useMemo(() => getRequestedWorkflowId(), []);
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
-  const [authUser, setAuthUser] = useAtom(authUserAtom);
-  const [authReady, setAuthReady] = useAtom(authReadyAtom);
-  const [showAuthDialog, setShowAuthDialog] = useAtom(showAuthDialogAtom);
+  const {
+    authUser,
+    authReady,
+    showAuthDialog,
+    setShowAuthDialog,
+    handleAuthLogin,
+    handleAuthClose,
+  } = useAuth({ collabEnabled, settingsReady });
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
 
   useEffect(() => installDomOverlayBridge(), []);
@@ -268,51 +272,11 @@ export default function App() {
     clearShareHash();
   }, []);
 
-  // Initialize auth on mount
-  useEffect(() => {
-    let cancelled = false;
-    if (!collabEnabled || !settingsReady) {
-      setAuthReady(true);
-      setShowAuthDialog(false);
-      return;
-    }
-    setAuthReady(false);
-    initAuth().then(valid => {
-      if (cancelled) return;
-      if (valid) {
-        setAuthUser(getAuthUser());
-        setShowAuthDialog(false);
-      } else {
-        setAuthUser(null);
-        setShowAuthDialog(true);
-      }
-    }).finally(() => {
-      if (!cancelled) setAuthReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [collabEnabled, settingsReady, setAuthReady, setAuthUser, setShowAuthDialog]);
-
   useEffect(() => {
     if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
       setRequestedWorkflowId(initialRequestedWorkflowId);
     }
   }, [initialRequestedWorkflowId, requestedWorkflowId, setRequestedWorkflowId]);
-
-  // Handle login from AuthDialog
-  const handleAuthLogin = useCallback((_name: string) => {
-    setAuthUser(getAuthUser());
-    setAuthReady(true);
-    setShowAuthDialog(false);
-  }, [setAuthReady, setAuthUser, setShowAuthDialog]);
-
-  // Handle auth dialog close (without login)
-  const handleAuthClose = useCallback(() => {
-    // If user closes without logging in, keep current state
-    // They can still use the app; collaboration just won't connect
-    setShowAuthDialog(false);
-  }, [setShowAuthDialog]);
 
   // Collaboration setup
   const currentUser = useMemo(() => (
@@ -946,17 +910,50 @@ export default function App() {
     });
   }, []);
 
-  const startPanelResize = useCallback((tab: OpenPanelTab, startClientX: number, startWidth: number) => {
-    const onMove = (event: MouseEvent) => {
-      setPanelWidth(tab, startWidth + event.clientX - startClientX);
+  const startPanelResize = useCallback((tab: OpenPanelTab, startClientX: number, startWidth: number, isRight = false) => {
+    const sign = isRight ? -1 : 1;
+    const onMove = (event: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in event
+        ? event.touches[0]?.clientX ?? startClientX
+        : (event as MouseEvent).clientX;
+      setPanelWidth(tab, startWidth + sign * (clientX - startClientX));
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+      window.removeEventListener('touchcancel', onUp);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
   }, [setPanelWidth]);
+
+  // Keyboard-driven panel resize so the separator can be focused and arrow-
+  // keys nudge the width. Step is 16px (1× snap grid).
+  const handlePanelResizeKey = useCallback((tab: OpenPanelTab, isRight: boolean, event: React.KeyboardEvent) => {
+    const step = event.shiftKey ? 64 : 16;
+    let delta = 0;
+    if (event.key === 'ArrowLeft') delta = isRight ? step : -step;
+    else if (event.key === 'ArrowRight') delta = isRight ? -step : step;
+    else if (event.key === 'Home') {
+      event.preventDefault();
+      setPanelWidth(tab, 280);
+      return;
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setPanelWidth(tab, 560);
+      return;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    const current = panelWidths[tab] ?? 340;
+    setPanelWidth(tab, current + delta);
+  }, [panelWidths, setPanelWidth]);
 
   const setFloatingPanel = useCallback((tab: OpenPanelTab, layout: { x: number; y: number } | null) => {
     setFloatingPanels(prev => {
@@ -2902,6 +2899,25 @@ export default function App() {
         />
       ));
     }
+    if (tab === 'inspector') {
+      const selected = selectedNodeId
+        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId) ?? null
+        : null;
+      return wrap('inspector', (
+        <InspectorPanel
+          selectedNode={selected}
+          objectInfo={objectInfo}
+          onParamChange={(nodeId, key, value) => {
+            handleNodesChange(
+              activeWorkflow.nodes.map(n =>
+                n.id === nodeId ? { ...n, params: { ...(n.params || {}), [key]: value } } : n,
+              ),
+            );
+          }}
+          onClose={() => closePanel(tab)}
+        />
+      ));
+    }
     const registered = registeredPanels.find(panel => panel.id === tab);
     if (registered) {
       return wrap(`plugin.${tab}`, registered.render());
@@ -3254,7 +3270,17 @@ export default function App() {
                   className={`rail-panel-resizer ${isRight ? 'on-left' : ''}`}
                   role="separator"
                   aria-label={`Resize ${tab} panel`}
-                  onMouseDown={event => startPanelResize(tab, event.clientX, width)}
+                  aria-orientation="vertical"
+                  aria-valuenow={width}
+                  aria-valuemin={280}
+                  aria-valuemax={560}
+                  tabIndex={0}
+                  onMouseDown={event => startPanelResize(tab, event.clientX, width, isRight)}
+                  onTouchStart={event => {
+                    const t = event.touches[0];
+                    if (t) startPanelResize(tab, t.clientX, width, isRight);
+                  }}
+                  onKeyDown={event => handlePanelResizeKey(tab, isRight, event)}
                 />
               </div>
             );

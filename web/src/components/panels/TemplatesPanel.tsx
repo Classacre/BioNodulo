@@ -5,6 +5,7 @@ import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
 import { listLocalTemplates } from '../../localTemplates';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
+import { getOrRenderTemplateThumbnail } from '../../state/templateThumbnails';
 import { apiGet, ApiError } from '../../api/client';
 
 export type TemplateSortMode = 'ranked' | 'name' | 'category' | 'node_count' | 'recent';
@@ -108,10 +109,33 @@ function TemplateThumbnail({ template }: { template: TemplateCardInfo }) {
   const url = templateThumbnailUrl(template);
   const initials = template.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'T';
 
+  // When no server-supplied thumbnail URL exists, fetch the workflow JSON and
+  // render an in-browser PNG (with the workflow embedded via tEXt) so a drag
+  // off the card lands a workflow-bearing PNG identical to an export.
+  const [renderedUrl, setRenderedUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (url || !template.filename) return;
+    let cancelled = false;
+    apiGet<{ workflow?: unknown; nodes?: unknown[] }>(
+      `/workflow_templates/${encodeURIComponent(template.filename)}`,
+    )
+      .then(data => {
+        if (cancelled) return;
+        const workflow = (data.workflow ?? data) as unknown;
+        if (!workflow || typeof workflow !== 'object') return;
+        const result = getOrRenderTemplateThumbnail(template.id, workflow as never);
+        if (result) setRenderedUrl(result.objectUrl);
+      })
+      .catch(() => { /* network/parse error — fall back to initials block */ });
+    return () => { cancelled = true; };
+  }, [url, template.id, template.filename]);
+
+  const finalUrl = url || renderedUrl;
+
   return (
     <div className="template-thumbnail" aria-hidden="true">
-      {url ? (
-        <img src={url} alt="" onError={event => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      {finalUrl ? (
+        <img src={finalUrl} alt="" onError={event => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />
       ) : (
         <div className="template-thumbnail-generated">
           <span className="template-thumbnail-initials">{initials}</span>

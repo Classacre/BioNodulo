@@ -6,6 +6,7 @@ import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
 import { promptDialog, toast } from '../ui';
 import { saveBlueprint } from '../../state/subgraphLibrary';
+import { apiPost } from '../../api/client';
 import NodePalette from '../nodes/NodePalette';
 import NodeContextMenu from '../nodes/NodeContextMenu';
 import NodeEditor from '../nodes/NodeEditor';
@@ -1549,6 +1550,64 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (isCtrl && key === 'v') {
         e.preventDefault();
         const includeExternal = e.shiftKey;
+
+        // Media paste: scan clipboard for image/audio/video blobs and spawn an
+        // input_file node per blob, uploading via /api/workspace/upload.
+        try {
+          if (typeof navigator.clipboard?.read === 'function') {
+            const items = await navigator.clipboard.read();
+            const mediaBlobs: { blob: Blob; name: string }[] = [];
+            for (const item of items) {
+              for (const t of item.types) {
+                if (t.startsWith('image/') || t.startsWith('audio/') || t.startsWith('video/')) {
+                  try {
+                    const blob = await item.getType(t);
+                    const ext = t.split('/')[1]?.split(';')[0] || 'bin';
+                    mediaBlobs.push({ blob, name: `pasted_${Date.now()}.${ext}` });
+                  } catch { /* ignore type read failure */ }
+                }
+              }
+            }
+            if (mediaBlobs.length > 0) {
+              const meta = objectInfo.input_file;
+              if (!meta) {
+                toast.error('Paste failed', { message: 'input_file node not registered' });
+                return;
+              }
+              // Anchor first paste at viewport centre; subsequent ones cascade.
+              const rect = canvasRef.current?.getBoundingClientRect();
+              const cx = (rect?.width ?? 800) / 2;
+              const cy = (rect?.height ?? 600) / 2;
+              for (let i = 0; i < mediaBlobs.length; i++) {
+                const { blob, name } = mediaBlobs[i];
+                const fd = new FormData();
+                fd.append('file', blob, name);
+                fd.append('subdir', 'uploads');
+                try {
+                  const resp = await apiPost<{ path: string; original_name?: string }>(
+                    '/workspace/upload', { body: fd },
+                  );
+                  const created = addNode(meta, cx + i * 30, cy + i * 30);
+                  // Patch the new node's params with the uploaded file path.
+                  const path = resp.path;
+                  const updated = nodesRef.current.map(n =>
+                    n.id === created.id
+                      ? { ...n, params: { ...(n.params || {}), file_path: path, path } }
+                      : n,
+                  );
+                  onNodesChangeRef.current(updated);
+                  toast.success('Imported', { message: name });
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : 'Upload failed';
+                  toast.error('Upload failed', { message });
+                }
+              }
+              onPushHistoryRef.current();
+              return;
+            }
+          }
+        } catch { /* clipboard.read() unavailable or denied — fall through */ }
+
         try {
           if (!navigator.clipboard || !navigator.clipboard.readText) return;
           const text = await navigator.clipboard.readText();

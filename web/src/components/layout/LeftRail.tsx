@@ -65,6 +65,7 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
     <nav className="left-rail">
       <RailButton active={active === 'data'} icon="folder" label="Data" shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
       <RailButton active={active === 'nodes'} icon="nodes" label="Nodes" shortcut={getBinding('rail.nodes') ?? undefined} onClick={() => toggle('nodes')} />
+      <RailButton active={active === 'inspector'} icon="settings" label="Inspector" shortcut={getBinding('rail.inspector') ?? undefined} onClick={() => toggle('inspector')} />
       <RailButton active={active === 'templates'} icon="template" label="Templates" shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
       <div className="rail-sep" />
       <RailButton active={active === 'environments'} icon="dna" label="Environments" shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
