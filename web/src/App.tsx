@@ -50,6 +50,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useRegisteredCommands } from './hooks/useCommandPalette';
 import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
+import { logError } from './state/logging';
 import { usePanelRegistry } from './state/panels';
 import { rememberRecentWorkflow, refreshRecentThumbnail } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
@@ -448,7 +449,8 @@ export default function App() {
       if (!response.ok) return;
       const data = await response.json() as { comments?: Comment[] };
       setWorkflowComments(data.comments ?? []);
-    } catch {
+    } catch (err) {
+      logError('collab.comments.fetch', err);
       // Node comment pins are optional when collaboration is unavailable.
     }
   }, [activeWorkflowId, collabEnabled]);
@@ -472,7 +474,8 @@ export default function App() {
       if (!response.ok) return;
       const data = await response.json() as { users?: LivePresenceUser[] };
       setLivePresenceUsers(data.users ?? []);
-    } catch {
+    } catch (err) {
+      logError('collab.presence.fetch', err);
       // Room-local awareness still drives collaborative cursor rendering.
     }
   }, [collabEnabled]);
@@ -525,7 +528,8 @@ export default function App() {
         },
         body: JSON.stringify({ workflow }),
       });
-    } catch {
+    } catch (err) {
+      logError('collab.snapshot.publish', err);
       // The socket bridge still handles normal collaboration when REST is unavailable.
     }
   }, [collabEnabled]);
@@ -554,7 +558,8 @@ export default function App() {
       let snapshotWorkflow: Workflow | null = null;
       try {
         snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
-      } catch {
+      } catch (err) {
+        logError('collab.snapshot.fetch', err);
         // Realtime sync remains the source of truth if the snapshot endpoint is unavailable.
       }
       if (presence.workflow_id !== activeWorkflowId) {
@@ -1340,7 +1345,8 @@ export default function App() {
         } else {
           setHpcStatus('off');
         }
-      } catch {
+      } catch (err) {
+        logError('hpc.status.poll', err);
         setHpcStatus('off');
       }
     };
