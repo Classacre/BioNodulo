@@ -112,7 +112,16 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§6 — `__PENDING__` — Vitest + Playwright test infrastructure
+## Wave O.§8 — `__PENDING__` — Vite code splitting
+
+- `web/vite.config.ts`: added `build.rollupOptions.output.manualChunks` that pulls react/scheduler, yjs/y-protocols/y-websocket/lib0, fuse.js, i18next/react-i18next, and zod into their own caching-friendly chunks. Paths are normalised (`\\` → `/`) so the rules work on Windows.
+- Main bundle dropped from 850.85 kB → 493.60 kB (-42%); the split-off chunks are react 192.52 kB, yjs 87.82 kB, i18n 48.72 kB, fuse 24.38 kB. These cache across releases.
+- Removed stale `web/vite.config.js` + `vite.config.d.ts` that were silently overriding the `.ts` config (Vite picked the `.js` first; that's why the previous attempt didn't split). `tsconfig.node.json` now emits its composite output into `node_modules/.tmp-tsc-node` so future runs don't re-pollute the repo root.
+- `web/package.json` gained `build:analyze` (calls `cross-env BIONODULO_ANALYZE=1 npm run build`), which the existing rollup-plugin-visualizer hook turns into a `dist/stats.html` treemap.
+
+
+
+## Wave O.§6 — `d1999ab` — Vitest + Playwright test infrastructure
 
 - `web/vitest.config.ts`: jsdom env, `src/test/setup.ts` setup file pulling in `@testing-library/jest-dom/vitest` matchers, test file glob limited to `src/**/*.{test,spec}.{ts,tsx}`.
 - `web/playwright.config.ts`: e2e test dir, headless chrome, auto-starts `npm run dev` for runs.
