@@ -112,7 +112,17 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§12 — `__PENDING__` — Structured catch logging
+## Wave O.§1 — `__PENDING__` — Pluggable history store with transactions
+
+- Rewrote `web/src/hooks/useHistory.ts`. Old hook was 43 lines of `JSON.parse(JSON.stringify(...))` deep clone with no dedup, no viewport, no transactions. New hook offers `push(workflow, viewport?)` (no-op when the signature matches the current tip), `begin()` (returns a `commit()` thunk; sequential pushes inside a transaction collapse into a single snapshot at commit so users undo a whole drag/paste gesture at once), `undo()`/`redo()` returning the popped `HistorySnapshot` (workflow + viewport + sig), and reactive `canUndo`/`canRedo`.
+- `structuredClone` replaces `JSON.parse(JSON.stringify(...))` so node params keep `undefined`/Date/Map/Set correctly; a JSON fallback covers older jsdom.
+- Default signature reuses the App.tsx pattern (node id/type/position/params/ui + edge endpoints + group geometry). Signature override via `options.signatureFn` for tests / specialised editors.
+- App.tsx's inline auto-history is the source of truth right now — it already had sig dedup + viewport + 350 ms debounce + mouseup/keyup eager flush hard-wired in. This commit ships the hook as the reusable export for future consumers (subgraph editors, snippet editors, plugins) without disrupting the inline path. The §10 App.tsx breakdown will fold the inline code through this hook.
+- `src/test/useHistory.test.ts` rewritten: 6 cases — initial state, push + undo + redo round trip, signature dedup is a no-op, viewport survives undo/redo, transactions collapse to one snapshot, external mutation of the initial workflow doesn't corrupt the stored history.
+
+
+
+## Wave O.§12 — `b77044e` — Structured catch logging
 
 - New `web/src/state/logging.ts` exposes `logError(scope, err)` + a 200-entry ring buffer + a subscribe API. Errors land in `console.error` (visible in DevTools) and in the ring buffer where a future telemetry sink can pick them up; subscribers fire synchronously but listener errors are swallowed so they can't reenter `logError`.
 - Tested in `src/test/logging.test.ts` (4 cases): Error normalisation (message/name/stack), non-Error fallbacks (string + object via JSON.stringify), subscriber + unsubscribe, ring-buffer capacity overflow.
