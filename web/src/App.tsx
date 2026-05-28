@@ -1570,7 +1570,21 @@ export default function App() {
     if (nodeIds.length === 0) return;
     setIsRunning(true);
     try {
-      await validate(activeWorkflow);
+      const v = await validate(activeWorkflow);
+      if (v && v.valid === false && Array.isArray(v.errors) && v.errors.length > 0) {
+        const firstError = String(v.errors[0]);
+        const knownIds = new Set(activeWorkflow.nodes.map(n => n.id));
+        const tokens = firstError.match(/[A-Za-z0-9_-]+/g) || [];
+        const targetId = tokens.find(token => knownIds.has(token));
+        toast.error(`Validation failed (${v.errors.length})`, {
+          message: firstError,
+          actions: targetId
+            ? [{ label: 'Jump to node', onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
+            : undefined,
+        });
+        setIsRunning(false);
+        return;
+      }
       const result = await submitRun(activeWorkflow, {
         no_cache: !cacheEnabled,
         target_nodes: nodeIds,

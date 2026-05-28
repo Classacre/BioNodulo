@@ -112,7 +112,14 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§20 — `__PENDING__` — Reroute parentId
+## Wave O.§18 — `__PENDING__` — Validation enforcement on selected runs
+
+- `web/src/App.tsx` `handleRunSelected` previously called `validate()` and discarded the result — selected-node runs would silently submit a known-invalid workflow. Now it mirrors `handleRun`: when `validate()` returns `valid: false`, the selected run is aborted, a `toast.error("Validation failed (N)")` shows the first error string, and a "Jump to node" toast action focuses the offending node when the error message contains a node-id token. `setIsRunning(false)` is reset on the early return so the run button doesn't stick.
+- The full-workflow `handleRun` already had this enforcement — this commit closes the gap that selected-run mode was the only escape hatch around the validator. Errors continue to land in TopBar (`validationValid` / `validationErrors`) for at-rest visibility; runtime enforcement is now consistent across both run paths.
+
+
+
+## Wave O.§20 — `049389b` — Reroute parentId
 
 - `WorkflowNode` (in `web/src/types.ts`) gains an optional `parentId?: string`. Today only reroutes use it; subgraph and group-membership work can adopt the same field later without a schema bump.
 - New helper `groupContainingPoint(groups, x, y)` in `LiteGraphCanvas.tsx` — topmost group whose body contains the point, or null.
