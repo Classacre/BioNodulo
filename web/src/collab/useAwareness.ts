@@ -50,10 +50,10 @@ function buildLocalState(
  * @param connected  - Whether the WebSocket is connected
  */
 export function useAwareness(
-  doc: Y.Doc | null,
+  _doc: Y.Doc | null,
   user: CollabUser,
   awareness: Awareness | null,
-  connected: boolean,
+  _connected: boolean,
 ): UseAwarenessReturn {
   const [others, setOthers] = useState<AwarenessState[]>([]);
   const [localState, setLocalState] = useState<AwarenessState>({

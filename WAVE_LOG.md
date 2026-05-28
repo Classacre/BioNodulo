@@ -112,7 +112,14 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§8 — `__PENDING__` — Vite code splitting
+## Wave O.§9 — `__PENDING__` — TypeScript strictness
+
+- `web/tsconfig.json` adds three flags: `noUnusedParameters: true` (was false), `noImplicitOverride: true`, and `verbatimModuleSyntax: true`. The codebase already used `import type` everywhere `verbatimModuleSyntax` requires, so that flag landed at zero cost. `noImplicitOverride` caught two missing `override` keywords in `ErrorBoundary.tsx`. `noUnusedParameters` caught three intentional-but-unmarked unused params; they're prefixed with `_` now (`useAwareness` `_doc`/`_connected`, `markdown` link replacer `_m`).
+- Deferred for a follow-up wave: `exactOptionalPropertyTypes: true` surfaces 291 type errors across run-record types, API validators, and node-status flows; `noUncheckedIndexedAccess: true` typically adds another 50–100 errors. Both are correct-by-default but would consume an entire wave on their own and are tracked separately so the rest of Wave O can move.
+
+
+
+## Wave O.§8 — `b1e6bbe` — Vite code splitting
 
 - `web/vite.config.ts`: added `build.rollupOptions.output.manualChunks` that pulls react/scheduler, yjs/y-protocols/y-websocket/lib0, fuse.js, i18next/react-i18next, and zod into their own caching-friendly chunks. Paths are normalised (`\\` → `/`) so the rules work on Windows.
 - Main bundle dropped from 850.85 kB → 493.60 kB (-42%); the split-off chunks are react 192.52 kB, yjs 87.82 kB, i18n 48.72 kB, fuse 24.38 kB. These cache across releases.

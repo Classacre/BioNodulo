@@ -42,7 +42,7 @@ function renderInline(text: string): string {
   // Inline code first so `` *foo* `` inside backticks isn't bolded.
   let out = text.replace(/`([^`]+)`/g, (_m, code) => `<code class="md-inline-code">${escapeHtml(code)}</code>`);
   // Links — only safe http(s) get a real <a>, others render as label (url).
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, url) => {
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label, url) => {
     const href = safeHref(url);
     const safeLabel = escapeHtml(label);
     if (!href) return `${safeLabel} (${escapeHtml(url)})`;
