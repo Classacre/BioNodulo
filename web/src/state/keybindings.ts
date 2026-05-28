@@ -2,9 +2,19 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 export type KeybindingCategory = 'global' | 'canvas' | 'workflow' | 'panels';
 
+// Where a binding is allowed to fire. Independent from the visual `category`
+// grouping (which controls how the shortcuts modal organises rows).
+// - 'global' (default): fires from anywhere, even inside an open overlay if
+//    the binding opted out of `respectOverlays`.
+// - 'canvas': only fires when focus is on the canvas surface (no modal open,
+//    not inside an input/textarea).
+// - 'modal': only fires while an overlay is open (e.g. Esc-to-close).
+export type KeybindingScope = 'global' | 'canvas' | 'modal';
+
 export interface KeybindingDefinition {
   id: string;
   category: KeybindingCategory;
+  scope?: KeybindingScope;
   label: string;
   description?: string;
   defaultBinding: string;
@@ -41,16 +51,16 @@ export const DEFAULT_KEYBINDINGS: KeybindingDefinition[] = [
   { id: 'rail.hpc', category: 'panels', label: 'Open HPC panel', defaultBinding: 'Ctrl+5' },
   { id: 'rail.help', category: 'panels', label: 'Open help panel', defaultBinding: 'Ctrl+6' },
   { id: 'rail.console', category: 'panels', label: 'Open console panel', defaultBinding: 'Ctrl+7' },
-  { id: 'canvas.selectAll', category: 'canvas', label: 'Select all nodes', defaultBinding: 'Ctrl+A' },
-  { id: 'canvas.copy', category: 'canvas', label: 'Copy selection', defaultBinding: 'Ctrl+C' },
-  { id: 'canvas.paste', category: 'canvas', label: 'Paste selection', defaultBinding: 'Ctrl+V' },
-  { id: 'canvas.cut', category: 'canvas', label: 'Cut selection', defaultBinding: 'Ctrl+X' },
-  { id: 'canvas.undo', category: 'canvas', label: 'Undo', defaultBinding: 'Ctrl+Z' },
-  { id: 'canvas.redo', category: 'canvas', label: 'Redo', defaultBinding: 'Ctrl+Y' },
-  { id: 'canvas.redoAlternate', category: 'canvas', label: 'Redo alternate', defaultBinding: 'Ctrl+Shift+Z' },
-  { id: 'canvas.group', category: 'canvas', label: 'Group selected nodes', defaultBinding: 'Ctrl+G' },
-  { id: 'canvas.collapse', category: 'canvas', label: 'Collapse selected nodes', defaultBinding: 'Alt+C' },
-  { id: 'canvas.delete', category: 'canvas', label: 'Delete selected nodes', defaultBinding: 'Delete' },
+  { id: 'canvas.selectAll', category: 'canvas', scope: 'canvas', label: 'Select all nodes', defaultBinding: 'Ctrl+A' },
+  { id: 'canvas.copy', category: 'canvas', scope: 'canvas', label: 'Copy selection', defaultBinding: 'Ctrl+C' },
+  { id: 'canvas.paste', category: 'canvas', scope: 'canvas', label: 'Paste selection', defaultBinding: 'Ctrl+V' },
+  { id: 'canvas.cut', category: 'canvas', scope: 'canvas', label: 'Cut selection', defaultBinding: 'Ctrl+X' },
+  { id: 'canvas.undo', category: 'canvas', scope: 'canvas', label: 'Undo', defaultBinding: 'Ctrl+Z' },
+  { id: 'canvas.redo', category: 'canvas', scope: 'canvas', label: 'Redo', defaultBinding: 'Ctrl+Y' },
+  { id: 'canvas.redoAlternate', category: 'canvas', scope: 'canvas', label: 'Redo alternate', defaultBinding: 'Ctrl+Shift+Z' },
+  { id: 'canvas.group', category: 'canvas', scope: 'canvas', label: 'Group selected nodes', defaultBinding: 'Ctrl+G' },
+  { id: 'canvas.collapse', category: 'canvas', scope: 'canvas', label: 'Collapse selected nodes', defaultBinding: 'Alt+C' },
+  { id: 'canvas.delete', category: 'canvas', scope: 'canvas', label: 'Delete selected nodes', defaultBinding: 'Delete' },
 ];
 
 let overrides = loadOverrides();

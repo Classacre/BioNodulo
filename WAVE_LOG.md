@@ -112,7 +112,15 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§15 — `__PENDING__` — Connection-aware node search ranking
+## Wave O.§16 — `__PENDING__` — Shortcut scoping
+
+- `web/src/state/keybindings.ts`: `KeybindingDefinition` gains an optional `scope?: 'global' | 'canvas' | 'modal'`. Independent from the visual `category` grouping. `'global'` is the default and preserves today's behavior exactly. The 10 `canvas.*` bindings (select-all, copy, cut, paste, undo, redo, redo-alternate, group, collapse, delete) are now scoped `'canvas'` so they don't fire while a modal is open.
+- `web/src/hooks/useKeybindings.ts`: dispatcher reads the scope and enforces it. `'modal'` bindings only fire while `hasOpenOverlay()` is true; `'canvas'` bindings stay silent while an overlay is open. The legacy `respectOverlays` option still works and is now scope-aware — modal-scoped bindings are exempt from it.
+- No UI changes — the shortcut modal will pick up the new `scope` field opportunistically when it's worth adding a scope chip; the field is in the public type so future panels / plugins can read it without breaking changes.
+
+
+
+## Wave O.§15 — `de3a9ec` — Connection-aware node search ranking
 
 - `web/src/utils/nodeSearch.ts`: `useNodeSearch` now accepts an optional `compatibleInputType` arg. When set, the hook precomputes which nodes accept that source type (including `*` / `ANY` slots) and applies a `-0.18` boost to their Fuse score so they outrank weaker string matches. With an empty query, compatible nodes are surfaced first so the palette opens directly on useful options.
 - `web/src/components/nodes/NodePalette.tsx`: forwards its existing `requireInputType` prop into the ranking hook — both filter mode (only show compatible) and ranked mode (compatible bubble up) now use the same signal.

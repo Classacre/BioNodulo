@@ -93,9 +93,17 @@ export function useGlobalShortcut(
     const onKeyDown = (event: KeyboardEvent) => {
       if (!allowInInputs && isEditableTarget(event.target)) return;
       if (!keybindingMatchesEvent(binding.binding, event)) return;
+      // Scope enforcement. Canvas-scoped bindings stay quiet inside overlays
+      // (covered by respectOverlays); modal-scoped bindings ONLY fire while
+      // an overlay is open. Global is the default and matches today's
+      // behavior exactly.
+      const scope = binding.scope ?? 'global';
+      const overlayOpen = hasOpenOverlay();
+      if (scope === 'modal' && !overlayOpen) return;
+      if (scope === 'canvas' && overlayOpen) return;
       // If any modal/dropdown is open, defer to its own Escape/Enter handler
       // instead of triggering a global shortcut beneath it.
-      if (respectOverlays && hasOpenOverlay()) return;
+      if (respectOverlays && overlayOpen && scope !== 'modal') return;
       if (preventDefault) event.preventDefault();
       handlerRef.current(event, binding);
     };
