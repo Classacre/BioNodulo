@@ -112,7 +112,16 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§13 — `__PENDING__` — Per-panel error boundaries
+## Wave O.§20 — `__PENDING__` — Reroute parentId
+
+- `WorkflowNode` (in `web/src/types.ts`) gains an optional `parentId?: string`. Today only reroutes use it; subgraph and group-membership work can adopt the same field later without a schema bump.
+- New helper `groupContainingPoint(groups, x, y)` in `LiteGraphCanvas.tsx` — topmost group whose body contains the point, or null.
+- Both reroute creation paths (`insertRerouteOnEdge` for split-edge insertion and the canvas-menu "Add Reroute") now set `parentId` to the containing group when one exists. Reroutes dropped onto bare canvas stay parentless. The field is omitted (not set to undefined) when no parent applies, so the workflow JSON stays clean.
+- No selection / move / copy semantics depend on the field yet — those flow into §17 (inspector) and a future group-aware drag pass; this commit ships the data plumbing so the rest can land without another schema migration.
+
+
+
+## Wave O.§13 — `dc58de9` — Per-panel error boundaries
 
 - `web/src/components/layout/ErrorBoundary.tsx` rewritten. New props: `name` (becomes the `panel.<name>` log scope and labels the fallback so the user sees which surface failed), `variant: 'inline' | 'panel'` (compact vs full fallback), `resetKeys: ReadonlyArray<unknown>` (boundary auto-resets when any key changes — handy when the user navigates away from the broken surface). `componentDidCatch` now routes through `logError` from §12 instead of bare `console.error`.
 - `web/src/App.tsx` `renderPanelContent` wraps every panel branch (`settings`, `help`, `templates`, `environments`, `hpc`, `nodes`, `data`, plugin-registered panels, console) in its own `ErrorBoundary` with `name`, `variant="inline"`, and `resetKeys={[tab]}` so switching tabs heals a crashed sibling. The bottom-console boundary now passes `name="console"` plus reset keys, and the App-root boundary that wraps the canvas keeps its existing default fallback.

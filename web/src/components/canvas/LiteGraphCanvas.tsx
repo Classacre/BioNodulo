@@ -268,6 +268,21 @@ function getNodesInGroup(group: WorkflowGroup, graphNodes: GraphNode[]): string[
     .map(n => n.id);
 }
 
+// Topmost group whose body contains the point, or null. Used by reroute
+// insertion so a reroute dropped inside a group inherits that group as its
+// parentId (so future select/move-by-group also picks up the reroute).
+function groupContainingPoint(groups: WorkflowGroup[], x: number, y: number): WorkflowGroup | null {
+  for (let i = groups.length - 1; i >= 0; i -= 1) {
+    const g = groups[i];
+    if (!g) continue;
+    if (x >= g.position[0] && x <= g.position[0] + g.width
+      && y >= g.position[1] && y <= g.position[1] + g.height) {
+      return g;
+    }
+  }
+  return null;
+}
+
 function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Array<{ id: string; x: number; y: number }> {
   const adj = new Map<string, string[]>();
   const inDegree = new Map<string, number>();
@@ -3036,12 +3051,14 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const id = `reroute_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const px = atWorld ? Math.round(atWorld.x - 10) : Math.round((fx + tx) / 2 - 10);
     const py = atWorld ? Math.round(atWorld.y - 10) : Math.round((fy + ty) / 2 - 10);
+    const parent = groupContainingPoint(groups, px + 10, py + 10);
     const rerouteNode: WorkflowNode = {
       id,
       type: 'reroute',
       position: [px, py],
       params: defaultsFor(rerouteMeta),
       node_info: rerouteMeta,
+      ...(parent ? { parentId: parent.id } : {}),
       ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
     };
     const nextEdges: WorkflowEdge[] = edges
@@ -3580,12 +3597,14 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
               const rerouteMeta = objectInfo.reroute;
               if (rerouteMeta) {
                 const id = `reroute_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                const parent = groupContainingPoint(groups, canvasMenu.worldX, canvasMenu.worldY);
                 const newNode: WorkflowNode = {
                   id,
                   type: 'reroute',
                   position: [Math.round(canvasMenu.worldX - 10), Math.round(canvasMenu.worldY - 10)],
                   params: defaultsFor(rerouteMeta),
                   node_info: rerouteMeta,
+                  ...(parent ? { parentId: parent.id } : {}),
                   ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
                 };
                 onNodesChange([...nodes, newNode]);

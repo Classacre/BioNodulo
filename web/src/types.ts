@@ -50,6 +50,10 @@ export interface WorkflowNode {
   position: [number, number];
   params: Record<string, unknown>;
   node_info?: NodeMetadata;
+  // Optional parent reference. Today reroutes use it to inherit the group
+  // of the edge they were inserted on so move/select operations on the
+  // group also move the reroute. Subgraph nodes can use the same field.
+  parentId?: string;
   ui?: {
     title?: string;
     color?: string;
