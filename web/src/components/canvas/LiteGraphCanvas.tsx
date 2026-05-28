@@ -1165,7 +1165,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       if (!isNote && !lowQuality) {
         const badges: string[] = [];
         if (node.pinned) badges.push('L');
-        if (node.meta?.version) badges.push(String(node.meta.version).slice(0, 8));
         if (node.meta?.experimental) badges.push('EXP');
         // Port-count badge for collapsed nodes so the user knows what's
         // hidden underneath the header — easier than expanding to check.

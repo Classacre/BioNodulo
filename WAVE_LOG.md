@@ -112,6 +112,15 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
+## Wave N — `__PENDING__` — Tool-native viz, post-run cleanup, less node chrome
+
+- Tool-generated viz instead of custom HTML (`bionodulo/nodes/builtin/biopython_nodes.py`, `templates/*.json`): the `bp_seq_stats` and `bp_msa_view` nodes no longer emit hand-rolled HTML reports. `bp_seq_stats` now writes a real `stats.tsv` alongside the existing JSON and the biopython template renders it via the new `table_preview` node. `bp_msa_view` now renders the alignment as a matplotlib PNG (typed `IMAGE`) so it flows naturally into `image_preview` without going through the HTML sandbox at all — the phylogenetics template was switched over to image_preview. Both reverts replace 5-sequence-tall hand-written HTML tables / `<span>`-coloured rows with proper tool output.
+- New generic `table_preview` node (`bionodulo/nodes/builtin/utils.py`): visual-sink node that takes a CSV / TSV / TXT path and renders only the head rows (default 25, capped at 500) into a sandbox-rendered HTML table. Streams the file row-by-row so multi-million-row variant tables / count matrices don't blow up memory; reports `… N more rows not shown` when truncated. Delimiter auto-sniffed but overridable. Same `register_preview` hook as `image_preview` / `html_preview`, so it shows up in the canvas overlay and the Previews gallery automatically.
+- Post-run highlight cleanup (`web/src/App.tsx`): the `queue_finish` handler used to only flip stuck `running` nodes to `error` on failure — a successful run that lost a `node_complete` event would leave the node frozen on green forever. Now any node still in `running` when the run terminates is promoted based on the final status (`completed` for success, `error` for failure/cancellation, since `NodeStatus` has no cancelled state). The existing failure-only toast logic stays as before.
+- Drop per-node version badge (`web/src/components/canvas/LiteGraphCanvas.tsx`): the small `vX.Y.Z` chip the canvas drew in every node's title bar (next to `EXP` / port-count) is gone — the metadata still lives in `node.meta.version` for the node-details drawer where it's actually useful. The other badges (`L` for pinned, `EXP` for experimental, collapsed `in→out` port counts) are unchanged. Less chrome at glance density.
+
+
+
 ## Wave L — `0911439` — UI polish: top bar, overlays, runs, palette, panels
 
 - Top bar overhaul (`TopBar.tsx`, `App.tsx`): HPC badge now only renders when `bionodulo.hpc.enabled` is on; CollabBadge is only mounted when `bionodulo.collab.enabled` is on (instead of being shown in offline state); the "Unsaved changes / Autosave" pill is gone (the per-tab amber dot covers dirty signalling); batch-count stepper collapsed to chevron-up / value / chevron-down with no `-`/`+` duplicates; Run is now a split-button — the connected chevron opens a popover with `Manual` / `On change` / `Instant` queue-mode radios plus `Batch from sheet…`; standalone Sheet button + bare `<select>` queue mode removed; standalone Import button removed (drag-drop covers import); Export icon swapped to read as out-of-app.

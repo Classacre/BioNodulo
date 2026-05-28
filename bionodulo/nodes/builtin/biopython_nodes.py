@@ -209,7 +209,7 @@ class SequenceStatsNode(BaseNode):
     CATEGORY = "biopython"
     DESCRIPTION = "Compute GC content, length, and molecular weight"
     RETURN_TYPES = ("FILE", "FILE")
-    RETURN_NAMES = ("stats_json", "stats_html")
+    RETURN_NAMES = ("stats_json", "stats_tsv")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -253,34 +253,17 @@ class SequenceStatsNode(BaseNode):
         out_path = out_dir / "stats.json"
         out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-        # Also write a human-readable HTML summary so the user can wire this
-        # into an `html_preview` node and see the stats on the canvas without
-        # leaving BioNodulo. Tiny self-contained page — no external CSS/JS so
-        # it works in the sandbox iframe.
-        html_path = out_dir / "stats.html"
-        rows = "".join(
-            f"<tr><td>{r['id']}</td><td>{r['length']}</td>"
-            f"<td>{r['gc_content']}%</td><td>{r['molecular_weight'] if r['molecular_weight'] is not None else '-'}</td></tr>"
-            for r in results
-        )
-        html_path.write_text(
-            f"""<!doctype html><meta charset=utf-8><title>Sequence Stats</title>
-<style>body{{font-family:system-ui,sans-serif;padding:16px;color:#0f172a}}
-h1{{font-size:16px;margin:0 0 12px}}
-table{{border-collapse:collapse;width:100%;font-size:13px}}
-th,td{{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}}
-th{{background:#f1f5f9}}
-tr:nth-child(even) td{{background:#f8fafc}}</style>
-<h1>Sequence statistics — {len(results)} sequences</h1>
-<table><thead><tr><th>ID</th><th>Length (bp)</th><th>GC %</th><th>MW (Da)</th></tr></thead>
-<tbody>{rows}</tbody></table>""",
-            encoding="utf-8",
-        )
+        # Also emit a TSV alongside the JSON. Lets the user wire the stats
+        # into a generic table_preview node without hand-rolling HTML — the
+        # table view can stream just the head if the dataset is large.
+        tsv_path = out_dir / "stats.tsv"
+        with tsv_path.open("w", encoding="utf-8") as fh:
+            fh.write("id\tlength\tgc_content\tmolecular_weight\n")
+            for r in results:
+                mw = r["molecular_weight"] if r["molecular_weight"] is not None else ""
+                fh.write(f"{r['id']}\t{r['length']}\t{r['gc_content']}\t{mw}\n")
 
-        if context is not None and hasattr(context, "register_preview"):
-            context.register_preview(html_path, label="Sequence Stats")
-
-        return (str(out_path), str(html_path))
+        return (str(out_path), str(tsv_path))
 
 
 class BLASTSearchNode(BaseNode):
@@ -360,9 +343,9 @@ class MSAViewNode(BaseNode):
     NODE_ID = "bp_msa_view"
     DISPLAY_NAME = "MSA View"
     CATEGORY = "biopython"
-    DESCRIPTION = "Read and summarize a multiple sequence alignment (with HTML view)"
-    RETURN_TYPES = ("FILE", "FILE", "FILE")
-    RETURN_NAMES = ("alignment_json", "consensus_fasta", "alignment_html")
+    DESCRIPTION = "Read and summarize a multiple sequence alignment, render a PNG view"
+    RETURN_TYPES = ("FILE", "FILE", "IMAGE")
+    RETURN_NAMES = ("alignment_json", "consensus_fasta", "alignment_image")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -416,45 +399,59 @@ class MSAViewNode(BaseNode):
         summary_path = out_dir / "summary.json"
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-        # Render a coloured alignment view so the user can pin this to an
-        # `html_preview` and inspect the MSA on the canvas. Truncated to the
-        # first 200 columns to keep the iframe responsive; full alignment is
-        # still on disk at alignment.fasta if the user wants to inspect it.
-        html_path = out_dir / "alignment.html"
-        col_limit = min(alignment.get_alignment_length(), 200)
-        colour_map = {
-            "A": "#ef4444", "T": "#10b981", "G": "#f59e0b", "C": "#3b82f6",
-            "U": "#10b981", "-": "#cbd5e1", "N": "#94a3b8",
-        }
-        rows_html = []
-        for rec in alignment:
-            chars = []
-            for i in range(col_limit):
-                ch = str(rec.seq[i]).upper()
-                colour = colour_map.get(ch, "#0f172a")
-                chars.append(f"<span style='color:{colour}'>{ch}</span>")
-            rows_html.append(
-                f"<tr><td class='id'>{rec.id}</td><td class='seq'>{''.join(chars)}</td></tr>"
+        # Render the alignment as a PNG using matplotlib — every column is a
+        # coloured cell, every row a sequence. Capped at 200 cols so the
+        # render stays cheap; the full alignment is still on disk at
+        # alignment.fasta if the user wants to inspect it.
+        image_path = out_dir / "alignment.png"
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from matplotlib.patches import Rectangle
+        except Exception:
+            # matplotlib missing — emit a tiny placeholder PNG so the typed
+            # output is still a valid IMAGE file and downstream wiring doesn't
+            # break. Users on minimal envs can install matplotlib later.
+            image_path.write_bytes(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
+                b"\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05"
+                b"\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
             )
-        truncated_note = (
-            f"<p>Showing first {col_limit} of {alignment.get_alignment_length()} columns.</p>"
-            if col_limit < alignment.get_alignment_length() else ""
-        )
-        html_path.write_text(
-            f"""<!doctype html><meta charset=utf-8><title>MSA view</title>
-<style>body{{font-family:system-ui,sans-serif;padding:16px;color:#0f172a}}
-h1{{font-size:16px;margin:0 0 8px}}
-p{{font-size:12px;color:#475569;margin:0 0 12px}}
-table{{border-collapse:collapse;font-size:11px}}
-td.id{{padding:2px 8px;font-weight:600;white-space:nowrap;border-right:1px solid #e2e8f0}}
-td.seq{{padding:2px 4px;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px}}</style>
-<h1>Alignment — {summary['num_sequences']} sequences × {summary['alignment_length']} cols</h1>
-{truncated_note}
-<table><tbody>{''.join(rows_html)}</tbody></table>""",
-            encoding="utf-8",
-        )
+        else:
+            col_limit = min(alignment.get_alignment_length(), 200)
+            colour_map = {
+                "A": "#ef4444", "T": "#10b981", "G": "#f59e0b", "C": "#3b82f6",
+                "U": "#10b981", "-": "#e2e8f0", "N": "#94a3b8",
+            }
+            nrows = len(alignment)
+            fig_w = max(8, col_limit * 0.08)
+            fig_h = max(2, nrows * 0.3)
+            fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=120)
+            for r_idx, rec in enumerate(alignment):
+                for c_idx in range(col_limit):
+                    ch = str(rec.seq[c_idx]).upper()
+                    ax.add_patch(Rectangle((c_idx, nrows - r_idx - 1), 1, 1,
+                                           facecolor=colour_map.get(ch, "#ffffff"),
+                                           edgecolor="none"))
+            ax.set_xlim(0, col_limit)
+            ax.set_ylim(0, nrows)
+            ax.set_yticks([i + 0.5 for i in range(nrows)])
+            ax.set_yticklabels([rec.id for rec in reversed(list(alignment))], fontsize=8)
+            ax.set_xticks([])
+            ax.set_title(
+                f"Alignment — {summary['num_sequences']} sequences × "
+                f"{summary['alignment_length']} cols"
+                + (f" (first {col_limit} shown)" if col_limit < alignment.get_alignment_length() else ""),
+                fontsize=10,
+            )
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            fig.tight_layout()
+            fig.savefig(str(image_path), bbox_inches="tight")
+            plt.close(fig)
 
         if context is not None and hasattr(context, "register_preview"):
-            context.register_preview(html_path, label="MSA View")
+            context.register_preview(image_path, label="MSA View")
 
-        return (str(summary_path), str(consensus_path), str(html_path))
+        return (str(summary_path), str(consensus_path), str(image_path))

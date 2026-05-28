@@ -79,8 +79,8 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
+      "id": "image_preview_001",
+      "type": "image_preview",
       "position": [
         1160,
         320
@@ -129,10 +129,10 @@
       "id": "e4",
       "from": {
         "node": "msa_view_001",
-        "output": "alignment_html"
+        "output": "alignment_image"
       },
       "to": {
-        "node": "html_preview_001",
+        "node": "image_preview_001",
         "input": "file"
       }
     }

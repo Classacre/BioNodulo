@@ -1165,6 +1165,21 @@ export default function App() {
         const finalStatus = payload.status === 'completed' ? 'completed' : payload.status === 'failed' ? 'error' : 'cancelled';
         const finishedRunId = String(payload.run_id);
         updateRun(finishedRunId, { status: finalStatus, end_time: ts });
+        // Once a run terminates, no node should remain in `running`. Sweep any
+        // stragglers — promote them based on the run outcome. This prevents
+        // the green "active" highlight from sticking on nodes after a finished
+        // (completed/failed/cancelled) workflow when a `node_complete` event
+        // is dropped or arrives out of order. `NodeStatus` has no `cancelled`
+        // state, so cancelled runs flip their stragglers to `error`.
+        const promotedStatus: 'completed' | 'error' =
+          finalStatus === 'completed' ? 'completed' : 'error';
+        setRuns(prev => prev.map(run => {
+          if (run.run_id !== finishedRunId) return run;
+          const promoted = run.node_statuses.map(ns =>
+            ns.status === 'running' ? { ...ns, status: promotedStatus } : ns,
+          );
+          return { ...run, node_statuses: promoted };
+        }));
         // A failed run drops out of the active queue automatically (the queue
         // view filters on pending/running) but stays in history. Surface a
         // toast so the user notices the failure without scanning the console.
@@ -1174,18 +1189,6 @@ export default function App() {
           toast.error('Run failed', {
             message: `${wfName} — see the console for details.`,
           });
-          // Defense-in-depth: if a per-node `node_error` event was missed
-          // (executor crashes, transports drops, race conditions), any nodes
-          // still stuck on `running` after a `failed` queue_finish are also
-          // failures — flip them to `error` so the canvas border turns red
-          // instead of staying green forever.
-          setRuns(prev => prev.map(run => {
-            if (run.run_id !== finishedRunId) return run;
-            const promoted = run.node_statuses.map(ns =>
-              ns.status === 'running' ? { ...ns, status: 'error' as const } : ns,
-            );
-            return { ...run, node_statuses: promoted };
-          }));
         }
         // Fetch full run details to populate previews/artifacts
         fetch(`/api/runs/${finishedRunId}`)

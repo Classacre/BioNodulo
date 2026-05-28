@@ -147,15 +147,18 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
+      "id": "table_preview_001",
+      "type": "table_preview",
       "position": [
         800,
         318
       ],
-      "params": {},
+      "params": {
+        "rows": 25,
+        "delimiter": "auto"
+      },
       "ui": {
-        "title": "View Stats"
+        "title": "View Stats Table"
       }
     }
   ],
@@ -241,10 +244,10 @@
       "id": "e8",
       "from": {
         "node": "seq_stats_001",
-        "output": "stats_html"
+        "output": "stats_tsv"
       },
       "to": {
-        "node": "html_preview_001",
+        "node": "table_preview_001",
         "input": "file"
       }
     }
