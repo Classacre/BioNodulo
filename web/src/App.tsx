@@ -1474,7 +1474,7 @@ export default function App() {
         // match any token that exists in the current workflow's node ids.
         const firstError = String(v.errors[0]);
         const nodeIds = new Set(activeWorkflow.nodes.map(n => n.id));
-        const tokens = firstError.match(/[A-Za-z0-9_\-]+/g) || [];
+        const tokens = firstError.match(/[A-Za-z0-9_-]+/g) || [];
         const targetId = tokens.find(token => nodeIds.has(token));
         toast.error(`Validation failed (${v.errors.length})`, {
           message: firstError,

@@ -1274,7 +1274,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
           for (const [key, spec] of Object.entries(allSpecs)) {
             const s = spec as any;
-            let wtype = 'text';
+            let wtype: string;
             if (s?.type === 'BOOLEAN') wtype = 'toggle';
             else if (s?.options && s.options.length > 0) wtype = 'combo';
             else if ((s?.type === 'INT' || s?.type === 'FLOAT') && s?.display === 'slider') wtype = 'slider';

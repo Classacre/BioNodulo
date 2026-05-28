@@ -1,0 +1,6 @@
+dist/
+node_modules/
+public/
+e2e/
+*.lock
+package-lock.json

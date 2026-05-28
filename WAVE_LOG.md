@@ -112,6 +112,15 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
+## Wave O.§5 — `__PENDING__` — ESLint + Prettier toolchain
+
+- Added `web/eslint.config.js` (flat config) wiring `@typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, and `eslint-config-prettier`. Lean rule set focused on real bugs (hooks rules, unused vars warning, useless escape error) so the existing codebase passes without a 100-file reformat. Cleaned 5 genuine lint errors uncovered by the new config: a useless escape `\-` in App.tsx's error-token regex, two `\"` escapes inside single-quoted strings in ImportModal, a `useState` called after an early `return null` in NodeEditor (real hooks-rules violation), and a useless `let wtype = 'text'` initial in LiteGraphCanvas where every branch reassigns.
+- Added `.prettierrc.json` + `.prettierignore` with house style (single quotes, trailing comma all, 100-col, semis, 2-space). Not running `prettier --write` across the codebase in this commit — the 108-file reformat would dwarf every future Wave O diff. The script is wired so future code follows the rule and a dedicated formatting commit can land it later.
+- `web/package.json`: new scripts `lint`, `lint:fix`, `format`, `format:check`.
+- `.github/workflows/ci.yml`: frontend job now runs `npm run lint` before `npm run build` so future regressions trip CI.
+
+
+
 ## Wave N — `6f4305c` — Tool-native viz, post-run cleanup, less node chrome
 
 - Tool-generated viz instead of custom HTML (`bionodulo/nodes/builtin/biopython_nodes.py`, `templates/*.json`): the `bp_seq_stats` and `bp_msa_view` nodes no longer emit hand-rolled HTML reports. `bp_seq_stats` now writes a real `stats.tsv` alongside the existing JSON and the biopython template renders it via the new `table_preview` node. `bp_msa_view` now renders the alignment as a matplotlib PNG (typed `IMAGE`) so it flows naturally into `image_preview` without going through the HTML sandbox at all — the phylogenetics template was switched over to image_preview. Both reverts replace 5-sequence-tall hand-written HTML tables / `<span>`-coloured rows with proper tool output.
