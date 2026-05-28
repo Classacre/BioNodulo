@@ -66,6 +66,7 @@ import {
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
+import { safeValidateHostStatus, safeValidateHpcStatus } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
@@ -587,8 +588,12 @@ export default function App() {
   const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
 
   useEffect(() => {
-    apiGet<HostStatus>('/api/host_status')
-      .then(data => { if (data) setHostStatus(data); })
+    apiGet<unknown>('/api/host_status')
+      .then(raw => {
+        const result = safeValidateHostStatus(raw);
+        if (result.ok) setHostStatus(result.value as HostStatus);
+        else logError('host_status.validate', result.error);
+      })
       .catch(() => { /* offline */ });
   }, []);
 
@@ -1320,8 +1325,14 @@ export default function App() {
   useEffect(() => {
     const checkHpcStatus = async () => {
       try {
-        const data = await apiGet<{ status?: HPCStatus; connected?: boolean }>('/api/hpc/status');
-        setHpcStatus(data.status || (data.connected ? 'on' : 'off'));
+        const raw = await apiGet<unknown>('/api/hpc/status');
+        const result = safeValidateHpcStatus(raw);
+        if (result.ok) {
+          const { status, connected } = result.value;
+          setHpcStatus(status || (connected ? 'on' : 'off'));
+        } else {
+          setHpcStatus('off');
+        }
       } catch (err) {
         if (err instanceof ApiError) {
           setHpcStatus('off');
@@ -3118,7 +3129,10 @@ export default function App() {
             onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
             onRecheck={async () => {
               try {
-                setHostStatus(await apiGet<HostStatus>('/api/host_status'));
+                const raw = await apiGet<unknown>('/api/host_status');
+                const result = safeValidateHostStatus(raw);
+                if (result.ok) setHostStatus(result.value as HostStatus);
+                else logError('host_status.recheck.validate', result.error);
               } catch { /* offline */ }
             }}
           />

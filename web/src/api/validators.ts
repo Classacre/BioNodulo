@@ -181,3 +181,85 @@ export const safeValidateWorkflow = (value: unknown): ValidationResult<Validated
 
 export const safeValidateObjectInfo = (value: unknown): ValidationResult<Record<string, Record<string, unknown>>> =>
   safe(() => validateObjectInfo(value));
+
+// ---------------------------------------------------------------------------
+// Host-status validator. The HostPrerequisitesBanner trusts the shape pretty
+// directly; we only coerce missing booleans to false rather than crashing.
+// ---------------------------------------------------------------------------
+
+export interface ValidatedHostStatus {
+  ready: boolean;
+  checks: Record<string, unknown>;
+  missing_required: string[];
+  missing_optional: string[];
+  message: string;
+}
+
+export function validateHostStatus(value: unknown): ValidatedHostStatus {
+  const obj = requireObject(value, 'host_status');
+  return {
+    ready: typeof obj.ready === 'boolean' ? obj.ready : false,
+    checks: isObject(obj.checks) ? obj.checks : {},
+    missing_required: Array.isArray(obj.missing_required)
+      ? obj.missing_required.filter((x): x is string => typeof x === 'string')
+      : [],
+    missing_optional: Array.isArray(obj.missing_optional)
+      ? obj.missing_optional.filter((x): x is string => typeof x === 'string')
+      : [],
+    message: typeof obj.message === 'string' ? obj.message : '',
+  };
+}
+
+export const safeValidateHostStatus = (value: unknown): ValidationResult<ValidatedHostStatus> =>
+  safe(() => validateHostStatus(value));
+
+// ---------------------------------------------------------------------------
+// HPC-status validator. The endpoint can return either { status: 'on'|'off' }
+// or { connected: bool } — the topbar treats both as equivalent.
+// ---------------------------------------------------------------------------
+
+export interface ValidatedHpcStatus {
+  status?: 'on' | 'off' | 'error';
+  connected?: boolean;
+}
+
+export function validateHpcStatus(value: unknown): ValidatedHpcStatus {
+  const obj = requireObject(value, 'hpc_status');
+  const rawStatus = obj.status;
+  const status = typeof rawStatus === 'string'
+    && (rawStatus === 'on' || rawStatus === 'off' || rawStatus === 'error')
+    ? rawStatus
+    : undefined;
+  return {
+    status,
+    connected: typeof obj.connected === 'boolean' ? obj.connected : undefined,
+  };
+}
+
+export const safeValidateHpcStatus = (value: unknown): ValidationResult<ValidatedHpcStatus> =>
+  safe(() => validateHpcStatus(value));
+
+// ---------------------------------------------------------------------------
+// Runs list validator. The /api/queue and /api/history endpoints both return
+// { runs: RunRecord[] }; we tolerate a top-level array as a fallback.
+// ---------------------------------------------------------------------------
+
+export function validateRunsList(value: unknown): ValidatedRunRecord[] {
+  const raw = isObject(value) && Array.isArray(value.runs)
+    ? value.runs
+    : Array.isArray(value)
+      ? value
+      : (() => { throw new ApiValidationError('runs_list', '{ runs: [] } or array', value); })();
+  const out: ValidatedRunRecord[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    try {
+      out.push(validateRunRecord(raw[i], `runs_list[${i}]`));
+    } catch {
+      // Skip individual bad rows rather than failing the whole list.
+    }
+  }
+  return out;
+}
+
+export const safeValidateRunsList = (value: unknown): ValidationResult<ValidatedRunRecord[]> =>
+  safe(() => validateRunsList(value));

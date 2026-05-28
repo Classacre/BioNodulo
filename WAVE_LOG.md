@@ -112,7 +112,15 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O.§11 — `__PENDING__` — Raw fetch() migration to api/client
+## Wave O.§7 — `__PENDING__` — Runtime validation expansion (zod-style, dependency-free)
+
+- The hand-rolled validators in `web/src/api/validators.ts` (added in Wave G.51) are extended to cover the recently-migrated endpoints: `host_status`, `hpc/status`, and a generic `runs_list` shape that tolerates both `{ runs: [...] }` and a top-level array.
+- Decision: **don't ship zod**. The existing module already mirrors zod's `safeParse` API (`safeValidateX → { ok, value | error }`), is ~5kB, and a real `zod` dependency would add ~10kB min+gz. Validation coverage at this point is ~7 endpoints — not worth the bundle.
+- Wired `safeValidateHostStatus` into the host-status poll and the recheck button in `App.tsx`. Wired `safeValidateHpcStatus` into the HPC status poll. Both treat a validation failure the same way they treat an offline backend — degrade silently, log structured.
+- Added `web/src/test/validators.test.ts` (16 cases) covering: missing fields default safely, well-formed payload pass-through, wrong status enum coerced to undefined, top-level array fallback for runs list, and individual bad rows skipped without failing the whole list. Test count 23 → 39.
+- If validation coverage doubles or we need cross-field rules, the `safeValidateX` helpers are drop-in replaceable with `zodSchema.safeParse` — the call-site shape is identical.
+
+## Wave O.§11 — `e6b9b69` — Raw fetch() migration to api/client
 
 - All `/api/...` raw `fetch()` calls in the web app are migrated to the centralised `api/client` helpers (`apiGet`, `apiPost`, `apiDelete`, `apiGetText`). The client already runs through `getToken()` and injects `Authorization: Bearer <token>` once in `buildHeaders` — call sites no longer hand-roll the header dictionary, JSON serialisation, or `Content-Type: application/json`.
 - Migrated files: `web/src/App.tsx` (16 fetches: workflow templates, collab comments / presence / snapshot publish + fetch, host status x2, run logs, run details, hpc status, queue cancel, run load, run retry, workspace upload, collab templates, cache clear, workspace file), `web/src/components/layout/BottomConsole.tsx` (run report HTML), `web/src/hooks/useSettings.ts` (`/api/settings`), `web/src/collab/ShareDialog.tsx` (4 calls — list, create, refresh, revoke), `web/src/collab/useCollab.ts` (2 calls — share list, share create).
