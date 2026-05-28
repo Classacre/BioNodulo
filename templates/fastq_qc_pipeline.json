@@ -64,6 +64,18 @@
       "ui": {
         "title": "MultiQC"
       }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
+      }
     }
   ],
   "edges": [
@@ -87,6 +99,17 @@
       "to": {
         "node": "multiqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "multiqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

@@ -106,6 +106,18 @@
       "ui": {
         "title": "Prokka Annotation"
       }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1520,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QUAST Report"
+      }
     }
   ],
   "edges": [
@@ -162,6 +174,17 @@
       "to": {
         "node": "prokka_001",
         "input": "assembly"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "quast_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

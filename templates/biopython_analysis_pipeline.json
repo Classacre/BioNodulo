@@ -145,6 +145,18 @@
       "ui": {
         "title": "Biostrings Stats"
       }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        800,
+        318
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Stats"
+      }
     }
   ],
   "edges": [
@@ -223,6 +235,17 @@
       "to": {
         "node": "biostrings_001",
         "input": "input_fasta"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "seq_stats_001",
+        "output": "stats_html"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

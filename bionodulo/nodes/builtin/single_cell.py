@@ -4,6 +4,7 @@ Provides nodes for 10x Genomics Cell Ranger count and reference building.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -17,11 +18,21 @@ class CellRangerCountNode(CommandNode):
     CATEGORY = "single_cell"
     DESCRIPTION = "Align 10x Genomics scRNA-seq reads and generate feature-barcode matrix"
     SEARCH_ALIASES = ["cellranger", "10x", "scrna", "count", "single cell"]
-    RETURN_TYPES = ("CELL_RANGER_OUT",)
-    RETURN_NAMES = ("output_dir",)
+    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE")
+    RETURN_NAMES = ("output_dir", "web_summary")
     REQUIRED_EXECUTABLES = ["cellranger"]
     DOCUMENTATION_URL = "https://www.10xgenomics.com/support/software/cell-ranger"
     VERSION = "9.0.1"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        # Cell Ranger writes outputs under `<output_dir>/<run_id>/outs/`.
+        # We expose two outputs: the full run directory (for downstream tools
+        # like Seurat) and the web_summary.html report so the user can wire
+        # it straight into an `html_preview` node on the canvas.
+        od = Path(output_dir) / cls.NODE_ID
+        run_id = str(inputs.get("run_id", "cellranger_count"))
+        return [od / run_id, od / run_id / "outs" / "web_summary.html"]
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

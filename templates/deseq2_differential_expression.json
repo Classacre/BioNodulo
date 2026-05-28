@@ -86,6 +86,30 @@
       "ui": {
         "title": "DE Heatmap"
       }
+    },
+    {
+      "id": "ma_preview_001",
+      "type": "image_preview",
+      "position": [
+        800,
+        420
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MA Plot"
+      }
+    },
+    {
+      "id": "heatmap_preview_001",
+      "type": "image_preview",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Heatmap"
+      }
     }
   ],
   "edges": [
@@ -120,6 +144,28 @@
       "to": {
         "node": "heatmap_001",
         "input": "data_csv"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "deseq2_001",
+        "output": "ma_plot"
+      },
+      "to": {
+        "node": "ma_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "heatmap_001",
+        "output": "plot_png"
+      },
+      "to": {
+        "node": "heatmap_preview_001",
+        "input": "file"
       }
     }
   ],

@@ -63,6 +63,32 @@
       "ui": {
         "title": "IQ-TREE"
       }
+    },
+    {
+      "id": "msa_view_001",
+      "type": "bp_msa_view",
+      "position": [
+        800,
+        320
+      ],
+      "params": {
+        "format": "fasta"
+      },
+      "ui": {
+        "title": "MSA View"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1160,
+        320
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Alignment"
+      }
     }
   ],
   "edges": [
@@ -86,6 +112,28 @@
       "to": {
         "node": "iqtree_001",
         "input": "alignment"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "mafft_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "msa_view_001",
+        "input": "alignment_file"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "msa_view_001",
+        "output": "alignment_html"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

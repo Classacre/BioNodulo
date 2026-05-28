@@ -102,6 +102,32 @@
       "ui": {
         "title": "Kallisto Quant"
       }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        1160,
+        300
+      ],
+      "params": {
+        "title": "Quantification QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1520,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
+      }
     }
   ],
   "edges": [
@@ -169,6 +195,28 @@
       "to": {
         "node": "kallisto_quant_001",
         "input": "index"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "salmon_quant_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "mqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

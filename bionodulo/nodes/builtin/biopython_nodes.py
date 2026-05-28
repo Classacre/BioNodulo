@@ -208,8 +208,8 @@ class SequenceStatsNode(BaseNode):
     DISPLAY_NAME = "Sequence Stats"
     CATEGORY = "biopython"
     DESCRIPTION = "Compute GC content, length, and molecular weight"
-    RETURN_TYPES = ("FILE",)
-    RETURN_NAMES = ("stats_json",)
+    RETURN_TYPES = ("FILE", "FILE")
+    RETURN_NAMES = ("stats_json", "stats_html")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -252,7 +252,35 @@ class SequenceStatsNode(BaseNode):
 
         out_path = out_dir / "stats.json"
         out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-        return (str(out_path),)
+
+        # Also write a human-readable HTML summary so the user can wire this
+        # into an `html_preview` node and see the stats on the canvas without
+        # leaving BioNodulo. Tiny self-contained page — no external CSS/JS so
+        # it works in the sandbox iframe.
+        html_path = out_dir / "stats.html"
+        rows = "".join(
+            f"<tr><td>{r['id']}</td><td>{r['length']}</td>"
+            f"<td>{r['gc_content']}%</td><td>{r['molecular_weight'] if r['molecular_weight'] is not None else '-'}</td></tr>"
+            for r in results
+        )
+        html_path.write_text(
+            f"""<!doctype html><meta charset=utf-8><title>Sequence Stats</title>
+<style>body{{font-family:system-ui,sans-serif;padding:16px;color:#0f172a}}
+h1{{font-size:16px;margin:0 0 12px}}
+table{{border-collapse:collapse;width:100%;font-size:13px}}
+th,td{{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}}
+th{{background:#f1f5f9}}
+tr:nth-child(even) td{{background:#f8fafc}}</style>
+<h1>Sequence statistics — {len(results)} sequences</h1>
+<table><thead><tr><th>ID</th><th>Length (bp)</th><th>GC %</th><th>MW (Da)</th></tr></thead>
+<tbody>{rows}</tbody></table>""",
+            encoding="utf-8",
+        )
+
+        if context is not None and hasattr(context, "register_preview"):
+            context.register_preview(html_path, label="Sequence Stats")
+
+        return (str(out_path), str(html_path))
 
 
 class BLASTSearchNode(BaseNode):
@@ -332,9 +360,9 @@ class MSAViewNode(BaseNode):
     NODE_ID = "bp_msa_view"
     DISPLAY_NAME = "MSA View"
     CATEGORY = "biopython"
-    DESCRIPTION = "Read and summarize a multiple sequence alignment"
-    RETURN_TYPES = ("FILE", "FILE")
-    RETURN_NAMES = ("alignment_json", "consensus_fasta")
+    DESCRIPTION = "Read and summarize a multiple sequence alignment (with HTML view)"
+    RETURN_TYPES = ("FILE", "FILE", "FILE")
+    RETURN_NAMES = ("alignment_json", "consensus_fasta", "alignment_html")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -388,4 +416,45 @@ class MSAViewNode(BaseNode):
         summary_path = out_dir / "summary.json"
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-        return (str(summary_path), str(consensus_path))
+        # Render a coloured alignment view so the user can pin this to an
+        # `html_preview` and inspect the MSA on the canvas. Truncated to the
+        # first 200 columns to keep the iframe responsive; full alignment is
+        # still on disk at alignment.fasta if the user wants to inspect it.
+        html_path = out_dir / "alignment.html"
+        col_limit = min(alignment.get_alignment_length(), 200)
+        colour_map = {
+            "A": "#ef4444", "T": "#10b981", "G": "#f59e0b", "C": "#3b82f6",
+            "U": "#10b981", "-": "#cbd5e1", "N": "#94a3b8",
+        }
+        rows_html = []
+        for rec in alignment:
+            chars = []
+            for i in range(col_limit):
+                ch = str(rec.seq[i]).upper()
+                colour = colour_map.get(ch, "#0f172a")
+                chars.append(f"<span style='color:{colour}'>{ch}</span>")
+            rows_html.append(
+                f"<tr><td class='id'>{rec.id}</td><td class='seq'>{''.join(chars)}</td></tr>"
+            )
+        truncated_note = (
+            f"<p>Showing first {col_limit} of {alignment.get_alignment_length()} columns.</p>"
+            if col_limit < alignment.get_alignment_length() else ""
+        )
+        html_path.write_text(
+            f"""<!doctype html><meta charset=utf-8><title>MSA view</title>
+<style>body{{font-family:system-ui,sans-serif;padding:16px;color:#0f172a}}
+h1{{font-size:16px;margin:0 0 8px}}
+p{{font-size:12px;color:#475569;margin:0 0 12px}}
+table{{border-collapse:collapse;font-size:11px}}
+td.id{{padding:2px 8px;font-weight:600;white-space:nowrap;border-right:1px solid #e2e8f0}}
+td.seq{{padding:2px 4px;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px}}</style>
+<h1>Alignment — {summary['num_sequences']} sequences × {summary['alignment_length']} cols</h1>
+{truncated_note}
+<table><tbody>{''.join(rows_html)}</tbody></table>""",
+            encoding="utf-8",
+        )
+
+        if context is not None and hasattr(context, "register_preview"):
+            context.register_preview(html_path, label="MSA View")
+
+        return (str(summary_path), str(consensus_path), str(html_path))

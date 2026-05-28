@@ -61,6 +61,18 @@
       "ui": {
         "title": "Cell Ranger Count"
       }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        800,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View web_summary"
+      }
     }
   ],
   "edges": [
@@ -84,6 +96,17 @@
       "to": {
         "node": "cr_count_001",
         "input": "transcriptome"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "cr_count_001",
+        "output": "web_summary"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],
