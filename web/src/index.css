@@ -297,28 +297,84 @@ body {
   line-height: 1;
 }
 
-/* Run + dropdown split-button (queue mode / sheet menu). */
+/* Run + dropdown split-button (batch / queue mode / sheet menu).
+   Goal: the two halves read as one primary button with a single `|`
+   separator, not as two adjacent buttons. We do this by stripping every
+   border off the inner buttons, painting a single rounded border on the
+   wrapper, and drawing the divider with a 1px box-shadow on the toggle
+   (cheaper than a sibling pseudo-element). The wrapper's :focus-within ring
+   highlights the whole control on keyboard focus. */
 .run-split-button {
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.run-split-button:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
 }
 .run-split-main {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-radius: 0 !important;
+  border: none !important;
   margin-right: 0 !important;
+  box-shadow: none !important;
 }
 .run-split-toggle {
   padding: 4px 6px !important;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 1px solid color-mix(in srgb, var(--accent-dark) 50%, transparent);
-  margin-left: -1px;
+  border-radius: 0 !important;
+  border: none !important;
+  margin-left: 0 !important;
+  /* The `|` separator. inset 1px on the LEFT only, in a slightly darker
+     shade of the primary button so it's visible but doesn't break the
+     unified surface. */
+  box-shadow: inset 1px 0 0 0 color-mix(in srgb, var(--accent-dark, #000) 60%, transparent) !important;
 }
 .run-split-toggle.is-open {
   background: var(--accent-dark);
+}
+
+/* Batch stepper inside the run-split menu — `-` value `+` row. Same look
+   and feel as other in-menu controls, just laid out horizontally. */
+.run-split-menu-batch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 6px;
+}
+.run-split-menu-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.run-split-menu-batch-btn:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+.run-split-menu-batch-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.run-split-menu-batch-value {
+  min-width: 28px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.run-split-menu-batch-suffix {
+  font-size: 11px;
+  color: var(--muted);
 }
 .run-split-menu {
   position: absolute;
@@ -1926,6 +1982,68 @@ kbd {
 .ai-drawer-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
+}
+
+/* Quick-prompt chips: shown above the input when the conversation is empty
+   or right after an assistant turn. Compact pill row that lets users kick
+   off a useful tool-using question with one click. */
+.ai-quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.ai-quick-prompt {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ai-quick-prompt:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+/* Minimal markdown rendering for assistant replies. Spacing kept tight so
+   short answers don't bloat the chat column; headings cap at h3-equivalent
+   to discourage the LLM from sectioning every reply. */
+.ai-markdown .md-para { margin: 0 0 6px 0; }
+.ai-markdown .md-para:last-child { margin-bottom: 0; }
+.ai-markdown .md-heading { font-size: 13px; margin: 8px 0 4px 0; font-weight: 600; }
+.ai-markdown .md-list { margin: 4px 0 6px 18px; padding: 0; }
+.ai-markdown .md-list li { margin: 0 0 2px 0; }
+.ai-markdown .md-inline-code {
+  background: var(--surface);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.ai-markdown .md-fence {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.ai-markdown .md-fence code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+.ai-markdown a {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 /* Chat bubbles */

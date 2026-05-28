@@ -39,9 +39,14 @@ When helping users:
 
 Response format rules:
 1. Use the provided function tools whenever you need live workflow, node, dependency, environment, or settings context.
-2. For mutating tools, draft the change but explain that the user must confirm before applying it.
-3. Keep final responses plain text and concise, with concrete next steps when useful.
-4. You can make multiple tool calls in sequence; wait for each result before the next.
+2. Prefer `get_workflow_summary` over `get_current_workflow` unless you actually need full parameters — it is much cheaper to send.
+3. For mutating tools, draft the change but explain that the user must confirm before applying it.
+4. Keep final responses plain text and concise, with concrete next steps when useful.
+5. You can make multiple tool calls in sequence; wait for each result before the next.
+
+Useful built-in nodes for visualization:
+- `image_preview`: pin an image output (PNG/JPG/SVG) on the canvas — connect to any node that produces an image file.
+- `html_preview`: pin an HTML report on the canvas — useful for MultiQC, FastQC, plotly dashboards, or any tool that emits an .html report.
 '''
 
 
@@ -430,6 +435,34 @@ async def _call_llm(
 
 MAX_TOOL_ROUNDS = 6
 
+# Token-efficiency knobs. The assistant loop sends the FULL message list on
+# every iteration, so trimming what we send is the single biggest cost lever.
+#
+# - HISTORY_TURN_LIMIT keeps the most recent N user/assistant turns from the
+#   prior conversation. Older turns are dropped before we hit the LLM.
+# - TOOL_RESULT_MAX_BYTES truncates large tool results (e.g. a full workflow
+#   JSON) before they go back into the message list. We keep the head so the
+#   LLM still sees structure and append a trailing marker.
+HISTORY_TURN_LIMIT = 12
+TOOL_RESULT_MAX_BYTES = 8000
+
+
+def _trim_history(history: list[dict[str, Any]], limit: int = HISTORY_TURN_LIMIT) -> list[dict[str, Any]]:
+    """Keep the last `limit` non-system turns from the conversation."""
+    non_system = [msg for msg in history if msg.get("role") != "system"]
+    if len(non_system) <= limit:
+        return non_system
+    return non_system[-limit:]
+
+
+def _truncate_tool_payload(payload: str, max_bytes: int = TOOL_RESULT_MAX_BYTES) -> str:
+    """Truncate a JSON-encoded tool result that is too large to send back."""
+    if len(payload) <= max_bytes:
+        return payload
+    head = payload[: max_bytes - 80]
+    return f"{head}\n... [truncated {len(payload) - len(head)} bytes — call a more specific tool if you need the rest]"
+
+
 
 class AssistantGraphState(TypedDict, total=False):
     """Mutable state passed through the LangGraph assistant workflow."""
@@ -610,7 +643,7 @@ async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
                 "role": "tool",
                 "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
                 "name": tool_name,
-                "content": json.dumps(result, default=str),
+                "content": _truncate_tool_payload(json.dumps(result, default=str)),
             }
         )
 
@@ -680,10 +713,11 @@ async def chat_with_tools(
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
     ]
-    # Add history (skip system messages)
-    for msg in history:
-        if msg.get("role") != "system":
-            messages.append(dict(msg))
+    # Drop older history beyond HISTORY_TURN_LIMIT so the prefill stays small.
+    # Each tool round already re-sends the entire message list, so old turns
+    # are by far the biggest dead-weight in long sessions.
+    for msg in _trim_history(history):
+        messages.append(dict(msg))
 
     user_content: str | list[dict[str, Any]] = _build_openai_content(user_message, files)
 

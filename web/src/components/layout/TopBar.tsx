@@ -128,37 +128,11 @@ export default function TopBar({
           Queue: {queueCount}
         </button>
 
-        {/* Compact batch stepper: chevron-up / count / chevron-down on the
-            left of the Run button, no `-` / `+` duplicates. The number itself
-            is a readout only — power users can still wheel-scroll the up/down
-            arrows. */}
-        <div className="batch-stepper batch-stepper-compact" title={`Batch: ${clampedCount} run${clampedCount === 1 ? '' : 's'}`}>
-          <button
-            type="button"
-            className="batch-stepper-arrow"
-            aria-label="Increase batch count"
-            title="Increase batch count"
-            disabled={clampedCount >= 99 || isRunning}
-            onClick={() => onBatchCountChange(clampedCount + 1)}
-          >
-            <Icon name="chevronUp" size={10} />
-          </button>
-          <span className="batch-stepper-value" aria-label="Batch count">{clampedCount}</span>
-          <button
-            type="button"
-            className="batch-stepper-arrow"
-            aria-label="Decrease batch count"
-            title="Decrease batch count"
-            disabled={clampedCount <= 1 || isRunning}
-            onClick={() => onBatchCountChange(clampedCount - 1)}
-          >
-            <Icon name="chevronDown" size={10} />
-          </button>
-        </div>
-
         {/* Split-button: primary Run on the left, chevron dropdown on the
-            right (queue mode + sheet). The two buttons share a visual border
-            so they read as one control. */}
+            right (batch stepper + queue mode + sheet). The two halves share
+            a single border / background so they read as one control with a
+            thin `|` separator. Batch count lives inside the menu now so it
+            doesn't crowd the top bar. */}
         <div className="run-split-button" ref={runMenuRef}>
           <button
             className="btn btn-primary btn-sm run-split-main"
@@ -176,13 +150,43 @@ export default function TopBar({
             aria-haspopup="menu"
             aria-expanded={runMenuOpen}
             aria-label="Run options"
-            title={`Run options — current: ${QUEUE_MODE_LABELS[queueMode]}`}
+            title={`Run options — batch ${clampedCount}, ${QUEUE_MODE_LABELS[queueMode]}`}
           >
             <Icon name="chevronDown" size={12} />
           </button>
 
           {runMenuOpen && (
             <div className="run-split-menu" role="menu">
+              <div className="run-split-menu-header">Batch count</div>
+              <div className="run-split-menu-batch">
+                <button
+                  type="button"
+                  className="run-split-menu-batch-btn"
+                  aria-label="Decrease batch count"
+                  title="Decrease batch count"
+                  disabled={clampedCount <= 1 || isRunning}
+                  onClick={() => onBatchCountChange(clampedCount - 1)}
+                >
+                  <Icon name="minus" size={12} />
+                </button>
+                <span className="run-split-menu-batch-value" aria-label="Batch count">
+                  {clampedCount}
+                </span>
+                <button
+                  type="button"
+                  className="run-split-menu-batch-btn"
+                  aria-label="Increase batch count"
+                  title="Increase batch count"
+                  disabled={clampedCount >= 99 || isRunning}
+                  onClick={() => onBatchCountChange(clampedCount + 1)}
+                >
+                  <Icon name="plus" size={12} />
+                </button>
+                <span className="run-split-menu-batch-suffix">
+                  run{clampedCount === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="run-split-menu-divider" />
               <div className="run-split-menu-header">Queue mode</div>
               {(['manual', 'change', 'instant'] as QueueMode[]).map(mode => (
                 <button

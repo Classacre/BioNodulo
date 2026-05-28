@@ -51,6 +51,7 @@ interface LiteGraphCanvasProps {
   nodeProgressMap?: Map<string, { current: number; total: number; startedAt: number }>;
   nodeErrorsMap?: Map<string, string>;
   nodePreviewsMap?: Map<string, string>;
+  nodeHtmlPreviewsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   nodeCommentsMap?: Map<string, NodeCommentSummary>;
   nodeComments?: Comment[];
@@ -239,6 +240,7 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
   const descriptionHeight = widgetCount === 0 && visibleParamCount === 0 && meta?.description ? 28 : 0;
   const base = NODE_HEADER_H + ioHeight + widgetHeight + summaryHeight + descriptionHeight + 12;
   if (meta?.id === 'image_preview') return base + 120;
+  if (meta?.id === 'html_preview') return base + 200;
   return base;
 }
 
@@ -484,6 +486,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   nodeProgressMap,
   nodeErrorsMap,
   nodePreviewsMap,
+  nodeHtmlPreviewsMap,
   missingDependencyNodeIds,
   nodeCommentsMap,
   nodeComments = [],
@@ -3164,6 +3167,47 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
               alt="Preview"
               style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
+        );
+      })}
+
+      {/* HTML preview DOM overlays — sandboxed without allow-same-origin so the
+          embedded report cannot reach the parent DOM/storage/cookies. We keep
+          allow-scripts only because most bioinformatics reports (MultiQC,
+          FastQC, etc.) need JS for tabs/plots. pointer-events stay on so users
+          can scroll inside the report without dragging the node. */}
+      {nodeHtmlPreviewsMap && graphNodes.filter(n => nodeHtmlPreviewsMap.has(n.id) && !n.collapsed).map(node => {
+        const previewUrl = nodeHtmlPreviewsMap.get(node.id)!;
+        const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
+        const pad = 4 * scale;
+        const left = node.x * scale + offset.x + pad;
+        const top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        const width = (node.width - 8) * scale;
+        const height = (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        if (width <= 0 || height <= 0) return null;
+        return (
+          <div
+            key={`html-${node.id}`}
+            style={{
+              position: 'absolute',
+              left,
+              top,
+              width,
+              height,
+              zIndex: 5,
+              borderRadius: Math.max(2, 4 * scale),
+              overflow: 'hidden',
+              background: '#ffffff',
+            }}
+          >
+            <iframe
+              src={previewUrl}
+              title={`HTML preview for ${node.id}`}
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             />
           </div>
         );

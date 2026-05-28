@@ -89,19 +89,66 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
 
 @ai_router.post("/ai/chat/stream")
 async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
-    """Stream an AI assistant response as server-sent events."""
-    del request
+    """Stream an AI assistant response as server-sent events.
+
+    Runs the full tool-aware chat (which is internally non-streaming because
+    the LangGraph loop is round-based) and replays each ChatStep as its own
+    SSE event. This gives the UI a progressive view without a graph rewrite:
+    `tool_call`/`tool_result` events arrive as their rounds finish, and a
+    final `reply` event closes the stream.
+    """
+    state = app_state(request)
+    settings = state.settings
+    settings_manager = state.settings_manager
+    registry = _get_registry(request)
+
+    provider = body.provider or setting_literal(request, "bionodulo.llm.provider", "openai")
+    model = body.model or setting_literal(request, "bionodulo.llm.model", None)
+    api_key = setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
+    api_base = setting_literal(request, "bionodulo.llm.baseUrl", None) or None
+    if str(provider).lower() == "litellm":
+        api_key = api_key or os.environ.get("LITELLM_API_KEY", "")
+        api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
+    temperature = setting_literal(request, "bionodulo.llm.temperature", 0.2)
+    try:
+        temperature = float(temperature)
+    except (TypeError, ValueError):
+        temperature = 0.2
 
     async def _stream() -> Any:
-        chunks = [
-            "AI assistant (streaming mode): ",
-            "Analyzing your request... ",
-            f"Message was: '{body.message}'. ",
-            "Configure a real AI backend (OpenAI, Ollama, etc.) for production use.",
-        ]
-        for chunk in chunks:
-            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-            await asyncio.sleep(0.1)
+        try:
+            response = await chat_with_tools(
+                user_message=body.message,
+                workflow=body.workflow,
+                workflow_id=body.workflow_id,
+                history=body.history,
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                api_base=api_base,
+                temperature=temperature,
+                registry=registry,
+                settings=settings,
+                settings_manager=settings_manager,
+                files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
+            )
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'reply', 'content': f'AI error: {exc}'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        for step in response.steps:
+            payload = {
+                "type": step.type,
+                "content": step.content,
+                "name": step.name,
+                "arguments": step.arguments,
+                "result": step.result,
+                "workflow": step.workflow,
+                "description": step.description,
+            }
+            yield f"data: {json.dumps(payload, default=str)}\n\n"
+            await asyncio.sleep(0)
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")

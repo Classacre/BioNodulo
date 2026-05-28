@@ -21,6 +21,7 @@ import AIWorkflowModal from './components/modals/AIWorkflowModal';
 import BatchSampleSheetModal from './components/modals/BatchSampleSheetModal';
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import ImageLightbox from './components/modals/ImageLightbox';
+import HtmlPreviewModal from './components/modals/HtmlPreviewModal';
 import GettingStartedModal from './components/modals/GettingStartedModal';
 const OutputDiffModal = lazy(() => import('./components/modals/OutputDiffModal'));
 const BulkParamModal = lazy(() => import('./components/modals/BulkParamModal'));
@@ -881,6 +882,13 @@ export default function App() {
     setLightboxImages(images);
     setLightboxIndex(index);
     setLightboxOpen(true);
+  }, []);
+
+  // HTML preview modal state (full-screen sandboxed iframe viewer used by the
+  // gallery and the workflow-doctor "open report" jump action).
+  const [htmlPreviewState, setHtmlPreviewState] = useState<{ src: string; filename: string } | null>(null);
+  const openHtmlPreview = useCallback((item: { src: string; filename: string }) => {
+    setHtmlPreviewState({ src: item.src, filename: item.filename });
   }, []);
   const [isRunning, setIsRunning] = useState(false);
   const [batchCount, setBatchCount] = useState(1);
@@ -2713,6 +2721,22 @@ export default function App() {
     }
     return map;
   }, [activeEdgeTopologyKey, activeNodeTypeKey, latestPreviewsKey]);
+  const nodeHtmlPreviewsMap = useMemo(() => {
+    const latest = runs[0];
+    if (!latest) return undefined;
+    const map = new Map<string, string>();
+    for (const node of activeWorkflow.nodes) {
+      if (node.type !== 'html_preview') continue;
+      const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
+      if (!incoming) continue;
+      const sourceNodeId = incoming.from.node;
+      const path = latest.previews?.[sourceNodeId];
+      if (path && /\.html?$/i.test(path)) {
+        map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
+      }
+    }
+    return map;
+  }, [activeEdgeTopologyKey, activeNodeTypeKey, latestPreviewsKey]);
   const workflowCommentsKey = useMemo(() => commentsSignature(workflowComments), [workflowComments]);
   const nodeCommentsMap = useMemo(() => {
     const map = new Map<string, { count: number; unresolved: boolean }>();
@@ -3119,6 +3143,7 @@ export default function App() {
           onNodeCommentsChange={() => void fetchWorkflowComments()}
           collabUsers={canvasCollabUsers}
           nodePreviewsMap={nodePreviewsMap}
+          nodeHtmlPreviewsMap={nodeHtmlPreviewsMap}
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(selection) => {
@@ -3233,6 +3258,7 @@ export default function App() {
               history={runs}
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
               onOpenLightbox={openLightbox}
+              onOpenHtmlPreview={openHtmlPreview}
               onClearLogs={clearLogs}
               onCancelRun={handleCancelRun}
               onRetryRun={handleRetryRun}
@@ -3398,6 +3424,12 @@ export default function App() {
         initialIndex={lightboxIndex}
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
+      />
+      <HtmlPreviewModal
+        src={htmlPreviewState?.src ?? ''}
+        filename={htmlPreviewState?.filename ?? ''}
+        isOpen={htmlPreviewState !== null}
+        onClose={() => setHtmlPreviewState(null)}
       />
 
     </div>

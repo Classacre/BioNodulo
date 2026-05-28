@@ -54,6 +54,7 @@ interface BottomConsoleProps {
   history: RunRecord[];
   onClose: () => void;
   onOpenLightbox?: (images: { src: string; alt: string; filename: string }[], startIndex: number) => void;
+  onOpenHtmlPreview?: (item: { src: string; filename: string; nodeId: string; runId: string }) => void;
   onClearLogs?: () => void;
   onCancelRun?: (run: RunRecord) => void;
   onRetryRun?: (run: RunRecord) => void;
@@ -74,10 +75,16 @@ interface BottomConsoleProps {
 }
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp']);
+const HTML_EXTS = new Set(['.html', '.htm']);
 
 function isImagePath(path: string): boolean {
   const lower = path.toLowerCase();
   return Array.from(IMAGE_EXTS).some(ext => lower.endsWith(ext));
+}
+
+function isHtmlPath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return Array.from(HTML_EXTS).some(ext => lower.endsWith(ext));
 }
 
 function LogLine({ entry, nodeIdToName }: { entry: LogEntry; nodeIdToName?: ReadonlyMap<string, string> }) {
@@ -416,6 +423,7 @@ export default function BottomConsole({
   history,
   onClose,
   onOpenLightbox,
+  onOpenHtmlPreview,
   onClearLogs,
   onCancelRun,
   onRetryRun,
@@ -613,6 +621,7 @@ export default function BottomConsole({
 
   // Build flat list of image previews for the lightbox
   const imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[] = [];
+  const htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[] = [];
   for (const r of history) {
     const previews = r.previews || {};
     for (const [nodeId, path] of Object.entries(previews)) {
@@ -621,6 +630,14 @@ export default function BottomConsole({
         imagePreviews.push({
           src: `/api/previews/${r.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
           alt: `Preview ${nodeId}`,
+          filename,
+          runId: r.run_id,
+          nodeId,
+        });
+      } else if (isHtmlPath(path)) {
+        const filename = path.split('/').pop() || `${nodeId}.html`;
+        htmlPreviews.push({
+          src: `/api/previews/${r.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
           filename,
           runId: r.run_id,
           nodeId,
@@ -661,7 +678,7 @@ export default function BottomConsole({
           History ({history.length})
         </button>
         <button className={`console-tab ${tab === 'previews' ? 'active' : ''}`} onClick={() => setTab('previews')}>
-          Previews {imagePreviews.length > 0 && `(${imagePreviews.length})`}
+          Previews {imagePreviews.length + htmlPreviews.length > 0 && `(${imagePreviews.length + htmlPreviews.length})`}
         </button>
         <button className={`console-tab ${tab === 'report' ? 'active' : ''}`} onClick={() => setTab('report')}>
           Report
@@ -923,25 +940,85 @@ export default function BottomConsole({
         )}
         {tab === 'previews' && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', overflowY: 'auto' }}>
-            {imagePreviews.length === 0 ? (
-              <div style={{ color: 'var(--muted)' }}>No image previews yet. Run a workflow that generates plots.</div>
+            {imagePreviews.length === 0 && htmlPreviews.length === 0 ? (
+              <div style={{ color: 'var(--muted)' }}>No previews yet. Run a workflow that generates plots or HTML reports.</div>
             ) : (
-              imagePreviews.map((img, idx) => (
-                <div
-                  key={`${img.runId}-${img.nodeId}`}
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onDoubleClick={() => handleDoubleClick(idx)}
-                  title="Double-click to view fullscreen"
-                >
-                  <img
-                    src={img.src}
-                    alt={img.alt}
-                    style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, border: '1px solid var(--border)' }}
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{img.nodeId}</div>
-                </div>
-              ))
+              <>
+                {imagePreviews.map((img, idx) => (
+                  <div
+                    key={`img-${img.runId}-${img.nodeId}`}
+                    style={{ textAlign: 'center', cursor: 'pointer' }}
+                    onDoubleClick={() => handleDoubleClick(idx)}
+                    title="Double-click to view fullscreen"
+                  >
+                    <img
+                      src={img.src}
+                      alt={img.alt}
+                      style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, border: '1px solid var(--border)' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{img.nodeId}</div>
+                  </div>
+                ))}
+                {htmlPreviews.map(htmlItem => (
+                  <div
+                    key={`html-${htmlItem.runId}-${htmlItem.nodeId}`}
+                    style={{
+                      width: 260,
+                      height: 200,
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      overflow: 'hidden',
+                      background: '#ffffff',
+                      cursor: onOpenHtmlPreview ? 'pointer' : 'default',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                    onClick={() => onOpenHtmlPreview?.(htmlItem)}
+                    title="Click to open HTML report"
+                  >
+                    <div style={{
+                      flex: 1,
+                      overflow: 'hidden',
+                      position: 'relative',
+                      pointerEvents: 'none',
+                    }}>
+                      <iframe
+                        src={htmlItem.src}
+                        title={`Preview ${htmlItem.nodeId}`}
+                        sandbox="allow-scripts"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        style={{
+                          width: '200%',
+                          height: '200%',
+                          border: 'none',
+                          transform: 'scale(0.5)',
+                          transformOrigin: 'top left',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: 'var(--text)',
+                      padding: '4px 8px',
+                      borderTop: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 6,
+                    }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Icon name="file" size={10} /> {htmlItem.filename}
+                      </span>
+                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>HTML</span>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         )}

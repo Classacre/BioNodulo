@@ -234,6 +234,81 @@ def _get_current_workflow(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     return {"workflow": ctx.workflow}
 
 
+def _get_workflow_summary(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    """Compact summary of the active workflow.
+
+    Returned in place of the full JSON when the assistant only needs to know
+    *what* is on the canvas, not every parameter. Roughly 10-50x smaller than
+    `get_current_workflow` on a realistic graph; preferable as a first call.
+    """
+    wf = ctx.workflow or {}
+    nodes = wf.get("nodes") or []
+    edges = wf.get("edges") or []
+    node_types: dict[str, int] = {}
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        t = str(node.get("type") or "unknown")
+        node_types[t] = node_types.get(t, 0) + 1
+    node_list = [
+        {
+            "id": n.get("id"),
+            "type": n.get("type"),
+            "title": (n.get("ui") or {}).get("title") if isinstance(n.get("ui"), dict) else None,
+        }
+        for n in nodes
+        if isinstance(n, dict)
+    ]
+    return {
+        "name": wf.get("name", "Untitled"),
+        "description": wf.get("description", ""),
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "group_count": len(wf.get("groups") or []),
+        "node_type_counts": node_types,
+        "nodes": node_list,
+    }
+
+
+def _explain_last_failure(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    """Return diagnostic info from the most recent failed run.
+
+    Reads `RunQueue.history()` when available and extracts the first failing
+    node's error message + the tail of the run log. Saves the assistant from
+    chasing the user for screenshots when something blew up.
+    """
+    queue = getattr(ctx.settings, "_run_queue", None)
+    if queue is None:
+        return {"error": "No run history available in this request context."}
+    try:
+        history = list(queue.history())
+    except Exception as exc:
+        return {"error": f"Could not read run history: {exc}"}
+    failed = next((r for r in history if r.get("status") in ("error", "failed", "cancelled")), None)
+    if failed is None:
+        return {"status": "ok", "message": "No failed runs in history."}
+    result = failed.get("result") or {}
+    error_message = result.get("error") or failed.get("error") or ""
+    failing_node = None
+    for node_id, node_result in (result.get("node_results") or {}).items():
+        if isinstance(node_result, dict) and node_result.get("status") in ("error", "failed"):
+            failing_node = {
+                "id": node_id,
+                "error": node_result.get("error", ""),
+                "command": node_result.get("command", ""),
+            }
+            break
+    log_tail = (result.get("logs") or [])[-50:]
+    return {
+        "run_id": failed.get("run_id"),
+        "workflow_name": failed.get("name"),
+        "status": failed.get("status"),
+        "error": str(error_message)[:1000],
+        "failing_node": failing_node,
+        "log_tail": log_tail,
+    }
+
+
 def _list_available_nodes(ctx: ToolContext, category: str | None = None, **kwargs: Any) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     info = _object_info(ctx)
@@ -540,6 +615,18 @@ def _get_collaboration_status(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]
 
 ALL_TOOLS: list[ToolDefinition] = [
     ToolDefinition("get_current_workflow", "Get the full JSON of the active workflow.", [], _get_current_workflow),
+    ToolDefinition(
+        "get_workflow_summary",
+        "Get a compact summary of the workflow (node + edge counts, node types, ids/titles). Prefer this over get_current_workflow when you only need to know what's on the canvas, not full parameter values.",
+        [],
+        _get_workflow_summary,
+    ),
+    ToolDefinition(
+        "explain_last_failure",
+        "Summarize the most recent failed run: status, error message, first failing node, and a tail of the run log. Use when the user asks what went wrong or why a run failed.",
+        [],
+        _explain_last_failure,
+    ),
     ToolDefinition(
         "list_available_nodes",
         "List available node types from the live node registry. Category matching is case-insensitive.",
