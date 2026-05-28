@@ -112,7 +112,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 
 
-## Wave O bundled — `__PENDING__` — Final §2/§4/§10/§14/§17/§19 closure
+## Wave O bundled — `0a05cf4` — Final §2/§4/§10/§14/§17/§19 closure
 
 Bundles the remaining outstanding sections from the implementation review into one commit so the wave list is fully crossed off.
 
