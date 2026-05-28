@@ -308,27 +308,31 @@ body {
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  border-radius: 6px;
-  overflow: hidden;
 }
 .run-split-button:focus-within {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 1px;
+  border-radius: 6px;
 }
+/* The two halves share a single primary-coloured surface. We do NOT put
+   `overflow: hidden` on the wrapper — that would clip the dropdown menu,
+   which is absolutely positioned inside it. Instead each half rounds only
+   its outer corners (left half: left corners; right half: right corners)
+   and the inner edge of the toggle paints a 1px `|` divider via inset
+   box-shadow. */
 .run-split-main {
-  border-radius: 0 !important;
-  border: none !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: none !important;
   margin-right: 0 !important;
   box-shadow: none !important;
 }
 .run-split-toggle {
   padding: 4px 6px !important;
-  border-radius: 0 !important;
-  border: none !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-left: none !important;
   margin-left: 0 !important;
-  /* The `|` separator. inset 1px on the LEFT only, in a slightly darker
-     shade of the primary button so it's visible but doesn't break the
-     unified surface. */
   box-shadow: inset 1px 0 0 0 color-mix(in srgb, var(--accent-dark, #000) 60%, transparent) !important;
 }
 .run-split-toggle.is-open {

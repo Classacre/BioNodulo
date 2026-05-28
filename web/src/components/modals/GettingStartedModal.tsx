@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
@@ -11,11 +11,14 @@ interface GettingStartedModalProps {
   onOpenRecent?: (entry: RecentWorkflow) => void;
 }
 
-type TabId = 'welcome' | 'data' | 'news' | 'resources';
+type TabId = 'welcome' | 'news' | 'resources';
 
+// "Example Data" tab was removed once input nodes learned to download
+// http(s)/ftp URLs into a workspace-scoped cache on first use — templates
+// now reference URLs directly in their node params instead of expecting a
+// pre-populated example data directory.
 const TABS: { id: TabId; label: string }[] = [
   { id: 'welcome', label: 'Welcome' },
-  { id: 'data', label: 'Example Data' },
   { id: 'news', label: "What's New" },
   { id: 'resources', label: 'Resources' },
 ];
@@ -69,13 +72,6 @@ const CHANGELOG = [
     ],
   },
 ];
-
-interface DataStatus {
-  has_example_data: boolean;
-  categories: string[];
-  files_per_category: Record<string, number>;
-  total_size_mb: number;
-}
 
 interface ReleaseNote {
   version: string;
@@ -187,68 +183,11 @@ export default function GettingStartedModal({
     const unsubscribe = subscribeRecentWorkflows(() => setRecents(getRecentWorkflows()));
     return unsubscribe;
   }, []);
-  const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [downloadResult, setDownloadResult] = useState<{
-    downloaded: string[];
-    skipped: string[];
-    failed: string[];
-  } | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const r = await fetch('/api/getting-started/status');
-      if (r.ok) {
-        const d = await r.json() as DataStatus;
-        setDataStatus(d);
-      }
-    } catch { /* offline */ }
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
-
-  // Auto-poll while downloading
-  useEffect(() => {
-    if (downloading) {
-      pollRef.current = setInterval(fetchStatus, 2000);
-    } else if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [downloading, fetchStatus]);
-
-  const handleDownload = async () => {
-    setDownloading(true);
-    setDownloadError(null);
-    setDownloadResult(null);
-    try {
-      const r = await fetch('/api/getting-started/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({ detail: 'Download failed' }));
-        setDownloadError(err.detail || 'Download failed');
-      } else {
-        const d = await r.json() as DataStatus & { download_result?: { downloaded: string[]; skipped: string[]; failed: string[] } };
-        setDataStatus(d);
-        if (d.download_result) {
-          setDownloadResult(d.download_result);
-        }
-      }
-    } catch (e) {
-      setDownloadError(e instanceof Error ? e.message : 'Network error');
-    }
-    setDownloading(false);
-  };
+  // The standalone Example Data tab was removed — see the comment near the
+  // TABS constant. Templates now reference URLs directly in their input
+  // node params, so the up-front /api/getting-started/download step isn't
+  // needed; the existing backend endpoint stays in place so older user
+  // workflows / scripts that still call it keep working.
 
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, true, onClose);
@@ -465,84 +404,6 @@ export default function GettingStartedModal({
               <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
                 Tip: Use the <strong>AI Assistant</strong> (<kbd>Ctrl+Shift+A</kbd>) to generate workflows from natural language descriptions.
               </div>
-            </div>
-          )}
-
-          {tab === 'data' && (
-            <div>
-              <p style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 12, color: 'var(--text-2)' }}>
-                Built-in templates reference public datasets (ENA, NCBI, Zenodo, 10x Genomics, etc.).
-                Download them (~340 MB) to run templates out-of-the-box.
-                Each file is fetched directly from its public source so you can inspect provenance.
-              </p>
-
-              {dataStatus ? (
-                <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                  {dataStatus.has_example_data ? (
-                    <>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--success)', marginBottom: 6 }}>
-                        ✓ Example data is installed
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
-                        {dataStatus.categories.length} categories · {dataStatus.total_size_mb} MB
-                      </div>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        {dataStatus.categories.map(c => (
-                          <div key={c} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 8px', background: 'var(--surface)', borderRadius: 4 }}>
-                            <span>{c}</span>
-                            <span style={{ color: 'var(--muted)' }}>{dataStatus.files_per_category[c] || 0} files</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--warning)', marginBottom: 6 }}>
-                        ⚠ Example data not found
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-                        Templates that reference example files will fail until data is downloaded.
-                      </div>
-                      <button className="btn btn-primary" onClick={handleDownload} disabled={downloading}>
-                        {downloading ? 'Downloading…' : 'Download Example Data'}
-                      </button>
-                      {downloading && (
-                        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-2)' }}>
-                          <span className="pulse-dot" style={{ marginRight: 6 }} />
-                          Downloading from public sources… check the <strong>Console</strong> for live per-file progress.
-                        </div>
-                      )}
-                      {downloadError && (
-                        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--danger)' }}>
-                          Error: {downloadError}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {downloadResult && (
-                    <div style={{ marginTop: 12, fontSize: 11 }}>
-                      {downloadResult.downloaded.length > 0 && (
-                        <div style={{ marginBottom: 6, color: 'var(--success)' }}>
-                          ✓ {downloadResult.downloaded.length} file(s) downloaded
-                        </div>
-                      )}
-                      {downloadResult.skipped.length > 0 && (
-                        <div style={{ marginBottom: 6, color: 'var(--muted)' }}>
-                          → {downloadResult.skipped.length} file(s) already existed
-                        </div>
-                      )}
-                      {downloadResult.failed.length > 0 && (
-                        <div style={{ color: 'var(--danger)' }}>
-                          ✗ {downloadResult.failed.length} file(s) failed — see Console for details
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Checking status…</div>
-              )}
             </div>
           )}
 
