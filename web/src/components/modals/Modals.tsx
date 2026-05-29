@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import ExportModal from './ExportModal';
 import ImportModal from './ImportModal';
 import AIWorkflowModal from './AIWorkflowModal';
@@ -32,6 +32,12 @@ import {
   selectedNodeIdAtom,
 } from '../../state/uiAtoms';
 import { requestedWorkflowIdAtom, showAuthDialogAtom } from '../../state/appAtoms';
+import {
+  htmlPreviewStateAtom,
+  lightboxImagesAtom,
+  lightboxIndexAtom,
+  lightboxOpenAtom,
+} from '../../state/lightboxAtoms';
 import type { Workflow, WorkflowNode, TemplateInfo, RunRecord, ObjectInfo } from '../../types';
 import type { Comment } from '../../collab';
 import { valuesFromUnknownRecord } from '../../utils';
@@ -60,12 +66,6 @@ export interface ModalWorkflowContext {
   handleBatchSheetSubmit: (runs: SampleSheetRun[]) => void;
   handleLoadTemplate: (template: TemplateInfo) => Promise<void>;
   publishCollabWorkflowSnapshot: (wf: Workflow) => Promise<void>;
-  lightboxOpen: boolean;
-  lightboxImages: { src: string; alt: string; filename: string }[];
-  lightboxIndex: number;
-  setLightboxOpen: (open: boolean) => void;
-  htmlPreviewState: { src: string; filename: string } | null;
-  setHtmlPreviewState: (state: { src: string; filename: string } | null) => void;
   setWorkflowComments: (comments: Comment[]) => void;
   setWorkflowNames: (names: Record<string, string>) => void;
 }
@@ -86,6 +86,12 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const setRequestedWorkflowId = useSetAtom(requestedWorkflowIdAtom);
   const setShowAuthDialog = useSetAtom(showAuthDialogAtom);
+  const lightboxOpen = useAtomValue(lightboxOpenAtom);
+  const lightboxImages = useAtomValue(lightboxImagesAtom);
+  const lightboxIndex = useAtomValue(lightboxIndexAtom);
+  const setLightboxOpen = useSetAtom(lightboxOpenAtom);
+  const htmlPreviewState = useAtomValue(htmlPreviewStateAtom);
+  const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
 
   const {
     activeWorkflow,
@@ -107,12 +113,6 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
     handleBatchSheetSubmit,
     handleLoadTemplate,
     publishCollabWorkflowSnapshot,
-    lightboxOpen,
-    lightboxImages,
-    lightboxIndex,
-    setLightboxOpen,
-    htmlPreviewState,
-    setHtmlPreviewState,
     setWorkflowComments,
     setWorkflowNames,
   } = ctx;

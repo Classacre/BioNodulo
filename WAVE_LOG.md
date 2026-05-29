@@ -9,13 +9,21 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 ---
 
-## App.tsx state ownership prep — `pending` — Hooks + modal atoms
+## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
 - Extracted six App-owned behaviours into focused hooks: auto-save snapshot publishing, panel layout persistence, HPC polling, WebSocket workflow message dispatch, queue-mode effects, and collaboration comments/presence polling.
 - Added `web/src/state/uiAtoms.ts` for modal flags plus UI shell atoms, matching the existing flat atom export pattern.
 - Moved the 13-modal JSX cluster into `web/src/components/modals/Modals.tsx`; each modal now owns its open flag subscription while App passes only the workflow-coupled context bundle.
 - `web/src/App.tsx` dropped the extracted hook bodies and modal render block, shrinking from roughly 3,495 lines to roughly 3,009 before the next state-ownership waves.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
+
+## App.tsx state ownership Wave B — `pending` — Lightbox atoms
+
+- Added `web/src/state/lightboxAtoms.ts` with lightbox open/images/index atoms, HTML-preview state, and a write-only `openLightboxAtom` action that updates the coupled lightbox state together.
+- `BottomConsole` now opens image and HTML previews through atoms instead of receiving `onOpenLightbox` / `onOpenHtmlPreview` props from App.
+- `Modals` now subscribes directly to lightbox and HTML-preview atoms, removing those fields from the App-provided modal context bundle.
+- `web/src/App.tsx` no longer owns lightbox or HTML-preview state and no longer forwards the preview opener callbacks into the console.
+- Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed. Local Vite responded at `http://localhost:5173/`; Browser-plugin smoke was blocked by the Windows sandbox spawn failure.
 
 ## Wave A — `74de87c` — Polish, search, auto-queue, focus mode
 

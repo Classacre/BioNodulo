@@ -763,23 +763,6 @@ export default function App() {
   const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
   const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
 
-  // Image lightbox state
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxImages, setLightboxImages] = useState<{ src: string; alt: string; filename: string }[]>([]);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-
-  const openLightbox = useCallback((images: { src: string; alt: string; filename: string }[], index: number) => {
-    setLightboxImages(images);
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-  }, []);
-
-  // HTML preview modal state (full-screen sandboxed iframe viewer used by the
-  // gallery and the workflow-doctor "open report" jump action).
-  const [htmlPreviewState, setHtmlPreviewState] = useState<{ src: string; filename: string } | null>(null);
-  const openHtmlPreview = useCallback((item: { src: string; filename: string }) => {
-    setHtmlPreviewState({ src: item.src, filename: item.filename });
-  }, []);
   const [isRunning, setIsRunning] = useState(false);
   const [batchCount, setBatchCount] = useState(1);
   // Subgraph navigation: a breadcrumb of (parent workflow, subgraph node id)
@@ -2956,8 +2939,6 @@ export default function App() {
               queue={queuedRuns}
               history={runs}
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
-              onOpenLightbox={openLightbox}
-              onOpenHtmlPreview={openHtmlPreview}
               onClearLogs={clearLogs}
               onCancelRun={handleCancelRun}
               onRetryRun={handleRetryRun}
@@ -2994,12 +2975,6 @@ export default function App() {
         handleBatchSheetSubmit,
         handleLoadTemplate,
         publishCollabWorkflowSnapshot,
-        lightboxOpen,
-        lightboxImages,
-        lightboxIndex,
-        setLightboxOpen,
-        htmlPreviewState,
-        setHtmlPreviewState,
         setWorkflowComments,
         setWorkflowNames,
       }} />

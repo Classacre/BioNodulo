@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSetAtom } from 'jotai';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
 import { apiGetText } from '../../api/client';
+import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
 
@@ -54,8 +56,6 @@ interface BottomConsoleProps {
   queue: RunRecord[];
   history: RunRecord[];
   onClose: () => void;
-  onOpenLightbox?: (images: { src: string; alt: string; filename: string }[], startIndex: number) => void;
-  onOpenHtmlPreview?: (item: { src: string; filename: string; nodeId: string; runId: string }) => void;
   onClearLogs?: () => void;
   onCancelRun?: (run: RunRecord) => void;
   onRetryRun?: (run: RunRecord) => void;
@@ -423,8 +423,6 @@ export default function BottomConsole({
   queue,
   history,
   onClose,
-  onOpenLightbox,
-  onOpenHtmlPreview,
   onClearLogs,
   onCancelRun,
   onRetryRun,
@@ -437,6 +435,8 @@ export default function BottomConsole({
   batchCount,
   nodeIdToName,
 }: BottomConsoleProps) {
+  const openLightbox = useSetAtom(openLightboxAtom);
+  const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
   const [tab, setTab] = useState<ConsoleTab>('logs');
   const [showVerbose, setShowVerbose] = useState(true);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -648,12 +648,10 @@ export default function BottomConsole({
   }
 
   const handleDoubleClick = (idx: number) => {
-    if (onOpenLightbox) {
-      onOpenLightbox(
-        imagePreviews.map(img => ({ src: img.src, alt: img.alt, filename: img.filename })),
-        idx
-      );
-    }
+    openLightbox({
+      images: imagePreviews.map(img => ({ src: img.src, alt: img.alt, filename: img.filename })),
+      index: idx,
+    });
   };
 
   const allRunIds = groupedEntries.map(([runId]) => runId);
@@ -971,12 +969,12 @@ export default function BottomConsole({
                       border: '1px solid var(--border)',
                       overflow: 'hidden',
                       background: '#ffffff',
-                      cursor: onOpenHtmlPreview ? 'pointer' : 'default',
+                      cursor: 'pointer',
                       position: 'relative',
                       display: 'flex',
                       flexDirection: 'column',
                     }}
-                    onClick={() => onOpenHtmlPreview?.(htmlItem)}
+                    onClick={() => setHtmlPreviewState({ src: htmlItem.src, filename: htmlItem.filename })}
                     title="Click to open HTML report"
                   >
                     <div style={{
