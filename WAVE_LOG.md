@@ -25,12 +25,20 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - `web/src/App.tsx` no longer owns lightbox or HTML-preview state and no longer forwards the preview opener callbacks into the console.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed. Local Vite responded at `http://localhost:5173/`; Browser-plugin smoke was blocked by the Windows sandbox spawn failure.
 
-## App.tsx state ownership Wave C — `pending` — Run telemetry atoms
+## App.tsx state ownership Wave C — `604bcce` — Run telemetry atoms
 
 - Added `web/src/state/runAtoms.ts` with `isRunningAtom`, `batchCountAtom`, `logsAtom`, `hostStatusAtom`, and Record-backed `nodeRunProgressAtom`.
 - App still owns run orchestration, but now writes telemetry atoms instead of owning render state for logs, host status, running state, batch count, and node progress.
 - `TopBar` subscribes directly to running state and batch count; `BottomConsole` subscribes directly to logs and batch count.
 - `LiteGraphCanvas` subscribes to node progress with `selectAtom` and reads the Record by node id instead of receiving a `Map` prop from App.
+- Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
+
+## App.tsx state ownership Wave D — `pending` — UI shell atoms
+
+- Wired `selectedNodeIdAtom` through canvas and `CommentsPanel`; canvas publishes selection into the atom, while comments read it directly.
+- App still reads selected node id for Help/Inspector panel composition, but no longer owns the selection setter or forwards selected-node props into `CommentsPanel`.
+- Wired `consoleVisibleAtom` into the rail and App shell so the console button reflects atom-backed visibility and toggles the console without extra prop state.
+- Replaced App-local focus-mode state with `focusModeAtom`; added a migration-compatible storage adapter that reads the old `bionodulo.focusMode` key and writes the new `bionodulo.focus_mode` key without losing existing sessions.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
 ## Wave A — `74de87c` — Polish, search, auto-queue, focus mode

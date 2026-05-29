@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
+import { useAtomValue } from 'jotai';
 import { getToken } from './auth';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
+import { selectedNodeIdAtom } from '../state/uiAtoms';
 
 const API_BASE = '/api/collab';
 
 interface CommentsPanelProps {
   workflowId: string;
-  selectedNodeId: string | null;
   currentUser: CollabUser;
   isOpen: boolean;
   onClose: () => void;
@@ -55,7 +56,8 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
   return resolved ? <s>{parts}</s> : parts;
 }
 
-export default function CommentsPanel({ workflowId, selectedNodeId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange, onWorkflowNamesChange }: CommentsPanelProps) {
+export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange, onWorkflowNamesChange }: CommentsPanelProps) {
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

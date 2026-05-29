@@ -1,7 +1,9 @@
 import Icon from '../ui/Icon';
 import { Tooltip } from '../ui';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/useKeybindings';
+import { consoleVisibleAtom } from '../../state/uiAtoms';
 
 export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'help' | 'console' | 'settings' | 'hpc' | string | null;
 
@@ -57,7 +59,14 @@ function RailButton({ active, icon, label, shortcut, onClick }: RailButtonProps)
 }
 
 export default function LeftRail({ active, onChange }: LeftRailProps) {
+  const consoleVisible = useAtomValue(consoleVisibleAtom);
+  const setConsoleVisible = useSetAtom(consoleVisibleAtom);
   const toggle = (tab: RailTab) => onChange(active === tab ? null : tab);
+  const toggleConsole = () => {
+    const isVisible = consoleVisible || active === 'console';
+    setConsoleVisible(!isVisible);
+    onChange(isVisible ? null : 'console');
+  };
   const registered = usePanelRegistry();
   const { getBinding } = useKeybindings();
 
@@ -83,7 +92,7 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
       ))}
       <div className="rail-sep" />
       <RailButton active={active === 'help'} icon="help" label="Help / Wiki" shortcut={getBinding('rail.help') ?? undefined} onClick={() => toggle('help')} />
-      <RailButton active={active === 'console'} icon="console" label="Console" shortcut={getBinding('rail.console') ?? undefined} onClick={() => toggle('console')} />
+      <RailButton active={active === 'console' || consoleVisible} icon="console" label="Console" shortcut={getBinding('rail.console') ?? undefined} onClick={toggleConsole} />
       <div className="rail-sep" />
       <RailButton active={active === 'settings'} icon="settings" label="Settings" shortcut={getBinding('settings.toggle') ?? undefined} onClick={() => toggle('settings')} />
     </nav>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
@@ -17,6 +17,7 @@ import Minimap from './Minimap';
 import SelectionToolbox from './SelectionToolbox';
 import GroupContextMenu from './GroupContextMenu';
 import { nodeRunProgressAtom, type NodeRunProgress } from '../../state/runAtoms';
+import { selectedNodeIdAtom } from '../../state/uiAtoms';
 
 import CommentPin from '../../collab/CommentPin';
 import NodeCommentPopover from '../../collab/NodeCommentPopover';
@@ -551,6 +552,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onPromoteWidgets,
 }, ref) {
   const nodeProgressRecord = useAtomValue(canvasNodeRunProgressAtom);
+  const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -687,8 +689,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { widgetsRef.current.clear(); }, [graphNodes]);
 
   const publishCollabSelection = useCallback((selection: AwarenessState['selection']) => {
+    setSelectedNodeId(selection.nodeIds[0] ?? null);
     onCollabSelectionRef.current?.(selection);
-  }, []);
+  }, [setSelectedNodeId]);
 
   const startDragOwnership = useCallback((nodeId: string) => {
     if (dragOwnershipStartedRef.current) return;

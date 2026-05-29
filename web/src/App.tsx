@@ -84,6 +84,9 @@ import {
   showCommentsAtom,
   showVersionsAtom,
   showAuditAtom,
+  selectedNodeIdAtom,
+  consoleVisibleAtom,
+  focusModeAtom,
 } from './state/uiAtoms';
 import {
   batchCountAtom,
@@ -373,7 +376,7 @@ export default function App() {
   const setShowVersions = useSetAtom(showVersionsAtom);
   const setShowAudit = useSetAtom(showAuditAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
@@ -740,7 +743,8 @@ export default function App() {
     if (state.viewport) canvasRef.current?.setViewport(state.viewport);
   }, [activeIndex, updateWorkflow]);
 
-  const [consoleVisible, setConsoleVisible] = useState(false);
+  const consoleVisible = useAtomValue(consoleVisibleAtom);
+  const setConsoleVisible = useSetAtom(consoleVisibleAtom);
   const [railTab, setRailTabState] = useState<RailTab>(null);
 
   // Panel layout state — extracted to usePanelLayout.
@@ -795,16 +799,11 @@ export default function App() {
   const persistViewportStore = useCallback(() => {
     try { localStorage.setItem(VIEWPORT_STORE_KEY, JSON.stringify(viewportByWorkflowRef.current)); } catch { /* ignore */ }
   }, []);
-  const [focusMode, setFocusMode] = useState<boolean>(() => {
-    try { return localStorage.getItem('bionodulo.focusMode') === '1'; } catch { return false; }
-  });
+  const focusMode = useAtomValue(focusModeAtom);
+  const setFocusMode = useSetAtom(focusModeAtom);
   const toggleFocusMode = useCallback(() => {
-    setFocusMode(prev => {
-      const next = !prev;
-      try { localStorage.setItem('bionodulo.focusMode', next ? '1' : '0'); } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
+    setFocusMode(prev => !prev);
+  }, [setFocusMode]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
   const [dirty, setDirty] = useState(false);
 
@@ -2822,7 +2821,6 @@ export default function App() {
           onCollabCursor={collabEnabled ? setCollabCursor : undefined}
           onViewportChange={collabEnabled ? publishCollabViewport : undefined}
           onCollabSelection={(selection) => {
-            setSelectedNodeId(selection.nodeIds[0] ?? null);
             setCollabSelection(selection);
           }}
           onCollabNodeMove={collabEnabled ? publishCollabNodeMove : undefined}

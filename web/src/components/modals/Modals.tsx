@@ -127,7 +127,6 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
 
       <CommentsPanel
         workflowId={activeWorkflowId}
-        selectedNodeId={null}
         currentUser={currentUser}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
