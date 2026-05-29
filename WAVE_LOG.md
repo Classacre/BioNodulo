@@ -41,7 +41,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Replaced App-local focus-mode state with `focusModeAtom`; added a migration-compatible storage adapter that reads the old `bionodulo.focusMode` key and writes the new `bionodulo.focus_mode` key without losing existing sessions.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
-## App.tsx state ownership Wave E — `pending` — Prop cleanup
+## App.tsx state ownership Wave E — `b464c5e` — Prop cleanup
 
 - Removed now-redundant modal opener props from `TopBar`, `BottomConsole`, and `CollabBadge`; those components now open their own Jotai-backed modals directly.
 - Cleaned App imports/setters made dead by the atom migrations, including collaboration modal openers and output-diff opener wiring.
