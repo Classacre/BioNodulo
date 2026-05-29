@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
 import type { CollabRole, LivePresenceUser } from './types';
+import { appPath } from '../utils/appBase';
 
 interface ShareRecord {
   id: string;
@@ -55,7 +56,7 @@ const UserList: React.FC<UserListProps> = ({
     const token = getToken();
     if (!token) return;
     const entries = await Promise.all(workflows.map(async workflowId => {
-      const response = await fetch(`/api/collab/shares/${workflowId}`, {
+      const response = await fetch(appPath(`/api/collab/shares/${workflowId}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return [workflowId, []] as const;
@@ -82,7 +83,7 @@ const UserList: React.FC<UserListProps> = ({
     const token = getToken();
     if (!token) return;
     setError(null);
-    const response = await fetch('/api/collab/share', {
+    const response = await fetch(appPath('/api/collab/share'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ workflow_id: user.workflow_id, user_id: user.user_id, role }),
@@ -100,7 +101,7 @@ const UserList: React.FC<UserListProps> = ({
     const share = shares[user.workflow_id]?.find(record => record.user_id === user.user_id);
     if (!token || !share) return;
     setError(null);
-    const response = await fetch(`/api/collab/share/${share.id}`, {
+    const response = await fetch(appPath(`/api/collab/share/${share.id}`), {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi.extension import _rate_limit_exceeded_handler
 
 from bionodulo.api.rate_limits import RateLimitExceeded, SlowAPIMiddleware, limiter
@@ -33,6 +34,46 @@ from bionodulo.execution.queue import RunQueue
 from bionodulo.nodes.registry import NodeRegistry
 
 _COLLAB_WORKFLOW_ID_RE = re.compile(r"^[a-zA-Z0-9._:-]{1,160}$")
+_PREFIX_ROUTE_MARKERS = ("/api/", "/assets/", "/ws/")
+_PREFIX_EXACT_ROUTES = frozenset({"/api", "/assets", "/ws"})
+
+
+class ProxyPrefixMiddleware:
+    """Strip notebook/proxy path prefixes before FastAPI routing.
+
+    Colab-like hosted URLs can expose the app below a path such as
+    /proxy/8000/. The browser must request assets, API calls, and WebSockets
+    under that visible prefix, but BioNodulo's routers are mounted at /assets,
+    /api, and /ws. Normalising the ASGI scope here keeps the public URL stable
+    without duplicating every backend route.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in {"http", "websocket"}:
+            path = str(scope.get("path", ""))
+            normalised = self._normalise_path(path)
+            if normalised != path:
+                scope = dict(scope)
+                scope["path"] = normalised
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    def _normalise_path(path: str) -> str:
+        if path in _PREFIX_EXACT_ROUTES:
+            return path
+        for route in _PREFIX_EXACT_ROUTES:
+            if path.endswith(route):
+                prefix = path[: -len(route)]
+                if prefix:
+                    return route
+        for marker in _PREFIX_ROUTE_MARKERS:
+            index = path.find(marker)
+            if index > 0:
+                return path[index:]
+        return path
 
 
 def _default_collab_workflow() -> str | None:
@@ -56,6 +97,7 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(ProxyPrefixMiddleware)
 
     # CORS
     app.add_middleware(

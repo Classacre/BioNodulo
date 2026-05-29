@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
 import { apiGet, apiPost, ApiError } from '../../api/client';
+import { appPath } from '../../utils/appBase';
 
 interface FileEntry {
   name: string;
@@ -137,7 +138,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     setPreviewContent('');
     setPreviewLoading(true);
     try {
-      const r = await fetch(`/api/workspace/file?path=${encodeURIComponent(file.path)}`);
+      const r = await fetch(appPath(`/api/workspace/file?path=${encodeURIComponent(file.path)}`));
       if (r.ok) {
         const text = await r.text();
         setPreviewContent(text);

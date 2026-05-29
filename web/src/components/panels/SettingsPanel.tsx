@@ -14,6 +14,7 @@ import {
   exportTelemetryAsText,
   subscribeTelemetry,
 } from '../../state/telemetry';
+import { appPath } from '../../utils/appBase';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -240,7 +241,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               style={{ padding: '4px 12px', fontSize: 12 }}
               onClick={async () => {
                 try {
-                  const r = await fetch('/api/cache/clear', { method: 'POST' });
+                  const r = await fetch(appPath('/api/cache/clear'), { method: 'POST' });
                   if (r.ok) {
                     const data = await r.json();
                     toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries deleted` });

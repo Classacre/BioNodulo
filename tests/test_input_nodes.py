@@ -20,7 +20,7 @@ def test_input_node_schemas_are_preserved() -> None:
     assert InputFASTQNode.INPUT_TYPES() == {
         "required": {
             "reads": ("FASTQ_LIST", {
-                "description": "Path(s) to FASTQ file(s). For paired-end, provide two files.",
+                "description": "Path(s) or URL(s) to FASTQ file(s). For paired-end, provide two. URLs (http/https/ftp) are downloaded to the workspace cache on first run.",
             }),
         },
         "optional": {
@@ -29,12 +29,12 @@ def test_input_node_schemas_are_preserved() -> None:
         "hidden": {},
     }
     assert InputFASTANode.INPUT_TYPES() == {
-        "required": {"reference": ("FASTA", {"description": "Path to FASTA file"})},
+        "required": {"reference": ("FASTA", {"description": "Path or URL to FASTA file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."})},
         "optional": {},
         "hidden": {"file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"})},
     }
     assert InputFileNode.INPUT_TYPES() == {
-        "required": {"file": ("FILE", {"description": "Path to file"})},
+        "required": {"file": ("FILE", {"description": "Path or URL to a file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."})},
         "optional": {},
         "hidden": {"file_path": ("STRING", {"description": "Alias for file (backward compatibility)"})},
     }
@@ -44,19 +44,19 @@ def test_input_node_schemas_are_preserved() -> None:
         "hidden": {},
     }
     assert InputVCFNode.INPUT_TYPES() == {
-        "required": {"vcf": (("VCF", "VCF_GZ"), {"description": "Path to VCF file"})},
+        "required": {"vcf": (("VCF", "VCF_GZ"), {"description": "Path or URL to a VCF file. http(s)/ftp URLs are downloaded on first use."})},
         "optional": {},
         "hidden": {},
     }
     assert InputGFFNode.INPUT_TYPES() == {
-        "required": {"annotation": ("GFF_GTF", {"description": "Path to GFF3 or GTF file"})},
+        "required": {"annotation": ("GFF_GTF", {"description": "Path or URL to a GFF3/GTF file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."})},
         "optional": {},
         "hidden": {"file_path": ("STRING", {"description": "Alias for annotation (backward compatibility)"})},
     }
     assert SampleSheetNode.INPUT_TYPES() == {
         "required": {
             "sample_sheet": ("SAMPLE_SHEET", {
-                "description": "Path to sample sheet CSV (columns: sample, fastq_1, fastq_2, condition)",
+                "description": "Path or URL to sample sheet CSV (columns: sample, fastq_1, fastq_2, condition). http(s) URLs are downloaded on first use.",
             }),
         },
         "optional": {},

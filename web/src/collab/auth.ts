@@ -1,5 +1,6 @@
 import type { AuthUser } from './types';
 import { getUserColor } from './utils';
+import { appPath } from '../utils/appBase';
 
 const TOKEN_KEY = 'bionodulo_auth_token';
 const USER_KEY = 'bionodulo_auth_user';
@@ -97,7 +98,7 @@ export function getAuthUser(): AuthUser | null {
 
 /** Fetch a new JWT token from the auth endpoint */
 export async function fetchToken(name: string): Promise<AuthSession> {
-  const res = await fetch('/api/auth/token', {
+  const res = await fetch(appPath('/api/auth/token'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -130,7 +131,7 @@ export async function initAuth(): Promise<boolean> {
   }
 
   try {
-    const res = await fetch('/api/auth/me', {
+    const res = await fetch(appPath('/api/auth/me'), {
       headers: {
         Authorization: `Bearer ${token}`,
       },

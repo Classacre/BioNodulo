@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../types';
 import { getToken } from '../collab/auth';
+import { appPath } from '../utils/appBase';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -126,7 +127,7 @@ export function useWorkflow() {
 
   const validate = useCallback(async (wf: Workflow) => {
     try {
-      const r = await fetch('/api/workflow/validate', {
+      const r = await fetch(appPath('/api/workflow/validate'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf }),
       });
@@ -143,7 +144,7 @@ export function useWorkflow() {
   const resolve = useCallback(async (wf: Workflow) => {
     const requestId = ++resolveRequestIdRef.current;
     try {
-      const r = await fetch('/api/manager/resolve', {
+      const r = await fetch(appPath('/api/manager/resolve'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf }),
       });
@@ -171,7 +172,7 @@ export function useWorkflow() {
     target_nodes?: string[];
   }) => {
     const token = getToken();
-    const r = await fetch('/api/runs', {
+    const r = await fetch(appPath('/api/runs'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ export function useWorkflow() {
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
     try {
-      const r = await fetch('/api/workflow/export', {
+      const r = await fetch(appPath('/api/workflow/export'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf, format }),
       });
@@ -209,7 +210,7 @@ export function useWorkflow() {
 
   const importWorkflow = useCallback(async (source: string, format: string) => {
     try {
-      const r = await fetch('/api/workflow/import', {
+      const r = await fetch(appPath('/api/workflow/import'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, format }),
       });

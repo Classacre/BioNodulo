@@ -37,6 +37,16 @@ def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
     assert pinned_response.status_code == 200
 
 
+def test_proxy_prefix_middleware_strips_hosted_asset_api_and_ws_paths() -> None:
+    from server import ProxyPrefixMiddleware
+
+    assert ProxyPrefixMiddleware._normalise_path("/proxy/8000/ws") == "/ws"
+    assert ProxyPrefixMiddleware._normalise_path("/proxy/8000/assets/index.js") == "/assets/index.js"
+    assert ProxyPrefixMiddleware._normalise_path("/proxy/8000/api/object_info") == "/api/object_info"
+    assert ProxyPrefixMiddleware._normalise_path("/proxy/8000/ws/collab/workflow-1") == "/ws/collab/workflow-1"
+    assert ProxyPrefixMiddleware._normalise_path("/proxy/8000/") == "/proxy/8000/"
+
+
 def test_example_data_download_progress_crosses_worker_thread(monkeypatch) -> None:
     from bionodulo.api import routes
     from server import create_app

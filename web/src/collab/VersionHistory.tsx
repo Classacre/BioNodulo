@@ -4,8 +4,9 @@ import type { WorkflowVersion, VersionDiffResult } from './types';
 import VersionDiff from './VersionDiff';
 import Icon from '../components/ui/Icon';
 import { confirmDialog, promptDialog } from '../components/ui';
+import { appPath } from '../utils/appBase';
 
-const API_BASE = '/api/collab';
+const API_BASE = 'api/collab';
 
 interface VersionHistoryProps {
   workflowId: string;
@@ -36,7 +37,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/workflows/${workflowId}/versions`, { headers });
+      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/versions`), { headers });
       if (!res.ok) throw new Error(`Failed to fetch versions: ${res.status}`);
       const data = await res.json() as { versions: WorkflowVersion[]; count: number };
       setVersions(data.versions ?? []);
@@ -67,7 +68,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const token = getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/workflows/${workflowId}/versions`, {
+      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/versions`), {
         method: 'POST',
         headers,
         body: JSON.stringify({ name: name || null }),
@@ -93,7 +94,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/versions/${versionId}/restore`, {
+      const res = await fetch(appPath(`${API_BASE}/versions/${versionId}/restore`), {
         method: 'POST',
         headers,
       });
@@ -118,7 +119,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/versions/${versionId}`, {
+      const res = await fetch(appPath(`${API_BASE}/versions/${versionId}`), {
         method: 'DELETE',
         headers,
       });
@@ -134,7 +135,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/versions/${a.id}/diff/${b.id}`, { headers });
+      const res = await fetch(appPath(`${API_BASE}/versions/${a.id}/diff/${b.id}`), { headers });
       if (!res.ok) throw new Error(`Failed to fetch diff: ${res.status}`);
       const diff = await res.json() as VersionDiffResult;
       setDiffData({ a, b, diff });

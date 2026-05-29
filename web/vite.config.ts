@@ -9,6 +9,10 @@ import { visualizer } from 'rollup-plugin-visualizer';
 const analyze = process.env.BIONODULO_ANALYZE === '1';
 
 export default defineConfig({
+  // Colab and notebook-hosted environments can expose the app below a path
+  // prefix. Relative asset URLs keep the built SPA loadable in both root and
+  // proxied deployments.
+  base: './',
   plugins: [
     react(),
     ...(analyze

@@ -12,6 +12,7 @@
 // needed.
 
 import { getToken } from '../collab/auth';
+import { appPath } from '../utils/appBase';
 
 export interface ApiRequestInit extends Omit<RequestInit, 'body' | 'headers'> {
   /** Plain JSON body — automatically stringified and Content-Type'd. */
@@ -40,7 +41,7 @@ export class ApiError extends Error {
   }
 }
 
-const DEFAULT_BASE = '/api';
+const DEFAULT_BASE = 'api';
 
 async function readErrorBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('Content-Type') || '';
@@ -69,9 +70,12 @@ function buildHeaders(init: ApiRequestInit): Headers {
 
 function buildUrl(path: string, basePath = DEFAULT_BASE): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  if (path.startsWith('/api/') || path.startsWith('/ws/')) return path;
-  const normalised = path.startsWith('/') ? path : `/${path}`;
-  return `${basePath}${normalised}`;
+  const cleanPath = path.replace(/^\/+/, '');
+  const cleanBase = basePath.replace(/^\/+|\/+$/g, '');
+  if (cleanPath.startsWith(`${cleanBase}/`) || cleanPath === cleanBase || cleanPath.startsWith('ws/')) {
+    return appPath(cleanPath);
+  }
+  return appPath(`${cleanBase}/${cleanPath}`);
 }
 
 /** Low-level: returns the raw Response after an HTTP-status check. */

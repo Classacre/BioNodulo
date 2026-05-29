@@ -4,8 +4,9 @@ import type { WorkflowTemplate } from './types';
 import type { Workflow } from '../types';
 import Icon from '../components/ui/Icon';
 import { promptDialog } from '../components/ui';
+import { appPath } from '../utils/appBase';
 
-const API_BASE = '/api/collab';
+const API_BASE = 'api/collab';
 
 interface TemplateGalleryProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/templates?${params.toString()}`, { headers });
+      const res = await fetch(appPath(`${API_BASE}/templates?${params.toString()}`), { headers });
       if (!res.ok) throw new Error(`Failed to fetch templates: ${res.status}`);
       const data = await res.json() as { templates: WorkflowTemplate[]; count: number };
       setTemplates(data.templates ?? []);
@@ -71,7 +72,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/templates/${templateId}/fork`, {
+      const res = await fetch(appPath(`${API_BASE}/templates/${templateId}/fork`), {
         method: 'POST',
         headers,
       });
@@ -119,7 +120,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       const token = getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/templates`, {
+      const res = await fetch(appPath(`${API_BASE}/templates`), {
         method: 'POST',
         headers,
         body: JSON.stringify({ workflow_id: currentWorkflowId, title, description, tags, is_public: true }),

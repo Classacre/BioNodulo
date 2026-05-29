@@ -4,6 +4,7 @@ import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
 import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
+import { appPath } from '../utils/appBase';
 
 interface NodeCommentPopoverProps {
   workflowId: string;
@@ -17,7 +18,7 @@ interface NodeCommentPopoverProps {
   onClose: () => void;
 }
 
-const API_BASE = '/api/collab';
+const API_BASE = 'api/collab';
 
 function timeAgo(timestamp: string): string {
   const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
@@ -29,7 +30,7 @@ function timeAgo(timestamp: string): string {
 
 async function collabRequest(url: string, init: RequestInit) {
   const token = getToken();
-  const response = await fetch(url, {
+  const response = await fetch(appPath(url), {
     ...init,
     headers: {
       ...init.headers,

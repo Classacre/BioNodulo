@@ -6,8 +6,9 @@ import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
 import { selectedNodeIdAtom } from '../state/uiAtoms';
+import { appPath } from '../utils/appBase';
 
-const API_BASE = '/api/collab';
+const API_BASE = 'api/collab';
 
 interface CommentsPanelProps {
   workflowId: string;
@@ -82,7 +83,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
         : `${API_BASE}/comments`;
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(url, { headers });
+      const res = await fetch(appPath(url), { headers });
       if (!res.ok) throw new Error(`Failed to fetch comments: ${res.status}`);
       const data = await res.json() as { comments: Comment[]; count: number; workflow_names?: Record<string, string> };
       setComments(data.comments ?? []);
@@ -111,7 +112,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
     if (!token) throw new Error('Join collaboration before posting comments.');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/workflows/${workflowId}/comments`, {
+    const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/comments`), {
       method: 'POST',
       headers,
       body: JSON.stringify({ content, parent_id: parentId, node_id: nodeId }),
@@ -160,7 +161,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/comments/${commentId}/resolve`, {
+      const res = await fetch(appPath(`${API_BASE}/comments/${commentId}/resolve`), {
         method: 'POST',
         headers,
       });
@@ -183,7 +184,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       const token = getToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/comments/${commentId}`, {
+      const res = await fetch(appPath(`${API_BASE}/comments/${commentId}`), {
         method: 'DELETE',
         headers,
       });

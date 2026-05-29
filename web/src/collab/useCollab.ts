@@ -6,6 +6,7 @@ import { createWorkflowDoc, workflowToDoc, docToWorkflow } from './yjsDoc';
 import { useAwareness } from './useAwareness';
 import { getToken } from './auth';
 import { apiGet, apiPost } from '../api/client';
+import { appWebSocketUrl } from '../utils/appBase';
 import type { CollabUser, AwarenessState } from './types';
 
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -31,8 +32,7 @@ interface UseCollabReturn {
 }
 
 function wsServerUrl(): string {
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${window.location.host}/ws/collab`;
+  return appWebSocketUrl('/ws/collab');
 }
 
 function newSessionId(): string {

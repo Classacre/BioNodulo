@@ -6,6 +6,7 @@ import { apiGetText } from '../../api/client';
 import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
 import { batchCountAtom, logsAtom } from '../../state/runAtoms';
 import { showOutputDiffAtom } from '../../state/uiAtoms';
+import { appPath } from '../../utils/appBase';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
 
@@ -210,7 +211,7 @@ function derivePreviews(history: RunRecord[]): {
       if (isImagePath(path)) {
         const filename = path.split('/').pop() || `${nodeId}.png`;
         imagePreviews.push({
-          src: `/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
+          src: appPath(`/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`),
           alt: `Preview ${nodeId}`,
           filename,
           runId: run.run_id,
@@ -219,7 +220,7 @@ function derivePreviews(history: RunRecord[]): {
       } else if (isHtmlPath(path)) {
         const filename = path.split('/').pop() || `${nodeId}.html`;
         htmlPreviews.push({
-          src: `/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
+          src: appPath(`/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`),
           filename,
           runId: run.run_id,
           nodeId,
@@ -431,7 +432,7 @@ function ReportPanel({ history }: { history: RunRecord[] }) {
 
   const downloadManifest = () => {
     if (!selectedRunId) return;
-    const url = `/api/runs/${encodeURIComponent(selectedRunId)}/manifest`;
+    const url = appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/manifest`);
     const link = document.createElement('a');
     link.href = url;
     link.download = `bionodulo-manifest-${selectedRunId}.json`;
@@ -482,7 +483,7 @@ function ReportPanel({ history }: { history: RunRecord[] }) {
         {selectedRunId && (
           <a
             className="btn btn-sm"
-            href={`/api/runs/${encodeURIComponent(selectedRunId)}/report`}
+            href={appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/report`)}
             target="_blank"
             rel="noreferrer"
             title="Open report in a new tab"

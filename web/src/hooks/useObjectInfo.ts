@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { InputSpec, ObjectInfo, NodeMetadata } from '../types';
 import { safeValidateObjectInfo } from '../api/validators';
+import { appPath } from '../utils/appBase';
 
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {
@@ -72,7 +73,7 @@ export function useObjectInfo() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/object_info');
+      const r = await fetch(appPath('/api/object_info'));
       if (r.ok) {
         const data = await r.json();
         // Reject the whole payload only if the top-level shape is wrong; the

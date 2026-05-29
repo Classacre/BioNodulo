@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { confirmDialog } from '../ui';
 import { apiGet } from '../../api/client';
+import { appPath } from '../../utils/appBase';
 
 interface PackageInfo {
   name: string;
@@ -68,7 +69,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       return;
     }
     try {
-      const r = await fetch(`/api/manager/environments/${encodeURIComponent(id)}/rename`, {
+      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(id)}/rename`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: renameValue.trim() }),
@@ -96,7 +97,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     });
     if (!ok) return;
     try {
-      const r = await fetch(`/api/manager/environments/${encodeURIComponent(env.id)}`, { method: 'DELETE' });
+      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(env.id)}`), { method: 'DELETE' });
       if (r.ok) {
         setMessage(`Deleted environment '${env.name}'`);
         fetchEnvs();
@@ -112,7 +113,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
   const handleDuplicate = async (env: EnvInfo) => {
     setMenuOpenId(null);
     try {
-      const r = await fetch(`/api/manager/environments/${encodeURIComponent(env.id)}/duplicate`, {
+      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(env.id)}/duplicate`), {
         method: 'POST',
       });
       if (!r.ok) {
@@ -138,7 +139,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     if (!ok) return;
     try {
       const r = await fetch(
-        `/api/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`,
+        appPath(`/api/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`),
         { method: 'POST' }
       );
       if (!r.ok) {

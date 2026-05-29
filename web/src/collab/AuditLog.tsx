@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getToken } from './auth';
 import type { AuditEntry } from './types';
 import Icon from '../components/ui/Icon';
+import { appPath } from '../utils/appBase';
 
-const API_BASE = '/api/collab';
+const API_BASE = 'api/collab';
 const PAGE_SIZE = 50;
 
 interface AuditLogProps {
@@ -59,7 +60,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       if (filterTo) params.set('to_date', filterTo);
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/workflows/${workflowId}/audit?${params.toString()}`, { headers });
+      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/audit?${params.toString()}`), { headers });
       if (!res.ok) throw new Error(`Failed to fetch audit log: ${res.status}`);
       const data = await res.json() as { entries: AuditEntry[]; count: number };
       setEntries(data.entries ?? []);
@@ -112,7 +113,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       if (filterTo) params.set('to_date', filterTo);
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/workflows/${workflowId}/audit/export?${params.toString()}`, { headers });
+      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/audit/export?${params.toString()}`), { headers });
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

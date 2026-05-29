@@ -54,6 +54,7 @@ import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
+import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
@@ -903,9 +904,8 @@ export default function App() {
   // WebSocket connection for real-time logs
   const wsUrl = useMemo(() => {
     const token = getToken();
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const params = token ? `?token=${encodeURIComponent(token)}` : '';
-    return `${proto}://${window.location.host}/ws${params}`;
+    return appWebSocketUrl('/ws', params);
   }, [authUser?.id]);
   const { onMessage } = useWebSocket(wsUrl);
 
@@ -2361,7 +2361,7 @@ export default function App() {
       const sourceNodeId = incoming.from.node;
       const path = latest.previews?.[sourceNodeId];
       if (path) {
-        map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
+        map.set(node.id, appPath(`/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`));
       }
     }
     return map;
@@ -2377,7 +2377,7 @@ export default function App() {
       const sourceNodeId = incoming.from.node;
       const path = latest.previews?.[sourceNodeId];
       if (path && /\.html?$/i.test(path)) {
-        map.set(node.id, `/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`);
+        map.set(node.id, appPath(`/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`));
       }
     }
     return map;
