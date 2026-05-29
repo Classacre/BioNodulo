@@ -207,6 +207,8 @@ def create_app() -> FastAPI:
     web_dist = Path(__file__).parent / "web" / "dist"
     web_assets = web_dist / "assets"
     if web_dist.exists():
+        index_file = web_dist / "index.html"
+        frontend_build_complete = index_file.exists() and web_assets.exists()
         if web_assets.exists():
             app.mount("/assets", StaticFiles(directory=web_assets), name="assets")
 
@@ -222,14 +224,25 @@ def create_app() -> FastAPI:
                 # Let the router handle it
                 from fastapi.exceptions import HTTPException
                 raise HTTPException(status_code=404, detail="Not found")
+            if path == "assets" or path.startswith("assets/"):
+                from fastapi.exceptions import HTTPException
+                raise HTTPException(
+                    status_code=404,
+                    detail="Frontend assets are missing. Run 'cd web && npm run build'.",
+                )
+            if index_file.exists() and not frontend_build_complete:
+                return PlainTextResponse(
+                    "Frontend build incomplete: web/dist/assets is missing. "
+                    "Run 'cd web && npm run build' before starting BioNodulo.",
+                    status_code=503,
+                )
             default_workflow = _default_collab_workflow()
             if not path and default_workflow and not request.query_params.get("workflow"):
                 return RedirectResponse(
                     str(request.url.include_query_params(workflow=default_workflow)),
                     status_code=307,
                 )
-            index_file = web_dist / "index.html"
-            if index_file.exists():
+            if frontend_build_complete:
                 return FileResponse(index_file)
             return PlainTextResponse("Frontend not built. Run 'cd web && npm run build'.", status_code=404)
 
