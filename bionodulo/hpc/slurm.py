@@ -25,6 +25,27 @@ class SLURMBackend(HPCBackend):
         self.default_cpus = self.config.get("default_cpus", 1)
         self.default_memory_mb = self.config.get("default_memory_mb", 4096)
 
+    async def _run_slurm_command(self, *args: str) -> tuple[int, str, str]:
+        """Run a SLURM CLI command without invoking a shell."""
+        proc = await asyncio.create_subprocess_exec(
+            *[str(arg) for arg in args],
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        return (
+            proc.returncode or 0,
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+        )
+
+    @staticmethod
+    def _validate_job_id(job_id: str) -> str:
+        """Accept SLURM job IDs and array/step suffixes, reject shell syntax."""
+        if not re.fullmatch(r"[A-Za-z0-9_.:+-]+", str(job_id)):
+            raise ValueError(f"Invalid SLURM job id: {job_id!r}")
+        return str(job_id)
+
     async def submit_job(
         self,
         script_path: str | Path,
@@ -50,19 +71,10 @@ class SLURMBackend(HPCBackend):
         if kwargs.get("extra_args"):
             cmd_parts.extend(kwargs["extra_args"])
         cmd_parts.append(str(script_path))
-        cmd = " ".join(cmd_parts)
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        stderr_text = stderr.decode("utf-8", errors="replace")
-
-        if proc.returncode != 0:
-            raise RuntimeError(f"sbatch failed (exit {proc.returncode}): {stderr_text}")
+        returncode, stdout_text, stderr_text = await self._run_slurm_command(*cmd_parts)
+        if returncode != 0:
+            raise RuntimeError(f"sbatch failed (exit {returncode}): {stderr_text}")
 
         match = re.search(r"Submitted batch job (\d+)", stdout_text)
         if not match:
@@ -94,14 +106,11 @@ class SLURMBackend(HPCBackend):
 
     async def cancel_job(self, job: HPCJob) -> HPCJob:
         """Cancel a job via ``scancel``."""
-        proc = await asyncio.create_subprocess_shell(
-            f"scancel {job.job_id}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, _stdout_text, stderr_text = await self._run_slurm_command(
+            "scancel",
+            self._validate_job_id(job.job_id),
         )
-        _, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            stderr_text = stderr.decode("utf-8", errors="replace")
+        if returncode != 0:
             if "already completing" not in stderr_text.lower():
                 raise RuntimeError(f"scancel failed: {stderr_text}")
         job.status = "CANCELLED"
@@ -109,13 +118,16 @@ class SLURMBackend(HPCBackend):
 
     async def _squeue_status(self, job_id: str) -> str | None:
         """Get job status from squeue output."""
-        proc = await asyncio.create_subprocess_shell(
-            f'squeue --job {job_id} --format="%.18i %.2t" --noheader',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, stdout_text, _stderr_text = await self._run_slurm_command(
+            "squeue",
+            "--job",
+            self._validate_job_id(job_id),
+            "--format=%.18i %.2t",
+            "--noheader",
         )
-        stdout, _ = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace").strip()
+        if returncode != 0:
+            return None
+        stdout_text = stdout_text.strip()
         if not stdout_text:
             return None
         parts = stdout_text.split()
@@ -125,13 +137,17 @@ class SLURMBackend(HPCBackend):
 
     async def _sacct_status(self, job_id: str) -> str | None:
         """Get job status from sacct output."""
-        proc = await asyncio.create_subprocess_shell(
-            f'sacct --job {job_id} --format=State --noheader --parsable2',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, stdout_text, _stderr_text = await self._run_slurm_command(
+            "sacct",
+            "--job",
+            self._validate_job_id(job_id),
+            "--format=State",
+            "--noheader",
+            "--parsable2",
         )
-        stdout, _ = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace").strip()
+        if returncode != 0:
+            return None
+        stdout_text = stdout_text.strip()
         if not stdout_text:
             return None
         first_line = stdout_text.splitlines()[0].strip()
@@ -139,13 +155,17 @@ class SLURMBackend(HPCBackend):
 
     async def _sacct_exit_code(self, job_id: str) -> int | None:
         """Get exit code from sacct."""
-        proc = await asyncio.create_subprocess_shell(
-            f'sacct --job {job_id} --format=ExitCode --noheader --parsable2',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, stdout_text, _stderr_text = await self._run_slurm_command(
+            "sacct",
+            "--job",
+            self._validate_job_id(job_id),
+            "--format=ExitCode",
+            "--noheader",
+            "--parsable2",
         )
-        stdout, _ = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace").strip()
+        if returncode != 0:
+            return None
+        stdout_text = stdout_text.strip()
         if not stdout_text:
             return None
         first_line = stdout_text.splitlines()[0].strip()

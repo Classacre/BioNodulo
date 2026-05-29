@@ -2,23 +2,17 @@ import { useEffect } from 'react';
 import { useSettings } from './useSettings';
 
 export function useTheme() {
-  const { getBool, get, settings } = useSettings();
+  const { get, settings } = useSettings();
 
   useEffect(() => {
     const theme = get('bionodulo.theme') as string;
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else if (theme === 'light') {
-      root.classList.remove('dark');
-    } else {
-      // system
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
-    }
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const useDark = theme === 'dark' || (theme === 'system' && prefersDark);
+    root.classList.toggle('dark', useDark);
+    document.body.classList.toggle('dark', useDark);
+    root.dataset.theme = useDark ? 'dark' : 'light';
+    root.style.colorScheme = useDark ? 'dark' : 'light';
   }, [get, settings]);
 
   // Also listen for system preference changes
@@ -35,9 +29,9 @@ export function useTheme() {
     return () => mq.removeEventListener('change', handler);
   }, [get, settings]);
 
-  const isDark = getBool('bionodulo.theme')
-    ? get('bionodulo.theme') === 'dark'
-    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = get('bionodulo.theme') as string;
+  const isDark = theme === 'dark'
+    || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   return { isDark };
 }

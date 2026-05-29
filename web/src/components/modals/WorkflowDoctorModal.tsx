@@ -1,0 +1,196 @@
+// Workflow doctor: scans the current workflow for common problems and
+// presents a fix-it list. Findings are derived client-side from the graph
+// + objectInfo (no backend dependency) so they appear instantly and stay
+// useful offline.
+//
+// Each finding has a category (error / warning / info) and an optional
+// node id that the canvas can focus when the user clicks "Jump".
+
+import { useMemo } from 'react';
+import { Dialog } from '../ui/Dialog';
+import type { Workflow, ObjectInfo } from '../../types';
+
+interface WorkflowDoctorModalProps {
+  workflow: Workflow;
+  objectInfo: ObjectInfo;
+  onClose: () => void;
+  onJumpToNode: (nodeId: string) => void;
+}
+
+type Severity = 'error' | 'warning' | 'info';
+
+interface Finding {
+  id: string;
+  severity: Severity;
+  title: string;
+  detail?: string;
+  nodeId?: string;
+}
+
+function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
+  const findings: Finding[] = [];
+  const nodes = workflow.nodes || [];
+  const edges = workflow.edges || [];
+
+  // Per-node checks.
+  const incomingByNode = new Map<string, Set<string>>();
+  const outgoingByNode = new Map<string, number>();
+  for (const edge of edges) {
+    let set = incomingByNode.get(edge.to.node);
+    if (!set) { set = new Set(); incomingByNode.set(edge.to.node, set); }
+    set.add(edge.to.input);
+    outgoingByNode.set(edge.from.node, (outgoingByNode.get(edge.from.node) || 0) + 1);
+  }
+
+  const isVisualOnly = (nodeType: string): boolean => {
+    if (nodeType === 'note' || nodeType === 'reroute') return true;
+    return Boolean(objectInfo[nodeType]?.visual_only);
+  };
+
+  for (const node of nodes) {
+    if (isVisualOnly(node.type)) continue;
+    const meta = objectInfo[node.type];
+    const required = meta?.input_types?.required || {};
+    const connected = incomingByNode.get(node.id) || new Set();
+    for (const key of Object.keys(required)) {
+      const value = node.params?.[key];
+      const hasValue = value !== undefined && value !== null && value !== '';
+      if (!connected.has(key) && !hasValue) {
+        findings.push({
+          id: `missing-${node.id}-${key}`,
+          severity: 'error',
+          title: `${node.ui?.title || node.type}: required input "${key}" is unset`,
+          detail: 'Connect an upstream output or set a default in the node editor.',
+          nodeId: node.id,
+        });
+      }
+    }
+    // Orphaned output node: no outgoing edges from a non-terminal node type
+    // is usually a sign the user forgot to connect downstream. We skip the
+    // last layer (nodes that look like sinks — output_node flag).
+    const isSink = Boolean(meta?.output_node);
+    const outgoing = outgoingByNode.get(node.id) || 0;
+    if (outgoing === 0 && !isSink && (meta?.return_types?.length ?? 0) > 0) {
+      findings.push({
+        id: `orphan-${node.id}`,
+        severity: 'warning',
+        title: `${node.ui?.title || node.type} has unused outputs`,
+        detail: 'Connect to a downstream node, or remove if intentional.',
+        nodeId: node.id,
+      });
+    }
+    // Missing external tool that the node declares as required.
+    const requires = meta?.requires_external_tools || [];
+    if (requires.length > 0 && !meta?.experimental) {
+      // We can't probe the host here — that's the HostPrerequisitesBanner's
+      // job — but we surface the dependency so users see what they'll need.
+      findings.push({
+        id: `tools-${node.id}`,
+        severity: 'info',
+        title: `${node.ui?.title || node.type} requires: ${requires.join(', ')}`,
+        nodeId: node.id,
+      });
+    }
+  }
+
+  // Graph-level checks.
+  if (nodes.length === 0) {
+    findings.push({
+      id: 'empty-graph',
+      severity: 'info',
+      title: 'Workflow is empty',
+      detail: 'Drop a template, drag a file from the workspace, or open the node library to start.',
+    });
+  }
+  if (edges.length === 0 && nodes.length > 1) {
+    findings.push({
+      id: 'no-edges',
+      severity: 'warning',
+      title: 'No connections between nodes',
+      detail: 'Wire outputs to inputs by dragging between slots.',
+    });
+  }
+
+  // Sort errors first, then warnings, then info.
+  const order: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
+  return findings.sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
+function severityIcon(s: Severity): string {
+  return s === 'error' ? '⛔' : s === 'warning' ? '⚠' : 'ℹ';
+}
+
+function severityColor(s: Severity): string {
+  return s === 'error' ? 'var(--danger, #ef4444)' : s === 'warning' ? 'var(--warning, #f59e0b)' : 'var(--accent, #2dd4bf)';
+}
+
+export default function WorkflowDoctorModal({ workflow, objectInfo, onClose, onJumpToNode }: WorkflowDoctorModalProps) {
+  const findings = useMemo(() => diagnose(workflow, objectInfo), [workflow, objectInfo]);
+  const counts = useMemo(() => {
+    const c = { error: 0, warning: 0, info: 0 };
+    for (const f of findings) c[f.severity] += 1;
+    return c;
+  }, [findings]);
+
+  const footer = (
+    <button className="btn" type="button" onClick={onClose}>Close</button>
+  );
+
+  return (
+    <Dialog
+      title="Workflow doctor"
+      width={680}
+      maxHeight="80vh"
+      onClose={onClose}
+      footer={footer}
+      header={(
+        <span>
+          {counts.error > 0 && <span style={{ color: 'var(--danger, #ef4444)', marginRight: 12 }}>{counts.error} error{counts.error === 1 ? '' : 's'}</span>}
+          {counts.warning > 0 && <span style={{ color: 'var(--warning, #f59e0b)', marginRight: 12 }}>{counts.warning} warning{counts.warning === 1 ? '' : 's'}</span>}
+          {counts.info > 0 && <span style={{ color: 'var(--muted)' }}>{counts.info} info</span>}
+          {findings.length === 0 && <span style={{ color: 'var(--success, #22c55e)' }}>Workflow looks healthy ✓</span>}
+        </span>
+      )}
+    >
+      {findings.length === 0 ? (
+        <div style={{ color: 'var(--muted)', fontSize: 12, padding: '12px 0' }}>
+          No issues found. Everything looks wired up.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {findings.map(f => (
+            <div
+              key={f.id}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: 10,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderLeft: `3px solid ${severityColor(f.severity)}`,
+                borderRadius: 6,
+              }}
+            >
+              <span aria-hidden="true">{severityIcon(f.severity)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{f.title}</div>
+                {f.detail && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{f.detail}</div>}
+              </div>
+              {f.nodeId && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => onJumpToNode(f.nodeId!)}
+                  title="Centre the canvas on this node"
+                >
+                  Jump
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Dialog>
+  );
+}

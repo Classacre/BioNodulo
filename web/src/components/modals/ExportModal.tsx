@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
+import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
+import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { apiPost, ApiError } from '../../api/client';
 
 interface ExportModalProps {
   workflow: Workflow;
   onClose: () => void;
 }
 
-type ExportFormat = 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
+type ExportFormat = 'png' | 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
 
 const FORMATS: { id: ExportFormat; name: string; ext: string }[] = [
+  { id: 'png', name: 'PNG (workflow embedded)', ext: '.png' },
   { id: 'json', name: 'BioNodulo JSON', ext: '.json' },
   { id: 'snakemake', name: 'SnakeMake', ext: '.smk' },
   { id: 'nextflow', name: 'NextFlow', ext: '.nf' },
@@ -17,56 +22,237 @@ const FORMATS: { id: ExportFormat; name: string; ext: string }[] = [
   { id: 'galaxy', name: 'Galaxy (.ga)', ext: '.ga' },
 ];
 
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function ExportModal({ workflow, onClose }: ExportModalProps) {
-  const [format, setFormat] = useState<ExportFormat>('json');
+  // PNG is now the default because (a) it carries the workflow in a tEXt
+  // chunk so it doubles as both share image and importable artifact, and
+  // (b) the user can always tick "JSON only" to fall back to a plain .json
+  // payload without re-selecting the format.
+  const [format, setFormat] = useState<ExportFormat>('png');
   const [content, setContent] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [pngPreview, setPngPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // PNG-specific options.
+  const [transparentBg, setTransparentBg] = useState(false);
+  const [pngQuality, setPngQuality] = useState(0.92);
+  const [pngJsonOnly, setPngJsonOnly] = useState(false);
+
+  const resetState = () => {
+    setContent('');
+    setPngPreview(null);
+    setError(null);
+  };
 
   const generate = async () => {
     setGenerating(true);
+    setError(null);
     try {
-      if (format === 'json') {
+      if (format === 'json' || (format === 'png' && pngJsonOnly)) {
         setContent(JSON.stringify(workflow, null, 2));
-      } else {
-        const r = await fetch('/api/workflow/export', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workflow, format }),
+        setPngPreview(null);
+      } else if (format === 'png') {
+        const dataUrl = renderWorkflowThumbnail(workflow, {
+          transparent: transparentBg,
+          quality: pngQuality,
         });
-        if (r.ok) {
-          const data = await r.json();
+        setPngPreview(dataUrl);
+        setContent('');
+      } else {
+        try {
+          const data = await apiPost<{ content?: string; workflow?: string }>(
+            '/workflow/export',
+            { workflow, format },
+          );
           setContent(data.content || data.workflow || JSON.stringify(workflow, null, 2));
-        } else {
-          setContent(`# ${format} export\n# TODO: Backend converter not available\n\n${JSON.stringify(workflow, null, 2)}`);
+        } catch (err) {
+          if (err instanceof ApiError) {
+            setContent(`# ${format} export\n# Backend converter not available (${err.status})\n\n${JSON.stringify(workflow, null, 2)}`);
+          } else {
+            throw err;
+          }
         }
+        setPngPreview(null);
       }
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
       setContent(JSON.stringify(workflow, null, 2));
     }
     setGenerating(false);
   };
 
+  // Auto-regenerate the PNG preview when its options change AND a preview is
+  // already on screen. We don't auto-trigger the very first render — the user
+  // still clicks "Render thumbnail" once so we don't waste cycles on someone
+  // who only opened the modal to grab JSON.
+  useEffect(() => {
+    if (format !== 'png') return;
+    if (!pngPreview && !pngJsonOnly) return;
+    if (pngJsonOnly) {
+      setContent(JSON.stringify(workflow, null, 2));
+      setPngPreview(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const dataUrl = renderWorkflowThumbnail(workflow, {
+          transparent: transparentBg,
+          quality: pngQuality,
+        });
+        if (!cancelled) setPngPreview(dataUrl);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transparentBg, pngQuality, pngJsonOnly, format]);
+
   const download = () => {
     const fmt = FORMATS.find(f => f.id === format);
-    saveToFile(content, `${workflow.name || 'workflow'}${fmt?.ext || '.txt'}`, 'text/plain');
+    const baseName = workflow.name?.trim() || 'workflow';
+    if (format === 'png' && !pngJsonOnly && pngPreview) {
+      try {
+        const blob = embedWorkflowInPngDataUrl(pngPreview, workflow);
+        triggerDownload(blob, `${baseName}.png`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+      return;
+    }
+    if (format === 'png' && pngJsonOnly) {
+      saveToFile(JSON.stringify(workflow, null, 2), `${baseName}.json`, 'application/json');
+      return;
+    }
+    saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, 'text/plain');
   };
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: 700, maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Export workflow"
+        style={{ width: 720, maxHeight: '80vh' }}
+        onClick={event => event.stopPropagation()}
+      >
         <div className="modal-header">Export Workflow</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {FORMATS.map(f => (
-              <button key={f.id} className={`env-type-tab ${format === f.id ? 'active' : ''}`} onClick={() => { setFormat(f.id); setContent(''); }}>
+              <button
+                key={f.id}
+                className={`env-type-tab ${format === f.id ? 'active' : ''}`}
+                onClick={() => { setFormat(f.id); resetState(); }}
+                type="button"
+              >
                 {f.name}
               </button>
             ))}
           </div>
 
-          {!content && (
+          {format === 'png' && (
+            <div
+              style={{
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                padding: 10,
+                marginBottom: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                The PNG carries the full workflow JSON in a tEXt chunk; drag it back into the canvas to restore the graph.
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={transparentBg}
+                  onChange={event => setTransparentBg(event.target.checked)}
+                  disabled={pngJsonOnly}
+                />
+                Transparent background
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <span style={{ minWidth: 96 }}>Resolution</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={1}
+                  step={0.05}
+                  value={pngQuality}
+                  onChange={event => setPngQuality(parseFloat(event.target.value))}
+                  disabled={pngJsonOnly}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ width: 48, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--muted)' }}>
+                  {Math.round(pngQuality * 100)}%
+                </span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={pngJsonOnly}
+                  onChange={event => setPngJsonOnly(event.target.checked)}
+                />
+                JSON only (skip PNG wrapper)
+              </label>
+            </div>
+          )}
+
+          {!content && !pngPreview && (
             <button className="btn btn-primary" onClick={generate} disabled={generating}>
-              {generating ? 'Generating...' : 'Generate'}
+              {generating ? 'Generating...' : format === 'png' && !pngJsonOnly ? 'Render thumbnail' : 'Generate'}
             </button>
+          )}
+
+          {error && (
+            <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12, marginBottom: 8 }}>{error}</div>
+          )}
+
+          {pngPreview && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+              <img
+                src={pngPreview}
+                alt="Workflow thumbnail preview"
+                style={{
+                  width: '100%',
+                  maxWidth: 640,
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  // Checkerboard background reveals transparency at a glance.
+                  backgroundImage: transparentBg
+                    ? 'linear-gradient(45deg, rgba(127,127,127,0.18) 25%, transparent 25%), linear-gradient(-45deg, rgba(127,127,127,0.18) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(127,127,127,0.18) 75%), linear-gradient(-45deg, transparent 75%, rgba(127,127,127,0.18) 75%)'
+                    : undefined,
+                  backgroundSize: transparentBg ? '16px 16px' : undefined,
+                  backgroundPosition: transparentBg ? '0 0, 0 8px, 8px -8px, -8px 0px' : undefined,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" onClick={download}>Download PNG</button>
+                <button className="btn" onClick={generate}>Regenerate</button>
+              </div>
+            </div>
           )}
 
           {content && (

@@ -14,15 +14,15 @@ from __future__ import annotations
 
 import json
 import os
-import re as re_mod
 from dataclasses import dataclass, field
-from typing import Any
+from functools import lru_cache
+from typing import Any, TypedDict
 
 from bionodulo.ai.tools import (
     ALL_TOOLS,
     ToolContext,
     execute_tool,
-    format_tools_for_prompt,
+    tools_to_openai_schema,
 )
 
 
@@ -33,19 +33,20 @@ BioNodulo is a node-based visual editor for building bioinformatics pipelines. U
 When helping users:
 - Ask clarifying questions if the request is vague
 - Use tools to fetch context rather than guessing
-- Explain your reasoning with <thinking> tags
 - Propose concrete, step-by-step workflow changes
 - Warn about common bioinformatics pitfalls (missing QC, wrong reference format, etc.)
 - If the user attaches files, analyze their contents and reference them in your answer
 
-{tools_text}
-
 Response format rules:
-1. When you need information, use a <tool_call>.
-2. Show your reasoning in <thinking> tags BEFORE each tool call.
-3. After gathering information, you may propose changes with <propose_changes>.
-4. For your final response to the user, write plain text (no tags needed).
+1. Use the provided function tools whenever you need live workflow, node, dependency, environment, or settings context.
+2. Prefer `get_workflow_summary` over `get_current_workflow` unless you actually need full parameters — it is much cheaper to send.
+3. For mutating tools, draft the change but explain that the user must confirm before applying it.
+4. Keep final responses plain text and concise, with concrete next steps when useful.
 5. You can make multiple tool calls in sequence; wait for each result before the next.
+
+Useful built-in nodes for visualization:
+- `image_preview`: pin an image output (PNG/JPG/SVG) on the canvas — connect to any node that produces an image file.
+- `html_preview`: pin an HTML report on the canvas — useful for MultiQC, FastQC, plotly dashboards, or any tool that emits an .html report.
 '''
 
 
@@ -70,53 +71,6 @@ class ChatResponse:
     reply: str = ""
     proposed_workflow: dict[str, Any] | None = None
     proposed_description: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Parsing
-# ---------------------------------------------------------------------------
-
-_TOOL_CALL_RE = re_mod.compile(r'<tool_call\s+name="([^"]+)">\s*(.*?)\s*</tool_call>', re_mod.DOTALL)
-_THINKING_RE = re_mod.compile(r'<thinking>\s*(.*?)\s*</thinking>', re_mod.DOTALL)
-_PROPOSE_RE = re_mod.compile(r'<propose_changes>\s*(.*?)\s*</propose_changes>', re_mod.DOTALL)
-
-
-def _extract_tool_calls(text: str) -> list[dict[str, Any]]:
-    calls = []
-    for match in _TOOL_CALL_RE.finditer(text):
-        name = match.group(1)
-        args_str = match.group(2).strip()
-        try:
-            args = json.loads(args_str) if args_str else {}
-        except json.JSONDecodeError:
-            args = {}
-        calls.append({"name": name, "arguments": args})
-    return calls
-
-
-def _extract_thinking(text: str) -> str:
-    parts = []
-    for match in _THINKING_RE.finditer(text):
-        parts.append(match.group(1).strip())
-    return "\n\n".join(parts)
-
-
-def _extract_propose_changes(text: str) -> dict[str, Any] | None:
-    for match in _PROPOSE_RE.finditer(text):
-        try:
-            data = json.loads(match.group(1).strip())
-            return data
-        except json.JSONDecodeError:
-            continue
-    return None
-
-
-def _strip_tags(text: str) -> str:
-    text = _TOOL_CALL_RE.sub("", text)
-    text = _THINKING_RE.sub("", text)
-    text = _PROPOSE_RE.sub("", text)
-    text = re_mod.sub(r"\n{3,}", "\n\n", text).strip()
-    return text
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +301,83 @@ def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
 # LLM backend
 # ---------------------------------------------------------------------------
 
+@dataclass
+class LLMResponse:
+    content: str
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _provider_model(provider: str, model: str | None) -> str:
+    provider = provider.lower()
+    if provider == "anthropic":
+        chosen = model or "claude-3-5-sonnet-20241022"
+        return chosen if chosen.startswith("anthropic/") else f"anthropic/{chosen}"
+    if provider == "openrouter":
+        chosen = model or "openai/gpt-4.1-mini"
+        return chosen if chosen.startswith("openrouter/") else f"openrouter/{chosen}"
+    return model or "gpt-4.1-mini"
+
+
+def _provider_api_key(provider: str, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    normalized = provider.lower()
+    if normalized == "anthropic":
+        return os.environ.get("ANTHROPIC_API_KEY", "")
+    if normalized == "openrouter":
+        return os.environ.get("OPENROUTER_API_KEY", "")
+    if normalized in {"custom", "litellm"}:
+        return os.environ.get("LITELLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    return os.environ.get("OPENAI_API_KEY", "")
+
+
+def _parse_tool_call(call: Any) -> dict[str, Any] | None:
+    function = _obj_get(call, "function", {})
+    name = _obj_get(function, "name", "")
+    if not name:
+        return None
+    raw_args = _obj_get(function, "arguments", "{}")
+    if isinstance(raw_args, str):
+        try:
+            arguments = json.loads(raw_args or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+    elif isinstance(raw_args, dict):
+        arguments = raw_args
+    else:
+        arguments = {}
+    return {
+        "id": str(_obj_get(call, "id", f"call_{name}")),
+        "type": str(_obj_get(call, "type", "function")),
+        "name": str(name),
+        "arguments": arguments if isinstance(arguments, dict) else {},
+    }
+
+
+def _assistant_tool_call_message(content: str, tool_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "role": "assistant",
+        "content": content or "",
+        "tool_calls": [
+            {
+                "id": call["id"],
+                "type": "function",
+                "function": {
+                    "name": call["name"],
+                    "arguments": json.dumps(call.get("arguments", {}), default=str),
+                },
+            }
+            for call in tool_calls
+        ],
+    }
+
+
 async def _call_llm(
     messages: list[dict[str, Any]],
     provider: str,
@@ -355,107 +386,47 @@ async def _call_llm(
     api_base: str | None,
     temperature: float,
     max_tokens: int,
-) -> str:
-    if provider in ("openai", "custom"):
-        return await _call_openai(
-            messages, model or "gpt-4", api_key or "", api_base, temperature, max_tokens
-        )
-    elif provider == "anthropic":
-        return await _call_anthropic(
-            messages, model or "claude-3-sonnet-20240229", api_key or "", api_base, temperature, max_tokens
-        )
-    else:
-        raise ValueError(f"Unsupported provider: {provider}")
-
-
-async def _call_openai(
-    messages: list[dict[str, Any]],
-    model: str,
-    api_key: str,
-    api_base: str | None,
-    temperature: float,
-    max_tokens: int,
-) -> str:
-    if not api_key:
-        raise ValueError("OpenAI API key is required.")
+    tools: list[dict[str, Any]] | None = None,
+) -> LLMResponse:
+    if not api_key and provider not in {"custom", "litellm"}:
+        raise ValueError(f"{provider} API key is required.")
     try:
-        import httpx
-    except ImportError:
-        raise RuntimeError("httpx is required. pip install httpx")
+        import litellm
+    except ImportError as exc:
+        raise RuntimeError("LiteLLM is required for AI chat. Install with `pip install litellm`.") from exc
 
-    base_url = api_base or "https://api.openai.com/v1"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {
-        "model": model,
+    kwargs: dict[str, Any] = {
+        "model": _provider_model(provider, model),
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
     }
+    if api_key:
+        kwargs["api_key"] = api_key
+    if api_base:
+        kwargs["api_base"] = api_base
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"OpenAI API error {response.status_code}: {response.text}")
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-
-
-async def _call_anthropic(
-    messages: list[dict[str, Any]],
-    model: str,
-    api_key: str,
-    api_base: str | None,
-    temperature: float,
-    max_tokens: int,
-) -> str:
-    if not api_key:
-        raise ValueError("Anthropic API key is required.")
     try:
-        import httpx
-    except ImportError:
-        raise RuntimeError("httpx is required. pip install httpx")
+        response = await litellm.acompletion(**kwargs)
+    except Exception as exc:
+        raise RuntimeError(f"LLM provider error: {exc}") from exc
 
-    system_content = ""
-    conversation: list[dict[str, Any]] = []
-    for msg in messages:
-        if msg.get("role") == "system":
-            system_content += (msg.get("content") or "") + "\n"
-        else:
-            conversation.append(_convert_message_for_anthropic(msg))
-
-    base_url = api_base or "https://api.anthropic.com"
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-    }
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": conversation,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": False,
-    }
-    if system_content:
-        payload["system"] = system_content.strip()
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{base_url}/v1/messages",
-            headers=headers,
-            json=payload,
-            timeout=120.0,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"Anthropic API error {response.status_code}: {response.text}")
-        data = response.json()
-        return data["content"][0]["text"]
+    choices = _obj_get(response, "choices", [])
+    if not choices:
+        return LLMResponse(content="")
+    message = _obj_get(choices[0], "message", {})
+    content = _obj_get(message, "content", "") or ""
+    raw_tool_calls = _obj_get(message, "tool_calls", []) or []
+    tool_calls = [
+        parsed
+        for parsed in (_parse_tool_call(call) for call in raw_tool_calls)
+        if parsed is not None
+    ]
+    return LLMResponse(content=str(content), tool_calls=tool_calls)
 
 
 # ---------------------------------------------------------------------------
@@ -464,11 +435,255 @@ async def _call_anthropic(
 
 MAX_TOOL_ROUNDS = 6
 
+# Token-efficiency knobs. The assistant loop sends the FULL message list on
+# every iteration, so trimming what we send is the single biggest cost lever.
+#
+# - HISTORY_TURN_LIMIT keeps the most recent N user/assistant turns from the
+#   prior conversation. Older turns are dropped before we hit the LLM.
+# - TOOL_RESULT_MAX_BYTES truncates large tool results (e.g. a full workflow
+#   JSON) before they go back into the message list. We keep the head so the
+#   LLM still sees structure and append a trailing marker.
+HISTORY_TURN_LIMIT = 12
+TOOL_RESULT_MAX_BYTES = 8000
+
+
+def _trim_history(history: list[dict[str, Any]], limit: int = HISTORY_TURN_LIMIT) -> list[dict[str, Any]]:
+    """Keep the last `limit` non-system turns from the conversation."""
+    non_system = [msg for msg in history if msg.get("role") != "system"]
+    if len(non_system) <= limit:
+        return non_system
+    return non_system[-limit:]
+
+
+def _truncate_tool_payload(payload: str, max_bytes: int = TOOL_RESULT_MAX_BYTES) -> str:
+    """Truncate a JSON-encoded tool result that is too large to send back."""
+    if len(payload) <= max_bytes:
+        return payload
+    head = payload[: max_bytes - 80]
+    return f"{head}\n... [truncated {len(payload) - len(head)} bytes — call a more specific tool if you need the rest]"
+
+
+
+class AssistantGraphState(TypedDict, total=False):
+    """Mutable state passed through the LangGraph assistant workflow."""
+
+    messages: list[dict[str, Any]]
+    steps: list[ChatStep]
+    ctx: ToolContext
+    tool_calls: list[dict[str, Any]]
+    last_content: str
+    mutated_workflow: bool
+    proposed_workflow: dict[str, Any] | None
+    proposed_description: str
+    reply: str
+    rounds: int
+    error: str
+    provider: str
+    model: str | None
+    api_key: str | None
+    api_base: str | None
+    temperature: float
+    max_tokens: int
+    tool_schemas: list[dict[str, Any]]
+    langchain_tools: dict[str, Any]
+
+
+def _tool_param_type(type_name: str) -> Any:
+    """Map BioNodulo tool parameter names to Pydantic-friendly Python types."""
+    normalized = type_name.lower()
+    if normalized in {"int", "integer"}:
+        return int
+    if normalized in {"float", "number"}:
+        return float
+    if normalized in {"bool", "boolean"}:
+        return bool
+    if normalized in {"array", "list"}:
+        return list[Any]
+    if normalized in {"object", "dict", "json"}:
+        return dict[str, Any]
+    return str
+
+
+def _build_langchain_tools(ctx: ToolContext) -> dict[str, Any]:
+    """Wrap existing BioNodulo tools as LangChain StructuredTool instances."""
+    from langchain_core.tools import StructuredTool
+    from pydantic import Field, create_model
+
+    wrapped: dict[str, Any] = {}
+    for definition in ALL_TOOLS:
+        fields: dict[str, Any] = {}
+        for param in definition.parameters:
+            py_type = _tool_param_type(param.type)
+            if param.required:
+                fields[param.name] = (
+                    py_type,
+                    Field(description=param.description),
+                )
+            else:
+                fields[param.name] = (
+                    py_type | None,
+                    Field(default=param.default, description=param.description),
+                )
+        args_schema = create_model(f"{definition.name}_Args", **fields)
+
+        def _runner(_tool_name: str = definition.name, **kwargs: Any) -> dict[str, Any]:
+            return execute_tool(_tool_name, kwargs, ctx)
+
+        _runner.__name__ = f"run_{definition.name}"
+        wrapped[definition.name] = StructuredTool.from_function(
+            func=_runner,
+            name=definition.name,
+            description=definition.description,
+            args_schema=args_schema,
+        )
+    return wrapped
+
+
+async def _graph_call_model(state: AssistantGraphState) -> AssistantGraphState:
+    messages_state = list(state["messages"])
+    steps_state = list(state.get("steps", []))
+    try:
+        llm_response = await _call_llm(
+            messages=messages_state,
+            provider=state["provider"],
+            model=state.get("model"),
+            api_key=_provider_api_key(state["provider"], state.get("api_key")),
+            api_base=state.get("api_base"),
+            temperature=state["temperature"],
+            max_tokens=state["max_tokens"],
+            tools=state["tool_schemas"],
+        )
+    except Exception as exc:
+        reply = f"Sorry, I encountered an error: {exc}"
+        steps_state.append(ChatStep(type="reply", content=reply))
+        return {"steps": steps_state, "reply": reply, "error": reply}
+
+    content = llm_response.content
+    tool_calls = llm_response.tool_calls
+    updates: AssistantGraphState = {
+        "steps": steps_state,
+        "last_content": content,
+        "tool_calls": tool_calls,
+    }
+    if tool_calls:
+        return updates
+
+    proposed_workflow = state.get("proposed_workflow")
+    proposed_description = state.get("proposed_description", "")
+    if state.get("mutated_workflow"):
+        graph_ctx = state["ctx"]
+        proposed_workflow = graph_ctx.workflow
+        proposed_description = "Apply the workflow changes drafted by the assistant tools."
+        steps_state.append(
+            ChatStep(
+                type="propose_changes",
+                workflow=proposed_workflow,
+                description=proposed_description,
+            )
+        )
+    reply = content.strip()
+    if reply:
+        steps_state.append(ChatStep(type="reply", content=reply))
+    updates.update(
+        {
+            "steps": steps_state,
+            "reply": reply,
+            "proposed_workflow": proposed_workflow,
+            "proposed_description": proposed_description,
+        }
+    )
+    return updates
+
+
+async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
+    tool_calls = state.get("tool_calls", [])
+    if not tool_calls:
+        return {}
+
+    steps_state = list(state.get("steps", []))
+    messages_state = list(state["messages"])
+    messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
+    graph_ctx = state["ctx"]
+    langchain_tools = state["langchain_tools"]
+    mutated = bool(state.get("mutated_workflow"))
+
+    for tool_call in tool_calls:
+        tool_name = str(tool_call.get("name", ""))
+        args = tool_call.get("arguments", {})
+        if not isinstance(args, dict):
+            args = {}
+
+        steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
+
+        tool = langchain_tools.get(tool_name)
+        if tool is None:
+            result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
+        else:
+            try:
+                result = tool.invoke(args)
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+
+        steps_state.append(
+            ChatStep(
+                type="tool_result",
+                name=tool_name,
+                result=result,
+            )
+        )
+
+        if isinstance(result, dict) and result.get("status") == "ok":
+            inner = result.get("result", {})
+            if isinstance(inner, dict) and "workflow" in inner:
+                graph_ctx.workflow = inner["workflow"]
+                mutated = True
+
+        messages_state.append(
+            {
+                "role": "tool",
+                "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
+                "name": tool_name,
+                "content": _truncate_tool_payload(json.dumps(result, default=str)),
+            }
+        )
+
+    return {
+        "messages": messages_state,
+        "steps": steps_state,
+        "ctx": graph_ctx,
+        "mutated_workflow": mutated,
+        "rounds": int(state.get("rounds", 0)) + 1,
+        "tool_calls": [],
+    }
+
+
+def _route_after_model(state: AssistantGraphState) -> str:
+    if state.get("error"):
+        return "__end__"
+    if state.get("tool_calls") and int(state.get("rounds", 0)) < MAX_TOOL_ROUNDS:
+        return "tool"
+    return "__end__"
+
+
+@lru_cache(maxsize=1)
+def _compiled_assistant_graph() -> Any:
+    """Compile the LangGraph assistant once per process."""
+    from langgraph.graph import END, StateGraph
+
+    graph = StateGraph(AssistantGraphState)
+    graph.add_node("model", _graph_call_model)
+    graph.add_node("tool", _graph_run_tool)
+    graph.set_entry_point("model")
+    graph.add_conditional_edges("model", _route_after_model, {"tool": "tool", "__end__": END})
+    graph.add_edge("tool", "model")
+    return graph.compile()
+
 
 async def chat_with_tools(
     user_message: str,
     workflow: dict[str, Any] | None,
     history: list[dict[str, str]],
+    workflow_id: str | None = None,
     provider: str = "openai",
     model: str | None = None,
     api_key: str | None = None,
@@ -477,6 +692,7 @@ async def chat_with_tools(
     max_tokens: int = 4096,
     registry: Any = None,
     settings: Any = None,
+    settings_manager: Any = None,
     files: list[dict[str, str]] | None = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
@@ -484,106 +700,77 @@ async def chat_with_tools(
     Returns a ChatResponse containing all reasoning steps, tool calls,
     and optionally a proposed workflow change for user confirmation.
     """
-    ctx = ToolContext(workflow=workflow, registry=registry, settings=settings)
-    tools_text = format_tools_for_prompt(ALL_TOOLS)
-    system_prompt = BIONODULO_SYSTEM_PROMPT.format(tools_text=tools_text)
+    ctx = ToolContext(
+        workflow=workflow,
+        workflow_id=workflow_id,
+        registry=registry,
+        settings=settings,
+        settings_manager=settings_manager,
+    )
+    tool_schemas = tools_to_openai_schema(ALL_TOOLS)
+    system_prompt = BIONODULO_SYSTEM_PROMPT
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
     ]
-    # Add history (skip system messages)
-    for msg in history:
-        if msg.get("role") != "system":
-            messages.append(dict(msg))
+    # Drop older history beyond HISTORY_TURN_LIMIT so the prefill stays small.
+    # Each tool round already re-sends the entire message list, so old turns
+    # are by far the biggest dead-weight in long sessions.
+    for msg in _trim_history(history):
+        messages.append(dict(msg))
 
-    # Build provider-specific user message content
-    if provider == "anthropic":
-        user_content: str | list[dict[str, Any]] = _build_anthropic_content(user_message, files)
-    else:
-        user_content = _build_openai_content(user_message, files)
+    user_content: str | list[dict[str, Any]] = _build_openai_content(user_message, files)
 
     messages.append({"role": "user", "content": user_content})
 
-    steps: list[ChatStep] = []
-    proposed_workflow: dict[str, Any] | None = None
-    proposed_description: str = ""
+    langchain_tools = _build_langchain_tools(ctx)
+    compiled = _compiled_assistant_graph()
 
-    for _round in range(MAX_TOOL_ROUNDS):
-        try:
-            content = await _call_llm(
-                messages=messages,
-                provider=provider,
-                model=model,
-                api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
-                api_base=api_base,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-        except Exception as exc:
-            steps.append(ChatStep(type="reply", content=f"Sorry, I encountered an error: {exc}"))
-            return ChatResponse(steps=steps, reply=f"Sorry, I encountered an error: {exc}")
+    final_state = await compiled.ainvoke(
+        {
+            "messages": messages,
+            "steps": [],
+            "ctx": ctx,
+            "tool_calls": [],
+            "mutated_workflow": False,
+            "proposed_workflow": None,
+            "proposed_description": "",
+            "reply": "",
+            "rounds": 0,
+            "provider": provider,
+            "model": model,
+            "api_key": api_key,
+            "api_base": api_base,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "tool_schemas": tool_schemas,
+            "langchain_tools": langchain_tools,
+        }
+    )
 
-        thinking = _extract_thinking(content)
-        if thinking:
-            steps.append(ChatStep(type="thinking", content=thinking))
+    steps = list(final_state.get("steps", []))
+    proposed_workflow = final_state.get("proposed_workflow")
+    proposed_description = final_state.get("proposed_description", "")
+    reply = final_state.get("reply", "")
 
-        tool_calls = _extract_tool_calls(content)
-        if not tool_calls:
-            # No tool calls — check for proposed changes
-            propose = _extract_propose_changes(content)
-            if propose:
-                proposed_workflow = propose.get("workflow")
-                proposed_description = propose.get("description", "")
-                steps.append(ChatStep(
+    if final_state.get("tool_calls") and int(final_state.get("rounds", 0)) >= MAX_TOOL_ROUNDS:
+        if final_state.get("mutated_workflow"):
+            graph_ctx = final_state["ctx"]
+            proposed_workflow = graph_ctx.workflow
+            proposed_description = "Apply the workflow changes drafted by the assistant tools."
+            steps.append(
+                ChatStep(
                     type="propose_changes",
                     workflow=proposed_workflow,
                     description=proposed_description,
-                ))
-            reply = _strip_tags(content)
-            if reply:
-                steps.append(ChatStep(type="reply", content=reply))
-            return ChatResponse(
-                steps=steps,
-                reply=reply,
-                proposed_workflow=proposed_workflow,
-                proposed_description=proposed_description,
+                )
             )
+        reply = "I reached the maximum number of tool calls. Please simplify your request."
+        steps.append(ChatStep(type="reply", content=reply))
 
-        # Execute tool calls
-        for tc in tool_calls:
-            tool_name = tc["name"]
-            args = tc.get("arguments", {})
-            steps.append(ChatStep(
-                type="tool_call",
-                name=tool_name,
-                arguments=args,
-            ))
-
-            result = execute_tool(tool_name, args, ctx)
-            steps.append(ChatStep(
-                type="tool_result",
-                name=tool_name,
-                result=result,
-            ))
-
-            # If a mutating tool returns a workflow, update context
-            if result.get("status") == "ok":
-                inner = result.get("result", {})
-                if "workflow" in inner:
-                    ctx.workflow = inner["workflow"]
-
-            # Feed result back to LLM
-            result_text = json.dumps(result, default=str, indent=2)
-            messages.append({"role": "assistant", "content": content})
-            messages.append({
-                "role": "user",
-                "content": f"Tool result for {tool_name}:\n{result_text}",
-            })
-            break  # One tool call per LLM round for simplicity
-
-    # Max rounds reached
-    steps.append(ChatStep(type="reply", content="I reached the maximum number of tool calls. Please simplify your request."))
     return ChatResponse(
         steps=steps,
-        reply="I reached the maximum number of tool calls. Please simplify your request.",
+        reply=reply,
+        proposed_workflow=proposed_workflow,
+        proposed_description=proposed_description,
     )

@@ -1,7 +1,7 @@
-"""ComfyUI v3 schema compatibility layer for BioNodulo.
+"""Declarative node schema helpers for BioNodulo.
 
-Provides SchemaNode base class, socket type definitions, and the
-BioNoduloExtension class for integrating with ComfyUI v3 workflows.
+Provides the SchemaNode base class, socket type definitions, and small
+constructor namespaces for custom node authors.
 """
 from __future__ import annotations
 
@@ -71,11 +71,7 @@ class VCF_SOCKET(Socket):
 
 @dataclass
 class SchemaNode:
-    """ComfyUI v3 schema-compatible node definition.
-
-    Used for defining nodes in the ComfyUI v3 schema format while
-    maintaining compatibility with BioNodulo native nodes.
-    """
+    """Declarative node definition used to generate BioNodulo metadata."""
 
     name: str
     category: str
@@ -86,7 +82,7 @@ class SchemaNode:
     execute: Optional[Callable] = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to ComfyUI v3 node schema dictionary."""
+        """Serialize to a node schema dictionary."""
         return {
             "name": self.name,
             "category": self.category,
@@ -137,34 +133,7 @@ class SchemaNode:
         )
 
 
-# ── BioNodulo Extension ────────────────────────────────────────────
-
-@dataclass
-class BioNoduloExtension:
-    """ComfyUI v3 extension metadata for BioNodulo.
-
-    Registers BioNodulo as a ComfyUI v3 extension with custom node types.
-    """
-
-    name: str = "bionodulo"
-    version: str = "Alpha 1.2"
-    display_name: str = "BioNodulo"
-    description: str = "Visual bioinformatics pipelines, node by node."
-    author: str = "BioNodulo Team"
-    node_modules: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "version": self.version,
-            "display_name": self.display_name,
-            "description": self.description,
-            "author": self.author,
-            "node_modules": self.node_modules,
-        }
-
-
-# Convenience module aliases for ComfyUI-style imports
+# Convenience namespaces for concise custom node declarations.
 class io:
     """I/O socket type constructors."""
     String = StringSocket

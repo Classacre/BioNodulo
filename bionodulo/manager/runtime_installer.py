@@ -97,7 +97,8 @@ def install_managed_pixi(
     Returns:
         True if installation succeeded or was already present.
     """
-    bin_path = managed_pixi_path()
+    root = prefix or managed_pixi_root()
+    bin_path = root / _PIXI_BIN
 
     if bin_path.exists() and not force:
         logger.info("pixi already installed at %s", bin_path)
@@ -120,9 +121,11 @@ def install_managed_pixi(
         urllib.request.urlretrieve(install_script_url, script_path)
 
         _emit_log(emit, "info", "Running installer...")
-        # The install script installs to ~/.pixi/bin by default
+        # Keep the official installer aligned with BioNodulo's managed path.
         env = os.environ.copy()
         env["PIXI_NO_PATH_UPDATE"] = "1"
+        env["PIXI_HOME"] = str(root)
+        env["PIXI_BIN_DIR"] = str(bin_path.parent)
         result = subprocess.run(
             ["bash", str(script_path)],
             capture_output=True,
@@ -133,8 +136,9 @@ def install_managed_pixi(
         script_path.unlink(missing_ok=True)
 
         if result.returncode != 0:
-            logger.error("pixi install script failed: %s", result.stderr)
-            _emit_log(emit, "error", f"pixi install failed: {result.stderr[:500]}")
+            output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
+            logger.error("pixi install script failed: %s", output)
+            _emit_log(emit, "error", f"pixi install failed: {output[:1200] or 'installer exited with no output'}")
             return False
 
         if bin_path.exists():
@@ -155,28 +159,3 @@ def install_managed_pixi(
         _emit_log(emit, "error", err)
         return False
 
-
-def ensure_tool_available(
-    executable: str,
-    conda_package: str | None = None,
-    env_name: str = "tools",
-) -> bool:
-    """Ensure a bioinformatics tool is available, installing if needed.
-
-    .. deprecated::
-        Use workflow-scoped environments via ensure_workflow_env() instead.
-        This function's ``pixi add --feature`` approach is incompatible with
-        BioNodulo's per-workflow manifest architecture.
-
-    Args:
-        executable: Name of the executable to check.
-        conda_package: Conda package name (defaults to executable name).
-        env_name: Pixi environment to install into (ignored).
-
-    Returns:
-        True if the tool is available on PATH.
-    """
-    logger.warning(
-        "ensure_tool_available() is deprecated. Use ensure_workflow_env()."
-    )
-    return shutil.which(executable) is not None

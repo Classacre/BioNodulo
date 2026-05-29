@@ -1,7 +1,7 @@
 """Settings dataclass with YAML/JSON config loading for BioNodulo.
 
 Supports environment variable overrides with BIONODULO_ prefix,
-per-user JSON settings file (ComfyUI-style), and directory management.
+per-user JSON settings, and directory management.
 """
 
 from __future__ import annotations
@@ -210,7 +210,7 @@ def _parse_env_value(value: str) -> Any:
 
 
 class SettingsManager:
-    """Per-user JSON settings file manager (like ComfyUI\'s comfy.settings.json)."""
+    """Per-user JSON settings file manager."""
 
     def __init__(self, settings_file: Path) -> None:
         self._settings_file = settings_file
@@ -230,6 +230,31 @@ class SettingsManager:
             "max_concurrent_runs": 4,
             "default_env_isolation": True,
             "cache_enabled": True,
+            "bionodulo.theme": "system",
+            "bionodulo.snapToGrid": False,
+            "bionodulo.showMinimap": True,
+            "bionodulo.linksHidden": False,
+            "bionodulo.viewportLocked": False,
+            "bionodulo.cacheEnabled": True,
+            "bionodulo.llm.provider": "openai",
+            "bionodulo.llm.model": "gpt-4.1-mini",
+            "bionodulo.llm.baseUrl": "",
+            "bionodulo.llm.apiKey": "",
+            "bionodulo.llm.temperature": 0.2,
+            "bionodulo.llm.maxTokens": 4096,
+            "bionodulo.hpc.enabled": False,
+            "bionodulo.hpc.backend": "slurm",
+            "bionodulo.hpc.partition": "",
+            "bionodulo.hpc.account": "",
+            "bionodulo.hpc.modules": [],
+            "bionodulo.hpc.container": "",
+            "bionodulo.hpc.walltime": "01:00:00",
+            "bionodulo.hpc.cpus_per_task": 4,
+            "bionodulo.hpc.mem_per_cpu": "4G",
+            "bionodulo.collab.enabled": False,
+            "bionodulo.collab.presence": True,
+            "bionodulo.getting_started.show_on_startup": True,
+            "bionodulo.getting_started.dismissed": False,
             "editor_settings": {
                 "font_size": 14,
                 "line_numbers": True,

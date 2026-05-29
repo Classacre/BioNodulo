@@ -1,8 +1,67 @@
 import { useState, useMemo } from 'react';
 import Icon from '../ui/Icon';
+import type { NodeMetadata, ObjectInfo } from '../../types';
 
 interface HelpWikiPanelProps {
   onClose: () => void;
+  /** Currently selected node — when set, the panel surfaces node-specific docs first. */
+  selectedNode?: { id: string; type: string; meta?: NodeMetadata; title?: string } | null;
+  /** Optional registry so search can look across node names + descriptions. */
+  objectInfo?: ObjectInfo;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderNodeHelp(node: { id: string; type: string; meta?: NodeMetadata; title?: string }): string {
+  const meta = node.meta;
+  const title = node.title || meta?.display_name || node.type;
+  const description = meta?.description?.trim() || '<em>No description provided by the node author.</em>';
+  const category = meta?.category || 'Uncategorised';
+  const tools = meta?.requires_external_tools || [];
+  const required = meta?.input_types?.required || {};
+  const optional = meta?.input_types?.optional || {};
+  const outputs = meta?.return_types || [];
+  const outputNames = meta?.return_names || [];
+
+  const renderInputRow = (name: string, spec: { type?: string; tooltip?: string; default?: unknown }) => `
+    <tr>
+      <td><code>${escapeHtml(name)}</code></td>
+      <td><span class="help-port-type">${escapeHtml(String(spec.type || 'STRING'))}</span></td>
+      <td>${spec.tooltip ? escapeHtml(String(spec.tooltip)) : ''}${spec.default !== undefined ? ` <span class="help-port-default">default: ${escapeHtml(String(spec.default))}</span>` : ''}</td>
+    </tr>`;
+
+  const inputRows = [
+    ...Object.entries(required).map(([name, spec]) => renderInputRow(name, spec as { type?: string; tooltip?: string; default?: unknown })),
+    ...Object.entries(optional).map(([name, spec]) => renderInputRow(name, spec as { type?: string; tooltip?: string; default?: unknown })),
+  ].join('');
+
+  const outputRows = outputs.map((type, idx) => `
+    <tr>
+      <td><code>${escapeHtml(outputNames[idx] || `out_${idx}`)}</code></td>
+      <td><span class="help-port-type">${escapeHtml(type)}</span></td>
+    </tr>`).join('');
+
+  return `
+    <div class="help-node-doc">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="help-node-meta">
+        <span class="help-meta-pill">${escapeHtml(category)}</span>
+        ${meta?.experimental ? '<span class="help-meta-pill help-meta-exp">experimental</span>' : ''}
+        ${meta?.version ? `<span class="help-meta-pill">v${escapeHtml(meta.version)}</span>` : ''}
+      </div>
+      <p>${description}</p>
+      ${tools.length > 0 ? `<p><strong>Requires:</strong> ${tools.map(t => `<code>${escapeHtml(t)}</code>`).join(', ')}</p>` : ''}
+      ${inputRows ? `<h4>Inputs</h4><table class="help-port-table"><thead><tr><th>Name</th><th>Type</th><th>Notes</th></tr></thead><tbody>${inputRows}</tbody></table>` : ''}
+      ${outputRows ? `<h4>Outputs</h4><table class="help-port-table"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>${outputRows}</tbody></table>` : ''}
+      <p class="help-node-hint">Tip: select another node on the canvas to view its docs here.</p>
+    </div>
+  `;
 }
 
 type WikiPage = 'getting-started' | 'nodes-reference' | 'templates-guide' | 'custom-nodes' | 'hpc-integration' | 'workflow-converters' | 'keyboard-shortcuts' | 'canvas-features';
@@ -21,7 +80,7 @@ const PAGES: { id: WikiPage; title: string }[] = [
 const CONTENT: Record<WikiPage, string> = {
   'getting-started': `
 <h3>Welcome to BioNodulo v2</h3>
-<p>BioNodulo is a visual bioinformatics workflow workbench inspired by ComfyUI. Build pipelines by connecting nodes on an infinite canvas.</p>
+<p>BioNodulo is a visual bioinformatics workflow workbench. Build pipelines by connecting nodes on an infinite canvas.</p>
 
 <h4>Quick Start</h4>
 <ol>
@@ -300,9 +359,15 @@ function highlightQuery(text: string, query: string): string {
   return text.replace(re, '<mark style="background:#fde047;color:#000;padding:0 2px;border-radius:2px;">$1</mark>');
 }
 
-export default function HelpWikiPanel({ onClose }: HelpWikiPanelProps) {
+export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: HelpWikiPanelProps) {
   const [page, setPage] = useState<WikiPage>('getting-started');
   const [query, setQuery] = useState('');
+  // Auto-switch to node docs whenever the canvas selection changes — but
+  // honour an explicit page click so users can still navigate to wiki pages
+  // while a node is selected.
+  const [overridePage, setOverridePage] = useState(false);
+  const showNodeHelp = !!selectedNode && !query.trim() && !overridePage;
+  const nodeHelpHtml = useMemo(() => (selectedNode ? renderNodeHelp(selectedNode) : ''), [selectedNode]);
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -318,6 +383,27 @@ export default function HelpWikiPanel({ onClose }: HelpWikiPanelProps) {
       return { ...p, snippet: snippet + (snippet.length < plain.length ? '…' : '') };
     });
   }, [query]);
+
+  // Search across registered node metadata so the help search field doubles
+  // as a node lookup — typing a tool name surfaces both the wiki section and
+  // any node whose name/description/category matches.
+  const nodeSearchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !objectInfo) return [];
+    const hits: { meta: NodeMetadata; snippet: string }[] = [];
+    for (const meta of Object.values(objectInfo)) {
+      const haystack = [meta.display_name, meta.id, meta.description, meta.category].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) continue;
+      const source = meta.description || meta.category || '';
+      const idx = source.toLowerCase().indexOf(q);
+      const snippet = idx >= 0
+        ? source.slice(Math.max(0, idx - 40), idx + 120)
+        : source.slice(0, 120);
+      hits.push({ meta, snippet });
+      if (hits.length >= 12) break;
+    }
+    return hits;
+  }, [query, objectInfo]);
 
   const currentContent = CONTENT[page] || '';
 
@@ -348,34 +434,74 @@ export default function HelpWikiPanel({ onClose }: HelpWikiPanelProps) {
 
         {query.trim() ? (
           <div className="wiki-search-results">
-            {searchResults.length === 0 ? (
+            {searchResults.length === 0 && nodeSearchResults.length === 0 ? (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No results for "{query}"
               </div>
             ) : (
-              searchResults.map(r => (
-                <div
-                  key={r.id}
-                  className="wiki-result-item"
-                  style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: 'var(--surface-2)' }}
-                  onClick={() => { setPage(r.id); setQuery(''); }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.title, query) }} />
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.snippet, query) }} />
-                </div>
-              ))
+              <>
+                {searchResults.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '4px 0' }}>Wiki pages</div>
+                )}
+                {searchResults.map(r => (
+                  <div
+                    key={r.id}
+                    className="wiki-result-item"
+                    style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: 'var(--surface-2)' }}
+                    onClick={() => { setPage(r.id); setQuery(''); }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.title, query) }} />
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(r.snippet, query) }} />
+                  </div>
+                ))}
+                {nodeSearchResults.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0 4px' }}>Nodes</div>
+                )}
+                {nodeSearchResults.map(hit => (
+                  <div
+                    key={`node-${hit.meta.id}`}
+                    className="wiki-result-item"
+                    style={{ padding: '8px 12px', borderRadius: 6, cursor: 'default', marginBottom: 4, background: 'var(--surface-2)' }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.meta.display_name, query) }} />
+                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{hit.meta.category || 'Other'}</div>
+                    {hit.snippet && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.snippet, query) }} />
+                    )}
+                  </div>
+                ))}
+              </>
             )}
           </div>
         ) : (
           <>
+            {selectedNode && (
+              <div className="wiki-node-tab-row">
+                <button
+                  className={`wiki-nav-btn ${showNodeHelp ? 'active' : ''}`}
+                  onClick={() => setOverridePage(false)}
+                  title={`Show docs for ${selectedNode.title || selectedNode.type}`}
+                >
+                  <Icon name="nodes" size={12} /> {selectedNode.title || selectedNode.type}
+                </button>
+                <span className="wiki-node-tab-hint">selected on canvas</span>
+              </div>
+            )}
             <div className="wiki-nav">
               {PAGES.map(p => (
-                <button key={p.id} className={`wiki-nav-btn ${page === p.id ? 'active' : ''}`} onClick={() => setPage(p.id)}>
+                <button
+                  key={p.id}
+                  className={`wiki-nav-btn ${page === p.id && !showNodeHelp ? 'active' : ''}`}
+                  onClick={() => { setPage(p.id); setOverridePage(true); }}
+                >
                   {p.title}
                 </button>
               ))}
             </div>
-            <div className="wiki-content" dangerouslySetInnerHTML={{ __html: currentContent }} />
+            <div
+              className="wiki-content"
+              dangerouslySetInnerHTML={{ __html: showNodeHelp ? nodeHelpHtml : currentContent }}
+            />
           </>
         )}
       </div>

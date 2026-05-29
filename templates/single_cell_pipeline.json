@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Single Cell RNA-Seq",
   "description": "10x Genomics single cell RNA sequencing analysis with Cell Ranger",
@@ -8,8 +8,8 @@
       "id": "note_single_cell_pipeline",
       "type": "note",
       "position": [
-        -220,
-        250
+        -240,
+        80
       ],
       "params": {
         "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices.\n\nData source: 10x Genomics cellranger-tiny-fastq test dataset (via GitHub/minoda-lab/universc).\nSample: tinygex (2 lanes: L001 + L002, I1/R1/R2 reads).\nURL: https://github.com/minoda-lab/universc/tree/master/test/shared/cellranger-tiny-fastq\nNote: Cell Ranger reference directory is a placeholder. Provide your own reference (e.g. refdata-gex-GRCh38 from 10x Genomics)."
@@ -23,8 +23,8 @@
       "id": "fastq_001",
       "type": "input_directory",
       "position": [
-        100,
-        100
+        80,
+        80
       ],
       "params": {
         "directory": "examples/data/single_cell"
@@ -37,8 +37,8 @@
       "id": "ref_001",
       "type": "input_directory",
       "position": [
-        100,
-        300
+        80,
+        234
       ],
       "params": {
         "directory": "refdata-gex-GRCh38"
@@ -51,8 +51,8 @@
       "id": "cr_count_001",
       "type": "cellranger_count",
       "position": [
-        400,
-        100
+        440,
+        80
       ],
       "params": {
         "sample": "tinygex",
@@ -60,6 +60,18 @@
       },
       "ui": {
         "title": "Cell Ranger Count"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        800,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View web_summary"
       }
     }
   ],
@@ -84,6 +96,17 @@
       "to": {
         "node": "cr_count_001",
         "input": "transcriptome"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "cr_count_001",
+        "output": "web_summary"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Variant Calling Pipeline",
   "description": "GATK-based germline variant calling from FASTQ to filtered VCF",
@@ -8,8 +8,8 @@
       "id": "note_variant_calling_pipeline",
       "type": "note",
       "position": [
-        -270,
-        200
+        -240,
+        80
       ],
       "params": {
         "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools.\n\nData source:\n- Reads: Staphylococcus aureus mutant paired-end WGS (12,480 read pairs)\n  Zenodo: https://zenodo.org/record/582600\n  Files: mutant_R1.fastq (3.9M), mutant_R2.fastq (3.9M)\n- Reference: S. aureus wildtype genome (200,684 bp, 1 contig)\n  Zenodo: https://zenodo.org/record/582600\n  File: wildtype.fna (196K)\n- Galaxy Training Material: Microbial Variant Calling tutorial\n  https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/microbial-variants/tutorial.html\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
@@ -23,14 +23,14 @@
       "id": "reads_001",
       "type": "input_fastq",
       "position": [
-        50,
-        50
+        80,
+        80
       ],
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/variant_calling/mutant_R1.fastq",
-          "examples/data/variant_calling/mutant_R2.fastq"
+          "https://zenodo.org/record/582600/files/mutant_R1.fastq",
+          "https://zenodo.org/record/582600/files/mutant_R2.fastq"
         ]
       },
       "ui": {
@@ -41,11 +41,11 @@
       "id": "ref_001",
       "type": "input_fasta",
       "position": [
-        50,
-        180
+        80,
+        276
       ],
       "params": {
-        "reference": "examples/data/variant_calling/wildtype.fna"
+        "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA"
@@ -55,8 +55,8 @@
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        300,
-        180
+        440,
+        80
       ],
       "params": {},
       "ui": {
@@ -67,8 +67,8 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        425,
-        50
+        1160,
+        80
       ],
       "params": {
         "threads": 4
@@ -81,8 +81,8 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        300,
-        50
+        800,
+        80
       ],
       "params": {
         "threads": 8,
@@ -96,8 +96,8 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        550,
-        50
+        1520,
+        80
       ],
       "params": {
         "threads": 4
@@ -110,8 +110,8 @@
       "id": "index_001",
       "type": "samtools_index",
       "position": [
-        550,
-        200
+        1880,
+        80
       ],
       "params": {},
       "ui": {
@@ -122,8 +122,8 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        550,
-        350
+        1880,
+        850
       ],
       "params": {},
       "ui": {
@@ -134,8 +134,8 @@
       "id": "gatk_001",
       "type": "gatk_haplotype_caller",
       "position": [
-        800,
-        50
+        1880,
+        360
       ],
       "params": {
         "emit_ref_confidence": "GVCF",
@@ -149,8 +149,8 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        1050,
-        50
+        2240,
+        80
       ],
       "params": {
         "expr": "QUAL>30 && DP>10"
@@ -163,8 +163,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        300,
-        350
+        440,
+        276
       ],
       "params": {
         "threads": 4
@@ -178,13 +178,25 @@
       "type": "multiqc",
       "position": [
         800,
-        350
+        528
       ],
       "params": {
         "title": "Variant Calling QC"
       },
       "ui": {
         "title": "MultiQC"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1160,
+        528
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
       }
     }
   ],
@@ -319,6 +331,17 @@
       "to": {
         "node": "sort_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "mqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

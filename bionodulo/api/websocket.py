@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from bionodulo.collab.auth import get_auth_ws
 from bionodulo.core.events import EventHub
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     Connects to the EventHub and forwards events as JSON messages.
     Handles client ping/pong for connection health checks.
     """
+    auth_payload = get_auth_ws(dict(websocket.query_params))
+    if auth_payload is None:
+        await websocket.accept()
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
     await websocket.accept()
 
     # Access event_hub from app state

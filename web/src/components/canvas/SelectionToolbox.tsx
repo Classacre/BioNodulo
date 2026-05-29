@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GraphNode } from './LiteGraphCanvas';
+import type { GraphNode } from './WorkflowCanvas';
 import type { WorkflowGroup } from '../../types';
 
 interface SelectionToolboxProps {
@@ -109,6 +109,39 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
           <ToolboxButton title="Collapse/Expand" onClick={() => onAction('collapse')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
           </ToolboxButton>
+        </>
+      )}
+      {selectedNodes.length >= 2 && (
+        <>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
+          <ToolboxButton title="Align left" onClick={() => onAction('alignLeft')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="3" x2="3" y2="21" /><rect x="6" y="5" width="11" height="4" /><rect x="6" y="14" width="14" height="4" /></svg>
+          </ToolboxButton>
+          <ToolboxButton title="Align center horizontal" onClick={() => onAction('alignCenterH')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="3" x2="12" y2="21" /><rect x="6.5" y="5" width="11" height="4" /><rect x="5" y="14" width="14" height="4" /></svg>
+          </ToolboxButton>
+          <ToolboxButton title="Align right" onClick={() => onAction('alignRight')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="3" x2="21" y2="21" /><rect x="7" y="5" width="11" height="4" /><rect x="4" y="14" width="14" height="4" /></svg>
+          </ToolboxButton>
+          <ToolboxButton title="Align top" onClick={() => onAction('alignTop')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="3" x2="21" y2="3" /><rect x="5" y="6" width="4" height="11" /><rect x="14" y="6" width="4" height="14" /></svg>
+          </ToolboxButton>
+          <ToolboxButton title="Align center vertical" onClick={() => onAction('alignCenterV')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><rect x="5" y="6.5" width="4" height="11" /><rect x="14" y="5" width="4" height="14" /></svg>
+          </ToolboxButton>
+          <ToolboxButton title="Align bottom" onClick={() => onAction('alignBottom')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="7" width="4" height="11" /><rect x="14" y="4" width="4" height="14" /></svg>
+          </ToolboxButton>
+          {selectedNodes.length >= 3 && (
+            <>
+              <ToolboxButton title="Distribute horizontally" onClick={() => onAction('distributeH')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="4" height="12" /><rect x="10" y="6" width="4" height="12" /><rect x="18" y="6" width="4" height="12" /></svg>
+              </ToolboxButton>
+              <ToolboxButton title="Distribute vertically" onClick={() => onAction('distributeV')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="4" /><rect x="6" y="10" width="12" height="4" /><rect x="6" y="18" width="12" height="4" /></svg>
+              </ToolboxButton>
+            </>
+          )}
         </>
       )}
       <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />

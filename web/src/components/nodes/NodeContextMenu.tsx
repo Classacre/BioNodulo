@@ -51,16 +51,27 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
     { label: 'Edit Properties', action: 'edit' },
     { label: 'Rename', action: 'rename' },
     { label: 'Node Info', action: 'info' },
+    { label: 'Add Comment', action: 'comment' },
     { label: 'Duplicate', action: 'duplicate' },
     null,
     { label: 'Mute Node', action: 'mute' },
     { label: 'Bypass Node', action: 'bypass' },
+    { label: 'Pin / Lock Node', action: 'pin' },
     { label: 'Collapse/Expand', action: 'collapse' },
     null,
     { label: 'Set as Output', action: 'output' },
     { label: 'Set Color', action: 'color', handler: () => setShowColors(true) },
+    { label: 'Round Shape', action: 'shape:round' },
+    { label: 'Box Shape', action: 'shape:box' },
+    { label: 'Card Shape', action: 'shape:card' },
     null,
     { label: 'Group Selected', action: 'group' },
+    { label: 'Create Subgraph', action: 'subgraph' },
+    { label: 'Save Subgraph to Library', action: 'saveSubgraphBlueprint' },
+    { label: 'Promote Widgets to Parent', action: 'promoteWidgets' },
+    { label: 'Save Params as Preset…', action: 'savePreset' },
+    { label: 'Apply Preset…', action: 'applyPreset' },
+    { label: 'Execute Selected', action: 'executeSelected' },
     null,
     { label: 'Delete', action: 'delete' },
   ] : [
@@ -83,7 +94,8 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
                 if ('handler' in item && item.handler) {
                   item.handler();
                 } else {
-                  if (nodeId) onAction(item.action, nodeId);
+                  if (nodeId && item.action.startsWith('shape:')) onAction('shape', nodeId, item.action.split(':')[1]);
+                  else if (nodeId) onAction(item.action, nodeId);
                   else onAction(item.action, '');
                 }
               }}>

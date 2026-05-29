@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "ChIP-Seq Pipeline",
   "description": "Chromatin immunoprecipitation sequencing analysis",
@@ -9,7 +9,7 @@
       "type": "note",
       "position": [
         -240,
-        190
+        80
       ],
       "params": {
         "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles.\n\nData source: Zenodo record 1324070 (Galaxy Training Material).\nwt_H3K4me3_read1.fastq (8.5M), wt_H3K4me3_read2.fastq (8.5M).\nMouse H3K4me3 ChIP-seq from 'Formation of the Super-Structures on the Inactive X' tutorial.\nURL: https://zenodo.org/record/1324070\nNote: Bowtie2 index directory is a placeholder. Provide your own index."
@@ -42,7 +42,7 @@
       "type": "input_directory",
       "position": [
         80,
-        300
+        276
       ],
       "params": {
         "directory": "bowtie2_index"
@@ -55,7 +55,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        520,
+        800,
         80
       ],
       "params": {
@@ -69,7 +69,7 @@
       "id": "bt2_001",
       "type": "bowtie2_align",
       "position": [
-        380,
+        440,
         80
       ],
       "params": {
@@ -83,7 +83,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        660,
+        1160,
         80
       ],
       "params": {
@@ -97,7 +97,7 @@
       "id": "macs2_001",
       "type": "macs2_callpeak",
       "position": [
-        940,
+        1520,
         80
       ],
       "params": {
@@ -111,8 +111,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        380,
-        300
+        440,
+        570
       ],
       "params": {
         "threads": 4
@@ -125,14 +125,26 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        660,
-        300
+        800,
+        360
       ],
       "params": {
         "title": "ChIP-Seq QC"
       },
       "ui": {
         "title": "MultiQC"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1160,
+        360
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
       }
     }
   ],
@@ -212,6 +224,17 @@
       "to": {
         "node": "sort_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "mqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

@@ -208,8 +208,8 @@ class SequenceStatsNode(BaseNode):
     DISPLAY_NAME = "Sequence Stats"
     CATEGORY = "biopython"
     DESCRIPTION = "Compute GC content, length, and molecular weight"
-    RETURN_TYPES = ("FILE",)
-    RETURN_NAMES = ("stats_json",)
+    RETURN_TYPES = ("FILE", "FILE")
+    RETURN_NAMES = ("stats_json", "stats_tsv")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -252,7 +252,18 @@ class SequenceStatsNode(BaseNode):
 
         out_path = out_dir / "stats.json"
         out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-        return (str(out_path),)
+
+        # Also emit a TSV alongside the JSON. Lets the user wire the stats
+        # into a generic table_preview node without hand-rolling HTML — the
+        # table view can stream just the head if the dataset is large.
+        tsv_path = out_dir / "stats.tsv"
+        with tsv_path.open("w", encoding="utf-8") as fh:
+            fh.write("id\tlength\tgc_content\tmolecular_weight\n")
+            for r in results:
+                mw = r["molecular_weight"] if r["molecular_weight"] is not None else ""
+                fh.write(f"{r['id']}\t{r['length']}\t{r['gc_content']}\t{mw}\n")
+
+        return (str(out_path), str(tsv_path))
 
 
 class BLASTSearchNode(BaseNode):
@@ -332,9 +343,9 @@ class MSAViewNode(BaseNode):
     NODE_ID = "bp_msa_view"
     DISPLAY_NAME = "MSA View"
     CATEGORY = "biopython"
-    DESCRIPTION = "Read and summarize a multiple sequence alignment"
-    RETURN_TYPES = ("FILE", "FILE")
-    RETURN_NAMES = ("alignment_json", "consensus_fasta")
+    DESCRIPTION = "Read and summarize a multiple sequence alignment, render a PNG view"
+    RETURN_TYPES = ("FILE", "FILE", "IMAGE")
+    RETURN_NAMES = ("alignment_json", "consensus_fasta", "alignment_image")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -388,4 +399,59 @@ class MSAViewNode(BaseNode):
         summary_path = out_dir / "summary.json"
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-        return (str(summary_path), str(consensus_path))
+        # Render the alignment as a PNG using matplotlib — every column is a
+        # coloured cell, every row a sequence. Capped at 200 cols so the
+        # render stays cheap; the full alignment is still on disk at
+        # alignment.fasta if the user wants to inspect it.
+        image_path = out_dir / "alignment.png"
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from matplotlib.patches import Rectangle
+        except Exception:
+            # matplotlib missing — emit a tiny placeholder PNG so the typed
+            # output is still a valid IMAGE file and downstream wiring doesn't
+            # break. Users on minimal envs can install matplotlib later.
+            image_path.write_bytes(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
+                b"\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05"
+                b"\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+        else:
+            col_limit = min(alignment.get_alignment_length(), 200)
+            colour_map = {
+                "A": "#ef4444", "T": "#10b981", "G": "#f59e0b", "C": "#3b82f6",
+                "U": "#10b981", "-": "#e2e8f0", "N": "#94a3b8",
+            }
+            nrows = len(alignment)
+            fig_w = max(8, col_limit * 0.08)
+            fig_h = max(2, nrows * 0.3)
+            fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=120)
+            for r_idx, rec in enumerate(alignment):
+                for c_idx in range(col_limit):
+                    ch = str(rec.seq[c_idx]).upper()
+                    ax.add_patch(Rectangle((c_idx, nrows - r_idx - 1), 1, 1,
+                                           facecolor=colour_map.get(ch, "#ffffff"),
+                                           edgecolor="none"))
+            ax.set_xlim(0, col_limit)
+            ax.set_ylim(0, nrows)
+            ax.set_yticks([i + 0.5 for i in range(nrows)])
+            ax.set_yticklabels([rec.id for rec in reversed(list(alignment))], fontsize=8)
+            ax.set_xticks([])
+            ax.set_title(
+                f"Alignment — {summary['num_sequences']} sequences × "
+                f"{summary['alignment_length']} cols"
+                + (f" (first {col_limit} shown)" if col_limit < alignment.get_alignment_length() else ""),
+                fontsize=10,
+            )
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            fig.tight_layout()
+            fig.savefig(str(image_path), bbox_inches="tight")
+            plt.close(fig)
+
+        if context is not None and hasattr(context, "register_preview"):
+            context.register_preview(image_path, label="MSA View")
+
+        return (str(summary_path), str(consensus_path), str(image_path))

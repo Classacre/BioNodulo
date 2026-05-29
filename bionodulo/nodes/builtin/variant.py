@@ -24,7 +24,7 @@ class BcftoolsMpileupNode(CommandNode):
     REQUIRED_EXECUTABLES = ["bcftools"]
     DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
     VERSION = "1.22"
-    SHELL = True
+    SHELL = False
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

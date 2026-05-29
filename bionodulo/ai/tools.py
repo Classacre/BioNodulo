@@ -1,17 +1,19 @@
-"""Tool registry and executor for BioNodulo AI Assistant.
-
-Provides declarative tools that the AI can call to inspect and modify
-workflows, environments, settings, and dependencies.
-"""
+"""Tool registry and executor for the BioNodulo AI assistant."""
 from __future__ import annotations
 
 import copy
 import json
 import logging
+import os
+import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TEMPLATES_DIR = REPO_ROOT / "templates"
 
 
 @dataclass
@@ -37,17 +39,21 @@ class ToolDefinition:
 
 
 class ToolContext:
-    """Context passed to tool executions containing app state."""
+    """Request-scoped application state available to AI tools."""
 
     def __init__(
         self,
         workflow: dict[str, Any] | None = None,
+        workflow_id: str | None = None,
         registry: Any = None,
         settings: Any = None,
+        settings_manager: Any = None,
     ):
-        self.workflow = workflow or {}
+        self.workflow = _normalize_workflow(workflow or {}, workflow_id)
+        self.workflow_id = self.workflow.get("id") or workflow_id
         self.registry = registry
         self.settings = settings
+        self.settings_manager = settings_manager
 
 
 def _param_schema(params: list[ToolParameter]) -> str:
@@ -62,435 +68,647 @@ def format_tools_for_prompt(tools: list[ToolDefinition]) -> str:
     """Format tool definitions for inclusion in a system prompt."""
     lines = ["You have access to the following tools:", ""]
     for t in tools:
-        mut = " [MUTATING — requires user confirmation]" if t.mutates else ""
+        mut = " [MUTATING - requires user confirmation]" if t.mutates else ""
         lines.append(f"### {t.name}{mut}")
-        lines.append(f"{t.description}")
+        lines.append(t.description)
         lines.append("Parameters:")
         lines.append(_param_schema(t.parameters))
         lines.append("")
-    lines.append("""
-To call a tool, output exactly:
-<tool_call name="TOOL_NAME">
-{"param1": "value1", "param2": "value2"}
-</tool_call>
-
-Show your reasoning inside <thinking> tags before each tool call.
-
-When you want to propose changes to the workflow, output:
-<propose_changes>
-{"description": "human-readable summary", "workflow": {...full workflow JSON...}}
-</propose_changes>
-
+    lines.append(
+        """
+Use the model provider's native function calling interface to call tools.
 For mutating tools, the user must confirm before changes are applied.
-""")
+"""
+    )
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Tool implementations
-# ---------------------------------------------------------------------------
+def _json_schema_type(type_name: str) -> dict[str, Any]:
+    normalized = type_name.lower()
+    if normalized in {"int", "integer"}:
+        return {"type": "integer"}
+    if normalized in {"float", "number"}:
+        return {"type": "number"}
+    if normalized in {"bool", "boolean"}:
+        return {"type": "boolean"}
+    if normalized in {"array", "list"}:
+        return {"type": "array", "items": {}}
+    if normalized in {"object", "dict", "json"}:
+        return {"type": "object"}
+    return {"type": "string"}
+
+
+def tools_to_openai_schema(tools: list[ToolDefinition]) -> list[dict[str, Any]]:
+    """Return LiteLLM/OpenAI-compatible function-calling schemas."""
+    schemas: list[dict[str, Any]] = []
+    for tool in tools:
+        properties: dict[str, Any] = {}
+        required: list[str] = []
+        for param in tool.parameters:
+            schema = _json_schema_type(param.type)
+            schema["description"] = param.description
+            if param.default is not None:
+                schema["default"] = param.default
+            properties[param.name] = schema
+            if param.required:
+                required.append(param.name)
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        )
+    return schemas
+
+
+def _new_id(prefix: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in ("_", "-") else "_" for ch in prefix).strip("_")
+    return f"{cleaned or 'id'}_{uuid.uuid4().hex[:8]}"
+
+
+def _normalize_workflow(workflow: dict[str, Any], workflow_id: str | None = None) -> dict[str, Any]:
+    wf = copy.deepcopy(workflow)
+    wf.setdefault("version", "2.0")
+    wf.setdefault("app", "bionodulo")
+    wf.setdefault("name", "Untitled")
+    wf.setdefault("description", "")
+    wf["id"] = wf.get("id") or workflow_id or _new_id("wf")
+    if not isinstance(wf.get("nodes"), list):
+        nodes = wf.get("nodes")
+        wf["nodes"] = list(nodes.values()) if isinstance(nodes, dict) else []
+    if not isinstance(wf.get("edges"), list):
+        wf["edges"] = []
+    if not isinstance(wf.get("groups"), list):
+        wf["groups"] = []
+    if not isinstance(wf.get("outputs"), dict):
+        wf["outputs"] = {}
+    return wf
+
+
+def _object_info(ctx: ToolContext, node_type: str | None = None) -> Any:
+    registry = ctx.registry
+    if not registry or not hasattr(registry, "object_info"):
+        return {} if node_type is None else None
+    try:
+        if node_type is None:
+            return registry.object_info()
+        return registry.object_info(node_type)
+    except TypeError:
+        info = registry.object_info()
+        return info if node_type is None else info.get(node_type)
+
+
+def _node_defaults(meta: dict[str, Any] | None) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    if not meta:
+        return params
+    inputs = meta.get("input_types") or {}
+    for section in ("required", "optional"):
+        for name, spec in (inputs.get(section) or {}).items():
+            if isinstance(spec, dict) and "default" in spec:
+                params[name] = spec["default"]
+    return params
+
+
+def _node_slot_names(meta: dict[str, Any] | None, direction: str) -> list[str]:
+    if not meta:
+        return []
+    if direction == "input":
+        inputs = meta.get("input_types") or {}
+        return list((inputs.get("required") or {}).keys()) + list((inputs.get("optional") or {}).keys())
+    names = meta.get("return_names") or []
+    if names:
+        return list(names)
+    return [f"output_{idx}" for idx, _ in enumerate(meta.get("return_types") or [])]
+
+
+def _find_node(workflow: dict[str, Any], node_id: str) -> dict[str, Any] | None:
+    return next((node for node in workflow.get("nodes", []) if node.get("id") == node_id), None)
+
+
+def _settings_dict(ctx: ToolContext) -> dict[str, Any]:
+    if ctx.settings_manager and hasattr(ctx.settings_manager, "get_all"):
+        try:
+            return dict(ctx.settings_manager.get_all())
+        except Exception:
+            pass
+    if ctx.settings:
+        try:
+            return {k: v for k, v in vars(ctx.settings).items() if not k.startswith("_")}
+        except Exception:
+            pass
+    return {}
+
+
+def _workspace_root(ctx: ToolContext) -> Path:
+    settings = ctx.settings
+    project_root = getattr(settings, "project_root", None)
+    return Path(project_root) if project_root else REPO_ROOT
+
+
+def _template_files() -> list[Path]:
+    if not TEMPLATES_DIR.exists():
+        return []
+    return sorted(TEMPLATES_DIR.glob("*.json"), key=lambda p: p.name.lower())
+
+
+def _load_template_file(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and isinstance(data.get("workflow"), dict):
+        data = data["workflow"]
+    if not isinstance(data, dict):
+        raise ValueError(f"Template {path.name} does not contain a workflow object")
+    return _normalize_workflow(data)
+
 
 def _get_current_workflow(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """Return the current workflow JSON."""
     return {"workflow": ctx.workflow}
 
 
+def _get_workflow_summary(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    """Compact summary of the active workflow.
+
+    Returned in place of the full JSON when the assistant only needs to know
+    *what* is on the canvas, not every parameter. Roughly 10-50x smaller than
+    `get_current_workflow` on a realistic graph; preferable as a first call.
+    """
+    wf = ctx.workflow or {}
+    nodes = wf.get("nodes") or []
+    edges = wf.get("edges") or []
+    node_types: dict[str, int] = {}
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        t = str(node.get("type") or "unknown")
+        node_types[t] = node_types.get(t, 0) + 1
+    node_list = [
+        {
+            "id": n.get("id"),
+            "type": n.get("type"),
+            "title": (n.get("ui") or {}).get("title") if isinstance(n.get("ui"), dict) else None,
+        }
+        for n in nodes
+        if isinstance(n, dict)
+    ]
+    return {
+        "name": wf.get("name", "Untitled"),
+        "description": wf.get("description", ""),
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "group_count": len(wf.get("groups") or []),
+        "node_type_counts": node_types,
+        "nodes": node_list,
+    }
+
+
+def _explain_last_failure(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    """Return diagnostic info from the most recent failed run.
+
+    Reads `RunQueue.history()` when available and extracts the first failing
+    node's error message + the tail of the run log. Saves the assistant from
+    chasing the user for screenshots when something blew up.
+    """
+    queue = getattr(ctx.settings, "_run_queue", None)
+    if queue is None:
+        return {"error": "No run history available in this request context."}
+    try:
+        history = list(queue.history())
+    except Exception as exc:
+        return {"error": f"Could not read run history: {exc}"}
+    failed = next((r for r in history if r.get("status") in ("error", "failed", "cancelled")), None)
+    if failed is None:
+        return {"status": "ok", "message": "No failed runs in history."}
+    result = failed.get("result") or {}
+    error_message = result.get("error") or failed.get("error") or ""
+    failing_node = None
+    for node_id, node_result in (result.get("node_results") or {}).items():
+        if isinstance(node_result, dict) and node_result.get("status") in ("error", "failed"):
+            failing_node = {
+                "id": node_id,
+                "error": node_result.get("error", ""),
+                "command": node_result.get("command", ""),
+            }
+            break
+    log_tail = (result.get("logs") or [])[-50:]
+    return {
+        "run_id": failed.get("run_id"),
+        "workflow_name": failed.get("name"),
+        "status": failed.get("status"),
+        "error": str(error_message)[:1000],
+        "failing_node": failing_node,
+        "log_tail": log_tail,
+    }
+
+
 def _list_available_nodes(ctx: ToolContext, category: str | None = None, **kwargs: Any) -> dict[str, Any]:
-    """List available node types."""
     nodes: list[dict[str, Any]] = []
-    registry = ctx.registry
-    if registry and hasattr(registry, "object_info"):
-        info = registry.object_info()
-        for node_id, meta in info.items():
-            if category and meta.get("category") != category:
-                continue
-            nodes.append({
+    info = _object_info(ctx)
+    category_query = category.lower() if isinstance(category, str) and category else None
+    for node_id, meta in (info or {}).items():
+        meta = meta or {}
+        node_category = str(meta.get("category", "Unknown"))
+        if category_query and category_query not in node_category.lower():
+            continue
+        nodes.append(
+            {
                 "id": node_id,
                 "display_name": meta.get("display_name", node_id),
-                "category": meta.get("category", "Unknown"),
+                "category": node_category,
                 "description": meta.get("description", ""),
-                "inputs": list((meta.get("input_types") or {}).get("required", {}).keys()),
-                "outputs": meta.get("return_types", []),
+                "inputs": _node_slot_names(meta, "input"),
+                "outputs": _node_slot_names(meta, "output"),
+                "return_types": meta.get("return_types", []),
                 "requires_tools": meta.get("requires_external_tools", []),
-            })
+                "hidden": bool(meta.get("hidden", False)),
+                "visual_only": bool(meta.get("visual_only", False)),
+            }
+        )
     return {"nodes": nodes, "count": len(nodes)}
 
 
+def _get_node_info(ctx: ToolContext, node_type: str, **kwargs: Any) -> dict[str, Any]:
+    meta = _object_info(ctx, node_type)
+    if not meta:
+        return {"error": f"Node type '{node_type}' not found"}
+    return {
+        "id": node_type,
+        "display_name": meta.get("display_name", node_type),
+        "category": meta.get("category", "Unknown"),
+        "description": meta.get("description", ""),
+        "inputs": meta.get("input_types", {}),
+        "input_names": _node_slot_names(meta, "input"),
+        "outputs": _node_slot_names(meta, "output"),
+        "return_types": meta.get("return_types", []),
+        "return_names": meta.get("return_names", []),
+        "required_tools": meta.get("requires_external_tools", []),
+        "required_python_packages": meta.get("requires_python_packages", []),
+        "required_r_packages": meta.get("requires_r_packages", []),
+        "environment": meta.get("environment"),
+        "output_node": bool(meta.get("output_node", False)),
+        "hidden": bool(meta.get("hidden", False)),
+        "visual_only": bool(meta.get("visual_only", False)),
+    }
+
+
 def _get_dependency_report(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """Run dependency resolution on the current workflow."""
     from bionodulo.manager.resolver import resolve_workflow
 
-    registry = ctx.registry
-    if not registry:
+    if not ctx.registry:
         return {"error": "Node registry not available"}
-    report = resolve_workflow(ctx.workflow, registry)
+    report = resolve_workflow(ctx.workflow, ctx.registry)
     return report.to_dict()
 
 
-def _add_node(ctx: ToolContext, node_type: str, position: list[float] | None = None, params: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
-    """Add a new node to the workflow. Returns the modified workflow."""
-    wf = copy.deepcopy(ctx.workflow)
-    nodes = wf.get("nodes", [])
-    if isinstance(nodes, dict):
-        nodes = list(nodes.values())
-        wf["nodes"] = nodes
+def _validate_workflow(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    from bionodulo.workflow.validation import validate_workflow
 
+    result = validate_workflow(ctx.workflow, ctx.registry)
+    return {
+        "valid": result.valid,
+        "errors": result.errors,
+        "warnings": result.warnings,
+        "sorted_node_order": result.sorted_node_order,
+    }
+
+
+def _add_node(
+    ctx: ToolContext,
+    node_type: str,
+    position: list[float] | None = None,
+    params: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    meta = _object_info(ctx, node_type)
+    if not meta:
+        return {"error": f"Node type '{node_type}' not found"}
+    nodes = wf["nodes"]
     pos = position or [200 + len(nodes) * 30, 200 + len(nodes) * 20]
-    node_id = f"{node_type}_{len(nodes)}"
-
-    # Try to get defaults from registry
-    node_params: dict[str, Any] = {}
-    registry = ctx.registry
-    if registry and hasattr(registry, "object_info"):
-        meta = registry.object_info(node_type)
-        if meta:
-            for inp_name, inp_spec in (meta.get("input_types") or {}).get("required", {}).items():
-                node_params[inp_name] = inp_spec.get("default", "")
-            for inp_name, inp_spec in (meta.get("input_types") or {}).get("optional", {}).items():
-                node_params[inp_name] = inp_spec.get("default", "")
-
+    node_params = _node_defaults(meta)
     if params:
         node_params.update(params)
-
     new_node = {
-        "id": node_id,
+        "id": _new_id(node_type),
         "type": node_type,
         "position": pos,
         "params": node_params,
+        "node_info": meta,
+        "ui": {
+            "title": meta.get("display_name", node_type),
+        },
     }
     nodes.append(new_node)
-    wf["nodes"] = nodes
+    ctx.workflow = wf
     return {"workflow": wf, "added_node": new_node}
 
 
-def _update_node(ctx: ToolContext, node_id: str, params: dict[str, Any] | None = None, position: list[float] | None = None, **kwargs: Any) -> dict[str, Any]:
-    """Update a node's parameters or position."""
-    wf = copy.deepcopy(ctx.workflow)
-    nodes = wf.get("nodes", [])
-    if isinstance(nodes, dict):
-        nodes = list(nodes.values())
-
-    for node in nodes:
-        if node.get("id") == node_id:
-            if params:
-                node.setdefault("params", {}).update(params)
-            if position:
-                node["position"] = position
-            break
-
-    wf["nodes"] = nodes
-    return {"workflow": wf}
+def _update_node(
+    ctx: ToolContext,
+    node_id: str,
+    params: dict[str, Any] | None = None,
+    position: list[float] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    node = _find_node(wf, node_id)
+    if not node:
+        return {"error": f"Node '{node_id}' not found"}
+    if params:
+        node.setdefault("params", {}).update(params)
+    if position:
+        node["position"] = position
+    ctx.workflow = wf
+    return {"workflow": wf, "updated_node": node}
 
 
 def _remove_node(ctx: ToolContext, node_id: str, **kwargs: Any) -> dict[str, Any]:
-    """Remove a node and its connected edges."""
-    wf = copy.deepcopy(ctx.workflow)
-    nodes = wf.get("nodes", [])
-    if isinstance(nodes, dict):
-        nodes = list(nodes.values())
-
-    wf["nodes"] = [n for n in nodes if n.get("id") != node_id]
-    edges = wf.get("edges", [])
-    wf["edges"] = [e for e in edges if e.get("from", {}).get("node") != node_id and e.get("to", {}).get("node") != node_id]
-    return {"workflow": wf}
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    if not _find_node(wf, node_id):
+        return {"error": f"Node '{node_id}' not found"}
+    wf["nodes"] = [node for node in wf["nodes"] if node.get("id") != node_id]
+    wf["edges"] = [
+        edge for edge in wf["edges"]
+        if edge.get("from", {}).get("node") != node_id and edge.get("to", {}).get("node") != node_id
+    ]
+    ctx.workflow = wf
+    return {"workflow": wf, "removed_node": node_id}
 
 
 def _add_edge(ctx: ToolContext, from_node: str, from_output: str, to_node: str, to_input: str, **kwargs: Any) -> dict[str, Any]:
-    """Connect an output of one node to an input of another."""
-    wf = copy.deepcopy(ctx.workflow)
-    edges = wf.get("edges", [])
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    source = _find_node(wf, from_node)
+    target = _find_node(wf, to_node)
+    if not source:
+        return {"error": f"Source node '{from_node}' not found"}
+    if not target:
+        return {"error": f"Target node '{to_node}' not found"}
 
-    edge_id = f"{from_node}_{from_output}_to_{to_node}_{to_input}"
+    source_meta = _object_info(ctx, source.get("type"))
+    target_meta = _object_info(ctx, target.get("type"))
+    source_outputs = _node_slot_names(source_meta, "output")
+    target_inputs = _node_slot_names(target_meta, "input")
+    if source_outputs and from_output not in source_outputs:
+        return {"error": f"Output '{from_output}' is not valid for node '{from_node}'. Valid outputs: {source_outputs}"}
+    if target_inputs and to_input not in target_inputs:
+        return {"error": f"Input '{to_input}' is not valid for node '{to_node}'. Valid inputs: {target_inputs}"}
+
+    for edge in wf["edges"]:
+        if edge.get("to", {}).get("node") == to_node and edge.get("to", {}).get("input") == to_input:
+            return {"error": f"Input '{to_input}' on node '{to_node}' is already connected"}
+        if (
+            edge.get("from", {}).get("node") == from_node
+            and edge.get("from", {}).get("output") == from_output
+            and edge.get("to", {}).get("node") == to_node
+            and edge.get("to", {}).get("input") == to_input
+        ):
+            return {"error": "That edge already exists"}
+
     new_edge = {
-        "id": edge_id,
+        "id": _new_id("edge"),
         "from": {"node": from_node, "output": from_output},
         "to": {"node": to_node, "input": to_input},
     }
-    edges.append(new_edge)
-    wf["edges"] = edges
+    wf["edges"].append(new_edge)
+    ctx.workflow = wf
     return {"workflow": wf, "added_edge": new_edge}
 
 
 def _remove_edge(ctx: ToolContext, edge_id: str, **kwargs: Any) -> dict[str, Any]:
-    """Remove an edge by its ID."""
-    wf = copy.deepcopy(ctx.workflow)
-    edges = wf.get("edges", [])
-    wf["edges"] = [e for e in edges if e.get("id") != edge_id]
-    return {"workflow": wf}
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    before = len(wf["edges"])
+    wf["edges"] = [edge for edge in wf["edges"] if edge.get("id") != edge_id]
+    if len(wf["edges"]) == before:
+        return {"error": f"Edge '{edge_id}' not found"}
+    ctx.workflow = wf
+    return {"workflow": wf, "removed_edge": edge_id}
+
+
+def _list_workflow_templates(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    templates: list[dict[str, Any]] = []
+    for path in _template_files():
+        try:
+            workflow = _load_template_file(path)
+            templates.append(
+                {
+                    "name": path.stem,
+                    "filename": path.name,
+                    "display_name": workflow.get("name") or path.stem.replace("_", " ").title(),
+                    "description": workflow.get("description", ""),
+                    "nodes": len(workflow.get("nodes", [])),
+                    "edges": len(workflow.get("edges", [])),
+                }
+            )
+        except Exception as exc:
+            templates.append({"name": path.stem, "filename": path.name, "error": str(exc)})
+    return {"templates": templates, "count": len(templates)}
 
 
 def _load_template(ctx: ToolContext, template_name: str, **kwargs: Any) -> dict[str, Any]:
-    """Load a pre-built template by filename stem."""
-    from pathlib import Path
-
-    templates_dir = Path(__file__).parent.parent.parent / "templates"
-    target = templates_dir / f"{template_name}.json"
-    if not target.exists():
-        # Try common variations
-        for alt in [f"{template_name}_pipeline.json", f"{template_name}.json"]:
-            t = templates_dir / alt
-            if t.exists():
-                target = t
-                break
-    if not target.exists():
-        available = [p.stem for p in templates_dir.glob("*.json")]
-        return {"error": f"Template '{template_name}' not found. Available: {available}"}
-
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-        return {"workflow": data, "template": target.stem}
-    except Exception as exc:
-        return {"error": str(exc)}
+    candidates = [template_name]
+    if not template_name.endswith(".json"):
+        candidates.extend([f"{template_name}.json", f"{template_name}_pipeline.json"])
+    for path in _template_files():
+        if path.name in candidates or path.stem in candidates:
+            workflow = _load_template_file(path)
+            workflow["id"] = ctx.workflow_id or workflow.get("id") or _new_id("wf")
+            ctx.workflow = workflow
+            return {"workflow": workflow, "template": path.stem}
+    available = [path.stem for path in _template_files()]
+    return {"error": f"Template '{template_name}' not found", "available": available}
 
 
 def _set_workflow_name(ctx: ToolContext, name: str, **kwargs: Any) -> dict[str, Any]:
-    """Set the workflow name."""
-    wf = copy.deepcopy(ctx.workflow)
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
     wf["name"] = name
+    ctx.workflow = wf
     return {"workflow": wf}
 
 
 def _set_workflow_description(ctx: ToolContext, description: str, **kwargs: Any) -> dict[str, Any]:
-    """Set the workflow description."""
-    wf = copy.deepcopy(ctx.workflow)
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
     wf["description"] = description
+    ctx.workflow = wf
     return {"workflow": wf}
 
 
 def _resolve_dependencies(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """Run dependency resolution."""
     return _get_dependency_report(ctx)
 
 
 def _get_settings(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """Get current application settings."""
-    settings = ctx.settings
-    if not settings:
-        return {"settings": {}}
-    # Convert Settings dataclass to dict safely
-    try:
-        data = {k: v for k, v in vars(settings).items() if not k.startswith("_")}
-    except Exception:
-        data = {}
-    return {"settings": data}
+    return {"settings": _settings_dict(ctx)}
 
 
 def _update_setting(ctx: ToolContext, key: str, value: Any, **kwargs: Any) -> dict[str, Any]:
-    """Update a single setting."""
-    return {"setting_key": key, "setting_value": value, "note": "User must confirm before applying"}
+    return {
+        "setting_key": key,
+        "setting_value": value,
+        "note": "Settings changes require user confirmation and should be made through the Settings panel.",
+    }
 
 
 def _list_environments(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    """List pixi environments from the workspace envs directory."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["pixi", "info", "--json"], capture_output=True, text=True, timeout=30
-        )
-        if result.returncode == 0:
-            import json
-            data = json.loads(result.stdout)
-            envs = []
-            for name, info in data.get("environments", {}).items():
-                envs.append({"name": name, "path": info.get("prefix", "")})
-            return {"environments": envs}
-    except Exception as exc:
-        return {"error": str(exc)}
-    return {"environments": []}
+    from bionodulo.environments.manifest import list_all_envs
+
+    return {"environments": list_all_envs(_workspace_root(ctx))}
 
 
-def _create_environment(ctx: ToolContext, name: str, packages: list[str], **kwargs: Any) -> dict[str, Any]:
-    """Create a pixi environment via manifest (legacy — use workflow envs instead)."""
+def _ensure_workflow_environment(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     return {
         "success": False,
-        "message": "Direct environment creation is deprecated. Use workflow-scoped environments via /manager/ensure-workflow-env.",
+        "message": (
+            "Environment creation is handled by the app's dependency resolver and "
+            "/api/manager/ensure-workflow-env so the user can review the install plan first."
+        ),
     }
 
 
-def _get_node_info(ctx: ToolContext, node_type: str, **kwargs: Any) -> dict[str, Any]:
-    """Get detailed info about a specific node type."""
-    registry = ctx.registry
-    if not registry:
-        return {"error": "Registry not available"}
-    meta = registry.object_info(node_type)
-    if not meta:
-        return {"error": f"Node type '{node_type}' not found"}
+def _get_system_stats(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    try:
+        import psutil
+    except Exception as exc:
+        return {"error": f"psutil is unavailable: {exc}"}
+
+    vm = psutil.virtual_memory()
+    disk = psutil.disk_usage(str(_workspace_root(ctx)))
     return {
-        "id": meta.get("id"),
-        "display_name": meta.get("display_name"),
-        "category": meta.get("category"),
-        "description": meta.get("description"),
-        "inputs": meta.get("input_types", {}),
-        "outputs": meta.get("return_types", []),
-        "required_tools": meta.get("requires_external_tools", []),
+        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "cpu_count": os.cpu_count(),
+        "memory": {
+            "total": vm.total,
+            "available": vm.available,
+            "percent": vm.percent,
+        },
+        "disk": {
+            "total": disk.total,
+            "free": disk.free,
+            "percent": disk.percent,
+        },
     }
 
 
-# ---------------------------------------------------------------------------
-# Registry
-# ---------------------------------------------------------------------------
+def _get_run_history(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    return {
+        "runs": [],
+        "note": "Run history is request-context dependent. Open the console/history panel for live local run records.",
+    }
+
+
+def _get_collaboration_status(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    settings = _settings_dict(ctx)
+    enabled = bool(settings.get("bionodulo.collab.enabled", False))
+    return {
+        "enabled": enabled,
+        "mode": "collaboration" if enabled else "local",
+        "workflow_id": ctx.workflow_id,
+    }
+
 
 ALL_TOOLS: list[ToolDefinition] = [
+    ToolDefinition("get_current_workflow", "Get the full JSON of the active workflow.", [], _get_current_workflow),
     ToolDefinition(
-        name="get_current_workflow",
-        description="Get the full JSON of the currently active workflow.",
-        parameters=[],
-        mutates=False,
-        execute=_get_current_workflow,
+        "get_workflow_summary",
+        "Get a compact summary of the workflow (node + edge counts, node types, ids/titles). Prefer this over get_current_workflow when you only need to know what's on the canvas, not full parameter values.",
+        [],
+        _get_workflow_summary,
     ),
     ToolDefinition(
-        name="list_available_nodes",
-        description="List all available node types. Optionally filter by category. Categories include: 'input', 'qc', 'alignment', 'rna_seq', 'variant', 'assembly', 'phylogeny', 'r' (R visualization), 'biopython' (sequence analysis), 'metagenomics', 'chip_seq', 'single_cell'.",
-        parameters=[
-            ToolParameter("category", "string", "Filter by category (e.g., 'RNA-Seq', 'Alignment', 'r', 'biopython')", required=False, default=None),
+        "explain_last_failure",
+        "Summarize the most recent failed run: status, error message, first failing node, and a tail of the run log. Use when the user asks what went wrong or why a run failed.",
+        [],
+        _explain_last_failure,
+    ),
+    ToolDefinition(
+        "list_available_nodes",
+        "List available node types from the live node registry. Category matching is case-insensitive.",
+        [ToolParameter("category", "string", "Optional category filter, e.g. RNA-Seq or Alignment", required=False, default=None)],
+        _list_available_nodes,
+    ),
+    ToolDefinition(
+        "get_node_info",
+        "Get detailed node metadata including inputs, outputs, packages, hidden flags, and visual-only status.",
+        [ToolParameter("node_type", "string", "Node type ID, e.g. fastqc or deseq2_analysis")],
+        _get_node_info,
+    ),
+    ToolDefinition("validate_workflow", "Validate the current workflow graph.", [], _validate_workflow),
+    ToolDefinition("get_dependency_report", "Resolve missing tools and packages for the current workflow.", [], _get_dependency_report),
+    ToolDefinition("resolve_dependencies", "Alias for get_dependency_report.", [], _resolve_dependencies),
+    ToolDefinition("list_environments", "List existing local workflow environments from the workspace envs directory.", [], _list_environments),
+    ToolDefinition("list_workflow_templates", "List built-in local workflow templates available without collaboration.", [], _list_workflow_templates),
+    ToolDefinition("get_settings", "Get current application settings.", [], _get_settings),
+    ToolDefinition("get_system_stats", "Get CPU, memory, and disk stats for the local backend host.", [], _get_system_stats),
+    ToolDefinition("get_run_history", "Summarize locally available run history context.", [], _get_run_history),
+    ToolDefinition("get_collaboration_status", "Report whether the app is in local mode or collaboration mode.", [], _get_collaboration_status),
+    ToolDefinition(
+        "add_node",
+        "Add a registry-backed node to the workflow with safe unique IDs and default parameters.",
+        [
+            ToolParameter("node_type", "string", "Node type ID"),
+            ToolParameter("position", "array", "[x, y] canvas coordinates", required=False, default=None),
+            ToolParameter("params", "object", "Parameter values to override", required=False, default=None),
         ],
-        mutates=False,
-        execute=_list_available_nodes,
-    ),
-    ToolDefinition(
-        name="get_node_info",
-        description="Get detailed metadata about a specific node type (inputs, outputs, required tools, required R packages).",
-        parameters=[
-            ToolParameter("node_type", "string", "Node type ID (e.g., 'fastqc', 'star_align', 'r_plot', 'deseq2_analysis', 'bp_seq_stats')"),
-        ],
-        mutates=False,
-        execute=_get_node_info,
-    ),
-    ToolDefinition(
-        name="get_dependency_report",
-        description="Get a report of missing dependencies (nodes, executables, packages) for the current workflow.",
-        parameters=[],
-        mutates=False,
-        execute=_get_dependency_report,
-    ),
-    ToolDefinition(
-        name="list_environments",
-        description="List existing pixi environments.",
-        parameters=[],
-        mutates=False,
-        execute=_list_environments,
-    ),
-    ToolDefinition(
-        name="get_settings",
-        description="Get current application settings.",
-        parameters=[],
-        mutates=False,
-        execute=_get_settings,
-    ),
-    ToolDefinition(
-        name="add_node",
-        description="Add a new node to the workflow.",
-        parameters=[
-            ToolParameter("node_type", "string", "Node type ID (e.g., 'fastqc')"),
-            ToolParameter("position", "array", "[x, y] coordinates on canvas", required=False, default=None),
-            ToolParameter("params", "object", "Parameter values to set", required=False, default=None),
-        ],
+        _add_node,
         mutates=True,
-        execute=_add_node,
     ),
     ToolDefinition(
-        name="update_node",
-        description="Update a node's parameters or position.",
-        parameters=[
+        "update_node",
+        "Update an existing node's parameters or position.",
+        [
             ToolParameter("node_id", "string", "ID of the node to update"),
             ToolParameter("params", "object", "Parameter values to update", required=False, default=None),
             ToolParameter("position", "array", "New [x, y] coordinates", required=False, default=None),
         ],
+        _update_node,
         mutates=True,
-        execute=_update_node,
     ),
+    ToolDefinition("remove_node", "Remove a node and any connected edges.", [ToolParameter("node_id", "string", "Node ID")], _remove_node, mutates=True),
     ToolDefinition(
-        name="remove_node",
-        description="Remove a node and its connected edges.",
-        parameters=[
-            ToolParameter("node_id", "string", "ID of the node to remove"),
-        ],
-        mutates=True,
-        execute=_remove_node,
-    ),
-    ToolDefinition(
-        name="add_edge",
-        description="Connect an output of one node to an input of another.",
-        parameters=[
+        "add_edge",
+        "Connect one node output to one node input after validating node IDs and slot names.",
+        [
             ToolParameter("from_node", "string", "Source node ID"),
             ToolParameter("from_output", "string", "Source output name"),
             ToolParameter("to_node", "string", "Target node ID"),
             ToolParameter("to_input", "string", "Target input name"),
         ],
+        _add_edge,
         mutates=True,
-        execute=_add_edge,
     ),
+    ToolDefinition("remove_edge", "Remove an edge by ID.", [ToolParameter("edge_id", "string", "Edge ID")], _remove_edge, mutates=True),
+    ToolDefinition("load_template", "Load a built-in local workflow template by filename or stem.", [ToolParameter("template_name", "string", "Template filename or stem")], _load_template, mutates=True),
+    ToolDefinition("set_workflow_name", "Set the workflow name.", [ToolParameter("name", "string", "New workflow name")], _set_workflow_name, mutates=True),
+    ToolDefinition("set_workflow_description", "Set the workflow description.", [ToolParameter("description", "string", "New workflow description")], _set_workflow_description, mutates=True),
     ToolDefinition(
-        name="remove_edge",
-        description="Remove an edge by its ID.",
-        parameters=[
-            ToolParameter("edge_id", "string", "Edge ID to remove"),
-        ],
-        mutates=True,
-        execute=_remove_edge,
-    ),
-    ToolDefinition(
-        name="load_template",
-        description="Load a pre-built workflow template by name.",
-        parameters=[
-            ToolParameter("template_name", "string", "Template name stem, e.g. 'rna_seq_pipeline', 'fastq_qc_pipeline'"),
-        ],
-        mutates=True,
-        execute=_load_template,
-    ),
-    ToolDefinition(
-        name="set_workflow_name",
-        description="Set the name of the current workflow.",
-        parameters=[
-            ToolParameter("name", "string", "New workflow name"),
-        ],
-        mutates=True,
-        execute=_set_workflow_name,
-    ),
-    ToolDefinition(
-        name="set_workflow_description",
-        description="Set the description of the current workflow.",
-        parameters=[
-            ToolParameter("description", "string", "New workflow description"),
-        ],
-        mutates=True,
-        execute=_set_workflow_description,
-    ),
-    ToolDefinition(
-        name="resolve_dependencies",
-        description="Run dependency resolution to find missing tools, Python packages, and R packages for the current workflow.",
-        parameters=[],
+        "ensure_workflow_environment",
+        "Explain how the app creates workflow-scoped environments through the resolver review flow.",
+        [],
+        _ensure_workflow_environment,
         mutates=False,
-        execute=_resolve_dependencies,
     ),
     ToolDefinition(
-        name="create_environment",
-        description="Create a new Conda environment with specified packages. Can include bioinformatics tools, Python packages, and R packages (e.g., ['bwa', 'samtools', 'r-base', 'r-ggplot2', 'bioconductor-deseq2']).",
-        parameters=[
-            ToolParameter("name", "string", "Environment name"),
-            ToolParameter("packages", "array", "List of package names (e.g., ['bwa', 'samtools', 'r-base', 'bioconductor-deseq2'])"),
-        ],
+        "update_setting",
+        "Draft a settings change for user confirmation rather than applying it silently.",
+        [ToolParameter("key", "string", "Setting key"), ToolParameter("value", "any", "New value")],
+        _update_setting,
         mutates=True,
-        execute=_create_environment,
-    ),
-    ToolDefinition(
-        name="update_setting",
-        description="Update a single application setting.",
-        parameters=[
-            ToolParameter("key", "string", "Setting key"),
-            ToolParameter("value", "any", "New value"),
-        ],
-        mutates=True,
-        execute=_update_setting,
     ),
 ]
 
 
 def get_tool(name: str) -> ToolDefinition | None:
     """Get a tool by name."""
-    for t in ALL_TOOLS:
-        if t.name == name:
-            return t
+    for tool in ALL_TOOLS:
+        if tool.name == name:
+            return tool
     return None
 
 
@@ -498,10 +716,12 @@ def execute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) -> dict
     """Execute a tool by name with the given arguments."""
     tool = get_tool(name)
     if not tool:
-        return {"error": f"Tool '{name}' not found"}
+        return {"status": "error", "error": f"Tool '{name}' not found"}
     try:
         result = tool.execute(ctx, **arguments)
-        return {"status": "ok", "result": result}
+        if isinstance(result, dict) and "error" in result:
+            return {"status": "error", "error": result["error"], "result": result}
+        return {"status": "ok", "result": result, "mutates": tool.mutates}
     except Exception as exc:
         logger.exception("Tool execution failed: %s", name)
         return {"status": "error", "error": str(exc)}

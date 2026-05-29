@@ -1,7 +1,6 @@
 """System hardware stats endpoint for BioNodulo.
 
-Provides CPU, memory, GPU, and VRAM information similar to ComfyUI's
-/system_stats endpoint.
+Provides CPU, memory, GPU, and VRAM information for the frontend monitor.
 """
 from __future__ import annotations
 
@@ -113,10 +112,7 @@ def _get_cpu_temp() -> float | None:
 
 @router.get("/system_stats")
 async def system_stats() -> dict[str, Any]:
-    """Return live hardware statistics.
-
-    Similar to ComfyUI's /system_stats endpoint.
-    """
+    """Return live hardware statistics."""
     cpu_percent = psutil.cpu_percent(interval=0.1)
     mem = psutil.virtual_memory()
     cpu_temp = _get_cpu_temp()

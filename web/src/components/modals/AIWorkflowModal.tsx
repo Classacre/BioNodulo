@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
+import { apiPost, ApiError } from '../../api/client';
+import { renderMarkdownToHtml } from '../../utils/markdown';
 
 interface AIWorkflowModalProps {
   workflow: Workflow;
@@ -41,6 +43,13 @@ interface ChatSession {
 
 const STORAGE_KEY = 'bionodulo-ai-sessions';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+const QUICK_PROMPTS: { label: string; prompt: string }[] = [
+  { label: 'Summarize my workflow', prompt: 'Use get_workflow_summary and tell me what my current workflow does in 3-4 sentences.' },
+  { label: 'What went wrong?', prompt: 'Use explain_last_failure and tell me why the most recent run failed and how to fix it.' },
+  { label: 'Find missing QC', prompt: 'Look at my workflow and suggest any quality-control steps I might be missing.' },
+  { label: 'Suggest next step', prompt: 'Based on the current workflow, what is the next analysis step I should add?' },
+];
 
 function loadSessions(): ChatSession[] {
   try {
@@ -89,6 +98,9 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // AbortController for the in-flight chat fetch — lets the user Stop a slow
+  // tool-using turn instead of being forced to wait for it to finish.
+  const inFlightRef = useRef<AbortController | null>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const turns = activeSession?.turns || [];
@@ -233,6 +245,83 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     setAttachments(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  const sendChat = useCallback(async (
+    userMsg: string,
+    currentAttachments: AttachedFile[],
+    historyOverride?: ChatTurn[],
+  ) => {
+    const historyTurns = historyOverride ?? turns;
+    setSending(true);
+    const abortController = new AbortController();
+    inFlightRef.current = abortController;
+
+    try {
+      const history = historyTurns.map(t => ({
+        role: t.role,
+        content: t.content || t.steps?.map(s => s.content).join('\n') || '',
+      }));
+
+      const respondLocally = () => setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            : s
+        )
+      );
+      try {
+        const data = await apiPost<{ steps?: ChatStep[]; model?: string }>('/ai/chat', {
+          message: userMsg,
+          workflow,
+          workflow_id: workflow.id || null,
+          history,
+          files: currentAttachments,
+        }, { signal: abortController.signal });
+        const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
+          ...s,
+          workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>) : undefined,
+        }));
+        const assistantTurn: ChatTurn = {
+          role: 'assistant',
+          steps,
+          model: data.model || 'unknown',
+        };
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === activeSessionId
+              ? { ...s, turns: [...s.turns, assistantTurn] }
+              : s
+          )
+        );
+      } catch (err) {
+        // AbortError: user clicked Stop. Append a "stopped" note instead of
+        // falling back to canned local responses (which would feel wrong).
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setSessions(prev =>
+            prev.map(s =>
+              s.id === activeSessionId
+                ? { ...s, turns: [...s.turns, { role: 'assistant', content: '_Stopped by user._' }] }
+                : s
+            )
+          );
+        } else if (err instanceof ApiError || err instanceof Error) {
+          respondLocally();
+        } else {
+          throw err;
+        }
+      }
+    } catch {
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            : s
+        )
+      );
+    }
+    inFlightRef.current = null;
+    setSending(false);
+  }, [activeSessionId, turns, workflow]);
+
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || sending) return;
     const userMsg = input.trim();
@@ -251,63 +340,37 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         s.id === activeSessionId ? { ...s, turns: [...s.turns, userTurn] } : s
       )
     );
-    setSending(true);
 
-    try {
-      const history = turns.map(t => ({
-        role: t.role,
-        content: t.content || t.steps?.map(s => s.content).join('\n') || '',
-      }));
+    await sendChat(userMsg, currentAttachments);
+  }, [input, attachments, sending, activeSessionId, sendChat]);
 
-      const r = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg,
-          workflow,
-          history,
-          files: currentAttachments,
-        }),
-      });
+  const stop = useCallback(() => {
+    inFlightRef.current?.abort();
+  }, []);
 
-      if (r.ok) {
-        const data = await r.json();
-        const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
-          ...s,
-          workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>) : undefined,
-        }));
-        const assistantTurn: ChatTurn = {
-          role: 'assistant',
-          steps,
-          model: data.model || 'unknown',
-        };
-        setSessions(prev =>
-          prev.map(s =>
-            s.id === activeSessionId
-              ? { ...s, turns: [...s.turns, assistantTurn] }
-              : s
-          )
-        );
-      } else {
-        setSessions(prev =>
-          prev.map(s =>
-            s.id === activeSessionId
-              ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
-              : s
-          )
-        );
-      }
-    } catch {
-      setSessions(prev =>
-        prev.map(s =>
-          s.id === activeSessionId
-            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
-            : s
-        )
-      );
-    }
-    setSending(false);
-  }, [input, attachments, sending, turns, workflow, activeSessionId]);
+  // Regenerate strips the last assistant turn, then re-sends the previous
+  // user turn. Useful when the model picked a bad tool path or produced a
+  // weak answer and the user wants another shot without retyping.
+  const regenerate = useCallback(async () => {
+    if (sending) return;
+    const lastUserIdx = [...turns].reverse().findIndex(t => t.role === 'user');
+    if (lastUserIdx < 0) return;
+    const realIdx = turns.length - 1 - lastUserIdx;
+    const lastUserTurn = turns[realIdx];
+    const userMsg = lastUserTurn.content || '';
+    const currentAttachments = lastUserTurn.files || [];
+    // Keep everything up to AND including the last user turn; drop assistant
+    // turns that came after it (there should be exactly one).
+    const truncated = turns.slice(0, realIdx + 1);
+    setSessions(prev =>
+      prev.map(s => (s.id === activeSessionId ? { ...s, turns: truncated } : s))
+    );
+    await sendChat(userMsg, currentAttachments, turns.slice(0, realIdx));
+  }, [sending, turns, activeSessionId, sendChat]);
+
+  const insertQuickPrompt = useCallback((prompt: string) => {
+    setInput(prompt);
+  }, []);
 
   const handleApply = useCallback(
     (proposed: Workflow) => {
@@ -435,7 +498,10 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                       {turn.model && <div className="ai-model-badge">{turn.model}</div>}
                     </div>
                   ) : (
-                    <div>{turn.content}</div>
+                    <div
+                      className="ai-markdown"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(turn.content || '') }}
+                    />
                   )}
                 </div>
               )}
@@ -447,6 +513,14 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                 <div className="ai-thinking-inline">
                   <span className="ai-spinner" />
                   Thinking...
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    style={{ marginLeft: 12 }}
+                    onClick={stop}
+                    title="Stop generating"
+                  >
+                    <Icon name="close" size={10} /> Stop
+                  </button>
                 </div>
               </div>
             </div>
@@ -457,6 +531,32 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
 
       {/* Footer */}
       <div className="ai-drawer-footer">
+        {/* Quick prompt chips: only show when the conversation is empty (one
+            primer assistant turn) and we're not mid-send. They let the user
+            kick off a useful tool-using turn with one click. */}
+        {turns.length <= 1 && !sending && (
+          <div className="ai-quick-prompts">
+            {QUICK_PROMPTS.map(qp => (
+              <button
+                key={qp.label}
+                className="ai-quick-prompt"
+                onClick={() => insertQuickPrompt(qp.prompt)}
+                title={qp.prompt}
+              >
+                {qp.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Regenerate is offered after any assistant turn so the user can
+            quickly retry without retyping the question. */}
+        {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
+          <div className="ai-quick-prompts">
+            <button className="ai-quick-prompt" onClick={regenerate} title="Re-run the previous question">
+              ↻ Regenerate
+            </button>
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="ai-attachments-row">
             {attachments.map((f, i) => (
@@ -495,9 +595,15 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             placeholder="Ask about workflows... (Paste images directly)"
             disabled={sending}
           />
-          <button className="btn btn-primary" onClick={send} disabled={sending}>
-            {sending ? '...' : 'Send'}
-          </button>
+          {sending ? (
+            <button className="btn btn-secondary" onClick={stop} title="Stop generating">
+              Stop
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={send}>
+              Send
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -585,13 +691,19 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
 
     case 'reply':
     default:
-      return <div className="ai-step-reply">{step.content}</div>;
+      return (
+        <div
+          className="ai-step-reply ai-markdown"
+          dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(step.content) }}
+        />
+      );
   }
 }
 
 function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
   return {
-    version: (raw.version as string) || 'Alpha 1.2',
+    id: typeof raw.id === 'string' ? raw.id : undefined,
+    version: (raw.version as string) || '2.0',
     app: (raw.app as string) || 'bionodulo',
     name: (raw.name as string) || 'Untitled',
     description: (raw.description as string) || '',

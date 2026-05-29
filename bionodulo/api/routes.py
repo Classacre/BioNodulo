@@ -10,19 +10,27 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+from bionodulo.api.app_state import app_state, setting_literal
+from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
+from bionodulo.api.collab_dependencies import (
+    ensure_open_room_access,
+    require_workflow_role,
+)
+from bionodulo.api.collab_runtime_routes import workflow_payload_to_flat_snapshot
 from bionodulo.api.system_stats import router as system_stats_router
 from bionodulo.api.previews import router as previews_router
+from bionodulo.api.rate_limits import limiter
 from bionodulo.api.schemas import (
-    AIChatRequest,
     DeleteFilesRequest,
     DependencyTreeRequest,
     ExampleDataDownloadRequest,
@@ -32,17 +40,14 @@ from bionodulo.api.schemas import (
     ImportWorkflowRequest,
     ManagerDiagnoseRequest,
     ManagerGitRequest,
-    ManagerInstallDepsRequest,
-    ManagerInstallPlanRequest,
-    ManagerInstallRequest,
     ManagerPackageRequest,
+    QueueReorderRequest,
     RunCreateRequest,
-    SettingsSaveRequest,
-    SettingsSetRequest,
     ValidationRequest,
     WorkspaceRootRequest,
     WorkflowEnvironmentRequest,
     WorkflowExportRequest,
+    WorkflowExtractRequest,
 )
 from bionodulo.core.config import Settings
 from bionodulo.core.events import EventHub
@@ -59,16 +64,54 @@ from bionodulo.environments.manifest import (
     remove_package_from_env,
     set_env_meta,
 )
-from bionodulo.ai.assistant import chat_with_tools
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
-from bionodulo.manager.installer import get_installer
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.manager.resolver import _resolve_workflow_async
+from bionodulo.workflow.graph import edge_source, edge_target
 from bionodulo.workflow.validation import validate_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 logger = logging.getLogger(__name__)
+
+
+def _track_background_task(task: asyncio.Task[Any], label: str) -> None:
+    """Log unhandled exceptions from fire-and-forget asyncio tasks."""
+
+    def _on_done(done: asyncio.Task[Any]) -> None:
+        try:
+            done.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("%s failed", label)
+
+    task.add_done_callback(_on_done)
+
+
+def _schedule_event_emit(
+    event_hub: EventHub,
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    task = asyncio.create_task(event_hub.emit_typed(event_type, payload, source=source))
+    _track_background_task(task, f"Event emit {event_type}")
+
+
+def _schedule_event_emit_threadsafe(
+    loop: asyncio.AbstractEventLoop,
+    event_hub: EventHub,
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    def _schedule() -> None:
+        _schedule_event_emit(event_hub, event_type, payload, source=source)
+
+    loop.call_soon_threadsafe(_schedule)
 
 
 def _derive_category(name: str, description: str, tools: list[str]) -> str:
@@ -161,12 +204,138 @@ def _get_event_hub(request: Request) -> EventHub:
     return request.app.state.event_hub
 
 
-def _get_settings_manager(request: Request) -> Any:
-    return request.app.state.settings_manager
+def _setting_bool(request: Request, key: str, default: bool = False) -> bool:
+    value = setting_literal(request, key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, role: str = "editor") -> None:
+    """Compatibility wrapper for tests and older route helpers."""
+    ensure_open_room_access(request, workflow_id, user_id, role=role)
+
+
+def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility wrapper for tests and older route helpers."""
+    return workflow_payload_to_flat_snapshot(workflow_id, body)
+
+
+def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
+    """Require execute permission when collaborative permissions are enabled."""
+    if not workflow_id:
+        return None
+    if not _setting_bool(request, "bionodulo.collab.enabled", False):
+        return None
+    payload = _require_auth_payload(request)
+    user_id = payload.get("sub", "")
+    require_workflow_role(request, workflow_id, user_id, "execute")
+    return payload
 
 
 def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
+
+
+def _workflow_node_id(node: Any, fallback: str | None = None) -> str:
+    if isinstance(node, dict):
+        node_id = node.get("id", fallback)
+    else:
+        node_id = getattr(node, "id", fallback)
+    return str(node_id) if node_id is not None else ""
+
+
+def _workflow_node_as_dict(node: Any, node_id: str) -> dict[str, Any]:
+    if isinstance(node, dict):
+        data = dict(node)
+    elif hasattr(node, "model_dump"):
+        data = node.model_dump()
+    else:
+        data = dict(getattr(node, "__dict__", {}))
+    data.setdefault("id", node_id)
+    return data
+
+
+def _object_as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    return dict(getattr(value, "__dict__", {}))
+
+
+def _extract_workflow_subgraph(
+    workflow: dict[str, Any],
+    node_ids: list[str],
+    name: str,
+) -> dict[str, Any]:
+    selected = {
+        str(nid).strip()
+        for nid in node_ids
+        if nid is not None and str(nid).strip()
+    }
+    if not selected:
+        raise ValueError("At least one node_id is required")
+
+    raw_nodes = workflow.get("nodes", [])
+    node_map: dict[str, dict[str, Any]] = {}
+    if isinstance(raw_nodes, dict):
+        for node_id, node in raw_nodes.items():
+            nid = _workflow_node_id(node, str(node_id))
+            if nid:
+                node_map[nid] = _workflow_node_as_dict(node, nid)
+    else:
+        for node in raw_nodes or []:
+            nid = _workflow_node_id(node)
+            if nid:
+                node_map[nid] = _workflow_node_as_dict(node, nid)
+
+    missing = sorted(selected - set(node_map))
+    if missing:
+        raise KeyError(", ".join(missing))
+
+    extracted_nodes = [node_map[nid] for nid in node_map if nid in selected]
+    extracted_edges = [
+        edge
+        for edge in workflow.get("edges", [])
+        if edge_source(edge) in selected and edge_target(edge) in selected
+    ]
+    extracted_groups: list[dict[str, Any]] = []
+    for group in workflow.get("groups", []) or []:
+        group_data = _object_as_dict(group)
+        group_node_ids = [
+            str(node_id)
+            for node_id in group_data.get("node_ids", [])
+            if str(node_id) in selected
+        ]
+        if group_node_ids:
+            group_data["node_ids"] = group_node_ids
+            extracted_groups.append(group_data)
+
+    extracted_outputs: list[dict[str, Any]] = []
+    for output in workflow.get("outputs", []) or []:
+        output_data = _object_as_dict(output)
+        if str(output_data.get("node_id", "")) in selected:
+            extracted_outputs.append(output_data)
+
+    extracted: dict[str, Any] = {
+        key: value
+        for key, value in workflow.items()
+        if key not in {"id", "name", "nodes", "edges", "groups", "outputs"}
+    }
+    extracted.update(
+        {
+            "id": f"subgraph_{uuid.uuid4().hex[:12]}",
+            "name": name,
+            "nodes": extracted_nodes,
+            "edges": extracted_edges,
+            "groups": extracted_groups,
+            "outputs": extracted_outputs,
+        }
+    )
+    return extracted
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +394,7 @@ def _generate_run_id(workflow_name: str) -> str:
 @router.post("/runs")
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
     """Submit a workflow for execution."""
+    _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     queue = _get_queue(request)
     event_hub = _get_event_hub(request)
 
@@ -241,8 +411,15 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         await queue.submit(
             run_id=run_id,
             workflow=body.workflow,
-            metadata={"name": body.name, "environment": body.environment},
+            metadata={
+                "name": body.name,
+                "environment": body.environment,
+                "target_nodes": body.target_nodes,
+                "force_nodes": body.force_nodes,
+            },
+            options={"target_nodes": body.target_nodes} if body.target_nodes else {},
             force=body.no_cache,
+            force_nodes=set(body.force_nodes),
         )
     else:
         # Fallback: store in app state
@@ -252,38 +429,12 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
             "name": body.name,
             "status": "queued",
             "workflow": body.workflow,
+            "target_nodes": body.target_nodes,
+            "force_nodes": body.force_nodes,
         }
         request.app.state.runs = runs
 
     return {"run_id": run_id, "status": "queued", "name": body.name, "workflow_name": wf_name}
-
-
-@router.post("/prompt")
-async def comfyui_prompt(request: Request) -> dict[str, Any]:
-    """ComfyUI-compatible prompt endpoint.
-
-    Accepts a workflow in ComfyUI prompt format and submits it for execution.
-    """
-    body = await request.json()
-    queue = _get_queue(request)
-    event_hub = _get_event_hub(request)
-
-    wf_name = body.get("name", "prompt-run")
-    run_id = _generate_run_id(str(wf_name))
-    await event_hub.emit_typed(
-        "execution.prompt_submitted",
-        {"run_id": run_id},
-        source=run_id,
-    )
-
-    if hasattr(queue, "submit"):
-        await queue.submit(
-            run_id=run_id,
-            workflow=body,
-            metadata={"name": "prompt-run"},
-        )
-
-    return {"prompt_id": run_id, "number": 0, "node_errors": {}}
 
 
 # ---------------------------------------------------------------------------
@@ -300,12 +451,62 @@ async def get_queue_state(request: Request) -> dict[str, Any]:
 
 
 @router.post("/queue/clear")
-async def clear_queue(request: Request) -> dict[str, str]:
+async def clear_queue(request: Request) -> dict[str, Any]:
     """Clear all pending jobs from the queue."""
     queue = _get_queue(request)
     if hasattr(queue, "clear"):
-        await queue.clear()
-    return {"status": "cleared"}
+        cleared = await queue.clear()
+    elif hasattr(queue, "clear_pending"):
+        cleared = await queue.clear_pending()
+    else:
+        cleared = 0
+    return {"status": "cleared", "cleared": cleared}
+
+
+@router.post("/queue/{run_id}/cancel")
+async def cancel_queued_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Cancel a pending or running job.
+
+    Returns 200 with ``status: "cancelled"`` for active cancels, and 200
+    with ``status: "already_finished"`` when the run has already moved into
+    history (so a slightly-late click from the UI is a no-op instead of an
+    error toast). Only an unknown ``run_id`` is treated as 404.
+    """
+    queue = _get_queue(request)
+    if not hasattr(queue, "cancel"):
+        raise HTTPException(status_code=501, detail="Queue cancellation is not available")
+    cancelled = await queue.cancel(run_id)
+    if cancelled:
+        return {"run_id": run_id, "status": "cancelled"}
+
+    # Fall back: was the run already in history (completed / failed / cancelled)?
+    history = getattr(queue, "_history", None)
+    if history is not None:
+        for entry in history:
+            if getattr(entry, "run_id", None) == run_id:
+                return {"run_id": run_id, "status": "already_finished"}
+
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+
+@router.post("/queue/reorder")
+async def reorder_pending_run(request: Request, body: QueueReorderRequest) -> dict[str, Any]:
+    """Move a pending job within the queue."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "reorder_pending"):
+        raise HTTPException(status_code=501, detail="Queue reordering is not available")
+    try:
+        pending = await queue.reorder_pending(
+            run_id=body.run_id,
+            index=body.index,
+            before_run_id=body.before_run_id,
+            after_run_id=body.after_run_id,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "reordered", "pending": pending}
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +523,29 @@ async def get_history(request: Request) -> dict[str, Any]:
     return {"history": [], "count": 0}
 
 
+@router.post("/history/clear")
+async def clear_history(request: Request) -> dict[str, Any]:
+    """Remove all completed runs from history."""
+    queue = _get_queue(request)
+    if hasattr(queue, "clear_history"):
+        cleared = queue.clear_history()
+    else:
+        cleared = 0
+    return {"status": "cleared", "cleared": cleared}
+
+
+@router.delete("/history/{run_id}")
+async def delete_history_entry(request: Request, run_id: str) -> dict[str, Any]:
+    """Remove a single completed run from history."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "delete_history_entry"):
+        raise HTTPException(status_code=501, detail="History deletion is not available")
+    removed = queue.delete_history_entry(run_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not in history")
+    return {"run_id": run_id, "status": "deleted"}
+
+
 @router.get("/runs/{run_id}")
 async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     """Get details for a specific run."""
@@ -336,6 +560,19 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     if run_id in runs:
         return runs[run_id]
     raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
+
+
+@router.post("/runs/{run_id}/retry")
+async def retry_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Retry a stored pending, running, or historic run."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "retry"):
+        raise HTTPException(status_code=501, detail="Run retry is not available")
+    try:
+        new_run_id = await queue.retry(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    return {"run_id": new_run_id, "retry_of": run_id, "status": "queued"}
 
 
 @router.get("/runs/{run_id}/logs")
@@ -427,6 +664,71 @@ async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
     return {"run_id": run_id, "logs": logs}
 
 
+@router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
+async def get_run_report(request: Request, run_id: str) -> PlainTextResponse:
+    """Render the provenance HTML execution report for a finished run."""
+    from bionodulo.provenance import generate_execution_report
+
+    settings = _get_settings(request)
+    run_dir = settings.project_root / "runs" / run_id
+    meta_path = run_dir / "run_metadata.json"
+    if not meta_path.exists():
+        raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
+    try:
+        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+
+    html_text = generate_execution_report(run_metadata, include_artifacts=True)
+    return PlainTextResponse(html_text, media_type="text/html; charset=utf-8")
+
+
+@router.get("/runs/{run_id}/manifest")
+async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
+    """Return the JSON provenance manifest for a finished run."""
+    from bionodulo.provenance import generate_provenance_report
+
+    settings = _get_settings(request)
+    run_dir = settings.project_root / "runs" / run_id
+    meta_path = run_dir / "run_metadata.json"
+    if not meta_path.exists():
+        raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
+    try:
+        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+
+    workflow: dict[str, Any] = {}
+    node_results: dict[str, dict[str, Any]] = {}
+    artifacts: list[dict[str, Any]] = []
+
+    queue = _get_queue(request)
+    if hasattr(queue, "get_run"):
+        try:
+            queue_record = queue.get_run(run_id)
+            if isinstance(queue_record, dict):
+                workflow = queue_record.get("workflow") or workflow
+                result = queue_record.get("result") or {}
+                if isinstance(result, dict):
+                    artifacts = result.get("artifacts") or artifacts
+                    node_results = result.get("nodes") or node_results
+        except Exception:  # noqa: BLE001 - missing queue data must not break manifest export
+            pass
+
+    manifest_json = generate_provenance_report(
+        workflow=workflow,
+        run_metadata=run_metadata,
+        node_results=node_results,
+        artifacts=artifacts,
+    )
+    return JSONResponse(
+        content=json.loads(manifest_json),
+        headers={
+            "Content-Disposition": f'attachment; filename="bionodulo-manifest-{run_id}.json"',
+        },
+    )
+
+
 @router.post("/cache/clear")
 async def clear_cache(request: Request) -> dict[str, Any]:
     """Clear all cached workflow node execution results."""
@@ -446,128 +748,6 @@ async def get_effective_config(request: Request) -> dict[str, Any]:
     """Get the effective configuration (settings merged with defaults)."""
     settings = _get_settings(request)
     return settings.as_effective_config()
-
-
-# ---------------------------------------------------------------------------
-# Settings (ComfyUI-style per-user settings)
-# ---------------------------------------------------------------------------
-
-@router.get("/settings")
-async def get_all_settings(request: Request) -> dict[str, Any]:
-    """Get all user settings."""
-    sm = _get_settings_manager(request)
-    return sm.get_all()
-
-
-@router.post("/settings")
-async def save_settings(request: Request, body: SettingsSaveRequest) -> dict[str, str]:
-    """Save multiple user settings at once."""
-    sm = _get_settings_manager(request)
-    sm.set_many(body.settings)
-    return {"status": "saved"}
-
-
-@router.get("/settings/{setting_id}")
-async def get_setting(request: Request, setting_id: str) -> Any:
-    """Get a specific user setting by ID.
-
-    Supports dotted key access for nested values.
-    """
-    sm = _get_settings_manager(request)
-    value = sm.get(setting_id)
-    if value is None:
-        raise HTTPException(status_code=404, detail=f"Setting \\\'{setting_id}\\\' not found")
-    return {setting_id: value}
-
-
-@router.post("/settings/{setting_id}")
-async def set_setting(
-    request: Request, setting_id: str, body: SettingsSetRequest
-) -> dict[str, str]:
-    """Set a specific user setting by ID.
-
-    Supports dotted key access for nested values.
-    """
-    sm = _get_settings_manager(request)
-    sm.set(setting_id, body.value)
-    return {"status": "saved", "id": setting_id}
-
-
-# ---------------------------------------------------------------------------
-# AI Assistant
-# ---------------------------------------------------------------------------
-
-@router.post("/ai/chat")
-async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
-    """Send a message to the AI assistant and get a tool-aware response."""
-    settings = _get_settings(request)
-    registry = _get_registry(request)
-
-    provider = body.provider or getattr(settings, "ai_provider", None) or "openai"
-    model = body.model or getattr(settings, "ai_model", None)
-    api_key = getattr(settings, "ai_api_key", None) or os.environ.get("OPENAI_API_KEY", "")
-    api_base = getattr(settings, "ai_base_url", None)
-    temperature = getattr(settings, "ai_temperature", 0.3)
-
-    try:
-        response = await chat_with_tools(
-            user_message=body.message,
-            workflow=body.workflow,
-            history=body.history,
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            api_base=api_base,
-            temperature=temperature,
-            registry=registry,
-            settings=settings,
-            files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
-        )
-    except Exception as exc:
-        return {
-            "steps": [{"type": "reply", "content": f"AI error: {exc}"}],
-            "reply": f"AI error: {exc}",
-            "model": model or provider,
-        }
-
-    return {
-        "steps": [
-            {
-                "type": s.type,
-                "content": s.content,
-                "name": s.name,
-                "arguments": s.arguments,
-                "result": s.result,
-                "workflow": s.workflow,
-                "description": s.description,
-            }
-            for s in response.steps
-        ],
-        "reply": response.reply,
-        "proposed_workflow": response.proposed_workflow,
-        "proposed_description": response.proposed_description,
-        "model": model or provider,
-    }
-
-
-@router.post("/ai/chat/stream")
-async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
-    """Stream an AI assistant response as server-sent events."""
-    from fastapi.responses import StreamingResponse
-
-    async def _stream():
-        chunks = [
-            "AI assistant (streaming mode): ",
-            "Analyzing your request... ",
-            f"Message was: '{body.message}'. ",
-            "Configure a real AI backend (OpenAI, Ollama, etc.) for production use.",
-        ]
-        for chunk in chunks:
-            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-            await asyncio.sleep(0.1)
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +881,58 @@ async def read_file(request: Request, path: str) -> Any:
     return PlainTextResponse(content)
 
 
+@router.post("/workspace/upload")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    subdir: str = Form("uploads"),
+) -> dict[str, Any]:
+    """Accept a multipart file upload and store it under workspace/{subdir}/.
+
+    Used by features like media paste on the canvas: the browser hands over a
+    pasted image / audio blob and we drop it inside the user's workspace so
+    a workflow node can reference it by path.
+    """
+    settings = _get_settings(request)
+    safe_subdir = subdir.strip().strip('/').replace('..', '_') or 'uploads'
+    target_dir = settings.project_root / safe_subdir
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not create upload dir: {exc}") from exc
+
+    raw_name = file.filename or 'pasted'
+    # Strip any directory components and reserve a stable, unique filename.
+    base = Path(raw_name).name or 'pasted'
+    stem = Path(base).stem or 'pasted'
+    suffix = Path(base).suffix
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    short = uuid.uuid4().hex[:6]
+    safe_name = ''.join(c if c.isalnum() or c in '._-' else '_' for c in stem)[:60]
+    final_name = f"{stamp}_{short}_{safe_name}{suffix}"
+    out_path = target_dir / final_name
+
+    try:
+        with open(out_path, 'wb') as fh:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                fh.write(chunk)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write upload: {exc}") from exc
+
+    rel = out_path.relative_to(settings.project_root)
+    return {
+        'status': 'ok',
+        'path': str(rel).replace('\\', '/'),
+        'absolute_path': str(out_path),
+        'size': out_path.stat().st_size,
+        'content_type': file.content_type or 'application/octet-stream',
+        'original_name': raw_name,
+    }
+
+
 @router.post("/workspace/file-operation")
 async def file_operation(
     request: Request, body: FileOperationRequest
@@ -801,8 +1033,6 @@ async def manager_install_git(
         repo_name = Path(urlparse(body.url).path).stem
         target_dir = target_dir / repo_name
 
-    import subprocess
-
     if target_dir.exists():
         raise HTTPException(
             status_code=409,
@@ -814,23 +1044,34 @@ async def manager_install_git(
         if body.commit:
             # Full clone for specific commit
             cmd = ["git", "clone", body.url, str(target_dir)]
-        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=120)
+        await asyncio.to_thread(
+            subprocess.run,
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
         if body.commit:
-            subprocess.run(
+            await asyncio.to_thread(
+                subprocess.run,
                 ["git", "-C", str(target_dir), "checkout", body.commit],
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=120,
             )
     except subprocess.CalledProcessError as exc:
         raise HTTPException(status_code=500, detail=f"Git clone failed: {exc.stderr}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Git clone timed out") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail="Git not found on system") from exc
 
     # Reload custom nodes
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "installed", "directory": str(target_dir.name)}
 
@@ -847,10 +1088,9 @@ async def manager_update(
             status_code=404, detail=f"Package \\\'{body.name}\\\' not found"
         )
 
-    import subprocess
-
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(node_dir), "pull"],
             capture_output=True,
             text=True,
@@ -860,13 +1100,15 @@ async def manager_update(
             raise HTTPException(
                 status_code=500, detail=f"Git pull failed: {result.stderr}"
             )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Git pull timed out") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail="Git not found") from exc
 
     # Reload
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "updated", "package": body.name}
 
@@ -883,12 +1125,12 @@ async def manager_remove(
             status_code=404, detail=f"Package \\\'{body.name}\\\' not found"
         )
 
-    shutil.rmtree(node_dir)
+    await asyncio.to_thread(shutil.rmtree, node_dir)
 
     # Reload
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "removed", "package": body.name}
 
@@ -898,10 +1140,14 @@ async def manager_reload(request: Request) -> dict[str, str]:
     """Reload all custom nodes."""
     settings = _get_settings(request)
     registry = _get_registry(request)
-    if hasattr(registry, "load_builtin_nodes"):
-        registry.load_builtin_nodes()
-    if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+
+    def reload_nodes() -> None:
+        if hasattr(registry, "load_builtin_nodes"):
+            registry.load_builtin_nodes()
+        if hasattr(registry, "load_custom_nodes"):
+            registry.load_custom_nodes(settings.custom_nodes_dir)
+
+    await asyncio.to_thread(reload_nodes)
     return {"status": "reloaded"}
 
 
@@ -913,7 +1159,7 @@ async def api_host_status() -> dict[str, Any]:
     Pixi can be auto-installed; everything else must be
     present on the host PATH.
     """
-    return host_diagnostics()
+    return await asyncio.to_thread(host_diagnostics)
 
 
 @router.post("/host_status/install-pixi")
@@ -935,16 +1181,19 @@ async def api_install_pixi(request: Request) -> dict[str, Any]:
 
     event_hub = request.app.state.event_hub
 
+    loop = asyncio.get_running_loop()
+
     def emit(level: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.log",
-                {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="pixi-installer",
-            )
+        payload = {**data, "level": level, "timestamp": datetime.now().isoformat()}
+        _schedule_event_emit_threadsafe(
+            loop,
+            event_hub,
+            "install.log",
+            payload,
+            source="pixi-installer",
         )
 
-    success = install_managed_pixi(emit=emit)
+    success = await asyncio.to_thread(install_managed_pixi, emit=emit)
     if success:
         return {"success": True, "message": "pixi installed successfully", "already_installed": False}
     return {"success": False, "message": "pixi installation failed. Check server logs for details.", "already_installed": False}
@@ -972,90 +1221,21 @@ async def manager_diagnose(
     }
 
 
-@router.post("/manager/install-deps")
-async def manager_install_deps(
-    request: Request, body: ManagerInstallDepsRequest
-) -> dict[str, Any]:
-    """Legacy endpoint — redirects to ensure-workflow-env.
-
-    Use POST /manager/ensure-workflow-env instead.
-    """
-    return {"message": "Use /manager/ensure-workflow-env instead", "status": "deprecated"}
-
-
 @router.get("/manager/status/{job_id}")
-async def manager_job_status(job_id: str) -> dict[str, Any]:
+async def manager_job_status(request: Request, job_id: str) -> dict[str, Any]:
     """Get the status of an async install job."""
-    installer = get_installer()
+    installer = app_state(request).dependency_installer
     job = installer.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return job.progress.to_dict()
-
-
-@router.post("/manager/install-plan")
-async def manager_install_plan(
-    request: Request, body: ManagerInstallPlanRequest
-) -> dict[str, Any]:
-    """Get an install plan for requested nodes (legacy endpoint)."""
-    registry = _get_registry(request)
-    plan: list[dict[str, Any]] = []
-    for node_name in body.nodes:
-        meta = registry.object_info(node_name)
-        if not meta:
-            plan.append({
-                "node": node_name,
-                "action": "install",
-                "source": "git",
-                "estimated_size": "unknown",
-            })
-        else:
-            plan.append({
-                "node": node_name,
-                "action": "already_installed",
-                "version": meta.get("version", "unknown"),
-            })
-    return {"plan": plan, "total_to_install": sum(1 for p in plan if p["action"] == "install")}
-
-
-@router.post("/manager/install")
-async def manager_install(
-    request: Request, body: ManagerInstallRequest
-) -> dict[str, Any]:
-    """Execute an install plan (legacy endpoint)."""
-    if not body.confirm:
-        return {"status": "pending", "message": "Set confirm=true to execute"}
-
-    results: list[dict[str, str]] = []
-    plan_items = body.plan.get("plan", [])
-    for item in plan_items:
-        if item.get("action") == "install":
-            results.append({
-                "node": item["node"],
-                "status": "installed",
-                "method": item.get("source", "unknown"),
-            })
-        else:
-            results.append({
-                "node": item["node"],
-                "status": "skipped",
-                "reason": item.get("action", "unknown"),
-            })
-
-    # Reload nodes after install
-    settings = _get_settings(request)
-    registry = _get_registry(request)
-    if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
-
-    return {"status": "completed", "results": results}
-
 
 # ---------------------------------------------------------------------------
 # Environment Manager (manifest-based per-workflow environments)
 # ---------------------------------------------------------------------------
 
 @router.post("/manager/resolve")
+@limiter.limit("120/minute")
 async def manager_resolve(
     request: Request, body: DependencyTreeRequest
 ) -> dict[str, Any]:
@@ -1084,16 +1264,19 @@ async def manager_ensure_workflow_env(
     settings = _get_settings(request)
     event_hub = request.app.state.event_hub
 
-    def emit(level: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.progress",
-                {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="dependency-installer",
-            )
+    def emit(event_type: str, data: dict[str, Any]) -> None:
+        _schedule_event_emit(
+            event_hub,
+            event_type,
+            {
+                **data,
+                "level": data.get("level", "info"),
+                "timestamp": datetime.now().isoformat(),
+            },
+            source="dependency-installer",
         )
 
-    installer = get_installer()
+    installer = app_state(request).dependency_installer
     job_id = await installer.install_workflow_env(
         body.workflow,
         registry,
@@ -1115,7 +1298,7 @@ async def manager_create_workflow_env(
 async def list_environments(request: Request) -> dict[str, Any]:
     """List all workflow environments."""
     settings = _get_settings(request)
-    envs = list_all_envs(settings.project_root)
+    envs = await asyncio.to_thread(list_all_envs, settings.project_root)
     return {"environments": envs, "count": len(envs)}
 
 
@@ -1126,15 +1309,16 @@ async def get_environment(env_id: str, request: Request) -> dict[str, Any]:
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    meta = get_env_meta(env_dir)
-    packages = get_env_packages(env_dir)
+    meta, packages, ready = await asyncio.to_thread(
+        lambda: (get_env_meta(env_dir), get_env_packages(env_dir), is_env_ready(env_dir))
+    )
     return {
         "id": env_id,
         "name": meta.get("name") or f"Env {env_id[:8]}",
         "path": str(env_dir),
         "packages": packages,
         "package_count": len(packages),
-        "ready": is_env_ready(env_dir),
+        "ready": ready,
     }
 
 
@@ -1148,7 +1332,7 @@ async def rename_environment(env_id: str, request: Request, body: dict[str, Any]
     new_name = body.get("name", "").strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="Name is required")
-    set_env_meta(env_dir, name=new_name)
+    await asyncio.to_thread(set_env_meta, env_dir, name=new_name)
     return {"success": True, "id": env_id, "name": new_name}
 
 
@@ -1159,7 +1343,7 @@ async def duplicate_environment(env_id: str, request: Request) -> dict[str, Any]
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    success, message, new_id = duplicate_env_dir(env_dir, settings.project_root)
+    success, message, new_id = await asyncio.to_thread(duplicate_env_dir, env_dir, settings.project_root)
     if not success:
         raise HTTPException(status_code=500, detail=message)
     return {"success": True, "message": message, "new_id": new_id}
@@ -1172,7 +1356,7 @@ async def remove_environment_package(env_id: str, pkg_name: str, request: Reques
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    success, message = remove_package_from_env(env_dir, pkg_name)
+    success, message = await asyncio.to_thread(remove_package_from_env, env_dir, pkg_name)
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}
@@ -1183,7 +1367,7 @@ async def delete_environment(env_id: str, request: Request) -> dict[str, Any]:
     """Remove an environment directory."""
     settings = _get_settings(request)
     env_dir = get_env_dir(env_id, settings.project_root)
-    success, message = delete_env_dir(env_dir)
+    success, message = await asyncio.to_thread(delete_env_dir, env_dir)
     if not success:
         raise HTTPException(status_code=500, detail=message)
     return {"success": True, "message": message}
@@ -1224,6 +1408,15 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
                     if tags is None:
                         tags = _derive_tags(name, description, tools)
 
+                    preview_steps = [
+                        (node.get("ui") or {}).get("title") or str(node.get("type", "")).replace("_", " ")
+                        for node in nodes
+                        if node.get("type") and node.get("type") != "note"
+                    ][:5]
+
+                    thumbnail_path = entry.with_suffix(".png")
+                    thumbnail_url = f"/api/workflow_templates/{entry.name}/thumbnail.png" if thumbnail_path.exists() else None
+
                     templates.append({
                         "id": entry.stem,
                         "name": name,
@@ -1233,6 +1426,8 @@ async def list_workflow_templates(request: Request) -> dict[str, Any]:
                         "tools": tools,
                         "category": category,
                         "tags": tags,
+                        "preview_steps": preview_steps,
+                        "thumbnail_url": thumbnail_url,
                     })
                 except (json.JSONDecodeError, OSError):
                     templates.append({
@@ -1264,6 +1459,23 @@ async def get_workflow_template(request: Request, filename: str) -> dict[str, An
         raise HTTPException(status_code=500, detail=f"Invalid template JSON: {exc}")
 
     return data
+
+
+@router.get("/workflow_templates/{filename}/thumbnail.png")
+async def get_workflow_template_thumbnail(request: Request, filename: str) -> FileResponse:
+    """Return the PNG thumbnail for a template (workflow JSON is embedded in tEXt)."""
+    templates_dir = REPO_ROOT / "templates"
+    json_path = templates_dir / filename
+    if not json_path.exists() or not json_path.is_file():
+        raise HTTPException(status_code=404, detail="Template not found")
+    thumbnail = json_path.with_suffix(".png")
+    if not thumbnail.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not generated; run scripts/relayout_templates.py")
+    return FileResponse(
+        path=thumbnail,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1307,11 +1519,25 @@ async def get_translations(locale: str = "en") -> dict[str, Any]:
 # Workflow Export
 # ---------------------------------------------------------------------------
 
+@router.post("/workflow/extract")
+async def workflow_extract(request: Request, body: WorkflowExtractRequest) -> dict[str, Any]:
+    """Extract a workflow containing selected nodes and internal edges."""
+    del request
+    try:
+        workflow = _extract_workflow_subgraph(body.workflow, body.node_ids, body.name)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown node_id(s): {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"workflow": workflow, "node_ids": body.node_ids, "extracted": True}
+
+
 @router.post("/workflow/export")
 async def workflow_export(request: Request, body: WorkflowExportRequest) -> Any:
     """Export a workflow to various formats (snakemake, nextflow, cwl, galaxy)."""
     try:
-        content = export_workflow(
+        content = await asyncio.to_thread(
+            export_workflow,
             workflow=body.workflow,
             fmt=body.format,
             name=body.name,
@@ -1342,7 +1568,7 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
             if source == "cwl":
                 content = None
             else:
-                content = file_path_obj.read_text(encoding="utf-8")
+                content = await asyncio.to_thread(file_path_obj.read_text, encoding="utf-8")
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1353,25 +1579,25 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
     try:
         if source == "snakemake":
             from bionodulo.converter.snakemake_converter import import_from_snakemake as snakemake_import
-            workflow = snakemake_import(content)
+            workflow = await asyncio.to_thread(snakemake_import, content)
         elif source == "nextflow":
             from bionodulo.converter.nextflow_converter import import_from_nextflow as nextflow_import
-            workflow = nextflow_import(content)
+            workflow = await asyncio.to_thread(nextflow_import, content)
         elif source == "cwl":
             from bionodulo.converter.cwl_converter import import_from_cwl as cwl_import
             if file_path_obj:
-                workflow = cwl_import(file_path_obj)
+                workflow = await asyncio.to_thread(cwl_import, file_path_obj)
             else:
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".cwl", delete=False) as tmp:
                     tmp.write(content)
                     tmp_path = tmp.name
                 try:
-                    workflow = cwl_import(tmp_path)
+                    workflow = await asyncio.to_thread(cwl_import, tmp_path)
                 finally:
                     os.unlink(tmp_path)
         elif source == "galaxy":
             from bionodulo.converter.galaxy_converter import import_from_galaxy as galaxy_import
-            workflow = galaxy_import(content)
+            workflow = await asyncio.to_thread(galaxy_import, content)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported import format: \\'{source}\\'")
 
@@ -1489,6 +1715,7 @@ async def hpc_configure(
 @router.post("/hpc/submit")
 async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]:
     """Submit a workflow as an HPC job."""
+    _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     hpc = getattr(request.app.state, "hpc_backend", None)
     if hpc is None:
         raise HTTPException(status_code=503, detail="HPC backend not configured")
@@ -1629,30 +1856,32 @@ async def getting_started_download(
     settings = _get_settings(request)
     event_hub = _get_event_hub(request)
 
+    # Worker-thread download progress must return to the request loop before
+    # emitting into the async EventHub.
+    loop = asyncio.get_running_loop()
+
     def emit_progress(message: str, level: str = "info") -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.progress",
-                {
-                    "job_id": "example-data-download",
-                    "message": message,
-                    "level": level,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-                source="example-data",
-            )
+        payload = {
+            "job_id": "example-data-download",
+            "message": message,
+            "level": level,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        _schedule_event_emit_threadsafe(
+            loop,
+            event_hub,
+            "install.progress",
+            payload,
+            source="example-data",
         )
 
     emit_progress("Starting example data download from public sources ...", "info")
 
     # Run download in a thread pool so the event loop stays responsive
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: download_example_data(
-            project_root=settings.project_root,
-            emit=emit_progress,
-        ),
+    result = await asyncio.to_thread(
+        download_example_data,
+        project_root=settings.project_root,
+        emit=emit_progress,
     )
 
     if not result.get("success"):

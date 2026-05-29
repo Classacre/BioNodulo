@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import Icon from '../ui/Icon';
 import type { HostStatus } from '../../types';
+import { apiPost } from '../../api/client';
 
 interface Props {
   status: HostStatus;
@@ -19,12 +20,11 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
     setInstallMsg(null);
     onOpenConsole();
     try {
-      const r = await fetch('/api/host_status/install-pixi', { method: 'POST' });
-      const data = await r.json();
+      const data = await apiPost<{ success?: boolean; already_installed?: boolean; message?: string }>('/host_status/install-pixi');
       if (data.success) {
         setInstallMsg(data.already_installed ? 'Already installed' : 'Installed successfully — reload the page to activate.');
       } else {
-        setInstallMsg(`Install failed: ${data.message}`);
+        setInstallMsg(`Install failed: ${data.message || 'unknown error'}`);
       }
     } catch {
       setInstallMsg('Install request failed — check server logs.');
@@ -35,7 +35,6 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
   }, [onOpenConsole, onRecheck]);
 
   const missingRequired = status.missing_required || [];
-  const missingOptional = status.missing_optional || [];
 
   return (
     <div className="dep-banner" style={{ borderLeft: '3px solid var(--danger)' }}>

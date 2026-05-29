@@ -10,18 +10,52 @@ interface WorkflowTabsProps {
   onRename?: (index: number, name: string) => void;
   onDuplicate?: (index: number) => void;
   onReorder?: (from: number, to: number) => void;
+  /** Indices whose workflow has unsaved changes; rendered with a small dot. */
+  dirtyIndices?: ReadonlySet<number>;
 }
 
-export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, onRename, onDuplicate, onReorder }: WorkflowTabsProps) {
+export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, onRename, onDuplicate, onReorder, dirtyIndices }: WorkflowTabsProps) {
   const [menu, setMenu] = useState<{ x: number; y: number; index: number } | null>(null);
   const [renaming, setRenaming] = useState<{ index: number; name: string } | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const renameRef = useRef<HTMLInputElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [overflow, setOverflow] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
 
   useEffect(() => {
     if (renaming) renameRef.current?.focus();
   }, [renaming]);
+
+  // Track left/right overflow so we know when to show the scroll arrows.
+  useEffect(() => {
+    const node = stripRef.current;
+    if (!node) return;
+    const update = () => {
+      const left = node.scrollLeft > 2;
+      const right = node.scrollWidth - node.clientWidth - node.scrollLeft > 2;
+      setOverflow(prev => (prev.left === left && prev.right === right ? prev : { left, right }));
+    };
+    update();
+    node.addEventListener('scroll', update);
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => {
+      node.removeEventListener('scroll', update);
+      observer.disconnect();
+    };
+  }, [tabs.length]);
+
+  // Bring the active tab into view when the active index changes.
+  useEffect(() => {
+    const el = tabRefs.current[active];
+    if (el?.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }, [active]);
+
+  const scrollBy = (delta: number) => {
+    stripRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -76,10 +110,22 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
   };
 
   return (
-    <div className="workflow-tabs">
+    <div className="workflow-tabs" ref={stripRef}>
+      {overflow.left && (
+        <button
+          className="wf-tab wf-tab-scroll"
+          onClick={() => scrollBy(-160)}
+          title="Scroll tabs left"
+          aria-label="Scroll tabs left"
+          style={{ position: 'sticky', left: 0, zIndex: 2, padding: '0 6px' }}
+        >
+          <Icon name="chevronLeft" size={14} />
+        </button>
+      )}
       {tabs.map((name, i) => (
         <button
           key={i}
+          ref={el => { tabRefs.current[i] = el; }}
           className={`wf-tab ${i === active ? 'active' : ''} ${dragOverIndex === i ? 'drag-over' : ''}`}
           draggable={!!onReorder}
           onDragStart={e => handleDragStart(e, i)}
@@ -104,6 +150,13 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
             />
           ) : (
             <span onDoubleClick={() => setRenaming({ index: i, name: name || 'Untitled' })}>
+              {dirtyIndices?.has(i) && (
+                <span
+                  className="wf-tab-dirty"
+                  aria-label="unsaved changes"
+                  title="Unsaved changes"
+                />
+              )}
               {name || 'Untitled'}
             </span>
           )}
@@ -114,9 +167,20 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
           )}
         </button>
       ))}
-      <button className="wf-tab" onClick={onAdd} title="New workflow">
+      <button className="wf-tab" onClick={onAdd} title="New workflow" aria-label="New workflow tab">
         <Icon name="plus" size={14} />
       </button>
+      {overflow.right && (
+        <button
+          className="wf-tab wf-tab-scroll"
+          onClick={() => scrollBy(160)}
+          title="Scroll tabs right"
+          aria-label="Scroll tabs right"
+          style={{ position: 'sticky', right: 0, zIndex: 2, padding: '0 6px' }}
+        >
+          <Icon name="chevronRight" size={14} />
+        </button>
+      )}
 
       {menu && (
         <div className="tab-context-menu context-menu" style={{ left: menu.x, top: menu.y, position: 'fixed', zIndex: 300 }}>

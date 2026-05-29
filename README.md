@@ -1,8 +1,13 @@
-# BioNodulo Alpha 1.2
+# BioNodulo 2.0
 
 **Visual bioinformatics pipelines, node by node.**
 
-BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor inspired by ComfyUI.
+BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor.
+
+[![Version](https://img.shields.io/badge/version-2.0-0d9488?logo=github)](pyproject.toml)
+[![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
+[![License](https://img.shields.io/badge/license-BioNodulo%20Research-f59e0b)](LICENSE)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
 
 ## Features
 
@@ -11,7 +16,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **10 Pre-built Templates** — FASTQ QC, RNA-Seq, Variant Calling, Metagenomics, Assembly, Phylogenetics, ChIP-Seq, Differential Expression, WGS Variant, Single Cell
 - **HPC Integration** — Submit workflows to SLURM, PBS/Torque, or SGE clusters with a single toggle
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
-- **Settings System** — ComfyUI-inspired per-user settings with categories (Appearance, Canvas, Execution, LLM, Files)
+- **Settings System** — Per-user settings with categories for appearance, canvas, execution, LLM, and files
 - **Help / Wiki System** — Built-in searchable documentation panel (Ctrl+6)
 - **AI Assistant** — Chat-based workflow builder assistant
 - **Environment Manager** — Auto-detect missing dependencies, one-click install, Conda/Mamba/Micromamba env CRUD, Docker/Apptainer support, per-workflow isolation
@@ -22,6 +27,14 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **Undo/Redo** — Full history support
 
 ## Quick Start
+
+### Google Colab
+
+For an ephemeral notebook-based trial, launch the Colab notebook:
+
+[Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
+
+The notebook clones this repository, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
 
 ### Prerequisites
 
@@ -42,7 +55,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 cd bionodulo-v2
 
 # Install Python dependencies
-pip install -r requirements.txt
+pip install -e .
 
 # The frontend is pre-built in web/dist/
 # To rebuild it (optional):
@@ -108,7 +121,6 @@ bionodulo-v2/
 ├── main.py                    # Entry point
 ├── server.py                  # FastAPI app
 ├── pyproject.toml             # Package metadata
-├── requirements.txt           # Python dependencies
 ├── bionodulo.yaml.example     # Configuration template
 ├── Dockerfile                 # Container build
 ├── SPEC.md                    # Technical specification
@@ -120,8 +132,7 @@ bionodulo-v2/
 │   │   ├── base.py            # BaseNode class
 │   │   ├── command_node.py    # External tool wrapper
 │   │   ├── registry.py        # Node discovery & loading
-│   │   ├── schema_api.py      # Node schema definitions
-│   │   └── comfy_v3_adapter.py # ComfyUI compatibility
+│   │   └── schema_api.py      # Node schema definitions
 │   ├── execution/             # Execution engine
 │   ├── workflow/              # Workflow validation, serialization
 │   ├── converter/             # SnakeMake, NextFlow, CWL, Galaxy
@@ -148,6 +159,15 @@ bionodulo-v2/
     ├── dist/                  # Pre-built frontend
     └── src/                   # Source code
 ```
+
+## Optional Production Integrations
+
+BioNodulo runs locally with no external services. For larger deployments you can opt into battle-tested infrastructure:
+
+- **Redis** — set `BIONODULO_REDIS_URL` to replicate Yjs document updates and awareness across multiple backend instances.
+- **OIDC / Keycloak / SuperTokens** — set `BIONODULO_OIDC_ISSUER`, `BIONODULO_OIDC_AUDIENCE`, and optionally `BIONODULO_OIDC_JWKS_URL` to accept externally issued JWTs.
+- **LiteLLM Proxy** — choose the `litellm` AI provider and set `BIONODULO_LITELLM_BASE_URL` plus `LITELLM_API_KEY` to route models through a provider gateway.
+- **SlowAPI** — REST rate limiting is enabled by default; set `BIONODULO_RATE_LIMIT_REDIS_URL` or `BIONODULO_REDIS_URL` to share rate-limit state between instances.
 
 ## Node Categories
 
@@ -269,4 +289,8 @@ api_secrets: {}
 
 ## License
 
-BioNodulo is an independent bioinformatics workflow platform inspired by the excellent work of the ComfyUI team. It is not a fork of ComfyUI but shares architectural patterns and design philosophy.
+BioNodulo is source-available for research, education, evaluation, and development under the [BioNodulo Research License](LICENSE).
+
+Publication of results produced with BioNodulo, commercial use, paid services, and hosted offerings require a separate paid license. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
+
+BioNodulo is an independent bioinformatics workflow platform built specifically for bioinformatics pipeline design, execution, and sharing.

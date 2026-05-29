@@ -1,30 +1,101 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
+import { apiGetText } from '../../api/client';
+import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
+import { batchCountAtom, logsAtom } from '../../state/runAtoms';
+import { showOutputDiffAtom } from '../../state/uiAtoms';
+import { appPath } from '../../utils/appBase';
 
-type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews';
+type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
+
+interface HistoryBucket {
+  label: string;
+  runs: RunRecord[];
+}
+
+function runTimestamp(run: RunRecord): number {
+  const value = run.end_time || run.start_time;
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function bucketLabelForRun(run: RunRecord, now: Date): string {
+  const ts = runTimestamp(run);
+  if (!ts) return 'Earlier';
+  const runDate = new Date(ts);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+  const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+  if (ts >= todayStart) return 'Today';
+  if (ts >= yesterdayStart) return 'Yesterday';
+  if (ts >= weekStart) return 'Past Week';
+  if (runDate.getFullYear() === now.getFullYear()) return runDate.toLocaleString(undefined, { month: 'long' });
+  return runDate.getFullYear().toString();
+}
+
+function bucketHistory(history: RunRecord[]): HistoryBucket[] {
+  const now = new Date();
+  const order: string[] = [];
+  const groups = new Map<string, RunRecord[]>();
+  for (const run of history) {
+    const label = bucketLabelForRun(run, now);
+    if (!groups.has(label)) {
+      groups.set(label, []);
+      order.push(label);
+    }
+    groups.get(label)!.push(run);
+  }
+  return order.map(label => ({ label, runs: groups.get(label)! }));
+}
+
+type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
+export type QueueMoveDirection = 'up' | 'down';
 
 interface BottomConsoleProps {
-  logs: LogEntry[];
   queue: RunRecord[];
   history: RunRecord[];
   onClose: () => void;
-  onOpenLightbox?: (images: { src: string; alt: string; filename: string }[], startIndex: number) => void;
   onClearLogs?: () => void;
+  onCancelRun?: (run: RunRecord) => void;
+  onRetryRun?: (run: RunRecord) => void;
+  onLoadRunWorkflow?: (run: RunRecord) => void;
+  onDeleteHistoryEntry?: (run: RunRecord) => void;
+  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
+  onClearQueue?: () => void;
+  onClearHistory?: () => void;
+  /**
+   * Mapping from internal node UUID to its human-friendly title/type. When a
+   * log entry's `node_id` matches an entry here, we render the friendly name
+   * instead of the long UUID. Logs are already grouped by run/workflow so the
+   * raw UUID was pure clutter.
+   */
+  nodeIdToName?: ReadonlyMap<string, string>;
 }
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp']);
+const HTML_EXTS = new Set(['.html', '.htm']);
 
 function isImagePath(path: string): boolean {
   const lower = path.toLowerCase();
   return Array.from(IMAGE_EXTS).some(ext => lower.endsWith(ext));
 }
 
-function LogLine({ entry }: { entry: LogEntry }) {
+function isHtmlPath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return Array.from(HTML_EXTS).some(ext => lower.endsWith(ext));
+}
+
+function LogLine({ entry, nodeIdToName }: { entry: LogEntry; nodeIdToName?: ReadonlyMap<string, string> }) {
   const [expanded, setExpanded] = useState(false);
   const level = entry.level || 'info';
   const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : '';
-  const nodeId = typeof entry.node_id === 'string' ? entry.node_id : 'unknown';
+  const rawNodeId = typeof entry.node_id === 'string' ? entry.node_id : 'unknown';
+  // Prefer the friendly node title when we have it. We still keep the raw id
+  // accessible via the title attribute for debugging.
+  const nodeLabel = nodeIdToName?.get(rawNodeId) ?? rawNodeId;
   const message = typeof entry.message === 'string' ? entry.message : '';
   const detail = typeof entry.detail === 'string' ? entry.detail : '';
   const hasDetail = detail.length > 0;
@@ -33,7 +104,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
     <div className={`console-log-line ${level}`}>
       <div className="console-log-main">
         <span className="console-log-ts">[{timestamp ? timestamp.slice(11, 19) : '--:--:--'}]</span>
-        <span className="console-log-node">[{nodeId}]</span>
+        <span className="console-log-node" title={rawNodeId !== nodeLabel ? rawNodeId : undefined}>[{nodeLabel}]</span>
         <span className="console-log-msg">{message}</span>
         {hasDetail && (
           <button
@@ -66,36 +137,31 @@ function groupLogsByRun(logs: LogEntry[]): Map<string, LogEntry[]> {
   return groups;
 }
 
-export default function BottomConsole({ logs, queue, history, onClose, onOpenLightbox, onClearLogs }: BottomConsoleProps) {
-  const [tab, setTab] = useState<ConsoleTab>('logs');
-  const [showVerbose, setShowVerbose] = useState(true);
-  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const logsBodyRef = useRef<HTMLDivElement>(null);
-  const userScrolledUpRef = useRef(false);
-
-
-  // Defensive: ensure logs is an array of valid objects
+function deriveDisplayLogs(logs: LogEntry[]): {
+  safeLogs: LogEntry[];
+  hostLogs: LogEntry[];
+  solverLogs: LogEntry[];
+  displayLogs: LogEntry[];
+  groupedLogs: Map<string, LogEntry[]>;
+  groupedEntries: Array<[string, LogEntry[]]>;
+  hasPixiInstallLogs: boolean;
+} {
   const safeLogs = Array.isArray(logs) ? logs.filter((l): l is LogEntry => l != null && typeof l === 'object') : [];
-
-  // Separate host messages from verbose subprocess output
   const hostLogs: LogEntry[] = [];
   const solverLogs: LogEntry[] = [];
-  for (const log of safeLogs) {
-    const msg = log.message || '';
-    if (msg.startsWith('[solver]')) solverLogs.push(log);
-    else hostLogs.push(log);
-  }
-
-  // Build display logs: each host log accumulates trailing solver lines
   const displayLogs: LogEntry[] = [];
   let pendingDetails: string[] = [];
+
   for (const log of safeLogs) {
     const msg = log.message || '';
-    if (msg.startsWith('[solver]')) {
+    const isSolver = msg.startsWith('[solver]');
+    if (isSolver) {
+      solverLogs.push(log);
       pendingDetails.push(msg.replace('[solver] ', ''));
       continue;
     }
+
+    hostLogs.push(log);
     if (pendingDetails.length > 0 && displayLogs.length > 0) {
       const last = displayLogs[displayLogs.length - 1];
       displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
@@ -103,6 +169,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
     }
     displayLogs.push(log);
   }
+
   if (pendingDetails.length > 0 && displayLogs.length > 0) {
     const last = displayLogs[displayLogs.length - 1];
     displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
@@ -110,6 +177,412 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
 
   const groupedLogs = groupLogsByRun(displayLogs);
   const groupedEntries = Array.from(groupedLogs.entries());
+  return {
+    safeLogs,
+    hostLogs,
+    solverLogs,
+    displayLogs,
+    groupedLogs,
+    groupedEntries,
+    hasPixiInstallLogs: groupedLogs.has('install-pixi'),
+  };
+}
+
+function groupLogsByNode(logs: LogEntry[]): Map<string, LogEntry[]> {
+  const nodeGroups = new Map<string, LogEntry[]>();
+  for (const log of logs) {
+    const nodeId = log.node_id || 'unknown';
+    const existing = nodeGroups.get(nodeId);
+    if (existing) existing.push(log);
+    else nodeGroups.set(nodeId, [log]);
+  }
+  return nodeGroups;
+}
+
+function derivePreviews(history: RunRecord[]): {
+  imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[];
+  htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[];
+} {
+  const imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[] = [];
+  const htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[] = [];
+  for (const run of history) {
+    const previews = run.previews || {};
+    for (const [nodeId, path] of Object.entries(previews)) {
+      if (isImagePath(path)) {
+        const filename = path.split('/').pop() || `${nodeId}.png`;
+        imagePreviews.push({
+          src: appPath(`/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`),
+          alt: `Preview ${nodeId}`,
+          filename,
+          runId: run.run_id,
+          nodeId,
+        });
+      } else if (isHtmlPath(path)) {
+        const filename = path.split('/').pop() || `${nodeId}.html`;
+        htmlPreviews.push({
+          src: appPath(`/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`),
+          filename,
+          runId: run.run_id,
+          nodeId,
+        });
+      }
+    }
+  }
+  return { imagePreviews, htmlPreviews };
+}
+
+const COMPLETE_NODE_STATUSES = new Set<NodeStatus['status']>(['completed', 'cached', 'skipped']);
+
+interface RunProgress {
+  total: number;
+  completed: number;
+  running: number;
+  pending: number;
+  failed: number;
+  percent: number;
+}
+
+function progressForRun(run: RunRecord): RunProgress {
+  const statuses = Array.isArray(run.node_statuses) ? run.node_statuses : [];
+  const total = Math.max(run.execution_plan?.length || 0, statuses.length);
+  const completed = statuses.filter(node => COMPLETE_NODE_STATUSES.has(node.status)).length;
+  const running = statuses.filter(node => node.status === 'running').length;
+  const failed = statuses.filter(node => node.status === 'error').length;
+  const pending = Math.max(0, total - completed - running - failed);
+
+  let percent = total > 0 ? Math.round(((completed + running * 0.5) / total) * 100) : 0;
+  if (run.status === 'completed') percent = 100;
+  if (run.status === 'running' && total === 0) percent = 8;
+  if (run.status === 'error' && total === 0) percent = 100;
+  if (run.status === 'cancelled') percent = Math.max(percent, 5);
+
+  return { total, completed, running, pending, failed, percent: Math.min(100, Math.max(0, percent)) };
+}
+
+function shortRunId(runId: string): string {
+  return runId.length > 12 ? `${runId.slice(0, 8)}...${runId.slice(-4)}` : runId;
+}
+
+function RunProgressBar({ progress, status }: { progress: RunProgress; status: RunRecord['status'] }) {
+  return (
+    <div className={`queue-progress is-${status}`} title={`${progress.percent}% complete`}>
+      <div className="queue-progress-fill" style={{ width: `${progress.percent}%` }} />
+    </div>
+  );
+}
+
+function RunActionButton({
+  title,
+  icon,
+  onClick,
+  disabled = false,
+}: {
+  title: string;
+  icon: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      className="btn btn-icon btn-sm queue-action-btn"
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <Icon name={icon} size={12} />
+    </button>
+  );
+}
+
+function QueueRunCard({
+  run,
+  index,
+  totalRuns,
+  onCancelRun,
+  onRetryRun,
+  onMoveRun,
+}: {
+  run: RunRecord;
+  index: number;
+  totalRuns: number;
+  onCancelRun?: (run: RunRecord) => void;
+  onRetryRun?: (run: RunRecord) => void;
+  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
+}) {
+  const progress = progressForRun(run);
+  const canCancel = run.status === 'pending' || run.status === 'running';
+  const canRetry = run.status === 'error' || run.status === 'cancelled';
+  const canMove = run.status === 'pending';
+
+  return (
+    <div className={`queue-run-card is-${run.status}`}>
+      <div className="queue-run-main">
+        <div className="queue-run-title-row">
+          <span className={`queue-status-pill is-${run.status}`}>{run.status}</span>
+          <strong className="queue-run-name">{run.workflow_name || 'Untitled workflow'}</strong>
+          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
+        </div>
+        <RunProgressBar progress={progress} status={run.status} />
+        <div className="queue-run-meta">
+          <span>{progress.total > 0 ? `${progress.completed}/${progress.total} nodes` : 'No node plan'}</span>
+          {progress.running > 0 && <span>{progress.running} running</span>}
+          {progress.pending > 0 && <span>{progress.pending} pending</span>}
+          {progress.failed > 0 && <span className="queue-run-error">{progress.failed} failed</span>}
+        </div>
+      </div>
+      <div className="queue-run-actions">
+        {onMoveRun && (
+          <>
+            <RunActionButton title="Move earlier" icon="chevronUp" onClick={() => onMoveRun(run, 'up')} disabled={!canMove || index === 0} />
+            <RunActionButton title="Move later" icon="chevronDown" onClick={() => onMoveRun(run, 'down')} disabled={!canMove || index === totalRuns - 1} />
+          </>
+        )}
+        {onRetryRun && canRetry && (
+          <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
+        )}
+        {onCancelRun && canCancel && (
+          <RunActionButton title="Cancel run" icon="stop" onClick={() => onCancelRun(run)} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEntry }: {
+  run: RunRecord;
+  onRetryRun?: (run: RunRecord) => void;
+  onLoadRunWorkflow?: (run: RunRecord) => void;
+  onDeleteHistoryEntry?: (run: RunRecord) => void;
+}) {
+  const progress = progressForRun(run);
+  const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
+  return (
+    <div className={`queue-run-card history-run-card is-${run.status}`}>
+      <div className="queue-run-main">
+        <div className="queue-run-title-row">
+          <span className={`queue-status-pill is-${run.status}`}>{run.status}</span>
+          <strong className="queue-run-name">{run.workflow_name || 'Untitled workflow'}</strong>
+          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
+        </div>
+        <RunProgressBar progress={progress} status={run.status} />
+        <div className="queue-run-meta">
+          <span>{run.end_time ? new Date(run.end_time).toLocaleString() : 'in progress'}</span>
+          <span>{progress.total > 0 ? `${progress.completed}/${progress.total} nodes` : 'No node plan'}</span>
+        </div>
+      </div>
+      <div className="queue-run-actions">
+        {onLoadRunWorkflow && (
+          <RunActionButton
+            title="Load this workflow into a new tab"
+            icon="import"
+            onClick={() => onLoadRunWorkflow(run)}
+          />
+        )}
+        {onRetryRun && canRetry && (
+          <RunActionButton title="Retry run" icon="play" onClick={() => onRetryRun(run)} />
+        )}
+        {onDeleteHistoryEntry && (
+          <RunActionButton
+            title="Delete this run from history"
+            icon="close"
+            onClick={() => onDeleteHistoryEntry(run)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReportPanel({ history }: { history: RunRecord[] }) {
+  const completed = history.filter(r => r.status === 'completed' || r.status === 'error' || r.status === 'cancelled');
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(completed[0]?.run_id ?? null);
+  const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedRunId === null && completed.length > 0) {
+      setSelectedRunId(completed[0].run_id);
+    }
+  }, [completed, selectedRunId]);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      setReportHtml(null);
+      return;
+    }
+    const runId = selectedRunId;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchReport();
+    async function fetchReport() {
+      try {
+        const text = await apiGetText(`/api/runs/${encodeURIComponent(runId)}/report`);
+        if (!cancelled) setReportHtml(text);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    return () => { cancelled = true; };
+  }, [selectedRunId]);
+
+  const downloadManifest = () => {
+    if (!selectedRunId) return;
+    const url = appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/manifest`);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bionodulo-manifest-${selectedRunId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (completed.length === 0) {
+    return (
+      <div style={{ color: 'var(--muted)', padding: 12 }}>
+        Provenance reports become available once a run completes or fails.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: 'var(--muted)' }}>Run:</label>
+        <select
+          value={selectedRunId ?? ''}
+          onChange={event => setSelectedRunId(event.target.value || null)}
+          style={{
+            minWidth: 240,
+            padding: '4px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            fontSize: 12,
+          }}
+        >
+          {completed.map(run => (
+            <option key={run.run_id} value={run.run_id}>
+              {run.workflow_name || run.run_id} - {run.status}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn btn-sm"
+          onClick={downloadManifest}
+          disabled={!selectedRunId}
+          title="Download JSON provenance manifest"
+        >
+          <Icon name="export" size={12} /> Manifest (JSON)
+        </button>
+        {selectedRunId && (
+          <a
+            className="btn btn-sm"
+            href={appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/report`)}
+            target="_blank"
+            rel="noreferrer"
+            title="Open report in a new tab"
+          >
+            <Icon name="link" size={12} /> Open report
+          </a>
+        )}
+      </div>
+      <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', minHeight: 200 }}>
+        {loading && (
+          <div style={{ padding: 12, color: 'var(--muted)' }}>Loading provenance report...</div>
+        )}
+        {error && !loading && (
+          <div style={{ padding: 12, color: 'var(--danger, #dc3545)' }}>{error}</div>
+        )}
+        {!loading && !error && reportHtml && (
+          <iframe
+            title="Run report"
+            srcDoc={reportHtml}
+            sandbox=""
+            style={{ width: '100%', height: '100%', minHeight: 200, border: 'none', background: 'white' }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function BottomConsole({
+  queue,
+  history,
+  onClose,
+  onClearLogs,
+  onCancelRun,
+  onRetryRun,
+  onLoadRunWorkflow,
+  onDeleteHistoryEntry,
+  onMoveRun,
+  onClearQueue,
+  onClearHistory,
+  nodeIdToName,
+}: BottomConsoleProps) {
+  const logs = useAtomValue(logsAtom);
+  const batchCount = useAtomValue(batchCountAtom);
+  const openLightbox = useSetAtom(openLightboxAtom);
+  const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
+  const setShowOutputDiff = useSetAtom(showOutputDiffAtom);
+  const [tab, setTab] = useState<ConsoleTab>('logs');
+  const [showVerbose, setShowVerbose] = useState(true);
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
+  const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<string>>(new Set());
+  // Per-node log render caps. Default cap keeps the DOM bounded even when a
+  // run dumps tens of thousands of lines (e.g. `--verbose` aligners) — the
+  // user can opt to render more on demand.
+  const [expandedNodeCaps, setExpandedNodeCaps] = useState<Map<string, number>>(new Map());
+  const LOG_RENDER_CAP = 250;
+  const LOG_RENDER_STEP = 1000;
+  const logsBodyRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  const filteredHistory = useMemo(() => {
+    const trimmed = historyQuery.trim().toLowerCase();
+    return history.filter(run => {
+      if (historyStatusFilter !== 'all' && run.status !== historyStatusFilter) return false;
+      if (!trimmed) return true;
+      const name = (run.workflow_name || '').toLowerCase();
+      return name.includes(trimmed) || run.run_id.toLowerCase().includes(trimmed);
+    });
+  }, [history, historyQuery, historyStatusFilter]);
+
+  const historyBuckets = useMemo(() => bucketHistory(filteredHistory), [filteredHistory]);
+  const historyCountsByStatus = useMemo(() => {
+    const counts: Record<HistoryStatusFilter, number> = { all: history.length, completed: 0, error: 0, cancelled: 0 };
+    for (const run of history) {
+      if (run.status === 'completed') counts.completed += 1;
+      else if (run.status === 'error') counts.error += 1;
+      else if (run.status === 'cancelled') counts.cancelled += 1;
+    }
+    return counts;
+  }, [history]);
+  const toggleHistoryBucket = (label: string) => {
+    setCollapsedHistoryBuckets(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
+  };
+
+
+  const {
+    safeLogs,
+    hostLogs,
+    solverLogs,
+    groupedEntries,
+    hasPixiInstallLogs,
+  } = useMemo(() => deriveDisplayLogs(logs), [logs]);
 
   const toggleRun = (runId: string) => {
     setExpandedRuns(prev => {
@@ -130,7 +603,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
     });
   };
 
-  // Auto-expand running/pending nodes, collapse completed/error ones
+  // Auto-expand live nodes without overriding a group the user opened.
   useEffect(() => {
     const nextExpanded = new Set<string>();
     const allRuns = new Map<string, RunRecord>();
@@ -160,10 +633,30 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
       }
     }
     setExpandedNodes(prev => {
-      if (prev.size === nextExpanded.size && [...prev].every(k => nextExpanded.has(k))) return prev;
-      return nextExpanded;
+      const next = new Set(prev);
+      nextExpanded.forEach(key => next.add(key));
+      if (prev.size === next.size && [...prev].every(k => next.has(k))) return prev;
+      return next;
     });
   }, [groupedEntries, queue, history]);
+
+  // Pixi installation is triggered from a banner. Keep its live logs visible
+  // so the error output does not hide behind a collapsed run while it streams.
+  useEffect(() => {
+    if (!hasPixiInstallLogs) return;
+    setExpandedRuns(prev => {
+      if (prev.has('install-pixi')) return prev;
+      const next = new Set(prev);
+      next.add('install-pixi');
+      return next;
+    });
+    setExpandedNodes(prev => {
+      if (prev.has('install-pixi:host')) return prev;
+      const next = new Set(prev);
+      next.add('install-pixi:host');
+      return next;
+    });
+  }, [hasPixiInstallLogs]);
 
   // Auto-scroll when logs change (only if user is near bottom)
   useEffect(() => {
@@ -192,34 +685,24 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
     userScrolledUpRef.current = !isNearBottom;
   };
 
-  // Build flat list of image previews for the lightbox
-  const imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[] = [];
-  for (const r of history) {
-    const previews = r.previews || {};
-    for (const [nodeId, path] of Object.entries(previews)) {
-      if (isImagePath(path)) {
-        const filename = path.split('/').pop() || `${nodeId}.png`;
-        imagePreviews.push({
-          src: `/api/previews/${r.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
-          alt: `Preview ${nodeId}`,
-          filename,
-          runId: r.run_id,
-          nodeId,
-        });
-      }
-    }
-  }
+  const { imagePreviews, htmlPreviews } = useMemo(() => derivePreviews(history), [history]);
 
   const handleDoubleClick = (idx: number) => {
-    if (onOpenLightbox) {
-      onOpenLightbox(
-        imagePreviews.map(img => ({ src: img.src, alt: img.alt, filename: img.filename })),
-        idx
-      );
-    }
+    openLightbox({
+      images: imagePreviews.map(img => ({ src: img.src, alt: img.alt, filename: img.filename })),
+      index: idx,
+    });
   };
 
   const allRunIds = groupedEntries.map(([runId]) => runId);
+  const queueStats = queue.reduce((stats, run) => {
+    stats.totalNodes += Math.max(run.execution_plan?.length || 0, run.node_statuses?.length || 0);
+    if (run.status === 'running') stats.running += 1;
+    else if (run.status === 'pending') stats.pending += 1;
+    else if (run.status === 'error') stats.failed += 1;
+    return stats;
+  }, { running: 0, pending: 0, failed: 0, totalNodes: 0 });
+  const visibleBatchCount = batchCount;
 
   return (
     <div className="bottom-console">
@@ -234,7 +717,10 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
           History ({history.length})
         </button>
         <button className={`console-tab ${tab === 'previews' ? 'active' : ''}`} onClick={() => setTab('previews')}>
-          Previews {imagePreviews.length > 0 && `(${imagePreviews.length})`}
+          Previews {imagePreviews.length + htmlPreviews.length > 0 && `(${imagePreviews.length + htmlPreviews.length})`}
+        </button>
+        <button className={`console-tab ${tab === 'report' ? 'active' : ''}`} onClick={() => setTab('report')}>
+          Report
         </button>
         <div style={{ flex: 1 }} />
         {tab === 'logs' && allRunIds.length > 0 && (
@@ -260,6 +746,11 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
             Clear
           </button>
         )}
+        {tab === 'queue' && queue.length > 0 && onClearQueue && (
+          <button className="btn btn-sm btn-ghost" onClick={onClearQueue} title="Clear queued runs">
+            Clear Queue
+          </button>
+        )}
         {tab === 'logs' && solverLogs.length > 0 && (
           <button
             className="btn btn-sm btn-ghost"
@@ -281,14 +772,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
               <>
                 {groupedEntries.map(([runId, runLogs]) => {
                   const isExpanded = expandedRuns.has(runId);
-                  // Group run logs by node_id
-                  const nodeGroups = new Map<string, LogEntry[]>();
-                  for (const l of runLogs) {
-                    const nid = l.node_id || 'unknown';
-                    const existing = nodeGroups.get(nid);
-                    if (existing) existing.push(l);
-                    else nodeGroups.set(nid, [l]);
-                  }
+                  const nodeGroups = groupLogsByNode(runLogs);
                   return (
                     <div key={runId} className="console-log-group">
                       <button
@@ -305,6 +789,7 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
                           {Array.from(nodeGroups.entries()).map(([nodeId, nodeLogs]) => {
                             const nodeKey = `${runId}:${nodeId}`;
                             const isNodeExpanded = expandedNodes.has(nodeKey);
+                            const nodeTitle = nodeIdToName?.get(nodeId) ?? nodeId;
                             return (
                               <div key={nodeId} className="console-log-node-group">
                                 <button
@@ -313,19 +798,43 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
                                   title={isNodeExpanded ? 'Collapse node' : 'Expand node'}
                                 >
                                   <Icon name={isNodeExpanded ? 'chevronDown' : 'chevronRight'} size={10} />
-                                  <span className="console-log-node-title">{nodeId}</span>
+                                  <span className="console-log-node-title" title={nodeTitle !== nodeId ? nodeId : undefined}>{nodeTitle}</span>
                                   <span className="console-log-node-count">({nodeLogs.length})</span>
                                 </button>
-                                {isNodeExpanded && (
-                                  <div className="console-log-node-body">
-                                    {nodeLogs.map((l, i) => (
-                                      <LogLine key={i} entry={{
-                                        ...l,
-                                        detail: showVerbose ? l.detail : undefined,
-                                      }} />
-                                    ))}
-                                  </div>
-                                )}
+                                {isNodeExpanded && (() => {
+                                  const cap = expandedNodeCaps.get(nodeKey) ?? LOG_RENDER_CAP;
+                                  // Always show the tail (most recent lines) — for execution logs
+                                  // the newest output is by far the most useful.
+                                  const visible = nodeLogs.length > cap ? nodeLogs.slice(-cap) : nodeLogs;
+                                  const hidden = nodeLogs.length - visible.length;
+                                  return (
+                                    <div className="console-log-node-body">
+                                      {hidden > 0 && (
+                                        <button
+                                          type="button"
+                                          className="console-log-load-more"
+                                          onClick={() => setExpandedNodeCaps(prev => {
+                                            const next = new Map(prev);
+                                            next.set(nodeKey, cap + LOG_RENDER_STEP);
+                                            return next;
+                                          })}
+                                        >
+                                          Show {Math.min(LOG_RENDER_STEP, hidden)} earlier lines ({hidden} hidden)
+                                        </button>
+                                      )}
+                                      {visible.map((l, i) => (
+                                        <LogLine
+                                          key={`${nodeKey}-${nodeLogs.length - visible.length + i}`}
+                                          nodeIdToName={nodeIdToName}
+                                          entry={{
+                                            ...l,
+                                            detail: showVerbose ? l.detail : undefined,
+                                          }}
+                                        />
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}
@@ -345,44 +854,206 @@ export default function BottomConsole({ logs, queue, history, onClose, onOpenLig
         {tab === 'queue' && (
           queue.length === 0
             ? <div style={{ color: 'var(--muted)' }}>Queue is empty.</div>
-            : queue.map(r => (
-              <div key={r.run_id} className="console-log-line">
-                [{r.status}] {r.workflow_name} ({r.node_statuses?.length || 0} nodes)
+            : (
+              <div className="queue-panel">
+                <div className="queue-summary">
+                  <span className="queue-summary-item"><strong>{visibleBatchCount}</strong> batch</span>
+                  <span className="queue-summary-item"><strong>{queueStats.running}</strong> running</span>
+                  <span className="queue-summary-item"><strong>{queueStats.pending}</strong> pending</span>
+                  <span className="queue-summary-item"><strong>{queueStats.totalNodes}</strong> nodes</span>
+                  {queueStats.failed > 0 && <span className="queue-summary-item is-error"><strong>{queueStats.failed}</strong> failed</span>}
+                </div>
+                <div className="queue-run-list">
+                  {queue.map((r, index) => (
+                    <QueueRunCard
+                      key={r.run_id}
+                      run={r}
+                      index={index}
+                      totalRuns={queue.length}
+                      onCancelRun={onCancelRun}
+                      onRetryRun={onRetryRun}
+                      onMoveRun={onMoveRun}
+                    />
+                  ))}
+                </div>
               </div>
-            ))
+            )
         )}
         {tab === 'history' && (
           history.length === 0
             ? <div style={{ color: 'var(--muted)' }}>No completed runs yet.</div>
-            : history.map(r => (
-              <div key={r.run_id} className={`console-log-line ${r.status === 'error' ? 'error' : 'success'}`}>
-                [{r.status}] {r.workflow_name} - {r.end_time ? new Date(r.end_time).toLocaleString() : 'in progress'}
+            : (
+              <div className="history-tab">
+                <div className="history-toolbar">
+                  <input
+                    type="search"
+                    className="text-input history-search"
+                    placeholder="Filter by name or run ID"
+                    value={historyQuery}
+                    onChange={e => setHistoryQuery(e.target.value)}
+                    aria-label="Filter history"
+                  />
+                  <div className="history-status-filters" role="group" aria-label="Filter history by status">
+                    {(['all', 'completed', 'error', 'cancelled'] as HistoryStatusFilter[]).map(status => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={`history-status-chip ${historyStatusFilter === status ? 'is-active' : ''} is-${status}`}
+                        onClick={() => setHistoryStatusFilter(status)}
+                        title={`Show ${status === 'all' ? 'all runs' : status + ' runs'}`}
+                      >
+                        {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                        <span className="history-status-chip-count">{historyCountsByStatus[status]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setShowOutputDiff(true)}
+                    disabled={history.length < 1}
+                    title="Compare outputs of two completed runs"
+                  >
+                    <Icon name="layers" size={12} /> Compare runs
+                  </button>
+                  {onClearHistory && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={onClearHistory}
+                      title="Clear all completed runs from history"
+                    >
+                      <Icon name="trash" size={12} /> Clear history
+                    </button>
+                  )}
+                </div>
+                {filteredHistory.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', padding: '8px 4px' }}>
+                    No runs match the current filter.
+                  </div>
+                ) : (
+                  <div className="history-bucket-list">
+                    {historyBuckets.map(bucket => {
+                      const collapsed = collapsedHistoryBuckets.has(bucket.label);
+                      return (
+                        <section key={bucket.label} className="history-bucket">
+                          <button
+                            type="button"
+                            className="history-bucket-header"
+                            onClick={() => toggleHistoryBucket(bucket.label)}
+                            aria-expanded={!collapsed}
+                          >
+                            <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={12} />
+                            <span className="history-bucket-label">{bucket.label}</span>
+                            <span className="history-bucket-count">{bucket.runs.length}</span>
+                          </button>
+                          {!collapsed && (
+                            <div className="queue-run-list history-run-list">
+                              {bucket.runs.map(r => (
+                                <HistoryRunCard
+                                  key={r.run_id}
+                                  run={r}
+                                  onRetryRun={onRetryRun}
+                                  onLoadRunWorkflow={onLoadRunWorkflow}
+                                  onDeleteHistoryEntry={onDeleteHistoryEntry}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ))
+            )
         )}
         {tab === 'previews' && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', overflowY: 'auto' }}>
-            {imagePreviews.length === 0 ? (
-              <div style={{ color: 'var(--muted)' }}>No image previews yet. Run a workflow that generates plots.</div>
+            {imagePreviews.length === 0 && htmlPreviews.length === 0 ? (
+              <div style={{ color: 'var(--muted)' }}>No previews yet. Run a workflow that generates plots or HTML reports.</div>
             ) : (
-              imagePreviews.map((img, idx) => (
-                <div
-                  key={`${img.runId}-${img.nodeId}`}
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
-                  onDoubleClick={() => handleDoubleClick(idx)}
-                  title="Double-click to view fullscreen"
-                >
-                  <img
-                    src={img.src}
-                    alt={img.alt}
-                    style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, border: '1px solid var(--border)' }}
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{img.nodeId}</div>
-                </div>
-              ))
+              <>
+                {imagePreviews.map((img, idx) => (
+                  <div
+                    key={`img-${img.runId}-${img.nodeId}`}
+                    style={{ textAlign: 'center', cursor: 'pointer' }}
+                    onDoubleClick={() => handleDoubleClick(idx)}
+                    title="Double-click to view fullscreen"
+                  >
+                    <img
+                      src={img.src}
+                      alt={img.alt}
+                      style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, border: '1px solid var(--border)' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{img.nodeId}</div>
+                  </div>
+                ))}
+                {htmlPreviews.map(htmlItem => (
+                  <div
+                    key={`html-${htmlItem.runId}-${htmlItem.nodeId}`}
+                    style={{
+                      width: 260,
+                      height: 200,
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      overflow: 'hidden',
+                      background: '#ffffff',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                    onClick={() => setHtmlPreviewState({ src: htmlItem.src, filename: htmlItem.filename })}
+                    title="Click to open HTML report"
+                  >
+                    <div style={{
+                      flex: 1,
+                      overflow: 'hidden',
+                      position: 'relative',
+                      pointerEvents: 'none',
+                    }}>
+                      <iframe
+                        src={htmlItem.src}
+                        title={`Preview ${htmlItem.nodeId}`}
+                        sandbox="allow-scripts"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        style={{
+                          width: '200%',
+                          height: '200%',
+                          border: 'none',
+                          transform: 'scale(0.5)',
+                          transformOrigin: 'top left',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: 'var(--text)',
+                      padding: '4px 8px',
+                      borderTop: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 6,
+                    }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Icon name="file" size={10} /> {htmlItem.filename}
+                      </span>
+                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>HTML</span>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
+        )}
+        {tab === 'report' && (
+          <ReportPanel history={history} />
         )}
       </div>
     </div>

@@ -218,6 +218,13 @@ def _sanitize_rule_name(name: str) -> str:
     return sanitized or "unnamed_rule"
 
 
+def _shell_arg(value: Any) -> str:
+    raw = str(value)
+    if raw.startswith(("{", "$(", "$", "input", "output")):
+        return raw
+    return shlex.quote(raw)
+
+
 def _build_shell_command(
     node_type: str,
     widgets: dict[str, Any],
@@ -232,25 +239,32 @@ def _build_shell_command(
             output_dict[k.strip()] = v.strip().strip('"').strip("'")
     in_file = input_paths[0] if input_paths else "{input}"
     out_file = list(output_dict.values())[0] if output_dict else "{output}"
+    q_in = _shell_arg(in_file)
+    q_out = _shell_arg(out_file)
+    q_index = _shell_arg(widgets.get("index", "index"))
+    q_ref = _shell_arg(widgets.get("ref", "ref.fa"))
+    q_genome_dir = _shell_arg(widgets.get("genome_dir", "./"))
+    q_annotation = _shell_arg(widgets.get("annotation", "anno.gtf"))
+    q_db = _shell_arg(widgets.get("db", "db"))
 
     templates: dict[str, str] = {
-        "fastqc": f"fastqc -o $(dirname {out_file}) {in_file}",
-        "multiqc": f"multiqc {in_file} -o {out_file}",
-        "fastp": f"fastp -i {in_file} -o {out_file}",
-        "trimmomatic": f"trimmomatic PE {in_file} {out_file}",
-        "bowtie2": "bowtie2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
-        "bwa": "bwa mem " + widgets.get("index", "index") + f" {in_file} > {out_file}",
-        "samtools_sort": f"samtools sort {in_file} -o {out_file}",
-        "samtools_index": f"samtools index {in_file}",
-        "bcftools": "bcftools mpileup -f " + widgets.get("ref", "ref.fa") + f" {in_file} | bcftools call -mv -o {out_file}",
-        "spades": f"spades.py -1 {in_file} -o {out_file}",
-        "prokka": f"prokka --outdir {out_file} {in_file}",
-        "star": "STAR --genomeDir " + widgets.get("genome_dir", "./") + f" --readFilesIn {in_file} --outFileNamePrefix {out_file}",
-        "hisat2": "hisat2 -x " + widgets.get("index", "index") + f" -U {in_file} -S {out_file}",
-        "salmon": "salmon quant -i " + widgets.get("index", "index") + f" -l A -r {in_file} -o {out_file}",
-        "featurecounts": "featureCounts -a " + widgets.get("annotation", "anno.gtf") + f" -o {out_file} {in_file}",
-        "kraken2": "kraken2 --db " + widgets.get("db", "db") + f" {in_file} --output {out_file}",
-        "iqtree": f"iqtree -s {in_file} -pre {out_file}",
+        "fastqc": f"fastqc -o $(dirname {q_out}) {q_in}",
+        "multiqc": f"multiqc {q_in} -o {q_out}",
+        "fastp": f"fastp -i {q_in} -o {q_out}",
+        "trimmomatic": f"trimmomatic PE {q_in} {q_out}",
+        "bowtie2": f"bowtie2 -x {q_index} -U {q_in} -S {q_out}",
+        "bwa": f"bwa mem {q_index} {q_in} > {q_out}",
+        "samtools_sort": f"samtools sort {q_in} -o {q_out}",
+        "samtools_index": f"samtools index {q_in}",
+        "bcftools": f"bcftools mpileup -f {q_ref} {q_in} | bcftools call -mv -o {q_out}",
+        "spades": f"spades.py -1 {q_in} -o {q_out}",
+        "prokka": f"prokka --outdir {q_out} {q_in}",
+        "star": f"STAR --genomeDir {q_genome_dir} --readFilesIn {q_in} --outFileNamePrefix {q_out}",
+        "hisat2": f"hisat2 -x {q_index} -U {q_in} -S {q_out}",
+        "salmon": f"salmon quant -i {q_index} -l A -r {q_in} -o {q_out}",
+        "featurecounts": f"featureCounts -a {q_annotation} -o {q_out} {q_in}",
+        "kraken2": f"kraken2 --db {q_db} {q_in} --output {q_out}",
+        "iqtree": f"iqtree -s {q_in} -pre {q_out}",
     }
 
     return templates.get(node_type, f"# TODO: implement command for {node_type}\necho \'Running {node_type} on {{input}} -> {{output}}\'")

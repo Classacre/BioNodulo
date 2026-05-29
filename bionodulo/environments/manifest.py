@@ -184,6 +184,8 @@ def is_env_ready(env_dir: str | Path) -> bool:
 
 # ANSI escape sequence pattern (colors, cursor movement, etc.)
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+_PIXI_LOCK_TIMEOUT = 1800
+_PIXI_INSTALL_TIMEOUT = 3600
 
 
 async def _read_stream(
@@ -217,9 +219,25 @@ async def _read_stream(
                 emit("install.log", {"job_id": job_id, "stream": name, "message": decoded})
 
 
+async def _stop_process(proc: asyncio.subprocess.Process | None) -> None:
+    """Stop a timed-out Pixi child so it does not keep solving in the background."""
+    if proc is None or proc.returncode is not None:
+        return
+    proc.kill()
+    await proc.wait()
+
+
+def _pixi_failure_excerpt(stderr_lines: list[str], stdout_lines: list[str]) -> str:
+    """Prefer Pixi errors, but keep stdout when Pixi reports there instead."""
+    lines = stderr_lines or stdout_lines
+    if not lines:
+        return "pixi exited without output"
+    return "\n".join(lines)[-500:]
+
+
 async def run_pixi_lock(
     env_dir: str | Path,
-    timeout: int = 600,
+    timeout: int = _PIXI_LOCK_TIMEOUT,
     emit: Callable[[str, dict[str, Any]], Any] | None = None,
     job_id: str | None = None,
 ) -> tuple[bool, str]:
@@ -244,6 +262,7 @@ async def run_pixi_lock(
     if emit:
         emit("install.log", {"job_id": job_id, "stream": "stdout", "message": f"[pixi] Starting pixi lock in {env_dir}"})
 
+    proc: asyncio.subprocess.Process | None = None
     try:
         proc = await asyncio.create_subprocess_exec(
             str(pixi), "lock",
@@ -269,9 +288,9 @@ async def run_pixi_lock(
         returncode = proc.returncode
         if returncode == 0:
             return True, "Lockfile updated"
-        stderr_text = "\n".join(stderr_lines)
-        return False, f"pixi lock failed: {stderr_text[:500]}"
+        return False, f"pixi lock failed: {_pixi_failure_excerpt(stderr_lines, stdout_lines)}"
     except asyncio.TimeoutError:
+        await _stop_process(proc)
         return False, f"pixi lock timed out after {timeout}s"
     except FileNotFoundError:
         return False, "pixi executable not found"
@@ -279,7 +298,7 @@ async def run_pixi_lock(
 
 async def run_pixi_install(
     env_dir: str | Path,
-    timeout: int = 900,
+    timeout: int = _PIXI_INSTALL_TIMEOUT,
     emit: Callable[[str, dict[str, Any]], Any] | None = None,
     job_id: str | None = None,
 ) -> tuple[bool, str]:
@@ -304,6 +323,7 @@ async def run_pixi_install(
     if emit:
         emit("install.log", {"job_id": job_id, "stream": "stdout", "message": f"[pixi] Starting pixi install in {env_dir}"})
 
+    proc: asyncio.subprocess.Process | None = None
     try:
         proc = await asyncio.create_subprocess_exec(
             str(pixi), "install",
@@ -329,9 +349,9 @@ async def run_pixi_install(
         returncode = proc.returncode
         if returncode == 0:
             return True, "Environment installed"
-        stderr_text = "\n".join(stderr_lines)
-        return False, f"pixi install failed: {stderr_text[:500]}"
+        return False, f"pixi install failed: {_pixi_failure_excerpt(stderr_lines, stdout_lines)}"
     except asyncio.TimeoutError:
+        await _stop_process(proc)
         return False, f"pixi install timed out after {timeout}s"
     except FileNotFoundError:
         return False, "pixi executable not found"

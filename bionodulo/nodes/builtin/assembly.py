@@ -459,5 +459,9 @@ class QuastNode(CommandNode):
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list:
+        # QUAST writes a directory of artefacts; the headline HTML report
+        # lives at `<dir>/report.html`. Return that file directly so
+        # downstream `html_preview` nodes can pick it up without a separate
+        # "extract file from dir" step.
         od = Path(output_dir)
-        return [od / cls.NODE_ID / "report_dir.out"]
+        return [od / cls.NODE_ID / "report_dir.out" / "report.html"]

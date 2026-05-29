@@ -12,6 +12,25 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
+def _split_reads(inputs: dict[str, Any]) -> tuple[Any, Any]:
+    """Return R1/R2 from a FASTQ list or explicit r1/r2 aliases."""
+    reads = inputs.get("reads", [])
+    if isinstance(reads, str):
+        reads = [reads]
+    r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
+    r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+    return r1, r2
+
+
+def _inject_read_aliases(inputs: dict[str, Any]) -> None:
+    """Populate r1/r2 aliases from reads when callers use FASTQ_LIST inputs."""
+    r1, r2 = _split_reads(inputs)
+    if r1:
+        inputs["r1"] = r1
+    if r2:
+        inputs["r2"] = r2
+
+
 # ── BWA ────────────────────────────────────────────────────────────
 
 class BWAIndexNode(CommandNode):
@@ -78,11 +97,7 @@ class BWAMemNode(CommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        reads = inputs.get("reads", [])
-        if isinstance(reads, str):
-            reads = [reads]
-        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
-        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        r1, r2 = _split_reads(inputs)
         rg = f"@RG\\tID:{inputs.get('rg_id', '1')}\\tSM:{inputs.get('rg_sample', 'sample')}\\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
         cmd = [
             "bwa", "mem",
@@ -216,11 +231,7 @@ class Bowtie2AlignNode(CommandNode):
             "-p", str(inputs.get("threads", 8)),
             "-x", str(inputs.get("index", "")),
         ]
-        reads = inputs.get("reads", [])
-        if isinstance(reads, str):
-            reads = [reads]
-        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
-        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        r1, r2 = _split_reads(inputs)
         if r1 and r2:
             cmd.extend(["-1", str(r1), "-2", str(r2)])
         elif r1:
@@ -238,10 +249,7 @@ class Bowtie2AlignNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> Any:
         """Accept reads list and split into r1/r2 for Bowtie2."""
-        reads = kwargs.get("reads", [])
-        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
-            kwargs["r1"] = reads[0]
-            kwargs["r2"] = reads[1]
+        _inject_read_aliases(kwargs)
         return await super().run(**kwargs)
 
     @classmethod
@@ -432,11 +440,7 @@ class HISAT2AlignNode(CommandNode):
             "-p", str(inputs.get("threads", 8)),
             "-x", str(inputs.get("index", "")),
         ]
-        reads = inputs.get("reads", [])
-        if isinstance(reads, str):
-            reads = [reads]
-        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
-        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        r1, r2 = _split_reads(inputs)
         if r1 and r2:
             cmd.extend(["-1", str(r1), "-2", str(r2)])
         elif r1:
@@ -454,10 +458,7 @@ class HISAT2AlignNode(CommandNode):
 
     async def run(self, **kwargs: Any) -> Any:
         """Accept reads list and split into r1/r2 for HISAT2."""
-        reads = kwargs.get("reads", [])
-        if isinstance(reads, (list, tuple)) and len(reads) >= 2:
-            kwargs["r1"] = reads[0]
-            kwargs["r2"] = reads[1]
+        _inject_read_aliases(kwargs)
         return await super().run(**kwargs)
 
     @classmethod
@@ -548,11 +549,7 @@ class STARAlignNode(CommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        reads = inputs.get("reads", [])
-        if isinstance(reads, str):
-            reads = [reads]
-        r1 = reads[0] if len(reads) > 0 else inputs.get("r1", "")
-        r2 = reads[1] if len(reads) > 1 else inputs.get("r2", "")
+        r1, r2 = _split_reads(inputs)
         cmd = [
             "STAR",
             "--genomeDir", str(inputs.get("index", "")),

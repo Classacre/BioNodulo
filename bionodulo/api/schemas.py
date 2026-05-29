@@ -25,9 +25,27 @@ class RunCreateRequest(BaseModel):
     """Request body for POST /runs."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow JSON object to execute")
+    workflow_id: str | None = Field(None, description="Collaborative workflow UUID, when applicable")
     name: str = Field("Untitled", description="Human-readable run name")
     environment: str | None = Field(None, description="Conda env or container to use")
     no_cache: bool = Field(False, description="Force re-execution by bypassing cache")
+    force_nodes: list[str] = Field(
+        default_factory=list,
+        description="Specific node IDs to force re-execution",
+    )
+    target_nodes: list[str] = Field(
+        default_factory=list,
+        description="Node IDs to execute, together with their upstream dependencies",
+    )
+
+
+class QueueReorderRequest(BaseModel):
+    """Request body for POST /queue/reorder."""
+
+    run_id: str = Field(..., description="Pending run ID to move")
+    index: int | None = Field(None, ge=0, description="Zero-based destination index")
+    before_run_id: str | None = Field(None, description="Move before this pending run ID")
+    after_run_id: str | None = Field(None, description="Move after this pending run ID")
 
 
 class WorkflowExportRequest(BaseModel):
@@ -93,6 +111,7 @@ class AIChatRequest(BaseModel):
 
     message: str = Field(..., description="User message text")
     workflow: dict[str, Any] | None = Field(None, description="Current workflow context")
+    workflow_id: str | None = Field(None, description="Stable ID of the active workflow")
     history: list[dict[str, str]] = Field(
         default_factory=list,
         description="Previous conversation messages",
@@ -179,6 +198,7 @@ class HPCSubmitRequest(BaseModel):
     """Request body for POST /hpc/submit."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow to submit")
+    workflow_id: str | None = Field(None, description="Collaborative workflow UUID, when applicable")
     name: str = Field(..., description="Job name")
     cpus: int | None = Field(None, description="CPU override")
     memory: str | None = Field(None, description="Memory override")
@@ -187,23 +207,6 @@ class HPCSubmitRequest(BaseModel):
         default_factory=list,
         description="Job IDs this job depends on",
     )
-
-
-# ---------------------------------------------------------------------------
-# Manager install requests
-# ---------------------------------------------------------------------------
-
-class ManagerInstallPlanRequest(BaseModel):
-    """Request body for POST /manager/install-plan."""
-
-    nodes: list[str] = Field(..., description="Node names to plan install for")
-
-
-class ManagerInstallRequest(BaseModel):
-    """Request body for POST /manager/install."""
-
-    plan: dict[str, Any] = Field(..., description="Install plan from install-plan response")
-    confirm: bool = Field(False, description="Whether to actually execute the install")
 
 
 class ManagerDiagnoseRequest(BaseModel):
@@ -216,13 +219,6 @@ class ManagerResolveRequest(BaseModel):
     """Request body for POST /manager/resolve."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow to resolve dependencies for")
-
-
-class ManagerInstallDepsRequest(BaseModel):
-    """Request body for POST /manager/install-deps."""
-
-    report: dict[str, Any] = Field(..., description="Resolution report from /manager/resolve")
-    env_strategy: str = Field("shared", description="Install strategy: 'shared' or 'isolated'")
 
 
 # ---------------------------------------------------------------------------
@@ -293,3 +289,99 @@ class ErrorResponse(BaseModel):
 
     detail: str = Field(..., description="Error description")
     error_code: str | None = Field(None, description="Machine-readable error code")
+
+
+# ---------------------------------------------------------------------------
+# Collaboration requests / responses
+# ---------------------------------------------------------------------------
+
+class ShareWorkflowRequest(BaseModel):
+    """Request body for POST /api/collab/share."""
+
+    workflow_id: str = Field(..., description="Workflow UUID to share")
+    user_id: str = Field(..., description="User to invite")
+    role: Literal["owner", "editor", "viewer", "commenter"] = Field(
+        "viewer", description="Permission level"
+    )
+
+
+class ShareWorkflowResponse(BaseModel):
+    """Response for a successful share operation."""
+
+    share_id: str = Field(..., description="Unique share record ID")
+    workflow_id: str = Field(..., description="Workflow UUID")
+    user_id: str = Field(..., description="Invited user")
+    role: str = Field(..., description="Granted role")
+    invited_by: str = Field("", description="User who sent the invite")
+    invited_at: str = Field(..., description="ISO timestamp of invitation")
+
+
+class RoomStatusResponse(BaseModel):
+    """Response for GET /api/collab/room/{workflow_id}."""
+
+    workflow_id: str = Field(..., description="Workflow UUID")
+    active: bool = Field(..., description="Whether the room is currently open")
+    users: list[dict[str, Any]] = Field(default_factory=list, description="Active users")
+    created_at: str | None = Field(None, description="Room creation ISO timestamp")
+    client_count: int = Field(0, description="Number of connected WebSocket clients")
+
+
+# ---------------------------------------------------------------------------
+# Authentication requests / responses
+# ---------------------------------------------------------------------------
+
+class AuthTokenRequest(BaseModel):
+    """Request body for POST /api/auth/token."""
+
+    name: str = Field(..., description="Human-readable display name")
+
+
+class AuthTokenResponse(BaseModel):
+    """Response for POST /api/auth/token."""
+
+    token: str = Field(..., description="Signed JWT string")
+    user_id: str = Field(..., description="Opaque user identifier")
+    name: str = Field(..., description="Display name from request")
+
+
+class AuthMeResponse(BaseModel):
+    """Response for GET /api/auth/me."""
+
+    user_id: str = Field(..., description="User identifier from token sub claim")
+    name: str = Field(..., description="Display name from token")
+    role: str = Field(..., description="Role from token (owner/editor/viewer/commenter)")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 collaboration request models
+# ---------------------------------------------------------------------------
+
+
+class CreateCommentRequest(BaseModel):
+    """Request body for POST /api/collab/workflows/{id}/comments."""
+
+    node_id: str | None = Field(None, description="Optional node ID to attach the comment to")
+    content: str = Field(..., min_length=1, max_length=5000, description="Comment text")
+    parent_id: str | None = Field(None, description="Parent comment ID for replies")
+
+
+class UpdateCommentRequest(BaseModel):
+    """Request body for PATCH /api/collab/comments/{id}."""
+
+    content: str = Field(..., min_length=1, max_length=5000, description="Updated comment text")
+
+
+class CreateVersionRequest(BaseModel):
+    """Request body for POST /api/collab/workflows/{id}/versions."""
+
+    name: str | None = Field(None, description="Version name; None for auto-generated")
+
+
+class CreateTemplateRequest(BaseModel):
+    """Request body for POST /api/collab/templates."""
+
+    workflow_id: str = Field(..., description="Source workflow UUID")
+    title: str = Field(..., min_length=1, max_length=200, description="Template title")
+    description: str = Field(default="", max_length=2000, description="Template description")
+    tags: str = Field(default="", max_length=500, description="Comma-separated tags")
+    is_public: bool = Field(default=False, description="Make template publicly visible")

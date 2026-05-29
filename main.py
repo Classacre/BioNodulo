@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import os
 from pathlib import Path
 
 import uvicorn
+
+from bionodulo.core.workspace import default_workspace_root, ensure_workspace_root
 
 try:
     import uvloop
@@ -34,19 +35,12 @@ def main() -> None:
     if args.project_root:
         os.environ["BIONODULO_ROOT"] = str(args.project_root.resolve())
     else:
-        # Default to workspace/ inside the project directory
-        default_root = (project_dir / "workspace").resolve()
-        # Many bioinformatics tools cannot handle spaces in paths.
-        # Use a space-free fallback under the home directory.
-        if " " in str(default_root):
-            default_root = (Path.home() / ".bionodulo" / "workspace").resolve()
-        os.environ["BIONODULO_ROOT"] = str(default_root)
+        os.environ["BIONODULO_ROOT"] = str(default_workspace_root(project_dir))
     if args.config:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
 
     # Ensure project root exists
-    root = Path(os.environ.get("BIONODULO_ROOT", str(project_dir / "workspace"))).resolve()
-    root.mkdir(parents=True, exist_ok=True)
+    root = ensure_workspace_root(project_dir)
 
     # Install uvloop for faster asyncio event loop (2-4x I/O throughput)
     if uvloop is not None:

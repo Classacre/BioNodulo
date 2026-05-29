@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "FASTQ QC Pipeline",
   "description": "Quality control pipeline for sequencing reads using FastQC and MultiQC",
@@ -8,8 +8,8 @@
       "id": "note_fastq_qc_pipeline",
       "type": "note",
       "position": [
-        -220,
-        100
+        -240,
+        80
       ],
       "params": {
         "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
@@ -23,14 +23,14 @@
       "id": "input_fastq_001",
       "type": "input_fastq",
       "position": [
-        100,
-        100
+        80,
+        80
       ],
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/fastq_qc/R1.fq",
-          "examples/data/fastq_qc/R2.fq"
+          "https://github.com/OpenGene/fastp/raw/master/testdata/R1.fq",
+          "https://github.com/OpenGene/fastp/raw/master/testdata/R2.fq"
         ]
       },
       "ui": {
@@ -41,8 +41,8 @@
       "id": "fastqc_001",
       "type": "fastqc",
       "position": [
-        400,
-        100
+        440,
+        80
       ],
       "params": {
         "threads": 4
@@ -55,14 +55,26 @@
       "id": "multiqc_001",
       "type": "multiqc",
       "position": [
-        700,
-        100
+        800,
+        80
       ],
       "params": {
         "title": "QC Report"
       },
       "ui": {
         "title": "MultiQC"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
       }
     }
   ],
@@ -87,6 +99,17 @@
       "to": {
         "node": "multiqc_001",
         "input": "reports"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "multiqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

@@ -1,5 +1,5 @@
 {
-  "version": "Alpha 1.2",
+  "version": "2.0",
   "app": "bionodulo",
   "name": "Differential Expression",
   "description": "Transcript quantification and differential expression analysis",
@@ -8,8 +8,8 @@
       "id": "note_differential_expression",
       "type": "note",
       "position": [
-        -220,
-        275
+        -240,
+        80
       ],
       "params": {
         "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR.\nData: S. cerevisiae RNA-seq reads SRR6357071 (subsampled) from nf-core/test-datasets GSE110004. Transcriptome from Ensembl Saccharomyces_cerevisiae.R64-1-1.cdna.all.\nSources: https://github.com/nf-core/test-datasets | https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/"
@@ -23,14 +23,14 @@
       "id": "reads_001",
       "type": "input_fastq",
       "position": [
-        100,
-        100
+        80,
+        80
       ],
       "params": {
         "sample_name": "ctrl_rep1",
         "reads": [
-          "examples/data/differential_expression/SRR6357071_1.fastq",
-          "examples/data/differential_expression/SRR6357071_2.fastq"
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_1.fastq.gz",
+          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_2.fastq.gz"
         ]
       },
       "ui": {
@@ -41,11 +41,11 @@
       "id": "tx_001",
       "type": "input_fasta",
       "position": [
-        100,
-        280
+        80,
+        276
       ],
       "params": {
-        "reference": "examples/data/differential_expression/transcriptome.fa"
+        "reference": "https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.fa.gz"
       },
       "ui": {
         "title": "Transcriptome FASTA"
@@ -55,8 +55,8 @@
       "id": "salmon_idx_001",
       "type": "salmon_index",
       "position": [
-        380,
-        280
+        440,
+        80
       ],
       "params": {},
       "ui": {
@@ -67,8 +67,8 @@
       "id": "salmon_quant_001",
       "type": "salmon_quant",
       "position": [
-        660,
-        100
+        800,
+        80
       ],
       "params": {
         "threads": 8
@@ -81,8 +81,8 @@
       "id": "kallisto_idx_001",
       "type": "kallisto_index",
       "position": [
-        380,
-        450
+        440,
+        318
       ],
       "params": {},
       "ui": {
@@ -93,14 +93,40 @@
       "id": "kallisto_quant_001",
       "type": "kallisto_quant",
       "position": [
-        660,
-        280
+        800,
+        528
       ],
       "params": {
         "threads": 8
       },
       "ui": {
         "title": "Kallisto Quant"
+      }
+    },
+    {
+      "id": "mqc_001",
+      "type": "multiqc",
+      "position": [
+        1160,
+        300
+      ],
+      "params": {
+        "title": "Quantification QC"
+      },
+      "ui": {
+        "title": "MultiQC"
+      }
+    },
+    {
+      "id": "html_preview_001",
+      "type": "html_preview",
+      "position": [
+        1520,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View MultiQC Report"
       }
     }
   ],
@@ -169,6 +195,28 @@
       "to": {
         "node": "kallisto_quant_001",
         "input": "index"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "salmon_quant_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "mqc_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
       }
     }
   ],

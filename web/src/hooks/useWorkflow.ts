@@ -1,23 +1,73 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../types';
+import { getToken } from '../collab/auth';
+import { appPath } from '../utils/appBase';
+
+function createWorkflowId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeWorkflow(wf: Workflow): Workflow {
+  return { ...wf, id: wf.id || createWorkflowId() };
+}
 
 function emptyWorkflow(): Workflow {
   return {
-    version: 'Alpha 1.2', app: 'bionodulo', name: 'Untitled', description: '',
+    id: createWorkflowId(), version: '2.0', app: 'bionodulo', name: 'Untitled', description: '',
     nodes: [], edges: [], groups: [], outputs: {},
   };
 }
 
+const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
+
+function loadLocalWorkflows(): { workflows: Workflow[]; activeIndex: number } {
+  try {
+    const raw = localStorage.getItem(LOCAL_WORKFLOWS_KEY);
+    if (!raw) return { workflows: [emptyWorkflow()], activeIndex: 0 };
+    const parsed = JSON.parse(raw) as { workflows?: Workflow[]; activeIndex?: number };
+    const workflows = Array.isArray(parsed.workflows)
+      ? parsed.workflows.map(normalizeWorkflow).filter(wf => Array.isArray(wf.nodes) && Array.isArray(wf.edges))
+      : [];
+    if (workflows.length === 0) return { workflows: [emptyWorkflow()], activeIndex: 0 };
+    const activeIndex = Math.max(0, Math.min(parsed.activeIndex ?? 0, workflows.length - 1));
+    return { workflows, activeIndex };
+  } catch {
+    return { workflows: [emptyWorkflow()], activeIndex: 0 };
+  }
+}
+
+function saveLocalWorkflows(workflows: Workflow[], activeIndex: number) {
+  try {
+    localStorage.setItem(LOCAL_WORKFLOWS_KEY, JSON.stringify({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      activeIndex,
+      workflows: workflows.map(normalizeWorkflow),
+    }));
+  } catch {
+    // Browser storage can be unavailable in private mode or quota exhaustion.
+  }
+}
+
 export function useWorkflow() {
-  const [workflows, setWorkflows] = useState<Workflow[]>([emptyWorkflow()]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const initial = useState(loadLocalWorkflows)[0];
+  const [workflows, setWorkflows] = useState<Workflow[]>(initial.workflows);
+  const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
   const [resolveReport, setResolveReport] = useState<ResolveReport | null>(null);
+  const resolveRequestIdRef = useRef(0);
 
   const clearResolveReport = useCallback(() => {
     setResolveReport(null);
   }, []);
   const [runs, setRuns] = useState<RunRecord[]>([]);
+
+  useEffect(() => {
+    saveLocalWorkflows(workflows, activeIndex);
+  }, [workflows, activeIndex]);
 
   const addRun = useCallback((run: RunRecord) => {
     setRuns(prev => [run, ...prev]);
@@ -30,21 +80,25 @@ export function useWorkflow() {
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();
 
   const setWorkflow = useCallback((index: number, updater: (w: Workflow) => Workflow) => {
-    setWorkflows(prev => prev.map((w, i) => i === index ? updater(w) : w));
+    setWorkflows(prev => prev.map((w, i) => i === index ? normalizeWorkflow(updater(w)) : w));
   }, []);
 
   const updateWorkflow = useCallback((index: number, partial: Partial<Workflow>) => {
-    setWorkflows(prev => prev.map((w, i) => i === index ? { ...w, ...partial } : w));
+    setWorkflows(prev => prev.map((w, i) => i === index ? normalizeWorkflow({ ...w, ...partial }) : w));
   }, []);
 
   const addTab = useCallback(() => {
-    setWorkflows(prev => [...prev, emptyWorkflow()]);
-    setActiveIndex(prev => prev + 1);
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, emptyWorkflow()];
+    });
   }, []);
 
   const addWorkflow = useCallback((wf: Workflow) => {
-    setWorkflows(prev => [...prev, wf]);
-    setActiveIndex(prev => prev + 1);
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, normalizeWorkflow(wf)];
+    });
   }, []);
 
   const closeTab = useCallback((index: number) => {
@@ -53,7 +107,7 @@ export function useWorkflow() {
       if (next.length === 0) next.push(emptyWorkflow());
       return next;
     });
-    setActiveIndex(prev => Math.min(prev, workflows.length - 2));
+    setActiveIndex(prev => Math.max(0, Math.min(prev, Math.max(0, workflows.length - 2))));
   }, [workflows.length]);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {
@@ -73,7 +127,7 @@ export function useWorkflow() {
 
   const validate = useCallback(async (wf: Workflow) => {
     try {
-      const r = await fetch('/api/workflow/validate', {
+      const r = await fetch(appPath('/api/workflow/validate'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf }),
       });
@@ -88,33 +142,50 @@ export function useWorkflow() {
   }, []);
 
   const resolve = useCallback(async (wf: Workflow) => {
+    const requestId = ++resolveRequestIdRef.current;
     try {
-      const r = await fetch('/api/manager/resolve', {
+      const r = await fetch(appPath('/api/manager/resolve'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf }),
       });
       if (r.ok) {
         const data = await r.json() as ResolveReport;
-        console.log('[useWorkflow.resolve] got report:', data.summary, 'has_issues:', data.has_issues);
-        setResolveReport(data);
+        if (requestId === resolveRequestIdRef.current) {
+          setResolveReport(data);
+        }
         return data;
       }
-      console.warn('[useWorkflow.resolve] server returned', r.status, await r.text());
     } catch (err) {
-      console.error('[useWorkflow.resolve] fetch failed:', err);
+      void err;
     }
-    setResolveReport(null);
+    if (requestId === resolveRequestIdRef.current) {
+      setResolveReport(null);
+    }
     return null;
   }, []);
 
-  const submitRun = useCallback(async (wf: Workflow, options?: { no_cache?: boolean; name?: string; environment?: string }) => {
-    const r = await fetch('/api/runs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const submitRun = useCallback(async (wf: Workflow, options?: {
+    no_cache?: boolean;
+    name?: string;
+    environment?: string;
+    force_nodes?: string[];
+    target_nodes?: string[];
+  }) => {
+    const token = getToken();
+    const r = await fetch(appPath('/api/runs'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
         workflow: wf,
+        workflow_id: wf.id || null,
         name: options?.name || wf.name || 'Untitled',
         no_cache: options?.no_cache || false,
         environment: options?.environment || null,
+        force_nodes: options?.force_nodes || [],
+        target_nodes: options?.target_nodes || [],
       }),
     });
     if (!r.ok) {
@@ -127,7 +198,7 @@ export function useWorkflow() {
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
     try {
-      const r = await fetch('/api/workflow/export', {
+      const r = await fetch(appPath('/api/workflow/export'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflow: wf, format }),
       });
@@ -139,7 +210,7 @@ export function useWorkflow() {
 
   const importWorkflow = useCallback(async (source: string, format: string) => {
     try {
-      const r = await fetch('/api/workflow/import', {
+      const r = await fetch(appPath('/api/workflow/import'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, format }),
       });

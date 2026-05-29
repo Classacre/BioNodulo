@@ -1,7 +1,6 @@
 """NodeRegistry - discovers, registers, and manages all BioNodulo nodes.
 
-Supports built-in nodes, custom nodes from external directories, and
-ComfyUI v3 adapter nodes.
+Supports built-in nodes and custom nodes from external directories.
 """
 from __future__ import annotations
 
@@ -36,10 +35,21 @@ class NodeRegistry:
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._nodes = {}
-            cls._instance._loaded = set()
-            cls._instance._object_info_cache = None
+            cls._initialise_instance(cls._instance)
         return cls._instance
+
+    @classmethod
+    def create_isolated(cls) -> NodeRegistry:
+        """Create a non-singleton registry for tests and isolated runtimes."""
+        registry = super().__new__(cls)
+        cls._initialise_instance(registry)
+        return registry
+
+    @staticmethod
+    def _initialise_instance(registry: NodeRegistry) -> None:
+        registry._nodes = {}
+        registry._loaded = set()
+        registry._object_info_cache = None
 
     # ── Registration ─────────────────────────────────────────────────
 
@@ -94,23 +104,23 @@ class NodeRegistry:
         return dict(self._nodes)
 
     def object_info(self, node_id: str | None = None) -> dict[str, Any]:
-        """Return ComfyUI-compatible object_info metadata.
+        """Return node metadata for the frontend registry.
 
         Args:
             node_id: Optional specific node ID. If None, returns all nodes.
 
         Returns:
-            Dictionary of node metadata in ComfyUI object_info format.
+            Dictionary of node metadata keyed by node ID.
         """
         if node_id is not None:
             node_class = self._nodes.get(node_id)
             if node_class is None:
                 return {}
-            return _to_comfy_info(node_class)
+            return _to_node_info(node_class)
 
         if self._object_info_cache is None:
             self._object_info_cache = {
-                nid: _to_comfy_info(nc)
+                nid: _to_node_info(nc)
                 for nid, nc in sorted(self._nodes.items())
             }
         return self._object_info_cache
@@ -221,16 +231,13 @@ class NodeRegistry:
         return count
 
     def iter_node_classes(self) -> Iterator[Type[BaseNode]]:
-        """Yield all registered node classes including Comfy v3 adapted ones.
+        """Yield all registered node classes.
 
         Yields:
             BaseNode subclasses.
         """
         for node_class in self._nodes.values():
             yield node_class
-            # If this node also has a Comfy v3 adapter, yield that too
-            if hasattr(node_class, "_comfy_v3_class"):
-                yield node_class._comfy_v3_class
 
     def _load_module_from_path(self, name: str, path: Path) -> Any:
         """Dynamically load a module from a file path.
@@ -261,39 +268,39 @@ class NodeRegistry:
         self._object_info_cache = None
 
 
-def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
-    """Convert a BaseNode class to ComfyUI-compatible object_info format.
+def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
+    """Convert a BaseNode class to frontend registry metadata.
 
     Args:
         node_class: The node class to convert.
 
     Returns:
-        Dictionary in ComfyUI object_info format.
+        Dictionary consumed by the frontend node registry.
     """
     input_types = node_class.INPUT_TYPES()
     required = input_types.get("required", {})
     optional = input_types.get("optional", {})
     hidden = input_types.get("hidden", {})
 
-    comfy_input: dict[str, Any] = {"required": {}, "optional": {}, "hidden": {}}
+    node_input: dict[str, Any] = {"required": {}, "optional": {}, "hidden": {}}
 
     for name, spec in required.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["required"][name] = (_comfy_type(type_name), config)
+        node_input["required"][name] = (_node_type(type_name), config)
 
     for name, spec in optional.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["optional"][name] = (_comfy_type(type_name), config)
+        node_input["optional"][name] = (_node_type(type_name), config)
 
     for name, spec in hidden.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["hidden"][name] = (_comfy_type(type_name), config)
+        node_input["hidden"][name] = (_node_type(type_name), config)
 
     return {
-        "input": comfy_input,
+        "input": node_input,
         "output": list(node_class.RETURN_TYPES),
         "output_name": list(node_class.RETURN_NAMES),
         "name": node_class.NODE_ID,
@@ -314,70 +321,21 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
     }
 
 
-def _comfy_type(bionodulo_type: str | list | tuple) -> str:
-    """Map BioNodulo type names to ComfyUI-compatible type names.
+def _node_type(bionodulo_type: str | list | tuple) -> str:
+    """Map BioNodulo type names to frontend socket type names.
 
     Args:
         bionodulo_type: BioNodulo type string (or list/tuple in edge cases).
 
     Returns:
-        ComfyUI-compatible type string.
+        Frontend socket type string.
     """
     while isinstance(bionodulo_type, (list, tuple)):
         bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"
     if not isinstance(bionodulo_type, str):
         bionodulo_type = str(bionodulo_type)
-    mapping = {
-        "STRING": "STRING",
-        "INT": "INT",
-        "FLOAT": "FLOAT",
-        "BOOLEAN": "BOOLEAN",
-        "FILE": "STRING",
-        "DIRECTORY": "STRING",
-        "FASTQ": "STRING",
-        "FASTQ_LIST": "STRING",
-        "FASTA": "STRING",
-        "SAM": "STRING",
-        "BAM": "STRING",
-        "VCF": "STRING",
-        "VCF_GZ": "STRING",
-        "GFF": "STRING",
-        "GTF": "STRING",
-        "GFF_GTF": "STRING",
-        "BED": "STRING",
-        "ASSEMBLY": "STRING",
-        "CONTIGS": "STRING",
-        "SCAFFOLDS": "STRING",
-        "ALIGNMENT": "STRING",
-        "PHYLOGENY_TREE": "STRING",
-        "INDEX_DIR": "STRING",
-        "QC_REPORT_DIR": "STRING",
-        "MULTIQC_REPORT": "STRING",
-        "HTML_REPORT": "STRING",
-        "STATS_FILE": "STRING",
-        "SAMPLE_SHEET": "STRING",
-        "COUNTS": "STRING",
-        "TPM_MATRIX": "STRING",
-        "ABUNDANCE": "STRING",
-        "GENE_EXPRESSION": "STRING",
-        "TX_EXPRESSION": "STRING",
-        "TRANSCRIPTS": "STRING",
-        "KRAKEN_REPORT": "STRING",
-        "KRAKEN_OUTPUT": "STRING",
-        "METAPHLAN_PROFILE": "STRING",
-        "HUMANN_OUTPUT": "STRING",
-        "BINS": "STRING",
-        "CELL_RANGER_OUT": "STRING",
-        "H5AD": "STRING",
-        "SEURAT_OBJ": "STRING",
-        "PEAKS": "STRING",
-        "BIGWIG": "STRING",
-        "NARROW_PEAK": "STRING",
-        "BROAD_PEAK": "STRING",
-        "JSON": "STRING",
-        "YAML": "STRING",
-        "CSV": "STRING",
-        "TSV": "STRING",
-        "ANY": "*",
-    }
-    return mapping.get(bionodulo_type, "STRING")
+    if bionodulo_type in {"STRING", "INT", "FLOAT", "BOOLEAN"}:
+        return bionodulo_type
+    if bionodulo_type == "ANY":
+        return "*"
+    return "STRING"

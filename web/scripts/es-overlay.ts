@@ -1,0 +1,68 @@
+// High-frequency Spanish translation overlay for the locale generator.
+// Each entry maps a literal English value to its Spanish equivalent.
+// Keys are matched case-sensitively against the *value* portion of an
+// `key: 'Value'` line in en.ts; structural keys (the `key:` part) are not
+// touched. Anything not listed falls back to English at runtime via
+// i18next's fallbackLng.
+//
+// Strings without a translation here are intentional — they're either
+// brand names (BioNodulo, HPC, FASTQ) or short tokens we want to leave
+// in English for now.
+export const overlay: Record<string, string> = {
+  'Cancel': 'Cancelar', 'Close': 'Cerrar', 'Confirm': 'Confirmar', 'Dismiss': 'Descartar',
+  'Done': 'Hecho', 'Save': 'Guardar', 'Saved': 'Guardado', 'Saving...': 'Guardando...',
+  'Edit': 'Editar', 'Rename': 'Cambiar nombre', 'Duplicate': 'Duplicar', 'Delete': 'Eliminar',
+  'Remove': 'Quitar', 'Add': 'Agregar', 'Refresh': 'Actualizar', 'Reset': 'Restablecer',
+  'Apply': 'Aplicar', 'Discard': 'Descartar', 'Open': 'Abrir', 'Create': 'Crear',
+  'Search': 'Buscar', 'Search...': 'Buscar...', 'Filter': 'Filtrar', 'Clear': 'Limpiar',
+  'Clear all': 'Limpiar todo', 'Select': 'Seleccionar', 'Select all': 'Seleccionar todo',
+  'Deselect': 'Deseleccionar', 'Deselect all': 'Deseleccionar todo',
+  'Next': 'Siguiente', 'Previous': 'Anterior', 'Back': 'Atras', 'Forward': 'Adelante',
+  'Upload': 'Subir', 'Download': 'Descargar', 'Import': 'Importar', 'Export': 'Exportar',
+  'Copy': 'Copiar', 'Paste': 'Pegar', 'Cut': 'Cortar', 'Undo': 'Deshacer', 'Redo': 'Rehacer',
+  'Yes': 'Si', 'Untitled': 'Sin titulo', 'Loading...': 'Cargando...',
+  'Empty': 'Vacio', 'Warning': 'Advertencia', 'Success': 'Exito',
+  'Retry': 'Reintentar', 'More': 'Mas', 'Less': 'Menos',
+  'Expand': 'Expandir', 'Collapse': 'Contraer', 'Show': 'Mostrar', 'Hide': 'Ocultar',
+  'Enabled': 'Activado', 'Disabled': 'Desactivado',
+  'Advanced': 'Avanzado', 'Settings': 'Ajustes', 'Preferences': 'Preferencias',
+  'Help': 'Ayuda', 'Learn more': 'Saber mas', 'Optional': 'Opcional',
+  'Required': 'Obligatorio', 'Type here': 'Escriba aqui',
+  'Name': 'Nombre', 'Description': 'Descripcion', 'Type': 'Tipo',
+  'Status': 'Estado', 'Actions': 'Acciones', 'Details': 'Detalles',
+  'Summary': 'Resumen', 'Overview': 'Vision general', 'Options': 'Opciones',
+  'History': 'Historial', 'Today': 'Hoy', 'Yesterday': 'Ayer',
+  'Notifications': 'Notificaciones', 'Notice': 'Aviso',
+  'Confirm action': 'Confirmar accion',
+  'Confirm destructive action': 'Confirmar accion destructiva',
+  'Enter details': 'Ingrese detalles', 'Type a value': 'Escriba un valor',
+  'Unsaved changes': 'Cambios sin guardar',
+  'Discard changes': 'Descartar cambios', 'Keep editing': 'Seguir editando',
+  'Command palette': 'Paleta de comandos',
+  'Search commands...': 'Buscar comandos...', 'No commands found': 'No se encontraron comandos',
+  'Commands': 'Comandos', 'Recent': 'Reciente', 'Suggested': 'Sugerido', 'Run': 'Ejecutar',
+  'Keyboard shortcuts': 'Atajos de teclado', 'Press keys...': 'Presione las teclas...',
+  'Conflict': 'Conflicto', 'No shortcuts found': 'No se encontraron atajos',
+  'Canvas': 'Lienzo', 'Panels': 'Paneles', 'Navigation': 'Navegacion',
+  'Editing': 'Edicion', 'View': 'Vista',
+  'New workflow': 'Nuevo workflow', 'Open workflow...': 'Abrir workflow...',
+  'Save workflow': 'Guardar workflow', 'Save workflow as...': 'Guardar workflow como...',
+  'Import workflow': 'Importar workflow', 'Export workflow': 'Exportar workflow',
+  'Close tab': 'Cerrar pestana', 'Close other tabs': 'Cerrar otras pestanas',
+  'Close all tabs': 'Cerrar todas las pestanas',
+  'Run workflow': 'Ejecutar workflow', 'Cancel run': 'Cancelar ejecucion',
+  'Validate workflow': 'Validar workflow',
+  'Sign in': 'Iniciar sesion', 'Sign out': 'Cerrar sesion',
+  'Profile': 'Perfil', 'User': 'Usuario', 'Guest': 'Invitado',
+  'Node library': 'Biblioteca de nodos', 'Parameters': 'Parametros',
+  'Workspace': 'Espacio de trabajo',
+  'Runs': 'Ejecuciones', 'Queue': 'Cola', 'Templates': 'Plantillas',
+  'Environment': 'Entorno',
+  'Help & wiki': 'Ayuda y wiki', 'Console': 'Consola', 'Logs': 'Registros',
+  'Statistics': 'Estadisticas', 'Node map': 'Mapa de nodos',
+  'Minimap': 'Minimapa', 'Notes': 'Notas',
+  'Search nodes...': 'Buscar nodos...', 'No nodes found': 'No se encontraron nodos',
+  'Favourites': 'Favoritos', 'All categories': 'Todas las categorias',
+  'Add to canvas': 'Agregar al lienzo',
+  'Pin node': 'Fijar nodo', 'Unpin node': 'Desfijar nodo',
+};

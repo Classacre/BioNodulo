@@ -7,11 +7,14 @@ Runs jobs locally using Python subprocess.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from bionodulo.hpc.base import HPCBackend, HPCJob
+
+logger = logging.getLogger(__name__)
 
 
 class LocalBackend(HPCBackend):
@@ -22,6 +25,7 @@ class LocalBackend(HPCBackend):
         self.max_parallel = self.config.get("max_parallel", 4)
         self.semaphore = asyncio.Semaphore(self.max_parallel)
         self._running: dict[str, asyncio.subprocess.Process] = {}
+        self._tasks: dict[str, asyncio.Task[None]] = {}
 
     async def submit_job(
         self,
@@ -34,7 +38,7 @@ class LocalBackend(HPCBackend):
         if not script_path.is_file():
             raise FileNotFoundError(f"Job script not found: {script_path}")
 
-        job_id = f"local_{id(script_path)}_{asyncio.get_event_loop().time()}"
+        job_id = f"local_{id(script_path)}_{asyncio.get_running_loop().time()}"
         output_dir = kwargs.get("cwd", script_path.parent)
         job_name = script_path.stem
         stdout_path = Path(output_dir) / (job_name + ".out")
@@ -51,8 +55,19 @@ class LocalBackend(HPCBackend):
             stderr=str(stderr_path),
         )
 
-        asyncio.create_task(self._run_local(job, script_path, env, kwargs.get("cwd")))
+        task = asyncio.create_task(self._run_local(job, script_path, env, kwargs.get("cwd")))
+        self._tasks[job_id] = task
+        task.add_done_callback(lambda done_task: self._handle_job_done(job_id, done_task))
         return job
+
+    def _handle_job_done(self, job_id: str, task: asyncio.Task[None]) -> None:
+        self._tasks.pop(job_id, None)
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Local HPC job %s failed unexpectedly", job_id)
 
     async def check_status(self, job: HPCJob) -> HPCJob:
         """Return the current status of a local job."""
@@ -78,8 +93,27 @@ class LocalBackend(HPCBackend):
             except ProcessLookupError:
                 pass
             del self._running[job.job_id]
+        task = self._tasks.get(job.job_id)
+        if task is not None and not task.done():
+            task.cancel()
         job.status = "CANCELLED"
         return job
+
+    async def shutdown(self) -> None:
+        """Cancel active local jobs and wait for their runner tasks."""
+        tasks = list(self._tasks.values())
+        for proc in self._running.values():
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._running.clear()
+        self._tasks.clear()
 
     async def _run_local(
         self,
@@ -91,35 +125,42 @@ class LocalBackend(HPCBackend):
         """Run a local job under the concurrency semaphore."""
         async with self.semaphore:
             job.status = "RUNNING"
-            proc = await asyncio.create_subprocess_shell(
-                f"bash {script_path}",
+            proc = await asyncio.create_subprocess_exec(
+                "bash",
+                str(script_path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=cwd or script_path.parent,
             )
             self._running[job.job_id] = proc
-            stdout_data, stderr_data = await proc.communicate()
-
             try:
-                with open(job.stdout, "wb") as fh:
-                    fh.write(stdout_data)
-            except OSError:
-                pass
-            try:
-                with open(job.stderr, "wb") as fh:
-                    fh.write(stderr_data)
-            except OSError:
-                pass
+                try:
+                    stdout_data, stderr_data = await proc.communicate()
+                except asyncio.CancelledError:
+                    if proc.returncode is None:
+                        proc.kill()
+                        await proc.wait()
+                    raise
 
-            if proc.returncode == 0:
-                job.status = "COMPLETED"
-            elif job.status != "CANCELLED":
-                job.status = "FAILED"
-            job.exit_code = proc.returncode
+                try:
+                    with open(job.stdout, "wb") as fh:
+                        fh.write(stdout_data)
+                except OSError:
+                    pass
+                try:
+                    with open(job.stderr, "wb") as fh:
+                        fh.write(stderr_data)
+                except OSError:
+                    pass
 
-            if job.job_id in self._running:
-                del self._running[job.job_id]
+                if proc.returncode == 0:
+                    job.status = "COMPLETED"
+                elif job.status != "CANCELLED":
+                    job.status = "FAILED"
+                job.exit_code = proc.returncode
+            finally:
+                self._running.pop(job.job_id, None)
 
     def generate_local_script(
         self,

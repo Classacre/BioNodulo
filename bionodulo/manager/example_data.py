@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import gzip
 import logging
-import os
 import shutil
 import urllib.error
 import urllib.request
@@ -219,6 +218,66 @@ Sample_F,Group_2,Treated
 
 
 # ---------------------------------------------------------------------------
+# Synthetic FASTQ generators
+#
+# These cover datasets whose original public URLs have rotted out from under
+# us (Zenodo records purged, GitHub test folders restructured, etc.). They
+# emit small but well-formed FASTQ payloads so the example pipelines still
+# have something realistic to chew on. We trade biological fidelity for never
+# 404-ing — anyone needing real reads can drop them into the same paths.
+# ---------------------------------------------------------------------------
+
+def _write_fastq(path: Path, *, num_reads: int, read_len: int, seed: int, prefix: str) -> None:
+    import random
+
+    rng = random.Random(seed)
+    bases = "ACGT"
+    lines: list[str] = []
+    for idx in range(num_reads):
+        seq = "".join(rng.choice(bases) for _ in range(read_len))
+        qual = "".join(chr(33 + rng.randint(25, 40)) for _ in range(read_len))
+        lines.append(f"@{prefix}_{idx + 1}/{1 if 'R1' in path.name or 'read1' in path.name else 2}")
+        lines.append(seq)
+        lines.append("+")
+        lines.append(qual)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _generate_chip_seq_read1(path: Path) -> None:
+    _write_fastq(path, num_reads=2000, read_len=50, seed=1324070, prefix="chipseq_h3k4me3_R1")
+
+
+def _generate_chip_seq_read2(path: Path) -> None:
+    _write_fastq(path, num_reads=2000, read_len=50, seed=1324071, prefix="chipseq_h3k4me3_R2")
+
+
+def _generate_metagenomics_forward(path: Path) -> None:
+    _write_fastq(path, num_reads=2500, read_len=150, seed=17661262, prefix="meta_coffee_fwd")
+
+
+def _generate_metagenomics_reverse(path: Path) -> None:
+    _write_fastq(path, num_reads=2500, read_len=150, seed=17661263, prefix="meta_coffee_rev")
+
+
+def _make_tinygex_generator(lane: int, kind: str, seed_offset: int):
+    """Build a closure that generates one 10x-style tinygex FASTQ."""
+
+    # I1 = sample-index, R1 = cell-barcode+UMI (~26 bp), R2 = transcript read.
+    if kind == "I1":
+        read_len = 8
+    elif kind == "R1":
+        read_len = 26
+    else:
+        read_len = 90
+    prefix = f"tinygex_L00{lane}_{kind}"
+
+    def _gen(path: Path) -> None:
+        _write_fastq(path, num_reads=1500, read_len=read_len, seed=1000 + seed_offset, prefix=prefix)
+
+    return _gen
+
+
+# ---------------------------------------------------------------------------
 # Download orchestration
 # ---------------------------------------------------------------------------
 
@@ -259,21 +318,21 @@ def download_example_data(
 
         if dest.exists():
             skipped.append(str(dest.relative_to(project_root)))
-            _emit(f"  skipped (already exists)", "info")
+            _emit("  skipped (already exists)", "info")
             continue
 
         try:
             if spec.generator is not None:
                 spec.generator(dest)
                 downloaded.append(str(dest.relative_to(project_root)))
-                _emit(f"  generated OK", "success")
+                _emit("  generated OK", "success")
             elif spec.url:
                 _download_url(spec.url, dest, gunzip=spec.gunzip)
                 downloaded.append(str(dest.relative_to(project_root)))
-                _emit(f"  downloaded OK", "success")
+                _emit("  downloaded OK", "success")
             else:
                 failed.append(str(dest.relative_to(project_root)))
-                _emit(f"  failed: no URL or generator", "error")
+                _emit("  failed: no URL or generator", "error")
         except Exception as exc:
             failed.append(str(dest.relative_to(project_root)))
             _emit(f"  failed: {exc}", "error")
@@ -338,21 +397,22 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     # wgs_variant — NCBI RefSeq (same as assembly ref)
     DataFile("wgs_variant", "ecoli_k12_mg1655.fna", "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz", gunzip=True, description="E. coli K-12 MG1655 RefSeq"),
 
-    # chip_seq — Zenodo 1324070
-    DataFile("chip_seq", "wt_H3K4me3_read1.fastq", "https://zenodo.org/record/1324070/files/wt_H3K4me3_read1.fastq", description="Mouse H3K4me3 ChIP-seq R1"),
-    DataFile("chip_seq", "wt_H3K4me3_read2.fastq", "https://zenodo.org/record/1324070/files/wt_H3K4me3_read2.fastq", description="Mouse H3K4me3 ChIP-seq R2"),
+    # chip_seq — synthetic FASTQ (Zenodo record 1324070 was deprecated upstream)
+    DataFile("chip_seq", "wt_H3K4me3_read1.fastq", generator=_generate_chip_seq_read1, description="Synthetic H3K4me3 ChIP-seq R1"),
+    DataFile("chip_seq", "wt_H3K4me3_read2.fastq", generator=_generate_chip_seq_read2, description="Synthetic H3K4me3 ChIP-seq R2"),
 
-    # metagenomics — Zenodo 17661262
-    DataFile("metagenomics", "reads_forward.fastq", "https://zenodo.org/records/17661262/files/reads_forward.fastq", description="Coffee fermentation metagenome R1"),
-    DataFile("metagenomics", "reads_reverse.fastq", "https://zenodo.org/records/17661262/files/reads_reverse.fastq", description="Coffee fermentation metagenome R2"),
+    # metagenomics — synthetic FASTQ (Zenodo record 17661262 returned 404)
+    DataFile("metagenomics", "reads_forward.fastq", generator=_generate_metagenomics_forward, description="Synthetic coffee fermentation metagenome R1"),
+    DataFile("metagenomics", "reads_reverse.fastq", generator=_generate_metagenomics_reverse, description="Synthetic coffee fermentation metagenome R2"),
 
-    # single_cell — 10x Genomics via universc GitHub
-    DataFile("single_cell", "tinygex_S1_L001_I1_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L001_I1_001.fastq", description="10x tinygex L001 I1"),
-    DataFile("single_cell", "tinygex_S1_L001_R1_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L001_R1_001.fastq", description="10x tinygex L001 R1"),
-    DataFile("single_cell", "tinygex_S1_L001_R2_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L001_R2_001.fastq", description="10x tinygex L001 R2"),
-    DataFile("single_cell", "tinygex_S1_L002_I1_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L002_I1_001.fastq", description="10x tinygex L002 I1"),
-    DataFile("single_cell", "tinygex_S1_L002_R1_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L002_R1_001.fastq", description="10x tinygex L002 R1"),
-    DataFile("single_cell", "tinygex_S1_L002_R2_001.fastq", "https://github.com/minoda-lab/universc/raw/master/test/shared/cellranger-tiny-fastq/tinygex_S1_L002_R2_001.fastq", description="10x tinygex L002 R2"),
+    # single_cell — synthetic 10x tinygex (upstream `minoda-lab/universc` test/
+    # folder no longer ships the raw fastqs at the historical paths).
+    DataFile("single_cell", "tinygex_S1_L001_I1_001.fastq", generator=_make_tinygex_generator(1, "I1", 1), description="Synthetic 10x tinygex L001 I1"),
+    DataFile("single_cell", "tinygex_S1_L001_R1_001.fastq", generator=_make_tinygex_generator(1, "R1", 2), description="Synthetic 10x tinygex L001 R1"),
+    DataFile("single_cell", "tinygex_S1_L001_R2_001.fastq", generator=_make_tinygex_generator(1, "R2", 3), description="Synthetic 10x tinygex L001 R2"),
+    DataFile("single_cell", "tinygex_S1_L002_I1_001.fastq", generator=_make_tinygex_generator(2, "I1", 4), description="Synthetic 10x tinygex L002 I1"),
+    DataFile("single_cell", "tinygex_S1_L002_R1_001.fastq", generator=_make_tinygex_generator(2, "R1", 5), description="Synthetic 10x tinygex L002 R1"),
+    DataFile("single_cell", "tinygex_S1_L002_R2_001.fastq", generator=_make_tinygex_generator(2, "R2", 6), description="Synthetic 10x tinygex L002 R2"),
 
     # differential_expression — EBI ENA + Ensembl
     DataFile("differential_expression", "SRR6357071_1.fastq", "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_1.fastq.gz", gunzip=True, description="S. cerevisiae RNA-seq R1 (SRR6357071)"),

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { GraphNode } from '../canvas/LiteGraphCanvas';
+import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
 interface NodeEditorProps {
@@ -9,11 +9,11 @@ interface NodeEditorProps {
 }
 
 export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
   if (!node) return null;
   const meta = node.meta;
   const required = meta?.input_types?.required || {};
   const optional = meta?.input_types?.optional || {};
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const hasAdvanced = Object.values(optional).some((s: any) => s?.advanced);
 
