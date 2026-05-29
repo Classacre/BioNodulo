@@ -100,6 +100,14 @@ export interface GraphNode {
   visualOnly: boolean;
 }
 
+type HoveredSlot = { nodeId: string; type: 'input' | 'output'; index: number } | null;
+
+function sameHoveredSlot(a: HoveredSlot, b: HoveredSlot): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.nodeId === b.nodeId && a.type === b.type && a.index === b.index;
+}
+
 function sameNodeRunProgressRecord(
   a: Record<string, NodeRunProgress>,
   b: Record<string, NodeRunProgress>,
@@ -250,6 +258,17 @@ function countInteractiveWidgets(meta: NodeMetadata | null): number {
 
 const WIDGET_ROW_H = 24;
 const WIDGET_BLOCK_PAD = 8;
+type CanvasPalette = {
+  canvas: string;
+  accent: string;
+  surface: string;
+  surface2: string;
+  border: string;
+  border2: string;
+  muted: string;
+  text: string;
+};
+
 const canvasNodeRunProgressAtom = selectAtom(
   nodeRunProgressAtom,
   progress => progress,
@@ -617,8 +636,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const [groupResizing, setGroupResizing] = useState<string | null>(null);
   // Link drag & slot hover
   const [linkDrag, setLinkDrag] = useState<{ fromNodeId: string; fromOutputIndex: number; fromOutputName: string; fromOutputType: string } | null>(null);
-  const [mouseWorld, setMouseWorld] = useState({ x: 0, y: 0 });
-  const [hoveredSlot, setHoveredSlot] = useState<{ nodeId: string; type: 'input' | 'output'; index: number } | null>(null);
+  const [hoveredSlot, setHoveredSlot] = useState<HoveredSlot>(null);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [linkContextMenu, setLinkContextMenu] = useState<{ x: number; y: number; edgeId: string; worldX: number; worldY: number } | null>(null);
@@ -653,7 +671,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const dragGhostsRef = useRef<Array<{ id: string; x: number; y: number; w: number; h: number; radius: number; isReroute: boolean }>>([]);
   // Refs for high-frequency values to avoid recreating draw callback
   const linkDragRef = useRef(linkDrag);
-  const mouseWorldRef = useRef(mouseWorld);
+  const mouseWorldRef = useRef({ x: 0, y: 0 });
   const hoveredSlotRef = useRef(hoveredSlot);
   const hoveredLinkRef = useRef(hoveredLink);
   const resizingNodeRef = useRef(resizingNode);
@@ -662,6 +680,20 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const nodeProgressMapRef = useRef(nodeProgressRecord);
   const isDraggingRef = useRef(false);
   const drawRef = useRef<() => void>(() => {});
+  const drawFrameRef = useRef<number | null>(null);
+  const paletteCacheRef = useRef<{
+    themeKey: string;
+    palette: CanvasPalette;
+    gridStroke: string;
+    isDark: boolean;
+  } | null>(null);
+  const requestDraw = useCallback(() => {
+    if (drawFrameRef.current !== null) return;
+    drawFrameRef.current = requestAnimationFrame(() => {
+      drawFrameRef.current = null;
+      drawRef.current();
+    });
+  }, []);
 
   useEffect(() => { if (!isDraggingRef.current) graphNodesRef.current = graphNodes; }, [graphNodes]);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -679,7 +711,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { onEnterSubgraphRef.current = onEnterSubgraph; }, [onEnterSubgraph]);
   useEffect(() => { onPromoteWidgetsRef.current = onPromoteWidgets; }, [onPromoteWidgets]);
   useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
-  useEffect(() => { mouseWorldRef.current = mouseWorld; }, [mouseWorld]);
   useEffect(() => { hoveredSlotRef.current = hoveredSlot; }, [hoveredSlot]);
   useEffect(() => { hoveredLinkRef.current = hoveredLink; }, [hoveredLink]);
   useEffect(() => { resizingNodeRef.current = resizingNode; }, [resizingNode]);
@@ -821,7 +852,34 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       canvas.style.height = h + 'px';
     }
 
-    const isDark = document.documentElement.classList.contains('dark');
+    const root = document.documentElement;
+    const themeKey = `${root.className}|${root.getAttribute('style') ?? ''}`;
+    let paletteCache = paletteCacheRef.current;
+    if (!paletteCache || paletteCache.themeKey !== themeKey) {
+      const isDarkTheme = root.classList.contains('dark');
+      const rootStyle = getComputedStyle(root);
+      const token = (name: string, fallback: string): string => {
+        const value = rootStyle.getPropertyValue(name).trim();
+        return value || fallback;
+      };
+      paletteCache = {
+        themeKey,
+        isDark: isDarkTheme,
+        palette: {
+          canvas: token('--canvas', isDarkTheme ? '#0f172a' : '#eef3f4'),
+          accent: token('--accent', '#2dd4bf'),
+          surface: token('--surface', isDarkTheme ? '#1e293b' : '#ffffff'),
+          surface2: token('--surface-2', isDarkTheme ? '#334155' : '#f3f6f7'),
+          border: token('--border', isDarkTheme ? '#334155' : '#cbd5e1'),
+          border2: token('--border-2', isDarkTheme ? '#475569' : '#cbd5e1'),
+          muted: token('--muted', isDarkTheme ? '#94a3b8' : '#64748b'),
+          text: token('--text', isDarkTheme ? '#cbd5e1' : '#475569'),
+        },
+        gridStroke: isDarkTheme ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)',
+      };
+      paletteCacheRef.current = paletteCache;
+    }
+    const { palette, gridStroke, isDark } = paletteCache;
     const currentLinkDrag = linkDragRef.current;
     const currentMouseWorld = mouseWorldRef.current;
     const currentHoveredSlot = hoveredSlotRef.current;
@@ -838,26 +896,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const allowShadows = qualityPrefs.shadowsEnabled && !lowQuality;
     ctx.imageSmoothingEnabled = qualityPrefs.smoothLinksEnabled && !lowQuality;
     ctx.imageSmoothingQuality = lowQuality ? 'low' : 'high';
-
-    // Resolve palette tokens once per frame so the canvas follows the active
-    // theme (`bionodulo`, `clinical`, `field`, `contrast`, custom) instead of
-    // hard-coding teal everywhere. Each token has a sensible fallback.
-    const rootStyle = getComputedStyle(document.documentElement);
-    const token = (name: string, fallback: string): string => {
-      const value = rootStyle.getPropertyValue(name).trim();
-      return value || fallback;
-    };
-    const palette = {
-      canvas: token('--canvas', isDark ? '#0f172a' : '#eef3f4'),
-      accent: token('--accent', '#2dd4bf'),
-      surface: token('--surface', isDark ? '#1e293b' : '#ffffff'),
-      surface2: token('--surface-2', isDark ? '#334155' : '#f3f6f7'),
-      border: token('--border', isDark ? '#334155' : '#cbd5e1'),
-      border2: token('--border-2', isDark ? '#475569' : '#cbd5e1'),
-      muted: token('--muted', isDark ? '#94a3b8' : '#64748b'),
-      text: token('--text', isDark ? '#cbd5e1' : '#475569'),
-    };
-    const gridStroke = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
 
     // Clear (transparent so palette-specific CSS patterns on the host can
     // show through; the host has `background: var(--canvas)`).
@@ -1513,6 +1551,37 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   }, [edges, offset, scale, linksHidden, selectBox, panning, groupDragging, groupResizing, resizingNode, nodeRadius]);
   useEffect(() => { drawRef.current = draw; }, [draw]);
 
+  useEffect(() => requestDraw(), [
+    draw,
+    graphNodes,
+    groups,
+    edges,
+    linkDrag,
+    hoveredSlot,
+    hoveredLink,
+    nodeProgressRecord,
+    collabUsers,
+    missingDependencyNodeIds,
+    requestDraw,
+  ]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      paletteCacheRef.current = null;
+      requestDraw();
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'style'] });
+    return () => observer.disconnect();
+  }, [requestDraw]);
+
+  useEffect(() => () => {
+    if (drawFrameRef.current !== null) {
+      cancelAnimationFrame(drawFrameRef.current);
+      drawFrameRef.current = null;
+    }
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -1854,13 +1923,22 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Animation loop
+  // Running-node progress has an elapsed-time animation. Keep idle canvases
+  // quiet, and only tick while there is actually a running node visible.
   useEffect(() => {
-    let raf: number;
-    const loop = () => { draw(); raf = requestAnimationFrame(loop); };
+    if (!graphNodes.some(node => node.status === 'running')) return;
+    let raf = 0;
+    let lastDraw = 0;
+    const loop = (time: number) => {
+      if (time - lastDraw >= 100) {
+        lastDraw = time;
+        drawRef.current();
+      }
+      raf = requestAnimationFrame(loop);
+    };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [draw]);
+  }, [graphNodes]);
 
   // Resize
   useEffect(() => {
@@ -1872,11 +1950,12 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const nextSize = { w: parent.clientWidth, h: parent.clientHeight };
       sizeRef.current = nextSize;
       setCanvasSize(prev => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize));
+      requestDraw();
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [requestDraw]);
 
   const canvasBounds = useMemo<OverlayBounds>(() => ({
     width: Math.max(1, canvasSize.w),
@@ -2160,9 +2239,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
     const cx = rect ? e.clientX - rect.left : e.clientX;
     const cy = rect ? e.clientY - rect.top : e.clientY;
     const world = toWorld(cx, cy);
-    setMouseWorld(world);
     onCollabCursor?.({ x: cx, y: cy, worldX: world.x, worldY: world.y, visible: true });
     mouseWorldRef.current = world;
+    requestDraw();
 
     const hoveredNode = [...graphNodes].reverse().find(n => {
       if (n.type === 'reroute') {
@@ -2173,10 +2252,11 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       return world.x >= n.x && world.x <= n.x + n.width &&
         world.y >= n.y && world.y <= n.y + n.height;
     });
-    setHoveredNodeId(hoveredNode?.id ?? null);
+    const nextHoveredNodeId = hoveredNode?.id ?? null;
+    setHoveredNodeId(prev => prev === nextHoveredNodeId ? prev : nextHoveredNodeId);
 
     // Slot hover detection
-    let foundSlot: { nodeId: string; type: 'input' | 'output'; index: number } | null = null;
+    let foundSlot: HoveredSlot = null;
     const linkOutputType = linkDragRef.current?.fromOutputType;
     for (const node of graphNodes) {
       if (node.visualOnly) continue;
@@ -2232,7 +2312,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       }
       if (foundSlot) break;
     }
-    setHoveredSlot(foundSlot);
+    setHoveredSlot(prev => sameHoveredSlot(prev, foundSlot) ? prev : foundSlot);
 
     // Link hover detection
     let foundLink: string | null = null;
@@ -2257,7 +2337,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         break;
       }
     }
-    setHoveredLink(foundLink);
+    setHoveredLink(prev => prev === foundLink ? prev : foundLink);
 
     // If link dragging, just update mouse position (drawing handled in draw loop)
     if (linkDragRef.current) {
@@ -2357,7 +2437,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           };
         });
       }
-      drawRef.current();
+      requestDraw();
       return;
     }
     if (dragging) {
@@ -2412,7 +2492,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         },
       });
     }
-  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange, publishCollabSelection, startDragOwnership, onCollabNodeMove]);
+  }, [panning, dragging, selectBox, dragStart, scale, snapToGrid, toWorld, groupDragging, groupResizing, groups, graphNodes, onGroupsChange, publishCollabSelection, requestDraw, startDragOwnership, onCollabNodeMove]);
 
   const handleMouseUp = useCallback(() => {
     // Check for link drop

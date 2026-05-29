@@ -209,23 +209,6 @@ class HPCSubmitRequest(BaseModel):
     )
 
 
-# ---------------------------------------------------------------------------
-# Manager install requests
-# ---------------------------------------------------------------------------
-
-class ManagerInstallPlanRequest(BaseModel):
-    """Request body for POST /manager/install-plan."""
-
-    nodes: list[str] = Field(..., description="Node names to plan install for")
-
-
-class ManagerInstallRequest(BaseModel):
-    """Request body for POST /manager/install."""
-
-    plan: dict[str, Any] = Field(..., description="Install plan from install-plan response")
-    confirm: bool = Field(False, description="Whether to actually execute the install")
-
-
 class ManagerDiagnoseRequest(BaseModel):
     """Request body for POST /manager/diagnose."""
 
@@ -236,13 +219,6 @@ class ManagerResolveRequest(BaseModel):
     """Request body for POST /manager/resolve."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow to resolve dependencies for")
-
-
-class ManagerInstallDepsRequest(BaseModel):
-    """Request body for POST /manager/install-deps."""
-
-    report: dict[str, Any] = Field(..., description="Resolution report from /manager/resolve")
-    env_strategy: str = Field("shared", description="Install strategy: 'shared' or 'isolated'")
 
 
 # ---------------------------------------------------------------------------

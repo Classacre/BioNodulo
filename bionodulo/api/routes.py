@@ -39,9 +39,6 @@ from bionodulo.api.schemas import (
     ImportWorkflowRequest,
     ManagerDiagnoseRequest,
     ManagerGitRequest,
-    ManagerInstallDepsRequest,
-    ManagerInstallPlanRequest,
-    ManagerInstallRequest,
     ManagerPackageRequest,
     QueueReorderRequest,
     RunCreateRequest,
@@ -1196,17 +1193,6 @@ async def manager_diagnose(
     }
 
 
-@router.post("/manager/install-deps")
-async def manager_install_deps(
-    request: Request, body: ManagerInstallDepsRequest
-) -> dict[str, Any]:
-    """Legacy endpoint — redirects to ensure-workflow-env.
-
-    Use POST /manager/ensure-workflow-env instead.
-    """
-    return {"message": "Use /manager/ensure-workflow-env instead", "status": "deprecated"}
-
-
 @router.get("/manager/status/{job_id}")
 async def manager_job_status(request: Request, job_id: str) -> dict[str, Any]:
     """Get the status of an async install job."""
@@ -1215,65 +1201,6 @@ async def manager_job_status(request: Request, job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return job.progress.to_dict()
-
-
-@router.post("/manager/install-plan")
-async def manager_install_plan(
-    request: Request, body: ManagerInstallPlanRequest
-) -> dict[str, Any]:
-    """Get an install plan for requested nodes (legacy endpoint)."""
-    registry = _get_registry(request)
-    plan: list[dict[str, Any]] = []
-    for node_name in body.nodes:
-        meta = registry.object_info(node_name)
-        if not meta:
-            plan.append({
-                "node": node_name,
-                "action": "install",
-                "source": "git",
-                "estimated_size": "unknown",
-            })
-        else:
-            plan.append({
-                "node": node_name,
-                "action": "already_installed",
-                "version": meta.get("version", "unknown"),
-            })
-    return {"plan": plan, "total_to_install": sum(1 for p in plan if p["action"] == "install")}
-
-
-@router.post("/manager/install")
-async def manager_install(
-    request: Request, body: ManagerInstallRequest
-) -> dict[str, Any]:
-    """Execute an install plan (legacy endpoint)."""
-    if not body.confirm:
-        return {"status": "pending", "message": "Set confirm=true to execute"}
-
-    results: list[dict[str, str]] = []
-    plan_items = body.plan.get("plan", [])
-    for item in plan_items:
-        if item.get("action") == "install":
-            results.append({
-                "node": item["node"],
-                "status": "installed",
-                "method": item.get("source", "unknown"),
-            })
-        else:
-            results.append({
-                "node": item["node"],
-                "status": "skipped",
-                "reason": item.get("action", "unknown"),
-            })
-
-    # Reload nodes after install
-    settings = _get_settings(request)
-    registry = _get_registry(request)
-    if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
-
-    return {"status": "completed", "results": results}
-
 
 # ---------------------------------------------------------------------------
 # Environment Manager (manifest-based per-workflow environments)

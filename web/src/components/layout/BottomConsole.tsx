@@ -136,6 +136,100 @@ function groupLogsByRun(logs: LogEntry[]): Map<string, LogEntry[]> {
   return groups;
 }
 
+function deriveDisplayLogs(logs: LogEntry[]): {
+  safeLogs: LogEntry[];
+  hostLogs: LogEntry[];
+  solverLogs: LogEntry[];
+  displayLogs: LogEntry[];
+  groupedLogs: Map<string, LogEntry[]>;
+  groupedEntries: Array<[string, LogEntry[]]>;
+  hasPixiInstallLogs: boolean;
+} {
+  const safeLogs = Array.isArray(logs) ? logs.filter((l): l is LogEntry => l != null && typeof l === 'object') : [];
+  const hostLogs: LogEntry[] = [];
+  const solverLogs: LogEntry[] = [];
+  const displayLogs: LogEntry[] = [];
+  let pendingDetails: string[] = [];
+
+  for (const log of safeLogs) {
+    const msg = log.message || '';
+    const isSolver = msg.startsWith('[solver]');
+    if (isSolver) {
+      solverLogs.push(log);
+      pendingDetails.push(msg.replace('[solver] ', ''));
+      continue;
+    }
+
+    hostLogs.push(log);
+    if (pendingDetails.length > 0 && displayLogs.length > 0) {
+      const last = displayLogs[displayLogs.length - 1];
+      displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
+      pendingDetails = [];
+    }
+    displayLogs.push(log);
+  }
+
+  if (pendingDetails.length > 0 && displayLogs.length > 0) {
+    const last = displayLogs[displayLogs.length - 1];
+    displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
+  }
+
+  const groupedLogs = groupLogsByRun(displayLogs);
+  const groupedEntries = Array.from(groupedLogs.entries());
+  return {
+    safeLogs,
+    hostLogs,
+    solverLogs,
+    displayLogs,
+    groupedLogs,
+    groupedEntries,
+    hasPixiInstallLogs: groupedLogs.has('install-pixi'),
+  };
+}
+
+function groupLogsByNode(logs: LogEntry[]): Map<string, LogEntry[]> {
+  const nodeGroups = new Map<string, LogEntry[]>();
+  for (const log of logs) {
+    const nodeId = log.node_id || 'unknown';
+    const existing = nodeGroups.get(nodeId);
+    if (existing) existing.push(log);
+    else nodeGroups.set(nodeId, [log]);
+  }
+  return nodeGroups;
+}
+
+function derivePreviews(history: RunRecord[]): {
+  imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[];
+  htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[];
+} {
+  const imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[] = [];
+  const htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[] = [];
+  for (const run of history) {
+    const previews = run.previews || {};
+    for (const [nodeId, path] of Object.entries(previews)) {
+      if (isImagePath(path)) {
+        const filename = path.split('/').pop() || `${nodeId}.png`;
+        imagePreviews.push({
+          src: `/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
+          alt: `Preview ${nodeId}`,
+          filename,
+          runId: run.run_id,
+          nodeId,
+        });
+      } else if (isHtmlPath(path)) {
+        const filename = path.split('/').pop() || `${nodeId}.html`;
+        htmlPreviews.push({
+          src: `/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
+          filename,
+          runId: run.run_id,
+          nodeId,
+        });
+      }
+    }
+  }
+  return { imagePreviews, htmlPreviews };
+}
+
 const COMPLETE_NODE_STATUSES = new Set<NodeStatus['status']>(['completed', 'cached', 'skipped']);
 
 interface RunProgress {
@@ -481,42 +575,13 @@ export default function BottomConsole({
   };
 
 
-  // Defensive: ensure logs is an array of valid objects
-  const safeLogs = Array.isArray(logs) ? logs.filter((l): l is LogEntry => l != null && typeof l === 'object') : [];
-
-  // Separate host messages from verbose subprocess output
-  const hostLogs: LogEntry[] = [];
-  const solverLogs: LogEntry[] = [];
-  for (const log of safeLogs) {
-    const msg = log.message || '';
-    if (msg.startsWith('[solver]')) solverLogs.push(log);
-    else hostLogs.push(log);
-  }
-
-  // Build display logs: each host log accumulates trailing solver lines
-  const displayLogs: LogEntry[] = [];
-  let pendingDetails: string[] = [];
-  for (const log of safeLogs) {
-    const msg = log.message || '';
-    if (msg.startsWith('[solver]')) {
-      pendingDetails.push(msg.replace('[solver] ', ''));
-      continue;
-    }
-    if (pendingDetails.length > 0 && displayLogs.length > 0) {
-      const last = displayLogs[displayLogs.length - 1];
-      displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
-      pendingDetails = [];
-    }
-    displayLogs.push(log);
-  }
-  if (pendingDetails.length > 0 && displayLogs.length > 0) {
-    const last = displayLogs[displayLogs.length - 1];
-    displayLogs[displayLogs.length - 1] = { ...last, detail: pendingDetails.join('\n') };
-  }
-
-  const groupedLogs = groupLogsByRun(displayLogs);
-  const groupedEntries = Array.from(groupedLogs.entries());
-  const hasPixiInstallLogs = groupedLogs.has('install-pixi');
+  const {
+    safeLogs,
+    hostLogs,
+    solverLogs,
+    groupedEntries,
+    hasPixiInstallLogs,
+  } = useMemo(() => deriveDisplayLogs(logs), [logs]);
 
   const toggleRun = (runId: string) => {
     setExpandedRuns(prev => {
@@ -619,32 +684,7 @@ export default function BottomConsole({
     userScrolledUpRef.current = !isNearBottom;
   };
 
-  // Build flat list of image previews for the lightbox
-  const imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[] = [];
-  const htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[] = [];
-  for (const r of history) {
-    const previews = r.previews || {};
-    for (const [nodeId, path] of Object.entries(previews)) {
-      if (isImagePath(path)) {
-        const filename = path.split('/').pop() || `${nodeId}.png`;
-        imagePreviews.push({
-          src: `/api/previews/${r.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
-          alt: `Preview ${nodeId}`,
-          filename,
-          runId: r.run_id,
-          nodeId,
-        });
-      } else if (isHtmlPath(path)) {
-        const filename = path.split('/').pop() || `${nodeId}.html`;
-        htmlPreviews.push({
-          src: `/api/previews/${r.run_id}/${nodeId}?path=${encodeURIComponent(path)}`,
-          filename,
-          runId: r.run_id,
-          nodeId,
-        });
-      }
-    }
-  }
+  const { imagePreviews, htmlPreviews } = useMemo(() => derivePreviews(history), [history]);
 
   const handleDoubleClick = (idx: number) => {
     openLightbox({
@@ -731,14 +771,7 @@ export default function BottomConsole({
               <>
                 {groupedEntries.map(([runId, runLogs]) => {
                   const isExpanded = expandedRuns.has(runId);
-                  // Group run logs by node_id
-                  const nodeGroups = new Map<string, LogEntry[]>();
-                  for (const l of runLogs) {
-                    const nid = l.node_id || 'unknown';
-                    const existing = nodeGroups.get(nid);
-                    if (existing) existing.push(l);
-                    else nodeGroups.set(nid, [l]);
-                  }
+                  const nodeGroups = groupLogsByNode(runLogs);
                   return (
                     <div key={runId} className="console-log-group">
                       <button

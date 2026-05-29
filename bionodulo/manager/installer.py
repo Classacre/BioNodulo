@@ -188,23 +188,6 @@ class DependencyInstaller:
         job._task = asyncio.create_task(_run())
         return job_id
 
-    async def install_missing(
-        self,
-        report: dict[str, Any],
-        env_strategy: str = "workflow",
-        emit: EmitCallback | None = None,
-    ) -> str:
-        """Legacy entry point — not supported with manifest-based envs.
-
-        Use install_workflow_env instead.
-        """
-        job_id = str(uuid.uuid4())[:8]
-        job = InstallJob(job_id, report, env_strategy)
-        job.progress.status = "failed"
-        job.progress.message = "install_missing is deprecated. Use install_workflow_env."
-        self.jobs[job_id] = job
-        return job_id
-
     def get_job(self, job_id: str) -> InstallJob | None:
         """Get a job by ID."""
         return self.jobs.get(job_id)

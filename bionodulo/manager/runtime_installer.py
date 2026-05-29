@@ -159,28 +159,3 @@ def install_managed_pixi(
         _emit_log(emit, "error", err)
         return False
 
-
-def ensure_tool_available(
-    executable: str,
-    conda_package: str | None = None,
-    env_name: str = "tools",
-) -> bool:
-    """Ensure a bioinformatics tool is available, installing if needed.
-
-    .. deprecated::
-        Use workflow-scoped environments via ensure_workflow_env() instead.
-        This function's ``pixi add --feature`` approach is incompatible with
-        BioNodulo's per-workflow manifest architecture.
-
-    Args:
-        executable: Name of the executable to check.
-        conda_package: Conda package name (defaults to executable name).
-        env_name: Pixi environment to install into (ignored).
-
-    Returns:
-        True if the tool is available on PATH.
-    """
-    logger.warning(
-        "ensure_tool_available() is deprecated. Use ensure_workflow_env()."
-    )
-    return shutil.which(executable) is not None
