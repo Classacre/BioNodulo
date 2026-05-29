@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.llm.baseUrl': '',
   'bionodulo.llm.apiKey': '',
   'bionodulo.llm.temperature': 0.2,
+  'bionodulo.llm.maxTokens': 4096,
   'bionodulo.cacheEnabled': true,
   'bionodulo.hpc.enabled': false,
   'bionodulo.hpc.backend': 'slurm',

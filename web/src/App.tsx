@@ -15,7 +15,6 @@ const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel
 const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
-const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
@@ -99,6 +98,8 @@ import type { AwarenessState, Comment, LivePresenceUser } from './collab';
 const EMPTY_COLLAB_USERS: AwarenessState[] = [];
 const EMPTY_STRING_ARRAY: string[] = [];
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
+const CENTER_MENU_TABS = new Set<OpenPanelTab>(['settings', 'templates']);
+const isCenterMenuTab = (tab: OpenPanelTab): boolean => CENTER_MENU_TABS.has(tab);
 
 function workflowNameSignature(workflows: Workflow[]): string {
   return JSON.stringify(workflows.map(workflow => [workflow.id ?? '', workflow.name || 'Untitled']));
@@ -888,9 +889,11 @@ export default function App() {
     setRailTabState(prev => {
       const resolved = typeof next === 'function' ? next(prev) : next;
       if (resolved && resolved !== 'console') {
-        setOpenPanelTabs(current => (
-          current.includes(resolved) ? current : [...current, resolved]
-        ));
+        setOpenPanelTabs(current => {
+          const tab = resolved as OpenPanelTab;
+          const withoutCenterMenus = current.filter(item => !isCenterMenuTab(item));
+          return withoutCenterMenus.includes(tab) ? withoutCenterMenus : [...withoutCenterMenus, tab];
+        });
       } else if (resolved === null && prev && prev !== 'console') {
         setOpenPanelTabs(current => current.filter(tab => tab !== prev));
       } else if (resolved === 'console') {
@@ -2418,6 +2421,7 @@ export default function App() {
   const rightPanelInset = useMemo(() => {
     let total = 0;
     for (const tab of openPanelTabs) {
+      if (isCenterMenuTab(tab)) continue;
       if (!rightDockedPanels[tab] || floatingPanels[tab]) continue;
       total += (panelWidths[tab] ?? 340);
     }
@@ -2516,25 +2520,6 @@ export default function App() {
           onClose={() => closePanel(tab)}
           onOpenSettings={() => setRailTab('settings')}
           onImportWorkflow={handleImport}
-        />
-      ));
-    }
-    if (tab === 'inspector') {
-      const selected = selectedNodeId
-        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId) ?? null
-        : null;
-      return wrap('inspector', (
-        <InspectorPanel
-          selectedNode={selected}
-          objectInfo={objectInfo}
-          onParamChange={(nodeId, key, value) => {
-            handleNodesChange(
-              activeWorkflow.nodes.map(n =>
-                n.id === nodeId ? { ...n, params: { ...(n.params || {}), [key]: value } } : n,
-              ),
-            );
-          }}
-          onClose={() => closePanel(tab)}
         />
       ));
     }
@@ -2820,9 +2805,9 @@ export default function App() {
             related panels (e.g. node library + node info) can sit side by
             side without the user having to float either of them. */}
         {(() => {
-          const leftPanels = openPanelTabs.filter(tab => !rightDockedPanels[tab] && !floatingPanels[tab]);
-          const rightPanels = openPanelTabs.filter(tab => rightDockedPanels[tab] && !floatingPanels[tab]);
-          const floatingTabs = openPanelTabs.filter(tab => floatingPanels[tab]);
+          const leftPanels = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && !rightDockedPanels[tab] && !floatingPanels[tab]);
+          const rightPanels = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && rightDockedPanels[tab] && !floatingPanels[tab]);
+          const floatingTabs = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && floatingPanels[tab]);
           const renderPanel = (tab: OpenPanelTab, side: 'left' | 'right' | 'float', offset: number) => {
             const index = openPanelTabs.indexOf(tab);
             const width = panelWidths[tab] ?? 340;
@@ -2904,6 +2889,12 @@ export default function App() {
           const floatingRendered = floatingTabs.map(tab => renderPanel(tab, 'float', 0));
           return [...leftRendered, ...rightRendered, ...floatingRendered];
         })()}
+
+        {openPanelTabs.filter(isCenterMenuTab).map(tab => (
+          <Suspense key={`center-menu-${tab}`} fallback={<div className="modal-overlay"><Spinner size="lg" label={`Loading ${tab}...`} /></div>}>
+            {renderPanelContent(tab)}
+          </Suspense>
+        ))}
 
         <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} />
         {focusMode && (

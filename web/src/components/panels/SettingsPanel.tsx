@@ -4,7 +4,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
-import Icon from '../ui/Icon';
+import Dialog from '../ui/Dialog';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
 import {
   isTelemetryEnabled,
@@ -20,6 +20,37 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
+type SettingsSectionId =
+  | 'appearance'
+  | 'canvas'
+  | 'collaboration'
+  | 'cache'
+  | 'execution'
+  | 'files'
+  | 'ai'
+  | 'feature_flags'
+  | 'telemetry';
+
+const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; title: string }> = [
+  { id: 'appearance', title: 'Appearance' },
+  { id: 'canvas', title: 'Canvas' },
+  { id: 'collaboration', title: 'Collaboration' },
+  { id: 'cache', title: 'Cache' },
+  { id: 'execution', title: 'Execution' },
+  { id: 'files', title: 'Files' },
+  { id: 'ai', title: 'AI Assistant' },
+  { id: 'feature_flags', title: 'Feature Flags' },
+  { id: 'telemetry', title: 'Telemetry' },
+];
+
+const AI_PROVIDER_OPTIONS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'litellm', label: 'LiteLLM Proxy' },
+  { value: 'custom', label: 'Custom OpenAI-compatible' },
+];
+
 function matchesQuery(query: string, ...needles: Array<string | undefined>): boolean {
   if (!query) return true;
   const trimmed = query.trim().toLowerCase();
@@ -33,6 +64,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { get, getBool, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('appearance');
 
   const toggle = (key: string) => set(key, !getBool(key));
 
@@ -62,6 +94,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const trimmedQuery = query.trim();
+  const isSectionVisible = (id: SettingsSectionId) => Boolean(trimmedQuery) || activeSection === id;
 
   // Recount visible rows after each render so the toolbar can show "X matches"
   // and a "no matches" hint when the query rules everything out. We sample the
@@ -76,24 +109,32 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     const node = bodyRef.current;
     if (!node) return;
     setMatchCount(node.querySelectorAll('.setting-row').length);
-  }, [trimmedQuery, query]);
+  }, [trimmedQuery, query, activeSection]);
 
   return (
-    <div className="rail-panel">
-      <div className="rail-panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>Settings</span>
-        <button
-          type="button"
-          className="btn btn-icon btn-sm"
-          onClick={onClose}
-          title="Close settings"
-          aria-label="Close settings"
-        >
-          <Icon name="close" size={14} />
-        </button>
-      </div>
-      <div className="rail-panel-body" ref={bodyRef}>
-        <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 2, paddingBottom: 8, marginBottom: 4 }}>
+    <Dialog
+      title="Settings"
+      onClose={onClose}
+      width={920}
+      maxHeight="84vh"
+      className="settings-menu-dialog"
+    >
+      <div className="settings-menu-layout">
+        <nav className="settings-section-tabs" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(section => (
+            <button
+              key={section.id}
+              type="button"
+              className={`settings-section-tab ${activeSection === section.id ? 'active' : ''}`}
+              onClick={() => setActiveSection(section.id)}
+              aria-current={activeSection === section.id ? 'page' : undefined}
+            >
+              {section.title}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-section-content" ref={bodyRef}>
+          <div className="settings-search-bar">
           <input
             type="search"
             placeholder="Search settings... (e.g. theme, cache, hpc)"
@@ -120,7 +161,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           )}
         </div>
         {/* Appearance */}
-        <SettingsGroup query={query} title="Appearance">
+        <SettingsGroup active={isSectionVisible('appearance')} query={query} title="Appearance">
           <SettingRow query={query} label="Theme" desc="Select app theme" keywords="dark light system mode">
             <select className="select-input" value={String(get('bionodulo.theme'))} onChange={e => set('bionodulo.theme', e.target.value)}>
               <option value="system">System</option>
@@ -167,7 +208,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* Canvas */}
-        <SettingsGroup query={query} title="Canvas">
+        <SettingsGroup active={isSectionVisible('canvas')} query={query} title="Canvas">
           <SettingRow query={query} label="Snap to Grid" desc="Align nodes to grid" keywords="grid alignment">
             <div className={`toggle ${get('bionodulo.snapToGrid') ? 'on' : ''}`} onClick={() => toggle('bionodulo.snapToGrid')} />
           </SettingRow>
@@ -218,7 +259,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* Collaboration */}
-        <SettingsGroup query={query} title="Collaboration">
+        <SettingsGroup active={isSectionVisible('collaboration')} query={query} title="Collaboration">
           <SettingRow query={query} label="Real-Time Collaboration" desc="Enable shared editing and presence" keywords="yjs collab share multi-user">
             <div className={`toggle ${getBool('bionodulo.collab.enabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.enabled')} />
           </SettingRow>
@@ -231,7 +272,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* Cache */}
-        <SettingsGroup query={query} title="Cache">
+        <SettingsGroup active={isSectionVisible('cache')} query={query} title="Cache">
           <SettingRow query={query} label="Enable Cache" desc="Cache workflow node results between runs" keywords="cache memoize">
             <div className={`toggle ${get('bionodulo.cacheEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.cacheEnabled')} />
           </SettingRow>
@@ -259,7 +300,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* Execution */}
-        <SettingsGroup query={query} title="Execution">
+        <SettingsGroup active={isSectionVisible('execution')} query={query} title="Execution">
           <SettingRow query={query} label="Queue History Size" desc="Maximum history entries" keywords="queue history">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.queueHistorySize'))} onChange={e => set('bionodulo.queueHistorySize', parseInt(e.target.value))} />
           </SettingRow>
@@ -269,7 +310,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* Files */}
-        <SettingsGroup query={query} title="Files">
+        <SettingsGroup active={isSectionVisible('files')} query={query} title="Files">
           <SettingRow query={query} label="Explorer Depth" desc="File tree nesting limit" keywords="workspace file tree">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.fileExplorerDepth'))} onChange={e => set('bionodulo.fileExplorerDepth', parseInt(e.target.value))} />
           </SettingRow>
@@ -282,19 +323,19 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </SettingsGroup>
 
         {/* LLM */}
-        <SettingsGroup query={query} title="AI Assistant">
-          <SettingRow query={query} label="Provider" desc="LLM API provider" keywords="openai anthropic claude llm ai">
+        <SettingsGroup active={isSectionVisible('ai')} query={query} title="AI Assistant">
+          <SettingRow query={query} label="Provider" desc="LLM API provider" keywords="openai anthropic claude openrouter litellm proxy custom llm ai">
             <select className="select-input" value={String(get('bionodulo.llm.provider'))} onChange={e => set('bionodulo.llm.provider', e.target.value)}>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="custom">Custom</option>
+              {AI_PROVIDER_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </SettingRow>
-          <SettingRow query={query} label="Model" desc="Model name" keywords="model gpt claude">
+          <SettingRow query={query} label="Model" desc="Model name or LiteLLM model string" keywords="model gpt claude gemini groq mistral ollama openrouter litellm">
             <input type="text" className="text-input" value={String(get('bionodulo.llm.model'))} onChange={e => set('bionodulo.llm.model', e.target.value)} />
           </SettingRow>
-          <SettingRow query={query} label="Base URL" desc="API base URL (optional)" keywords="endpoint url proxy">
-            <input type="text" className="text-input" value={String(get('bionodulo.llm.baseUrl') || '')} onChange={e => set('bionodulo.llm.baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" />
+          <SettingRow query={query} label="Base URL" desc="API base URL for proxy or custom endpoint" keywords="endpoint url proxy litellm openai compatible">
+            <input type="text" className="text-input" value={String(get('bionodulo.llm.baseUrl') || '')} onChange={e => set('bionodulo.llm.baseUrl', e.target.value)} placeholder="http://localhost:4000/v1" />
           </SettingRow>
           <SettingRow query={query} label="API Key" desc="Your API key" keywords="secret token api">
             <input type="password" className="text-input" value={String(get('bionodulo.llm.apiKey') || '')} onChange={e => set('bionodulo.llm.apiKey', e.target.value)} placeholder="sk-..." />
@@ -302,16 +343,20 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <SettingRow query={query} label="Temperature" desc="Sampling temperature" keywords="temperature creativity">
             <input type="number" className="text-input" style={{ width: 60 }} min={0} max={2} step={0.1} value={Number(get('bionodulo.llm.temperature'))} onChange={e => set('bionodulo.llm.temperature', parseFloat(e.target.value))} />
           </SettingRow>
+          <SettingRow query={query} label="Max Tokens" desc="Maximum response tokens" keywords="max tokens context output limit">
+            <input type="number" className="text-input" style={{ width: 84 }} min={256} max={32768} step={256} value={Number(get('bionodulo.llm.maxTokens') || 4096)} onChange={e => set('bionodulo.llm.maxTokens', parseInt(e.target.value, 10))} />
+          </SettingRow>
         </SettingsGroup>
 
-        <FeatureFlagsGroup query={query} />
-        <TelemetryGroup query={query} />
+        <FeatureFlagsGroup active={isSectionVisible('feature_flags')} query={query} />
+        <TelemetryGroup active={isSectionVisible('telemetry')} query={query} />
+        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
-function TelemetryGroup({ query }: { query: string }) {
+function TelemetryGroup({ active, query }: { active: boolean; query: string }) {
   const [enabled, setEnabled] = useState(() => isTelemetryEnabled());
   const [eventCount, setEventCount] = useState(() => getTelemetryEvents().length);
   useEffect(() => subscribeTelemetry(events => setEventCount(events.length)), []);
@@ -338,7 +383,7 @@ function TelemetryGroup({ query }: { query: string }) {
   };
 
   return (
-    <SettingsGroup query={query} title="Telemetry (local-only)">
+    <SettingsGroup active={active} query={query} title="Telemetry (local-only)">
       <SettingRow query={query} label="Record diagnostic events" desc="Capture a local ring buffer of UI events for debugging. Never leaves your machine." keywords="telemetry diagnostics analytics debug">
         <div className={`toggle ${enabled ? 'on' : ''}`} onClick={handleToggle} />
       </SettingRow>
@@ -352,14 +397,14 @@ function TelemetryGroup({ query }: { query: string }) {
   );
 }
 
-function FeatureFlagsGroup({ query }: { query: string }) {
+function FeatureFlagsGroup({ active, query }: { active: boolean; query: string }) {
   // Subscribe via useFeatureFlag for the first flag (forces re-render) — the
   // hook below handles the rest. We re-read the definitions list every render
   // since registerFlag() is cheap and is the source of truth.
   const flags = listFeatureFlags();
   if (flags.length === 0) return null;
   return (
-    <SettingsGroup query={query} title="Feature Flags">
+    <SettingsGroup active={active} query={query} title="Feature Flags">
       {flags.map(flag => (
         <FeatureFlagRow key={flag.key} query={query} flag={flag} />
       ))}
@@ -376,8 +421,9 @@ function FeatureFlagRow({ query, flag }: { query: string; flag: { key: string; l
   );
 }
 
-function SettingsGroup({ query, title, children }: { query: string; title: string; children: ReactNode }) {
+function SettingsGroup({ active = true, query, title, children }: { active?: boolean; query: string; title: string; children: ReactNode }) {
   const visible = useMemo(() => {
+    if (!active) return false;
     if (!query.trim()) return true;
     let any = false;
     Children.forEach(children, child => {
@@ -386,7 +432,7 @@ function SettingsGroup({ query, title, children }: { query: string; title: strin
       if (matchesQuery(query, props.label, props.desc, props.keywords, title)) any = true;
     });
     return any;
-  }, [query, title, children]);
+  }, [active, query, title, children]);
   if (!visible) return null;
   return (
     <div className="settings-group">

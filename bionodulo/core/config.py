@@ -241,6 +241,7 @@ class SettingsManager:
             "bionodulo.llm.baseUrl": "",
             "bionodulo.llm.apiKey": "",
             "bionodulo.llm.temperature": 0.2,
+            "bionodulo.llm.maxTokens": 4096,
             "bionodulo.hpc.enabled": False,
             "bionodulo.hpc.backend": "slurm",
             "bionodulo.hpc.partition": "",

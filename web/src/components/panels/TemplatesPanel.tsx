@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import Fuse from 'fuse.js';
 import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
+import Dialog from '../ui/Dialog';
 import { listLocalTemplates } from '../../localTemplates';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
 import { getOrRenderTemplateThumbnail } from '../../state/templateThumbnails';
@@ -297,9 +298,13 @@ export default function TemplatesPanel({
   const showSaveAction = showSaveTemplateAction || Boolean(onSaveTemplate);
 
   return (
-    <div className="rail-panel templates-panel">
-      <div className="rail-panel-header">
-        <span>Templates</span>
+    <Dialog
+      title="Templates"
+      onClose={onClose}
+      width={980}
+      maxHeight="86vh"
+      className="templates-menu-dialog templates-panel"
+      header={(
         <div className="template-header-actions">
           {showSaveAction && (
             <button
@@ -313,12 +318,10 @@ export default function TemplatesPanel({
               Save
             </button>
           )}
-          <button className="btn btn-icon btn-sm" onClick={onClose} title="Close templates">
-            <Icon name="close" size={14} />
-          </button>
         </div>
-      </div>
-      <div className="rail-panel-body">
+      )}
+    >
+      <div className="templates-menu-body">
         {saveOpen && (
           <form className="template-save-form" onSubmit={handleSaveTemplate}>
             <input
@@ -417,7 +420,7 @@ export default function TemplatesPanel({
                 type="button"
                 onClick={() => {
                   recordTemplateUse(template.id);
-                  onLoadTemplate(template);
+                  void Promise.resolve(onLoadTemplate(template)).then(onClose).catch(() => undefined);
                 }}
                 title={`Load ${template.name}`}
               >
@@ -456,6 +459,6 @@ export default function TemplatesPanel({
           </div>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }

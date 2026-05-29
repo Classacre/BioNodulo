@@ -22,6 +22,35 @@ def _get_registry(request: Request) -> Any:
     return request.app.state.node_registry
 
 
+def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, str | None, str | None, str | None, float, int]:
+    provider = str(body.provider or setting_literal(request, "bionodulo.llm.provider", "openai") or "openai")
+    model_value = body.model or setting_literal(request, "bionodulo.llm.model", None)
+    model = str(model_value) if model_value else None
+    api_key_value = setting_literal(request, "bionodulo.llm.apiKey", "")
+    api_key = str(api_key_value).strip() or None
+    api_base_value = setting_literal(request, "bionodulo.llm.baseUrl", None)
+    api_base = str(api_base_value).strip() if api_base_value else None
+
+    if provider.lower() == "litellm":
+        api_key = api_key or os.environ.get("LITELLM_API_KEY") or None
+        api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
+
+    temperature_value = setting_literal(request, "bionodulo.llm.temperature", 0.2)
+    try:
+        temperature = float(temperature_value)
+    except (TypeError, ValueError):
+        temperature = 0.2
+
+    max_tokens_value = setting_literal(request, "bionodulo.llm.maxTokens", 4096)
+    try:
+        max_tokens = int(max_tokens_value)
+    except (TypeError, ValueError):
+        max_tokens = 4096
+    max_tokens = max(256, min(max_tokens, 32768))
+
+    return provider, model, api_key, api_base, temperature, max_tokens
+
+
 @ai_router.post("/ai/chat")
 @limiter.limit("20/minute")
 async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
@@ -31,18 +60,7 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
     settings_manager = state.settings_manager
     registry = _get_registry(request)
 
-    provider = body.provider or setting_literal(request, "bionodulo.llm.provider", "openai")
-    model = body.model or setting_literal(request, "bionodulo.llm.model", None)
-    api_key = setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
-    api_base = setting_literal(request, "bionodulo.llm.baseUrl", None) or None
-    if str(provider).lower() == "litellm":
-        api_key = api_key or os.environ.get("LITELLM_API_KEY", "")
-        api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
-    temperature = setting_literal(request, "bionodulo.llm.temperature", 0.2)
-    try:
-        temperature = float(temperature)
-    except (TypeError, ValueError):
-        temperature = 0.2
+    provider, model, api_key, api_base, temperature, max_tokens = _llm_runtime_settings(request, body)
 
     try:
         response = await chat_with_tools(
@@ -55,6 +73,7 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
             api_key=api_key,
             api_base=api_base,
             temperature=temperature,
+            max_tokens=max_tokens,
             registry=registry,
             settings=settings,
             settings_manager=settings_manager,
@@ -102,18 +121,7 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
     settings_manager = state.settings_manager
     registry = _get_registry(request)
 
-    provider = body.provider or setting_literal(request, "bionodulo.llm.provider", "openai")
-    model = body.model or setting_literal(request, "bionodulo.llm.model", None)
-    api_key = setting_literal(request, "bionodulo.llm.apiKey", "") or os.environ.get("OPENAI_API_KEY", "")
-    api_base = setting_literal(request, "bionodulo.llm.baseUrl", None) or None
-    if str(provider).lower() == "litellm":
-        api_key = api_key or os.environ.get("LITELLM_API_KEY", "")
-        api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
-    temperature = setting_literal(request, "bionodulo.llm.temperature", 0.2)
-    try:
-        temperature = float(temperature)
-    except (TypeError, ValueError):
-        temperature = 0.2
+    provider, model, api_key, api_base, temperature, max_tokens = _llm_runtime_settings(request, body)
 
     async def _stream() -> Any:
         try:
@@ -127,6 +135,7 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
                 api_key=api_key,
                 api_base=api_base,
                 temperature=temperature,
+                max_tokens=max_tokens,
                 registry=registry,
                 settings=settings,
                 settings_manager=settings_manager,
