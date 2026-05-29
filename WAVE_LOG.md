@@ -1,11 +1,11 @@
-# BioNodulo ↔ ComfyUI Gap Closure: Wave Log
+# BioNodulo Node-Graph Gap Closure: Wave Log
 
-A running ledger of the multi-wave effort to close feature gaps between
-BioNodulo and ComfyUI (the industry reference for node-graph workflow tools).
+A running ledger of the multi-wave effort to close feature gaps in
+BioNodulo's node-graph workflow tools.
 Each wave is a coherent ~8-item batch landed as a single commit/push to
 `bionodulo-collab`.
 
-For full diffs, see `git log --grep="ComfyUI gap"`.
+For full diffs, see the branch history for `bionodulo-collab`.
 
 ---
 
@@ -30,7 +30,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Added `web/src/state/runAtoms.ts` with `isRunningAtom`, `batchCountAtom`, `logsAtom`, `hostStatusAtom`, and Record-backed `nodeRunProgressAtom`.
 - App still owns run orchestration, but now writes telemetry atoms instead of owning render state for logs, host status, running state, batch count, and node progress.
 - `TopBar` subscribes directly to running state and batch count; `BottomConsole` subscribes directly to logs and batch count.
-- `LiteGraphCanvas` subscribes to node progress with `selectAtom` and reads the Record by node id instead of receiving a `Map` prop from App.
+- `WorkflowCanvas` subscribes to node progress with `selectAtom` and reads the Record by node id instead of receiving a `Map` prop from App.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
 ## App.tsx state ownership Wave D — `11a992f` — UI shell atoms
@@ -115,7 +115,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - Node Library: hover preview tooltip (350ms delay) with port types + tools; category filter chips with click-to-pin; loading state with Spinner.
 - Per-node error overlay: "!" badge → popover with full message; auto-clears on param edit; resurfaces on re-failure.
 - Floating panel drag → left/right canvas-edge dock zones with visual feedback.
-- Canvas background pattern per palette (dots / grid / mesh / none); `litegraph-host` paints `--canvas`.
+- Canvas background pattern per palette (dots / grid / mesh / none); `workflow-canvas-host` paints `--canvas`.
 - `apiGetCached`: TTL + in-flight dedup + `clearApiCache(predicate?)`.
 - Feature flags system (`state/featureFlags.ts`): `registerFlag`/`useFeatureFlag`/`setFeatureFlag`; localStorage; `?flag=foo` URL bootstrap; Settings panel auto-populates.
 
@@ -133,7 +133,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 ## Wave M — `d0d3926` — HTML preview in canvas + AI assistant overhaul
 
 - HTML preview node (`bionodulo/nodes/builtin/utils.py`): new `html_preview` built-in node mirrors `image_preview` but accepts `.html`/`.htm` files. `VALIDATE_INPUTS` rejects non-HTML extensions; `run()` registers the file with the run context so it lands in the previews map. Auto-registers via the existing `bionodulo.nodes.builtin.utils` import.
-- Canvas HTML overlay (`web/src/components/canvas/LiteGraphCanvas.tsx`): new `nodeHtmlPreviewsMap` prop renders a sandboxed `<iframe>` inside any `html_preview` node, alongside the existing `nodePreviewsMap` image overlay. `sandbox="allow-scripts"` is used **without** `allow-same-origin` so the embedded report lives on an opaque origin — it can run JS for tabs/plots (MultiQC, FastQC, plotly) but cannot reach the parent DOM, cookies, or storage even if a node emits malicious markup. Per-type node-height bumped by +200 px for `html_preview`.
+- Canvas HTML overlay (`web/src/components/canvas/WorkflowCanvas.tsx`): new `nodeHtmlPreviewsMap` prop renders a sandboxed `<iframe>` inside any `html_preview` node, alongside the existing `nodePreviewsMap` image overlay. `sandbox="allow-scripts"` is used **without** `allow-same-origin` so the embedded report lives on an opaque origin — it can run JS for tabs/plots (MultiQC, FastQC, plotly) but cannot reach the parent DOM, cookies, or storage even if a node emits malicious markup. Per-type node-height bumped by +200 px for `html_preview`.
 - Gallery HTML cards (`web/src/components/layout/BottomConsole.tsx`): the Previews tab now lists HTML reports as scaled-down iframe thumbnails next to image cards; tab counter shows the combined count. New `onOpenHtmlPreview` prop opens the report full-screen.
 - HTML preview modal (`web/src/components/modals/HtmlPreviewModal.tsx`): new component, full-screen sandboxed `<iframe>` with header (filename, Save, Open-in-new-tab, Close). Same sandbox rules as the canvas overlay.
 - AI assistant — token efficiency (`bionodulo/ai/assistant.py`): conversation history is now trimmed to the last 12 non-system turns before being sent to the LLM (was: full history every round). Tool-result payloads above 8 kB are truncated with a trailing marker so a single `get_current_workflow` doesn't dwarf the rest of the prompt.
@@ -156,7 +156,7 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 Bundles the remaining outstanding sections from the implementation review into one commit so the wave list is fully crossed off.
 
-- §2 Media paste support (`web/src/components/canvas/LiteGraphCanvas.tsx`): the `Ctrl+V` handler now reads `navigator.clipboard.read()` for image / audio / video blobs first; each blob is uploaded via `apiPost('/workspace/upload')` and an `input_file` node is spawned at the viewport centre with `file_path` pre-populated. Falls through to the existing text/JSON paste path when no media items are present. Uses the existing `apiPost`, `objectInfo.input_file`, `addNode`, and `toast.success` / `toast.error`.
+- §2 Media paste support (`web/src/components/canvas/WorkflowCanvas.tsx`): the `Ctrl+V` handler now reads `navigator.clipboard.read()` for image / audio / video blobs first; each blob is uploaded via `apiPost('/workspace/upload')` and an `input_file` node is spawned at the viewport centre with `file_path` pre-populated. Falls through to the existing text/JSON paste path when no media items are present. Uses the existing `apiPost`, `objectInfo.input_file`, `addNode`, and `toast.success` / `toast.error`.
 - §4 Palette token expansion (`web/src/state/palettes.ts`): rewrote the 16-token design system into a 66-token system organised into semantic groups (8 surfaces, 6 text, 5 borders/dividers, 5 accent + 3 soft tints, 4 status base + soft + borders, 5 focus/interaction, 8 canvas/graph, 4 code/mono, 3 backdrop/scrim, 3 shadows/elevation, 4 misc). Added `completePalette()` deep-merge fallback via `deriveTokens()` so palette authors only need ~16 anchors and derived states (`accent-hover`, `accent-soft`, `danger-border`, etc.) are filled in automatically with `color-mix()` / alpha-channel functions. All 4 built-in palettes (BioNodulo, Clinical, Field Station, High Contrast) keep their light + dark anchors; everything else is derived. `applyPalette` continues to set tokens with `!important` so theme defaults can't win the cascade.
 - §10 App.tsx breakdown — partial (`web/src/hooks/useAuth.ts`, `web/src/App.tsx`): extracted the auth init flow + login/close handlers into `useAuth({ collabEnabled, settingsReady })`. Returns `{ authUser, authReady, showAuthDialog, setShowAuthDialog, handleAuthLogin, handleAuthClose }`. Drops `initAuth` / `getAuthUser` / `authReadyAtom` / `authUserAtom` / `showAuthDialogAtom` from the App.tsx import surface. App.tsx is 37 lines lighter; full breakdown into the 8 hooks called out in the plan stays as deliberate follow-up because each carries non-trivial regression risk and the gains are mostly architectural.
 - §14 Panel resize hardening (`web/src/App.tsx`): the existing custom `mousemove`/`mouseup` resize handler now also accepts touch events (`touchstart` / `touchmove` / `touchend`) and arrow-key keyboard nudges (16 px, `Shift`+arrow = 64 px, `Home` / `End` snap to 280 / 560). The handle is `tabIndex=0` with proper `role="separator"`, `aria-orientation="vertical"`, and `aria-valuenow` / `aria-valuemin` / `aria-valuemax` for assistive tech. Right-docked panels invert the drag direction so the handle behaves intuitively on either side. This delivers the keyboard / touch / a11y wins `react-resizable-panels` would have given us without taking the dependency, since the existing dock+float architecture is per-panel and would have required an end-to-end rewrite to fit the library's `<PanelGroup>` model.
@@ -202,7 +202,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 ## Wave O.§20 — `049389b` — Reroute parentId
 
 - `WorkflowNode` (in `web/src/types.ts`) gains an optional `parentId?: string`. Today only reroutes use it; subgraph and group-membership work can adopt the same field later without a schema bump.
-- New helper `groupContainingPoint(groups, x, y)` in `LiteGraphCanvas.tsx` — topmost group whose body contains the point, or null.
+- New helper `groupContainingPoint(groups, x, y)` in `WorkflowCanvas.tsx` — topmost group whose body contains the point, or null.
 - Both reroute creation paths (`insertRerouteOnEdge` for split-edge insertion and the canvas-menu "Add Reroute") now set `parentId` to the containing group when one exists. Reroutes dropped onto bare canvas stay parentless. The field is omitted (not set to undefined) when no parent applies, so the workflow JSON stays clean.
 - No selection / move / copy semantics depend on the field yet — those flow into §17 (inspector) and a future group-aware drag pass; this commit ships the data plumbing so the rest can land without another schema migration.
 
@@ -280,7 +280,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 
 ## Wave O.§5 — `a1c5db1` — ESLint + Prettier toolchain
 
-- Added `web/eslint.config.js` (flat config) wiring `@typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, and `eslint-config-prettier`. Lean rule set focused on real bugs (hooks rules, unused vars warning, useless escape error) so the existing codebase passes without a 100-file reformat. Cleaned 5 genuine lint errors uncovered by the new config: a useless escape `\-` in App.tsx's error-token regex, two `\"` escapes inside single-quoted strings in ImportModal, a `useState` called after an early `return null` in NodeEditor (real hooks-rules violation), and a useless `let wtype = 'text'` initial in LiteGraphCanvas where every branch reassigns.
+- Added `web/eslint.config.js` (flat config) wiring `@typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, and `eslint-config-prettier`. Lean rule set focused on real bugs (hooks rules, unused vars warning, useless escape error) so the existing codebase passes without a 100-file reformat. Cleaned 5 genuine lint errors uncovered by the new config: a useless escape `\-` in App.tsx's error-token regex, two `\"` escapes inside single-quoted strings in ImportModal, a `useState` called after an early `return null` in NodeEditor (real hooks-rules violation), and a useless `let wtype = 'text'` initial in WorkflowCanvas where every branch reassigns.
 - Added `.prettierrc.json` + `.prettierignore` with house style (single quotes, trailing comma all, 100-col, semis, 2-space). Not running `prettier --write` across the codebase in this commit — the 108-file reformat would dwarf every future Wave O diff. The script is wired so future code follows the rule and a dedicated formatting commit can land it later.
 - `web/package.json`: new scripts `lint`, `lint:fix`, `format`, `format:check`.
 - `.github/workflows/ci.yml`: frontend job now runs `npm run lint` before `npm run build` so future regressions trip CI.
@@ -292,7 +292,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Tool-generated viz instead of custom HTML (`bionodulo/nodes/builtin/biopython_nodes.py`, `templates/*.json`): the `bp_seq_stats` and `bp_msa_view` nodes no longer emit hand-rolled HTML reports. `bp_seq_stats` now writes a real `stats.tsv` alongside the existing JSON and the biopython template renders it via the new `table_preview` node. `bp_msa_view` now renders the alignment as a matplotlib PNG (typed `IMAGE`) so it flows naturally into `image_preview` without going through the HTML sandbox at all — the phylogenetics template was switched over to image_preview. Both reverts replace 5-sequence-tall hand-written HTML tables / `<span>`-coloured rows with proper tool output.
 - New generic `table_preview` node (`bionodulo/nodes/builtin/utils.py`): visual-sink node that takes a CSV / TSV / TXT path and renders only the head rows (default 25, capped at 500) into a sandbox-rendered HTML table. Streams the file row-by-row so multi-million-row variant tables / count matrices don't blow up memory; reports `… N more rows not shown` when truncated. Delimiter auto-sniffed but overridable. Same `register_preview` hook as `image_preview` / `html_preview`, so it shows up in the canvas overlay and the Previews gallery automatically.
 - Post-run highlight cleanup (`web/src/App.tsx`): the `queue_finish` handler used to only flip stuck `running` nodes to `error` on failure — a successful run that lost a `node_complete` event would leave the node frozen on green forever. Now any node still in `running` when the run terminates is promoted based on the final status (`completed` for success, `error` for failure/cancellation, since `NodeStatus` has no cancelled state). The existing failure-only toast logic stays as before.
-- Drop per-node version badge (`web/src/components/canvas/LiteGraphCanvas.tsx`): the small `vX.Y.Z` chip the canvas drew in every node's title bar (next to `EXP` / port-count) is gone — the metadata still lives in `node.meta.version` for the node-details drawer where it's actually useful. The other badges (`L` for pinned, `EXP` for experimental, collapsed `in→out` port counts) are unchanged. Less chrome at glance density.
+- Drop per-node version badge (`web/src/components/canvas/WorkflowCanvas.tsx`): the small `vX.Y.Z` chip the canvas drew in every node's title bar (next to `EXP` / port-count) is gone — the metadata still lives in `node.meta.version` for the node-details drawer where it's actually useful. The other badges (`L` for pinned, `EXP` for experimental, collapsed `in→out` port counts) are unchanged. Less chrome at glance density.
 
 
 
@@ -305,10 +305,10 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Failed-run toast (`App.tsx` WebSocket handler): both `queue_finish` (status `failed`) and `queue_error` now fire `toast.error('Run failed', { message: 'WorkflowName — <first error line>' })`. The active queue automatically de-lists the failed run (status filter is pending/running) while keeping it in history.
 - Log node UUIDs replaced with names (`BottomConsole.tsx`, `App.tsx`): new `nodeIdToName` map (built from every open workflow's nodes) flows into `BottomConsole`; both the per-node group header and individual log-line `[node]` tags resolve to the friendly title with the raw UUID accessible only via the title attribute.
 - Example-data 14+ 404s (`bionodulo/manager/example_data.py`): every dead URL (Zenodo record 1324070 ChIP-seq, Zenodo record 17661262 metagenomics, `minoda-lab/universc` 10x tinygex paths) was replaced with deterministic synthetic FASTQ generators using a single `_write_fastq` helper. The downloader is unchanged because it already catches per-file exceptions, but now there's nothing to catch.
-- Auto-arrange measured spacing (`LiteGraphCanvas.tsx`): `arrangeNodesLayout` now measures each node's effective height (header + ports + widget rows + padding) and computes per-layer column width / per-layer cumulative row offsets, with 80 px column gaps and 40 px row gaps. Replaces the fixed `colWidth=280, rowHeight=140` which guaranteed overlap on tall widget stacks.
+- Auto-arrange measured spacing (`WorkflowCanvas.tsx`): `arrangeNodesLayout` now measures each node's effective height (header + ports + widget rows + padding) and computes per-layer column width / per-layer cumulative row offsets, with 80 px column gaps and 40 px row gaps. Replaces the fixed `colWidth=280, rowHeight=140` which guaranteed overlap on tall widget stacks.
 - Notes excluded from auto-run + validate (`App.tsx`): the empty-workflow guards in the `change`-mode auto-queue effect and the auto-validate/resolve effect now filter `node.type !== 'note' && node.type !== 'reroute'` so a notes-only workflow is treated as empty (backend executor already filtered them).
-- Drag-over-widget fix (`LiteGraphCanvas.tsx`): widget overlays use `pointerEvents: 'none'` while any drag is in flight and the dragged node's own widgets fade to 0.35 opacity with z-index dropped to 1, so dragging a node OVER another no longer has the moved node's widget catch the cursor and stall the drag.
-- Selection highlight on plain click (`LiteGraphCanvas.tsx`): selection outline now uses `palette.accent` instead of `node.color` — the old code drew a same-colour outline against a same-colour body, so plain clicks looked like nothing happened.
+- Drag-over-widget fix (`WorkflowCanvas.tsx`): widget overlays use `pointerEvents: 'none'` while any drag is in flight and the dragged node's own widgets fade to 0.35 opacity with z-index dropped to 1, so dragging a node OVER another no longer has the moved node's widget catch the cursor and stall the drag.
+- Selection highlight on plain click (`WorkflowCanvas.tsx`): selection outline now uses `palette.accent` instead of `node.color` — the old code drew a same-colour outline against a same-colour body, so plain clicks looked like nothing happened.
 - Palette in dark mode (`palettes.ts`): `applyPalette` now calls `setProperty(token, value, 'important')` so palette tokens win the cascade against dark-mode default selectors that previously masked the swap.
 - Settings panel close button (`SettingsPanel.tsx`): × close button in the header bound to the existing `onClose` prop, matching other rail panels' header layout.
 - Minimap + canvas controls follow right-docked panels (`App.tsx`, `index.css`): new `--right-panel-inset` CSS custom property is computed from the total width of right-docked panels and applied to the app shell wrapper; `.minimap` and `.canvas-controls` use `right: calc(8px + var(--right-panel-inset, 0px))` so they shift left to stay visible.
@@ -356,7 +356,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - `cn()` utility (#84): dependency-free clsx-style class composer in `utils/cn.ts`.
 - Command palette typed groups (#60): `COMMAND_GROUPS` const + `CommandGroup` type + `COMMAND_GROUP_ORDER` + `compareCommandGroups`; palette renders groups in canonical order.
 - Zod-lite validators (#51): hand-rolled `validateRunRecord` / `validateWorkflow` / `validateObjectInfo` in `api/validators.ts`; wired into `OutputDiffModal` + `useObjectInfo`. Dependency-free.
-- Reroute selection (#73): marquee switched from "wholly inside" containment to intersection so quick drags catch small nodes (reroutes especially); matches ComfyUI behaviour.
+- Reroute selection (#73): marquee switched from "wholly inside" containment to intersection so quick drags catch small nodes, especially reroutes.
 
 ---
 

@@ -21,7 +21,7 @@ interface BridgeCallbacks {
   onDragEnd?: () => void;
 }
 
-export class LiteGraphYjsBridge {
+export class WorkflowYjsBridge {
   private _isApplyingRemote = false;
   private _isDragging = false;
   private _draggingNodeIds: Set<string> = new Set();

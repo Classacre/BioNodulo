@@ -1,4 +1,4 @@
-export { LiteGraphYjsBridge } from './bridge';
+export { WorkflowYjsBridge } from './bridge';
 export { useCollab, docToWorkflow, workflowToDoc } from './useCollab';
 export { createWorkflowDoc } from './yjsDoc';
 export {

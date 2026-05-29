@@ -437,34 +437,6 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
     return {"run_id": run_id, "status": "queued", "name": body.name, "workflow_name": wf_name}
 
 
-@router.post("/prompt")
-async def comfyui_prompt(request: Request) -> dict[str, Any]:
-    """ComfyUI-compatible prompt endpoint.
-
-    Accepts a workflow in ComfyUI prompt format and submits it for execution.
-    """
-    body = await request.json()
-    queue = _get_queue(request)
-    event_hub = _get_event_hub(request)
-
-    wf_name = body.get("name", "prompt-run")
-    run_id = _generate_run_id(str(wf_name))
-    await event_hub.emit_typed(
-        "execution.prompt_submitted",
-        {"run_id": run_id},
-        source=run_id,
-    )
-
-    if hasattr(queue, "submit"):
-        await queue.submit(
-            run_id=run_id,
-            workflow=body,
-            metadata={"name": "prompt-run"},
-        )
-
-    return {"prompt_id": run_id, "number": 0, "node_errors": {}}
-
-
 # ---------------------------------------------------------------------------
 # Queue
 # ---------------------------------------------------------------------------

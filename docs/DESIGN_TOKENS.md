@@ -15,7 +15,7 @@ coded won't follow the theme.
 
 | Token | Purpose | Notes |
 |---|---|---|
-| `--canvas` | The infinite workflow background | Drawn by `.litegraph-host`; canvas patterns layer on top |
+| `--canvas` | The infinite workflow background | Drawn by `.workflow-canvas-host`; canvas patterns layer on top |
 | `--surface` | Panels, modals, tooltips | The default "card" colour |
 | `--surface-2` | Subtle alternate fill (input backgrounds, hover state, group bodies) | One step away from `--surface` toward `--canvas` |
 | `--surface-3` | Tertiary fill (progress bar tracks, recessed pills) | One step further than `--surface-2` |
@@ -62,7 +62,7 @@ coded won't follow the theme.
 ## Canvas pattern dataset
 
 The active palette also sets `document.documentElement.dataset.canvasPattern`,
-which CSS selectors target via `html[data-canvas-pattern="…"] .litegraph-host`.
+which CSS selectors target via `html[data-canvas-pattern="…"] .workflow-canvas-host`.
 Valid values:
 
 - `none` — flat canvas (no overlay)

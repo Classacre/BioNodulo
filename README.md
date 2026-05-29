@@ -2,7 +2,7 @@
 
 **Visual bioinformatics pipelines, node by node.**
 
-BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor inspired by ComfyUI.
+BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor.
 
 [![Version](https://img.shields.io/badge/version-2.0-0d9488?logo=github)](pyproject.toml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
@@ -16,7 +16,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **10 Pre-built Templates** — FASTQ QC, RNA-Seq, Variant Calling, Metagenomics, Assembly, Phylogenetics, ChIP-Seq, Differential Expression, WGS Variant, Single Cell
 - **HPC Integration** — Submit workflows to SLURM, PBS/Torque, or SGE clusters with a single toggle
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
-- **Settings System** — ComfyUI-inspired per-user settings with categories (Appearance, Canvas, Execution, LLM, Files)
+- **Settings System** — Per-user settings with categories for appearance, canvas, execution, LLM, and files
 - **Help / Wiki System** — Built-in searchable documentation panel (Ctrl+6)
 - **AI Assistant** — Chat-based workflow builder assistant
 - **Environment Manager** — Auto-detect missing dependencies, one-click install, Conda/Mamba/Micromamba env CRUD, Docker/Apptainer support, per-workflow isolation
@@ -132,8 +132,7 @@ bionodulo-v2/
 │   │   ├── base.py            # BaseNode class
 │   │   ├── command_node.py    # External tool wrapper
 │   │   ├── registry.py        # Node discovery & loading
-│   │   ├── schema_api.py      # Node schema definitions
-│   │   └── comfy_v3_adapter.py # ComfyUI compatibility
+│   │   └── schema_api.py      # Node schema definitions
 │   ├── execution/             # Execution engine
 │   ├── workflow/              # Workflow validation, serialization
 │   ├── converter/             # SnakeMake, NextFlow, CWL, Galaxy
@@ -294,4 +293,4 @@ BioNodulo is source-available for research, education, evaluation, and developme
 
 Publication of results produced with BioNodulo, commercial use, paid services, and hosted offerings require a separate paid license. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
 
-BioNodulo is an independent bioinformatics workflow platform inspired by the excellent work of the ComfyUI team. It is not a fork of ComfyUI but shares architectural patterns and design philosophy.
+BioNodulo is an independent bioinformatics workflow platform built specifically for bioinformatics pipeline design, execution, and sharing.

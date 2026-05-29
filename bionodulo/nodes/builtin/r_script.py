@@ -1,7 +1,6 @@
 """R language integration nodes for BioNodulo.
 
-Provides nodes to run R scripts and generate plot previews on the canvas,
-similar to ComfyUI's image preview nodes.
+Provides nodes to run R scripts and generate plot previews on the canvas.
 """
 from __future__ import annotations
 

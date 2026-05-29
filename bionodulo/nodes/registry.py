@@ -1,7 +1,6 @@
 """NodeRegistry - discovers, registers, and manages all BioNodulo nodes.
 
-Supports built-in nodes, custom nodes from external directories, and
-ComfyUI v3 adapter nodes.
+Supports built-in nodes and custom nodes from external directories.
 """
 from __future__ import annotations
 
@@ -105,23 +104,23 @@ class NodeRegistry:
         return dict(self._nodes)
 
     def object_info(self, node_id: str | None = None) -> dict[str, Any]:
-        """Return ComfyUI-compatible object_info metadata.
+        """Return node metadata for the frontend registry.
 
         Args:
             node_id: Optional specific node ID. If None, returns all nodes.
 
         Returns:
-            Dictionary of node metadata in ComfyUI object_info format.
+            Dictionary of node metadata keyed by node ID.
         """
         if node_id is not None:
             node_class = self._nodes.get(node_id)
             if node_class is None:
                 return {}
-            return _to_comfy_info(node_class)
+            return _to_node_info(node_class)
 
         if self._object_info_cache is None:
             self._object_info_cache = {
-                nid: _to_comfy_info(nc)
+                nid: _to_node_info(nc)
                 for nid, nc in sorted(self._nodes.items())
             }
         return self._object_info_cache
@@ -232,16 +231,13 @@ class NodeRegistry:
         return count
 
     def iter_node_classes(self) -> Iterator[Type[BaseNode]]:
-        """Yield all registered node classes including Comfy v3 adapted ones.
+        """Yield all registered node classes.
 
         Yields:
             BaseNode subclasses.
         """
         for node_class in self._nodes.values():
             yield node_class
-            # If this node also has a Comfy v3 adapter, yield that too
-            if hasattr(node_class, "_comfy_v3_class"):
-                yield node_class._comfy_v3_class
 
     def _load_module_from_path(self, name: str, path: Path) -> Any:
         """Dynamically load a module from a file path.
@@ -272,39 +268,39 @@ class NodeRegistry:
         self._object_info_cache = None
 
 
-def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
-    """Convert a BaseNode class to ComfyUI-compatible object_info format.
+def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
+    """Convert a BaseNode class to frontend registry metadata.
 
     Args:
         node_class: The node class to convert.
 
     Returns:
-        Dictionary in ComfyUI object_info format.
+        Dictionary consumed by the frontend node registry.
     """
     input_types = node_class.INPUT_TYPES()
     required = input_types.get("required", {})
     optional = input_types.get("optional", {})
     hidden = input_types.get("hidden", {})
 
-    comfy_input: dict[str, Any] = {"required": {}, "optional": {}, "hidden": {}}
+    node_input: dict[str, Any] = {"required": {}, "optional": {}, "hidden": {}}
 
     for name, spec in required.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["required"][name] = (_comfy_type(type_name), config)
+        node_input["required"][name] = (_node_type(type_name), config)
 
     for name, spec in optional.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["optional"][name] = (_comfy_type(type_name), config)
+        node_input["optional"][name] = (_node_type(type_name), config)
 
     for name, spec in hidden.items():
         type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
         config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        comfy_input["hidden"][name] = (_comfy_type(type_name), config)
+        node_input["hidden"][name] = (_node_type(type_name), config)
 
     return {
-        "input": comfy_input,
+        "input": node_input,
         "output": list(node_class.RETURN_TYPES),
         "output_name": list(node_class.RETURN_NAMES),
         "name": node_class.NODE_ID,
@@ -325,14 +321,14 @@ def _to_comfy_info(node_class: Type[BaseNode]) -> dict[str, Any]:
     }
 
 
-def _comfy_type(bionodulo_type: str | list | tuple) -> str:
-    """Map BioNodulo type names to ComfyUI-compatible type names.
+def _node_type(bionodulo_type: str | list | tuple) -> str:
+    """Map BioNodulo type names to frontend socket type names.
 
     Args:
         bionodulo_type: BioNodulo type string (or list/tuple in edge cases).
 
     Returns:
-        ComfyUI-compatible type string.
+        Frontend socket type string.
     """
     while isinstance(bionodulo_type, (list, tuple)):
         bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"

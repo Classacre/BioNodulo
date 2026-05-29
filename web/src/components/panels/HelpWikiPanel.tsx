@@ -80,7 +80,7 @@ const PAGES: { id: WikiPage; title: string }[] = [
 const CONTENT: Record<WikiPage, string> = {
   'getting-started': `
 <h3>Welcome to BioNodulo v2</h3>
-<p>BioNodulo is a visual bioinformatics workflow workbench inspired by ComfyUI. Build pipelines by connecting nodes on an infinite canvas.</p>
+<p>BioNodulo is a visual bioinformatics workflow workbench. Build pipelines by connecting nodes on an infinite canvas.</p>
 
 <h4>Quick Start</h4>
 <ol>

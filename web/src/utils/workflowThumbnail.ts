@@ -1,6 +1,6 @@
 // Render a workflow JSON to a PNG dataURL with no dependency on the live
 // canvas component, so the export modal can produce a thumbnail without
-// the LiteGraphCanvas being mounted on a particular tab.
+// the WorkflowCanvas being mounted on a particular tab.
 
 import type { Workflow, WorkflowNode } from '../types';
 

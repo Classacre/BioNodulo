@@ -934,7 +934,7 @@ function HomePage() {
 const detailedFeatures = [
   {
     title: 'Visual Workflow Builder',
-    text: 'A LiteGraph-style canvas for turning pipelines into editable, typed workflow graphs.',
+    text: 'A workflow canvas for turning pipelines into editable, typed workflow graphs.',
     bullets: ['Drag, connect, group, undo, redo, and inspect workflow nodes', '94 registered node types across 19 categories', 'Typed inputs, outputs, defaults, advanced parameters, and validation'],
     icon: 'node',
   },

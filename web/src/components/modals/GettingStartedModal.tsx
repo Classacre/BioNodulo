@@ -28,7 +28,7 @@ const CHANGELOG = [
     version: '2.0',
     date: '2026-05',
     items: [
-      'ComfyUI-inspired command palette, keybindings, toasts, dialogs, and panel workflow',
+      'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',
       'Resizable/floating side panels with improved dock controls',
       'Template gallery redesign with previews, search ranking, tags, and workflow step summaries',
       'Canvas upgrades for node badges, hover details, reroute workflows, selected execution, and subgraph extraction',
@@ -65,7 +65,7 @@ const CHANGELOG = [
     date: '2025-03',
     items: [
       'Initial BioNodulo v2 release',
-      'LiteGraph canvas with custom bioinformatics nodes',
+      'Workflow canvas with custom bioinformatics nodes',
       '14 built-in pipeline templates',
       'Pixi-based package management',
       'Result caching and queue-based execution',

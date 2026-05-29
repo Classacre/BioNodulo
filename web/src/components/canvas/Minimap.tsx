@@ -1,5 +1,5 @@
 import { useRef, useCallback, useMemo } from 'react';
-import type { GraphNode } from './LiteGraphCanvas';
+import type { GraphNode } from './WorkflowCanvas';
 import type { WorkflowGroup, WorkflowEdge } from '../../types';
 
 interface MinimapProps {

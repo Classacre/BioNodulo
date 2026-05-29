@@ -1,11 +1,11 @@
 # BioNodulo v2 - Full Specification
 
 ## Overview
-BioNodulo v2 is a visual bioinformatics workflow workbench inspired by ComfyUI's architecture but fully independent and bioinformatics-focused. It features a node-based graph editor for constructing, executing, and sharing bioinformatics pipelines.
+BioNodulo v2 is a visual bioinformatics workflow workbench with a node-based graph editor for constructing, executing, and sharing bioinformatics pipelines.
 
 ## Architecture
 - **Backend**: Python 3.11+ / FastAPI / Uvicorn
-- **Frontend**: React 19 / TypeScript / Vite / LiteGraph (via npm @comfyorg/litegraph)
+- **Frontend**: React 19 / TypeScript / Vite / custom workflow canvas
 - **Communication**: REST API + WebSocket for real-time execution updates
 - **Execution**: Async queue-based with caching and environment isolation
 
@@ -31,11 +31,10 @@ bionodulo-v2/
 │   │   └── schemas.py              # Pydantic request models
 │   ├── nodes/
 │   │   ├── __init__.py             # BaseNode, CommandNode, NodeRegistry exports
-│   │   ├── base.py                 # BaseNode class (ComfyUI-compatible pattern)
+│   │   ├── base.py                 # BaseNode class
 │   │   ├── command_node.py         # CommandNode (external tool wrapper)
 │   │   ├── registry.py             # NodeRegistry (builtin + custom loading)
-│   │   ├── schema_api.py           # Comfy v3 adapter compatibility
-│   │   ├── comfy_v3_adapter.py     # Schema-based node definitions
+│   │   ├── schema_api.py           # Schema-based node definitions
 │   │   ├── types.py                # Type compatibility checking
 │   │   └── builtin/                # Built-in bioinformatics nodes
 │   │       ├── __init__.py
@@ -149,7 +148,7 @@ bionodulo-v2/
 │       │   └── useHistory.ts
 │       ├── components/
 │       │   ├── canvas/
-│       │   │   ├── LiteGraphCanvas.tsx
+│       │   │   ├── WorkflowCanvas.tsx
 │       │   │   ├── MiniMap.tsx
 │       │   │   └── CanvasControls.tsx
 │       │   ├── nodes/
@@ -163,7 +162,7 @@ bionodulo-v2/
 │       │   │   ├── WorkflowTabs.tsx
 │       │   │   └── BottomConsole.tsx
 │       │   ├── panels/
-│       │   │   ├── SettingsPanel.tsx       # ComfyUI-style settings
+│       │   │   ├── SettingsPanel.tsx       # Categorized settings
 │       │   │   ├── HelpWikiPanel.tsx       # Full help/wiki system
 │       │   │   ├── TemplatesPanel.tsx      # Rich template browser
 │       │   │   ├── EnvironmentPanel.tsx    # Enhanced env manager
@@ -205,7 +204,6 @@ bionodulo-v2/
 - `GET /object_info/{node_id}` - Single node metadata
 - `POST /workflow/validate` - Validate workflow
 - `POST /runs` - Submit workflow for execution
-- `POST /prompt` - ComfyUI-compatible prompt endpoint
 - `GET /queue` - Queue state
 - `POST /queue/clear` - Clear pending queue
 - `GET /history` - Execution history
@@ -214,7 +212,7 @@ bionodulo-v2/
 - `POST /ai/chat` - AI assistant
 - `GET /workspace/files` - File tree
 - `GET /manager/status` - Node manager status
-- `GET /settings` - Get settings (ComfyUI-compatible)
+- `GET /settings` - Get settings
 - `POST /settings` - Save settings
 - `GET /settings/{id}` - Get specific setting
 - `POST /settings/{id}` - Set specific setting
@@ -227,7 +225,7 @@ bionodulo-v2/
 - `POST /hpc/submit` - Submit job to HPC
 - `GET /docs/{page}` - Serve help/wiki pages
 
-## Settings System (ComfyUI-inspired)
+## Settings System
 Settings stored per-user in `bionodulo.settings.json`:
 ```json
 {
@@ -287,9 +285,9 @@ Settings stored per-user in `bionodulo.settings.json`:
 - **Import**: SnakeMake, NextFlow, CWL, Galaxy (parse and convert to node graph)
 
 ## Frontend Features
-- LiteGraph-based node canvas (like ComfyUI)
+- Custom workflow node canvas
 - Left rail with: Data, Nodes, Templates, Environments, Help, Console, Settings
-- Settings modal with categorized settings (ComfyUI-style)
+- Settings modal with categorized settings
 - Full help/wiki panel with searchable documentation
 - Rich template browser with descriptions and previews
 - HPC toggle in top bar

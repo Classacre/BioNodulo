@@ -21,7 +21,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
 
-# Sync with web/src/components/canvas/LiteGraphCanvas.tsx constants so the
+# Sync with web/src/components/canvas/WorkflowCanvas.tsx constants so the
 # laid-out positions render cleanly in the browser canvas.
 NODE_WIDTH = 220
 NODE_HEADER_H = 32
@@ -63,10 +63,10 @@ def is_reroute(node: dict[str, Any]) -> bool:
 
 
 def _is_interactive_spec(spec: Any) -> bool:
-    """Mirror isInteractiveWidgetSpec in LiteGraphCanvas.tsx so heights match the UI.
+    """Mirror isInteractiveWidgetSpec in WorkflowCanvas.tsx so heights match the UI.
 
-    The registry returns ComfyUI v3-style specs as ``(type, options_dict)``
-    tuples; the frontend normalizes those into flat dicts. We accept both.
+    The registry returns node specs as ``(type, options_dict)`` tuples; the
+    frontend normalizes those into flat dicts. We accept both.
     """
     type_name: Any
     options: Any
@@ -76,7 +76,7 @@ def _is_interactive_spec(spec: Any) -> bool:
             return False
         type_name = spec[0]
         if isinstance(type_name, (list, tuple)) and type_name:
-            # ComfyUI represents an option-list type as the list of options itself.
+            # Option-list specs store the choices as the type value itself.
             options = list(type_name)
             type_name = "STRING"
         else:
@@ -125,7 +125,7 @@ def _node_meta(node_type: str) -> dict[str, Any]:
 
 
 def estimate_node_height(node: dict[str, Any]) -> int:
-    """Mirror calcNodeHeight in LiteGraphCanvas.tsx for the laid-out positions."""
+    """Mirror calcNodeHeight in WorkflowCanvas.tsx for the laid-out positions."""
     if is_reroute(node):
         return 20
     if is_note(node):
@@ -352,7 +352,7 @@ _CATEGORY_COLORS = {
 }
 
 # Lowercase substring rules — mirror COLOR_KEYWORD_RULES in
-# web/src/components/canvas/LiteGraphCanvas.tsx. Order matters: first match
+# web/src/components/canvas/WorkflowCanvas.tsx. Order matters: first match
 # wins, so specific keywords come before generic ones.
 _KEYWORD_RULES: list[tuple[str, str]] = [
     ("input", "#0d9488"),

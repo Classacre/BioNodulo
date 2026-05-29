@@ -5,7 +5,7 @@ import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
 import ErrorBoundary from './components/layout/ErrorBoundary';
-import LiteGraphCanvas, { type LiteGraphCanvasRef } from './components/canvas/LiteGraphCanvas';
+import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
 import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
@@ -58,7 +58,7 @@ import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
-  LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
+  WorkflowYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge,
   getUserColor, getToken, AuthDialog,
 } from './collab';
@@ -311,7 +311,7 @@ export default function App() {
     offline: collabOffline,
   } = useCollab(collabWorkflowId, currentUser);
 
-  const bridgeRef = useRef<LiteGraphYjsBridge | null>(null);
+  const bridgeRef = useRef<WorkflowYjsBridge | null>(null);
   const suppressLocalSeedForWorkflowRef = useRef<string | null>(null);
   const activeWorkflowRef = useRef(activeWorkflow);
   const updateWorkflowRef = useRef(updateWorkflow);
@@ -347,7 +347,7 @@ export default function App() {
     if (suppressLocalSeedForWorkflowRef.current === activeWorkflowId) {
       suppressLocalSeedForWorkflowRef.current = null;
     }
-    const bridge = new LiteGraphYjsBridge(collabDoc, {
+    const bridge = new WorkflowYjsBridge(collabDoc, {
       onNodesChange: (nodes) => updateWorkflowRef.current(activeIndex, { nodes }),
       onEdgesChange: (edges) => updateWorkflowRef.current(activeIndex, { edges }),
       onGroupsChange: (groups) => updateWorkflowRef.current(activeIndex, { groups }),
@@ -631,7 +631,7 @@ export default function App() {
   }, [setRuns, addLog, setLogs]);
 
   // History stack for undo/redo
-  const canvasRef = useRef<LiteGraphCanvasRef>(null);
+  const canvasRef = useRef<WorkflowCanvasRef>(null);
   const historyRef = useRef<{ nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups']; viewport?: { x: number; y: number; scale: number } }[]>([]);
   const historyIndexRef = useRef(-1);
   const pendingStateRef = useRef<Partial<Workflow>>({});
@@ -687,9 +687,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [activeWorkflow.nodes, activeWorkflow.edges, activeWorkflow.groups, pushHistory]);
 
-  // Mirror ComfyUI's eager capture triggers: a mouseup or keyup signals that
-  // a user gesture (drag, widget edit, key shortcut) just ended, so commit
-  // any pending state instead of waiting for the 350 ms debounce.
+  // Capture eagerly on mouseup/keyup so a completed drag, widget edit, or
+  // key shortcut commits pending state instead of waiting for the debounce.
   useEffect(() => {
     const flush = () => {
       if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
@@ -2773,7 +2772,7 @@ export default function App() {
             onResolve={() => { resolve(activeWorkflow); }}
           />
         )}
-        <LiteGraphCanvas
+        <WorkflowCanvas
           ref={canvasRef}
           nodes={activeWorkflow.nodes}
           edges={activeWorkflow.edges}

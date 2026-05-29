@@ -897,17 +897,17 @@ body.is-dragging-panel {
 @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* Canvas */
-.litegraph-host {
+.workflow-canvas-host {
   width: 100%; height: 100%; position: relative;
   background: var(--canvas);
 }
-.litegraph-host canvas { display: block; position: relative; z-index: 1; }
+.workflow-canvas-host canvas { display: block; position: relative; z-index: 1; }
 
 /* Palette-specific decorative backgrounds. The patterns sit behind the
    canvas's own paint so the lines from the grid renderer still appear on
    top. Each pattern uses currentColor-relative opacity so it adapts to
    light/dark modes automatically. */
-html[data-canvas-pattern="dots"] .litegraph-host::before {
+html[data-canvas-pattern="dots"] .workflow-canvas-host::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -916,7 +916,7 @@ html[data-canvas-pattern="dots"] .litegraph-host::before {
   background-size: 32px 32px;
   z-index: 0;
 }
-html[data-canvas-pattern="grid"] .litegraph-host::before {
+html[data-canvas-pattern="grid"] .workflow-canvas-host::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -927,7 +927,7 @@ html[data-canvas-pattern="grid"] .litegraph-host::before {
   background-size: 80px 80px;
   z-index: 0;
 }
-html[data-canvas-pattern="mesh"] .litegraph-host::before {
+html[data-canvas-pattern="mesh"] .workflow-canvas-host::before {
   content: '';
   position: absolute;
   inset: 0;

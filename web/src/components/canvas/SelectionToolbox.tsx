@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GraphNode } from './LiteGraphCanvas';
+import type { GraphNode } from './WorkflowCanvas';
 import type { WorkflowGroup } from '../../types';
 
 interface SelectionToolboxProps {

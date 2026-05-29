@@ -9,7 +9,7 @@
 
 import type { ReactNode } from 'react';
 import type { ObjectInfo, WorkflowNode } from '../../types';
-import type { GraphNode } from '../canvas/LiteGraphCanvas';
+import type { GraphNode } from '../canvas/WorkflowCanvas';
 import NodeEditor from '../nodes/NodeEditor';
 import Icon from '../ui/Icon';
 

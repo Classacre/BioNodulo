@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { GraphNode } from '../canvas/LiteGraphCanvas';
+import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
 interface NodeEditorProps {

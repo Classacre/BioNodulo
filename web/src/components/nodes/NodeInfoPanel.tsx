@@ -1,5 +1,5 @@
 import Icon from '../ui/Icon';
-import type { GraphNode } from '../canvas/LiteGraphCanvas';
+import type { GraphNode } from '../canvas/WorkflowCanvas';
 
 interface NodeInfoPanelProps {
   node?: GraphNode;

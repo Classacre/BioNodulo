@@ -52,8 +52,8 @@ export interface ModalWorkflowContext {
   activeIndex: number;
   updateWorkflow: (index: number, workflow: Workflow) => void;
   activeWorkflowRef: React.RefObject<Workflow>;
-  bridgeRef: React.RefObject<import('../../collab').LiteGraphYjsBridge | null>;
-  canvasRef: React.RefObject<import('../canvas/LiteGraphCanvas').LiteGraphCanvasRef | null>;
+  bridgeRef: React.RefObject<import('../../collab').WorkflowYjsBridge | null>;
+  canvasRef: React.RefObject<import('../canvas/WorkflowCanvas').WorkflowCanvasRef | null>;
   runs: RunRecord[];
   objectInfo: ObjectInfo;
   currentUser: { id: string; name: string; color: string };

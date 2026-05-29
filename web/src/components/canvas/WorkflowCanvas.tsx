@@ -35,7 +35,7 @@ export interface NodeCommentSummary {
   unresolved: boolean;
 }
 
-interface LiteGraphCanvasProps {
+interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   groups: WorkflowGroup[];
@@ -530,7 +530,7 @@ function createGroupFromNodes(nodes: GraphNode[]): WorkflowGroup {
   };
 }
 
-export interface LiteGraphCanvasRef {
+export interface WorkflowCanvasRef {
   fitView: () => void;
   focusNode: (nodeId: string) => void;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
@@ -543,7 +543,7 @@ export interface LiteGraphCanvasRef {
   autoLayout: () => void;
 }
 
-const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(function LiteGraphCanvas({
+const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(function WorkflowCanvas({
   nodes, edges, groups, objectInfo,
   onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, onUndo, onRedo,
   snapToGrid, showMinimap, viewportLocked, linksHidden,
@@ -1895,7 +1895,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
       // F2 starts rename on the currently selected node (single selection).
       // Falls through silently when 0 or 2+ are selected — the multi-select
-      // semantics of rename are unclear and ComfyUI/IDEs both gate on single.
+      // semantics of rename are unclear and desktop editors typically gate on single.
       if (e.key === 'F2') {
         const selected = graphNodesRef.current.filter(n => n.selected);
         if (selected.length !== 1) return;
@@ -2031,7 +2031,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
 
     if (clicked) {
       // Shift+click on a connected input slot detaches the link and lets the
-      // user re-route the source's output to a new target. Mirrors ComfyUI.
+      // user re-route the source's output to a new target.
       if (e.shiftKey && clicked.inputs.length > 0 && !clicked.visualOnly && !clicked.collapsed) {
         for (let i = 0; i < clicked.inputs.length; i += 1) {
           if (!clicked.inputs[i].connected) continue;
@@ -2129,7 +2129,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       }
       let willBeSelectedIds: Set<string>;
       // Shift+click toggles, Ctrl/Cmd+click adds to selection. Plain click
-      // replaces. Treating Cmd separately from Shift mirrors ComfyUI and lets
+      // replaces. Treating Cmd separately from Shift lets
       // users grow a selection without un-selecting nodes they already had.
       const additive = e.shiftKey || e.ctrlKey || e.metaKey;
       if (additive) {
@@ -2183,7 +2183,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
           return;
         }
       }
-      // Check group title bar (only title bar is draggable, matching ComfyUI)
+      // Check group title bar; only the title bar is draggable.
       const GROUP_TITLE_H = 24;
       for (const g of [...groups].reverse()) {
         if (world.x >= g.position[0] && world.x <= g.position[0] + g.width &&
@@ -2471,8 +2471,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
       const x = Math.min(dragStart.x, cx);
       const y = Math.min(dragStart.y, cy);
       setSelectBox({ x, y, w: Math.abs(cx - dragStart.x), h: Math.abs(cy - dragStart.y) });
-      // Select nodes touching the box. Intersection (not containment) matches
-      // ComfyUI behaviour and is forgiving for small nodes like reroutes,
+      // Select nodes touching the box. Intersection (not containment) is
+      // forgiving for small nodes like reroutes,
       // which the previous "wholly inside" test could miss with a quick drag.
       const w1 = toWorld(x, y);
       const w2 = toWorld(x + Math.abs(cx - dragStart.x), y + Math.abs(cy - dragStart.y));
@@ -2737,10 +2737,9 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         onEnterSubgraphRef.current(clicked.id);
         return;
       }
-      // Double-click header to toggle collapse (ComfyUI behavior). Alt held
+      // Double-click header to toggle collapse. Alt held
       // diverts to inline rename so mouse-only users have a non-keyboard
-      // path; plain double-click still collapses to stay faithful to muscle
-      // memory from ComfyUI.
+      // path; plain double-click still collapses for quick canvas editing.
       const inHeader = world.y >= clicked.y && world.y <= clicked.y + NODE_HEADER_H;
       if (inHeader && !clicked.visualOnly) {
         if (e.altKey) {
@@ -3255,7 +3254,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   }, [edges, graphNodes, nodes, objectInfo, onEdgesChange, onNodesChange, onPushHistory]);
 
   return (
-    <div ref={hostRef} className="litegraph-host" style={{ position: 'relative', overflow: 'hidden' }}>
+    <div ref={hostRef} className="workflow-canvas-host" style={{ position: 'relative', overflow: 'hidden' }}>
       <canvas
         ref={canvasRef}
         style={{ position: 'absolute', inset: 0, cursor: cursorStyle }}
@@ -3401,8 +3400,8 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         );
       })}
 
-      {/* Full DOM widget overlays for node controls. These mirror ComfyUI's
-          portal-style widgets while preserving BioNodulo's custom canvas model.
+      {/* Full DOM widget overlays for node controls. These provide native form
+          controls while preserving BioNodulo's custom canvas model.
           With `transform: scale(scale)` they now scale uniformly with the node
           so the previous zoom-out fallback to canvas-drawn widgets is gone. */}
       {graphNodes.filter(node => (
@@ -3999,7 +3998,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   );
 });
 
-export default LiteGraphCanvas;
+export default WorkflowCanvas;
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | Record<string, number>) {
   if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };

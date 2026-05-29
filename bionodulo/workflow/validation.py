@@ -113,9 +113,9 @@ def validate_workflow(
         if meta and isinstance(meta, dict):
             inputs = meta.get("inputs", {})
         elif meta and hasattr(meta, "INPUT_TYPES"):
-            # Preserve the raw ComfyUI v3 spec tuples so we can read defaults
-            # below. Each entry is either a (type, options) tuple/list or a
-            # bare type name.
+            # Preserve raw INPUT_TYPES tuples so we can read defaults below.
+            # Each entry is either a (type, options) tuple/list or a bare type
+            # name.
             input_types = meta.INPUT_TYPES()
             inputs = {
                 name: {"required": True, "spec": spec}
@@ -159,7 +159,7 @@ def validate_workflow(
 
 
 def _spec_has_default(spec: Any) -> bool:
-    """Return True when a ComfyUI v3 input spec declares a default value.
+    """Return True when an input spec declares a default value.
 
     Specs come in three shapes: a flat dict ``{"type": "INT", "default": ...}``,
     a tuple ``("INT", {"default": ...})`` carried verbatim from INPUT_TYPES(),

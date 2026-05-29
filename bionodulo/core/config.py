@@ -1,7 +1,7 @@
 """Settings dataclass with YAML/JSON config loading for BioNodulo.
 
 Supports environment variable overrides with BIONODULO_ prefix,
-per-user JSON settings file (ComfyUI-style), and directory management.
+per-user JSON settings, and directory management.
 """
 
 from __future__ import annotations
@@ -210,7 +210,7 @@ def _parse_env_value(value: str) -> Any:
 
 
 class SettingsManager:
-    """Per-user JSON settings file manager (like ComfyUI\'s comfy.settings.json)."""
+    """Per-user JSON settings file manager."""
 
     def __init__(self, settings_file: Path) -> None:
         self._settings_file = settings_file
