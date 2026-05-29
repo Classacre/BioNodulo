@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import re
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -33,9 +35,16 @@ from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.nodes.registry import NodeRegistry
 
+logger = logging.getLogger(__name__)
+
 _COLLAB_WORKFLOW_ID_RE = re.compile(r"^[a-zA-Z0-9._:-]{1,160}$")
 _PREFIX_ROUTE_MARKERS = ("/api/", "/assets/", "/ws/")
 _PREFIX_EXACT_ROUTES = frozenset({"/api", "/assets", "/ws"})
+_SPA_API_PREFIXES = frozenset({
+    "object_info", "api", "workspace", "manager", "workflow",
+    "runs", "queue", "history", "config", "ai", "settings",
+    "hpc", "docs", "workflow_templates", "i18n",
+})
 
 
 class ProxyPrefixMiddleware:
@@ -84,6 +93,52 @@ def _default_collab_workflow() -> str | None:
     return None
 
 
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Pixi installation is surfaced via /api/host_status and handled by the
+    # frontend. RunQueue workers still auto-start on first submit.
+    redis_broadcaster = app.state.redis_broadcaster
+    try:
+        await redis_broadcaster.connect()
+    except Exception as exc:
+        logger.warning("Error connecting Redis broadcaster: %s", exc)
+
+    try:
+        yield
+    finally:
+        run_queue: RunQueue = app.state.run_queue
+        await run_queue.shutdown()
+
+        dependency_installer = getattr(app.state, "dependency_installer", None)
+        if dependency_installer is not None:
+            try:
+                await dependency_installer.shutdown()
+            except Exception as exc:
+                logger.warning("Error shutting down dependency installer: %s", exc)
+
+        hpc_backend = getattr(app.state, "hpc_backend", None)
+        if hpc_backend is not None and hasattr(hpc_backend, "shutdown"):
+            try:
+                await hpc_backend.shutdown()
+            except Exception as exc:
+                logger.warning("Error shutting down HPC backend: %s", exc)
+
+        try:
+            await app.state.heartbeat_manager.shutdown()
+        except Exception as exc:
+            logger.warning("Error shutting down heartbeat manager: %s", exc)
+
+        try:
+            await redis_broadcaster.disconnect()
+        except Exception as exc:
+            logger.warning("Error disconnecting Redis broadcaster: %s", exc)
+
+        try:
+            await stop_room_cache_cleanup()
+        except Exception as exc:
+            logger.warning("Error stopping Yjs room cleanup: %s", exc)
+
+
 def create_app() -> FastAPI:
     project_dir = Path(__file__).resolve().parent
     workspace_root = ensure_workspace_root(project_dir)
@@ -93,6 +148,7 @@ def create_app() -> FastAPI:
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
         version="0.1.5",
+        lifespan=_app_lifespan,
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -129,7 +185,17 @@ def create_app() -> FastAPI:
     )
 
     def _emit_to_hub(event_type: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(event_hub.emit_typed(event_type, data))
+        task = asyncio.create_task(event_hub.emit_typed(event_type, data))
+
+        def _log_emit_error(done: asyncio.Task[None]) -> None:
+            try:
+                done.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Unhandled event hub emit failure")
+
+        task.add_done_callback(_log_emit_error)
 
     run_queue = RunQueue(
         executor=executor,
@@ -156,43 +222,6 @@ def create_app() -> FastAPI:
     # Native Yjs room sockets (workflow_id -> list of WebSockets)
     app.state.yjs_room_sockets = {}
 
-    @app.on_event("startup")
-    async def startup() -> None:
-        # Note: pixi installation is surfaced via /api/host_status
-        # and handled by the frontend so the user is aware of it.
-        # RunQueue worker auto-starts on first submit
-
-        # Connect to Redis (falls back to in-memory if unavailable)
-        try:
-            await app.state.redis_broadcaster.connect()
-        except Exception:
-            # Already logged inside connect()
-            pass
-
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        await run_queue.shutdown()
-
-        # Shut down heartbeat manager
-        try:
-            await app.state.heartbeat_manager.shutdown()
-        except Exception as exc:
-            logger = __import__("logging").getLogger(__name__)
-            logger.warning("Error shutting down heartbeat manager: %s", exc)
-
-        # Disconnect Redis
-        try:
-            await app.state.redis_broadcaster.disconnect()
-        except Exception as exc:
-            logger = __import__("logging").getLogger(__name__)
-            logger.warning("Error disconnecting Redis broadcaster: %s", exc)
-
-        try:
-            await stop_room_cache_cleanup()
-        except Exception as exc:
-            logger = __import__("logging").getLogger(__name__)
-            logger.warning("Error stopping Yjs room cleanup: %s", exc)
-
     # Include routers
     app.include_router(router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
@@ -215,17 +244,10 @@ def create_app() -> FastAPI:
         @app.get("/{path:path}")
         async def serve_spa(request: Request, path: str) -> Response:
             # API paths should be handled by routers above
-            _api_prefixes = frozenset({
-                "object_info", "api", "workspace", "manager", "workflow",
-                "runs", "queue", "history", "config", "ai", "settings",
-                "hpc", "docs", "workflow_templates", "i18n",
-            })
-            if any(path.startswith(p) or path.startswith(p + "/") for p in _api_prefixes):
+            if any(path.startswith(p) or path.startswith(p + "/") for p in _SPA_API_PREFIXES):
                 # Let the router handle it
-                from fastapi.exceptions import HTTPException
                 raise HTTPException(status_code=404, detail="Not found")
             if path == "assets" or path.startswith("assets/"):
-                from fastapi.exceptions import HTTPException
                 raise HTTPException(
                     status_code=404,
                     detail="Frontend assets are missing. Run 'cd web && npm run build'.",

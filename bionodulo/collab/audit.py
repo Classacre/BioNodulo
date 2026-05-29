@@ -14,6 +14,7 @@ import json
 import logging
 import sqlite3
 import uuid
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -194,11 +195,7 @@ class AuditLogger:
             finally:
                 conn.close()
 
-        # Fire-and-forget in thread pool (non-blocking)
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _insert)
+        await asyncio.to_thread(_insert)
         logger.debug("Audit logged: %s on %s by %s", action, workflow_id, user_id)
 
     # ------------------------------------------------------------------
@@ -259,10 +256,7 @@ class AuditLogger:
             finally:
                 conn.close()
 
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _query)
+        return await asyncio.to_thread(_query)
 
     # ------------------------------------------------------------------
     # CSV export
@@ -328,10 +322,7 @@ class AuditLogger:
             finally:
                 conn.close()
 
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _export)
+        return await asyncio.to_thread(_export)
 
     # ------------------------------------------------------------------
     # Summary statistics
@@ -394,7 +385,4 @@ class AuditLogger:
             finally:
                 conn.close()
 
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _summary)
+        return await asyncio.to_thread(_summary)

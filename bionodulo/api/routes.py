@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -72,6 +73,45 @@ from bionodulo.workflow.validation import validate_workflow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 logger = logging.getLogger(__name__)
+
+
+def _track_background_task(task: asyncio.Task[Any], label: str) -> None:
+    """Log unhandled exceptions from fire-and-forget asyncio tasks."""
+
+    def _on_done(done: asyncio.Task[Any]) -> None:
+        try:
+            done.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("%s failed", label)
+
+    task.add_done_callback(_on_done)
+
+
+def _schedule_event_emit(
+    event_hub: EventHub,
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    task = asyncio.create_task(event_hub.emit_typed(event_type, payload, source=source))
+    _track_background_task(task, f"Event emit {event_type}")
+
+
+def _schedule_event_emit_threadsafe(
+    loop: asyncio.AbstractEventLoop,
+    event_hub: EventHub,
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    source: str,
+) -> None:
+    def _schedule() -> None:
+        _schedule_event_emit(event_hub, event_type, payload, source=source)
+
+    loop.call_soon_threadsafe(_schedule)
 
 
 def _derive_category(name: str, description: str, tools: list[str]) -> str:
@@ -1021,8 +1061,6 @@ async def manager_install_git(
         repo_name = Path(urlparse(body.url).path).stem
         target_dir = target_dir / repo_name
 
-    import subprocess
-
     if target_dir.exists():
         raise HTTPException(
             status_code=409,
@@ -1034,23 +1072,34 @@ async def manager_install_git(
         if body.commit:
             # Full clone for specific commit
             cmd = ["git", "clone", body.url, str(target_dir)]
-        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=120)
+        await asyncio.to_thread(
+            subprocess.run,
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
         if body.commit:
-            subprocess.run(
+            await asyncio.to_thread(
+                subprocess.run,
                 ["git", "-C", str(target_dir), "checkout", body.commit],
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=120,
             )
     except subprocess.CalledProcessError as exc:
         raise HTTPException(status_code=500, detail=f"Git clone failed: {exc.stderr}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Git clone timed out") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail="Git not found on system") from exc
 
     # Reload custom nodes
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "installed", "directory": str(target_dir.name)}
 
@@ -1067,10 +1116,9 @@ async def manager_update(
             status_code=404, detail=f"Package \\\'{body.name}\\\' not found"
         )
 
-    import subprocess
-
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(node_dir), "pull"],
             capture_output=True,
             text=True,
@@ -1080,13 +1128,15 @@ async def manager_update(
             raise HTTPException(
                 status_code=500, detail=f"Git pull failed: {result.stderr}"
             )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="Git pull timed out") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail="Git not found") from exc
 
     # Reload
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "updated", "package": body.name}
 
@@ -1103,12 +1153,12 @@ async def manager_remove(
             status_code=404, detail=f"Package \\\'{body.name}\\\' not found"
         )
 
-    shutil.rmtree(node_dir)
+    await asyncio.to_thread(shutil.rmtree, node_dir)
 
     # Reload
     registry = _get_registry(request)
     if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+        await asyncio.to_thread(registry.load_custom_nodes, settings.custom_nodes_dir)
 
     return {"status": "removed", "package": body.name}
 
@@ -1118,10 +1168,14 @@ async def manager_reload(request: Request) -> dict[str, str]:
     """Reload all custom nodes."""
     settings = _get_settings(request)
     registry = _get_registry(request)
-    if hasattr(registry, "load_builtin_nodes"):
-        registry.load_builtin_nodes()
-    if hasattr(registry, "load_custom_nodes"):
-        registry.load_custom_nodes(settings.custom_nodes_dir)
+
+    def reload_nodes() -> None:
+        if hasattr(registry, "load_builtin_nodes"):
+            registry.load_builtin_nodes()
+        if hasattr(registry, "load_custom_nodes"):
+            registry.load_custom_nodes(settings.custom_nodes_dir)
+
+    await asyncio.to_thread(reload_nodes)
     return {"status": "reloaded"}
 
 
@@ -1159,10 +1213,12 @@ async def api_install_pixi(request: Request) -> dict[str, Any]:
 
     def emit(level: str, data: dict[str, Any]) -> None:
         payload = {**data, "level": level, "timestamp": datetime.now().isoformat()}
-        loop.call_soon_threadsafe(
-            lambda: asyncio.create_task(
-                event_hub.emit_typed("install.log", payload, source="pixi-installer")
-            )
+        _schedule_event_emit_threadsafe(
+            loop,
+            event_hub,
+            "install.log",
+            payload,
+            source="pixi-installer",
         )
 
     success = await asyncio.to_thread(install_managed_pixi, emit=emit)
@@ -1236,13 +1292,16 @@ async def manager_ensure_workflow_env(
     settings = _get_settings(request)
     event_hub = request.app.state.event_hub
 
-    def emit(level: str, data: dict[str, Any]) -> None:
-        asyncio.create_task(
-            event_hub.emit_typed(
-                "install.progress",
-                {**data, "level": level, "timestamp": datetime.now().isoformat()},
-                source="dependency-installer",
-            )
+    def emit(event_type: str, data: dict[str, Any]) -> None:
+        _schedule_event_emit(
+            event_hub,
+            event_type,
+            {
+                **data,
+                "level": data.get("level", "info"),
+                "timestamp": datetime.now().isoformat(),
+            },
+            source="dependency-installer",
         )
 
     installer = app_state(request).dependency_installer
@@ -1267,7 +1326,7 @@ async def manager_create_workflow_env(
 async def list_environments(request: Request) -> dict[str, Any]:
     """List all workflow environments."""
     settings = _get_settings(request)
-    envs = list_all_envs(settings.project_root)
+    envs = await asyncio.to_thread(list_all_envs, settings.project_root)
     return {"environments": envs, "count": len(envs)}
 
 
@@ -1278,15 +1337,16 @@ async def get_environment(env_id: str, request: Request) -> dict[str, Any]:
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    meta = get_env_meta(env_dir)
-    packages = get_env_packages(env_dir)
+    meta, packages, ready = await asyncio.to_thread(
+        lambda: (get_env_meta(env_dir), get_env_packages(env_dir), is_env_ready(env_dir))
+    )
     return {
         "id": env_id,
         "name": meta.get("name") or f"Env {env_id[:8]}",
         "path": str(env_dir),
         "packages": packages,
         "package_count": len(packages),
-        "ready": is_env_ready(env_dir),
+        "ready": ready,
     }
 
 
@@ -1300,7 +1360,7 @@ async def rename_environment(env_id: str, request: Request, body: dict[str, Any]
     new_name = body.get("name", "").strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="Name is required")
-    set_env_meta(env_dir, name=new_name)
+    await asyncio.to_thread(set_env_meta, env_dir, name=new_name)
     return {"success": True, "id": env_id, "name": new_name}
 
 
@@ -1311,7 +1371,7 @@ async def duplicate_environment(env_id: str, request: Request) -> dict[str, Any]
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    success, message, new_id = duplicate_env_dir(env_dir, settings.project_root)
+    success, message, new_id = await asyncio.to_thread(duplicate_env_dir, env_dir, settings.project_root)
     if not success:
         raise HTTPException(status_code=500, detail=message)
     return {"success": True, "message": message, "new_id": new_id}
@@ -1324,7 +1384,7 @@ async def remove_environment_package(env_id: str, pkg_name: str, request: Reques
     env_dir = get_env_dir(env_id, settings.project_root)
     if not env_dir.exists():
         raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
-    success, message = remove_package_from_env(env_dir, pkg_name)
+    success, message = await asyncio.to_thread(remove_package_from_env, env_dir, pkg_name)
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}
@@ -1335,7 +1395,7 @@ async def delete_environment(env_id: str, request: Request) -> dict[str, Any]:
     """Remove an environment directory."""
     settings = _get_settings(request)
     env_dir = get_env_dir(env_id, settings.project_root)
-    success, message = delete_env_dir(env_dir)
+    success, message = await asyncio.to_thread(delete_env_dir, env_dir)
     if not success:
         raise HTTPException(status_code=500, detail=message)
     return {"success": True, "message": message}
@@ -1504,7 +1564,8 @@ async def workflow_extract(request: Request, body: WorkflowExtractRequest) -> di
 async def workflow_export(request: Request, body: WorkflowExportRequest) -> Any:
     """Export a workflow to various formats (snakemake, nextflow, cwl, galaxy)."""
     try:
-        content = export_workflow(
+        content = await asyncio.to_thread(
+            export_workflow,
             workflow=body.workflow,
             fmt=body.format,
             name=body.name,
@@ -1535,7 +1596,7 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
             if source == "cwl":
                 content = None
             else:
-                content = file_path_obj.read_text(encoding="utf-8")
+                content = await asyncio.to_thread(file_path_obj.read_text, encoding="utf-8")
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1546,25 +1607,25 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
     try:
         if source == "snakemake":
             from bionodulo.converter.snakemake_converter import import_from_snakemake as snakemake_import
-            workflow = snakemake_import(content)
+            workflow = await asyncio.to_thread(snakemake_import, content)
         elif source == "nextflow":
             from bionodulo.converter.nextflow_converter import import_from_nextflow as nextflow_import
-            workflow = nextflow_import(content)
+            workflow = await asyncio.to_thread(nextflow_import, content)
         elif source == "cwl":
             from bionodulo.converter.cwl_converter import import_from_cwl as cwl_import
             if file_path_obj:
-                workflow = cwl_import(file_path_obj)
+                workflow = await asyncio.to_thread(cwl_import, file_path_obj)
             else:
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".cwl", delete=False) as tmp:
                     tmp.write(content)
                     tmp_path = tmp.name
                 try:
-                    workflow = cwl_import(tmp_path)
+                    workflow = await asyncio.to_thread(cwl_import, tmp_path)
                 finally:
                     os.unlink(tmp_path)
         elif source == "galaxy":
             from bionodulo.converter.galaxy_converter import import_from_galaxy as galaxy_import
-            workflow = galaxy_import(content)
+            workflow = await asyncio.to_thread(galaxy_import, content)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported import format: \\'{source}\\'")
 
@@ -1834,25 +1895,21 @@ async def getting_started_download(
             "level": level,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        loop.call_soon_threadsafe(
-            lambda: asyncio.create_task(
-                event_hub.emit_typed(
-                    "install.progress",
-                    payload,
-                    source="example-data",
-                )
-            )
+        _schedule_event_emit_threadsafe(
+            loop,
+            event_hub,
+            "install.progress",
+            payload,
+            source="example-data",
         )
 
     emit_progress("Starting example data download from public sources ...", "info")
 
     # Run download in a thread pool so the event loop stays responsive
-    result = await loop.run_in_executor(
-        None,
-        lambda: download_example_data(
-            project_root=settings.project_root,
-            emit=emit_progress,
-        ),
+    result = await asyncio.to_thread(
+        download_example_data,
+        project_root=settings.project_root,
+        emit=emit_progress,
     )
 
     if not result.get("success"):

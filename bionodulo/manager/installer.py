@@ -186,7 +186,19 @@ class DependencyInstaller:
                     emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
 
         job._task = asyncio.create_task(_run())
+        job._task.add_done_callback(lambda task: self._handle_job_done(job_id, task))
         return job_id
+
+    def _handle_job_done(self, job_id: str, task: asyncio.Task[Any]) -> None:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            job = self.jobs.get(job_id)
+            if job is not None:
+                job.progress.status = "cancelled"
+                job.progress.message = "Installation cancelled"
+        except Exception:
+            logger.exception("Install job %s task failed unexpectedly", job_id)
 
     def get_job(self, job_id: str) -> InstallJob | None:
         """Get a job by ID."""
@@ -195,3 +207,15 @@ class DependencyInstaller:
     def list_jobs(self) -> list[InstallProgress]:
         """List all jobs."""
         return [j.progress for j in self.jobs.values()]
+
+    async def shutdown(self) -> None:
+        """Cancel and await any running installation jobs."""
+        tasks: list[asyncio.Task[Any]] = []
+        for job in self.jobs.values():
+            task = job._task
+            if task is not None and not task.done():
+                job.cancel()
+                task.cancel()
+                tasks.append(task)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
