@@ -1,4 +1,6 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
+import { useAtomValue } from 'jotai';
+import { selectAtom } from 'jotai/utils';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import { useSettings } from '../../hooks/useSettings';
@@ -14,6 +16,7 @@ import NodeInfoPanel from '../nodes/NodeInfoPanel';
 import Minimap from './Minimap';
 import SelectionToolbox from './SelectionToolbox';
 import GroupContextMenu from './GroupContextMenu';
+import { nodeRunProgressAtom, type NodeRunProgress } from '../../state/runAtoms';
 
 import CommentPin from '../../collab/CommentPin';
 import NodeCommentPopover from '../../collab/NodeCommentPopover';
@@ -49,7 +52,6 @@ interface LiteGraphCanvasProps {
   onToggleMinimap: () => void;
   onToggleLinksHidden: () => void;
   nodeStatusMap?: Map<string, NodeStatus['status']>;
-  nodeProgressMap?: Map<string, { current: number; total: number; startedAt: number }>;
   nodeErrorsMap?: Map<string, string>;
   nodePreviewsMap?: Map<string, string>;
   nodeHtmlPreviewsMap?: Map<string, string>;
@@ -95,6 +97,29 @@ export interface GraphNode {
   title: string;
   status?: NodeStatus['status'];
   visualOnly: boolean;
+}
+
+function sameNodeRunProgressRecord(
+  a: Record<string, NodeRunProgress>,
+  b: Record<string, NodeRunProgress>,
+): boolean {
+  if (a === b) return true;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    const left = a[key];
+    const right = b[key];
+    if (!right) return false;
+    if (
+      left.current !== right.current ||
+      left.total !== right.total ||
+      left.startedAt !== right.startedAt
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 const NODE_WIDTH = 220;
@@ -224,6 +249,11 @@ function countInteractiveWidgets(meta: NodeMetadata | null): number {
 
 const WIDGET_ROW_H = 24;
 const WIDGET_BLOCK_PAD = 8;
+const canvasNodeRunProgressAtom = selectAtom(
+  nodeRunProgressAtom,
+  progress => progress,
+  sameNodeRunProgressRecord,
+);
 
 function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: Record<string, unknown>, width?: number): number {
   if (collapsed) return NODE_HEADER_H;
@@ -499,7 +529,6 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   snapToGrid, showMinimap, viewportLocked, linksHidden,
   onToggleMinimap, onToggleLinksHidden,
   nodeStatusMap,
-  nodeProgressMap,
   nodeErrorsMap,
   nodePreviewsMap,
   nodeHtmlPreviewsMap,
@@ -521,6 +550,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   onEnterSubgraph,
   onPromoteWidgets,
 }, ref) {
+  const nodeProgressRecord = useAtomValue(canvasNodeRunProgressAtom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -627,7 +657,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   const resizingNodeRef = useRef(resizingNode);
   const collabUsersRef = useRef(collabUsers);
   const missingDependencyNodeIdsRef = useRef(missingDependencyNodeIds);
-  const nodeProgressMapRef = useRef(nodeProgressMap);
+  const nodeProgressMapRef = useRef(nodeProgressRecord);
   const isDraggingRef = useRef(false);
   const drawRef = useRef<() => void>(() => {});
 
@@ -653,7 +683,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
   useEffect(() => { resizingNodeRef.current = resizingNode; }, [resizingNode]);
   useEffect(() => { collabUsersRef.current = collabUsers; }, [collabUsers]);
   useEffect(() => { missingDependencyNodeIdsRef.current = missingDependencyNodeIds; }, [missingDependencyNodeIds]);
-  useEffect(() => { nodeProgressMapRef.current = nodeProgressMap; }, [nodeProgressMap]);
+  useEffect(() => { nodeProgressMapRef.current = nodeProgressRecord; }, [nodeProgressRecord]);
   useEffect(() => { widgetsRef.current.clear(); }, [graphNodes]);
 
   const publishCollabSelection = useCallback((selection: AwarenessState['selection']) => {
@@ -1412,7 +1442,7 @@ const LiteGraphCanvas = forwardRef<LiteGraphCanvasRef, LiteGraphCanvasProps>(fun
         // "3/12 · 6s" caption rendered in the header strip so the user can see
         // queue position + how long the node has been running without scrolling
         // to the console.
-        const progress = nodeProgressMapRef.current?.get(node.id);
+        const progress = nodeProgressMapRef.current?.[node.id];
         if (progress) {
           const parts: string[] = [];
           if (progress.total > 0) parts.push(`${progress.current}/${progress.total}`);

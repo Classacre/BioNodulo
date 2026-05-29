@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
 import { apiGetText } from '../../api/client';
 import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
+import { batchCountAtom, logsAtom } from '../../state/runAtoms';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
 
@@ -52,7 +53,6 @@ type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
 export type QueueMoveDirection = 'up' | 'down';
 
 interface BottomConsoleProps {
-  logs: LogEntry[];
   queue: RunRecord[];
   history: RunRecord[];
   onClose: () => void;
@@ -65,7 +65,6 @@ interface BottomConsoleProps {
   onClearQueue?: () => void;
   onClearHistory?: () => void;
   onCompareRuns?: () => void;
-  batchCount?: number;
   /**
    * Mapping from internal node UUID to its human-friendly title/type. When a
    * log entry's `node_id` matches an entry here, we render the friendly name
@@ -419,7 +418,6 @@ function ReportPanel({ history }: { history: RunRecord[] }) {
 }
 
 export default function BottomConsole({
-  logs,
   queue,
   history,
   onClose,
@@ -432,9 +430,10 @@ export default function BottomConsole({
   onClearQueue,
   onClearHistory,
   onCompareRuns,
-  batchCount,
   nodeIdToName,
 }: BottomConsoleProps) {
+  const logs = useAtomValue(logsAtom);
+  const batchCount = useAtomValue(batchCountAtom);
   const openLightbox = useSetAtom(openLightboxAtom);
   const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
   const [tab, setTab] = useState<ConsoleTab>('logs');
@@ -662,7 +661,7 @@ export default function BottomConsole({
     else if (run.status === 'error') stats.failed += 1;
     return stats;
   }, { running: 0, pending: 0, failed: 0, totalNodes: 0 });
-  const visibleBatchCount = batchCount ?? queue.length;
+  const visibleBatchCount = batchCount;
 
   return (
     <div className="bottom-console">

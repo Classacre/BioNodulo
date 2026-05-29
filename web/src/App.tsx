@@ -85,6 +85,13 @@ import {
   showVersionsAtom,
   showAuditAtom,
 } from './state/uiAtoms';
+import {
+  batchCountAtom,
+  hostStatusAtom,
+  isRunningAtom,
+  logsAtom,
+  nodeRunProgressAtom,
+} from './state/runAtoms';
 import { Modals } from './components/modals/Modals';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { AwarenessState, Comment, LivePresenceUser } from './collab';
@@ -483,7 +490,7 @@ export default function App() {
   }, [activeIndex, activeWorkflowId, addWorkflow, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setActiveIndex, setWorkflow, workflows, workflowNames]);
 
   // Host prerequisite status
-  const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
+  const [hostStatus, setHostStatus] = useAtom(hostStatusAtom);
   const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
 
   useEffect(() => {
@@ -496,7 +503,7 @@ export default function App() {
       .catch(() => { /* offline */ });
   }, []);
 
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const setLogs = useSetAtom(logsAtom);
   const MAX_LOGS = 5000;
   const addLog = useCallback((entry: LogEntry) => {
     setLogs(prev => {
@@ -513,29 +520,28 @@ export default function App() {
   // events ({ current, total } parsed from the payload's "i/N" progress hint)
   // and cleared once the node finishes/errors so the caption only sits on
   // actively-running nodes.
-  const [nodeRunProgress, setNodeRunProgress] = useState<Map<string, { current: number; total: number; startedAt: number }>>(() => new Map());
+  const setNodeRunProgress = useSetAtom(nodeRunProgressAtom);
   const recordNodeStart = useCallback((nodeId: string, progress: string | undefined) => {
     const [currentStr, totalStr] = String(progress || '').split('/');
     const current = Number.parseInt(currentStr, 10);
     const total = Number.parseInt(totalStr, 10);
-    setNodeRunProgress(prev => {
-      const next = new Map(prev);
-      next.set(nodeId, {
+    setNodeRunProgress(prev => ({
+      ...prev,
+      [nodeId]: {
         current: Number.isFinite(current) ? current : 0,
         total: Number.isFinite(total) ? total : 0,
         startedAt: Date.now(),
-      });
-      return next;
-    });
-  }, []);
+      },
+    }));
+  }, [setNodeRunProgress]);
   const clearNodeRunProgress = useCallback((nodeId: string) => {
     setNodeRunProgress(prev => {
-      if (!prev.has(nodeId)) return prev;
-      const next = new Map(prev);
-      next.delete(nodeId);
+      if (!Object.prototype.hasOwnProperty.call(prev, nodeId)) return prev;
+      const next = { ...prev };
+      delete next[nodeId];
       return next;
     });
-  }, []);
+  }, [setNodeRunProgress]);
 
   const updateNodeRunStatus = useCallback((runId: string, nodeId: string, status: NodeStatus['status'], error?: string) => {
     setRuns(prev => prev.map(run => {
@@ -763,8 +769,9 @@ export default function App() {
   const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
   const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [batchCount, setBatchCount] = useState(1);
+  const isRunning = useAtomValue(isRunningAtom);
+  const batchCount = useAtomValue(batchCountAtom);
+  const setIsRunning = useSetAtom(isRunningAtom);
   // Subgraph navigation: a breadcrumb of (parent workflow, subgraph node id)
   // pairs. While the stack is non-empty the canvas renders the inner workflow
   // of the topmost subgraph node; exiting writes the edits back to the parent.
@@ -2581,13 +2588,10 @@ export default function App() {
         onBatchSheet={() => setShowBatchSheet(true)}
         hpcStatus={hpcStatus}
         hpcEnabled={hpcEnabled}
-        isRunning={isRunning}
         queueMode={queueMode}
         onQueueModeChange={setQueueMode}
         queueCount={queueCount}
-        batchCount={batchCount}
         onToggleQueue={handleToggleQueue}
-        onBatchCountChange={(count) => setBatchCount(Math.max(1, Math.min(99, count)))}
         collabControls={collabEnabled ? (
           <CollabBadge
             enabled={collabEnabled}
@@ -2805,7 +2809,6 @@ export default function App() {
           onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
           onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
           nodeStatusMap={nodeStatusMap}
-          nodeProgressMap={nodeRunProgress}
           nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
@@ -2935,7 +2938,6 @@ export default function App() {
         {(consoleVisible || railTab === 'console') && (
           <ErrorBoundary name="console" variant="inline" resetKeys={[railTab, consoleVisible]}>
             <BottomConsole
-              logs={logs}
               queue={queuedRuns}
               history={runs}
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
@@ -2948,7 +2950,6 @@ export default function App() {
               onClearQueue={handleClearQueue}
               onClearHistory={handleClearHistory}
               onCompareRuns={() => setShowOutputDiff(true)}
-              batchCount={batchCount}
               nodeIdToName={nodeIdToNameMap}
             />
           </ErrorBoundary>

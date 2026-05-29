@@ -17,13 +17,21 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - `web/src/App.tsx` dropped the extracted hook bodies and modal render block, shrinking from roughly 3,495 lines to roughly 3,009 before the next state-ownership waves.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
-## App.tsx state ownership Wave B — `pending` — Lightbox atoms
+## App.tsx state ownership Wave B — `fe41fb8` — Lightbox atoms
 
 - Added `web/src/state/lightboxAtoms.ts` with lightbox open/images/index atoms, HTML-preview state, and a write-only `openLightboxAtom` action that updates the coupled lightbox state together.
 - `BottomConsole` now opens image and HTML previews through atoms instead of receiving `onOpenLightbox` / `onOpenHtmlPreview` props from App.
 - `Modals` now subscribes directly to lightbox and HTML-preview atoms, removing those fields from the App-provided modal context bundle.
 - `web/src/App.tsx` no longer owns lightbox or HTML-preview state and no longer forwards the preview opener callbacks into the console.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed. Local Vite responded at `http://localhost:5173/`; Browser-plugin smoke was blocked by the Windows sandbox spawn failure.
+
+## App.tsx state ownership Wave C — `pending` — Run telemetry atoms
+
+- Added `web/src/state/runAtoms.ts` with `isRunningAtom`, `batchCountAtom`, `logsAtom`, `hostStatusAtom`, and Record-backed `nodeRunProgressAtom`.
+- App still owns run orchestration, but now writes telemetry atoms instead of owning render state for logs, host status, running state, batch count, and node progress.
+- `TopBar` subscribes directly to running state and batch count; `BottomConsole` subscribes directly to logs and batch count.
+- `LiteGraphCanvas` subscribes to node progress with `selectAtom` and reads the Record by node id instead of receiving a `Map` prop from App.
+- Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
 ## Wave A — `74de87c` — Polish, search, auto-queue, focus mode
 

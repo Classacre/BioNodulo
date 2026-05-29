@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useAtom, useAtomValue } from 'jotai';
 import Icon from '../ui/Icon';
 import { useKeybindings } from '../../hooks/useKeybindings';
+import { batchCountAtom, isRunningAtom } from '../../state/runAtoms';
 
 export type HPCStatus = 'off' | 'error' | 'on';
 export type QueueMode = 'manual' | 'change' | 'instant';
@@ -20,13 +22,10 @@ interface TopBarProps {
   hpcStatus: HPCStatus;
   /** When false, the HPC badge is hidden entirely (settings.hpc.enabled is off). */
   hpcEnabled?: boolean;
-  isRunning: boolean;
   queueCount: number;
-  batchCount: number;
   queueMode?: QueueMode;
   onQueueModeChange?: (mode: QueueMode) => void;
   onToggleQueue: () => void;
-  onBatchCountChange: (count: number) => void;
   /**
    * When defined, rendered to the right of the validation badge — usually the
    * `<CollabBadge />`. When collab is disabled in settings the caller should
@@ -56,10 +55,12 @@ const QUEUE_MODE_LABELS: Record<QueueMode, string> = {
 export default function TopBar({
   validationValid, validationErrors, onRun, onExport,
   onAI, onBatchSheet, hpcStatus, hpcEnabled = false,
-  isRunning, queueCount, batchCount,
+  queueCount,
   queueMode = 'manual', onQueueModeChange,
-  onToggleQueue, onBatchCountChange, collabControls,
+  onToggleQueue, collabControls,
 }: TopBarProps) {
+  const isRunning = useAtomValue(isRunningAtom);
+  const [batchCount, setBatchCount] = useAtom(batchCountAtom);
   const { getBinding } = useKeybindings();
   const runShortcut = getBinding('workflow.run');
   const exportShortcut = getBinding('workflow.export');
@@ -96,6 +97,9 @@ export default function TopBar({
     'HPC OFF';
 
   const clampedCount = Math.max(1, Math.min(99, batchCount));
+  const updateBatchCount = (count: number) => {
+    setBatchCount(Math.max(1, Math.min(99, count)));
+  };
 
   return (
     <header className="topbar">
@@ -165,7 +169,7 @@ export default function TopBar({
                   aria-label="Decrease batch count"
                   title="Decrease batch count"
                   disabled={clampedCount <= 1 || isRunning}
-                  onClick={() => onBatchCountChange(clampedCount - 1)}
+                  onClick={() => updateBatchCount(clampedCount - 1)}
                 >
                   <Icon name="minus" size={12} />
                 </button>
@@ -178,7 +182,7 @@ export default function TopBar({
                   aria-label="Increase batch count"
                   title="Increase batch count"
                   disabled={clampedCount >= 99 || isRunning}
-                  onClick={() => onBatchCountChange(clampedCount + 1)}
+                  onClick={() => updateBatchCount(clampedCount + 1)}
                 >
                   <Icon name="plus" size={12} />
                 </button>
