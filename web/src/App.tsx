@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
@@ -16,17 +16,7 @@ const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
 const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
-import ExportModal from './components/modals/ExportModal';
-import ImportModal from './components/modals/ImportModal';
-import AIWorkflowModal from './components/modals/AIWorkflowModal';
-import BatchSampleSheetModal from './components/modals/BatchSampleSheetModal';
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
-import ImageLightbox from './components/modals/ImageLightbox';
-import HtmlPreviewModal from './components/modals/HtmlPreviewModal';
-import GettingStartedModal from './components/modals/GettingStartedModal';
-const OutputDiffModal = lazy(() => import('./components/modals/OutputDiffModal'));
-const BulkParamModal = lazy(() => import('./components/modals/BulkParamModal'));
-const WorkflowDoctorModal = lazy(() => import('./components/modals/WorkflowDoctorModal'));
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
@@ -48,12 +38,19 @@ import { useWorkflow } from './hooks/useWorkflow';
 import { useObjectInfo } from './hooks/useObjectInfo';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useAuth } from './hooks/useAuth';
+import { useAutoSave } from './hooks/useAutoSave';
+import { usePanelLayout } from './hooks/usePanelLayout';
+import { useHPC } from './hooks/useHPC';
+import { useWorkflowMessages } from './hooks/useWorkflowMessages';
+import { useQueueMode } from './hooks/useQueueMode';
+import { useCollabPolling } from './hooks/useCollabPolling';
 import { useRegisteredCommands } from './hooks/useCommandPalette';
 import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { logError } from './state/logging';
 import { usePanelRegistry } from './state/panels';
-import { rememberRecentWorkflow, refreshRecentThumbnail } from './state/recentWorkflows';
+import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
@@ -61,69 +58,40 @@ import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
   LiteGraphYjsBridge, useCollab, workflowToDoc, docToWorkflow,
-  CollabBadge, ShareDialog,
+  CollabBadge,
   getUserColor, getToken, AuthDialog,
-  CommentsPanel, VersionHistory, AuditLog,
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { safeValidateHostStatus, safeValidateHpcStatus } from './api/validators';
+import { safeValidateHostStatus } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
-import { useAuth } from './hooks/useAuth';
 import {
   requestedWorkflowIdAtom,
 } from './state/appAtoms';
+import {
+  showExportAtom,
+  showImportAtom,
+  showOutputDiffAtom,
+  showBulkParamAtom,
+  showDoctorAtom,
+  showAIAtom,
+  showBatchSheetAtom,
+  showGettingStartedAtom,
+  showShortcutsAtom,
+  showShareDialogAtom,
+  showCommentsAtom,
+  showVersionsAtom,
+  showAuditAtom,
+} from './state/uiAtoms';
+import { Modals } from './components/modals/Modals';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { AwarenessState, Comment, LivePresenceUser } from './collab';
-import type { HPCStatus } from './components/layout/TopBar';
 
 const EMPTY_COLLAB_USERS: AwarenessState[] = [];
 const EMPTY_STRING_ARRAY: string[] = [];
-const PANEL_WIDTHS_KEY = 'bionodulo.panel.widths';
-const PANEL_FLOATS_KEY = 'bionodulo.panel.floats';
-const PANEL_RIGHT_DOCKED_KEY = 'bionodulo.panel.rightDocked';
-const AUTO_SAVE_LAST_KEY = 'bionodulo.autoSave.last';
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
-type FloatingPanelLayout = Record<string, { x: number; y: number }>;
-
-function loadPanelWidths(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(PANEL_WIDTHS_KEY);
-    return raw ? JSON.parse(raw) as Record<string, number> : {};
-  } catch {
-    return {};
-  }
-}
-
-function loadFloatingPanels(): FloatingPanelLayout {
-  try {
-    const raw = localStorage.getItem(PANEL_FLOATS_KEY);
-    return raw ? JSON.parse(raw) as FloatingPanelLayout : {};
-  } catch {
-    return {};
-  }
-}
-
-function loadRightDockedPanels(): Record<string, true> {
-  try {
-    const raw = localStorage.getItem(PANEL_RIGHT_DOCKED_KEY);
-    const parsed = raw ? JSON.parse(raw) as unknown : null;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const result: Record<string, true> = {};
-    for (const key of Object.keys(parsed as Record<string, unknown>)) {
-      if ((parsed as Record<string, unknown>)[key]) result[key] = true;
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
-
-function clampPanelWidth(width: number): number {
-  return Math.max(280, Math.min(620, Math.round(width)));
-}
 
 function workflowNameSignature(workflows: Workflow[]): string {
   return JSON.stringify(workflows.map(workflow => [workflow.id ?? '', workflow.name || 'Untitled']));
@@ -253,7 +221,6 @@ export default function App() {
     authUser,
     authReady,
     showAuthDialog,
-    setShowAuthDialog,
     handleAuthLogin,
     handleAuthClose,
   } = useAuth({ collabEnabled, settingsReady });
@@ -391,57 +358,25 @@ export default function App() {
     };
   }, [activeWorkflowId, collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
 
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  // Phase 3 collaboration panels
-  const [showComments, setShowComments] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
-  const [showAudit, setShowAudit] = useState(false);
+  const setShowShareDialog = useSetAtom(showShareDialogAtom);
+  // Phase 3 collaboration panels — App reads showAI / showComments for shell
+  // class toggling; setters are passed to CollabBadge.
+  const showComments = useAtomValue(showCommentsAtom);
+  const setShowComments = useSetAtom(showCommentsAtom);
+  const setShowVersions = useSetAtom(showVersionsAtom);
+  const setShowAudit = useSetAtom(showAuditAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
 
-  const fetchWorkflowComments = useCallback(async () => {
-    if (!collabEnabled || !activeWorkflowId) return;
-    const token = getToken();
-    if (!token) return;
-    try {
-      const data = await apiGet<{ comments?: Comment[] }>(`/api/collab/workflows/${activeWorkflowId}/comments`);
-      setWorkflowComments(data.comments ?? []);
-    } catch (err) {
-      logError('collab.comments.fetch', err);
-      // Node comment pins are optional when collaboration is unavailable.
-    }
-  }, [activeWorkflowId, collabEnabled]);
-
-  useEffect(() => {
-    setWorkflowComments([]);
-    void fetchWorkflowComments();
-    if (!collabEnabled) return;
-    const interval = setInterval(fetchWorkflowComments, 5000);
-    return () => clearInterval(interval);
-  }, [collabEnabled, fetchWorkflowComments]);
-
-  const fetchLivePresence = useCallback(async () => {
-    if (!collabEnabled) return;
-    const token = getToken();
-    if (!token) return;
-    try {
-      const data = await apiGet<{ users?: LivePresenceUser[] }>('/api/collab/presence');
-      setLivePresenceUsers(data.users ?? []);
-    } catch (err) {
-      logError('collab.presence.fetch', err);
-      // Room-local awareness still drives collaborative cursor rendering.
-    }
-  }, [collabEnabled]);
-
-  useEffect(() => {
-    void fetchLivePresence();
-    if (!collabEnabled) return;
-    const interval = setInterval(fetchLivePresence, 3000);
-    return () => clearInterval(interval);
-  }, [collabEnabled, fetchLivePresence]);
+  const { refetchComments: fetchWorkflowComments } = useCollabPolling({
+    collabEnabled,
+    activeWorkflowId,
+    setWorkflowComments,
+    setLivePresenceUsers,
+  });
 
   useEffect(() => {
     if (!followingUserId) return;
@@ -801,34 +736,32 @@ export default function App() {
 
   const [consoleVisible, setConsoleVisible] = useState(false);
   const [railTab, setRailTabState] = useState<RailTab>(null);
-  const [openPanelTabs, setOpenPanelTabs] = useState<OpenPanelTab[]>([]);
-  const [panelWidths, setPanelWidths] = useState<Record<string, number>>(() => loadPanelWidths());
-  const [floatingPanels, setFloatingPanels] = useState<FloatingPanelLayout>(() => loadFloatingPanels());
-  const [rightDockedPanels, setRightDockedPanels] = useState<Record<string, true>>(() => loadRightDockedPanels());
 
-  const toggleRightDocked = useCallback((tab: OpenPanelTab) => {
-    setRightDockedPanels(prev => {
-      const next = { ...prev };
-      if (next[tab]) delete next[tab];
-      else next[tab] = true;
-      try {
-        localStorage.setItem(PANEL_RIGHT_DOCKED_KEY, JSON.stringify(next));
-      } catch {
-        // localStorage failures are non-fatal for a UI preference.
-      }
-      return next;
-    });
-  }, []);
-  const [showExport, setShowExport] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showOutputDiff, setShowOutputDiff] = useState(false);
-  const [showBulkParam, setShowBulkParam] = useState(false);
-  const [showDoctor, setShowDoctor] = useState(false);
+  // Panel layout state — extracted to usePanelLayout.
+  const {
+    openPanelTabs,
+    setOpenPanelTabs,
+    panelWidths,
+    setPanelWidth,
+    floatingPanels,
+    setFloatingPanel,
+    toggleFloatingPanel,
+    rightDockedPanels,
+    toggleRightDocked,
+  } = usePanelLayout();
 
-  const [showAI, setShowAI] = useState(false);
-  const [showBatchSheet, setShowBatchSheet] = useState(false);
-  const [showGettingStarted, setShowGettingStarted] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
+  const setShowExport = useSetAtom(showExportAtom);
+  const setShowImport = useSetAtom(showImportAtom);
+  const setShowOutputDiff = useSetAtom(showOutputDiffAtom);
+  const setShowBulkParam = useSetAtom(showBulkParamAtom);
+  const setShowDoctor = useSetAtom(showDoctorAtom);
+
+  // App reads showAI for shell class; setter is passed to TopBar.
+  const showAI = useAtomValue(showAIAtom);
+  const setShowAI = useSetAtom(showAIAtom);
+  const setShowBatchSheet = useSetAtom(showBatchSheetAtom);
+  const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
+  const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
 
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -882,33 +815,8 @@ export default function App() {
       return next;
     });
   }, []);
-  type QueueMode = 'manual' | 'change' | 'instant';
-  const [queueMode, setQueueModeState] = useState<QueueMode>(() => {
-    try {
-      const stored = localStorage.getItem('bionodulo.queueMode');
-      if (stored === 'change' || stored === 'instant' || stored === 'manual') return stored;
-    } catch { /* ignore */ }
-    return 'manual';
-  });
-  const setQueueMode = useCallback((mode: QueueMode) => {
-    setQueueModeState(mode);
-    try { localStorage.setItem('bionodulo.queueMode', mode); } catch { /* ignore */ }
-  }, []);
-  const queueModeRef = useRef<QueueMode>(queueMode);
-  useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [, setLastAutoSaveAt] = useState<string | null>(() => {
-    try { return localStorage.getItem(AUTO_SAVE_LAST_KEY); } catch { return null; }
-  });
-
-  const setPanelWidth = useCallback((tab: OpenPanelTab, width: number) => {
-    setPanelWidths(prev => {
-      const next = { ...prev, [tab]: clampPanelWidth(width) };
-      try { localStorage.setItem(PANEL_WIDTHS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
 
   const startPanelResize = useCallback((tab: OpenPanelTab, startClientX: number, startWidth: number, isRight = false) => {
     const sign = isRight ? -1 : 1;
@@ -955,30 +863,6 @@ export default function App() {
     setPanelWidth(tab, current + delta);
   }, [panelWidths, setPanelWidth]);
 
-  const setFloatingPanel = useCallback((tab: OpenPanelTab, layout: { x: number; y: number } | null) => {
-    setFloatingPanels(prev => {
-      const next = { ...prev };
-      if (layout) {
-        next[tab] = {
-          x: Math.max(12, Math.min(window.innerWidth - 320, Math.round(layout.x))),
-          y: Math.max(8, Math.min(window.innerHeight - 180, Math.round(layout.y))),
-        };
-      } else {
-        delete next[tab];
-      }
-      try { localStorage.setItem(PANEL_FLOATS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
-
-  const toggleFloatingPanel = useCallback((tab: OpenPanelTab, index: number) => {
-    if (floatingPanels[tab]) {
-      setFloatingPanel(tab, null);
-      return;
-    }
-    setFloatingPanel(tab, { x: 80 + index * 28, y: 72 + index * 24 });
-  }, [floatingPanels, setFloatingPanel]);
-
   const [draggingPanelTab, setDraggingPanelTab] = useState<OpenPanelTab | null>(null);
   const [panelDropZone, setPanelDropZone] = useState<'left' | 'right' | null>(null);
   const startPanelDrag = useCallback((tab: OpenPanelTab, startClientX: number, startClientY: number, origin: { x: number; y: number }) => {
@@ -1008,25 +892,17 @@ export default function App() {
       // Drop on an edge: snap-dock the panel to that side and clear the
       // float position so it goes back into the docked stack.
       if (zone) {
-        setFloatingPanels(prev => {
-          if (!(tab in prev)) return prev;
-          const next = { ...prev };
-          delete next[tab];
-          try { localStorage.setItem(PANEL_FLOATS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-          return next;
-        });
-        setRightDockedPanels(prev => {
-          const next = { ...prev };
-          if (zone === 'right') next[tab] = true;
-          else delete next[tab];
-          try { localStorage.setItem(PANEL_RIGHT_DOCKED_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-          return next;
-        });
+        setFloatingPanel(tab, null);
+        if (zone === 'right' && !rightDockedPanels[tab]) {
+          toggleRightDocked(tab);
+        } else if (zone === 'left' && rightDockedPanels[tab]) {
+          toggleRightDocked(tab);
+        }
       }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  }, [setFloatingPanel]);
+  }, [setFloatingPanel, rightDockedPanels, toggleRightDocked]);
 
   const setRailTab = useCallback((next: RailTab | ((prev: RailTab) => RailTab)) => {
     setRailTabState(prev => {
@@ -1053,185 +929,16 @@ export default function App() {
   }, [authUser?.id]);
   const { onMessage } = useWebSocket(wsUrl);
 
-  useEffect(() => {
-    const unsub = onMessage((msg: unknown) => {
-      const data = msg as Record<string, unknown>;
-      const payload = (typeof data.data === 'object' && data.data !== null) ? data.data as Record<string, unknown> : {};
-      const ts = String(payload.timestamp || new Date().toISOString());
-
-      // --- Install events (pixi + dependency installer) ---
-      if (data.type === 'install.log') {
-        addLog({
-          run_id: 'install-pixi',
-          node_id: 'host',
-          level: (payload.level as LogEntry['level']) || 'info',
-          message: String(payload.message || ''),
-          timestamp: ts,
-        });
-        return;
-      }
-      if (data.type === 'install.progress') {
-        addLog({
-          run_id: String(payload.job_id || 'dependency-install'),
-          node_id: 'host',
-          level: (payload.level as LogEntry['level']) || 'info',
-          message: String(payload.message || ''),
-          timestamp: ts,
-        });
-        return;
-      }
-
-      // --- Workflow execution logs ---
-      if (data.type === 'log' && payload.message) {
-        addLog({
-          run_id: String(payload.run_id || data.source || 'workflow'),
-          node_id: String(payload.node_id || 'engine'),
-          level: (payload.level as LogEntry['level']) || 'info',
-          message: String(payload.message),
-          timestamp: ts,
-        });
-        return;
-      }
-
-      // --- Execution lifecycle events ---
-      const runId = String(payload.run_id || data.source || 'workflow');
-      if (data.type === 'start') {
-        addLog({ run_id: runId, node_id: 'engine', level: 'info', message: `Workflow started (${payload.total_nodes} nodes)`, timestamp: ts });
-      } else if (data.type === 'node_start') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'running');
-        recordNodeStart(String(payload.node_id), payload.progress as string | undefined);
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Node start [${payload.progress}] ${payload.node_type}`, timestamp: ts });
-      } else if (data.type === 'node_complete') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'completed');
-        clearNodeRunProgress(String(payload.node_id));
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'success', message: `Node completed`, timestamp: ts });
-      } else if (data.type === 'node_error') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'error', String(payload.error || 'Node error'));
-        clearNodeRunProgress(String(payload.node_id));
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'error', message: `Node error: ${payload.error}`, timestamp: ts });
-      } else if (data.type === 'node_skip') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
-        clearNodeRunProgress(String(payload.node_id));
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node skipped (${payload.reason})`, timestamp: ts });
-      } else if (data.type === 'node_bypass') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'skipped');
-        clearNodeRunProgress(String(payload.node_id));
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'warn', message: `Node bypassed`, timestamp: ts });
-      } else if (data.type === 'node_cache_hit') {
-        updateNodeRunStatus(runId, String(payload.node_id), 'cached');
-        clearNodeRunProgress(String(payload.node_id));
-        addLog({ run_id: runId, node_id: String(payload.node_id), level: 'info', message: `Cache hit — skipping execution`, timestamp: ts });
-      } else if (data.type === 'complete') {
-        addLog({ run_id: runId, node_id: 'engine', level: payload.status === 'completed' ? 'success' : 'error', message: `Workflow ${payload.status}`, timestamp: ts });
-      } else if (data.type === 'error') {
-        addLog({ run_id: runId, node_id: 'engine', level: 'error', message: `Workflow error: ${payload.message}`, timestamp: ts });
-      } else if (data.type === 'cancelled') {
-        addLog({ run_id: runId, node_id: String(payload.node_id || 'engine'), level: 'warn', message: `Workflow cancelled`, timestamp: ts });
-      }
-
-      // --- Preview events ---
-      else if (data.type === 'preview') {
-        const previewRunId = String(payload.run_id || data.source || '');
-        const nodeId = String(payload.node_id || '');
-        const path = String(payload.path || '');
-        if (previewRunId && nodeId && path) {
-          updateRun(previewRunId, {
-            previews: {
-              ...(runs.find(r => r.run_id === previewRunId)?.previews || {}),
-              [nodeId]: path,
-            },
-          });
-        }
-      }
-
-      // --- Queue events ---
-      else if (data.type === 'queue_submit') {
-        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'info', message: `Run submitted`, timestamp: ts });
-      } else if (data.type === 'queue_start') {
-        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'info', message: `Run started`, timestamp: ts });
-        updateRun(String(payload.run_id), { status: 'running', start_time: ts });
-      } else if (data.type === 'queue_finish') {
-        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'success', message: `Run finished (${payload.status})`, timestamp: ts });
-        const finalStatus = payload.status === 'completed' ? 'completed' : payload.status === 'failed' ? 'error' : 'cancelled';
-        const finishedRunId = String(payload.run_id);
-        updateRun(finishedRunId, { status: finalStatus, end_time: ts });
-        // Once a run terminates, no node should remain in `running`. Sweep any
-        // stragglers — promote them based on the run outcome. This prevents
-        // the green "active" highlight from sticking on nodes after a finished
-        // (completed/failed/cancelled) workflow when a `node_complete` event
-        // is dropped or arrives out of order. `NodeStatus` has no `cancelled`
-        // state, so cancelled runs flip their stragglers to `error`.
-        const promotedStatus: 'completed' | 'error' =
-          finalStatus === 'completed' ? 'completed' : 'error';
-        setRuns(prev => prev.map(run => {
-          if (run.run_id !== finishedRunId) return run;
-          const promoted = run.node_statuses.map(ns =>
-            ns.status === 'running' ? { ...ns, status: promotedStatus } : ns,
-          );
-          return { ...run, node_statuses: promoted };
-        }));
-        // A failed run drops out of the active queue automatically (the queue
-        // view filters on pending/running) but stays in history. Surface a
-        // toast so the user notices the failure without scanning the console.
-        if (finalStatus === 'error') {
-          const failedRun = runs.find(r => r.run_id === finishedRunId);
-          const wfName = failedRun?.workflow_name || 'Workflow';
-          toast.error('Run failed', {
-            message: `${wfName} — see the console for details.`,
-          });
-        }
-        // Fetch full run details to populate previews/artifacts
-        apiGet<Record<string, unknown>>(`/api/runs/${finishedRunId}`)
-          .then((runData) => {
-            if (!runData) return;
-            const result = runData.result as Record<string, unknown> | undefined;
-            if (!result) return;
-            const previews: Record<string, string> = {};
-            const previewList = result.previews as Array<{ node_id?: string; path?: string }> | undefined;
-            if (previewList) {
-              for (const p of previewList) {
-                if (p.node_id && p.path) previews[p.node_id] = p.path;
-              }
-            }
-            const artifacts: Record<string, string> = {};
-            const artifactList = result.artifacts as Array<{ node_id?: string; path?: string }> | undefined;
-            if (artifactList) {
-              for (const a of artifactList) {
-                if (a.node_id && a.path) artifacts[a.node_id] = a.path;
-              }
-            }
-            updateRun(finishedRunId, { previews, artifacts });
-          })
-          .catch(() => { /* ignore */ });
-      } else if (data.type === 'queue_error') {
-        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'error', message: `Run error: ${payload.error}`, timestamp: ts });
-        updateRun(String(payload.run_id), { status: 'error', end_time: ts });
-        // queue_error fires for errors that don't go through queue_finish
-        // (early validation failures, executor crashes). Always toast.
-        const erroredRunId = String(payload.run_id);
-        const erroredRun = runs.find(r => r.run_id === erroredRunId);
-        const wfName = erroredRun?.workflow_name || 'Workflow';
-        const errMsg = typeof payload.error === 'string' && payload.error
-          ? payload.error.split('\n')[0].slice(0, 160)
-          : 'see the console for details';
-        toast.error('Run failed', { message: `${wfName} — ${errMsg}` });
-        // Same defense as queue_finish: promote any stuck `running` nodes to
-        // `error` so the canvas reflects the failure visually.
-        setRuns(prev => prev.map(run => {
-          if (run.run_id !== erroredRunId) return run;
-          const promoted = run.node_statuses.map(ns =>
-            ns.status === 'running' ? { ...ns, status: 'error' as const } : ns,
-          );
-          return { ...run, node_statuses: promoted };
-        }));
-      } else if (data.type === 'queue_interrupt') {
-        addLog({ run_id: String(payload.run_id), node_id: 'queue', level: 'warn', message: `Run interrupted`, timestamp: ts });
-        updateRun(String(payload.run_id), { status: 'cancelled', end_time: ts });
-      }
-    });
-    return unsub;
-  }, [onMessage, addLog, runs, updateRun, updateNodeRunStatus]);
-  const [hpcStatus, setHpcStatus] = useState<HPCStatus>('off');
+  useWorkflowMessages({
+    onMessage,
+    addLog,
+    runs,
+    updateRun,
+    setRuns,
+    updateNodeRunStatus,
+    recordNodeStart,
+    clearNodeRunProgress,
+  });
 
   // Getting Started modal visibility
   useEffect(() => {
@@ -1318,32 +1025,12 @@ export default function App() {
     hpcWalltime,
   ]);
 
-  // Fetch HPC status from backend
-  useEffect(() => {
-    const checkHpcStatus = async () => {
-      try {
-        const raw = await apiGet<unknown>('/api/hpc/status');
-        const result = safeValidateHpcStatus(raw);
-        if (result.ok) {
-          const { status, connected } = result.value;
-          setHpcStatus(status || (connected ? 'on' : 'off'));
-        } else {
-          setHpcStatus('off');
-        }
-      } catch (err) {
-        if (err instanceof ApiError) {
-          setHpcStatus('off');
-        } else {
-          logError('hpc.status.poll', err);
-          setHpcStatus('off');
-        }
-      }
-    };
-    checkHpcStatus();
-    // Poll every 30 seconds
-    const interval = setInterval(checkHpcStatus, 30000);
-    return () => clearInterval(interval);
-  }, [hpcEnabled, hpcConfig.backend, hpcConfig.partition]);
+  // HPC status polling — extracted to useHPC.
+  const { hpcStatus } = useHPC({
+    hpcEnabled,
+    hpcBackend,
+    hpcPartition,
+  });
 
   const updateActive = useCallback((partial: Partial<Workflow>) => {
     updateWorkflow(activeIndex, partial);
@@ -2563,6 +2250,15 @@ export default function App() {
     latestWorkflowRef.current = activeWorkflow;
   }, [activeWorkflow]);
 
+  // Auto-save timer — extracted to useAutoSave.
+  useAutoSave({
+    autoSaveSetting,
+    collabEnabled,
+    latestWorkflow: latestWorkflowRef.current,
+    publishCollabWorkflowSnapshot,
+    setDirty,
+  });
+
   const workflowResolveKey = useMemo(() => JSON.stringify({
     id: activeWorkflow.id,
     nodes: activeWorkflow.nodes.map(node => [
@@ -2600,68 +2296,13 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [workflowResolveKey, validate, resolve, clearResolveReport]);
 
-  // Auto-queue: 'change' mode debounces a run when the workflow becomes dirty;
-  // 'instant' mode re-runs as soon as the most recent run finishes successfully.
-  const handleRunRef = useRef(handleRun);
-  useEffect(() => { handleRunRef.current = handleRun; }, [handleRun]);
-
-  useEffect(() => {
-    if (queueMode !== 'change') return;
-    if (!dirty || isRunning) return;
-    // Skip auto-queue when the workflow is empty *of executable nodes*. Notes
-    // alone shouldn't trigger a backend run.
-    const realNodes = (activeWorkflow.nodes || []).filter(
-      n => n.type !== 'note' && n.type !== 'reroute',
-    );
-    if (realNodes.length === 0) return;
-    const timer = setTimeout(() => { void handleRunRef.current(); }, 1500);
-    return () => clearTimeout(timer);
-  }, [queueMode, dirty, isRunning, activeWorkflow.nodes]);
-
-  const lastInstantRunRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (queueMode !== 'instant') return;
-    if (isRunning) return;
-    const latest = runs[0];
-    if (!latest) return;
-    if (latest.status !== 'completed') return;
-    if (lastInstantRunRef.current === latest.run_id) return;
-    lastInstantRunRef.current = latest.run_id;
-    // Tiny delay so the UI can settle and the user can still cancel
-    // the auto-queue by switching mode before the next run fires.
-    const timer = setTimeout(() => { void handleRunRef.current(); }, 250);
-    return () => clearTimeout(timer);
-  }, [queueMode, isRunning, runs]);
-
-  useEffect(() => {
-    if (autoSaveSetting === 'off') return;
-    const seconds = parseInt(autoSaveSetting.replace('s', ''), 10);
-    if (!Number.isFinite(seconds) || seconds <= 0) return;
-    const timer = setInterval(() => {
-      const workflow = latestWorkflowRef.current;
-      try {
-        localStorage.setItem(AUTO_SAVE_LAST_KEY, new Date().toISOString());
-      } catch { /* ignore */ }
-      if (collabEnabled) {
-        void publishCollabWorkflowSnapshot(workflow);
-      }
-      // Keep the recents thumbnail current so reopening from Getting Started
-      // reflects the current shape of the workflow, not the moment of import.
-      if (workflow?.id && (workflow.nodes?.length ?? 0) > 0) {
-        const thumbnail = renderRecentThumbnail(workflow);
-        if (thumbnail) {
-          refreshRecentThumbnail(workflow.id, thumbnail, {
-            name: workflow.name,
-            nodeCount: workflow.nodes?.length ?? 0,
-          });
-        }
-      }
-      const savedAt = new Date().toISOString();
-      setLastAutoSaveAt(savedAt);
-      setDirty(false);
-    }, seconds * 1000);
-    return () => clearInterval(timer);
-  }, [autoSaveSetting, collabEnabled, publishCollabWorkflowSnapshot]);
+  const { queueMode, setQueueMode } = useQueueMode({
+    dirty,
+    isRunning,
+    activeNodes: activeWorkflow.nodes,
+    runs,
+    triggerRun: handleRun,
+  });
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
@@ -3333,162 +2974,35 @@ export default function App() {
         )}
       </div>
 
-      <ShareDialog
-        workflowId={activeWorkflowId}
-        isOpen={showShareDialog}
-        onClose={() => setShowShareDialog(false)}
-      />
-
-      {/* Phase 3 Collaboration Panels */}
-      <CommentsPanel
-        workflowId={activeWorkflowId}
-        selectedNodeId={null}
-        currentUser={currentUser}
-        isOpen={showComments}
-        onClose={() => setShowComments(false)}
-        onFocusNode={(nodeId) => {
-          setSelectedNodeId(nodeId);
-          canvasRef.current?.focusNode(nodeId);
-        }}
-        onCommentsChange={setWorkflowComments}
-        onWorkflowNamesChange={setWorkflowNames}
-      />
-      <VersionHistory
-        workflowId={activeWorkflowId}
-        isOpen={showVersions}
-        onClose={() => setShowVersions(false)}
-        onRestore={(versionJson) => {
-          if (versionJson && typeof versionJson === 'object') {
-            const v = versionJson as Record<string, unknown>;
-            const nextWorkflow = {
-              ...activeWorkflowRef.current,
-              id: activeWorkflowId,
-              nodes: valuesFromUnknownRecord<WorkflowNode>(v.nodes),
-              edges: valuesFromUnknownRecord<Workflow['edges'][number]>(v.edges),
-              groups: valuesFromUnknownRecord<Workflow['groups'][number]>(v.groups),
-            };
-            if (bridgeRef.current) {
-              bridgeRef.current.onNodesChanged(nextWorkflow.nodes);
-              bridgeRef.current.onEdgesChanged(nextWorkflow.edges);
-              bridgeRef.current.onGroupsChanged(nextWorkflow.groups);
-            }
-            updateWorkflow(activeIndex, nextWorkflow);
-            void publishCollabWorkflowSnapshot(nextWorkflow);
-          }
-        }}
-      />
-      <AuditLog
-        workflowId={activeWorkflowId}
-        isOpen={showAudit}
-        onClose={() => setShowAudit(false)}
-      />
-
-      {/* Modals */}
-      {showExport && <ExportModal workflow={activeWorkflow} onClose={() => setShowExport(false)} />}
-      {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />}
-      {showOutputDiff && (
-        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading run diff" /></div>}>
-          <OutputDiffModal runs={runs} onClose={() => setShowOutputDiff(false)} />
-        </Suspense>
-      )}
-      {showDoctor && (
-        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading doctor" /></div>}>
-          <WorkflowDoctorModal
-            workflow={activeWorkflow}
-            objectInfo={objectInfo}
-            onClose={() => setShowDoctor(false)}
-            onJumpToNode={(id) => { canvasRef.current?.focusNode(id); setShowDoctor(false); }}
-          />
-        </Suspense>
-      )}
-      {showBulkParam && (() => {
-        const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
-        const selectedNodes = activeWorkflow.nodes.filter(n => selectedIds.includes(n.id));
-        return (
-          <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading bulk editor" /></div>}>
-            <BulkParamModal
-              nodes={selectedNodes}
-              onClose={() => setShowBulkParam(false)}
-              onApply={(changes) => {
-                if (changes.length === 0) return;
-                const idSet = new Set(selectedIds);
-                const nextNodes = activeWorkflow.nodes.map(n => {
-                  if (!idSet.has(n.id)) return n;
-                  const nextParams = { ...n.params };
-                  for (const { key, value } of changes) {
-                    if (!Object.prototype.hasOwnProperty.call(nextParams, key)) continue;
-                    nextParams[key] = value;
-                  }
-                  return { ...n, params: nextParams };
-                });
-                updateWorkflow(activeIndex, { ...activeWorkflow, nodes: nextNodes });
-                toast.success('Bulk edit applied', { message: `${changes.length} param${changes.length === 1 ? '' : 's'} → ${selectedNodes.length} node${selectedNodes.length === 1 ? '' : 's'}` });
-              }}
-            />
-          </Suspense>
-        );
-      })()}
-      {showAI && (
-        <AIWorkflowModal
-          workflow={activeWorkflow}
-          onClose={() => setShowAI(false)}
-          onApplyWorkflow={handleApplyWorkflow}
-        />
-      )}
-      {showBatchSheet && (
-        <BatchSampleSheetModal
-          workflow={activeWorkflow}
-          onClose={() => setShowBatchSheet(false)}
-          onSubmit={handleBatchSheetSubmit}
-        />
-      )}
-      {showGettingStarted && (
-        <GettingStartedModal
-          onClose={() => {
-            set('bionodulo.getting_started.dismissed', true);
-            setShowGettingStarted(false);
-          }}
-          onDontShowAgain={(hide) => {
-            set('bionodulo.getting_started.show_on_startup', !hide);
-          }}
-          collabEnabled={collabEnabled}
-          onSetCollabEnabled={(enabled) => {
-            set('bionodulo.collab.enabled', enabled);
-            if (!enabled) {
-              setShowAuthDialog(false);
-            } else if (!authUser) {
-              setShowAuthDialog(true);
-            }
-          }}
-          showOnStartup={getBool('bionodulo.getting_started.show_on_startup')}
-          onOpenRecent={async (entry) => {
-            if (entry.source === 'template' && entry.filename) {
-              const template = {
-                id: entry.id,
-                name: entry.name,
-                filename: entry.filename,
-                description: '',
-                node_count: entry.nodeCount ?? 0,
-              } as TemplateInfo;
-              await handleLoadTemplate(template);
-            } else if (collabEnabled) {
-              setRequestedWorkflowId(entry.id);
-            }
-          }}
-        />
-      )}
-      <ImageLightbox
-        images={lightboxImages}
-        initialIndex={lightboxIndex}
-        isOpen={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
-      />
-      <HtmlPreviewModal
-        src={htmlPreviewState?.src ?? ''}
-        filename={htmlPreviewState?.filename ?? ''}
-        isOpen={htmlPreviewState !== null}
-        onClose={() => setHtmlPreviewState(null)}
-      />
+      <Modals ctx={{
+        activeWorkflow,
+        activeWorkflowId,
+        activeIndex,
+        updateWorkflow,
+        activeWorkflowRef,
+        bridgeRef,
+        canvasRef,
+        runs,
+        objectInfo,
+        currentUser,
+        collabEnabled,
+        authUser,
+        getBool,
+        set,
+        handleImport,
+        handleApplyWorkflow,
+        handleBatchSheetSubmit,
+        handleLoadTemplate,
+        publishCollabWorkflowSnapshot,
+        lightboxOpen,
+        lightboxImages,
+        lightboxIndex,
+        setLightboxOpen,
+        htmlPreviewState,
+        setHtmlPreviewState,
+        setWorkflowComments,
+        setWorkflowNames,
+      }} />
 
     </div>
   );

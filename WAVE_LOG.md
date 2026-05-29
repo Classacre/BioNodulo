@@ -9,6 +9,14 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 
 ---
 
+## App.tsx state ownership prep — `pending` — Hooks + modal atoms
+
+- Extracted six App-owned behaviours into focused hooks: auto-save snapshot publishing, panel layout persistence, HPC polling, WebSocket workflow message dispatch, queue-mode effects, and collaboration comments/presence polling.
+- Added `web/src/state/uiAtoms.ts` for modal flags plus UI shell atoms, matching the existing flat atom export pattern.
+- Moved the 13-modal JSX cluster into `web/src/components/modals/Modals.tsx`; each modal now owns its open flag subscription while App passes only the workflow-coupled context bundle.
+- `web/src/App.tsx` dropped the extracted hook bodies and modal render block, shrinking from roughly 3,495 lines to roughly 3,009 before the next state-ownership waves.
+- Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
+
 ## Wave A — `74de87c` — Polish, search, auto-queue, focus mode
 
 - Focus mode (`Ctrl+.`): hide chrome to give canvas the full viewport; floating exit pill.
