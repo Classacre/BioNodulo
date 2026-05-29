@@ -5,6 +5,7 @@ import Icon from '../ui/Icon';
 import { apiGetText } from '../../api/client';
 import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
 import { batchCountAtom, logsAtom } from '../../state/runAtoms';
+import { showOutputDiffAtom } from '../../state/uiAtoms';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
 
@@ -64,7 +65,6 @@ interface BottomConsoleProps {
   onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
   onClearQueue?: () => void;
   onClearHistory?: () => void;
-  onCompareRuns?: () => void;
   /**
    * Mapping from internal node UUID to its human-friendly title/type. When a
    * log entry's `node_id` matches an entry here, we render the friendly name
@@ -429,13 +429,13 @@ export default function BottomConsole({
   onMoveRun,
   onClearQueue,
   onClearHistory,
-  onCompareRuns,
   nodeIdToName,
 }: BottomConsoleProps) {
   const logs = useAtomValue(logsAtom);
   const batchCount = useAtomValue(batchCountAtom);
   const openLightbox = useSetAtom(openLightboxAtom);
   const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
+  const setShowOutputDiff = useSetAtom(showOutputDiffAtom);
   const [tab, setTab] = useState<ConsoleTab>('logs');
   const [showVerbose, setShowVerbose] = useState(true);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
@@ -873,17 +873,15 @@ export default function BottomConsole({
                       </button>
                     ))}
                   </div>
-                  {onCompareRuns && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      onClick={onCompareRuns}
-                      disabled={history.length < 1}
-                      title="Compare outputs of two completed runs"
-                    >
-                      <Icon name="layers" size={12} /> Compare runs
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setShowOutputDiff(true)}
+                    disabled={history.length < 1}
+                    title="Compare outputs of two completed runs"
+                  >
+                    <Icon name="layers" size={12} /> Compare runs
+                  </button>
                   {onClearHistory && (
                     <button
                       type="button"

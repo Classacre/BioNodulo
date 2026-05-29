@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import Icon from '../ui/Icon';
 import { useKeybindings } from '../../hooks/useKeybindings';
 import { batchCountAtom, isRunningAtom } from '../../state/runAtoms';
+import { showAIAtom, showBatchSheetAtom, showExportAtom } from '../../state/uiAtoms';
 
 export type HPCStatus = 'off' | 'error' | 'on';
 export type QueueMode = 'manual' | 'change' | 'instant';
@@ -16,9 +17,6 @@ interface TopBarProps {
   validationValid: boolean;
   validationErrors: string[];
   onRun: () => void;
-  onExport: () => void;
-  onAI: () => void;
-  onBatchSheet?: () => void;
   hpcStatus: HPCStatus;
   /** When false, the HPC badge is hidden entirely (settings.hpc.enabled is off). */
   hpcEnabled?: boolean;
@@ -53,14 +51,16 @@ const QUEUE_MODE_LABELS: Record<QueueMode, string> = {
 };
 
 export default function TopBar({
-  validationValid, validationErrors, onRun, onExport,
-  onAI, onBatchSheet, hpcStatus, hpcEnabled = false,
+  validationValid, validationErrors, onRun, hpcStatus, hpcEnabled = false,
   queueCount,
   queueMode = 'manual', onQueueModeChange,
   onToggleQueue, collabControls,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
+  const setShowExport = useSetAtom(showExportAtom);
+  const setShowAI = useSetAtom(showAIAtom);
+  const setShowBatchSheet = useSetAtom(showBatchSheetAtom);
   const { getBinding } = useKeybindings();
   const runShortcut = getBinding('workflow.run');
   const exportShortcut = getBinding('workflow.export');
@@ -208,23 +208,19 @@ export default function TopBar({
                   {QUEUE_MODE_LABELS[mode]}
                 </button>
               ))}
-              {onBatchSheet && (
-                <>
-                  <div className="run-split-menu-divider" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="run-split-menu-item"
-                    onClick={() => {
-                      onBatchSheet();
-                      setRunMenuOpen(false);
-                    }}
-                    disabled={isRunning}
-                  >
-                    <Icon name="template" size={12} /> Batch from sheet…
-                  </button>
-                </>
-              )}
+              <div className="run-split-menu-divider" />
+              <button
+                type="button"
+                role="menuitem"
+                className="run-split-menu-item"
+                onClick={() => {
+                  setShowBatchSheet(true);
+                  setRunMenuOpen(false);
+                }}
+                disabled={isRunning}
+              >
+                <Icon name="template" size={12} /> Batch from sheet…
+              </button>
             </div>
           )}
         </div>
@@ -234,7 +230,7 @@ export default function TopBar({
             visually match its action (out-of-app). */}
         <button
           className="btn btn-sm"
-          onClick={onExport}
+          onClick={() => setShowExport(true)}
           title={withShortcut('Export workflow', exportShortcut)}
           aria-label={withShortcut('Export workflow', exportShortcut)}
         >
@@ -242,7 +238,7 @@ export default function TopBar({
         </button>
         <button
           className="btn btn-ai btn-sm"
-          onClick={onAI}
+          onClick={() => setShowAI(true)}
           title={withShortcut('AI Assistant', aiShortcut)}
           aria-label={withShortcut('Open AI assistant', aiShortcut)}
         >

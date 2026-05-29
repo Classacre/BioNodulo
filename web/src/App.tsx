@@ -73,17 +73,13 @@ import {
 import {
   showExportAtom,
   showImportAtom,
-  showOutputDiffAtom,
   showBulkParamAtom,
   showDoctorAtom,
   showAIAtom,
   showBatchSheetAtom,
   showGettingStartedAtom,
   showShortcutsAtom,
-  showShareDialogAtom,
   showCommentsAtom,
-  showVersionsAtom,
-  showAuditAtom,
   selectedNodeIdAtom,
   consoleVisibleAtom,
   focusModeAtom,
@@ -368,13 +364,9 @@ export default function App() {
     };
   }, [activeWorkflowId, collabDoc, collabConnecting, activeIndex, claimCollabDrag, releaseCollabDrag]);
 
-  const setShowShareDialog = useSetAtom(showShareDialogAtom);
   // Phase 3 collaboration panels — App reads showAI / showComments for shell
-  // class toggling; setters are passed to CollabBadge.
+  // class toggling.
   const showComments = useAtomValue(showCommentsAtom);
-  const setShowComments = useSetAtom(showCommentsAtom);
-  const setShowVersions = useSetAtom(showVersionsAtom);
-  const setShowAudit = useSetAtom(showAuditAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
@@ -762,7 +754,6 @@ export default function App() {
 
   const setShowExport = useSetAtom(showExportAtom);
   const setShowImport = useSetAtom(showImportAtom);
-  const setShowOutputDiff = useSetAtom(showOutputDiffAtom);
   const setShowBulkParam = useSetAtom(showBulkParamAtom);
   const setShowDoctor = useSetAtom(showDoctorAtom);
 
@@ -833,7 +824,7 @@ export default function App() {
   // keys nudge the width. Step is 16px (1× snap grid).
   const handlePanelResizeKey = useCallback((tab: OpenPanelTab, isRight: boolean, event: React.KeyboardEvent) => {
     const step = event.shiftKey ? 64 : 16;
-    let delta = 0;
+    let delta: number;
     if (event.key === 'ArrowLeft') delta = isRight ? step : -step;
     else if (event.key === 'ArrowRight') delta = isRight ? -step : step;
     else if (event.key === 'Home') {
@@ -2582,9 +2573,6 @@ export default function App() {
         validationValid={validation.valid}
         validationErrors={validation.errors}
         onRun={handleRun}
-        onExport={() => setShowExport(true)}
-        onAI={() => setShowAI(true)}
-        onBatchSheet={() => setShowBatchSheet(true)}
         hpcStatus={hpcStatus}
         hpcEnabled={hpcEnabled}
         queueMode={queueMode}
@@ -2604,11 +2592,7 @@ export default function App() {
             workflowNames={knownWorkflowNames}
             followingUserId={followingUserId}
             isShared={collabIsShared}
-            onShare={() => setShowShareDialog(true)}
             onFollow={followPresenceUser}
-            onOpenComments={() => setShowComments(v => !v)}
-            onOpenVersions={() => setShowVersions(v => !v)}
-            onOpenAudit={() => setShowAudit(v => !v)}
             onOpenSettings={() => setRailTab('settings')}
             reconnectAttempt={collabReconnectAttempt}
             error={collabError}
@@ -2947,7 +2931,6 @@ export default function App() {
               onMoveRun={handleMoveRun}
               onClearQueue={handleClearQueue}
               onClearHistory={handleClearHistory}
-              onCompareRuns={() => setShowOutputDiff(true)}
               nodeIdToName={nodeIdToNameMap}
             />
           </ErrorBoundary>

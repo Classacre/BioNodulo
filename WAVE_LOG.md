@@ -33,13 +33,21 @@ For full diffs, see `git log --grep="ComfyUI gap"`.
 - `LiteGraphCanvas` subscribes to node progress with `selectAtom` and reads the Record by node id instead of receiving a `Map` prop from App.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
 
-## App.tsx state ownership Wave D — `pending` — UI shell atoms
+## App.tsx state ownership Wave D — `11a992f` — UI shell atoms
 
 - Wired `selectedNodeIdAtom` through canvas and `CommentsPanel`; canvas publishes selection into the atom, while comments read it directly.
 - App still reads selected node id for Help/Inspector panel composition, but no longer owns the selection setter or forwards selected-node props into `CommentsPanel`.
 - Wired `consoleVisibleAtom` into the rail and App shell so the console button reflects atom-backed visibility and toggles the console without extra prop state.
 - Replaced App-local focus-mode state with `focusModeAtom`; added a migration-compatible storage adapter that reads the old `bionodulo.focusMode` key and writes the new `bionodulo.focus_mode` key without losing existing sessions.
 - Verification before commit: `npx tsc --noEmit`, `npm run build`, and `npm test` all passed.
+
+## App.tsx state ownership Wave E — `pending` — Prop cleanup
+
+- Removed now-redundant modal opener props from `TopBar`, `BottomConsole`, and `CollabBadge`; those components now open their own Jotai-backed modals directly.
+- Cleaned App imports/setters made dead by the atom migrations, including collaboration modal openers and output-diff opener wiring.
+- Fixed the panel-resize keyboard helper's no-useless-assignment lint error.
+- Final `web/src/App.tsx` line count after this refactor wave: 2,833 lines.
+- Verification before commit: `npx tsc --noEmit`, `npm run lint` (warnings only), `npm run build`, and `npm test` all passed.
 
 ## Wave A — `74de87c` — Polish, search, auto-queue, focus mode
 

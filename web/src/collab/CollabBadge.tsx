@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSetAtom } from 'jotai';
 import Icon from '../components/ui/Icon';
 import type { AwarenessState, LivePresenceUser } from './types';
 import UserList from './UserList';
+import {
+  showAuditAtom,
+  showCommentsAtom,
+  showShareDialogAtom,
+  showVersionsAtom,
+} from '../state/uiAtoms';
 
 interface CollabBadgeProps {
   enabled: boolean;
@@ -15,11 +22,7 @@ interface CollabBadgeProps {
   workflowNames?: Record<string, string>;
   followingUserId: string | null;
   isShared: boolean;
-  onShare: () => void;
   onFollow: (userId: string | null) => void;
-  onOpenComments: () => void;
-  onOpenVersions: () => void;
-  onOpenAudit: () => void;
   onOpenSettings: () => void;
   reconnectAttempt?: number;
   error?: string | null;
@@ -64,16 +67,16 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   workflowNames = {},
   followingUserId,
   isShared,
-  onShare,
   onFollow,
-  onOpenComments,
-  onOpenVersions,
-  onOpenAudit,
   onOpenSettings,
   reconnectAttempt = 0,
   error = null,
   offline = false,
 }) => {
+  const setShowShareDialog = useSetAtom(showShareDialogAtom);
+  const setShowComments = useSetAtom(showCommentsAtom);
+  const setShowVersions = useSetAtom(showVersionsAtom);
+  const setShowAudit = useSetAtom(showAuditAtom);
   const [open, setOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -209,7 +212,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
                 Local mode is active. Enable collaboration in Settings to use sharing, comments, versions, and audit history.
               </div>
             )}
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onShare)} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowShareDialog(true))} disabled={!enabled}>
               <Icon name="link" size={14} /> Share workflow
             </button>
             <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => setUsersOpen(value => !value)} disabled={!enabled}>
@@ -229,13 +232,13 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
                 onClose={() => setUsersOpen(false)}
               />
             )}
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onOpenComments)} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowComments(value => !value))} disabled={!enabled}>
               <Icon name="comment" size={14} /> Comments
             </button>
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onOpenVersions)} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowVersions(value => !value))} disabled={!enabled}>
               <Icon name="clock" size={14} /> Version history
             </button>
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(onOpenAudit)} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowAudit(value => !value))} disabled={!enabled}>
               <Icon name="activity" size={14} /> Audit log
             </button>
             <button style={menuButtonStyle} onClick={() => closeThen(onOpenSettings)}>
