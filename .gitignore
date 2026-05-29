@@ -12,6 +12,7 @@
 
 # Frontend build artifacts (hashed filenames change every build)
 web/node_modules/
+web/dist/
 web/dist/assets/
 website/node_modules/
 website/dist/

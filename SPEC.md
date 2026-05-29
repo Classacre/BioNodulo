@@ -189,8 +189,7 @@ bionodulo-v2/
 │       └── stores/
 │           ├── workflowStore.ts
 │           └── settingsStore.ts
-├── envs/                            # Environment YAML specs
-│   └── fastq-qc.yaml
+├── envs/                            # Generated per-workflow environments (ignored)
 ├── examples/
 │   ├── data/
 │   │   └── README.md

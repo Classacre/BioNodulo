@@ -42,8 +42,8 @@ The notebook clones this repository, installs the backend dependencies, builds t
 - **Python 3.11+** — runs the FastAPI backend
 - **micromamba** — creates isolated per-category conda environments for bioinformatics tools (auto-installed on first startup if missing)
 
-**Required only for frontend development:**
-- **Node.js 20+ + npm** — the pre-built frontend in `web/dist/` works out of the box; Node is only needed if you modify frontend code
+**Required to build or develop the frontend:**
+- **Node.js 20+ + npm** — builds the React/Vite frontend into `web/dist/`
 
 **Required only for R-based workflows:**
 - **Rscript** — needed by nodes such as DESeq2, ggplot2, pheatmap, edgeR, etc.
@@ -57,9 +57,9 @@ cd bionodulo-v2
 # Install Python dependencies
 pip install -e .
 
-# The frontend is pre-built in web/dist/
-# To rebuild it (optional):
+# Build the frontend
 cd web && npm install && npm run build
+cd ..
 ```
 
 ### Running
@@ -151,12 +151,12 @@ bionodulo-v2/
 │   └── ai/                    # AI assistant
 ├── custom_nodes/              # Your custom nodes
 ├── templates/                 # 10 pre-built workflow templates
-├── envs/                      # Environment YAML specs
+├── envs/                      # Generated per-workflow environments (ignored)
 ├── examples/workflows/        # Example workflows
 ├── cache/                     # Runtime cache
 ├── runs/                      # Execution outputs
 └── web/                       # Frontend (React + Vite)
-    ├── dist/                  # Pre-built frontend
+    ├── dist/                  # Generated frontend build output
     └── src/                   # Source code
 ```
 
