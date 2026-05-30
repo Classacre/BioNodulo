@@ -7,7 +7,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 [![Version](https://img.shields.io/badge/version-2.0-0d9488?logo=github)](pyproject.toml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
 [![License](https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b)](LICENSE)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
 
 ## Features
 
@@ -32,9 +32,11 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 For an ephemeral notebook-based trial, launch the Colab notebook:
 
-[Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
+[Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
 
-The notebook clones this repository, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
+The notebook checks out `origin/main`, prints the active branch and commit with `git status -sb` and `git log -1 --oneline --decorate`, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
+
+If Colab still shows an older BioNodulo version, restart or delete the Colab runtime and rerun the setup cell. The printed Git commit should match the latest `main` commit in this repository.
 
 ### Prerequisites
 
