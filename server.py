@@ -252,17 +252,17 @@ def create_app() -> FastAPI:
                     status_code=404,
                     detail="Frontend assets are missing. Run 'cd web && npm run build'.",
                 )
-            if index_file.exists() and not frontend_build_complete:
-                return PlainTextResponse(
-                    "Frontend build incomplete: web/dist/assets is missing. "
-                    "Run 'cd web && npm run build' before starting BioNodulo.",
-                    status_code=503,
-                )
             default_workflow = _default_collab_workflow()
             if not path and default_workflow and not request.query_params.get("workflow"):
                 return RedirectResponse(
                     str(request.url.include_query_params(workflow=default_workflow)),
                     status_code=307,
+                )
+            if index_file.exists() and not frontend_build_complete:
+                return PlainTextResponse(
+                    "Frontend build incomplete: web/dist/assets is missing. "
+                    "Run 'cd web && npm run build' before starting BioNodulo.",
+                    status_code=503,
                 )
             if frontend_build_complete:
                 return FileResponse(index_file)

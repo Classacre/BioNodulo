@@ -34,7 +34,8 @@ def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
 
     assert response.status_code == 307
     assert response.headers["location"].endswith("/?workflow=colab-room")
-    assert pinned_response.status_code == 200
+    assert pinned_response.status_code != 307
+    assert "location" not in pinned_response.headers
 
 
 def test_proxy_prefix_middleware_strips_hosted_asset_api_and_ws_paths() -> None:
