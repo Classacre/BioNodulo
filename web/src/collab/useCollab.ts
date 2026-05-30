@@ -114,7 +114,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       disableBc: true,
       maxBackoffTime: 30000,
       resyncInterval: 10000,
-      protocols: ['b-yjs'],
       params: {
         client: 'y-websocket',
         token,

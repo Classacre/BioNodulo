@@ -38,6 +38,8 @@ def main() -> None:
         os.environ["BIONODULO_ROOT"] = str(default_workspace_root(project_dir))
     if args.config:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
+    os.environ["BIONODULO_HOST"] = args.host
+    os.environ["BIONODULO_PORT"] = str(args.port)
 
     # Ensure project root exists
     root = ensure_workspace_root(project_dir)

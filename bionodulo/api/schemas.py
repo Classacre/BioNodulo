@@ -316,6 +316,55 @@ class ShareWorkflowResponse(BaseModel):
     invited_at: str = Field(..., description="ISO timestamp of invitation")
 
 
+class CreateCollabRoomRequest(BaseModel):
+    """Request body for POST /api/collab/rooms."""
+
+    workflow_id: str = Field(..., min_length=1, max_length=160, description="Workflow room ID")
+    role: Literal["editor", "viewer", "commenter"] = Field(
+        "editor",
+        description="Role granted to visitors who open the generated link",
+    )
+
+
+class CreateCollabRoomResponse(BaseModel):
+    """Temporary invite link metadata for a collaboration room."""
+
+    workflow_id: str = Field(..., description="Workflow room ID")
+    invite_token: str = Field(..., description="Temporary invite token")
+    role: str = Field(..., description="Role granted by the invite")
+    created_by: str = Field(..., description="User who created the room")
+    created_at: str = Field(..., description="ISO timestamp of room creation")
+    public_url: str | None = Field(
+        None,
+        description="Public app base URL to use for invite links when the server is already tunneled",
+    )
+
+
+class CollabTunnelResponse(BaseModel):
+    """Current public collaboration URL status."""
+
+    public_url: str | None = Field(None, description="Public app base URL when available")
+    provider: str | None = Field(None, description="Tunnel provider, if one is active")
+    status: Literal["public", "local", "unavailable"] = Field(..., description="Public-link availability")
+    message: str = Field(..., description="Human-readable status detail")
+
+
+class JoinCollabRoomRequest(BaseModel):
+    """Request body for POST /api/collab/rooms/join."""
+
+    workflow_id: str = Field(..., min_length=1, max_length=160, description="Workflow room ID")
+    invite_token: str | None = Field(None, description="Temporary invite token from a share link")
+
+
+class JoinCollabRoomResponse(BaseModel):
+    """Response for joining a collaboration room."""
+
+    workflow_id: str = Field(..., description="Workflow room ID")
+    user_id: str = Field(..., description="Joined user ID")
+    role: str = Field(..., description="Granted or existing role")
+    joined_at: str = Field(..., description="ISO timestamp of the join")
+
+
 class RoomStatusResponse(BaseModel):
     """Response for GET /api/collab/room/{workflow_id}."""
 

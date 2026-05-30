@@ -24,6 +24,11 @@ interface CollabBadgeProps {
   isShared: boolean;
   onFollow: (userId: string | null) => void;
   onOpenSettings: () => void;
+  onCreateSession: () => void;
+  onJoinSession: () => void;
+  onLeaveSession: () => void;
+  hasJoinLink?: boolean;
+  shareLink?: string;
   reconnectAttempt?: number;
   error?: string | null;
   offline?: boolean;
@@ -69,6 +74,11 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   isShared,
   onFollow,
   onOpenSettings,
+  onCreateSession,
+  onJoinSession,
+  onLeaveSession,
+  hasJoinLink = false,
+  shareLink = '',
   reconnectAttempt = 0,
   error = null,
   offline = false,
@@ -94,6 +104,9 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
 
   const status = useMemo(() => {
     if (!enabled) {
+      if (hasJoinLink) {
+        return { color: '#0d9488', text: 'Join', label: 'Collaboration link ready' };
+      }
       return { color: '#64748b', text: 'Offline', label: 'Collaboration disabled' };
     }
     if (offline && !connected) {
@@ -112,7 +125,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
       };
     }
     return { color: '#ef4444', text: 'Offline', label: error || 'Disconnected' };
-  }, [enabled, offline, connected, connecting, reconnectAttempt, error]);
+  }, [enabled, hasJoinLink, offline, connected, connecting, reconnectAttempt, error]);
 
   const liveOtherUsers = liveUsers.filter(user => (
     currentSessionId ? user.session_id !== currentSessionId : user.user_id !== currentUserId
@@ -209,17 +222,31 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
           <div style={{ padding: '8px 0', display: 'grid', gap: 2 }}>
             {!enabled && (
               <div style={{ fontSize: 11, color: 'var(--muted)', padding: '4px 6px 8px' }}>
-                Local mode is active. Enable collaboration in Settings to use sharing, comments, versions, and audit history.
+                Offline mode is active. Start a temporary room or join one from a BioNodulo share link.
               </div>
             )}
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowShareDialog(true))} disabled={!enabled}>
-              <Icon name="link" size={14} /> Share workflow
-            </button>
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => setUsersOpen(value => !value)} disabled={!enabled}>
-              <Icon name="users" size={14} /> Active users
-              {enabled && <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{userCount}</span>}
-              <Icon name={usersOpen ? 'chevronUp' : 'chevronDown'} size={12} />
-            </button>
+            {!enabled && (
+              <>
+                <button style={menuButtonStyle} onClick={() => closeThen(onCreateSession)}>
+                  <Icon name="link" size={14} /> Create collaboration link
+                </button>
+                <button style={menuButtonStyle} onClick={() => closeThen(onJoinSession)}>
+                  <Icon name="users" size={14} /> Join collaboration
+                </button>
+              </>
+            )}
+            {enabled && (
+              <>
+                <button style={menuButtonStyle} onClick={() => closeThen(() => setShowShareDialog(true))}>
+                  <Icon name="link" size={14} /> Share workflow
+                </button>
+                <button style={menuButtonStyle} onClick={() => setUsersOpen(value => !value)}>
+                  <Icon name="users" size={14} /> Active users
+                  <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{userCount}</span>
+                  <Icon name={usersOpen ? 'chevronUp' : 'chevronDown'} size={12} />
+                </button>
+              </>
+            )}
             {usersOpen && enabled && (
               <UserList
                 users={liveUsers}
@@ -241,59 +268,72 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
             <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowAudit(value => !value))} disabled={!enabled}>
               <Icon name="activity" size={14} /> Audit log
             </button>
+            {enabled && (
+              <button style={menuButtonStyle} onClick={() => closeThen(onLeaveSession)}>
+                <Icon name="circle" size={14} /> Stop collaboration
+              </button>
+            )}
             <button style={menuButtonStyle} onClick={() => closeThen(onOpenSettings)}>
               <Icon name="settings" size={14} /> Collaboration settings
             </button>
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '0 6px 6px' }}>
-              Follow Viewport
+          {enabled && shareLink && (
+            <div style={{ borderTop: '1px solid var(--border)', padding: '8px 6px', fontSize: 10, color: 'var(--muted)', wordBreak: 'break-all' }}>
+              {shareLink}
             </div>
-            {followedUser && (
-              <button style={menuButtonStyle} onClick={() => onFollow(null)}>
-                <Icon name="eye" size={14} /> Stop following {followedUser.name}
-              </button>
-            )}
-            {followUsers.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--muted)', padding: '6px' }}>No other users are active.</div>
-            )}
-            {followUsers.map(user => (
-              <button
-                key={`${user.workflow_id}:${user.session_id}`}
-                style={{
-                  ...menuButtonStyle,
-                  background: followingUserId === user.session_id ? 'var(--accent-soft, rgba(59, 130, 246, 0.15))' : 'transparent',
-                }}
-                onClick={() => closeThen(() => onFollow(user.session_id))}
-              >
-                <span style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: user.color,
-                  color: '#fff',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 8,
-                  fontWeight: 700,
-                }}>
-                  {getInitials(user.name)}
-                </span>
-                <span style={{ minWidth: 0, display: 'grid', overflow: 'hidden' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user.name}
+          )}
+
+          {enabled && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '0 6px 6px' }}>
+                Follow Viewport
+              </div>
+              {followedUser && (
+                <button style={menuButtonStyle} onClick={() => onFollow(null)}>
+                  <Icon name="eye" size={14} /> Stop following {followedUser.name}
+                </button>
+              )}
+              {followUsers.length === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', padding: '6px' }}>No other users are active.</div>
+              )}
+              {followUsers.map(user => (
+                <button
+                  key={`${user.workflow_id}:${user.session_id}`}
+                  style={{
+                    ...menuButtonStyle,
+                    background: followingUserId === user.session_id ? 'var(--accent-soft, rgba(59, 130, 246, 0.15))' : 'transparent',
+                  }}
+                  onClick={() => closeThen(() => onFollow(user.session_id))}
+                >
+                  <span style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: user.color,
+                    color: '#fff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 8,
+                    fontWeight: 700,
+                  }}>
+                    {getInitials(user.name)}
                   </span>
-                  {user.workflow_id ? (
-                    <span style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {workflowNames[user.workflow_id] || `Workflow ${user.workflow_id.slice(0, 10)}`}
+                  <span style={{ minWidth: 0, display: 'grid', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.name}
                     </span>
-                  ) : null}
-                </span>
-              </button>
-            ))}
-          </div>
+                    {user.workflow_id ? (
+                      <span style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {workflowNames[user.workflow_id] || `Workflow ${user.workflow_id.slice(0, 10)}`}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

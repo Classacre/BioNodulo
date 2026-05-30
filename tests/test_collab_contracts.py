@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import uuid
 from types import SimpleNamespace
 
 import pycrdt
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from bionodulo.api.collab_dependencies import require_workflow_role
 from bionodulo.api.collab_routes import _diff_snapshots
 from bionodulo.api.routes import _workflow_payload_to_flat_snapshot
 from bionodulo.collab.doc_store import extract_flat_snapshot
@@ -23,7 +27,7 @@ def test_collab_routes_are_mounted_once() -> None:
     assert all(not path.startswith("/api/api/collab") for path in paths)
 
 
-def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
+def test_colab_default_workflow_no_longer_redirects_root_visits(monkeypatch) -> None:
     from server import create_app
 
     monkeypatch.setenv("BIONODULO_COLLAB_DEFAULT_WORKFLOW", "colab-room")
@@ -32,8 +36,8 @@ def test_colab_default_workflow_redirects_root_visits(monkeypatch) -> None:
         response = client.get("/", follow_redirects=False)
         pinned_response = client.get("/?workflow=explicit-room", follow_redirects=False)
 
-    assert response.status_code == 307
-    assert response.headers["location"].endswith("/?workflow=colab-room")
+    assert response.status_code != 307
+    assert "location" not in response.headers
     assert pinned_response.status_code != 307
     assert "location" not in pinned_response.headers
 
@@ -229,6 +233,112 @@ def test_open_room_api_access_grants_before_permission_checks(tmp_path, monkeypa
     _ensure_open_room_access(request, "wf-room", "guest")
 
     assert checker.can_write("wf-room", "guest")
+
+
+def test_permission_checks_do_not_auto_assign_workflow_owner(tmp_path) -> None:
+    checker = PermissionChecker(store=CollabStore(tmp_path / "collab.db"))
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(permission_checker=checker)))
+
+    with pytest.raises(HTTPException) as exc:
+        require_workflow_role(request, "wf-unclaimed", "guest", "read")
+
+    assert exc.value.status_code == 403
+    assert not checker.can_share("wf-unclaimed", "guest")
+
+
+def test_temporary_collab_invite_create_and_join_contract() -> None:
+    from server import create_app
+
+    workflow_id = f"wf-invite-{uuid.uuid4().hex}"
+    with TestClient(create_app()) as client:
+        owner_token = client.post("/api/auth/token", json={"name": "Owner"}).json()["token"]
+        guest_token = client.post("/api/auth/token", json={"name": "Guest"}).json()["token"]
+
+        owner_headers = {"Authorization": f"Bearer {owner_token}"}
+        guest_headers = {"Authorization": f"Bearer {guest_token}"}
+        denied = client.post(
+            "/api/collab/rooms/join",
+            json={"workflow_id": workflow_id},
+            headers=guest_headers,
+        )
+        created = client.post(
+            "/api/collab/rooms",
+            json={"workflow_id": workflow_id, "role": "editor"},
+            headers=owner_headers,
+        )
+        joined = client.post(
+            "/api/collab/rooms/join",
+            json={
+                "workflow_id": workflow_id,
+                "invite_token": created.json()["invite_token"],
+            },
+            headers=guest_headers,
+        )
+
+    assert denied.status_code == 403
+    assert created.status_code == 200
+    assert created.json()["workflow_id"] == workflow_id
+    assert joined.status_code == 200
+    assert joined.json()["role"] == "editor"
+
+
+def test_collab_tunnel_uses_existing_public_host() -> None:
+    from server import create_app
+
+    with TestClient(create_app()) as client:
+        token = client.post("/api/auth/token", json={"name": "Owner"}).json()["token"]
+        response = client.post(
+            "/api/collab/tunnel",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Host": "shared.example.test",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        created = client.post(
+            "/api/collab/rooms",
+            json={"workflow_id": f"wf-public-{uuid.uuid4().hex}", "role": "editor"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Host": "shared.example.test",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "public"
+    assert response.json()["public_url"] == "https://shared.example.test"
+    assert created.status_code == 200
+    assert created.json()["public_url"] == "https://shared.example.test"
+
+
+def test_collab_tunnel_reports_unavailable_without_cloudflared(monkeypatch) -> None:
+    from server import create_app
+
+    monkeypatch.setattr("bionodulo.api.collab_runtime_routes.shutil.which", lambda _: None)
+    with TestClient(create_app()) as client:
+        token = client.post("/api/auth/token", json={"name": "Owner"}).json()["token"]
+        response = client.post(
+            "/api/collab/tunnel",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 503
+    assert "cloudflared" in response.json()["detail"]
+
+
+def test_invalid_temporary_collab_invite_is_rejected() -> None:
+    from server import create_app
+
+    with TestClient(create_app()) as client:
+        token = client.post("/api/auth/token", json={"name": "Guest"}).json()["token"]
+        response = client.post(
+            "/api/collab/rooms/join",
+            json={"workflow_id": f"wf-invalid-{uuid.uuid4().hex}", "invite_token": "missing"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 403
 
 
 def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:

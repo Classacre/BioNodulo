@@ -31,7 +31,7 @@ import {
   showAuditAtom,
   selectedNodeIdAtom,
 } from '../../state/uiAtoms';
-import { requestedWorkflowIdAtom, showAuthDialogAtom } from '../../state/appAtoms';
+import { requestedWorkflowIdAtom } from '../../state/appAtoms';
 import {
   htmlPreviewStateAtom,
   lightboxImagesAtom,
@@ -58,7 +58,9 @@ export interface ModalWorkflowContext {
   objectInfo: ObjectInfo;
   currentUser: { id: string; name: string; color: string };
   collabEnabled: boolean;
-  authUser: unknown;
+  collabInviteToken: string | null;
+  collabShareLink: string;
+  onCreateCollabSession: () => Promise<void>;
   getBool: (key: string) => boolean;
   set: (key: string, value: unknown) => void;
   handleImport: (wf: Workflow) => void;
@@ -85,7 +87,6 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
   const [showAudit, setShowAudit] = useAtom(showAuditAtom);
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const setRequestedWorkflowId = useSetAtom(requestedWorkflowIdAtom);
-  const setShowAuthDialog = useSetAtom(showAuthDialogAtom);
   const lightboxOpen = useAtomValue(lightboxOpenAtom);
   const lightboxImages = useAtomValue(lightboxImagesAtom);
   const lightboxIndex = useAtomValue(lightboxIndexAtom);
@@ -105,7 +106,9 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
     objectInfo,
     currentUser,
     collabEnabled,
-    authUser,
+    collabInviteToken,
+    collabShareLink,
+    onCreateCollabSession,
     getBool,
     set,
     handleImport,
@@ -123,6 +126,10 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         workflowId={activeWorkflowId}
         isOpen={showShareDialog}
         onClose={() => setShowShareDialog(false)}
+        collabEnabled={collabEnabled}
+        inviteToken={collabInviteToken}
+        shareLink={collabShareLink}
+        onCreateRoom={onCreateCollabSession}
       />
 
       <CommentsPanel
@@ -233,15 +240,6 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
           }}
           onDontShowAgain={(hide) => {
             set('bionodulo.getting_started.show_on_startup', !hide);
-          }}
-          collabEnabled={collabEnabled}
-          onSetCollabEnabled={(enabled) => {
-            set('bionodulo.collab.enabled', enabled);
-            if (!enabled) {
-              setShowAuthDialog(false);
-            } else if (!authUser) {
-              setShowAuthDialog(true);
-            }
           }}
           showOnStartup={getBool('bionodulo.getting_started.show_on_startup')}
           onOpenRecent={async (entry) => {

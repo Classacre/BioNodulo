@@ -520,7 +520,6 @@ async def yjs_websocket(
 
     effective_user_id = auth_payload.get("sub", "") or generate_user_id()
     permissions = _permissions_for_websocket(websocket)
-    permissions.ensure_owner(workflow_id, effective_user_id)
     if _open_room_join_enabled() and not permissions.can_read(workflow_id, effective_user_id):
         permissions.grant(
             workflow_id,

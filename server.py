@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi.extension import _rate_limit_exceeded_handler
@@ -37,7 +35,6 @@ from bionodulo.nodes.registry import NodeRegistry
 
 logger = logging.getLogger(__name__)
 
-_COLLAB_WORKFLOW_ID_RE = re.compile(r"^[a-zA-Z0-9._:-]{1,160}$")
 _PREFIX_ROUTE_MARKERS = ("/api/", "/assets/", "/ws/")
 _PREFIX_EXACT_ROUTES = frozenset({"/api", "/assets", "/ws"})
 _SPA_API_PREFIXES = frozenset({
@@ -85,14 +82,6 @@ class ProxyPrefixMiddleware:
         return path
 
 
-def _default_collab_workflow() -> str | None:
-    """Return the configured shared room for single-link notebook launches."""
-    workflow_id = os.environ.get("BIONODULO_COLLAB_DEFAULT_WORKFLOW", "").strip()
-    if workflow_id and _COLLAB_WORKFLOW_ID_RE.fullmatch(workflow_id):
-        return workflow_id
-    return None
-
-
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Pixi installation is surfaced via /api/host_status and handled by the
@@ -132,6 +121,14 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
             await redis_broadcaster.disconnect()
         except Exception as exc:
             logger.warning("Error disconnecting Redis broadcaster: %s", exc)
+
+        tunnel_process = getattr(app.state, "collab_tunnel_process", None)
+        if tunnel_process is not None and tunnel_process.returncode is None:
+            tunnel_process.terminate()
+            try:
+                await asyncio.wait_for(tunnel_process.wait(), timeout=3)
+            except Exception:
+                tunnel_process.kill()
 
         try:
             await stop_room_cache_cleanup()
@@ -221,6 +218,12 @@ def create_app() -> FastAPI:
 
     # Native Yjs room sockets (workflow_id -> list of WebSockets)
     app.state.yjs_room_sockets = {}
+    # Temporary invite-token rooms. Process-local by design: links expire when
+    # the host app stops, matching the local/Colab collaboration model.
+    app.state.collab_temporary_invites = {}
+    app.state.collab_public_url = None
+    app.state.collab_tunnel_process = None
+    app.state.collab_tunnel_provider = None
 
     # Include routers
     app.include_router(router, prefix="/api")
@@ -251,12 +254,6 @@ def create_app() -> FastAPI:
                 raise HTTPException(
                     status_code=404,
                     detail="Frontend assets are missing. Run 'cd web && npm run build'.",
-                )
-            default_workflow = _default_collab_workflow()
-            if not path and default_workflow and not request.query_params.get("workflow"):
-                return RedirectResponse(
-                    str(request.url.include_query_params(workflow=default_workflow)),
-                    status_code=307,
                 )
             if index_file.exists() and not frontend_build_complete:
                 return PlainTextResponse(

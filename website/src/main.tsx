@@ -115,18 +115,18 @@ const innerIntegrations = integrations.filter((_, index) => index % 2 === 1);
 
 const licensing = [
   {
-    title: 'Open Beta',
-    text: 'BioNodulo is currently in open beta while features and workflows are refined with user feedback.',
+    title: 'Closed Alpha Development',
+    text: 'BioNodulo is currently in closed alpha while features, workflows, and licensing are refined with invited users.',
     icon: 'flask',
   },
   {
-    title: 'Free for Research',
-    text: 'Open-source and free to use for academic and non-commercial research work.',
+    title: 'Closed Alpha',
+    text: 'Access is limited to authorized users and institutions during the current development phase.',
     icon: 'gift',
   },
   {
-    title: 'Publishing License',
-    text: 'A paid license is required for commercial use or publishing results produced with BioNodulo.',
+    title: 'Paid License Required',
+    text: 'BioNodulo is paid software and may not be freely redistributed, mirrored, sublicensed, or hosted for third parties.',
     icon: 'license',
   },
   {
@@ -140,7 +140,7 @@ const faqs = [
   {
     question: 'Is BioNodulo free?',
     answer:
-      'BioNodulo is open-source and free to use for research purposes during open beta. A paid license is required for publishing or commercial use.',
+      'No. BioNodulo is paid software. Closed-alpha access is limited to authorized users and institutions with a written license, trial agreement, or invitation.',
   },
   {
     question: 'Can I run it locally?',
@@ -590,7 +590,7 @@ function Hero() {
   return (
     <section className="hero">
       <div className="hero-copy">
-        <span className="beta">Open Beta</span>
+        <span className="beta">Closed Alpha</span>
         <h1>Visual bioinformatics pipelines, <br /><span>node by node.</span></h1>
         <p>
           Build, run, and share reproducible research workflows with 94 bioinformatics nodes, 13 templates,
@@ -820,8 +820,8 @@ function Licensing() {
   return (
     <section className="section reveal" id="licensing">
       <div className="section-heading">
-        <h2>Open Beta. Open Source. Open for Research.</h2>
-        <p>Licensing is designed around research first, with institutional and hosted options coming as the platform matures.</p>
+        <h2>Closed Alpha. Licensed Access. Built for Institutions.</h2>
+        <p>BioNodulo is paid software. Current access is limited to authorized closed-alpha users while institutional licensing and deployment options mature.</p>
       </div>
       <div className="license-grid">
         {licensing.map(item => (
@@ -1003,7 +1003,7 @@ const featureDeepDives = [
     points: [
       '13 built-in templates spanning QC, RNA-Seq, DESeq2, WGS, variant calling, assembly, metagenomics, ChIP-Seq, phylogenetics, single-cell, R visualization, and BioPython',
       'Search and category filters in the templates panel',
-      'Getting Started flow lets users choose local/offline mode or collaboration',
+      'BioNodulo starts offline; collaboration is started explicitly from the top-right menu or settings',
       'Template workflows are remapped to fresh node IDs before insertion',
     ],
   },
@@ -1241,7 +1241,7 @@ function DownloadPage() {
         <article className="option-card pop-in">
           <Icon name="github" />
           <h2>GitHub</h2>
-          <p>Clone the open-source repository, inspect the code, and run BioNodulo locally.</p>
+          <p>Authorized closed-alpha users can access the repository, inspect the code, and run BioNodulo locally within their license scope.</p>
           <a className="button primary" href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer">Open GitHub <Icon name="arrow" /></a>
         </article>
         <article className="option-card pop-in">
@@ -1263,14 +1263,14 @@ function DownloadPage() {
 
 function PricingPage() {
   const plans = [
-    { name: 'Free', price: 'Free', text: 'Open-source and free for academic and non-commercial research purposes.', icon: 'gift' as const },
-    { name: 'Publishing', price: 'TBD', text: 'Required for commercial use or publishing results produced with BioNodulo.', icon: 'license' as const },
-    { name: 'Institutional', price: 'TBD', text: 'For institutions that need licensing, deployment help, and future hosted options.', icon: 'building' as const },
+    { name: 'Closed Alpha', price: 'Invite only', text: 'Evaluation access for authorized users and institutions during development.', icon: 'gift' as const },
+    { name: 'Professional', price: 'TBD', text: 'Paid licensing for individual professional use within the licensed scope.', icon: 'license' as const },
+    { name: 'Institutional', price: 'TBD', text: 'For organizations that need seats, deployment help, support, and future hosted options.', icon: 'building' as const },
   ];
 
   return (
     <PageLayout>
-      <PageHero label="Pricing" title="Licensing built around research first." text="BioNodulo is currently in open beta. Publishing and institutional pricing will be finalized as the platform matures." />
+      <PageHero label="Pricing" title="Paid licensing for professional bioinformatics." text="BioNodulo is currently in closed alpha. Professional and institutional pricing will be finalized as the platform matures." />
       <section className="pricing-grid">
         {plans.map(plan => (
           <article className="pricing-card pop-in" key={plan.name}>
@@ -1289,7 +1289,7 @@ function PricingPage() {
 function ContactPage() {
   return (
     <PageLayout>
-      <PageHero label="Contact" title="Talk to us about BioNodulo." text="For publishing licenses, institutional plans, cloud hosting, or open beta feedback, send a note or use one of the community links." />
+      <PageHero label="Contact" title="Talk to us about BioNodulo." text="For closed-alpha access, professional licenses, institutional plans, deployment support, or hosting discussions, send a note or use one of the community links." />
       <section className="contact-page-grid">
         <form className="contact-form pop-in">
           <label>Name<input type="text" name="name" placeholder="Your name" /></label>

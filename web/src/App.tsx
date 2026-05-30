@@ -57,6 +57,13 @@ import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
+  buildCollabRoomUrl,
+  clearCollabLinkParams,
+  parseCollabLinkTarget,
+  readCollabLinkTarget,
+  type CollabLinkTarget,
+} from './collab/shareLinks';
+import {
   WorkflowYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge,
   getUserColor, getToken, AuthDialog,
@@ -79,6 +86,7 @@ import {
   showBatchSheetAtom,
   showGettingStartedAtom,
   showShortcutsAtom,
+  showShareDialogAtom,
   showCommentsAtom,
   selectedNodeIdAtom,
   consoleVisibleAtom,
@@ -142,12 +150,6 @@ function createWorkflowId(): string {
     return crypto.randomUUID();
   }
   return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function getRequestedWorkflowId(): string | null {
-  const id = new URLSearchParams(window.location.search).get('workflow');
-  if (!id || !/^[a-zA-Z0-9._:-]{1,160}$/.test(id)) return null;
-  return id;
 }
 
 function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId()): Workflow {
@@ -223,16 +225,34 @@ export default function App() {
 
   // Authentication state — extracted to useAuth.
   const collabEnabled = getBool('bionodulo.collab.enabled');
-  const initialRequestedWorkflowId = useMemo(() => getRequestedWorkflowId(), []);
+  const initialCollabTarget = useMemo(() => readCollabLinkTarget(), []);
+  const initialRequestedWorkflowId = initialCollabTarget?.workflowId ?? null;
+  const [collabInvite, setCollabInvite] = useState<CollabLinkTarget | null>(initialCollabTarget);
+  const [collabPublicBaseUrl, setCollabPublicBaseUrl] = useState<string | null>(null);
+  const [collabRoomActive, setCollabRoomActive] = useState(false);
+  const [pendingCollabAction, setPendingCollabAction] = useState<
+    { type: 'create' } | { type: 'join'; target: CollabLinkTarget } | null
+  >(null);
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
   const {
     authUser,
     authReady,
     showAuthDialog,
+    setShowAuthDialog,
     handleAuthLogin,
     handleAuthClose,
   } = useAuth({ collabEnabled, settingsReady });
+  const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
+  const resetCollabOnStartupRef = useRef(false);
+
+  useEffect(() => {
+    if (!settingsReady || resetCollabOnStartupRef.current) return;
+    resetCollabOnStartupRef.current = true;
+    if (getBool('bionodulo.collab.enabled')) {
+      set('bionodulo.collab.enabled', false);
+    }
+  }, [getBool, set, settingsReady]);
 
   useEffect(() => installDomOverlayBridge(), []);
 
@@ -275,25 +295,25 @@ export default function App() {
     }
   }, [activeWorkflow.id, activeWorkflowId, activeIndex, updateWorkflow]);
 
-  // Colab and copied room links pin each browser to the same Yjs room.
+  // Copied collaboration links pin the local tab to a room ID, but do not
+  // connect until the user explicitly joins from the Collaboration menu.
   useEffect(() => {
     if (!effectiveRequestedWorkflowId) return;
     if (activeWorkflow.id !== effectiveRequestedWorkflowId) {
       updateWorkflow(activeIndex, { id: effectiveRequestedWorkflowId });
     }
-    if (!collabEnabled) {
-      set('bionodulo.collab.enabled', true);
-    }
-  }, [activeWorkflow.id, activeIndex, collabEnabled, effectiveRequestedWorkflowId, set, updateWorkflow]);
+  }, [activeWorkflow.id, activeIndex, effectiveRequestedWorkflowId, updateWorkflow]);
 
   const requestedWorkflowPending = Boolean(effectiveRequestedWorkflowId && activeWorkflow.id !== effectiveRequestedWorkflowId);
   const collabWorkflowId = (
     collabEnabled
+    && collabRoomActive
     && settingsReady
     && authReady
     && Boolean(authUser)
     && !requestedWorkflowPending
   ) ? activeWorkflowId : null;
+  const collabSessionActive = Boolean(collabWorkflowId);
 
   const {
     doc: collabDoc,
@@ -376,7 +396,7 @@ export default function App() {
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
 
   const { refetchComments: fetchWorkflowComments } = useCollabPolling({
-    collabEnabled,
+    collabEnabled: collabSessionActive,
     activeWorkflowId,
     setWorkflowComments,
     setLivePresenceUsers,
@@ -411,7 +431,7 @@ export default function App() {
   }, [releaseCollabDrag]);
 
   const publishCollabWorkflowSnapshot = useCallback(async (workflow: Workflow) => {
-    if (!collabEnabled || !workflow.id) return;
+    if (!collabSessionActive || !workflow.id) return;
     const token = getToken();
     if (!token) return;
     try {
@@ -420,7 +440,7 @@ export default function App() {
       logError('collab.snapshot.publish', err);
       // The socket bridge still handles normal collaboration when REST is unavailable.
     }
-  }, [collabEnabled]);
+  }, [collabSessionActive]);
 
   const fetchCollabSnapshot = useCallback(async (workflowId: string, fallbackName: string): Promise<Workflow | null> => {
     const token = getToken();
@@ -436,6 +456,169 @@ export default function App() {
     if (!data.snapshot) return null;
     return workflowFromCollabSnapshot(workflowId, data.snapshot, fallbackName);
   }, []);
+
+  const activeInviteToken = collabInvite?.workflowId === activeWorkflowId
+    ? collabInvite.inviteToken ?? null
+    : null;
+  const activeCollabJoinTarget = collabInvite?.workflowId === activeWorkflowId ? collabInvite : undefined;
+  const collabShareLink = useMemo(
+    () => buildCollabRoomUrl(activeWorkflowId, activeInviteToken, collabPublicBaseUrl),
+    [activeWorkflowId, activeInviteToken, collabPublicBaseUrl],
+  );
+  const hasPendingJoinLink = Boolean(
+    effectiveRequestedWorkflowId
+    && !collabEnabled
+    && activeWorkflowId === effectiveRequestedWorkflowId,
+  );
+
+  const requestCollabAuth = useCallback((action: { type: 'create' } | { type: 'join'; target: CollabLinkTarget }) => {
+    set('bionodulo.collab.enabled', true);
+    setPendingCollabAction(action);
+    setShowAuthDialog(true);
+  }, [set, setShowAuthDialog]);
+
+  const handleCreateCollabSession = useCallback(async () => {
+    if (!authUser) {
+      requestCollabAuth({ type: 'create' });
+      return;
+    }
+    const workflowForRoom = withWorkflowId(activeWorkflow, activeWorkflowId);
+    if (activeWorkflow.id !== activeWorkflowId) {
+      updateWorkflow(activeIndex, workflowForRoom);
+    }
+    set('bionodulo.collab.enabled', true);
+    let publicBaseUrl = collabPublicBaseUrl;
+    try {
+      const room = await apiPost<{
+        workflow_id: string;
+        invite_token: string;
+        role: string;
+        public_url?: string | null;
+      }>('/api/collab/rooms', { workflow_id: activeWorkflowId, role: 'editor' });
+      publicBaseUrl = room.public_url || publicBaseUrl;
+      setCollabPublicBaseUrl(publicBaseUrl || null);
+      setCollabInvite({ workflowId: room.workflow_id, inviteToken: room.invite_token });
+      await apiPost(`/api/collab/workflows/${encodeURIComponent(room.workflow_id)}/snapshot`, {
+        workflow: workflowForRoom,
+      });
+      setCollabRoomActive(true);
+      const url = buildCollabRoomUrl(room.workflow_id, room.invite_token, publicBaseUrl);
+      try {
+        if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+        await navigator.clipboard.writeText(url);
+        toast.success('Collaboration link copied', {
+          message: publicBaseUrl
+            ? 'Share it with collaborators while this app is running.'
+            : 'This is a local link. Start a tunnel or use a public host before sharing outside this machine.',
+        });
+      } catch {
+        toast.success('Collaboration link ready', {
+          message: publicBaseUrl
+            ? 'Open Share workflow to copy it.'
+            : 'Open Share workflow to copy the local link, or start BioNodulo through a public tunnel.',
+        });
+      }
+      setShowShareDialog(true);
+    } catch (err) {
+      set('bionodulo.collab.enabled', false);
+      setCollabRoomActive(false);
+      toast.error('Could not create collaboration link', { message: err instanceof Error ? err.message : String(err) });
+      logError('collab.room.create', err);
+    }
+  }, [
+    activeIndex,
+    activeWorkflow,
+    activeWorkflow.id,
+    activeWorkflowId,
+    authUser,
+    collabSessionActive,
+    collabPublicBaseUrl,
+    setCollabRoomActive,
+    requestCollabAuth,
+    set,
+    setShowShareDialog,
+    updateWorkflow,
+  ]);
+
+  const handleJoinCollabSession = useCallback(async (target?: CollabLinkTarget) => {
+    let joinTarget = target;
+    if (!joinTarget) {
+      const value = await promptDialog({
+        title: 'Join Collaboration',
+        message: 'Paste a BioNodulo collaboration link or room ID.',
+        inputLabel: 'Share link',
+        placeholder: `${window.location.origin}${window.location.pathname}?workflow=...&invite=...`,
+        confirmLabel: 'Join',
+      });
+      if (!value) return;
+      joinTarget = parseCollabLinkTarget(value) ?? undefined;
+    }
+    if (!joinTarget) {
+      toast.error('Invalid collaboration link', { message: 'Expected a BioNodulo URL with ?workflow=... or a room ID.' });
+      return;
+    }
+    setRequestedWorkflowId(joinTarget.workflowId);
+    if (activeWorkflow.id !== joinTarget.workflowId) {
+      updateWorkflow(activeIndex, { id: joinTarget.workflowId });
+    }
+    if (!authUser) {
+      requestCollabAuth({ type: 'join', target: joinTarget });
+      return;
+    }
+    set('bionodulo.collab.enabled', true);
+    try {
+      const joined = await apiPost<{ workflow_id: string; role: string }>('/api/collab/rooms/join', {
+        workflow_id: joinTarget.workflowId,
+        invite_token: joinTarget.inviteToken || null,
+      });
+      setCollabInvite(joinTarget.inviteToken ? joinTarget : null);
+      setCollabRoomActive(true);
+      toast.success('Joined collaboration', { message: `Connected as ${joined.role}.` });
+    } catch (err) {
+      set('bionodulo.collab.enabled', false);
+      setCollabRoomActive(false);
+      toast.error('Could not join collaboration', { message: err instanceof Error ? err.message : String(err) });
+      logError('collab.room.join', err);
+    }
+  }, [
+    activeIndex,
+    activeWorkflow.id,
+    authUser,
+    requestCollabAuth,
+    set,
+    setCollabRoomActive,
+    setRequestedWorkflowId,
+    updateWorkflow,
+  ]);
+
+  useEffect(() => {
+    if (!pendingCollabAction || !authReady || !authUser) return;
+    const action = pendingCollabAction;
+    setPendingCollabAction(null);
+    if (action.type === 'create') {
+      void handleCreateCollabSession();
+    } else {
+      void handleJoinCollabSession(action.target);
+    }
+  }, [authReady, authUser, handleCreateCollabSession, handleJoinCollabSession, pendingCollabAction]);
+
+  const handleLeaveCollabSession = useCallback(() => {
+    set('bionodulo.collab.enabled', false);
+    setCollabRoomActive(false);
+    setRequestedWorkflowId(null);
+    setPendingCollabAction(null);
+    clearCollabLinkParams();
+    toast.info('Collaboration stopped', { message: 'This browser is back in offline mode.' });
+  }, [set, setCollabRoomActive, setRequestedWorkflowId]);
+
+  const handleCollabAuthClose = useCallback(() => {
+    if (pendingCollabAction && !authUser) {
+      setPendingCollabAction(null);
+      setCollabRoomActive(false);
+      set('bionodulo.collab.enabled', false);
+    }
+    handleAuthClose();
+  }, [authUser, handleAuthClose, pendingCollabAction, set, setCollabRoomActive]);
 
   const followPresenceUser = useCallback(async (sessionId: string | null) => {
     if (!sessionId) {
@@ -1632,10 +1815,10 @@ export default function App() {
 
   const handleSaveTemplate = useCallback(async (draft: TemplateSaveDraft) => {
     const token = getToken();
-    if (!collabEnabled || !token || !activeWorkflowId) {
+    if (!collabSessionActive || !token || !activeWorkflowId) {
       await alertDialog({
         title: 'Template sharing unavailable',
-        message: 'Enable collaboration and sign in to save shared workflow templates.',
+        message: 'Start collaboration and sign in to save shared workflow templates.',
       });
       return;
     }
@@ -1653,7 +1836,7 @@ export default function App() {
     } catch (err) {
       toast.error('Could not save template', { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [activeWorkflow, activeWorkflowId, collabEnabled, publishCollabWorkflowSnapshot]);
+  }, [activeWorkflow, activeWorkflowId, collabSessionActive, publishCollabWorkflowSnapshot]);
 
   const handleToggleQueue = useCallback(() => {
     const isVisible = consoleVisible || railTab === 'console';
@@ -1672,7 +1855,7 @@ export default function App() {
     if (!wf) {
       return;
     }
-    if (collabEnabled) {
+    if (collabSessionActive) {
       // Keep a shared room on the same workflow id. Opening a new tab here
       // strands collaborators, presence, and comments in different rooms.
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
@@ -1697,11 +1880,11 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
-    if (collabEnabled) {
+    if (collabSessionActive) {
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
       updateWorkflow(activeIndex, sharedWorkflow);
       if (collabDoc) {
@@ -1723,7 +1906,7 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, updateWorkflow]);
 
   // Replay any URL-hash workflow that mount stashed before handleImport
   // existed. Runs once handleImport stabilises.
@@ -1738,13 +1921,13 @@ export default function App() {
   const handleApplyWorkflow = useCallback((wf: Workflow) => {
     const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
     setWorkflow(activeIndex, () => sharedWorkflow);
-    if (collabEnabled) {
+    if (collabSessionActive) {
       if (collabDoc) {
         workflowToDoc(sharedWorkflow, collabDoc);
       }
       void publishCollabWorkflowSnapshot(sharedWorkflow);
     }
-  }, [activeIndex, activeWorkflowId, collabDoc, collabEnabled, publishCollabWorkflowSnapshot, setWorkflow]);
+  }, [activeIndex, activeWorkflowId, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, setWorkflow]);
 
   const handleRenameTab = useCallback((index: number, name: string) => {
     updateWorkflow(index, { name });
@@ -2235,7 +2418,7 @@ export default function App() {
   // Auto-save timer — extracted to useAutoSave.
   useAutoSave({
     autoSaveSetting,
-    collabEnabled,
+    collabEnabled: collabSessionActive,
     latestWorkflow: latestWorkflowRef.current,
     publishCollabWorkflowSnapshot,
     setDirty,
@@ -2405,8 +2588,8 @@ export default function App() {
     ...workflowNames,
   }), [liveWorkflowNamesKey, workflowNamesKey]);
   const canvasCollabUsers = useMemo(
-    () => (collabEnabled && collabPresenceEnabled ? collabActiveUsers : EMPTY_COLLAB_USERS),
-    [collabActiveUsers, collabEnabled, collabPresenceEnabled],
+    () => (collabSessionActive && collabPresenceEnabled ? collabActiveUsers : EMPTY_COLLAB_USERS),
+    [collabActiveUsers, collabPresenceEnabled, collabSessionActive],
   );
   const appShellClassName = useMemo(() => ([
     'app-shell',
@@ -2441,7 +2624,21 @@ export default function App() {
     const wrap = (name: string, node: ReactNode): ReactNode => (
       <ErrorBoundary name={name} variant="inline" resetKeys={[tab]}>{node}</ErrorBoundary>
     );
-    if (tab === 'settings') return wrap('settings', <SettingsPanel onClose={() => closePanel(tab)} />);
+    if (tab === 'settings') {
+      return wrap('settings', (
+        <SettingsPanel
+          onClose={() => closePanel(tab)}
+          collabEnabled={collabEnabled}
+          collabConnected={collabConnected}
+          collabConnecting={collabConnecting}
+          collabShareLink={collabShareLink}
+          hasJoinLink={hasPendingJoinLink}
+          onCreateCollabSession={handleCreateCollabSession}
+          onJoinCollabSession={() => void handleJoinCollabSession(activeCollabJoinTarget)}
+          onLeaveCollabSession={handleLeaveCollabSession}
+        />
+      ));
+    }
     if (tab === 'help') {
       const selected = selectedNodeId
         ? activeWorkflow.nodes.find(n => n.id === selectedNodeId)
@@ -2563,7 +2760,7 @@ export default function App() {
         onQueueModeChange={setQueueMode}
         queueCount={queueCount}
         onToggleQueue={handleToggleQueue}
-        collabControls={collabEnabled ? (
+        collabControls={(
           <CollabBadge
             enabled={collabEnabled}
             connected={collabConnected}
@@ -2578,17 +2775,22 @@ export default function App() {
             isShared={collabIsShared}
             onFollow={followPresenceUser}
             onOpenSettings={() => setRailTab('settings')}
+            onCreateSession={handleCreateCollabSession}
+            onJoinSession={() => void handleJoinCollabSession(activeCollabJoinTarget)}
+            onLeaveSession={handleLeaveCollabSession}
+            hasJoinLink={hasPendingJoinLink}
+            shareLink={collabShareLink}
             reconnectAttempt={collabReconnectAttempt}
             error={collabError}
             offline={collabOffline}
           />
-        ) : null}
+        )}
       />
 
       <AuthDialog
         isOpen={showAuthDialog}
         onLogin={handleAuthLogin}
-        onClose={handleAuthClose}
+        onClose={handleCollabAuthClose}
       />
 
       <WorkflowTabs
@@ -2780,20 +2982,20 @@ export default function App() {
           missingDependencyNodeIds={missingDependencyNodeIds}
           nodeCommentsMap={nodeCommentsMap}
           nodeComments={workflowComments}
-          collabWorkflowId={collabEnabled ? activeWorkflowId : undefined}
-          currentCollabUser={collabEnabled ? currentUser : undefined}
+          collabWorkflowId={collabSessionActive ? activeWorkflowId : undefined}
+          currentCollabUser={collabSessionActive ? currentUser : undefined}
           onNodeCommentsChange={() => void fetchWorkflowComments()}
           collabUsers={canvasCollabUsers}
           nodePreviewsMap={nodePreviewsMap}
           nodeHtmlPreviewsMap={nodeHtmlPreviewsMap}
-          onCollabCursor={collabEnabled ? setCollabCursor : undefined}
-          onViewportChange={collabEnabled ? publishCollabViewport : undefined}
+          onCollabCursor={collabSessionActive ? setCollabCursor : undefined}
+          onViewportChange={collabSessionActive ? publishCollabViewport : undefined}
           onCollabSelection={(selection) => {
             setCollabSelection(selection);
           }}
-          onCollabNodeMove={collabEnabled ? publishCollabNodeMove : undefined}
-          onCollabDragStart={collabEnabled ? handleCollabDragStart : undefined}
-          onCollabDragEnd={collabEnabled ? handleCollabDragEnd : undefined}
+          onCollabNodeMove={collabSessionActive ? publishCollabNodeMove : undefined}
+          onCollabDragStart={collabSessionActive ? handleCollabDragStart : undefined}
+          onCollabDragEnd={collabSessionActive ? handleCollabDragEnd : undefined}
           onExecuteSelected={handleRunSelected}
           onCreateSubgraph={handleCreateSubgraph}
           onEnterSubgraph={handleEnterSubgraph}
@@ -2939,7 +3141,9 @@ export default function App() {
         objectInfo,
         currentUser,
         collabEnabled,
-        authUser,
+        collabInviteToken: activeInviteToken,
+        collabShareLink,
+        onCreateCollabSession: handleCreateCollabSession,
         getBool,
         set,
         handleImport,

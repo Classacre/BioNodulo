@@ -6,7 +6,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 [![Version](https://img.shields.io/badge/version-2.0-0d9488?logo=github)](pyproject.toml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
-[![License](https://img.shields.io/badge/license-BioNodulo%20Research-f59e0b)](LICENSE)
+[![License](https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/bionodulo-collab/notebooks/BioNodulo_Colab.ipynb)
 
 ## Features
@@ -289,8 +289,10 @@ api_secrets: {}
 
 ## License
 
-BioNodulo is source-available for research, education, evaluation, and development under the [BioNodulo Research License](LICENSE).
+BioNodulo is paid software distributed under the [BioNodulo Closed Alpha Commercial License](LICENSE).
 
-Publication of results produced with BioNodulo, commercial use, paid services, and hosted offerings require a separate paid license. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
+Access during the current closed-alpha development phase is limited to authorized users and institutions with a written license, trial agreement, or closed-alpha invitation. BioNodulo may not be freely redistributed, mirrored, sublicensed, hosted for third parties, or used outside the licensed scope.
+
+Third-party open-source and proprietary dependencies, command-line tools, datasets, containers, models, APIs, and services remain subject to their own license terms. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for the current compliance summary. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
 
 BioNodulo is an independent bioinformatics workflow platform built specifically for bioinformatics pipeline design, execution, and sharing.

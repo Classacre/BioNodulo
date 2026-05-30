@@ -45,7 +45,6 @@ def require_workflow_role(
 ) -> Any:
     """Ensure a user has the requested role and return the permission checker."""
     permissions = app_state(request).permission_checker
-    permissions.ensure_owner(workflow_id, user_id)
     ensure_open_room_access(request, workflow_id, user_id, role=open_room_role)
     checks = {
         "read": permissions.can_read,

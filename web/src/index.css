@@ -1233,6 +1233,34 @@ html[data-canvas-pattern="mesh"] .workflow-canvas-host::before {
 .settings-menu-dialog .select-input {
   width: min(260px, 100%);
 }
+.collab-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.collab-mode-pill.online {
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+  background: color-mix(in srgb, var(--success) 13%, var(--surface));
+  color: var(--success);
+}
+.collab-settings-link {
+  max-width: min(320px, 38vw);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  word-break: break-all;
+}
 
 /* Toggle Switch */
 .toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--border-2); cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }

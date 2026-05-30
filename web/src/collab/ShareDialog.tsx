@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiDelete } from '../api/client';
+import { toast } from '../components/ui';
 
 interface ShareDialogProps {
   workflowId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  collabEnabled?: boolean;
+  inviteToken?: string | null;
+  shareLink?: string;
+  onCreateRoom?: () => Promise<void>;
 }
 
 interface ShareEntry {
@@ -14,11 +19,30 @@ interface ShareEntry {
   name?: string;
 }
 
-const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }) => {
+function isLocalShareLink(link: string): boolean {
+  if (!link) return false;
+  try {
+    const host = new URL(link).hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+const ShareDialog: React.FC<ShareDialogProps> = ({
+  workflowId,
+  isOpen,
+  onClose,
+  collabEnabled = false,
+  inviteToken = null,
+  shareLink = '',
+  onCreateRoom,
+}) => {
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [shares, setShares] = useState<ShareEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creatingLink, setCreatingLink] = useState(false);
 
   const refreshShares = useCallback(async (id: string) => {
     try {
@@ -52,9 +76,31 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
     } catch { /* surfaced via dialog state */ }
   }, [workflowId]);
 
-  const roomLink = workflowId
+  const roomLink = shareLink || (workflowId
     ? `${window.location.origin}${window.location.pathname}?workflow=${encodeURIComponent(workflowId)}`
-    : '';
+    : '');
+  const localShareLink = isLocalShareLink(roomLink);
+
+  const handleCreateLink = useCallback(async () => {
+    if (!onCreateRoom) return;
+    setCreatingLink(true);
+    try {
+      await onCreateRoom();
+    } finally {
+      setCreatingLink(false);
+    }
+  }, [onCreateRoom]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!roomLink) return;
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(roomLink);
+      toast.success('Collaboration link copied');
+    } catch {
+      toast.info('Copy the collaboration link from the field');
+    }
+  }, [roomLink]);
 
   if (!isOpen) return null;
 
@@ -79,12 +125,27 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
       }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Share Workflow</h3>
 
+        {!collabEnabled && (
+          <div style={{
+            padding: '9px 10px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'var(--surface-2)',
+            fontSize: 12,
+            color: 'var(--muted)',
+            marginBottom: 12,
+          }}>
+            Collaboration is offline. Create a temporary room before sharing this workflow.
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input
             type="text"
             placeholder="User ID or email"
             value={userId}
             onChange={e => setUserId(e.target.value)}
+            disabled={!collabEnabled}
             style={{
               flex: 1,
               padding: '6px 10px',
@@ -98,6 +159,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
           <select
             value={role}
             onChange={e => setRole(e.target.value as 'editor' | 'viewer')}
+            disabled={!collabEnabled}
             style={{
               padding: '6px 10px',
               borderRadius: 6,
@@ -110,14 +172,23 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
             <option value="editor">Editor</option>
             <option value="viewer">Viewer</option>
           </select>
-          <button className="btn btn-primary btn-sm" onClick={handleShare} disabled={!userId.trim()}>
+          <button className="btn btn-primary btn-sm" onClick={handleShare} disabled={!collabEnabled || !userId.trim()}>
             Invite
           </button>
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--muted)' }}>
-            Collaboration room link
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
+              Collaboration room link
+            </div>
+            {inviteToken ? (
+              <button className="btn btn-sm" type="button" onClick={handleCopyLink}>Copy</button>
+            ) : (
+              <button className="btn btn-primary btn-sm" type="button" onClick={handleCreateLink} disabled={!onCreateRoom || creatingLink}>
+                {creatingLink ? 'Creating…' : 'Create link'}
+              </button>
+            )}
           </div>
           <div style={{
             padding: '7px 8px',
@@ -128,10 +199,12 @@ const ShareDialog: React.FC<ShareDialogProps> = ({ workflowId, isOpen, onClose }
             color: 'var(--muted)',
             wordBreak: 'break-all',
           }}>
-            {roomLink}
+            {inviteToken ? roomLink : 'Create a temporary collaboration room to generate a share link.'}
           </div>
           <div style={{ marginTop: 5, fontSize: 11, color: 'var(--muted)' }}>
-            Open-room hosts can join from this link. Restricted hosts still require an invite.
+            {localShareLink
+              ? 'This local link works only on this machine or LAN. Use a Cloudflare/ngrok tunnel or hosted URL for external collaborators.'
+              : 'Links work while this BioNodulo server is running. Stop the app to invalidate temporary links.'}
           </div>
         </div>
 

@@ -18,6 +18,14 @@ import { appPath } from '../../utils/appBase';
 
 interface SettingsPanelProps {
   onClose: () => void;
+  collabEnabled?: boolean;
+  collabConnected?: boolean;
+  collabConnecting?: boolean;
+  collabShareLink?: string;
+  hasJoinLink?: boolean;
+  onCreateCollabSession?: () => void;
+  onJoinCollabSession?: () => void;
+  onLeaveCollabSession?: () => void;
 }
 
 type SettingsSectionId =
@@ -60,7 +68,17 @@ function matchesQuery(query: string, ...needles: Array<string | undefined>): boo
   return tokens.every(token => haystack.includes(token));
 }
 
-export default function SettingsPanel({ onClose }: SettingsPanelProps) {
+export default function SettingsPanel({
+  onClose,
+  collabEnabled = false,
+  collabConnected = false,
+  collabConnecting = false,
+  collabShareLink = '',
+  hasJoinLink = false,
+  onCreateCollabSession,
+  onJoinCollabSession,
+  onLeaveCollabSession,
+}: SettingsPanelProps) {
   const { get, getBool, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
@@ -260,14 +278,43 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         {/* Collaboration */}
         <SettingsGroup active={isSectionVisible('collaboration')} query={query} title="Collaboration">
-          <SettingRow query={query} label="Real-Time Collaboration" desc="Enable shared editing and presence" keywords="yjs collab share multi-user">
-            <div className={`toggle ${getBool('bionodulo.collab.enabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.enabled')} />
+          <SettingRow query={query} label="Mode" desc="BioNodulo starts offline. Create or join a temporary room when you want shared editing." keywords="yjs collab share multi-user offline">
+            <span className={`collab-mode-pill ${collabEnabled ? 'online' : 'offline'}`}>
+              {collabEnabled
+                ? collabConnected
+                  ? 'Live'
+                  : collabConnecting
+                    ? 'Connecting'
+                    : 'Enabled'
+                : hasJoinLink
+                  ? 'Link ready'
+                  : 'Offline'}
+            </span>
           </SettingRow>
+          <SettingRow query={query} label="Create Link" desc="Start a temporary room and copy a link for other users." keywords="server create host link invite">
+            <button className="btn btn-primary btn-sm" type="button" onClick={onCreateCollabSession} disabled={!onCreateCollabSession}>
+              Create
+            </button>
+          </SettingRow>
+          <SettingRow query={query} label="Join Link" desc="Paste a BioNodulo collaboration link or room ID." keywords="server join link invite">
+            <button className="btn btn-sm" type="button" onClick={onJoinCollabSession} disabled={!onJoinCollabSession}>
+              Join
+            </button>
+          </SettingRow>
+          {collabEnabled && collabShareLink && (
+            <SettingRow query={query} label="Current Link" desc="Temporary link for this running BioNodulo server." keywords="server share copy link">
+              <div className="collab-settings-link" title={collabShareLink}>{collabShareLink}</div>
+            </SettingRow>
+          )}
+          {collabEnabled && (
+            <SettingRow query={query} label="Stop Collaboration" desc="Return this browser to offline mode." keywords="server stop leave disconnect offline">
+              <button className="btn btn-sm" type="button" onClick={onLeaveCollabSession} disabled={!onLeaveCollabSession}>
+                Stop
+              </button>
+            </SettingRow>
+          )}
           <SettingRow query={query} label="Presence Cursors" desc="Show collaborators on the canvas" keywords="cursors awareness yjs">
             <div className={`toggle ${getBool('bionodulo.collab.presence') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.presence')} />
-          </SettingRow>
-          <SettingRow query={query} label="Startup Choice" desc="Show collaboration choice on startup" keywords="getting started welcome">
-            <div className={`toggle ${getBool('bionodulo.getting_started.show_on_startup') ? 'on' : ''}`} onClick={() => toggle('bionodulo.getting_started.show_on_startup')} />
           </SettingRow>
         </SettingsGroup>
 

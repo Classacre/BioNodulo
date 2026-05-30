@@ -1,72 +1,117 @@
-BioNodulo Research License
+BioNodulo Closed Alpha Commercial License
 Version 1.0
 
-SPDX-License-Identifier: LicenseRef-BioNodulo-Research-1.0
+SPDX-License-Identifier: LicenseRef-BioNodulo-Closed-Alpha-Commercial-1.0
 
 Copyright (c) 2026 BioNodulo contributors.
 
 1. Scope
 
-This license applies to the BioNodulo software and source code distributed
-with this license (the "Software"). Third-party components remain subject to
-their own license terms.
+This license applies to the BioNodulo software, source code, documentation,
+workflows, templates, examples, user interface, and related materials
+distributed with this license (the "Software"). Third-party components,
+open-source dependencies, external command-line tools, datasets, containers,
+and package repositories remain subject to their own license terms.
 
-2. Research License Grant
+2. License Required
 
-Subject to this license, you may download, run, copy, inspect, and modify the
-Software for:
+BioNodulo is paid software. No right to download, install, run, copy, modify,
+evaluate, redistribute, host, or use the Software is granted unless you have a
+separate written license, order form, trial agreement, or closed-alpha
+invitation from the BioNodulo licensors (a "BioNodulo License").
 
-- personal research;
-- academic or non-commercial research;
-- teaching and education;
-- evaluation, testing, and development of changes for the Software; and
-- reproduction or validation work that does not itself publish or commercially
-  use new results produced with the Software.
+Use of the Software must stay within the users, institutions, systems,
+purposes, term, and usage limits stated in the applicable BioNodulo License.
 
-You may distribute copies of the Software or your modifications only under
-this license and only if you preserve this license, copyright notices, and
-notices identifying modified files.
+3. Closed Alpha Access
 
-3. Uses Requiring a Separate License
+During the closed-alpha development phase, authorized participants may use the
+Software only for internal evaluation, testing, feedback, and development
+activities permitted by their BioNodulo License or written invitation.
 
-This license does not grant permission for:
+Closed-alpha access does not grant permission to:
 
-- publishing, submitting, or publicly disseminating results produced with the
-  Software in a paper, preprint, thesis, report, poster, presentation,
-  dataset, workflow release, or other research output;
-- commercial use or use intended for commercial advantage;
-- offering the Software as a hosted, cloud, managed, consulting, or paid
-  service;
-- sublicensing the Software under different terms; or
-- removing or obscuring license, copyright, or attribution notices.
+- distribute, publish, mirror, sublicense, sell, lease, or transfer the
+  Software or access credentials;
+- provide the Software as a hosted, managed, cloud, consulting, or paid
+  service to third parties;
+- publish, submit, or publicly disseminate results produced with the Software
+  unless expressly permitted in writing;
+- use the Software for production clinical, diagnostic, regulatory, commercial,
+  or institutional operations outside the licensed scope;
+- remove or obscure license, copyright, proprietary, third-party, or
+  attribution notices; or
+- bypass license checks, access controls, metering, technical restrictions, or
+  security controls.
 
-Those uses require a separate written license from the BioNodulo licensors.
-For licensing enquiries, contact nieuwenhuyzemikamartin@gmail.com.
+4. No Redistribution
 
-4. No Trademark License
+The Software may not be freely distributed. You may not copy, share, upload,
+post, publish, package, mirror, resell, sublicense, or otherwise provide the
+Software to any person or organization that is not authorized under a
+BioNodulo License.
 
-This license does not grant rights to use BioNodulo names, logos, or other
-trademarks except as needed for truthful identification of the Software.
+If the repository is accessible during development, that access is confidential
+closed-alpha access only and does not make the Software open source, free
+software, public domain, or generally redistributable.
 
-5. Termination
+5. Third-Party Components and Tools
 
-Your rights under this license terminate automatically if you violate its
-terms. If the violation is your first violation and you cure it within 30 days
-after receiving written notice, your rights are reinstated.
+BioNodulo integrates with third-party open-source and proprietary components.
+Those components are not relicensed under this license.
 
-6. No Warranty
+BioNodulo nodes may detect, invoke, or help install external bioinformatics
+tools such as Conda/Bioconda packages, R packages, Docker/Apptainer images,
+and vendor tools. Users and institutions are responsible for ensuring they
+have the rights required to install, run, redistribute, host, or use those
+third-party tools, datasets, and services.
+
+No BioNodulo License grants rights to third-party software, datasets, models,
+APIs, trademarks, or services. Third-party notices and license obligations must
+be preserved where required.
+
+6. Ownership
+
+The Software is licensed, not sold. Except for rights expressly granted in a
+BioNodulo License, the BioNodulo licensors retain all rights, title, and
+interest in and to the Software, including all intellectual property rights.
+
+Feedback, suggestions, bug reports, feature requests, and other input provided
+to the BioNodulo licensors may be used to improve the Software without
+restriction or obligation unless a separate written agreement says otherwise.
+
+7. No Trademark License
+
+This license does not grant rights to use BioNodulo names, logos, marks, or
+branding except as needed for truthful identification of the Software within
+the licensed scope.
+
+8. Termination
+
+Your rights under this license and any closed-alpha access terminate
+automatically if you violate this license or exceed the scope of your
+BioNodulo License. Upon termination, you must stop using the Software and
+delete or return all copies unless a written agreement requires otherwise.
+
+9. No Warranty
 
 The Software is provided "as is", without warranty of any kind, express or
 implied, including warranties of merchantability, fitness for a particular
-purpose, title, and non-infringement.
+purpose, title, non-infringement, accuracy, data integrity, security,
+availability, or suitability for clinical, diagnostic, regulatory, or
+production use.
 
-7. Limitation of Liability
+10. Limitation of Liability
 
 To the maximum extent permitted by law, the BioNodulo licensors and
-contributors will not be liable for any claim, damages, or other liability
-arising from the Software or this license.
+contributors will not be liable for any claim, damages, losses, liabilities,
+costs, or expenses arising from the Software, this license, closed-alpha
+access, third-party components, third-party tools, datasets, models, APIs, or
+workflow outputs.
 
-8. Other Rights
+11. Other Rights
 
 This license does not limit rights you may have under applicable law that do
 not require permission from the copyright holder.
+
+For licensing enquiries, contact nieuwenhuyzemikamartin@gmail.com.
