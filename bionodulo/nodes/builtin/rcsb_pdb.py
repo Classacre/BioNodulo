@@ -214,3 +214,12 @@ class PDBDownloadNode(BaseNode):
                 "pdb_metadata": str(metadata_path),
             }
         }
+
+
+class PDBRetrieveNode(PDBDownloadNode):
+    """Compatibility wrapper for the original PDB retrieval roadmap node ID."""
+
+    NODE_ID = "pdb_retrieve"
+    DISPLAY_NAME = "PDB Retrieve"
+    DESCRIPTION = "Retrieve protein structures and metadata from RCSB PDB."
+    SEARCH_ALIASES = ["pdb retrieve", "pdb", "rcsb", "structure", "download", "protein", "3d", "mmcif"]

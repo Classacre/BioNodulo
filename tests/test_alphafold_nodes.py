@@ -28,6 +28,10 @@ def test_alphafold_db_is_registered_for_frontend_discovery() -> None:
     assert info["alphafold_db"]["display_name"] == "AlphaFold DB"
     assert info["alphafold_db"]["category"] == "databases"
     assert info["alphafold_db"]["output_name"] == ["structure_mmcif", "structure_metadata"]
+    assert info["alphafold"]["display_name"] == "AlphaFold"
+    assert info["alphafold"]["category"] == "databases"
+    assert info["alphafold"]["output_name"] == ["structure_mmcif", "structure_metadata"]
+    assert issubclass(registry.get("alphafold"), registry.get("alphafold_db"))
 
 
 @pytest.mark.asyncio

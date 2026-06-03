@@ -40,6 +40,12 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["sra_download"]["output_name"] == ["fastq_files", "download_report"]
     assert info["sra_download"]["required_executables"] == ["prefetch", "fasterq-dump"]
     assert registry.get("sra_download").REQUIRES_EXTERNAL_TOOLS is True
+    assert info["sra_fetch"]["display_name"] == "SRA Fetch"
+    assert info["sra_fetch"]["category"] == "databases"
+    assert info["sra_fetch"]["output_name"] == ["fastq_files", "download_report"]
+    assert info["sra_fetch"]["required_executables"] == ["prefetch", "fasterq-dump"]
+    assert registry.get("sra_fetch").REQUIRES_EXTERNAL_TOOLS is True
+    assert issubclass(registry.get("sra_fetch"), registry.get("sra_download"))
 
 
 @pytest.mark.asyncio

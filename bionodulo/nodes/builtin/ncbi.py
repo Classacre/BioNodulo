@@ -898,3 +898,22 @@ class SRADownloadNode(BaseNode):
                 "download_report": str(report_path),
             }
         }
+
+
+class SRAFetchNode(SRADownloadNode):
+    """Compatibility wrapper for the original SRA fetch roadmap node ID."""
+
+    NODE_ID = "sra_fetch"
+    DISPLAY_NAME = "SRA Fetch"
+    DESCRIPTION = "Fetch FASTQ or FASTA files from NCBI Sequence Read Archive using sra-toolkit."
+    SEARCH_ALIASES = [
+        "sra fetch",
+        "sra",
+        "sequence read archive",
+        "download",
+        "fastq",
+        "fasta",
+        "ngs",
+        "reads",
+        "prefetch",
+    ]

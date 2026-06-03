@@ -244,3 +244,12 @@ class AlphaFoldDBNode(BaseNode):
                 "structure_metadata": str(metadata_path),
             }
         }
+
+
+class AlphaFoldNode(AlphaFoldDBNode):
+    """Compatibility wrapper for the original AlphaFold roadmap node ID."""
+
+    NODE_ID = "alphafold"
+    DISPLAY_NAME = "AlphaFold"
+    DESCRIPTION = "Fetch predicted protein structures and metadata from AlphaFold DB."
+    SEARCH_ALIASES = ["alphafold", "alphafold db", "structure", "prediction", "protein folding", "mmcif"]

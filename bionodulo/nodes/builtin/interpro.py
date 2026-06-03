@@ -271,3 +271,12 @@ class InterProScanNode(BaseNode):
                 "domains_tsv": str(tsv_path),
             }
         }
+
+
+class InterProNode(InterProScanNode):
+    """Compatibility wrapper for the original InterPro roadmap node ID."""
+
+    NODE_ID = "interpro"
+    DISPLAY_NAME = "InterPro"
+    DESCRIPTION = "Submit protein sequences to InterProScan and return InterPro domain annotations."
+    SEARCH_ALIASES = ["interpro", "interproscan", "domain", "family", "protein", "pfam", "smart", "scan"]

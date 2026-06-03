@@ -28,6 +28,10 @@ def test_pdb_download_is_registered_for_frontend_discovery() -> None:
     assert info["pdb_download"]["display_name"] == "PDB Download"
     assert info["pdb_download"]["category"] == "api"
     assert info["pdb_download"]["output_name"] == ["structure_file", "pdb_metadata"]
+    assert info["pdb_retrieve"]["display_name"] == "PDB Retrieve"
+    assert info["pdb_retrieve"]["category"] == "api"
+    assert info["pdb_retrieve"]["output_name"] == ["structure_file", "pdb_metadata"]
+    assert issubclass(registry.get("pdb_retrieve"), registry.get("pdb_download"))
 
 
 @pytest.mark.asyncio
