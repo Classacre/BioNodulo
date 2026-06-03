@@ -335,3 +335,86 @@ def test_nanoplot_plans_real_output_names() -> None:
         "/tmp/run/nanoplot/NanoPlot-report.html",
         "/tmp/run/nanoplot/NanoStats.txt",
     ]
+
+
+def test_medaka_consensus_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["medaka_consensus"]
+    assert node_info["display_name"] == "Medaka Consensus"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"].startswith("Neural network polishing")
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["polished_assembly"]
+    assert node_info["required_executables"] == ["medaka_consensus"]
+    assert node_info["required_conda_packages"] == ["medaka"]
+    assert "nanopore" in node_info["search_aliases"]
+    assert "assembly polish" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reads", "draft", "threads"}
+    assert set(inputs["optional"]) == {"model", "bam"}
+
+
+def test_medaka_consensus_renders_polishing_command() -> None:
+    node_class = _node_class("medaka_consensus")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "draft": "draft.fasta",
+        "threads": 12,
+        "model": "r1041_e82_400_sup_v5.0.0",
+        "bam": "alignment.bam",
+        "output": "/tmp/run/medaka_consensus",
+    })
+
+    assert cmd == [
+        "medaka_consensus",
+        "-i",
+        "reads.fastq.gz",
+        "-d",
+        "draft.fasta",
+        "-o",
+        "/tmp/run/medaka_consensus",
+        "-t",
+        "12",
+        "-m",
+        "r1041_e82_400_sup_v5.0.0",
+        "-b",
+        "alignment.bam",
+    ]
+
+
+def test_medaka_consensus_omits_empty_optional_flags() -> None:
+    node_class = _node_class("medaka_consensus")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "draft": "draft.fasta",
+        "threads": 4,
+        "model": "",
+        "bam": "",
+        "output": "/tmp/run/medaka_consensus",
+    })
+
+    assert cmd == [
+        "medaka_consensus",
+        "-i",
+        "reads.fastq.gz",
+        "-d",
+        "draft.fasta",
+        "-o",
+        "/tmp/run/medaka_consensus",
+        "-t",
+        "4",
+    ]
+
+
+def test_medaka_consensus_plans_consensus_fasta_output() -> None:
+    node_class = _node_class("medaka_consensus")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/medaka_consensus/consensus.fasta"]
