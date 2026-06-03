@@ -407,3 +407,90 @@ def test_cnvnator_plans_call_and_root_outputs() -> None:
         "/tmp/run/cnvnator/cnv_calls.out",
         "/tmp/run/cnvnator/root_file.out",
     ]
+
+
+def test_control_freec_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["control_freec"]
+    assert node_info["display_name"] == "Control-FREEC"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("CNV caller with tumor purity")
+    assert node_info["output"] == ["FILE", "FILE"]
+    assert node_info["output_name"] == ["cnv_profile", "baf_profile"]
+    assert node_info["required_executables"] == ["freec"]
+    assert node_info["required_conda_packages"] == ["control-freec"]
+    assert "freec" in node_info["search_aliases"]
+    assert "allelic imbalance" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"tumor_bam", "chrom_lengths", "chrom_dir", "window", "threads"}
+    assert set(inputs["optional"]) == {"normal_bam", "ploidy"}
+
+
+def test_control_freec_writes_config_and_renders_command(tmp_path) -> None:
+    node_class = _node_class("control_freec")
+    out_dir = tmp_path / "control_freec"
+
+    cmd = node_class.render_command({
+        "tumor_bam": "tumor.bam",
+        "normal_bam": "normal.bam",
+        "chrom_lengths": "hg38.chrom.sizes",
+        "chrom_dir": "/refs/chroms",
+        "ploidy": 3,
+        "window": 100000,
+        "threads": 12,
+        "output": str(out_dir),
+    })
+
+    config_file = out_dir / "freec_config.txt"
+    assert cmd == ["freec", "-conf", str(config_file)]
+    assert config_file.read_text() == (
+        "[general]\n"
+        "chrLenFile = hg38.chrom.sizes\n"
+        "ploidy = 3\n"
+        "window = 100000\n"
+        "chrFiles = /refs/chroms\n"
+        f"outputDir = {out_dir}\n"
+        "maxThreads = 12\n"
+        "[sample]\n"
+        "mateFile = tumor.bam\n"
+        "inputFormat = BAM\n"
+        "mateOrientation = FR\n"
+        "[control]\n"
+        "mateFile = normal.bam\n"
+        "inputFormat = BAM\n"
+        "mateOrientation = FR\n"
+    )
+
+
+def test_control_freec_omits_control_section_without_normal(tmp_path) -> None:
+    node_class = _node_class("control_freec")
+    out_dir = tmp_path / "control_freec"
+
+    node_class.render_command({
+        "tumor_bam": "tumor.bam",
+        "chrom_lengths": "hg38.chrom.sizes",
+        "chrom_dir": "/refs/chroms",
+        "window": 50000,
+        "threads": 4,
+        "output": str(out_dir),
+    })
+
+    config_text = (out_dir / "freec_config.txt").read_text()
+    assert "[control]" not in config_text
+    assert "ploidy = 2\n" in config_text
+    assert "maxThreads = 4\n" in config_text
+
+
+def test_control_freec_plans_profile_outputs() -> None:
+    node_class = _node_class("control_freec")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/control_freec/cnv_profile.out",
+        "/tmp/run/control_freec/baf_profile.out",
+    ]
