@@ -44,6 +44,8 @@ def ensure_examples_link(workspace_root: Path, project_dir: Path | None = None) 
     target = workspace_root / "examples"
     if not source.exists() or target.exists():
         return
+    if target.is_symlink():
+        target.unlink()
     workspace_root.mkdir(parents=True, exist_ok=True)
     try:
         os.symlink(str(source), str(target))
