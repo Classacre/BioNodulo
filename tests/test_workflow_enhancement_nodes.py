@@ -55,6 +55,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "retry": ("Retry", ["passthrough", "retry_log"]),
         "batch_submitter": ("Batch Submitter", ["job_ids", "status_summary", "batch_log"]),
         "workflow_trigger": ("Workflow Trigger", ["trigger_info", "triggered"]),
+        "pause_resume": ("Pause / Resume", ["output", "approved", "pause_info"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -942,4 +943,80 @@ async def test_workflow_trigger_rejects_invalid_configuration() -> None:
             trigger_type="webhook",
             webhook_url="https://hooks.example.test/run",
             payload="{not-json",
+        )
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_records_review_request_and_passes_through_file_preview(tmp_path: Path) -> None:
+    source = tmp_path / "variants.vcf"
+    source.write_text("##fileformat=VCFv4.3\n#CHROM\tPOS\tID\nchr1\t42\t.\n", encoding="utf-8")
+    context = _context(tmp_path, "pause-node")
+    context.workspace_dir = tmp_path
+
+    output, approved, pause_info_json = await _node_class("pause_resume")().run(
+        input=str(source),
+        message="Review variant calls before annotation.",
+        timeout_seconds=0,
+        default_action="wait",
+        show_preview=True,
+        reviewers="ana, ben",
+        context=context,
+    )
+
+    pause_info = json.loads(pause_info_json)
+    pause_file = Path(pause_info["pause_file"])
+    saved = json.loads(pause_file.read_text(encoding="utf-8"))
+    assert output == str(source)
+    assert approved is True
+    assert pause_info["status"] == "waiting"
+    assert pause_info["engine_pause_supported"] is False
+    assert pause_info["reviewers"] == ["ana", "ben"]
+    assert pause_info["preview"]["kind"] == "file"
+    assert pause_info["preview"]["path"] == str(source)
+    assert "chr1\t42" in pause_info["preview"]["text"]
+    assert pause_file == tmp_path / "pause_requests" / "pause-node.json"
+    assert saved["message"] == "Review variant calls before annotation."
+    assert saved["engine_pause_supported"] is False
+    assert context.events[0][0] == "pause_requested"
+    assert context.logs[0] == ("info", "Pause / Resume requested: waiting")
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_timeout_default_actions(tmp_path: Path) -> None:
+    context = _context(tmp_path, "pause-approve")
+
+    output, approved, pause_info_json = await _node_class("pause_resume")().run(
+        input={"qc": "passed"},
+        timeout_seconds=1,
+        default_action="approve",
+        show_preview=True,
+        context=context,
+    )
+
+    pause_info = json.loads(pause_info_json)
+    assert output == {"qc": "passed"}
+    assert approved is True
+    assert pause_info["status"] == "timeout_approved"
+    assert pause_info["preview"]["kind"] == "json"
+    assert '"qc": "passed"' in pause_info["preview"]["text"]
+
+    _, rejected, rejected_info_json = await _node_class("pause_resume")().run(
+        input="needs review",
+        timeout_seconds=1,
+        default_action="reject",
+        show_preview=False,
+    )
+
+    rejected_info = json.loads(rejected_info_json)
+    assert rejected is False
+    assert rejected_info["status"] == "timeout_rejected"
+    assert rejected_info["preview"] is None
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_rejects_invalid_default_action() -> None:
+    with pytest.raises(ValueError, match="Unsupported default_action"):
+        await _node_class("pause_resume")().run(
+            input="x",
+            default_action="continue",
         )

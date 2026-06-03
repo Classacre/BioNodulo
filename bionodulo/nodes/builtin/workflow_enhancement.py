@@ -1920,3 +1920,135 @@ class WorkflowTriggerNode(BaseNode):
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
         return {"status_code": response.status_code, "body": response.text}
+
+
+class PauseResumeNode(BaseNode):
+    """Record a human review gate and pass data through."""
+
+    NODE_ID = "pause_resume"
+    DISPLAY_NAME = "Pause / Resume"
+    CATEGORY = "workflow"
+    DESCRIPTION = "Human-in-the-loop approval gate. Pause execution, display results for review, resume or abort based on user input."
+    SEARCH_ALIASES = ["pause", "human", "approval", "review", "gate", "confirm", "breakpoint"]
+    RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
+    RETURN_NAMES = ("output", "approved", "pause_info")
+    REQUIRES_EXTERNAL_TOOLS = False
+    DEFAULT_ACTIONS = {"wait", "approve", "reject"}
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("ANY", {"description": "Data to review before proceeding"}),
+            },
+            "optional": {
+                "message": ("STRING", {"default": "Please review the intermediate results.", "multiline": True}),
+                "timeout_seconds": ("INT", {"default": 0, "min": 0}),
+                "default_action": (["wait", "approve", "reject"], {"default": "wait"}),
+                "show_preview": ("BOOLEAN", {"default": True}),
+                "reviewers": ("STRING", {"default": ""}),
+            },
+            "hidden": {
+                "context": ("CONTEXT", {}),
+            },
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[Any, bool, str]:
+        context = kwargs.pop("context", None)
+        data = kwargs.get("input")
+        message = str(kwargs.get("message", "Please review the intermediate results.") or "")
+        timeout_seconds = max(0, int(kwargs.get("timeout_seconds", 0) or 0))
+        default_action = str(kwargs.get("default_action", "wait") or "wait").lower()
+        show_preview = bool(kwargs.get("show_preview", True))
+        reviewers = self._reviewers(kwargs.get("reviewers", ""))
+
+        if default_action not in self.DEFAULT_ACTIONS:
+            raise ValueError(f"Unsupported default_action: {default_action}")
+
+        status, approved = self._decision(timeout_seconds, default_action)
+        pause_info: dict[str, Any] = {
+            "run_id": getattr(context, "run_id", ""),
+            "node_id": getattr(context, "node_id", self.NODE_ID),
+            "message": message,
+            "status": status,
+            "approved": approved,
+            "timeout_seconds": timeout_seconds,
+            "default_action": default_action,
+            "reviewers": reviewers,
+            "preview": self._preview(data) if show_preview else None,
+            "created_at": time.time(),
+            "engine_pause_supported": False,
+            "note": "Review request recorded; executor-level blocking pause/resume is not implemented yet.",
+        }
+
+        pause_file = self._write_pause_file(context, pause_info)
+        if pause_file:
+            pause_info["pause_file"] = pause_file
+            self._write_pause_file(context, pause_info)
+
+        _ctx_emit(
+            context,
+            "pause_requested",
+            {
+                "run_id": pause_info["run_id"],
+                "node_id": pause_info["node_id"],
+                "message": message,
+                "status": status,
+                "approved": approved,
+                "timeout_seconds": timeout_seconds,
+                "reviewers": reviewers,
+                "pause_file": pause_file,
+                "engine_pause_supported": False,
+            },
+        )
+        _ctx_log(context, "info" if approved else "warning", f"Pause / Resume requested: {status}")
+        return (data, approved, _json_text(pause_info))
+
+    @staticmethod
+    def _reviewers(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return [item.strip() for item in str(value or "").split(",") if item.strip()]
+
+    @staticmethod
+    def _decision(timeout_seconds: int, default_action: str) -> tuple[str, bool]:
+        if timeout_seconds > 0 and default_action == "approve":
+            return ("timeout_approved", True)
+        if timeout_seconds > 0 and default_action == "reject":
+            return ("timeout_rejected", False)
+        return ("waiting", True)
+
+    def _preview(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, (str, Path)):
+            path = Path(str(data))
+            if path.exists():
+                size = path.stat().st_size
+                preview: dict[str, Any] = {
+                    "kind": "file",
+                    "path": str(path),
+                    "name": path.name,
+                    "size_bytes": size,
+                }
+                if size <= 1_000_000:
+                    try:
+                        preview["text"] = path.read_text(encoding="utf-8", errors="replace")[:5000]
+                    except OSError as exc:
+                        preview["error"] = str(exc)
+                else:
+                    preview["text"] = f"File preview omitted: {path.name} is {size} bytes"
+                return preview
+        if isinstance(data, (dict, list)):
+            return {"kind": "json", "text": json.dumps(data, indent=2, sort_keys=True, default=str)[:5000]}
+        return {"kind": "text", "text": str(data)[:5000]}
+
+    def _write_pause_file(self, context: Any, pause_info: dict[str, Any]) -> str:
+        if context is None:
+            return ""
+        workspace_dir = getattr(context, "workspace_dir", None)
+        base = Path(workspace_dir) if workspace_dir else _node_output_dir(self, context)
+        pause_dir = base / "pause_requests"
+        pause_dir.mkdir(parents=True, exist_ok=True)
+        node_id = getattr(context, "node_id", self.NODE_ID)
+        pause_file = pause_dir / f"{node_id}.json"
+        pause_file.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
+        return str(pause_file)
