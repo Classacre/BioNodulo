@@ -1119,6 +1119,64 @@ class GatkHaplotypeCallerNode(CommandNode):
         }
 
 
+class GatkGenotypeGVCFsNode(CommandNode):
+    """Joint genotype sample GVCFs with GATK GenotypeGVCFs."""
+    NODE_ID = "gatk_genotype_gvcfs"
+    DISPLAY_NAME = "GATK GenotypeGVCFs"
+    REQUIRED_CONDA_PACKAGES = ["gatk4"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Joint genotype GVCF files from multiple samples with GATK GenotypeGVCFs"
+    SEARCH_ALIASES = ["gatk", "genotypegvcfs", "joint genotyping", "gvcf", "cohort genotyping"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("vcf",)
+    REQUIRED_EXECUTABLES = ["gatk"]
+    DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360036899732-GenotypeGVCFs"
+    VERSION = "4.6.2.0"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        gvcfs = inputs.get("gvcfs", [])
+        if isinstance(gvcfs, str):
+            gvcfs = [gvcf.strip() for gvcf in gvcfs.split(",") if gvcf.strip()]
+
+        cmd = [
+            "gatk",
+            "GenotypeGVCFs",
+            "-R",
+            str(inputs.get("reference", "")),
+        ]
+        for gvcf in gvcfs:
+            cmd.extend(["-V", str(gvcf)])
+        if inputs.get("intervals"):
+            cmd.extend(["-L", str(inputs["intervals"])])
+        if inputs.get("dbsnp"):
+            cmd.extend(["--dbsnp", str(inputs["dbsnp"])])
+        if inputs.get("standard_min_confidence") is not None:
+            cmd.extend([
+                "--standard-min-confidence-threshold-for-calling",
+                str(inputs["standard_min_confidence"]),
+            ])
+        cmd.extend(["-O", f"{inputs.get('output', '.')}/vcf.vcf.gz"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gvcfs": ("VCF_GZ", {"description": "Input GVCF files. Use comma-separated paths for multiple samples."}),
+                "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
+            },
+            "optional": {
+                "intervals": ("STRING", {"default": "", "description": "Intervals to genotype (e.g., chr1:1-1000)", "advanced": True}),
+                "dbsnp": ("VCF_GZ", {"description": "Optional dbSNP VCF for annotation", "advanced": True}),
+                "standard_min_confidence": ("INT", {"default": 30, "min": 0, "max": 100, "display": "slider", "label": "Call Confidence Threshold", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class GatkBaseRecalibratorNode(CommandNode):
     """Base quality score recalibration with GATK."""
     NODE_ID = "gatk_base_recalibrator"
