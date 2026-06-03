@@ -51,6 +51,10 @@ class BioType(str, Enum):
     CONTIGS = "CONTIGS"
     SCAFFOLDS = "SCAFFOLDS"
 
+    # Pangenomics
+    GFA = "GFA"
+    ODGI = "ODGI"
+
     # Quantification
     COUNTS = "COUNTS"
     TPM_MATRIX = "TPM_MATRIX"
@@ -124,6 +128,8 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.ASSEMBLY: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.CONTIGS},
     BioType.CONTIGS: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.ASSEMBLY},
     BioType.SCAFFOLDS: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.ASSEMBLY, BioType.CONTIGS},
+    BioType.GFA: {BioType.FILE, BioType.STRING},
+    BioType.ODGI: {BioType.FILE, BioType.STRING},
     BioType.COUNTS: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
     BioType.TPM_MATRIX: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
     BioType.ABUNDANCE: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
@@ -240,6 +246,8 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.ASSEMBLY: ".fasta",
         BioType.CONTIGS: ".fasta",
         BioType.SCAFFOLDS: ".fasta",
+        BioType.GFA: ".gfa",
+        BioType.ODGI: ".odgi",
         BioType.COUNTS: ".counts.tsv",
         BioType.TPM_MATRIX: ".tpm.tsv",
         BioType.ABUNDANCE: ".abundance.tsv",

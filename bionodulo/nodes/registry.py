@@ -336,7 +336,20 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"
     if not isinstance(bionodulo_type, str):
         bionodulo_type = str(bionodulo_type)
-    if bionodulo_type in {"STRING", "INT", "FLOAT", "BOOLEAN"}:
+    passthrough_types = {
+        "STRING",
+        "INT",
+        "FLOAT",
+        "BOOLEAN",
+        "FILE",
+        "DIRECTORY",
+        "FASTQ",
+        "FASTQ_LIST",
+        "FASTA",
+        "GFA",
+        "ODGI",
+    }
+    if bionodulo_type in passthrough_types:
         return bionodulo_type
     if bionodulo_type == "ANY":
         return "*"

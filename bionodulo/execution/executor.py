@@ -746,7 +746,7 @@ class WorkflowExecutor:
         "FASTQ_LIST", "FASTA", "FASTQ", "BAM", "SAM", "VCF", "GFF", "GTF",
         "BED", "WIG", "BIGWIG", "FILE", "DIR", "PATH", "INDEX_DIR",
         "REFERENCE", "READS", "ASSEMBLY", "CONTIGS", "ALIGNMENT",
-        "REPORT", "PLOT", "IMAGE", "TABLE", "MATRIX", "TREE",
+        "GFA", "ODGI", "REPORT", "PLOT", "IMAGE", "TABLE", "MATRIX", "TREE",
     }
 
     def _resolve_file_paths(

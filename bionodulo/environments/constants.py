@@ -97,6 +97,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "CRISPResso": "crispresso2",
     "mageck": "mageck",
     "cas-offinder": "cas-offinder",
+    "odgi": "odgi",
     "Rscript": "r-base",
 }
 
@@ -206,6 +207,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "crispresso2": ">=2.3.2",
     "mageck": ">=0.5.9",
     "cas-offinder": ">=2.4.1",
+    "odgi": ">=0.9.0",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
