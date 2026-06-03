@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -10,6 +16,12 @@ def _node_class(node_id: str) -> type:
     node_class = registry.get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+def _context(tmp_path: Path, name: str) -> SimpleNamespace:
+    node_dir = tmp_path / name
+    node_dir.mkdir()
+    return SimpleNamespace(node_dir=node_dir)
 
 
 def test_muscle_is_registered_for_frontend_discovery() -> None:
@@ -347,3 +359,62 @@ def test_modeltest_ng_omits_empty_optional_flags_and_plans_outputs() -> None:
 def test_modeltest_ng_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["modeltest-ng"] == "modeltest-ng"
     assert PACKAGE_MIN_VERSIONS["modeltest-ng"] == ">=0.1.7"
+
+
+def test_phylogenetic_tree_builder_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["phylogenetic_tree_builder"]
+    assert node_info["display_name"] == "Phylo Tree Builder"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Build phylogenetic trees using multiple methods")
+    assert node_info["output"] == ["NEWICK", "JSON"]
+    assert node_info["output_name"] == ["consensus_tree", "individual_trees"]
+    assert node_info["requires_external_tools"] is False
+    assert node_info["required_conda_packages"] == ["biopython"]
+    assert "consensus tree" in node_info["search_aliases"]
+    assert "newick" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"tree_files"}
+    assert set(inputs["optional"]) == {"methods", "consensus_method"}
+
+
+@pytest.mark.asyncio
+async def test_phylogenetic_tree_builder_writes_consensus_and_manifest(tmp_path: Path) -> None:
+    iqtree = tmp_path / "iqtree.treefile"
+    raxml = tmp_path / "raxml.bestTree"
+    fasttree = tmp_path / "fasttree.nwk"
+    iqtree.write_text("((A:0.1,B:0.2):0.3,C:0.4);\n", encoding="utf-8")
+    raxml.write_text("((A:0.1,B:0.2):0.3,C:0.4);\n", encoding="utf-8")
+    fasttree.write_text("(A:0.1,(B:0.2,C:0.4):0.3);\n", encoding="utf-8")
+
+    consensus_path, manifest_path = await _node_class("phylogenetic_tree_builder")().run(
+        tree_files="\n".join([str(iqtree), str(raxml), str(fasttree)]),
+        methods="iqtree,raxml_ng,fasttree",
+        consensus_method="majority",
+        context=_context(tmp_path, "phylo_builder"),
+    )
+
+    assert Path(consensus_path).name == "consensus_tree.nwk"
+    assert Path(consensus_path).read_text(encoding="utf-8") == "((A:0.10000,B:0.20000):0.30000,C:0.40000):0.00000;\n"
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    assert manifest["consensus_method"] == "majority"
+    assert manifest["selected_tree_index"] == 0
+    assert manifest["tree_count"] == 3
+    assert [entry["method"] for entry in manifest["trees"]] == ["iqtree", "raxml_ng", "fasttree"]
+    assert manifest["trees"][0]["support_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_phylogenetic_tree_builder_rejects_missing_tree_files(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="At least one tree file is required"):
+        await _node_class("phylogenetic_tree_builder")().run(
+            tree_files="",
+            methods="",
+            consensus_method="first",
+            context=_context(tmp_path, "phylo_builder"),
+        )
