@@ -208,6 +208,135 @@ def test_msfragger_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["msfragger"] == ">=4.0"
 
 
+def test_comet_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["comet"]
+    assert node_info["display_name"] == "Comet"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("MS/MS database search")
+    assert node_info["output"] == ["FILE", "TSV", "FILE"]
+    assert node_info["output_name"] == ["pep_xml", "psm_tsv", "params"]
+    assert node_info["required_executables"] == ["comet"]
+    assert node_info["required_conda_packages"] == ["comet-ms"]
+    assert "ms/ms" in node_info["search_aliases"]
+    assert "database search" in node_info["search_aliases"]
+    assert "pepxml" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"spectra_files", "fasta_db"}
+    assert set(inputs["optional"]) == {
+        "threads",
+        "peptide_mass_tolerance_lower",
+        "peptide_mass_tolerance_upper",
+        "peptide_mass_units",
+        "fragment_bin_tol",
+        "fragment_bin_offset",
+        "search_enzyme_number",
+        "allowed_missed_cleavage",
+        "decoy_search",
+        "output_txtfile",
+    }
+
+
+def test_comet_renders_command_and_params_file(tmp_path: Path) -> None:
+    node_class = _node_class("comet")
+    output_dir = tmp_path / "comet"
+
+    cmd = node_class.render_command({
+        "spectra_files": ["run1.mzML", "run2.mzXML.gz"],
+        "fasta_db": "target_decoy.fa",
+        "threads": 12,
+        "peptide_mass_tolerance_lower": -10,
+        "peptide_mass_tolerance_upper": 25,
+        "peptide_mass_units": 2,
+        "fragment_bin_tol": 0.02,
+        "fragment_bin_offset": 0.0,
+        "search_enzyme_number": 1,
+        "allowed_missed_cleavage": 3,
+        "decoy_search": 1,
+        "output_txtfile": True,
+        "output": str(output_dir),
+    })
+
+    params_file = output_dir / "comet.params"
+    assert cmd == [
+        "comet",
+        "-P",
+        str(params_file),
+        "-D",
+        "target_decoy.fa",
+        "-N",
+        str(output_dir / "comet"),
+        "run1.mzML",
+        "run2.mzXML.gz",
+    ]
+    assert params_file.read_text() == (
+        "database_name = target_decoy.fa\n"
+        "num_threads = 12\n"
+        "peptide_mass_tolerance_lower = -10\n"
+        "peptide_mass_tolerance_upper = 25\n"
+        "peptide_mass_units = 2\n"
+        "fragment_bin_tol = 0.02\n"
+        "fragment_bin_offset = 0.0\n"
+        "search_enzyme_number = 1\n"
+        "allowed_missed_cleavage = 3\n"
+        "decoy_search = 1\n"
+        "output_pepxmlfile = 1\n"
+        "output_txtfile = 1\n"
+    )
+
+
+def test_comet_accepts_single_spectra_file_and_omits_txt_output(tmp_path: Path) -> None:
+    node_class = _node_class("comet")
+    output_dir = tmp_path / "comet"
+
+    cmd = node_class.render_command({
+        "spectra_files": "run1.mzML",
+        "fasta_db": "target_decoy.fa",
+        "threads": 4,
+        "output_txtfile": False,
+        "output": str(output_dir),
+    })
+
+    assert cmd == [
+        "comet",
+        "-P",
+        str(output_dir / "comet.params"),
+        "-D",
+        "target_decoy.fa",
+        "-N",
+        str(output_dir / "comet"),
+        "run1.mzML",
+    ]
+    params_text = (output_dir / "comet.params").read_text()
+    assert "num_threads = 4\n" in params_text
+    assert "peptide_mass_tolerance_lower = -20\n" in params_text
+    assert "peptide_mass_tolerance_upper = 20\n" in params_text
+    assert "peptide_mass_units = 2\n" in params_text
+    assert "output_pepxmlfile = 1\n" in params_text
+    assert "output_txtfile = 0\n" in params_text
+
+
+def test_comet_plans_outputs() -> None:
+    node_class = _node_class("comet")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/comet/comet.pep.xml",
+        "/tmp/run/comet/comet.txt",
+        "/tmp/run/comet/comet.params",
+    ]
+
+
+def test_comet_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["comet"] == "comet-ms"
+    assert PACKAGE_MIN_VERSIONS["comet-ms"] == ">=2024.01"
+
+
 def test_percolator_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
