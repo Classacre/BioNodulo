@@ -91,6 +91,8 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "snpEff": "snpeff",
     "java": "openjdk",
     "vep": "ensembl-vep",
+    "table_annovar.pl": "annovar",
+    "convert2annovar.pl": "annovar",
     "Rscript": "r-base",
 }
 
@@ -195,6 +197,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "snpeff": ">=5.2",
     "openjdk": ">=17",
     "ensembl-vep": ">=113",
+    "annovar": ">=2020-06-08",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",

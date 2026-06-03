@@ -230,3 +230,100 @@ def test_vep_plans_outputs() -> None:
 def test_vep_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vep"] == "ensembl-vep"
     assert PACKAGE_MIN_VERSIONS["ensembl-vep"] == ">=113"
+
+
+def test_annovar_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["annovar"]
+    assert node_info["display_name"] == "ANNOVAR"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Comprehensive variant annotation")
+    assert node_info["output"] == ["CSV", "CSV"]
+    assert node_info["output_name"] == ["variant_function", "exonic_variant_function"]
+    assert node_info["required_executables"] == ["table_annovar.pl", "convert2annovar.pl"]
+    assert node_info["required_conda_packages"] == ["annovar"]
+    assert node_info["experimental"] is True
+    assert "variant annotation" in node_info["search_aliases"]
+    assert "clinical" in node_info["search_aliases"]
+    assert "clinvar" in node_info["search_aliases"]
+    assert "gnomad" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf", "humandb_dir", "buildver", "protocol", "operation"}
+    assert inputs["optional"] == {}
+
+
+def test_annovar_renders_convert_and_table_annovar_command() -> None:
+    node_class = _node_class("annovar")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "humandb_dir": "/refs/annovar/humandb",
+        "buildver": "hg38",
+        "protocol": "refGene,cytoBand,gnomad40_genome,clinvar_20220320",
+        "operation": "g,r,f,f",
+        "output": "/tmp/run/annovar",
+    })
+
+    assert cmd == [
+        "convert2annovar.pl",
+        "-format",
+        "vcf4",
+        "-withzyg",
+        "-includeinfo",
+        "variants.vcf.gz",
+        ">",
+        "/tmp/run/annovar/input.avinput",
+        "&&",
+        "table_annovar.pl",
+        "/tmp/run/annovar/input.avinput",
+        "/refs/annovar/humandb",
+        "-buildver",
+        "hg38",
+        "-out",
+        "/tmp/run/annovar/annovar",
+        "-remove",
+        "-protocol",
+        "refGene,cytoBand,gnomad40_genome,clinvar_20220320",
+        "-operation",
+        "g,r,f,f",
+        "-nastring",
+        ".",
+        "-vcfinput",
+        "-polish",
+    ]
+
+
+def test_annovar_uses_default_protocol_and_operation() -> None:
+    node_class = _node_class("annovar")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf",
+        "humandb_dir": "/refs/annovar/humandb",
+        "buildver": "hg19",
+        "output": "/tmp/run/annovar",
+    })
+
+    assert "refGene,cytoBand,gnomad40_genome,clinvar_20220320" in cmd
+    assert "g,r,f,f" in cmd
+    assert cmd[cmd.index("-buildver") + 1] == "hg19"
+
+
+def test_annovar_plans_outputs() -> None:
+    node_class = _node_class("annovar")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/annovar/variant_function.csv",
+        "/tmp/run/annovar/exonic_variant_function.csv",
+    ]
+
+
+def test_annovar_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == "annovar"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == "annovar"
+    assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"

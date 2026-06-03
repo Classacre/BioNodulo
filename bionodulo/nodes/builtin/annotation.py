@@ -411,3 +411,83 @@ class VEPNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class ANNOVARNode(CommandNode):
+    """Annotate variants with ANNOVAR."""
+    NODE_ID = "annovar"
+    DISPLAY_NAME = "ANNOVAR"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Comprehensive variant annotation: gene-based, region-based, filter-based. Clinical interpretation."
+    SEARCH_ALIASES = ["annovar", "variant annotation", "clinical", "clinvar", "gnomad"]
+    RETURN_TYPES = ("CSV", "CSV")
+    RETURN_NAMES = ("variant_function", "exonic_variant_function")
+    REQUIRED_EXECUTABLES = ["table_annovar.pl", "convert2annovar.pl"]
+    REQUIRED_CONDA_PACKAGES = ["annovar"]
+    DOCUMENTATION_URL = "https://annovar.openbioinformatics.org/"
+    VERSION = "2020-06-08"
+    SHELL = True
+    EXPERIMENTAL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        vcf = str(inputs.get("vcf", ""))
+        humandb_dir = str(inputs.get("humandb_dir", ""))
+        buildver = str(inputs.get("buildver", "hg38"))
+        protocol = str(inputs.get("protocol", "refGene,cytoBand,gnomad40_genome,clinvar_20220320"))
+        operation = str(inputs.get("operation", "g,r,f,f"))
+        avinput = f"{out_dir}/input.avinput"
+
+        convert = [
+            "convert2annovar.pl",
+            "-format",
+            "vcf4",
+            "-withzyg",
+            "-includeinfo",
+            vcf,
+            ">",
+            avinput,
+        ]
+        annotate = [
+            "&&",
+            "table_annovar.pl",
+            avinput,
+            humandb_dir,
+            "-buildver",
+            buildver,
+            "-out",
+            f"{out_dir}/annovar",
+            "-remove",
+            "-protocol",
+            protocol,
+            "-operation",
+            operation,
+            "-nastring",
+            ".",
+            "-vcfinput",
+            "-polish",
+        ]
+        return convert + annotate
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "variant_function.csv", node_out / "exonic_variant_function.csv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input VCF"}),
+                "humandb_dir": ("DIRECTORY", {"description": "ANNOVAR humandb"}),
+                "buildver": ("STRING", {"default": "hg38", "options": ["hg38", "hg19"]}),
+                "protocol": ("STRING", {"default": "refGene,cytoBand,gnomad40_genome,clinvar_20220320"}),
+                "operation": ("STRING", {"default": "g,r,f,f", "description": "g=gene,r=region,f=filter"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
