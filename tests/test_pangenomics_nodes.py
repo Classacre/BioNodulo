@@ -1395,6 +1395,149 @@ def test_pggb_plans_outputs() -> None:
     ]
 
 
+def test_pggb_build_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pggb_build"]
+    assert node_info["display_name"] == "PGGB Build"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Construct pangenome graph")
+    assert node_info["output"] == ["GFA", "ODGI"]
+    assert node_info["output_name"] == ["graph_gfa", "graph_odgi"]
+    assert node_info["required_executables"] == ["pggb"]
+    assert node_info["required_conda_packages"] == ["pggb"]
+    assert "haplotypes" in node_info["search_aliases"]
+    assert "pggb" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_fasta", "threads"}
+    assert set(inputs["optional"]) == {"map_pct_id", "segment_length", "min_match_length", "graph_poas"}
+    assert inputs["required"]["input_fasta"][0] == "FASTA"
+    assert inputs["required"]["threads"][0] == "INT"
+
+
+def test_pggb_build_renders_graph_build_command() -> None:
+    node_class = _node_class("pggb_build")
+
+    cmd = node_class.render_command({
+        "input_fasta": ["hap1.fa", "hap2.fa", "hap3.fa"],
+        "threads": 12,
+        "map_pct_id": 94,
+        "segment_length": 7000,
+        "min_match_length": 25,
+        "graph_poas": 4,
+        "output": "/tmp/run/pggb_build",
+    })
+
+    assert cmd == [
+        "cat",
+        "hap1.fa",
+        "hap2.fa",
+        "hap3.fa",
+        ">",
+        "/tmp/run/pggb_build/haplotypes.fa",
+        "&&",
+        "pggb",
+        "-i",
+        "/tmp/run/pggb_build/haplotypes.fa",
+        "-o",
+        "/tmp/run/pggb_build/pggb",
+        "-n",
+        "3",
+        "-t",
+        "12",
+        "-p",
+        "94",
+        "-s",
+        "7000",
+        "-k",
+        "25",
+        "-G",
+        "4",
+        "&&",
+        "find",
+        "/tmp/run/pggb_build/pggb",
+        "-name",
+        "*.smooth.final.gfa",
+        "-print",
+        "-quit",
+        "|",
+        "xargs",
+        "-r",
+        "-I{}",
+        "cp",
+        "-f",
+        "{}",
+        "/tmp/run/pggb_build/graph_gfa.gfa",
+        "&&",
+        "find",
+        "/tmp/run/pggb_build/pggb",
+        "-name",
+        "*.smooth.final.og",
+        "-print",
+        "-quit",
+        "|",
+        "xargs",
+        "-r",
+        "-I{}",
+        "cp",
+        "-f",
+        "{}",
+        "/tmp/run/pggb_build/graph_odgi.odgi",
+    ]
+
+
+def test_pggb_build_renders_string_fasta_list() -> None:
+    node_class = _node_class("pggb_build")
+
+    cmd = node_class.render_command({
+        "input_fasta": "hap1.fa,hap2.fa hap3.fa",
+        "threads": 8,
+        "output": "/tmp/run/pggb_build",
+    })
+
+    assert cmd[:7] == [
+        "cat",
+        "hap1.fa",
+        "hap2.fa",
+        "hap3.fa",
+        ">",
+        "/tmp/run/pggb_build/haplotypes.fa",
+        "&&",
+    ]
+    haplotype_count_index = cmd.index("-n")
+    assert cmd[haplotype_count_index:haplotype_count_index + 2] == ["-n", "3"]
+
+
+def test_pggb_build_plans_outputs() -> None:
+    node_class = _node_class("pggb_build")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/pggb_build/graph_gfa.gfa",
+        "/tmp/run/pggb_build/graph_odgi.odgi",
+    ]
+
+
+def test_pggb_build_requires_multiple_haplotypes() -> None:
+    node_class = _node_class("pggb_build")
+
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "hap1.fa", "threads": 4}) == (
+        "PGGB Build requires at least two haplotype FASTA files."
+    )
+
+
+def test_pggb_build_requires_positive_threads() -> None:
+    node_class = _node_class("pggb_build")
+
+    assert node_class.VALIDATE_INPUTS({"input_fasta": ["hap1.fa", "hap2.fa"], "threads": 0}) == (
+        "PGGB Build threads must be greater than zero."
+    )
+
+
 def test_pggb_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["pggb"] == "pggb"
     assert PACKAGE_MIN_VERSIONS["pggb"] == ">=0.7.3"
