@@ -559,6 +559,68 @@ class CNVkitCallNode(CommandNode):
         }
 
 
+class CNVkitPlotNode(CommandNode):
+    """Generate CNVkit scatter and heatmap PDF plots."""
+    NODE_ID = "cnvkit_plot"
+    DISPLAY_NAME = "CNVkit Plot"
+    CATEGORY = "variant"
+    DESCRIPTION = "Generate scatter plots and heatmaps from CNVkit copy number data."
+    SEARCH_ALIASES = ["cnvkit", "cnv plot", "copy number", "scatter", "heatmap", "diagram"]
+    RETURN_TYPES = ("PDF_REPORT", "PDF_REPORT")
+    RETURN_NAMES = ("scatter_plot", "heatmap_plot")
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    REQUIRED_CONDA_PACKAGES = ["cnvkit"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/"
+    VERSION = "0.9.12"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cnr_file = str(inputs.get("cnr_file", ""))
+        cns_file = str(inputs.get("cns_file", ""))
+        scatter = [
+            "cnvkit.py",
+            "scatter",
+            cnr_file,
+            "-s",
+            cns_file,
+            "-o",
+            f"{out_dir}/scatter_plot.pdf",
+        ]
+        if inputs.get("chromosome"):
+            scatter.extend(["-c", str(inputs["chromosome"])])
+        if inputs.get("gene"):
+            scatter.extend(["-g", str(inputs["gene"])])
+
+        heatmap = [
+            "cnvkit.py",
+            "heatmap",
+            cns_file,
+            "-o",
+            f"{out_dir}/heatmap_plot.pdf",
+        ]
+        if inputs.get("chromosome"):
+            heatmap.extend(["-c", str(inputs["chromosome"])])
+        return scatter + ["&&"] + heatmap
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "cnr_file": ("FILE", {"description": "CNVkit .cnr ratio file"}),
+                "cns_file": ("FILE", {"description": "CNVkit .cns segment file"}),
+            },
+            "optional": {
+                "chromosome": ("STRING", {"default": "", "description": "Chromosome to plot"}),
+                "gene": ("STRING", {"default": "", "description": "Gene to highlight"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class BcftoolsIndexNode(CommandNode):
     """Index a VCF/BCF file."""
     NODE_ID = "bcftools_index"
