@@ -1736,3 +1736,187 @@ class BatchSubmitterNode(BaseNode):
             "queue_submission_supported": queue_submission_supported,
             "hpc_submission_supported": False,
         }
+
+
+class WorkflowTriggerNode(BaseNode):
+    """Trigger a webhook immediately or record a deferred trigger intent."""
+
+    NODE_ID = "workflow_trigger"
+    DISPLAY_NAME = "Workflow Trigger"
+    CATEGORY = "workflow"
+    DESCRIPTION = "Trigger workflows via webhook, schedule, or file watch. HTTP POST, cron-like scheduling, or filesystem events."
+    SEARCH_ALIASES = ["trigger", "webhook", "cron", "schedule", "filewatch", "event", "http"]
+    RETURN_TYPES = ("JSON", "BOOLEAN")
+    RETURN_NAMES = ("trigger_info", "triggered")
+    REQUIRES_EXTERNAL_TOOLS = False
+    SUPPORTED_TRIGGER_TYPES = {"webhook", "schedule", "file_watch"}
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "trigger_type": (["webhook", "schedule", "file_watch"], {"default": "webhook"}),
+            },
+            "optional": {
+                "webhook_url": ("STRING", {"default": ""}),
+                "payload": ("JSON", {"default": "{}"}),
+                "cron_expression": ("STRING", {"default": "0 2 * * *"}),
+                "timezone": ("STRING", {"default": "UTC"}),
+                "watch_path": ("STRING", {"default": ""}),
+                "watch_event": (["create", "modify", "delete", "move"], {"default": "create"}),
+                "target_workflow": ("STRING", {"default": ""}),
+                "timeout_seconds": ("FLOAT", {"default": 30.0, "min": 0.1}),
+            },
+            "hidden": {
+                "context": ("CONTEXT", {}),
+            },
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, bool]:
+        context = kwargs.pop("context", None)
+        trigger_type = str(kwargs.get("trigger_type", "webhook") or "webhook").lower()
+        if trigger_type not in self.SUPPORTED_TRIGGER_TYPES:
+            raise ValueError(f"Unsupported trigger_type: {trigger_type}")
+
+        target_workflow = str(kwargs.get("target_workflow", "") or "")
+        timestamp = time.time()
+        payload = self._parse_payload(kwargs.get("payload", "{}"))
+        timeout = max(0.1, float(kwargs.get("timeout_seconds", 30.0) or 30.0))
+
+        if trigger_type == "webhook":
+            info, triggered = await self._trigger_webhook(
+                webhook_url=str(kwargs.get("webhook_url", "") or ""),
+                payload=payload,
+                timeout=timeout,
+            )
+        elif trigger_type == "schedule":
+            info, triggered = self._record_schedule(
+                context=context,
+                cron_expression=str(kwargs.get("cron_expression", "0 2 * * *") or "0 2 * * *"),
+                timezone=str(kwargs.get("timezone", "UTC") or "UTC"),
+            )
+        else:
+            info, triggered = self._record_file_watch(
+                context=context,
+                watch_path=str(kwargs.get("watch_path", "") or ""),
+                watch_event=str(kwargs.get("watch_event", "create") or "create"),
+            )
+
+        info.update(
+            {
+                "trigger_type": trigger_type,
+                "target_workflow": target_workflow,
+                "timestamp": timestamp,
+            }
+        )
+        trigger_file = ""
+        if trigger_type in {"schedule", "file_watch"} and triggered:
+            trigger_file = self._write_trigger_file(context, trigger_type, info)
+            if trigger_file:
+                info["schedule_file" if trigger_type == "schedule" else "watch_file"] = trigger_file
+                self._write_trigger_file(context, trigger_type, info)
+        event_payload = {
+            "run_id": getattr(context, "run_id", ""),
+            "node_id": getattr(context, "node_id", self.NODE_ID),
+            "trigger_type": trigger_type,
+            "status": info.get("status", "unknown"),
+            "triggered": triggered,
+            "target_workflow": target_workflow,
+        }
+        _ctx_emit(context, "workflow_trigger", event_payload)
+        _ctx_log(context, "info" if triggered else "warning", f"Workflow Trigger [{trigger_type}]: {info.get('status')}")
+        return (_json_text(info), triggered)
+
+    @staticmethod
+    def _parse_payload(value: Any) -> dict[str, Any]:
+        if isinstance(value, str):
+            try:
+                value = json.loads(value or "{}")
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"payload must be valid JSON: {exc}") from exc
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("payload must be a JSON object")
+        return value
+
+    async def _trigger_webhook(self, webhook_url: str, payload: dict[str, Any], timeout: float) -> tuple[dict[str, Any], bool]:
+        if not webhook_url:
+            return (
+                {
+                    "status": "skipped",
+                    "reason": "No webhook URL configured",
+                    "webhook_url_configured": False,
+                },
+                False,
+            )
+
+        try:
+            response = await self._post_json(webhook_url, payload, timeout)
+        except Exception as exc:
+            return (
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                    "webhook_url_configured": True,
+                },
+                False,
+            )
+
+        status_code = int(response.get("status_code", 0) or 0)
+        success = 200 <= status_code < 300
+        return (
+            {
+                "status": "triggered" if success else "failed",
+                "http_status": status_code,
+                "response_body": str(response.get("body", ""))[:1000],
+                "webhook_url_configured": True,
+            },
+            success,
+        )
+
+    def _record_schedule(self, context: Any, cron_expression: str, timezone: str) -> tuple[dict[str, Any], bool]:
+        info = {
+            "status": "registered",
+            "cron_expression": cron_expression,
+            "timezone": timezone,
+            "durable_scheduler_supported": False,
+            "note": "Schedule intent recorded; durable scheduler execution is not implemented yet.",
+        }
+        return (info, True)
+
+    def _record_file_watch(self, context: Any, watch_path: str, watch_event: str) -> tuple[dict[str, Any], bool]:
+        path = Path(watch_path) if watch_path else None
+        exists = bool(path and path.exists())
+        info = {
+            "status": "registered" if exists else "failed",
+            "watch_path": watch_path,
+            "watch_event": watch_event,
+            "path_exists": exists,
+            "path_type": "directory" if path and path.is_dir() else "file" if path and path.is_file() else "missing",
+            "active_file_watcher_supported": False,
+            "note": "File-watch intent recorded; active filesystem watcher execution is not implemented yet.",
+        }
+        if not exists:
+            info["error"] = f"Watch path does not exist: {watch_path}"
+            return (info, False)
+        return (info, True)
+
+    def _write_trigger_file(self, context: Any, trigger_type: str, info: dict[str, Any]) -> str:
+        if context is None:
+            return ""
+        workspace_dir = getattr(context, "workspace_dir", None)
+        base = Path(workspace_dir) if workspace_dir else _node_output_dir(self, context)
+        trigger_dir = base / "workflow_triggers"
+        trigger_dir.mkdir(parents=True, exist_ok=True)
+        node_id = getattr(context, "node_id", self.NODE_ID)
+        trigger_file = trigger_dir / f"{trigger_type}_{node_id}.json"
+        trigger_file.write_text(json.dumps(info, indent=2, sort_keys=True, default=str), encoding="utf-8")
+        return str(trigger_file)
+
+    async def _post_json(self, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+        return {"status_code": response.status_code, "body": response.text}

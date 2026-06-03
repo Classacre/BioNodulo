@@ -54,6 +54,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "notification": ("Notification", ["success", "delivery_info"]),
         "retry": ("Retry", ["passthrough", "retry_log"]),
         "batch_submitter": ("Batch Submitter", ["job_ids", "status_summary", "batch_log"]),
+        "workflow_trigger": ("Workflow Trigger", ["trigger_info", "triggered"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -831,4 +832,114 @@ async def test_batch_submitter_rejects_invalid_json_inputs() -> None:
         await _node_class("batch_submitter")().run(
             workflow_template="{}",
             param_matrix='"not-a-matrix"',
+        )
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_posts_webhook_payload(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    context = _context(tmp_path, "trigger-webhook")
+    sent: list[dict[str, Any]] = []
+
+    async def fake_post(self: Any, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        sent.append({"url": url, "payload": payload, "timeout": timeout})
+        return {"status_code": 202, "body": '{"queued": true}'}
+
+    monkeypatch.setattr(_node_class("workflow_trigger"), "_post_json", fake_post)
+
+    trigger_info_json, triggered = await _node_class("workflow_trigger")().run(
+        trigger_type="webhook",
+        webhook_url="https://hooks.example.test/workflows/run",
+        payload='{"sample": "S1"}',
+        timeout_seconds=12,
+        target_workflow="qc-workflow",
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    assert triggered is True
+    assert sent == [
+        {
+            "url": "https://hooks.example.test/workflows/run",
+            "payload": {"sample": "S1"},
+            "timeout": 12.0,
+        }
+    ]
+    assert trigger_info["trigger_type"] == "webhook"
+    assert trigger_info["status"] == "triggered"
+    assert trigger_info["http_status"] == 202
+    assert trigger_info["response_body"] == '{"queued": true}'
+    assert trigger_info["target_workflow"] == "qc-workflow"
+    assert context.events[0][0] == "workflow_trigger"
+    assert context.logs[0] == ("info", "Workflow Trigger [webhook]: triggered")
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_records_schedule_intent(tmp_path: Path) -> None:
+    context = _context(tmp_path, "trigger-schedule")
+    context.workspace_dir = tmp_path
+
+    trigger_info_json, triggered = await _node_class("workflow_trigger")().run(
+        trigger_type="schedule",
+        cron_expression="30 2 * * 1",
+        timezone="Australia/Perth",
+        target_workflow="weekly-qc",
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    schedule_file = Path(trigger_info["schedule_file"])
+    saved = json.loads(schedule_file.read_text(encoding="utf-8"))
+    assert triggered is True
+    assert trigger_info["status"] == "registered"
+    assert trigger_info["cron_expression"] == "30 2 * * 1"
+    assert trigger_info["timezone"] == "Australia/Perth"
+    assert trigger_info["target_workflow"] == "weekly-qc"
+    assert trigger_info["durable_scheduler_supported"] is False
+    assert trigger_info["note"].startswith("Schedule intent recorded")
+    assert schedule_file == tmp_path / "workflow_triggers" / "schedule_trigger-schedule.json"
+    assert saved["cron_expression"] == "30 2 * * 1"
+    assert saved["target_workflow"] == "weekly-qc"
+    assert saved["trigger_type"] == "schedule"
+    assert context.events[0][0] == "workflow_trigger"
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_records_file_watch_intent(tmp_path: Path) -> None:
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    context = _context(tmp_path, "trigger-watch")
+    context.workspace_dir = tmp_path
+
+    trigger_info_json, triggered = await _node_class("workflow_trigger")().run(
+        trigger_type="file_watch",
+        watch_path=str(watch_dir),
+        watch_event="create",
+        target_workflow="auto-import",
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    watch_file = Path(trigger_info["watch_file"])
+    assert triggered is True
+    assert trigger_info["status"] == "registered"
+    assert trigger_info["watch_path"] == str(watch_dir)
+    assert trigger_info["path_exists"] is True
+    assert trigger_info["path_type"] == "directory"
+    assert trigger_info["active_file_watcher_supported"] is False
+    assert watch_file == tmp_path / "workflow_triggers" / "file_watch_trigger-watch.json"
+    saved = json.loads(watch_file.read_text(encoding="utf-8"))
+    assert saved["target_workflow"] == "auto-import"
+    assert saved["trigger_type"] == "file_watch"
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_rejects_invalid_configuration() -> None:
+    with pytest.raises(ValueError, match="Unsupported trigger_type"):
+        await _node_class("workflow_trigger")().run(trigger_type="email")
+
+    with pytest.raises(ValueError, match="payload must be valid JSON"):
+        await _node_class("workflow_trigger")().run(
+            trigger_type="webhook",
+            webhook_url="https://hooks.example.test/run",
+            payload="{not-json",
         )
