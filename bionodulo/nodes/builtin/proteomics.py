@@ -155,3 +155,66 @@ class MSFraggerNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class PercolatorNode(CommandNode):
+    """Run Percolator for PSM validation and FDR estimation."""
+    NODE_ID = "percolator"
+    DISPLAY_NAME = "Percolator"
+    CATEGORY = "proteomics"
+    DESCRIPTION = "Semi-supervised ML for PSM validation and FDR estimation. Superior to target-decoy alone."
+    SEARCH_ALIASES = ["percolator", "psm validation", "fdr", "peptide spectrum match"]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("percolator_psms", "percolator_proteins")
+    REQUIRED_EXECUTABLES = ["percolator"]
+    REQUIRED_CONDA_PACKAGES = ["percolator"]
+    DOCUMENTATION_URL = "https://github.com/percolator/percolator"
+    VERSION = "3.7.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "percolator",
+            str(inputs.get("pin_file", "")),
+            "-X",
+            f"{out_dir}/percolator_psms.tsv",
+            "--protein-decoy-pattern",
+            str(inputs.get("decoy_prefix", "decoy")),
+            "--decoy-xml-output",
+            "--no-split-large-instances",
+        ]
+        if inputs.get("fdr_psm"):
+            cmd.extend(["--post-processing-tdc", "--fdr", str(inputs["fdr_psm"])])
+        if inputs.get("fdr_protein"):
+            cmd.extend(["--picked-protein", str(inputs.get("fasta_db", ""))])
+            cmd.extend(["--protein-fdr", str(inputs["fdr_protein"])])
+        if inputs.get("enzyme"):
+            cmd.extend(["--enzyme", str(inputs["enzyme"])])
+        cmd.extend(["-l", f"{out_dir}/percolator_proteins.tsv"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "percolator_psms.tsv", node_out / "percolator_proteins.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "pin_file": ("FILE", {"description": "PIN file from search engine"}),
+                "fasta_db": ("FASTA", {"description": "Protein DB FASTA"}),
+            },
+            "optional": {
+                "decoy_prefix": ("STRING", {"default": "decoy"}),
+                "fdr_psm": ("FLOAT", {"default": 0.01, "min": 0.001, "max": 0.1, "step": 0.001}),
+                "fdr_protein": ("FLOAT", {"default": 0.01, "min": 0.001, "max": 0.1, "step": 0.001}),
+                "enzyme": ("STRING", {"default": "trypsin", "options": ["trypsin", "chymotrypsin", "lys-c", "argc"]}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

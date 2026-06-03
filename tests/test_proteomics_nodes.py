@@ -206,3 +206,104 @@ def test_msfragger_plans_pepxml_output() -> None:
 def test_msfragger_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["msfragger"] == "msfragger"
     assert PACKAGE_MIN_VERSIONS["msfragger"] == ">=4.0"
+
+
+def test_percolator_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["percolator"]
+    assert node_info["display_name"] == "Percolator"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Semi-supervised ML")
+    assert node_info["output"] == ["TSV", "TSV"]
+    assert node_info["output_name"] == ["percolator_psms", "percolator_proteins"]
+    assert node_info["required_executables"] == ["percolator"]
+    assert node_info["required_conda_packages"] == ["percolator"]
+    assert "psm validation" in node_info["search_aliases"]
+    assert "fdr" in node_info["search_aliases"]
+    assert "peptide spectrum match" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"pin_file", "fasta_db"}
+    assert set(inputs["optional"]) == {"decoy_prefix", "fdr_psm", "fdr_protein", "enzyme"}
+
+
+def test_percolator_renders_command_with_fdr_and_protein_options() -> None:
+    node_class = _node_class("percolator")
+
+    cmd = node_class.render_command({
+        "pin_file": "search.pin",
+        "fasta_db": "target_decoy.fa",
+        "decoy_prefix": "DECOY_",
+        "fdr_psm": 0.01,
+        "fdr_protein": 0.02,
+        "enzyme": "trypsin",
+        "output": "/tmp/run/percolator",
+    })
+
+    assert cmd == [
+        "percolator",
+        "search.pin",
+        "-X",
+        "/tmp/run/percolator/percolator_psms.tsv",
+        "--protein-decoy-pattern",
+        "DECOY_",
+        "--decoy-xml-output",
+        "--no-split-large-instances",
+        "--post-processing-tdc",
+        "--fdr",
+        "0.01",
+        "--picked-protein",
+        "target_decoy.fa",
+        "--protein-fdr",
+        "0.02",
+        "--enzyme",
+        "trypsin",
+        "-l",
+        "/tmp/run/percolator/percolator_proteins.tsv",
+    ]
+
+
+def test_percolator_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("percolator")
+
+    cmd = node_class.render_command({
+        "pin_file": "search.pin",
+        "fasta_db": "target_decoy.fa",
+        "decoy_prefix": "decoy",
+        "fdr_psm": 0,
+        "fdr_protein": 0,
+        "enzyme": "",
+        "output": "/tmp/run/percolator",
+    })
+
+    assert cmd == [
+        "percolator",
+        "search.pin",
+        "-X",
+        "/tmp/run/percolator/percolator_psms.tsv",
+        "--protein-decoy-pattern",
+        "decoy",
+        "--decoy-xml-output",
+        "--no-split-large-instances",
+        "-l",
+        "/tmp/run/percolator/percolator_proteins.tsv",
+    ]
+
+
+def test_percolator_plans_outputs() -> None:
+    node_class = _node_class("percolator")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/percolator/percolator_psms.tsv",
+        "/tmp/run/percolator/percolator_proteins.tsv",
+    ]
+
+
+def test_percolator_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["percolator"] == "percolator"
+    assert PACKAGE_MIN_VERSIONS["percolator"] == ">=3.7"

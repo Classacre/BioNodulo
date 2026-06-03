@@ -82,6 +82,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "MaxQuantCmd.exe": "maxquant",
     "mono": "mono",
     "msfragger": "msfragger",
+    "percolator": "percolator",
     "cellranger": "cellranger",
     "Rscript": "r-base",
 }
@@ -177,6 +178,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "cooltools": ">=0.7.0",
     "maxquant": ">=2.6.0",
     "msfragger": ">=4.0",
+    "percolator": ">=3.7",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",
