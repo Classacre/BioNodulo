@@ -376,6 +376,186 @@ class MergeTablesNode(BaseNode):
         return row
 
 
+class JoinTablesNode(BaseNode):
+    """Join two CSV/TSV tables with multi-key and index join support."""
+
+    NODE_ID = "join_tables"
+    DISPLAY_NAME = "Join Tables"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Join two CSV/TSV tables with multi-key, suffix, and index-join options."
+    SEARCH_ALIASES = ["join", "tables", "multi-key", "index join", "advanced join", "csv", "tsv"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("joined_table",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "table_a": ("FILE", {"description": "Left CSV/TSV table"}),
+                "table_b": ("FILE", {"description": "Right CSV/TSV table"}),
+                "join_keys": ("STRING", {"default": "", "description": "Comma-separated join keys; empty joins by row index"}),
+            },
+            "optional": {
+                "how": ("STRING", {"default": "inner", "options": ["inner", "left", "right", "outer"]}),
+                "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
+                "left_suffix": ("STRING", {"default": "_left", "advanced": True}),
+                "right_suffix": ("STRING", {"default": "_right", "advanced": True}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        context = kwargs.pop("context", None)
+        table_a = kwargs["table_a"]
+        table_b = kwargs["table_b"]
+        delim = _delimiter(str(kwargs.get("delimiter", "auto")), table_a)
+        fields_a, rows_a = _read_table(table_a, delim)
+        fields_b, rows_b = _read_table(table_b, delim)
+        join_keys = _split_csv(str(kwargs.get("join_keys", "")))
+        how = str(kwargs.get("how", "inner") or "inner").lower()
+        left_suffix = str(kwargs.get("left_suffix", "_left"))
+        right_suffix = str(kwargs.get("right_suffix", "_right"))
+        if how not in {"inner", "left", "right", "outer"}:
+            raise ValueError(f"Unsupported join mode: {how}")
+
+        output_fields = self._output_fields(fields_a, fields_b, join_keys, left_suffix, right_suffix)
+        output_rows = (
+            self._join_by_index(rows_a, rows_b, fields_a, fields_b, output_fields, how, left_suffix, right_suffix)
+            if not join_keys
+            else self._join_by_keys(rows_a, rows_b, fields_a, fields_b, output_fields, join_keys, how, left_suffix, right_suffix)
+        )
+
+        out_path = _node_output_dir(self, context) / "joined.tsv"
+        _write_table(out_path, output_fields, output_rows, "\t")
+        return (str(out_path),)
+
+    @staticmethod
+    def _output_fields(
+        fields_a: list[str],
+        fields_b: list[str],
+        join_keys: list[str],
+        left_suffix: str,
+        right_suffix: str,
+    ) -> list[str]:
+        for key in join_keys:
+            if key not in fields_a or key not in fields_b:
+                raise ValueError(f"Join key {key!r} must exist in both tables")
+
+        overlapping = (set(fields_a) & set(fields_b)) - set(join_keys)
+        output_fields: list[str] = []
+        for field in fields_a:
+            output_fields.append(f"{field}{left_suffix}" if field in overlapping else field)
+        for field in fields_b:
+            if field in join_keys:
+                continue
+            output_fields.append(f"{field}{right_suffix}" if field in overlapping else field)
+        return output_fields
+
+    @classmethod
+    def _join_by_keys(
+        cls,
+        rows_a: list[dict[str, str]],
+        rows_b: list[dict[str, str]],
+        fields_a: list[str],
+        fields_b: list[str],
+        output_fields: list[str],
+        join_keys: list[str],
+        how: str,
+        left_suffix: str,
+        right_suffix: str,
+    ) -> list[dict[str, str]]:
+        right_by_key: OrderedDict[tuple[str, ...], list[dict[str, str]]] = OrderedDict()
+        for row in rows_b:
+            right_by_key.setdefault(cls._key(row, join_keys), []).append(row)
+        left_by_key: OrderedDict[tuple[str, ...], list[dict[str, str]]] = OrderedDict()
+        for row in rows_a:
+            left_by_key.setdefault(cls._key(row, join_keys), []).append(row)
+
+        output_rows: list[dict[str, str]] = []
+        if how in {"inner", "left", "outer"}:
+            for left in rows_a:
+                matches = right_by_key.get(cls._key(left, join_keys), [])
+                if matches:
+                    for right in matches:
+                        output_rows.append(cls._combine(left, right, fields_a, fields_b, join_keys, output_fields, left_suffix, right_suffix))
+                elif how in {"left", "outer"}:
+                    output_rows.append(cls._combine(left, None, fields_a, fields_b, join_keys, output_fields, left_suffix, right_suffix))
+
+        if how in {"right", "outer"}:
+            for right in rows_b:
+                matches = left_by_key.get(cls._key(right, join_keys), [])
+                if how == "right" and matches:
+                    for left in matches:
+                        output_rows.append(cls._combine(left, right, fields_a, fields_b, join_keys, output_fields, left_suffix, right_suffix))
+                elif not matches:
+                    output_rows.append(cls._combine(None, right, fields_a, fields_b, join_keys, output_fields, left_suffix, right_suffix))
+        return output_rows
+
+    @classmethod
+    def _join_by_index(
+        cls,
+        rows_a: list[dict[str, str]],
+        rows_b: list[dict[str, str]],
+        fields_a: list[str],
+        fields_b: list[str],
+        output_fields: list[str],
+        how: str,
+        left_suffix: str,
+        right_suffix: str,
+    ) -> list[dict[str, str]]:
+        if how == "inner":
+            indexes = range(min(len(rows_a), len(rows_b)))
+        elif how == "left":
+            indexes = range(len(rows_a))
+        elif how == "right":
+            indexes = range(len(rows_b))
+        else:
+            indexes = range(max(len(rows_a), len(rows_b)))
+        return [
+            cls._combine(
+                rows_a[index] if index < len(rows_a) else None,
+                rows_b[index] if index < len(rows_b) else None,
+                fields_a,
+                fields_b,
+                [],
+                output_fields,
+                left_suffix,
+                right_suffix,
+            )
+            for index in indexes
+        ]
+
+    @staticmethod
+    def _key(row: dict[str, str], join_keys: list[str]) -> tuple[str, ...]:
+        return tuple(row.get(key, "") for key in join_keys)
+
+    @staticmethod
+    def _combine(
+        left: dict[str, str] | None,
+        right: dict[str, str] | None,
+        fields_a: list[str],
+        fields_b: list[str],
+        join_keys: list[str],
+        output_fields: list[str],
+        left_suffix: str,
+        right_suffix: str,
+    ) -> dict[str, str]:
+        overlapping = (set(fields_a) & set(fields_b)) - set(join_keys)
+        row = {field: "" for field in output_fields}
+        for field in fields_a:
+            out_field = f"{field}{left_suffix}" if field in overlapping else field
+            row[out_field] = left.get(field, "") if left else right.get(field, "") if right and field in join_keys else ""
+        for field in fields_b:
+            if field in join_keys:
+                if row.get(field, "") == "" and right:
+                    row[field] = right.get(field, "")
+                continue
+            out_field = f"{field}{right_suffix}" if field in overlapping else field
+            row[out_field] = right.get(field, "") if right else ""
+        return row
+
+
 class AggregateByGroupNode(BaseNode):
     """Group a table and compute an aggregate value per group."""
 

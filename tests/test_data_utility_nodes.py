@@ -112,6 +112,106 @@ async def test_merge_tables_supports_left_join_with_blank_missing_values(tmp_pat
     ]
 
 
+def test_join_tables_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["join_tables"]
+    assert node_info["display_name"] == "Join Tables"
+    assert node_info["category"] == "data_transform"
+    assert node_info["description"].startswith("Join two CSV/TSV tables")
+    assert node_info["output_name"] == ["joined_table"]
+    assert node_info["output"] == ["TSV"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"table_a", "table_b", "join_keys"}
+    assert set(inputs["optional"]) == {"how", "delimiter", "left_suffix", "right_suffix"}
+    assert "advanced join" in node_info["search_aliases"]
+
+
+@pytest.mark.asyncio
+async def test_join_tables_supports_multi_key_outer_join_and_suffixes(tmp_path: Path) -> None:
+    table_a = tmp_path / "left.tsv"
+    table_b = tmp_path / "right.tsv"
+    _write_table(table_a, [
+        {"sample": "S1", "gene": "g1", "value": "10", "left_only": "L1"},
+        {"sample": "S1", "gene": "g2", "value": "20", "left_only": "L2"},
+    ])
+    _write_table(table_b, [
+        {"sample": "S1", "gene": "g1", "value": "A", "symbol": "ABC1"},
+        {"sample": "S2", "gene": "g3", "value": "B", "symbol": "XYZ3"},
+    ])
+
+    result = await _node_class("join_tables")().run(
+        table_a=str(table_a),
+        table_b=str(table_b),
+        join_keys="sample,gene",
+        how="outer",
+        delimiter="tsv",
+        left_suffix="_left",
+        right_suffix="_right",
+        context=_context(tmp_path, "join-outer"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["sample", "gene", "value_left", "left_only", "value_right", "symbol"]
+    assert rows == [
+        {
+            "sample": "S1",
+            "gene": "g1",
+            "value_left": "10",
+            "left_only": "L1",
+            "value_right": "A",
+            "symbol": "ABC1",
+        },
+        {
+            "sample": "S1",
+            "gene": "g2",
+            "value_left": "20",
+            "left_only": "L2",
+            "value_right": "",
+            "symbol": "",
+        },
+        {
+            "sample": "S2",
+            "gene": "g3",
+            "value_left": "",
+            "left_only": "",
+            "value_right": "B",
+            "symbol": "XYZ3",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_join_tables_supports_index_join_when_keys_are_empty(tmp_path: Path) -> None:
+    table_a = tmp_path / "left.tsv"
+    table_b = tmp_path / "right.tsv"
+    _write_table(table_a, [
+        {"sample": "S1", "depth": "10"},
+        {"sample": "S2", "depth": "20"},
+    ])
+    _write_table(table_b, [
+        {"qc": "pass"},
+        {"qc": "fail"},
+    ])
+
+    result = await _node_class("join_tables")().run(
+        table_a=str(table_a),
+        table_b=str(table_b),
+        join_keys="",
+        how="inner",
+        delimiter="tsv",
+        context=_context(tmp_path, "join-index"),
+    )
+
+    assert _read_table(result[0]) == [
+        {"sample": "S1", "depth": "10", "qc": "pass"},
+        {"sample": "S2", "depth": "20", "qc": "fail"},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_aggregate_by_group_computes_mean_values(tmp_path: Path) -> None:
     table = tmp_path / "counts.tsv"
