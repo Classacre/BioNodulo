@@ -282,3 +282,128 @@ def test_cnvkit_batch_plans_output_directories() -> None:
         "/tmp/run/cnvkit_batch/cnr_files",
         "/tmp/run/cnvkit_batch/cns_files",
     ]
+
+
+def test_cnvnator_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cnvnator"]
+    assert node_info["display_name"] == "CNVnator"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Read-depth based CNV caller")
+    assert node_info["output"] == ["FILE", "FILE"]
+    assert node_info["output_name"] == ["cnv_calls", "root_file"]
+    assert node_info["required_executables"] == ["cnvnator"]
+    assert node_info["required_conda_packages"] == ["cnvnator"]
+    assert "read depth" in node_info["search_aliases"]
+    assert "copy number" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "chrom_dir", "bin_size"}
+    assert set(inputs["optional"]) == set()
+
+
+def test_cnvnator_renders_multistep_command_with_chrom_dir() -> None:
+    node_class = _node_class("cnvnator")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "reference": "hg38.fa",
+        "chrom_dir": "/refs/chroms",
+        "bin_size": 250,
+        "output": "/tmp/run/cnvnator",
+    })
+
+    assert cmd == [
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-tree",
+        "tumor.sorted.bam",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-his",
+        "250",
+        "-d",
+        "/refs/chroms",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-stat",
+        "250",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-partition",
+        "250",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-call",
+        "250",
+        ">",
+        "/tmp/run/cnvnator/cnv_calls.txt",
+    ]
+
+
+def test_cnvnator_omits_empty_chrom_dir_flag() -> None:
+    node_class = _node_class("cnvnator")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "chrom_dir": "",
+        "output": "/tmp/run/cnvnator",
+    })
+
+    assert "-d" not in cmd
+    assert cmd == [
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-tree",
+        "tumor.sorted.bam",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-his",
+        "100",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-stat",
+        "100",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-partition",
+        "100",
+        "&&",
+        "cnvnator",
+        "-root",
+        "/tmp/run/cnvnator/cnvnator.root",
+        "-call",
+        "100",
+        ">",
+        "/tmp/run/cnvnator/cnv_calls.txt",
+    ]
+
+
+def test_cnvnator_plans_call_and_root_outputs() -> None:
+    node_class = _node_class("cnvnator")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cnvnator/cnv_calls.out",
+        "/tmp/run/cnvnator/root_file.out",
+    ]
