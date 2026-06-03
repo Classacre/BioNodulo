@@ -580,6 +580,180 @@ def test_bcftools_annotate_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["bcftools"] == ">=1.15"
 
 
+def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["annotate_vcf"]
+    assert node_info["display_name"] == "Annotate VCF"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Annotate VCF records with gene")
+    assert node_info["output"] == ["VCF_GZ", "VCF_INDEX"]
+    assert node_info["output_name"] == ["annotated_vcf", "annotated_vcf_index"]
+    assert node_info["required_executables"] == ["bcftools", "vcfanno"]
+    assert node_info["required_conda_packages"] == ["bcftools", "vcfanno"]
+    assert "multi-source annotation" in node_info["search_aliases"]
+    assert "roadmap" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf"}
+    assert set(inputs["optional"]) == {
+        "mode",
+        "annotation_files",
+        "vcfanno_config",
+        "columns",
+        "header_lines",
+        "output_name",
+        "threads",
+    }
+
+
+def test_annotate_vcf_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["vcfanno"] == "vcfanno"
+    assert PACKAGE_MIN_VERSIONS["vcfanno"] == ">=0.3.5"
+
+
+def test_annotate_vcf_renders_vcfanno_multi_source_command() -> None:
+    node_class = _node_class("annotate_vcf")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "mode": "vcfanno",
+        "vcfanno_config": "annotation.toml",
+        "threads": 6,
+        "output": "/tmp/run/annotate_vcf",
+        "output_name": "sample annotations",
+    })
+
+    assert cmd == [
+        "set",
+        "-euo",
+        "pipefail",
+        "&&",
+        "vcfanno",
+        "-p",
+        "6",
+        "annotation.toml",
+        "variants.vcf.gz",
+        "|",
+        "bcftools",
+        "view",
+        "-Oz",
+        "-o",
+        "/tmp/run/annotate_vcf/sample_annotations.annotated.vcf.gz",
+        "&&",
+        "bcftools",
+        "index",
+        "-f",
+        "-t",
+        "/tmp/run/annotate_vcf/sample_annotations.annotated.vcf.gz",
+    ]
+
+
+def test_annotate_vcf_renders_bcftools_custom_annotation_command() -> None:
+    node_class = _node_class("annotate_vcf")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "mode": "bcftools",
+        "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+        "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
+        "header_lines": "genes.hdr\nclinvar.hdr",
+        "threads": 4,
+        "output": "/tmp/run/annotate_vcf",
+    })
+
+    assert cmd == [
+        "set",
+        "-euo",
+        "pipefail",
+        "&&",
+        "bcftools",
+        "annotate",
+        "-a",
+        "genes.bed.gz",
+        "-c",
+        "CHROM,FROM,TO,GENE",
+        "-h",
+        "genes.hdr",
+        "--threads",
+        "4",
+        "-Ou",
+        "variants.vcf.gz",
+        "|",
+        "bcftools",
+        "annotate",
+        "-a",
+        "clinvar.vcf.gz",
+        "-c",
+        "ID,INFO/CLNSIG",
+        "-h",
+        "clinvar.hdr",
+        "--threads",
+        "4",
+        "-Oz",
+        "-o",
+        "/tmp/run/annotate_vcf/annotated_vcf.annotated.vcf.gz",
+        "-",
+        "&&",
+        "bcftools",
+        "index",
+        "-f",
+        "-t",
+        "/tmp/run/annotate_vcf/annotated_vcf.annotated.vcf.gz",
+    ]
+
+
+def test_annotate_vcf_plans_named_outputs() -> None:
+    node_class = _node_class("annotate_vcf")
+
+    outputs = node_class.PLAN_OUTPUTS({"output_name": "sample annotations"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/annotate_vcf/sample_annotations.annotated.vcf.gz",
+        "/tmp/run/annotate_vcf/sample_annotations.annotated.vcf.gz.tbi",
+    ]
+
+
+def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
+    node_class = _node_class("annotate_vcf")
+
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "vcfanno"}) == "vcfanno_config is required in vcfanno mode"
+    assert (
+        node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "bcftools"})
+        == "At least one annotation file is required in bcftools mode"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "vcf": "variants.vcf.gz",
+            "mode": "bcftools",
+            "annotation_files": "genes.bed.gz",
+        })
+        == "columns is required in bcftools mode"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "vcf": "variants.vcf.gz",
+            "mode": "bcftools",
+            "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "columns": "CHROM,FROM,TO,GENE",
+        })
+        == "columns must provide one newline-separated entry per bcftools annotation file"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "vcf": "variants.vcf.gz",
+            "mode": "bcftools",
+            "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
+            "header_lines": "genes.hdr",
+        })
+        == "header_lines must provide one newline-separated entry per bcftools annotation file, using '-' to skip a source"
+    )
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "custom"}) == "Unsupported annotation mode: custom"
+
+
 def test_bedtools_closest_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
