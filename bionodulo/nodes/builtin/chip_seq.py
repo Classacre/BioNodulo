@@ -5,9 +5,17 @@ and coverage track generation (deepTools).
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
+
+
+def _safe_output_stem(value: Any, default: str) -> str:
+    stem = "_".join(str(value or "").strip().split())
+    stem = "".join(char if char.isalnum() or char in "._-" else "_" for char in stem)
+    stem = stem.strip("._-")
+    return stem or default
 
 
 class MACS2CallpeakNode(CommandNode):
@@ -87,6 +95,121 @@ class MACS2CallpeakNode(CommandNode):
                 outputs[1].parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(str(signal_src), str(outputs[1]))
         return result
+
+
+class MACS2BdgPeakNode(CommandNode):
+    """Call peaks from MACS2 bedGraph signal tracks."""
+
+    NODE_ID = "macs2_bdgpeak"
+    DISPLAY_NAME = "MACS2 BdgPeak"
+    CATEGORY = "chip_seq"
+    DESCRIPTION = "Call peaks from bedGraph signal tracks, optionally computing fold-enrichment from treatment and control tracks."
+    SEARCH_ALIASES = ["macs2", "bdgpeakcall", "bdgcmp", "bedgraph peaks", "chip-seq", "atac-seq"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("peaks",)
+    REQUIRED_EXECUTABLES = ["macs2"]
+    REQUIRED_CONDA_PACKAGES = ["macs2"]
+    DOCUMENTATION_URL = "https://macs3-project.github.io/MACS/docs/bdgpeakcall.html"
+    VERSION = "2.2.9.2"
+    SHELL = True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "treatment_bdg": ("FILE", {"description": "Treatment bedGraph signal track"}),
+            },
+            "optional": {
+                "control_bdg": ("FILE", {"default": "", "description": "Control bedGraph track for bdgcmp fold enrichment"}),
+                "method": (
+                    "STRING",
+                    {
+                        "default": "bdgpeakcall",
+                        "options": ["bdgpeakcall", "bdgcmp"],
+                        "description": "Run direct peak calling or only compute a bdgcmp score track",
+                    },
+                ),
+                "cutoff": ("FLOAT", {"default": 2.0, "min": 0.0, "description": "bdgpeakcall cutoff"}),
+                "min_length": ("INT", {"default": 200, "min": 1, "description": "Minimum peak length"}),
+                "max_gap": ("INT", {"default": 75, "min": 0, "description": "Maximum gap to merge nearby regions"}),
+                "name": ("STRING", {"default": "macs2_bdgpeak", "description": "Output filename stem"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        method = str(inputs.get("method", "bdgpeakcall") or "bdgpeakcall").lower()
+        if method not in {"bdgpeakcall", "bdgcmp"}:
+            return f"Unsupported MACS2 bedGraph mode: {method}"
+        if method == "bdgcmp" and not str(inputs.get("control_bdg", "") or "").strip():
+            return "control_bdg is required when method is bdgcmp"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        output_dir = str(inputs.get("output", "."))
+        stem = _safe_output_stem(inputs.get("name"), "macs2_bdgpeak")
+        method = str(inputs.get("method", "bdgpeakcall") or "bdgpeakcall").lower()
+        treatment_bdg = str(inputs.get("treatment_bdg", ""))
+        output_bed = f"{output_dir}/{stem}.bed"
+        control_bdg = str(inputs.get("control_bdg", "") or "").strip()
+
+        if method == "bdgcmp":
+            return cls._render_bdgcmp(treatment_bdg, control_bdg, output_bed)
+
+        peak_input = treatment_bdg
+        cmd: list[str] = []
+        if control_bdg:
+            peak_input = f"{output_dir}/{stem}_FE.bdg"
+            cmd.extend(cls._render_bdgcmp(treatment_bdg, control_bdg, peak_input))
+            cmd.append("&&")
+        cmd.extend([
+            "macs2",
+            "bdgpeakcall",
+            "-i",
+            peak_input,
+            "-c",
+            str(inputs.get("cutoff", 2.0)),
+            "-l",
+            str(inputs.get("min_length", 200)),
+            "-g",
+            str(inputs.get("max_gap", 75)),
+            "-o",
+            output_bed,
+        ])
+        return cmd
+
+    @classmethod
+    def _render_bdgcmp(cls, treatment_bdg: str, control_bdg: str, output_path: str) -> list[str]:
+        return [
+            "macs2",
+            "bdgcmp",
+            "-t",
+            treatment_bdg,
+            "-c",
+            control_bdg,
+            "-m",
+            "FE",
+            "-o",
+            output_path,
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        stem = _safe_output_stem(inputs.get("name"), "macs2_bdgpeak")
+        return [node_out / f"{stem}.bed"]
 
 
 class BEDToolsIntersectNode(CommandNode):

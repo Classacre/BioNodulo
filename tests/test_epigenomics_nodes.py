@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -13,6 +13,152 @@ def _node_class(node_id: str) -> type:
     node_class = registry.get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+def test_macs2_bdgpeak_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["macs2_bdgpeak"]
+    assert node_info["display_name"] == "MACS2 BdgPeak"
+    assert node_info["category"] == "chip_seq"
+    assert node_info["description"].startswith("Call peaks from bedGraph signal tracks")
+    assert node_info["output"] == ["BED"]
+    assert node_info["output_name"] == ["peaks"]
+    assert node_info["required_executables"] == ["macs2"]
+    assert node_info["required_conda_packages"] == ["macs2"]
+    assert "bdgpeakcall" in node_info["search_aliases"]
+    assert "bedgraph peaks" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"treatment_bdg"}
+    assert set(inputs["optional"]) == {
+        "control_bdg",
+        "method",
+        "cutoff",
+        "min_length",
+        "max_gap",
+        "name",
+    }
+
+
+def test_macs2_bdgpeak_renders_bdgpeakcall_command() -> None:
+    node_class = _node_class("macs2_bdgpeak")
+
+    cmd = node_class.render_command({
+        "treatment_bdg": "chip_treat_pileup.bdg",
+        "control_bdg": "chip_control_lambda.bdg",
+        "method": "bdgpeakcall",
+        "cutoff": 2.0,
+        "min_length": 200,
+        "max_gap": 75,
+        "name": "sample peaks",
+        "output": "/tmp/run/macs2_bdgpeak",
+    })
+
+    assert cmd == [
+        "macs2",
+        "bdgcmp",
+        "-t",
+        "chip_treat_pileup.bdg",
+        "-c",
+        "chip_control_lambda.bdg",
+        "-m",
+        "FE",
+        "-o",
+        "/tmp/run/macs2_bdgpeak/sample_peaks_FE.bdg",
+        "&&",
+        "macs2",
+        "bdgpeakcall",
+        "-i",
+        "/tmp/run/macs2_bdgpeak/sample_peaks_FE.bdg",
+        "-c",
+        "2.0",
+        "-l",
+        "200",
+        "-g",
+        "75",
+        "-o",
+        "/tmp/run/macs2_bdgpeak/sample_peaks.bed",
+    ]
+
+
+def test_macs2_bdgpeak_renders_direct_bdgpeakcall_without_control() -> None:
+    node_class = _node_class("macs2_bdgpeak")
+
+    cmd = node_class.render_command({
+        "treatment_bdg": "fold_enrichment.bdg",
+        "method": "bdgpeakcall",
+        "cutoff": 1.5,
+        "min_length": 150,
+        "max_gap": 50,
+        "name": "direct",
+        "output": "/tmp/run/macs2_bdgpeak",
+    })
+
+    assert cmd == [
+        "macs2",
+        "bdgpeakcall",
+        "-i",
+        "fold_enrichment.bdg",
+        "-c",
+        "1.5",
+        "-l",
+        "150",
+        "-g",
+        "50",
+        "-o",
+        "/tmp/run/macs2_bdgpeak/direct.bed",
+    ]
+
+
+def test_macs2_bdgpeak_renders_bdgcmp_without_peak_calling() -> None:
+    node_class = _node_class("macs2_bdgpeak")
+
+    cmd = node_class.render_command({
+        "treatment_bdg": "treat.bdg",
+        "control_bdg": "control.bdg",
+        "method": "bdgcmp",
+        "name": "score track",
+        "output": "/tmp/run/macs2_bdgpeak",
+    })
+
+    assert cmd == [
+        "macs2",
+        "bdgcmp",
+        "-t",
+        "treat.bdg",
+        "-c",
+        "control.bdg",
+        "-m",
+        "FE",
+        "-o",
+        "/tmp/run/macs2_bdgpeak/score_track.bed",
+    ]
+
+
+def test_macs2_bdgpeak_plans_peak_output() -> None:
+    node_class = _node_class("macs2_bdgpeak")
+
+    outputs = node_class.PLAN_OUTPUTS({"name": "sample peaks"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/macs2_bdgpeak/sample_peaks.bed"]
+
+
+def test_macs2_bdgpeak_rejects_invalid_mode_and_missing_control_for_bdgcmp() -> None:
+    node_class = _node_class("macs2_bdgpeak")
+
+    assert node_class.VALIDATE_INPUTS({"treatment_bdg": "signal.bdg", "method": "custom"}) == "Unsupported MACS2 bedGraph mode: custom"
+    assert (
+        node_class.VALIDATE_INPUTS({"treatment_bdg": "signal.bdg", "method": "bdgcmp"})
+        == "control_bdg is required when method is bdgcmp"
+    )
+
+
+def test_macs2_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["macs2"] == "macs2"
+    assert PACKAGE_MIN_VERSIONS["macs2"] == ">=2.2.9"
 
 
 def test_bismark_align_is_registered_for_frontend_discovery() -> None:
