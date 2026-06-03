@@ -45,6 +45,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "timer": ("Timer", ["passthrough", "elapsed_seconds", "start_time", "end_time"]),
         "resource_monitor": ("Resource Monitor", ["passthrough", "resources_ok", "resource_stats"]),
         "data_validator": ("Data Validator", ["passthrough", "passed", "validation_report", "report_file"]),
+        "provenance": ("Provenance", ["passthrough", "provenance_record", "provenance_file"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -176,3 +177,87 @@ async def test_data_validator_raises_on_failure_by_default(tmp_path: Path) -> No
 
     with pytest.raises(RuntimeError, match="Data validation failed"):
         await _node_class("data_validator")().run(input=str(missing), expected_format="vcf")
+
+
+@pytest.mark.asyncio
+async def test_provenance_writes_w3c_record_with_context_and_custom_metadata(tmp_path: Path) -> None:
+    context = _context(tmp_path, "provenance-node")
+    context.node_type = "bwa_mem"
+    context.params = {"threads": 8, "reference": "hg38.fa"}
+
+    passthrough, record_json, provenance_file = await _node_class("provenance")().run(
+        input="aligned.bam",
+        tool_name="BWA-MEM",
+        tool_version="0.7.17",
+        tool_command="bwa mem -t 8 hg38.fa reads.fq",
+        description="Align reads to hg38",
+        custom_metadata='{"sample": "S1"}',
+        standard="w3c",
+        context=context,
+    )
+
+    record = json.loads(record_json)
+    file_record = json.loads(Path(provenance_file).read_text(encoding="utf-8"))
+    assert passthrough == "aligned.bam"
+    assert record["@context"] == "https://www.w3.org/ns/prov.jsonld"
+    assert record["@type"] == "Activity"
+    assert record["wasAssociatedWith"]["name"] == "BWA-MEM"
+    assert record["wasAssociatedWith"]["version"] == "0.7.17"
+    assert record["parameters"]["threads"] == 8
+    assert record["custom_metadata"] == {"sample": "S1"}
+    assert file_record == record
+    assert context.logs[0] == ("info", "Provenance recorded for BWA-MEM")
+
+
+@pytest.mark.asyncio
+async def test_provenance_supports_cwlprov_and_native_standards(tmp_path: Path) -> None:
+    context = _context(tmp_path, "provenance-standards")
+    context.node_type = "fastqc"
+    context.params = {"quality": "high"}
+
+    _, cwl_json, _ = await _node_class("provenance")().run(
+        input={"fastq": "reads.fq"},
+        tool_name="FastQC",
+        standard="cwlprov",
+        context=context,
+    )
+    cwl = json.loads(cwl_json)
+    assert cwl["class"] == "provenance_record"
+    assert cwl["run_id"] == "run-1"
+    assert cwl["step_id"] == "provenance-standards"
+    assert cwl["tool"]["name"] == "FastQC"
+
+    _, fallback_json, _ = await _node_class("provenance")().run(
+        input={"fastq": "reads.fq"},
+        standard="w3c",
+        context=context,
+    )
+    fallback = json.loads(fallback_json)
+    assert fallback["wasAssociatedWith"]["name"] == "fastqc"
+
+    _, native_json, _ = await _node_class("provenance")().run(
+        input=["reads.fq", "report.html"],
+        tool_name="FastQC",
+        include_system_info=False,
+        standard="native",
+        context=context,
+    )
+    native = json.loads(native_json)["bionodulo_provenance"]
+    assert native["run_id"] == "run-1"
+    assert native["node_type"] == "fastqc"
+    assert native["system"] == {"omitted": True}
+
+
+@pytest.mark.asyncio
+async def test_provenance_records_invalid_custom_metadata_without_context() -> None:
+    passthrough, record_json, provenance_file = await _node_class("provenance")().run(
+        input="variants.vcf",
+        tool_name="bcftools",
+        custom_metadata="{not json",
+        standard="native",
+    )
+
+    record = json.loads(record_json)["bionodulo_provenance"]
+    assert passthrough == "variants.vcf"
+    assert provenance_file == ""
+    assert record["custom_metadata"] == {"parse_error": "{not json"}
