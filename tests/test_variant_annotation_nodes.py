@@ -327,3 +327,105 @@ def test_annovar_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == "annovar"
     assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == "annovar"
     assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"
+
+
+def test_interproscan_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["interproscan"]
+    assert node_info["display_name"] == "InterProScan"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Scan proteins for domains")
+    assert node_info["output"] == ["TSV", "JSON", "GFF"]
+    assert node_info["output_name"] == ["ipr_matches", "ipr_json", "ipr_gff"]
+    assert node_info["required_executables"] == ["interproscan.sh"]
+    assert node_info["required_conda_packages"] == ["interproscan"]
+    assert node_info["experimental"] is True
+    assert "protein domain" in node_info["search_aliases"]
+    assert "pfam" in node_info["search_aliases"]
+    assert "go annotation" in node_info["search_aliases"]
+    assert "interpro" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"fasta", "threads"}
+    assert set(inputs["optional"]) == {"applications", "goterms", "iprlookup", "pathways"}
+
+
+def test_interproscan_renders_command_with_annotation_flags() -> None:
+    node_class = _node_class("interproscan")
+
+    cmd = node_class.render_command({
+        "fasta": "proteins.faa",
+        "threads": 8,
+        "applications": "Pfam,Gene3D",
+        "goterms": True,
+        "iprlookup": True,
+        "pathways": True,
+        "output": "/tmp/run/interproscan",
+    })
+
+    assert cmd == [
+        "interproscan.sh",
+        "-i",
+        "proteins.faa",
+        "-b",
+        "/tmp/run/interproscan/ipr",
+        "-f",
+        "TSV,JSON,GFF3",
+        "-cpu",
+        "8",
+        "-appl",
+        "Pfam,Gene3D",
+        "-goterms",
+        "-iprlookup",
+        "-pa",
+    ]
+
+
+def test_interproscan_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("interproscan")
+
+    cmd = node_class.render_command({
+        "fasta": "proteins.faa",
+        "threads": 2,
+        "applications": "",
+        "goterms": False,
+        "iprlookup": False,
+        "pathways": False,
+        "output": "/tmp/run/interproscan",
+    })
+
+    assert "-appl" not in cmd
+    assert "-goterms" not in cmd
+    assert "-iprlookup" not in cmd
+    assert "-pa" not in cmd
+    assert cmd == [
+        "interproscan.sh",
+        "-i",
+        "proteins.faa",
+        "-b",
+        "/tmp/run/interproscan/ipr",
+        "-f",
+        "TSV,JSON,GFF3",
+        "-cpu",
+        "2",
+    ]
+
+
+def test_interproscan_plans_outputs() -> None:
+    node_class = _node_class("interproscan")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/interproscan/ipr.tsv",
+        "/tmp/run/interproscan/ipr.json",
+        "/tmp/run/interproscan/ipr.gff3",
+    ]
+
+
+def test_interproscan_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["interproscan.sh"] == "interproscan"
+    assert PACKAGE_MIN_VERSIONS["interproscan"] == ">=5.71"
