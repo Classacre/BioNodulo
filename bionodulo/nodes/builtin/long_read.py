@@ -305,3 +305,52 @@ class DoradoBasecallerNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DoradoDuplexNode(CommandNode):
+    """Run Dorado duplex basecalling for high-accuracy ONT reads."""
+    NODE_ID = "dorado_duplex"
+    DISPLAY_NAME = "Dorado Duplex"
+    CATEGORY = "long_read"
+    DESCRIPTION = "Duplex basecalling for Q30+ ONT accuracy. Both strands of same molecule sequenced."
+    SEARCH_ALIASES = ["dorado", "duplex", "ont", "nanopore", "double-strand", "high accuracy"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("duplex_bam",)
+    REQUIRED_EXECUTABLES = ["dorado"]
+    REQUIRED_CONDA_PACKAGES = ["dorado"]
+    DOCUMENTATION_URL = "https://github.com/nanoporetech/dorado"
+    VERSION = "0.9.6"
+    SHELL = True
+    EXPERIMENTAL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "dorado",
+            "duplex",
+            str(inputs.get("model", "sup@latest")),
+            str(inputs.get("pod5_dir", "")),
+            "-t",
+            str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("modified_bases"):
+            cmd.extend(["--modified-bases", *str(inputs["modified_bases"]).split()])
+        cmd.extend([">", f"{out_dir}/duplex_bam.bam"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "pod5_dir": ("DIRECTORY", {"description": "POD5 signal files"}),
+                "model": ("STRING", {"default": "sup@latest"}),
+            },
+            "optional": {
+                "modified_bases": ("STRING", {"default": "", "description": "Modified bases"}),
+                "threads": ("INT", {"default": 4, "min": 1}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

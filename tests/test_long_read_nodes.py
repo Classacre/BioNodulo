@@ -513,3 +513,82 @@ def test_dorado_basecaller_plans_bam_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/dorado_basecaller/basecalled_bam.bam"]
+
+
+def test_dorado_duplex_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dorado_duplex"]
+    assert node_info["display_name"] == "Dorado Duplex"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"].startswith("Duplex basecalling")
+    assert node_info["output"] == ["BAM"]
+    assert node_info["output_name"] == ["duplex_bam"]
+    assert node_info["required_executables"] == ["dorado"]
+    assert node_info["required_conda_packages"] == ["dorado"]
+    assert node_info["experimental"] is True
+    assert "double-strand" in node_info["search_aliases"]
+    assert "high accuracy" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"pod5_dir", "model"}
+    assert set(inputs["optional"]) == {"modified_bases", "threads"}
+
+
+def test_dorado_duplex_renders_duplex_command() -> None:
+    node_class = _node_class("dorado_duplex")
+
+    cmd = node_class.render_command({
+        "pod5_dir": "pod5/",
+        "model": "sup@latest",
+        "threads": 8,
+        "modified_bases": "5mC 6mA",
+        "output": "/tmp/run/dorado_duplex",
+    })
+
+    assert cmd == [
+        "dorado",
+        "duplex",
+        "sup@latest",
+        "pod5/",
+        "-t",
+        "8",
+        "--modified-bases",
+        "5mC",
+        "6mA",
+        ">",
+        "/tmp/run/dorado_duplex/duplex_bam.bam",
+    ]
+
+
+def test_dorado_duplex_omits_empty_optional_flags() -> None:
+    node_class = _node_class("dorado_duplex")
+
+    cmd = node_class.render_command({
+        "pod5_dir": "pod5/",
+        "model": "hac@latest",
+        "threads": 4,
+        "modified_bases": "",
+        "output": "/tmp/run/dorado_duplex",
+    })
+
+    assert cmd == [
+        "dorado",
+        "duplex",
+        "hac@latest",
+        "pod5/",
+        "-t",
+        "4",
+        ">",
+        "/tmp/run/dorado_duplex/duplex_bam.bam",
+    ]
+
+
+def test_dorado_duplex_plans_bam_output() -> None:
+    node_class = _node_class("dorado_duplex")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/dorado_duplex/duplex_bam.bam"]
