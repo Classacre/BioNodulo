@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from io import StringIO
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.nodes.scripts.pangenome_stats_summary import summarize_table
 from bionodulo.nodes.types import BioType, file_extension_for, is_compatible
 
 
@@ -508,6 +510,146 @@ def test_pangenome_sv_rejects_negative_min_sv_length() -> None:
     }) == "Minimum SV length must be non-negative"
 
 
+def test_pangenome_stats_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pangenome_stats"]
+    assert node_info["display_name"] == "Pangenome Stats"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Compute core, shell, and cloud pangenome statistics")
+    assert node_info["output"] == ["JSON", "FILE"]
+    assert node_info["output_name"] == ["stats", "rarefaction"]
+    assert node_info["required_executables"] == ["panacus"]
+    assert node_info["required_conda_packages"] == ["panacus"]
+    assert "core genes" in node_info["search_aliases"]
+    assert "rarefaction" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"graph", "annotations"}
+    assert set(inputs["optional"]) == {"core_threshold", "shell_threshold", "groupby", "threads", "include_html"}
+    assert inputs["required"]["graph"][0] == "GFA"
+    assert inputs["required"]["annotations"][0] == "GFF"
+
+
+def test_pangenome_stats_renders_histgrowth_and_summary_command() -> None:
+    node_class = _node_class("pangenome_stats")
+
+    cmd = node_class.render_command({
+        "graph": "pan.gfa",
+        "annotations": "genes.gff",
+        "groupby": "sample-groups.tsv",
+        "core_threshold": 0.95,
+        "shell_threshold": 0.15,
+        "threads": 6,
+        "include_html": True,
+        "output": "/tmp/run/pangenome_stats",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "panacus",
+        "histgrowth",
+        "pan.gfa",
+        "--gff",
+        "genes.gff",
+        "--groupby",
+        "sample-groups.tsv",
+        "--threads",
+        "6",
+        "--html",
+        "/tmp/run/pangenome_stats/rarefaction.html",
+        ">",
+        "/tmp/run/pangenome_stats/rarefaction.tsv",
+        "&&",
+        "python",
+        "-m",
+        "bionodulo.nodes.scripts.pangenome_stats_summary",
+        "--input",
+        "/tmp/run/pangenome_stats/rarefaction.tsv",
+        "--output",
+        "/tmp/run/pangenome_stats/stats.json",
+        "--core-threshold",
+        "0.95",
+        "--shell-threshold",
+        "0.15",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/pangenome_stats/stats.json",
+        "/tmp/run/pangenome_stats/rarefaction.tsv",
+    ]
+
+
+def test_pangenome_stats_omits_optional_arguments() -> None:
+    node_class = _node_class("pangenome_stats")
+
+    cmd = node_class.render_command({
+        "graph": "pan.gfa",
+        "annotations": "genes.gff",
+        "groupby": "",
+        "core_threshold": 0.9,
+        "shell_threshold": 0.1,
+        "threads": 0,
+        "include_html": False,
+        "output": "/tmp/run/pangenome_stats",
+    })
+
+    assert "--groupby" not in cmd
+    assert "--threads" not in cmd
+    assert "--html" not in cmd
+    assert cmd == [
+        "panacus",
+        "histgrowth",
+        "pan.gfa",
+        "--gff",
+        "genes.gff",
+        ">",
+        "/tmp/run/pangenome_stats/rarefaction.tsv",
+        "&&",
+        "python",
+        "-m",
+        "bionodulo.nodes.scripts.pangenome_stats_summary",
+        "--input",
+        "/tmp/run/pangenome_stats/rarefaction.tsv",
+        "--output",
+        "/tmp/run/pangenome_stats/stats.json",
+        "--core-threshold",
+        "0.9",
+        "--shell-threshold",
+        "0.1",
+    ]
+
+
+def test_pangenome_stats_rejects_invalid_threshold_order() -> None:
+    node_class = _node_class("pangenome_stats")
+
+    assert node_class.VALIDATE_INPUTS({
+        "graph": "pan.gfa",
+        "annotations": "genes.gff",
+        "core_threshold": 0.1,
+        "shell_threshold": 0.2,
+    }) == "Core threshold must be greater than shell threshold"
+
+
+def test_pangenome_stats_summary_counts_core_shell_and_cloud_features() -> None:
+    summary = summarize_table(
+        StringIO("feature\t1\t2\t3\ncore\t10\t10\t10\nshell\t1\t5\t5\ncloud\t1\t1\t1\n"),
+        core_threshold=0.9,
+        shell_threshold=0.2,
+    )
+
+    assert summary == {
+        "rows": 3,
+        "core_threshold": 0.9,
+        "shell_threshold": 0.2,
+        "core_features": 1,
+        "shell_features": 1,
+        "cloud_features": 1,
+        "max_observed": 10.0,
+    }
+
+
 def test_vcflib_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfdecompose"] == "vcflib"
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfallelicprimitives"] == "vcflib"
@@ -520,6 +662,11 @@ def test_vcflib_environment_metadata_is_declared() -> None:
 def test_vg_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vg"] == "vg"
     assert PACKAGE_MIN_VERSIONS["vg"] == ">=1.62.0"
+
+
+def test_panacus_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["panacus"] == "panacus"
+    assert PACKAGE_MIN_VERSIONS["panacus"] == ">=0.3.3"
 
 
 def test_vg_map_is_registered_for_frontend_discovery() -> None:

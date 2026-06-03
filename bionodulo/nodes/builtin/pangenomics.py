@@ -448,6 +448,104 @@ class PangenomeSVNode(CommandNode):
         }
 
 
+class PangenomeStatsNode(CommandNode):
+    """Compute pangenome growth statistics from graph and gene annotations."""
+
+    NODE_ID = "pangenome_stats"
+    DISPLAY_NAME = "Pangenome Stats"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Compute core, shell, and cloud pangenome statistics from annotated pangenome graphs."
+    SEARCH_ALIASES = ["pangenome", "panacus", "core genes", "shell genes", "cloud genes", "rarefaction"]
+    RETURN_TYPES = ("JSON", "FILE")
+    RETURN_NAMES = ("stats", "rarefaction")
+    REQUIRED_EXECUTABLES = ["panacus"]
+    REQUIRED_CONDA_PACKAGES = ["panacus"]
+    DOCUMENTATION_URL = "https://github.com/marschall-lab/panacus"
+    VERSION = "0.3.3"
+    SHELL = True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        core_threshold = float(inputs.get("core_threshold", 0.9) or 0.9)
+        shell_threshold = float(inputs.get("shell_threshold", 0.1) or 0.1)
+        if not 0 <= shell_threshold <= 1 or not 0 <= core_threshold <= 1:
+            return "Pangenome thresholds must be between 0 and 1"
+        if core_threshold <= shell_threshold:
+            return "Core threshold must be greater than shell threshold"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        rarefaction = out_dir / "rarefaction.tsv"
+        stats = out_dir / "stats.json"
+        threads = int(inputs.get("threads", 0) or 0)
+
+        cmd = [
+            "panacus",
+            "histgrowth",
+            str(inputs.get("graph", "")),
+            "--gff",
+            str(inputs.get("annotations", "")),
+        ]
+        if inputs.get("groupby"):
+            cmd.extend(["--groupby", str(inputs["groupby"])])
+        if threads > 0:
+            cmd.extend(["--threads", str(threads)])
+        if inputs.get("include_html"):
+            cmd.extend(["--html", str(out_dir / "rarefaction.html")])
+
+        cmd.extend([
+            ">",
+            str(rarefaction),
+            "&&",
+            "python",
+            "-m",
+            "bionodulo.nodes.scripts.pangenome_stats_summary",
+            "--input",
+            str(rarefaction),
+            "--output",
+            str(stats),
+            "--core-threshold",
+            str(float(inputs.get("core_threshold", 0.9) or 0.9)),
+            "--shell-threshold",
+            str(float(inputs.get("shell_threshold", 0.1) or 0.1)),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "stats.json", node_out / "rarefaction.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "graph": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+                "annotations": ("GFF", {"description": "Gene annotations used for pangenome feature summaries"}),
+            },
+            "optional": {
+                "core_threshold": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "shell_threshold": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "groupby": ("FILE", {"description": "Optional Panacus group-by or path grouping file"}),
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
+                "include_html": ("BOOLEAN", {"default": False, "description": "Also request Panacus HTML output"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class MinigraphNode(CommandNode):
     """Construct or align pangenome graphs with minigraph."""
     NODE_ID = "minigraph"
