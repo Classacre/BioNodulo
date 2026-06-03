@@ -363,6 +363,270 @@ def test_modeltest_ng_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["modeltest-ng"] == ">=0.1.7"
 
 
+def test_ebi_clustal_omega_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["ebi_clustal_omega"]
+    assert node_info["display_name"] == "EBI Clustal Omega"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Run multiple sequence alignment through EMBL-EBI")
+    assert node_info["output"] == ["ALIGNMENT", "NEWICK", "JSON"]
+    assert node_info["output_name"] == ["alignment", "tree", "job_metadata"]
+    assert node_info["requires_external_tools"] is False
+    assert node_info["required_executables"] == []
+    assert node_info["required_conda_packages"] == []
+    assert "clustal omega" in node_info["search_aliases"]
+    assert "web service" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"sequences", "email"}
+    assert set(inputs["optional"]) == {
+        "sequence_type",
+        "output_format",
+        "order",
+        "dealign",
+        "add_formats",
+        "iterations",
+        "timeout_minutes",
+        "poll_interval_seconds",
+        "output_name",
+    }
+    assert inputs["optional"]["iterations"][1]["max"] == 5
+
+
+@pytest.mark.asyncio
+async def test_ebi_clustal_omega_submits_polls_and_writes_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ebi_clustal_omega")
+    module = importlib.import_module(node_class.__module__)
+    posts: list[tuple[str, dict[str, Any]]] = []
+    get_calls: list[str] = []
+    sleeps: list[float] = []
+    statuses = ["RUNNING", "FINISHED"]
+
+    async def fake_post_text(endpoint: str, data: dict[str, Any], **_: Any) -> str:
+        posts.append((endpoint, dict(data)))
+        return "clustalo-R20260603-000001-0000-00000000-p1m\n"
+
+    async def fake_get_text(endpoint: str, **_: Any) -> str:
+        get_calls.append(endpoint)
+        if endpoint == "status/clustalo-R20260603-000001-0000-00000000-p1m":
+            return statuses.pop(0)
+        if endpoint == "resulttypes/clustalo-R20260603-000001-0000-00000000-p1m":
+            return (
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                "<types>"
+                "<type><identifier>out</identifier><label>Tool Output</label></type>"
+                "<type><identifier>aln-fasta</identifier><label>Alignment</label></type>"
+                "<type><identifier>phylotree</identifier><label>Phylogenetic Tree</label></type>"
+                "</types>"
+            )
+        if endpoint == "result/clustalo-R20260603-000001-0000-00000000-p1m/aln-fasta":
+            return ">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n"
+        if endpoint == "result/clustalo-R20260603-000001-0000-00000000-p1m/phylotree":
+            return "(seq1:0.1,(seq2:0.2,seq3:0.3):0.4);\n"
+        raise AssertionError(f"Unexpected EBI GET endpoint: {endpoint}")
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(module, "_ebi_clustalo_post_text", fake_post_text)
+    monkeypatch.setattr(module, "_ebi_clustalo_get_text", fake_get_text)
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+
+    result = await node_class().run(
+        sequences=">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+        email="analyst@example.org",
+        sequence_type="protein",
+        output_format="fa",
+        order="input",
+        dealign=True,
+        add_formats=False,
+        iterations=2,
+        timeout_minutes=2,
+        poll_interval_seconds=0.25,
+        output_name="tp53 family",
+        context=_context(tmp_path, "ebi_clustal"),
+    )
+
+    alignment_path = Path(result["outputs"]["alignment"])
+    tree_path = Path(result["outputs"]["tree"])
+    metadata_path = Path(result["outputs"]["job_metadata"])
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert alignment_path.name == "tp53_family_alignment.fasta"
+    assert alignment_path.read_text(encoding="utf-8") == ">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n"
+    assert tree_path.name == "tp53_family_tree.nwk"
+    assert tree_path.read_text(encoding="utf-8") == "(seq1:0.1,(seq2:0.2,seq3:0.3):0.4);\n"
+    assert metadata_path.name == "job_metadata.json"
+    assert metadata == {
+        "alignment": str(alignment_path),
+        "alignment_result_type": "aln-fasta",
+        "job_id": "clustalo-R20260603-000001-0000-00000000-p1m",
+        "params": {
+            "dealign": "true",
+            "email": "analyst@example.org",
+            "guidetreeout": "true",
+            "iterations": "2",
+            "order": "input",
+            "outfmt": "fa",
+            "sequence": ">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+            "stype": "protein",
+            "title": "bionodulo_ebi_clustal_omega",
+        },
+        "result_types": ["out", "aln-fasta", "phylotree"],
+        "status_history": ["RUNNING", "FINISHED"],
+        "tree": str(tree_path),
+        "tree_result_type": "phylotree",
+    }
+    assert posts == [
+        (
+            "run",
+            {
+                "dealign": "true",
+                "email": "analyst@example.org",
+                "guidetreeout": "true",
+                "iterations": "2",
+                "order": "input",
+                "outfmt": "fa",
+                "sequence": ">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+                "stype": "protein",
+                "title": "bionodulo_ebi_clustal_omega",
+            },
+        )
+    ]
+    assert get_calls == [
+        "status/clustalo-R20260603-000001-0000-00000000-p1m",
+        "status/clustalo-R20260603-000001-0000-00000000-p1m",
+        "resulttypes/clustalo-R20260603-000001-0000-00000000-p1m",
+        "result/clustalo-R20260603-000001-0000-00000000-p1m/aln-fasta",
+        "result/clustalo-R20260603-000001-0000-00000000-p1m/phylotree",
+    ]
+    assert sleeps == [0.25]
+
+
+def test_ebi_clustal_omega_plans_format_specific_outputs() -> None:
+    node_class = _node_class("ebi_clustal_omega")
+
+    default_outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+    clustal_outputs = node_class.PLAN_OUTPUTS(
+        {"output_name": "tp53 family", "output_format": "clustal_num"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in default_outputs] == [
+        "/tmp/run/ebi_clustal_omega/clustal_omega_alignment.fasta",
+        "/tmp/run/ebi_clustal_omega/clustal_omega_tree.nwk",
+        "/tmp/run/ebi_clustal_omega/job_metadata.json",
+    ]
+    assert [str(path) for path in clustal_outputs] == [
+        "/tmp/run/ebi_clustal_omega/tp53_family_alignment.aln",
+        "/tmp/run/ebi_clustal_omega/tp53_family_tree.nwk",
+        "/tmp/run/ebi_clustal_omega/job_metadata.json",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ebi_clustal_omega_rejects_fewer_than_three_fasta_records() -> None:
+    with pytest.raises(ValueError, match="at least three FASTA records"):
+        await _node_class("ebi_clustal_omega")().run(
+            sequences=">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n",
+            email="analyst@example.org",
+        )
+
+
+@pytest.mark.asyncio
+async def test_ebi_clustal_omega_rejects_unsupported_iterations(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ebi_clustal_omega")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fail_submit(endpoint: str, data: dict[str, Any], **_: Any) -> str:
+        raise AssertionError("unsupported iterations should be rejected before submission")
+
+    monkeypatch.setattr(module, "_ebi_clustalo_post_text", fail_submit)
+
+    with pytest.raises(ValueError, match="iterations"):
+        await node_class().run(
+            sequences=">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+            email="analyst@example.org",
+            iterations=6,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ebi_clustal_omega_reports_failed_job_without_writing_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ebi_clustal_omega")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_post_text(endpoint: str, data: dict[str, Any], **_: Any) -> str:
+        return "clustalo-failed"
+
+    async def fake_get_text(endpoint: str, **_: Any) -> str:
+        return "ERROR"
+
+    monkeypatch.setattr(module, "_ebi_clustalo_post_text", fake_post_text)
+    monkeypatch.setattr(module, "_ebi_clustalo_get_text", fake_get_text)
+    context = _context(tmp_path, "ebi_clustal_failed")
+
+    with pytest.raises(RuntimeError, match="failed with status ERROR"):
+        await node_class().run(
+            sequences=">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+            email="analyst@example.org",
+            poll_interval_seconds=0.01,
+            context=context,
+        )
+
+    assert not (context.node_dir / "ebi_clustal_omega").exists()
+
+
+@pytest.mark.asyncio
+async def test_ebi_clustal_omega_requires_tree_result_when_job_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ebi_clustal_omega")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_post_text(endpoint: str, data: dict[str, Any], **_: Any) -> str:
+        assert data["guidetreeout"] == "true"
+        return "clustalo-no-tree"
+
+    async def fake_get_text(endpoint: str, **_: Any) -> str:
+        if endpoint == "status/clustalo-no-tree":
+            return "FINISHED"
+        if endpoint == "resulttypes/clustalo-no-tree":
+            return (
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                "<types>"
+                "<type><identifier>out</identifier><label>Tool Output</label></type>"
+                "<type><identifier>aln-fasta</identifier><label>Alignment</label></type>"
+                "</types>"
+            )
+        if endpoint == "result/clustalo-no-tree/aln-fasta":
+            return ">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n"
+        raise AssertionError(f"Unexpected EBI GET endpoint: {endpoint}")
+
+    monkeypatch.setattr(module, "_ebi_clustalo_post_text", fake_post_text)
+    monkeypatch.setattr(module, "_ebi_clustalo_get_text", fake_get_text)
+    context = _context(tmp_path, "ebi_clustal_no_tree")
+
+    with pytest.raises(RuntimeError, match="did not provide a tree result"):
+        await node_class().run(
+            sequences=">seq1\nMEEPQSDPSV\n>seq2\nMEEPRSDPSV\n>seq3\nMEEPQADPSV\n",
+            email="analyst@example.org",
+            context=context,
+        )
+
+    assert not (context.node_dir / "ebi_clustal_omega").exists()
+
+
 def test_phylot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
