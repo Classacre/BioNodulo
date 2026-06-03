@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -359,6 +361,211 @@ def test_modeltest_ng_omits_empty_optional_flags_and_plans_outputs() -> None:
 def test_modeltest_ng_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["modeltest-ng"] == "modeltest-ng"
     assert PACKAGE_MIN_VERSIONS["modeltest-ng"] == ">=0.1.7"
+
+
+def test_phylot_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["phylot"]
+    assert node_info["display_name"] == "PhyloT"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Generate taxonomy-derived phylogenetic trees")
+    assert node_info["output"] == ["NEWICK", "JSON"]
+    assert node_info["output_name"] == ["tree", "request_metadata"]
+    assert node_info["requires_external_tools"] is False
+    assert node_info["required_executables"] == []
+    assert node_info["required_conda_packages"] == []
+    assert "taxonomy tree" in node_info["search_aliases"]
+    assert "newick" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"taxa"}
+    assert set(inputs["optional"]) == {
+        "taxonomy_source",
+        "output_format",
+        "node_identifiers",
+        "collapse_internal_nodes",
+        "force_binary_tree",
+        "interrupt_at",
+        "filter_terms",
+        "ignore_errors",
+        "gtdb_source",
+        "include_gtdb_branch_support",
+        "include_gtdb_genome_ids",
+        "gtdb_version",
+        "output_name",
+    }
+
+
+@pytest.mark.asyncio
+async def test_phylot_posts_ncbi_form_and_writes_tree_and_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("phylot")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    async def fake_request_text(endpoint: str, data: dict[str, str], **_: Any) -> str:
+        calls.append((endpoint, data))
+        return "((Homo_sapiens,Mus_musculus)Mammalia,Escherichia_coli);\n"
+
+    monkeypatch.setattr(module, "_phylot_request_text", fake_request_text)
+
+    tree_path, metadata_path = await node_class().run(
+        taxa="Homo sapiens, Mus musculus\nEscherichia coli",
+        taxonomy_source="ncbi",
+        output_format="newick",
+        node_identifiers="name",
+        collapse_internal_nodes=True,
+        force_binary_tree=True,
+        interrupt_at="genus",
+        filter_terms="unclassified,environmental sample",
+        ignore_errors=True,
+        output_name="mammals_ecoli",
+        context=_context(tmp_path, "phylot"),
+    )
+
+    assert Path(tree_path).name == "mammals_ecoli.nwk"
+    assert Path(tree_path).read_text(encoding="utf-8") == "((Homo_sapiens,Mus_musculus)Mammalia,Escherichia_coli);\n"
+    metadata = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
+    assert metadata == {
+        "endpoint": "treeGenerator.cgi",
+        "format": "newick",
+        "taxonomy_source": "ncbi",
+        "taxa_count": 3,
+        "tree": str(Path(tree_path)),
+        "params": {
+            "binary": "1",
+            "collapse": "1",
+            "fileName": "mammals_ecoli",
+            "filter": "unclassified,environmental sample",
+            "format": "newick",
+            "ids": "name",
+            "interrupt": "genus",
+            "itol": "0",
+            "itolProject": "0",
+            "noerror": "1",
+            "phylot": "1",
+            "treeElements": "Homo sapiens\nMus musculus\nEscherichia coli",
+        },
+    }
+    assert calls == [("treeGenerator.cgi", metadata["params"])]
+
+
+@pytest.mark.asyncio
+async def test_phylot_posts_gtdb_form_and_uses_format_extension(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("phylot")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    async def fake_request_text(endpoint: str, data: dict[str, str], **_: Any) -> str:
+        calls.append((endpoint, data))
+        return "#NEXUS\nBegin trees;\nTree tree1 = (s__Escherichia_coli,s__Vibrio_cholerae);\nEnd;\n"
+
+    monkeypatch.setattr(module, "_phylot_request_text", fake_request_text)
+
+    tree_path, metadata_path = await node_class().run(
+        taxa=["s__Escherichia coli", "s__Vibrio cholerae"],
+        taxonomy_source="gtdb",
+        output_format="nexus",
+        gtdb_source="ar",
+        include_gtdb_branch_support=False,
+        include_gtdb_genome_ids=True,
+        gtdb_version="232",
+        output_name="gtdb_pair",
+        context=_context(tmp_path, "phylot_gtdb"),
+    )
+
+    assert Path(tree_path).name == "gtdb_pair.nex"
+    assert Path(tree_path).read_text(encoding="utf-8").startswith("#NEXUS\n")
+    metadata = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
+    assert metadata["endpoint"] == "treeGeneratorGTD.cgi"
+    assert metadata["format"] == "nexus"
+    assert metadata["taxonomy_source"] == "gtdb"
+    assert metadata["taxa_count"] == 2
+    assert calls == [
+        (
+            "treeGeneratorGTD.cgi",
+            {
+                "boot": "0",
+                "fileName": "gtdb_pair",
+                "filter": "",
+                "format": "nexus",
+                "gtdb_version": "232",
+                "gid": "1",
+                "interrupt": "0",
+                "itol": "0",
+                "itolProject": "0",
+                "noerror": "0",
+                "phylotgtd": "1",
+                "src": "ar",
+                "treeElements": "s__Escherichia coli\ns__Vibrio cholerae",
+            },
+        )
+    ]
+
+
+def test_phylot_plans_outputs_from_output_name_and_format() -> None:
+    node_class = _node_class("phylot")
+
+    default_outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+    nexus_outputs = node_class.PLAN_OUTPUTS(
+        {"output_name": "gtdb pair", "output_format": "nexus"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in default_outputs] == [
+        "/tmp/run/phylot/phylot_tree.nwk",
+        "/tmp/run/phylot/request_metadata.json",
+    ]
+    assert [str(path) for path in nexus_outputs] == [
+        "/tmp/run/phylot/gtdb_pair.nex",
+        "/tmp/run/phylot/request_metadata.json",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_phylot_rejects_html_error_response_without_writing_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("phylot")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_request_text(endpoint: str, data: dict[str, str], **_: Any) -> str:
+        return """
+<!DOCTYPE html>
+<html lang="en">
+<head><title>phyloT: Invalid IDs</title></head>
+<body><h2>Error: Invalid IDs</h2><p>DefinitelyNotATaxon</p></body>
+</html>
+"""
+
+    monkeypatch.setattr(module, "_phylot_request_text", fake_request_text)
+    context = _context(tmp_path, "phylot_error")
+
+    with pytest.raises(RuntimeError, match="Invalid IDs"):
+        await node_class().run(
+            taxa="DefinitelyNotATaxon,StillNotATaxon",
+            context=context,
+        )
+
+    assert not (context.node_dir / "phylot").exists()
+
+
+@pytest.mark.asyncio
+async def test_phylot_rejects_empty_taxa(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="at least two taxa or one subtree"):
+        await _node_class("phylot")().run(
+            taxa="Homo sapiens",
+            context=_context(tmp_path, "phylot_empty"),
+        )
 
 
 def test_phylogenetic_tree_builder_is_registered_for_frontend_discovery() -> None:
