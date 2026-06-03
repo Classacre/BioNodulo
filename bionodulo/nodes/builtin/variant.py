@@ -962,6 +962,104 @@ class BcftoolsFilterNode(CommandNode):
         }
 
 
+class BcftoolsNormNode(CommandNode):
+    """Normalize VCF records with bcftools norm."""
+
+    NODE_ID = "bcftools_norm"
+    DISPLAY_NAME = "bcftools Norm"
+    CATEGORY = "variant"
+    DESCRIPTION = "Normalize VCF records: left-align indels, split or join multiallelics, and remove duplicates."
+    SEARCH_ALIASES = ["bcftools", "norm", "normalize", "left-align", "split multiallelic", "deduplicate"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("normalized_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    REQUIRED_CONDA_PACKAGES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html#norm"
+    VERSION = "1.20"
+
+    _MULTIALLELIC_MODES = {"none": "", "split": "-any", "join": "+any"}
+    _DEDUPLICATE_MODES = {"none": "", "exact": "exact", "snps": "snps", "indels": "indels", "both": "both", "all": "all"}
+    _CHECK_REF_MODES = {"exit": "e", "warn": "w", "exclude": "x", "set": "s"}
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input VCF/BCF file"}),
+                "reference": ("FASTA", {"description": "Reference FASTA for left alignment"}),
+            },
+            "optional": {
+                "multiallelics": (
+                    "STRING",
+                    {"default": "split", "options": ["none", "split", "join"], "description": "Split or join multiallelic records"},
+                ),
+                "deduplicate": (
+                    "STRING",
+                    {
+                        "default": "none",
+                        "options": ["none", "exact", "snps", "indels", "both", "all"],
+                        "description": "Remove duplicate records by bcftools norm mode",
+                    },
+                ),
+                "check_ref": (
+                    "STRING",
+                    {"default": "warn", "options": ["exit", "warn", "exclude", "set"], "description": "Reference allele mismatch handling"},
+                ),
+                "threads": ("INT", {"default": 0, "min": 0, "max": 64, "display": "slider"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        multiallelics = str(inputs.get("multiallelics", "split") or "split")
+        deduplicate = str(inputs.get("deduplicate", "none") or "none")
+        check_ref = str(inputs.get("check_ref", "warn") or "warn")
+        if multiallelics not in cls._MULTIALLELIC_MODES:
+            return f"Unsupported multiallelics mode: {multiallelics}"
+        if deduplicate not in cls._DEDUPLICATE_MODES:
+            return f"Unsupported deduplicate mode: {deduplicate}"
+        if check_ref not in cls._CHECK_REF_MODES:
+            return f"Unsupported check_ref mode: {check_ref}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        multiallelics = cls._MULTIALLELIC_MODES[str(inputs.get("multiallelics", "split") or "split")]
+        deduplicate = cls._DEDUPLICATE_MODES[str(inputs.get("deduplicate", "none") or "none")]
+        check_ref = cls._CHECK_REF_MODES[str(inputs.get("check_ref", "warn") or "warn")]
+        cmd = [
+            "bcftools",
+            "norm",
+            "-f",
+            str(inputs.get("reference", "")),
+        ]
+        if multiallelics:
+            cmd.extend(["-m", multiallelics])
+        if deduplicate:
+            cmd.extend(["-d", deduplicate])
+        cmd.extend(["--check-ref", check_ref])
+        threads = int(inputs.get("threads", 0) or 0)
+        if threads > 0:
+            cmd.extend(["--threads", str(threads)])
+        cmd.extend([
+            "-Oz",
+            "-o",
+            f"{inputs.get('output', '.')}/normalized_vcf.vcf.gz",
+            str(inputs.get("vcf", "")),
+        ])
+        return cmd
+
+
 class GatkHaplotypeCallerNode(CommandNode):
     """Call variants with GATK HaplotypeCaller."""
     NODE_ID = "gatk_haplotype_caller"
