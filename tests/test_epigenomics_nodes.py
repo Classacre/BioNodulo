@@ -178,3 +178,84 @@ def test_bismark_methylation_extractor_plans_output_directory() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/bismark_methylation_extractor/methylation_output"]
+
+
+def test_methyldackel_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["methyldackel"]
+    assert node_info["display_name"] == "MethylDackel"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Extract per-base methylation")
+    assert node_info["output"] == ["BED", "BED"]
+    assert node_info["output_name"] == ["methylation_bedgraph", "mbias_report"]
+    assert node_info["required_executables"] == ["MethylDackel"]
+    assert node_info["required_conda_packages"] == ["methyldackel"]
+    assert "pileometh" in node_info["search_aliases"]
+    assert "cpg" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "output_prefix"}
+    assert set(inputs["optional"]) == {"merge_context", "min_depth"}
+
+
+def test_methyldackel_renders_default_command() -> None:
+    node_class = _node_class("methyldackel")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "reference": "ref.fa",
+        "output_prefix": "sample",
+        "merge_context": True,
+        "min_depth": 5,
+        "output": "/tmp/run/methyldackel",
+    })
+
+    assert cmd == [
+        "MethylDackel",
+        "mbias",
+        "ref.fa",
+        "sample.bam",
+        "/tmp/run/methyldackel/sample",
+        "&&",
+        "MethylDackel",
+        "extract",
+        "ref.fa",
+        "sample.bam",
+        "-o",
+        "/tmp/run/methyldackel/sample",
+        "--bedGraph",
+        "--mergeContext",
+        "--minDepth",
+        "5",
+    ]
+
+
+def test_methyldackel_omits_optional_flags() -> None:
+    node_class = _node_class("methyldackel")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "reference": "ref.fa",
+        "output_prefix": "sample",
+        "merge_context": False,
+        "min_depth": 0,
+        "output": "/tmp/run/methyldackel",
+    })
+
+    assert "--mergeContext" not in cmd
+    assert "--minDepth" not in cmd
+    assert cmd[-4:] == ["sample.bam", "-o", "/tmp/run/methyldackel/sample", "--bedGraph"]
+
+
+def test_methyldackel_plans_bed_outputs() -> None:
+    node_class = _node_class("methyldackel")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/methyldackel/methylation_bedgraph.bed",
+        "/tmp/run/methyldackel/mbias_report.bed",
+    ]
