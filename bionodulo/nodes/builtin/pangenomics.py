@@ -330,6 +330,124 @@ class VCFDecomposeNode(CommandNode):
         }
 
 
+class PangenomeSVNode(CommandNode):
+    """Call structural variants from a pangenome graph against a reference path."""
+
+    NODE_ID = "pangenome_sv"
+    DISPLAY_NAME = "Pangenome SV"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Call structural variants from a pangenome graph against a reference and emit an indexed VCF."
+    SEARCH_ALIASES = ["pangenome", "structural variants", "sv", "graph vcf", "pangenome graph", "vg deconstruct"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("sv_vcf",)
+    REQUIRED_EXECUTABLES = ["vg", "bcftools", "bgzip", "tabix"]
+    REQUIRED_CONDA_PACKAGES = ["vg", "bcftools", "htslib"]
+    DOCUMENTATION_URL = "https://github.com/vgteam/vg"
+    VERSION = "1.62.0"
+    SHELL = True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if int(inputs.get("min_sv_length", 0) or 0) < 0:
+            return "Minimum SV length must be non-negative"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        prefix = out_dir / "graph"
+        xg_index = out_dir / "graph.xg"
+        output_vcf = out_dir / "sv_vcf.vcf.gz"
+        threads = int(inputs.get("threads", 0) or 0)
+        min_sv_length = int(inputs.get("min_sv_length", 0) or 0)
+        sample_name = str(inputs.get("sample_name", "") or "")
+
+        cmd: list[str] = []
+        if sample_name:
+            samples_file = out_dir / "samples.txt"
+            cmd.extend(["printf", f"'{sample_name}\\n'", ">", str(samples_file), "&&"])
+
+        cmd.extend([
+            "vg",
+            "autoindex",
+            "--workflow",
+            "giraffe",
+            "--gfa",
+            str(inputs.get("graph_gfa", "")),
+            "--ref-fasta",
+            str(inputs.get("reference", "")),
+            "--prefix",
+            str(prefix),
+        ])
+        if threads > 0:
+            cmd.extend(["--threads", str(threads)])
+
+        cmd.extend(["&&", "vg", "deconstruct", str(xg_index)])
+        if inputs.get("ref_path"):
+            cmd.extend(["-P", str(inputs["ref_path"])])
+        cmd.extend(["-a", "-e"])
+        if threads > 0:
+            cmd.extend(["-t", str(threads)])
+
+        if min_sv_length > 0:
+            cmd.extend([
+                "|",
+                "bcftools",
+                "view",
+                "-i",
+                f"ABS(ILEN)>={min_sv_length} || ABS(strlen(ALT)-strlen(REF))>={min_sv_length}",
+            ])
+        if sample_name:
+            cmd.extend(["|", "bcftools", "reheader", "-s", str(out_dir / "samples.txt")])
+
+        cmd.extend(["|", "bgzip"])
+        if threads > 0:
+            cmd.extend(["--threads", str(threads)])
+        cmd.extend([
+            "-c",
+            ">",
+            str(output_vcf),
+            "&&",
+            "tabix",
+            "-f",
+            "-p",
+            "vcf",
+            str(output_vcf),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "sv_vcf.vcf.gz"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "graph_gfa": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used to interpret graph paths"}),
+            },
+            "optional": {
+                "sample_name": ("STRING", {"default": "", "description": "Optional sample name for the output VCF"}),
+                "threads": ("INT", {"default": 8, "min": 0, "max": 64, "display": "slider"}),
+                "ref_path": ("STRING", {"default": "", "description": "Reference path to deconstruct"}),
+                "min_sv_length": ("INT", {"default": 50, "min": 0, "description": "Minimum variant length to keep"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class MinigraphNode(CommandNode):
     """Construct or align pangenome graphs with minigraph."""
     NODE_ID = "minigraph"

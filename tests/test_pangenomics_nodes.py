@@ -359,6 +359,155 @@ def test_vcf_decompose_rejects_unsupported_mode() -> None:
     }) == "Unsupported VCF decompose mode: explode"
 
 
+def test_pangenome_sv_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pangenome_sv"]
+    assert node_info["display_name"] == "Pangenome SV"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Call structural variants from a pangenome graph")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["vg", "bcftools", "bgzip", "tabix"]
+    assert node_info["required_conda_packages"] == ["vg", "bcftools", "htslib"]
+    assert "structural variants" in node_info["search_aliases"]
+    assert "pangenome graph" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"graph_gfa", "reference"}
+    assert set(inputs["optional"]) == {"sample_name", "threads", "ref_path", "min_sv_length"}
+    assert inputs["required"]["graph_gfa"][0] == "GFA"
+    assert inputs["required"]["reference"][0] == "FASTA"
+
+
+def test_pangenome_sv_renders_graph_vcf_pipeline() -> None:
+    node_class = _node_class("pangenome_sv")
+
+    cmd = node_class.render_command({
+        "graph_gfa": "pan.gfa",
+        "reference": "ref.fa",
+        "sample_name": "sample-a",
+        "threads": 8,
+        "ref_path": "chr1",
+        "min_sv_length": 50,
+        "output": "/tmp/run/pangenome_sv",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "printf",
+        "'sample-a\\n'",
+        ">",
+        "/tmp/run/pangenome_sv/samples.txt",
+        "&&",
+        "vg",
+        "autoindex",
+        "--workflow",
+        "giraffe",
+        "--gfa",
+        "pan.gfa",
+        "--ref-fasta",
+        "ref.fa",
+        "--prefix",
+        "/tmp/run/pangenome_sv/graph",
+        "--threads",
+        "8",
+        "&&",
+        "vg",
+        "deconstruct",
+        "/tmp/run/pangenome_sv/graph.xg",
+        "-P",
+        "chr1",
+        "-a",
+        "-e",
+        "-t",
+        "8",
+        "|",
+        "bcftools",
+        "view",
+        "-i",
+        "ABS(ILEN)>=50 || ABS(strlen(ALT)-strlen(REF))>=50",
+        "|",
+        "bcftools",
+        "reheader",
+        "-s",
+        "/tmp/run/pangenome_sv/samples.txt",
+        "|",
+        "bgzip",
+        "--threads",
+        "8",
+        "-c",
+        ">",
+        "/tmp/run/pangenome_sv/sv_vcf.vcf.gz",
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        "/tmp/run/pangenome_sv/sv_vcf.vcf.gz",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/pangenome_sv/sv_vcf.vcf.gz"]
+
+
+def test_pangenome_sv_omits_optional_filters_and_reheader() -> None:
+    node_class = _node_class("pangenome_sv")
+
+    cmd = node_class.render_command({
+        "graph_gfa": "pan.gfa",
+        "reference": "ref.fa",
+        "sample_name": "",
+        "threads": 0,
+        "ref_path": "",
+        "min_sv_length": 0,
+        "output": "/tmp/run/pangenome_sv",
+    })
+
+    assert "-P" not in cmd
+    assert "bcftools" not in cmd
+    assert "--threads" not in cmd
+    assert cmd == [
+        "vg",
+        "autoindex",
+        "--workflow",
+        "giraffe",
+        "--gfa",
+        "pan.gfa",
+        "--ref-fasta",
+        "ref.fa",
+        "--prefix",
+        "/tmp/run/pangenome_sv/graph",
+        "&&",
+        "vg",
+        "deconstruct",
+        "/tmp/run/pangenome_sv/graph.xg",
+        "-a",
+        "-e",
+        "|",
+        "bgzip",
+        "-c",
+        ">",
+        "/tmp/run/pangenome_sv/sv_vcf.vcf.gz",
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        "/tmp/run/pangenome_sv/sv_vcf.vcf.gz",
+    ]
+
+
+def test_pangenome_sv_rejects_negative_min_sv_length() -> None:
+    node_class = _node_class("pangenome_sv")
+
+    assert node_class.VALIDATE_INPUTS({
+        "graph_gfa": "pan.gfa",
+        "reference": "ref.fa",
+        "min_sv_length": -1,
+    }) == "Minimum SV length must be non-negative"
+
+
 def test_vcflib_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfdecompose"] == "vcflib"
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfallelicprimitives"] == "vcflib"
