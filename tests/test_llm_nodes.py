@@ -68,6 +68,34 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "markdown" in info["ai_report_generator"]["search_aliases"]
     assert "report" in info["ai_report_generator"]["search_aliases"]
 
+    assert info["ai_literature_search"]["display_name"] == "AI Literature Search"
+    assert info["ai_literature_search"]["category"] == "ai"
+    assert info["ai_literature_search"]["output"] == ["JSON", "STRING"]
+    assert info["ai_literature_search"]["output_name"] == ["papers_json", "summary_text"]
+    assert info["ai_literature_search"]["required_conda_packages"] == ["litellm"]
+    assert info["ai_literature_search"]["experimental"] is True
+    assert "pubmed" in info["ai_literature_search"]["search_aliases"]
+    assert "literature" in info["ai_literature_search"]["search_aliases"]
+
+    literature_inputs = info["ai_literature_search"]["input"]
+    assert set(literature_inputs["required"]) == {"research_question"}
+    assert set(literature_inputs["optional"]) == {
+        "databases",
+        "max_results",
+        "year_range",
+        "search_depth",
+        "include_abstracts",
+        "ncbi_api_key",
+        "email",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+    }
+
     report_inputs = info["ai_report_generator"]["input"]
     assert set(report_inputs["required"]) == {"analysis_data", "report_title"}
     assert set(report_inputs["optional"]) == {
@@ -557,3 +585,204 @@ async def test_ai_report_generator_supports_markdown_only_output(
     )
 
     assert result == {"outputs": {"report_html": "", "report_markdown": "# Methods\n\nWorkflow parameters summarized."}}
+
+
+@pytest.mark.asyncio
+async def test_ai_literature_search_queries_pubmed_and_synthesizes_summary(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_literature_search")
+    module = importlib.import_module(node_class.__module__)
+    json_calls: list[dict[str, Any]] = []
+    text_calls: list[dict[str, Any]] = []
+    llm_calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        llm_calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        if json_mode:
+            assert "Generate up to 3 PubMed search queries" in messages[-1]["content"]
+            return LLMResponse(
+                content=json.dumps({"queries": ["TP53 cancer[Title/Abstract]", "TP53 tumor suppressor[Title/Abstract]"]}),
+                model=config.model,
+                usage={"total_tokens": 44},
+            )
+        assert "TP53 cancer review" in messages[-1]["content"]
+        assert "apoptosis and DNA damage response" in messages[-1]["content"]
+        return LLMResponse(
+            content="TP53 literature highlights DNA damage response and apoptosis findings [PMID:12345, PMID:67890].",
+            model=config.model,
+            usage={"total_tokens": 177},
+        )
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        json_calls.append({"endpoint": endpoint, "params": dict(params)})
+        if endpoint == "esearch.fcgi":
+            return {
+                "esearchresult": {
+                    "count": "2",
+                    "idlist": ["12345", "67890"],
+                    "querytranslation": "TP53[All Fields]",
+                }
+            }
+        if endpoint == "esummary.fcgi":
+            return {
+                "result": {
+                    "uids": ["12345", "67890"],
+                    "12345": {
+                        "uid": "12345",
+                        "title": "TP53 cancer review",
+                        "pubdate": "2025 Jan",
+                        "fulljournalname": "Example Journal",
+                        "authors": [{"name": "Smith J"}, {"name": "Lee A"}],
+                        "elocationid": "doi:10.1000/example",
+                    },
+                    "67890": {
+                        "uid": "67890",
+                        "title": "TP53 functional study",
+                        "pubdate": "2024 Dec",
+                        "fulljournalname": "Another Journal",
+                        "authors": [{"name": "Patel R"}],
+                    },
+                }
+            }
+        raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        text_calls.append({"endpoint": endpoint, "params": dict(params)})
+        assert endpoint == "efetch.fcgi"
+        return """<?xml version="1.0" encoding="UTF-8" ?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>12345</PMID>
+      <Article><Abstract><AbstractText>TP53 regulates apoptosis and DNA damage response.</AbstractText></Abstract></Article>
+    </MedlineCitation>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>67890</PMID>
+      <Article><Abstract><AbstractText>TP53 loss alters cell cycle checkpoints.</AbstractText></Abstract></Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>
+"""
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_request_text", fake_text)
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        resolve_secret=lambda key: "secret-key" if key == "ncbi_api_key" else None,
+    )
+
+    result = await node_class().run(
+        research_question="What is TP53's role in cancer?",
+        databases="pubmed",
+        max_results=2,
+        year_range="2020:2026",
+        search_depth="standard",
+        include_abstracts=True,
+        ncbi_api_key="",
+        email="lab@example.org",
+        provider="mock",
+        model="literature-model",
+        api_key="unused",
+        temperature=0.1,
+        max_tokens=2048,
+        context=context,
+    )
+
+    payload = result["outputs"]["papers_json"]
+    summary = result["outputs"]["summary_text"]
+    json_path = tmp_path / "ai_literature_search" / "papers.json"
+    summary_path = tmp_path / "ai_literature_search" / "summary.txt"
+    saved_payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert payload["papers_found"] == 2
+    assert payload["queries_used"] == ["TP53 cancer[Title/Abstract]", "TP53 tumor suppressor[Title/Abstract]"]
+    assert payload["papers"][0]["pmid"] == "12345"
+    assert payload["papers"][0]["title"] == "TP53 cancer review"
+    assert payload["papers"][0]["journal"] == "Example Journal"
+    assert payload["papers"][0]["year"] == "2025"
+    assert payload["papers"][0]["authors"] == ["Smith J", "Lee A"]
+    assert payload["papers"][0]["doi"] == "10.1000/example"
+    assert payload["papers"][0]["abstract"] == "TP53 regulates apoptosis and DNA damage response."
+    assert payload["papers_json_path"] == str(json_path)
+    assert payload["summary_path"] == str(summary_path)
+    assert payload["usage"] == {"query_generation": {"total_tokens": 44}, "synthesis": {"total_tokens": 177}}
+    assert saved_payload == payload
+    assert summary == "TP53 literature highlights DNA damage response and apoptosis findings [PMID:12345, PMID:67890]."
+    assert summary_path.read_text(encoding="utf-8") == summary
+
+    assert [call["endpoint"] for call in json_calls] == ["esearch.fcgi", "esummary.fcgi"]
+    assert text_calls[0]["endpoint"] == "efetch.fcgi"
+    assert json_calls[0]["params"] == {
+        "db": "pubmed",
+        "term": "TP53 cancer[Title/Abstract]",
+        "retmode": "json",
+        "retmax": 2,
+        "sort": "relevance",
+        "tool": "bionodulo",
+        "email": "lab@example.org",
+        "mindate": "2020",
+        "maxdate": "2026",
+        "datetype": "pdat",
+        "api_key": "secret-key",
+    }
+    assert json_calls[1]["params"]["id"] == "12345,67890"
+    assert text_calls[0]["params"]["id"] == "12345,67890"
+    assert [call["json_mode"] for call in llm_calls] == [True, False]
+    assert llm_calls[0]["config"].model == "literature-model"
+
+
+@pytest.mark.asyncio
+async def test_ai_literature_search_handles_empty_results_without_synthesis(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_literature_search")
+    module = importlib.import_module(node_class.__module__)
+    json_calls: list[dict[str, Any]] = []
+    llm_calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        llm_calls.append({"messages": messages, "json_mode": json_mode})
+        if json_mode:
+            return LLMResponse(content=json.dumps({"queries": ["no hits[Title/Abstract]"]}), model=config.model)
+        raise AssertionError("synthesis should not run when PubMed returns no papers")
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        json_calls.append({"endpoint": endpoint, "params": dict(params)})
+        assert endpoint == "esearch.fcgi"
+        return {"esearchresult": {"count": "0", "idlist": []}}
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        raise AssertionError(f"unexpected text request: {endpoint} {params}")
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        research_question="No hit topic",
+        max_results=3,
+        search_depth="quick",
+        include_abstracts=True,
+        provider="mock",
+        model="literature-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    payload = result["outputs"]["papers_json"]
+    summary = result["outputs"]["summary_text"]
+    saved_payload = json.loads((tmp_path / "ai_literature_search" / "papers.json").read_text(encoding="utf-8"))
+
+    assert payload["papers_found"] == 0
+    assert payload["papers"] == []
+    assert payload["queries_used"] == ["no hits[Title/Abstract]"]
+    assert summary == "No papers found for the given research question."
+    assert saved_payload == payload
+    assert [call["endpoint"] for call in json_calls] == ["esearch.fcgi"]
+    assert [call["json_mode"] for call in llm_calls] == [True]
