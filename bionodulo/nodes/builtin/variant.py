@@ -367,6 +367,56 @@ class SmooveNode(CommandNode):
         }
 
 
+class DellyNode(CommandNode):
+    """Call structural variants with DELLY."""
+    NODE_ID = "delly"
+    DISPLAY_NAME = "DELLY SV Caller"
+    CATEGORY = "variant"
+    DESCRIPTION = "Paired-end + split-read SV caller. Supports germline, somatic, and long-read modes."
+    SEARCH_ALIASES = ["delly", "structural variant", "sv caller", "somatic sv", "long-read sv"]
+    RETURN_TYPES = ("BCF",)
+    RETURN_NAMES = ("sv_calls",)
+    REQUIRED_EXECUTABLES = ["delly"]
+    REQUIRED_CONDA_PACKAGES = ["delly"]
+    DOCUMENTATION_URL = "https://github.com/dellytools/delly"
+    VERSION = "1.2.6"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        mode = inputs.get("mode", "call")
+        cmd = [
+            "delly",
+            "lr" if mode == "lr" else "call",
+            "-g",
+            str(inputs.get("reference", "")),
+            "-o",
+            f"{inputs.get('output', '.')}/sv_calls.bcf",
+        ]
+        if inputs.get("exclude_regions"):
+            cmd.extend(["-x", str(inputs["exclude_regions"])])
+        if inputs.get("map_qual") is not None:
+            cmd.extend(["-q", str(inputs["map_qual"])])
+        cmd.append(str(inputs.get("bam", "")))
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam": ("BAM", {"description": "Input BAM (sorted and indexed)"}),
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "mode": ("STRING", {"default": "call", "options": ["call", "lr"]}),
+            },
+            "optional": {
+                "exclude_regions": ("BED", {"description": "Exclude regions BED", "advanced": True}),
+                "map_qual": ("INT", {"default": 1, "min": 0, "label": "Min MapQ", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class BcftoolsIndexNode(CommandNode):
     """Index a VCF/BCF file."""
     NODE_ID = "bcftools_index"

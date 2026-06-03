@@ -335,3 +335,80 @@ def test_smoove_plans_genotyped_vcf_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/smoove/genotyped_sv.vcf.gz"]
+
+
+def test_delly_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["delly"]
+    assert node_info["display_name"] == "DELLY SV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Paired-end + split-read SV caller")
+    assert node_info["output"] == ["BCF"]
+    assert node_info["output_name"] == ["sv_calls"]
+    assert node_info["required_executables"] == ["delly"]
+    assert node_info["required_conda_packages"] == ["delly"]
+    assert "somatic sv" in node_info["search_aliases"]
+    assert "long-read sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "mode"}
+    assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
+
+
+def test_delly_renders_short_read_structural_variant_command() -> None:
+    node_class = _node_class("delly")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "reference": "GRCh38.fa",
+        "mode": "call",
+        "exclude_regions": "exclude.bed",
+        "map_qual": 20,
+        "output": "/tmp/run/delly",
+    })
+
+    assert cmd == [
+        "delly",
+        "call",
+        "-g",
+        "GRCh38.fa",
+        "-o",
+        "/tmp/run/delly/sv_calls.bcf",
+        "-x",
+        "exclude.bed",
+        "-q",
+        "20",
+        "tumor.sorted.bam",
+    ]
+
+
+def test_delly_renders_long_read_mode_command() -> None:
+    node_class = _node_class("delly")
+
+    cmd = node_class.render_command({
+        "bam": "ont.sorted.bam",
+        "reference": "GRCh38.fa",
+        "mode": "lr",
+        "output": "/tmp/run/delly",
+    })
+
+    assert cmd == [
+        "delly",
+        "lr",
+        "-g",
+        "GRCh38.fa",
+        "-o",
+        "/tmp/run/delly/sv_calls.bcf",
+        "ont.sorted.bam",
+    ]
+
+
+def test_delly_plans_bcf_output() -> None:
+    node_class = _node_class("delly")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/delly/sv_calls.bcf"]
