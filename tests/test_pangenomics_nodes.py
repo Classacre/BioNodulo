@@ -632,6 +632,150 @@ def test_pangenome_stats_rejects_invalid_threshold_order() -> None:
     }) == "Core threshold must be greater than shell threshold"
 
 
+def test_pangenome_gene_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pangenome_gene"]
+    assert node_info["display_name"] == "Pangenome Gene"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Extract gene presence/absence")
+    assert node_info["output"] == ["FILE", "IMAGE"]
+    assert node_info["output_name"] == ["presence_matrix", "pan_genome_plot"]
+    assert node_info["required_executables"] == ["panaroo"]
+    assert node_info["required_conda_packages"] == ["panaroo"]
+    assert "presence absence" in node_info["search_aliases"]
+    assert "orthologs" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"annotations", "orthologs"}
+    assert set(inputs["optional"]) == {
+        "clean_mode",
+        "threads",
+        "core_threshold",
+        "remove_invalid_genes",
+        "merge_paralogs",
+    }
+    assert inputs["required"]["annotations"][0] == "GFF"
+    assert inputs["required"]["orthologs"][0] == "FILE"
+
+
+def test_pangenome_gene_renders_panaroo_matrix_and_plot_command() -> None:
+    node_class = _node_class("pangenome_gene")
+
+    cmd = node_class.render_command({
+        "annotations": ["sample-a.gff", "sample-b.gff"],
+        "orthologs": "orthologs.tsv",
+        "clean_mode": "strict",
+        "threads": 8,
+        "core_threshold": 0.95,
+        "remove_invalid_genes": True,
+        "merge_paralogs": True,
+        "output": "/tmp/run/pangenome_gene",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "panaroo",
+        "-i",
+        "sample-a.gff",
+        "sample-b.gff",
+        "-o",
+        "/tmp/run/pangenome_gene",
+        "--clean-mode",
+        "strict",
+        "-t",
+        "8",
+        "--core_threshold",
+        "0.95",
+        "--remove-invalid-genes",
+        "--merge_paralogs",
+        "&&",
+        "cp",
+        "/tmp/run/pangenome_gene/gene_presence_absence.Rtab",
+        "/tmp/run/pangenome_gene/presence_matrix.tsv",
+        "&&",
+        "cp",
+        "orthologs.tsv",
+        "/tmp/run/pangenome_gene/orthologs.tsv",
+        "&&",
+        "python",
+        "-m",
+        "bionodulo.nodes.scripts.pangenome_gene_plot",
+        "--input",
+        "/tmp/run/pangenome_gene/presence_matrix.tsv",
+        "--output",
+        "/tmp/run/pangenome_gene/pan_genome_plot.svg",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/pangenome_gene/presence_matrix.tsv",
+        "/tmp/run/pangenome_gene/pan_genome_plot.svg",
+    ]
+
+
+def test_pangenome_gene_accepts_delimited_annotation_paths_and_omits_optional_flags() -> None:
+    node_class = _node_class("pangenome_gene")
+
+    cmd = node_class.render_command({
+        "annotations": "sample-a.gff, sample-b.gff\nsample-c.gff",
+        "orthologs": "orthologs.tsv",
+        "clean_mode": "sensitive",
+        "threads": 0,
+        "core_threshold": 0,
+        "remove_invalid_genes": False,
+        "merge_paralogs": False,
+        "output": "/tmp/run/pangenome_gene",
+    })
+
+    assert "-t" not in cmd
+    assert "--core_threshold" not in cmd
+    assert "--remove-invalid-genes" not in cmd
+    assert "--merge_paralogs" not in cmd
+    assert cmd == [
+        "panaroo",
+        "-i",
+        "sample-a.gff",
+        "sample-b.gff",
+        "sample-c.gff",
+        "-o",
+        "/tmp/run/pangenome_gene",
+        "--clean-mode",
+        "sensitive",
+        "&&",
+        "cp",
+        "/tmp/run/pangenome_gene/gene_presence_absence.Rtab",
+        "/tmp/run/pangenome_gene/presence_matrix.tsv",
+        "&&",
+        "cp",
+        "orthologs.tsv",
+        "/tmp/run/pangenome_gene/orthologs.tsv",
+        "&&",
+        "python",
+        "-m",
+        "bionodulo.nodes.scripts.pangenome_gene_plot",
+        "--input",
+        "/tmp/run/pangenome_gene/presence_matrix.tsv",
+        "--output",
+        "/tmp/run/pangenome_gene/pan_genome_plot.svg",
+    ]
+
+
+def test_pangenome_gene_rejects_empty_annotations_and_invalid_clean_mode() -> None:
+    node_class = _node_class("pangenome_gene")
+
+    assert node_class.VALIDATE_INPUTS({
+        "annotations": [],
+        "orthologs": "orthologs.tsv",
+        "clean_mode": "strict",
+    }) == "At least one GFF annotation is required"
+    assert node_class.VALIDATE_INPUTS({
+        "annotations": ["sample-a.gff"],
+        "orthologs": "orthologs.tsv",
+        "clean_mode": "loose",
+    }) == "Unsupported Panaroo clean mode: loose"
+
+
 def test_pangenome_stats_summary_counts_core_shell_and_cloud_features() -> None:
     summary = summarize_table(
         StringIO("feature\t1\t2\t3\ncore\t10\t10\t10\nshell\t1\t5\t5\ncloud\t1\t1\t1\n"),
@@ -667,6 +811,11 @@ def test_vg_environment_metadata_is_declared() -> None:
 def test_panacus_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["panacus"] == "panacus"
     assert PACKAGE_MIN_VERSIONS["panacus"] == ">=0.3.3"
+
+
+def test_panaroo_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["panaroo"] == "panaroo"
+    assert PACKAGE_MIN_VERSIONS["panaroo"] == ">=1.5.0"
 
 
 def test_vg_map_is_registered_for_frontend_discovery() -> None:

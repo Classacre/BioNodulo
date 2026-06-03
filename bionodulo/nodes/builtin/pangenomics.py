@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
+
+
+def _split_path_list(value: Any) -> list[str]:
+    if isinstance(value, list | tuple):
+        return [str(item) for item in value if str(item)]
+    return [item for item in re.split(r"[\s,]+", str(value or "")) if item]
 
 
 class VGConstructNode(CommandNode):
@@ -539,6 +546,116 @@ class PangenomeStatsNode(CommandNode):
                 "groupby": ("FILE", {"description": "Optional Panacus group-by or path grouping file"}),
                 "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
                 "include_html": ("BOOLEAN", {"default": False, "description": "Also request Panacus HTML output"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class PangenomeGeneNode(CommandNode):
+    """Extract gene presence/absence matrices from pangenome annotations."""
+
+    NODE_ID = "pangenome_gene"
+    DISPLAY_NAME = "Pangenome Gene"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Extract gene presence/absence matrix and summary plot from pangenome annotations."
+    SEARCH_ALIASES = ["pangenome", "panaroo", "presence absence", "orthologs", "gene clusters"]
+    RETURN_TYPES = ("FILE", "IMAGE")
+    RETURN_NAMES = ("presence_matrix", "pan_genome_plot")
+    REQUIRED_EXECUTABLES = ["panaroo"]
+    REQUIRED_CONDA_PACKAGES = ["panaroo"]
+    DOCUMENTATION_URL = "https://github.com/gtonkinhill/panaroo"
+    VERSION = "1.5.0"
+    SHELL = True
+
+    _CLEAN_MODES = {"strict", "moderate", "sensitive"}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not _split_path_list(inputs.get("annotations")):
+            return "At least one GFF annotation is required"
+        clean_mode = str(inputs.get("clean_mode", "strict") or "strict")
+        if clean_mode not in cls._CLEAN_MODES:
+            return f"Unsupported Panaroo clean mode: {clean_mode}"
+        core_threshold = float(inputs.get("core_threshold", 0) or 0)
+        if not 0 <= core_threshold <= 1:
+            return "Core threshold must be between 0 and 1"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        presence_matrix = out_dir / "presence_matrix.tsv"
+        pan_genome_plot = out_dir / "pan_genome_plot.svg"
+        annotations = _split_path_list(inputs.get("annotations"))
+        threads = int(inputs.get("threads", 0) or 0)
+        core_threshold = float(inputs.get("core_threshold", 0) or 0)
+
+        cmd = [
+            "panaroo",
+            "-i",
+            *annotations,
+            "-o",
+            str(out_dir),
+            "--clean-mode",
+            str(inputs.get("clean_mode", "strict") or "strict"),
+        ]
+        if threads > 0:
+            cmd.extend(["-t", str(threads)])
+        if core_threshold > 0:
+            cmd.extend(["--core_threshold", str(core_threshold)])
+        if inputs.get("remove_invalid_genes"):
+            cmd.append("--remove-invalid-genes")
+        if inputs.get("merge_paralogs"):
+            cmd.append("--merge_paralogs")
+
+        cmd.extend([
+            "&&",
+            "cp",
+            str(out_dir / "gene_presence_absence.Rtab"),
+            str(presence_matrix),
+            "&&",
+            "cp",
+            str(inputs.get("orthologs", "")),
+            str(out_dir / "orthologs.tsv"),
+            "&&",
+            "python",
+            "-m",
+            "bionodulo.nodes.scripts.pangenome_gene_plot",
+            "--input",
+            str(presence_matrix),
+            "--output",
+            str(pan_genome_plot),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "presence_matrix.tsv", node_out / "pan_genome_plot.svg"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "annotations": ("GFF", {"description": "GFF annotation files; pass a list or comma-separated paths"}),
+                "orthologs": ("FILE", {"description": "Ortholog or gene cluster table to retain with outputs"}),
+            },
+            "optional": {
+                "clean_mode": ("STRING", {"default": "strict", "options": ["strict", "moderate", "sensitive"]}),
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
+                "core_threshold": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "remove_invalid_genes": ("BOOLEAN", {"default": True}),
+                "merge_paralogs": ("BOOLEAN", {"default": False}),
             },
             "hidden": {
                 "output": ("STRING", {}),
