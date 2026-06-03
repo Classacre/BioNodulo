@@ -498,3 +498,108 @@ def test_vg_call_plans_outputs() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/vg_call/calls_vcf.vcf"]
+
+
+def test_minigraph_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["minigraph"]
+    assert node_info["display_name"] == "Minigraph"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Fast sequence-to-graph aligner")
+    assert node_info["output"] == ["GFA"]
+    assert node_info["output_name"] == ["output_gfa"]
+    assert node_info["required_executables"] == ["minigraph"]
+    assert node_info["required_conda_packages"] == ["minigraph"]
+    assert "sequence to graph" in node_info["search_aliases"]
+    assert "sv graph" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"mode", "threads"}
+    assert set(inputs["optional"]) == {"assemblies", "graph_gfa", "query_fasta", "preset"}
+    assert inputs["optional"]["assemblies"][0] == "FASTA"
+    assert inputs["optional"]["graph_gfa"][0] == "GFA"
+
+
+def test_minigraph_renders_construct_command_with_assemblies_and_preset() -> None:
+    node_class = _node_class("minigraph")
+
+    cmd = node_class.render_command({
+        "mode": "construct",
+        "threads": 16,
+        "preset": "asm",
+        "assemblies": ["ref.fa", "sample1.fa", "sample2.fa"],
+        "output": "/tmp/run/minigraph",
+    })
+
+    assert cmd == [
+        "minigraph",
+        "-cxggs",
+        "-t",
+        "16",
+        "-x",
+        "asm",
+        "ref.fa",
+        "sample1.fa",
+        "sample2.fa",
+        ">",
+        "/tmp/run/minigraph/output_gfa.gfa",
+    ]
+
+
+def test_minigraph_renders_align_command() -> None:
+    node_class = _node_class("minigraph")
+
+    cmd = node_class.render_command({
+        "mode": "align",
+        "threads": 8,
+        "preset": "ggs",
+        "graph_gfa": "graph.gfa",
+        "query_fasta": "query.fa",
+        "output": "/tmp/run/minigraph",
+    })
+
+    assert cmd == [
+        "minigraph",
+        "-cx",
+        "ggs",
+        "-t",
+        "8",
+        "graph.gfa",
+        "query.fa",
+        ">",
+        "/tmp/run/minigraph/output_gfa.gfa",
+    ]
+
+
+def test_minigraph_omits_construct_preset_when_empty() -> None:
+    node_class = _node_class("minigraph")
+
+    cmd = node_class.render_command({
+        "mode": "construct",
+        "threads": 4,
+        "preset": "",
+        "assemblies": "ref.fa",
+        "output": "/tmp/run/minigraph",
+    })
+
+    assert "-x" not in cmd
+    assert cmd == [
+        "minigraph",
+        "-cxggs",
+        "-t",
+        "4",
+        "ref.fa",
+        ">",
+        "/tmp/run/minigraph/output_gfa.gfa",
+    ]
+
+
+def test_minigraph_plans_outputs() -> None:
+    node_class = _node_class("minigraph")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/minigraph/output_gfa.gfa"]

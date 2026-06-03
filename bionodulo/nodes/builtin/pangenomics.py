@@ -236,6 +236,74 @@ class VGCallNode(CommandNode):
         }
 
 
+class MinigraphNode(CommandNode):
+    """Construct or align pangenome graphs with minigraph."""
+    NODE_ID = "minigraph"
+    DISPLAY_NAME = "Minigraph"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Fast sequence-to-graph aligner and pangenome constructor for large genomes."
+    SEARCH_ALIASES = ["minigraph", "graph align", "pangenome", "sv graph", "sequence to graph"]
+    RETURN_TYPES = ("GFA",)
+    RETURN_NAMES = ("output_gfa",)
+    REQUIRED_EXECUTABLES = ["minigraph"]
+    REQUIRED_CONDA_PACKAGES = ["minigraph"]
+    DOCUMENTATION_URL = "https://github.com/lh3/minigraph"
+    VERSION = "0.21"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        mode = inputs.get("mode", "construct")
+        threads = str(inputs.get("threads", 8))
+
+        if mode == "construct":
+            cmd = ["minigraph", "-cxggs", "-t", threads]
+            if inputs.get("preset"):
+                cmd.extend(["-x", str(inputs["preset"])])
+            assemblies = inputs.get("assemblies", [])
+            if isinstance(assemblies, list | tuple):
+                cmd.extend(str(assembly) for assembly in assemblies if assembly)
+            elif assemblies:
+                cmd.append(str(assemblies))
+        else:
+            cmd = [
+                "minigraph",
+                "-cx",
+                str(inputs.get("preset", "ggs")),
+                "-t",
+                threads,
+                str(inputs.get("graph_gfa", "")),
+                str(inputs.get("query_fasta", "")),
+            ]
+        cmd.extend([">", str(out_dir / "output_gfa.gfa")])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "output_gfa.gfa"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "mode": ("STRING", {"default": "construct", "options": ["construct", "align"]}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64}),
+            },
+            "optional": {
+                "assemblies": ("FASTA", {"description": "Assemblies (first=reference)"}),
+                "graph_gfa": ("GFA", {"description": "Graph GFA (for align mode)"}),
+                "query_fasta": ("FASTA", {"description": "Query FASTA (for align mode)"}),
+                "preset": ("STRING", {"default": "ggs", "options": ["ggs", "asm", "ggsa"]}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class ODGIVisualizeNode(CommandNode):
     """Visualize pangenome graph layouts with odgi."""
     NODE_ID = "odgi_visualize"
