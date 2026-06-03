@@ -145,3 +145,92 @@ def test_trimal_supports_strict_mode_and_plans_outputs() -> None:
         "/tmp/run/trimal/trimmed.fasta",
         "/tmp/run/trimal/stats.stats.txt",
     ]
+
+
+def test_raxml_ng_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["raxml_ng"]
+    assert node_info["display_name"] == "RAxML-NG"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Maximum likelihood phylogenetic tree inference")
+    assert node_info["output"] == ["NEWICK", "FILE"]
+    assert node_info["output_name"] == ["tree", "bootstrap"]
+    assert node_info["required_executables"] == ["raxml-ng"]
+    assert node_info["required_conda_packages"] == ["raxml-ng"]
+    assert "raxml-ng" in node_info["search_aliases"]
+    assert "maximum likelihood" in node_info["search_aliases"]
+    assert "bootstrap" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"alignment", "model", "threads"}
+    assert set(inputs["optional"]) == {"seed", "bootstrap_replicates", "outgroup", "tree_search"}
+
+
+def test_raxml_ng_renders_tree_search_with_bootstrap_command() -> None:
+    node_class = _node_class("raxml_ng")
+
+    cmd = node_class.render_command({
+        "alignment": "trimmed.fasta",
+        "model": "GTR+G",
+        "threads": 8,
+        "seed": 42,
+        "bootstrap_replicates": 100,
+        "outgroup": "sampleA,sampleB",
+        "tree_search": True,
+        "output": "/tmp/run/raxml_ng",
+    })
+
+    assert cmd == [
+        "raxml-ng",
+        "--msa",
+        "trimmed.fasta",
+        "--model",
+        "GTR+G",
+        "--prefix",
+        "/tmp/run/raxml_ng/raxml_ng",
+        "--threads",
+        "8",
+        "--seed",
+        "42",
+        "--all",
+        "--bs-trees",
+        "100",
+        "--outgroup",
+        "sampleA,sampleB",
+    ]
+
+
+def test_raxml_ng_supports_evaluate_mode_and_plans_outputs() -> None:
+    node_class = _node_class("raxml_ng")
+
+    cmd = node_class.render_command({
+        "alignment": "alignment.phy",
+        "model": "LG+G",
+        "threads": 2,
+        "seed": 0,
+        "bootstrap_replicates": 0,
+        "outgroup": "",
+        "tree_search": False,
+        "output": "/tmp/run/raxml_ng",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "raxml-ng",
+        "--msa",
+        "alignment.phy",
+        "--model",
+        "LG+G",
+        "--prefix",
+        "/tmp/run/raxml_ng/raxml_ng",
+        "--threads",
+        "2",
+        "--evaluate",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/raxml_ng/raxml_ng.raxml.bestTree",
+        "/tmp/run/raxml_ng/raxml_ng.raxml.bootstraps",
+    ]
