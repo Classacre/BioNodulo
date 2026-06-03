@@ -76,6 +76,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "bismark_methylation_extractor": "bismark",
     "MethylDackel": "methyldackel",
     "bamCoverage": "deeptools",
+    "HiC-Pro": "hic-pro",
     "cellranger": "cellranger",
     "Rscript": "r-base",
 }
@@ -165,6 +166,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bismark": ">=0.24.0",
     "methyldackel": ">=0.6.1",
     "deeptools": ">=3.5.0",
+    "hic-pro": ">=3.1.0",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",

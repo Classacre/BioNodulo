@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -590,3 +592,97 @@ def test_deeptools_plot_heatmap_plans_image_outputs() -> None:
         "/tmp/run/deeptools_plot_heatmap/heatmap.png",
         "/tmp/run/deeptools_plot_heatmap/profile_plot.png",
     ]
+
+
+def test_hic_pro_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["hic_pro"]
+    assert node_info["display_name"] == "HiC-Pro Pipeline"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Complete Hi-C processing")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["hic_results"]
+    assert node_info["required_executables"] == ["HiC-Pro"]
+    assert node_info["required_conda_packages"] == ["hic-pro"]
+    assert "hic-pro" in node_info["search_aliases"]
+    assert "3d genome" in node_info["search_aliases"]
+    assert "contact matrix" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {
+        "input_dir",
+        "genome_fasta",
+        "bowtie2_index_dir",
+        "chrom_sizes",
+        "threads",
+    }
+    assert set(inputs["optional"]) == {"min_mapq", "bin_sizes", "max_iter"}
+
+
+def test_hic_pro_renders_command_and_config_file(tmp_path: Path) -> None:
+    node_class = _node_class("hic_pro")
+    output_dir = tmp_path / "hic_pro"
+
+    cmd = node_class.render_command({
+        "input_dir": "fastqs/",
+        "genome_fasta": "hg38.fa",
+        "bowtie2_index_dir": "bt2_index/",
+        "chrom_sizes": "hg38.chrom.sizes",
+        "threads": 12,
+        "min_mapq": 20,
+        "bin_sizes": "10000 40000",
+        "max_iter": 50,
+        "output": str(output_dir),
+    })
+
+    config_file = output_dir / "hicpro_config.txt"
+    assert cmd == [
+        "HiC-Pro",
+        "-i",
+        "fastqs/",
+        "-o",
+        str(output_dir),
+        "-c",
+        str(config_file),
+    ]
+    assert config_file.read_text() == (
+        "N_CPU = 12\n"
+        "REFERENCE_GENOME = hg38.fa\n"
+        "GENOME_SIZE = hg38.chrom.sizes\n"
+        "BOWTIE2_IDX_PATH = bt2_index/\n"
+        "PAIR1_EXT = _R1\n"
+        "PAIR2_EXT = _R2\n"
+        "MIN_MAPQ = 20\n"
+        "BIN_SIZE = 10000 40000\n"
+        "MAX_ITER = 50\n"
+    )
+
+
+def test_hic_pro_renders_default_config_values(tmp_path: Path) -> None:
+    node_class = _node_class("hic_pro")
+    output_dir = tmp_path / "hic_pro"
+
+    node_class.render_command({
+        "input_dir": "fastqs/",
+        "genome_fasta": "hg38.fa",
+        "bowtie2_index_dir": "bt2_index/",
+        "chrom_sizes": "hg38.chrom.sizes",
+        "output": str(output_dir),
+    })
+
+    config_text = (output_dir / "hicpro_config.txt").read_text()
+    assert "N_CPU = 8\n" in config_text
+    assert "MIN_MAPQ = 10\n" in config_text
+    assert "BIN_SIZE = 5000 10000 20000 40000 100000 1000000\n" in config_text
+    assert "MAX_ITER = 100\n" in config_text
+
+
+def test_hic_pro_plans_results_directory() -> None:
+    node_class = _node_class("hic_pro")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/hic_pro/hic_results"]
