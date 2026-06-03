@@ -24,6 +24,8 @@ def test_file_format_utility_nodes_are_registered_for_frontend_discovery() -> No
     expected = {
         "file_info": ("File Info", "utils", ["STRING", "INT", "FLOAT", "BOOLEAN"], ["info_json", "size_bytes", "size_mb", "exists"]),
         "path_operations": ("Path Operations", "utils", ["STRING", "BOOLEAN"], ["result", "exists"]),
+        "read_file": ("Read File", "utils", ["STRING", "STRING", "INT"], ["content", "lines", "line_count"]),
+        "write_file": ("Write File", "utils", ["STRING", "INT"], ["file_path", "bytes_written"]),
         "json_operations": ("JSON Operations", "utils/format", ["STRING", "STRING", "BOOLEAN"], ["result_json", "value", "valid"]),
         "yaml_operations": ("YAML Operations", "utils/format", ["STRING", "STRING", "BOOLEAN"], ["result_yaml", "value", "valid"]),
     }
@@ -87,6 +89,47 @@ async def test_path_operations_manipulate_paths_and_report_existence(tmp_path: P
 
     with pytest.raises(ValueError, match="Unsupported path operation"):
         await node.run(operation="unknown", path=str(sample))
+
+
+@pytest.mark.asyncio
+async def test_read_file_returns_content_lines_and_line_count(tmp_path: Path) -> None:
+    sample = tmp_path / "notes.txt"
+    sample.write_text("alpha\nbeta\n\n", encoding="utf-8")
+
+    content, lines, line_count = await _node_class("read_file")().run(file_path=str(sample), encoding="utf-8")
+
+    assert content == "alpha\nbeta\n\n"
+    assert lines == "alpha\nbeta\n"
+    assert line_count == 3
+
+
+@pytest.mark.asyncio
+async def test_write_file_writes_text_and_formatted_json(tmp_path: Path) -> None:
+    node = _node_class("write_file")()
+    text_path = tmp_path / "out" / "notes.txt"
+
+    written_path, bytes_written = await node.run(
+        content="alpha\nbeta\n",
+        file_path=str(text_path),
+        format="text",
+        encoding="utf-8",
+    )
+
+    assert written_path == str(text_path)
+    assert text_path.read_text(encoding="utf-8") == "alpha\nbeta\n"
+    assert bytes_written == len("alpha\nbeta\n".encode("utf-8"))
+
+    json_path = tmp_path / "payload.json"
+    written_path, bytes_written = await node.run(
+        content='{"enabled":true,"sample":"S1"}',
+        file_path=str(json_path),
+        format="json",
+        encoding="utf-8",
+    )
+
+    assert written_path == str(json_path)
+    assert json_path.read_text(encoding="utf-8") == '{\n  "enabled": true,\n  "sample": "S1"\n}\n'
+    assert bytes_written == len(json_path.read_bytes())
 
 
 @pytest.mark.asyncio

@@ -287,6 +287,100 @@ class PathOperationsNode(BaseNode):
         return (result, exists)
 
 
+class ReadFileNode(BaseNode):
+    """Read a text file into workflow string outputs."""
+
+    NODE_ID = "read_file"
+    DISPLAY_NAME = "Read File"
+    CATEGORY = "utils"
+    DESCRIPTION = "Read a text file into content and line outputs with selectable encoding"
+    SEARCH_ALIASES = ["read file", "load text", "file content", "text file", "open file"]
+    RETURN_TYPES = ("STRING", "STRING", "INT")
+    RETURN_NAMES = ("content", "lines", "line_count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "file_path": ("STRING", {"default": "", "description": "Text file path to read"}),
+            },
+            "optional": {
+                "encoding": ("STRING", {"default": "utf-8", "description": "Text encoding"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, str, int]:
+        file_path = str(kwargs.get("file_path", "") or "")
+        if not file_path:
+            raise ValueError("file_path is required")
+        encoding = str(kwargs.get("encoding", "utf-8") or "utf-8")
+        path = Path(file_path)
+        if not path.is_file():
+            raise ValueError(f"file_path is not a file: {file_path}")
+
+        content = path.read_text(encoding=encoding)
+        split_lines = content.splitlines()
+        display_lines = list(split_lines)
+        while display_lines and display_lines[-1] == "":
+            display_lines.pop()
+        lines = "\n".join(display_lines)
+        if lines:
+            lines += "\n"
+        return (content, lines, len(split_lines))
+
+
+class WriteFileNode(BaseNode):
+    """Write workflow string content to a file."""
+
+    NODE_ID = "write_file"
+    DISPLAY_NAME = "Write File"
+    CATEGORY = "utils"
+    DESCRIPTION = "Write text or formatted JSON content to a file with selectable encoding"
+    SEARCH_ALIASES = ["write file", "save text", "file output", "write json", "export text"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("file_path", "bytes_written")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "content": ("STRING", {"default": "", "multiline": True, "description": "Content to write"}),
+                "file_path": ("STRING", {"default": "", "description": "Destination file path"}),
+            },
+            "optional": {
+                "format": ("STRING", {"default": "text", "options": ["text", "json"]}),
+                "encoding": ("STRING", {"default": "utf-8", "description": "Text encoding"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        file_path = str(kwargs.get("file_path", "") or "")
+        if not file_path:
+            raise ValueError("file_path is required")
+        encoding = str(kwargs.get("encoding", "utf-8") or "utf-8")
+        output_format = str(kwargs.get("format", "text") or "text").lower()
+        content = str(kwargs.get("content", ""))
+
+        if output_format == "text":
+            output = content
+        elif output_format == "json":
+            try:
+                output = json.dumps(json.loads(content), indent=2, sort_keys=True) + "\n"
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON content: {exc}") from exc
+        else:
+            raise ValueError(f"Unsupported write format: {output_format}")
+
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(output, encoding=encoding)
+        return (str(path), len(output.encode(encoding)))
+
+
 class JSONOperationsNode(BaseNode):
     """Parse and manipulate JSON strings or JSON files."""
 
