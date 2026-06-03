@@ -149,6 +149,40 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
         "fallback_backend",
     }
 
+    assert info["fine_tune_llm"]["display_name"] == "Fine-Tune LLM"
+    assert info["fine_tune_llm"]["category"] == "ai"
+    assert info["fine_tune_llm"]["output"] == ["DIRECTORY", "JSON"]
+    assert info["fine_tune_llm"]["output_name"] == ["model_path", "metrics_json"]
+    assert info["fine_tune_llm"]["required_conda_packages"] == [
+        "torch",
+        "transformers",
+        "datasets",
+        "peft",
+        "accelerate",
+    ]
+    assert info["fine_tune_llm"]["experimental"] is True
+    assert "lora" in info["fine_tune_llm"]["search_aliases"]
+    assert "peft" in info["fine_tune_llm"]["search_aliases"]
+
+    fine_tune_inputs = info["fine_tune_llm"]["input"]
+    assert set(fine_tune_inputs["required"]) == {"training_data", "base_model", "epochs"}
+    assert set(fine_tune_inputs["optional"]) == {
+        "validation_data",
+        "training_format",
+        "text_column",
+        "prompt_column",
+        "response_column",
+        "output_adapter_name",
+        "batch_size",
+        "learning_rate",
+        "max_length",
+        "lora_rank",
+        "lora_alpha",
+        "lora_dropout",
+        "compute_device",
+        "training_backend",
+    }
+
     image_inputs = info["ai_image_analysis"]["input"]
     assert set(image_inputs["required"]) == {"input_image", "analysis_task"}
     assert set(image_inputs["optional"]) == {
@@ -1807,3 +1841,116 @@ async def test_model_inference_empty_input_writes_empty_outputs(
     assert payload["input_count"] == 0
     assert payload["returned_predictions"] == 0
     assert payload["predictions"] == []
+
+
+@pytest.mark.asyncio
+async def test_fine_tune_llm_writes_dry_run_training_package_from_jsonl(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("fine_tune_llm")
+    training_path = tmp_path / "training.jsonl"
+    training_path.write_text(
+        "\n".join([
+            json.dumps({"prompt": "Explain BRCA1", "response": "BRCA1 supports DNA repair."}),
+            json.dumps({"prompt": "Explain TP53", "response": "TP53 responds to DNA damage."}),
+        ])
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = await node_class().run(
+        training_data=str(training_path),
+        base_model="distilgpt2",
+        epochs=2,
+        training_format="prompt_response",
+        prompt_column="prompt",
+        response_column="response",
+        output_adapter_name="bio_adapter",
+        batch_size=2,
+        learning_rate=0.0002,
+        max_length=64,
+        lora_rank=4,
+        lora_alpha=8,
+        lora_dropout=0.1,
+        training_backend="dry_run",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    model_dir = tmp_path / "fine_tune_llm" / "bio_adapter"
+    metrics_path = tmp_path / "fine_tune_llm" / "metrics.json"
+    config_path = model_dir / "training_config.json"
+    examples_path = model_dir / "training_examples.jsonl"
+    payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    examples = examples_path.read_text(encoding="utf-8").splitlines()
+
+    assert result == {"outputs": {"model_path": str(model_dir), "metrics_json": str(metrics_path)}}
+    assert payload["backend"] == "dry_run"
+    assert payload["base_model"] == "distilgpt2"
+    assert payload["train_records"] == 2
+    assert payload["validation_records"] == 0
+    assert payload["estimated_steps"] == 2
+    assert payload["lora"]["rank"] == 4
+    assert payload["artifacts"]["training_config"] == str(config_path)
+    assert config["output_adapter_name"] == "bio_adapter"
+    assert config["training_backend"] == "dry_run"
+    assert len(examples) == 2
+    assert json.loads(examples[0])["text"] == "### Prompt\nExplain BRCA1\n\n### Response\nBRCA1 supports DNA repair."
+
+
+@pytest.mark.asyncio
+async def test_fine_tune_llm_reads_csv_training_and_validation_records(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("fine_tune_llm")
+    training_path = tmp_path / "training.csv"
+    validation_path = tmp_path / "validation.csv"
+    training_path.write_text(
+        "instruction,answer\nFind motif,Use MEME\nCall variants,Use bcftools\n",
+        encoding="utf-8",
+    )
+    validation_path.write_text("instruction,answer\nSummarize QC,Use MultiQC\n", encoding="utf-8")
+
+    await node_class().run(
+        training_data=str(training_path),
+        validation_data=str(validation_path),
+        base_model="local/small-model",
+        epochs=1,
+        training_format="csv",
+        prompt_column="instruction",
+        response_column="answer",
+        output_adapter_name="csv_adapter",
+        batch_size=4,
+        max_length=24,
+        training_backend="dry_run",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    metrics = json.loads((tmp_path / "fine_tune_llm" / "metrics.json").read_text(encoding="utf-8"))
+    examples = (tmp_path / "fine_tune_llm" / "csv_adapter" / "training_examples.jsonl").read_text(
+        encoding="utf-8"
+    ).splitlines()
+
+    assert metrics["train_records"] == 2
+    assert metrics["validation_records"] == 1
+    assert metrics["estimated_steps"] == 1
+    assert metrics["training_format"] == "csv"
+    assert json.loads(examples[0])["text"].startswith("### Prompt\nFind motif")
+
+
+@pytest.mark.asyncio
+async def test_fine_tune_llm_local_backend_requires_training_dependencies(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("fine_tune_llm")
+    training_path = tmp_path / "training.txt"
+    training_path.write_text("A compact fine-tuning example.\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="local fine-tuning|required|torch|transformers|datasets|peft"):
+        await node_class().run(
+            training_data=str(training_path),
+            base_model="local/missing-model",
+            epochs=1,
+            training_backend="local",
+            context=SimpleNamespace(node_dir=tmp_path),
+        )

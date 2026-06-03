@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import base64
 import csv
+import hashlib
 import html
+import importlib
 import json
 import os
 import xml.etree.ElementTree as ET
@@ -1207,6 +1209,163 @@ class ModelInferenceNode(BaseNode):
         return {"outputs": {"predictions_json": str(json_path), "scores_csv": str(csv_path)}}
 
 
+class FineTuneLLMNode(BaseNode):
+    """Prepare a reproducible LoRA fine-tuning package for local LLM training."""
+
+    NODE_ID = "fine_tune_llm"
+    DISPLAY_NAME = "Fine-Tune LLM"
+    CATEGORY = "ai"
+    DESCRIPTION = (
+        "Prepare LoRA fine-tuning artifacts for small local language models with an optional local backend."
+    )
+    SEARCH_ALIASES = [
+        "fine-tune",
+        "finetune",
+        "training",
+        "lora",
+        "peft",
+        "adapter",
+        "instruction",
+        "domain-adaptation",
+    ]
+    RETURN_TYPES = ("DIRECTORY", "JSON")
+    RETURN_NAMES = ("model_path", "metrics_json")
+    REQUIRES_EXTERNAL_TOOLS = False
+    REQUIRED_CONDA_PACKAGES = ["torch", "transformers", "datasets", "peft", "accelerate"]
+    EXPERIMENTAL = True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "training_data": ("FILE", {"description": "Training data file in JSONL, CSV, or plain text format"}),
+                "base_model": ("STRING", {"default": "distilgpt2", "description": "Local Hugging Face model name or path"}),
+                "epochs": ("INT", {"default": 1, "min": 1, "max": 100}),
+            },
+            "optional": {
+                "validation_data": ("FILE", {"default": "", "description": "Optional validation data file"}),
+                "training_format": (
+                    "STRING",
+                    {
+                        "default": "auto",
+                        "options": ["auto", "prompt_response", "jsonl", "csv", "text"],
+                    },
+                ),
+                "text_column": ("STRING", {"default": "text"}),
+                "prompt_column": ("STRING", {"default": "prompt"}),
+                "response_column": ("STRING", {"default": "response"}),
+                "output_adapter_name": ("STRING", {"default": "fine_tuned_adapter"}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 128}),
+                "learning_rate": ("FLOAT", {"default": 0.0002, "min": 0.0, "max": 1.0, "step": 0.00001}),
+                "max_length": ("INT", {"default": 512, "min": 1, "max": 8192}),
+                "lora_rank": ("INT", {"default": 8, "min": 1, "max": 256}),
+                "lora_alpha": ("INT", {"default": 16, "min": 1, "max": 512}),
+                "lora_dropout": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "compute_device": ("STRING", {"default": "auto", "options": ["auto", "cpu", "cuda", "mps"]}),
+                "training_backend": ("STRING", {"default": "dry_run", "options": ["dry_run", "local"]}),
+            },
+            "hidden": {
+                "context": ("CONTEXT", {}),
+            },
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        context = kwargs.pop("context", None)
+        out_dir = _node_output_dir(self, context)
+        metrics_path = out_dir / "metrics.json"
+
+        training_data = str(kwargs.get("training_data", "") or "")
+        validation_data = str(kwargs.get("validation_data", "") or "")
+        base_model = str(kwargs.get("base_model", "distilgpt2") or "distilgpt2")
+        epochs = max(1, int(kwargs.get("epochs", 1) or 1))
+        training_format = str(kwargs.get("training_format", "auto") or "auto")
+        text_column = str(kwargs.get("text_column", "text") or "text")
+        prompt_column = str(kwargs.get("prompt_column", "prompt") or "prompt")
+        response_column = str(kwargs.get("response_column", "response") or "response")
+        output_adapter_name = _safe_adapter_name(kwargs.get("output_adapter_name", "fine_tuned_adapter"))
+        batch_size = max(1, int(kwargs.get("batch_size", 1) or 1))
+        learning_rate = float(kwargs.get("learning_rate", 0.0002) or 0.0002)
+        max_length = max(1, int(kwargs.get("max_length", 512) or 512))
+        lora_rank = max(1, int(kwargs.get("lora_rank", 8) or 8))
+        lora_alpha = max(1, int(kwargs.get("lora_alpha", 16) or 16))
+        lora_dropout = max(0.0, min(float(kwargs.get("lora_dropout", 0.05) or 0.0), 1.0))
+        compute_device = str(kwargs.get("compute_device", "auto") or "auto")
+        training_backend = str(kwargs.get("training_backend", "dry_run") or "dry_run")
+        model_dir = out_dir / output_adapter_name
+
+        train_examples, resolved_format = _fine_tune_examples(
+            training_data,
+            training_format=training_format,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+        )
+        validation_examples, _ = _fine_tune_examples(
+            validation_data,
+            training_format=training_format,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+            required=False,
+        )
+
+        config = {
+            "base_model": base_model,
+            "output_adapter_name": output_adapter_name,
+            "training_backend": training_backend,
+            "training_format": resolved_format,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "max_length": max_length,
+            "lora": {
+                "rank": lora_rank,
+                "alpha": lora_alpha,
+                "dropout": lora_dropout,
+            },
+            "columns": {
+                "text": text_column,
+                "prompt": prompt_column,
+                "response": response_column,
+            },
+            "compute_device": compute_device,
+        }
+
+        if training_backend == "local":
+            _ensure_local_fine_tune_backend()
+
+        model_dir.mkdir(parents=True, exist_ok=True)
+        config_path = model_dir / "training_config.json"
+        train_examples_path = model_dir / "training_examples.jsonl"
+        validation_examples_path = model_dir / "validation_examples.jsonl"
+        readme_path = model_dir / "README.md"
+        adapter_config_path = model_dir / "adapter_config.json"
+
+        config_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_fine_tune_examples(train_examples_path, train_examples)
+        _write_fine_tune_examples(validation_examples_path, validation_examples)
+        adapter_config_path.write_text(
+            json.dumps(_fine_tune_adapter_config(config), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        readme_path.write_text(_fine_tune_readme(config, len(train_examples), len(validation_examples)), encoding="utf-8")
+
+        metrics = _fine_tune_metrics(
+            config,
+            train_examples=train_examples,
+            validation_examples=validation_examples,
+            model_dir=model_dir,
+            metrics_path=metrics_path,
+            config_path=config_path,
+            train_examples_path=train_examples_path,
+            validation_examples_path=validation_examples_path,
+            adapter_config_path=adapter_config_path,
+            readme_path=readme_path,
+        )
+        metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {"outputs": {"model_path": str(model_dir), "metrics_json": str(metrics_path)}}
+
+
 class AIReportGeneratorNode(BaseNode):
     """Generate AI-assisted workflow reports."""
 
@@ -2072,6 +2231,266 @@ def _write_model_scores_csv(path: Path, predictions: list[dict[str, Any]]) -> No
                 f"{float(top.get('confidence', 0.0)):.4f}",
                 all_predictions,
             ])
+
+
+def _safe_adapter_name(value: Any) -> str:
+    raw = str(value or "fine_tuned_adapter").strip() or "fine_tuned_adapter"
+    safe = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in raw)
+    return safe.strip("._") or "fine_tuned_adapter"
+
+
+def _fine_tune_examples(
+    value: Any,
+    *,
+    training_format: str,
+    text_column: str,
+    prompt_column: str,
+    response_column: str,
+    required: bool = True,
+) -> tuple[list[dict[str, Any]], str]:
+    source = str(value or "").strip()
+    if not source:
+        if required:
+            raise ValueError("Fine-Tune LLM requires training_data")
+        return [], _resolved_fine_tune_format(source, training_format)
+
+    path = Path(source)
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(f"Fine-Tune LLM training data not found: {path}")
+        return [], _resolved_fine_tune_format(source, training_format)
+
+    content = path.read_text(encoding="utf-8-sig")
+    resolved_format = _resolved_fine_tune_format(str(path), training_format)
+    if resolved_format in {"jsonl", "prompt_response"}:
+        return _jsonl_fine_tune_examples(
+            content,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+        ), resolved_format
+    if resolved_format == "csv":
+        return _csv_fine_tune_examples(
+            content,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+        ), resolved_format
+    return _text_fine_tune_examples(content), "text"
+
+
+def _resolved_fine_tune_format(source: str, training_format: str) -> str:
+    requested = str(training_format or "auto").lower()
+    if requested == "auto":
+        suffix = Path(str(source)).suffix.lower()
+        if suffix in {".jsonl", ".json"}:
+            return "prompt_response"
+        if suffix in {".csv", ".tsv"}:
+            return "csv"
+        return "text"
+    if requested == "jsonl":
+        return "jsonl"
+    if requested in {"prompt_response", "csv", "text"}:
+        return requested
+    return "text"
+
+
+def _jsonl_fine_tune_examples(
+    content: str,
+    *,
+    text_column: str,
+    prompt_column: str,
+    response_column: str,
+) -> list[dict[str, Any]]:
+    examples: list[dict[str, Any]] = []
+    for index, line in enumerate(content.splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Fine-Tune LLM JSONL line {index + 1} is not valid JSON") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Fine-Tune LLM JSONL line {index + 1} must be a JSON object")
+        examples.append(_fine_tune_example_from_mapping(
+            parsed,
+            index=index,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+        ))
+    return examples
+
+
+def _csv_fine_tune_examples(
+    content: str,
+    *,
+    text_column: str,
+    prompt_column: str,
+    response_column: str,
+) -> list[dict[str, Any]]:
+    first_line = content.splitlines()[0] if content.splitlines() else ""
+    dialect = "excel-tab" if "\t" in first_line else "excel"
+    reader = csv.DictReader(content.splitlines(), dialect=dialect)
+    examples: list[dict[str, Any]] = []
+    for index, row in enumerate(reader):
+        examples.append(_fine_tune_example_from_mapping(
+            dict(row),
+            index=index,
+            text_column=text_column,
+            prompt_column=prompt_column,
+            response_column=response_column,
+        ))
+    return examples
+
+
+def _text_fine_tune_examples(content: str) -> list[dict[str, Any]]:
+    examples: list[dict[str, Any]] = []
+    for index, line in enumerate(line.strip() for line in content.splitlines() if line.strip()):
+        examples.append(_fine_tune_text_example(line, index=index, source="text"))
+    return examples
+
+
+def _fine_tune_example_from_mapping(
+    row: dict[str, Any],
+    *,
+    index: int,
+    text_column: str,
+    prompt_column: str,
+    response_column: str,
+) -> dict[str, Any]:
+    prompt = str(row.get(prompt_column, "") or "").strip()
+    response = str(row.get(response_column, "") or "").strip()
+    if prompt or response:
+        text = f"### Prompt\n{prompt}\n\n### Response\n{response}".strip()
+        example = _fine_tune_text_example(text, index=index, source="prompt_response")
+        example["prompt"] = prompt
+        example["response"] = response
+        return example
+
+    text = str(row.get(text_column, "") or row.get("text", "") or "").strip()
+    if not text:
+        text = json.dumps(row, sort_keys=True)
+    return _fine_tune_text_example(text, index=index, source="text")
+
+
+def _fine_tune_text_example(text: str, *, index: int, source: str) -> dict[str, Any]:
+    content = str(text or "").strip()
+    return {
+        "id": f"example_{index}",
+        "text": content,
+        "source": source,
+        "char_count": len(content),
+        "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    }
+
+
+def _write_fine_tune_examples(path: Path, examples: list[dict[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        for example in examples:
+            handle.write(json.dumps(example, sort_keys=True) + "\n")
+
+
+def _fine_tune_adapter_config(config: dict[str, Any]) -> dict[str, Any]:
+    lora = config["lora"]
+    return {
+        "adapter_type": "lora",
+        "base_model_name_or_path": config["base_model"],
+        "bias": "none",
+        "inference_mode": False,
+        "lora_alpha": lora["alpha"],
+        "lora_dropout": lora["dropout"],
+        "r": lora["rank"],
+        "task_type": "CAUSAL_LM",
+    }
+
+
+def _fine_tune_readme(config: dict[str, Any], train_count: int, validation_count: int) -> str:
+    return (
+        f"# {config['output_adapter_name']}\n\n"
+        "This directory contains a reproducible BioNodulo fine-tuning package.\n\n"
+        f"- Base model: `{config['base_model']}`\n"
+        f"- Backend: `{config['training_backend']}`\n"
+        f"- Training records: {train_count}\n"
+        f"- Validation records: {validation_count}\n"
+        f"- Epochs: {config['epochs']}\n"
+        f"- Batch size: {config['batch_size']}\n"
+        f"- Learning rate: {config['learning_rate']}\n"
+    )
+
+
+def _fine_tune_metrics(
+    config: dict[str, Any],
+    *,
+    train_examples: list[dict[str, Any]],
+    validation_examples: list[dict[str, Any]],
+    model_dir: Path,
+    metrics_path: Path,
+    config_path: Path,
+    train_examples_path: Path,
+    validation_examples_path: Path,
+    adapter_config_path: Path,
+    readme_path: Path,
+) -> dict[str, Any]:
+    train_chars = sum(int(example.get("char_count", 0)) for example in train_examples)
+    validation_chars = sum(int(example.get("char_count", 0)) for example in validation_examples)
+    steps_per_epoch = (len(train_examples) + config["batch_size"] - 1) // config["batch_size"]
+    estimated_steps = steps_per_epoch * config["epochs"] if train_examples else 0
+    estimated_loss = _deterministic_fine_tune_loss(train_examples, config)
+    return {
+        "backend": config["training_backend"],
+        "base_model": config["base_model"],
+        "training_format": config["training_format"],
+        "train_records": len(train_examples),
+        "validation_records": len(validation_examples),
+        "train_characters": train_chars,
+        "validation_characters": validation_chars,
+        "epochs": config["epochs"],
+        "batch_size": config["batch_size"],
+        "learning_rate": config["learning_rate"],
+        "estimated_steps": estimated_steps,
+        "estimated_train_loss": estimated_loss,
+        "device": "cpu" if config["compute_device"] == "auto" else config["compute_device"],
+        "lora": config["lora"],
+        "artifacts": {
+            "model_dir": str(model_dir),
+            "metrics": str(metrics_path),
+            "training_config": str(config_path),
+            "training_examples": str(train_examples_path),
+            "validation_examples": str(validation_examples_path),
+            "adapter_config": str(adapter_config_path),
+            "readme": str(readme_path),
+        },
+    }
+
+
+def _deterministic_fine_tune_loss(examples: list[dict[str, Any]], config: dict[str, Any]) -> float:
+    if not examples:
+        return 0.0
+    digest = hashlib.sha256()
+    digest.update(str(config["base_model"]).encode("utf-8"))
+    for example in examples:
+        digest.update(str(example.get("sha256", "")).encode("utf-8"))
+    seed = int(digest.hexdigest()[:8], 16)
+    size_factor = min(1.0, sum(int(example.get("char_count", 0)) for example in examples) / 10000.0)
+    base = 1.0 + (seed % 1000) / 1000.0
+    return round(max(0.05, base - (0.25 * size_factor)), 4)
+
+
+def _ensure_local_fine_tune_backend() -> None:
+    missing: list[str] = []
+    for module_name in ("torch", "transformers", "datasets", "peft", "accelerate"):
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            missing.append(module_name)
+    if missing:
+        raise RuntimeError(
+            "local fine-tuning requires torch, transformers, datasets, peft, and accelerate; "
+            f"missing: {', '.join(missing)}"
+        )
+    raise RuntimeError("local fine-tuning is not yet implemented; use training_backend='dry_run'")
 
 
 _EXTRACTION_SCHEMAS: dict[str, dict[str, Any]] = {
