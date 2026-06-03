@@ -281,3 +281,112 @@ def test_cell2location_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["torch"] == ">=2.0"
     assert PACKAGE_MIN_VERSIONS["scanpy"] == ">=1.10"
     assert PACKAGE_MIN_VERSIONS["anndata"] == ">=0.10"
+
+
+def test_baysor_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["baysor"]
+    assert node_info["display_name"] == "Baysor Segmentation"
+    assert node_info["category"] == "spatial_transcriptomics"
+    assert node_info["description"].startswith("Cell segmentation for MERFISH")
+    assert node_info["output"] == ["CSV"]
+    assert node_info["output_name"] == ["cell_segmentation"]
+    assert node_info["required_executables"] == ["baysor"]
+    assert node_info["required_conda_packages"] == ["baysor"]
+    assert "baysor" in node_info["search_aliases"]
+    assert "segmentation" in node_info["search_aliases"]
+    assert "merfish" in node_info["search_aliases"]
+    assert "xenium" in node_info["search_aliases"]
+    assert "molecular spatial" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"transcript_data", "x_col", "y_col", "gene_col", "min_molecules"}
+    assert set(inputs["optional"]) == {"z_col", "scale", "iters"}
+
+
+def test_baysor_renders_command_with_optional_3d_and_tuning_flags() -> None:
+    node_class = _node_class("baysor")
+
+    cmd = node_class.render_command({
+        "transcript_data": "transcripts.csv",
+        "x_col": "x_location",
+        "y_col": "y_location",
+        "gene_col": "feature_name",
+        "min_molecules": 45,
+        "z_col": "z_location",
+        "scale": "12.5",
+        "iters": 750,
+        "output": "/tmp/run/baysor",
+    })
+
+    assert cmd == [
+        "baysor",
+        "run",
+        "transcripts.csv",
+        "-x",
+        "x_location",
+        "-y",
+        "y_location",
+        "-g",
+        "feature_name",
+        "-m",
+        "45",
+        "-o",
+        "/tmp/run/baysor",
+        "-z",
+        "z_location",
+        "--scale",
+        "12.5",
+        "--iters",
+        "750",
+    ]
+
+
+def test_baysor_omits_empty_optional_flags() -> None:
+    node_class = _node_class("baysor")
+
+    cmd = node_class.render_command({
+        "transcript_data": "transcripts.csv",
+        "x_col": "x",
+        "y_col": "y",
+        "gene_col": "gene",
+        "min_molecules": 30,
+        "z_col": "",
+        "scale": "",
+        "iters": 0,
+        "output": "/tmp/run/baysor",
+    })
+
+    assert cmd == [
+        "baysor",
+        "run",
+        "transcripts.csv",
+        "-x",
+        "x",
+        "-y",
+        "y",
+        "-g",
+        "gene",
+        "-m",
+        "30",
+        "-o",
+        "/tmp/run/baysor",
+    ]
+
+
+def test_baysor_plans_segmentation_output() -> None:
+    node_class = _node_class("baysor")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/baysor/cell_segmentation.csv",
+    ]
+
+
+def test_baysor_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["baysor"] == "baysor"
+    assert PACKAGE_MIN_VERSIONS["baysor"] == ">=0.7"
