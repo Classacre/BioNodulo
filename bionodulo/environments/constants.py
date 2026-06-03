@@ -78,6 +78,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "bamCoverage": "deeptools",
     "HiC-Pro": "hic-pro",
     "juicer.sh": "juicer",
+    "cooler": "cooler",
     "cellranger": "cellranger",
     "Rscript": "r-base",
 }
@@ -169,6 +170,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "deeptools": ">=3.5.0",
     "hic-pro": ">=3.1.0",
     "juicer": ">=2.0",
+    "cooler": ">=0.10.0",
+    "cooltools": ">=0.7.0",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",

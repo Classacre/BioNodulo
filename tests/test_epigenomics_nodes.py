@@ -772,3 +772,107 @@ def test_juicer_plans_hic_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/juicer/hic_file.hic"]
+
+
+def test_cooler_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cooler"]
+    assert node_info["display_name"] == "Cooler Matrix"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Create, zoomify, and balance Hi-C contact matrices")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["mcool"]
+    assert node_info["required_executables"] == ["cooler"]
+    assert node_info["required_conda_packages"] == ["cooler", "cooltools"]
+    assert "contact matrix" in node_info["search_aliases"]
+    assert "mcool" in node_info["search_aliases"]
+    assert "ice normalization" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_data", "mode"}
+    assert set(inputs["optional"]) == {"chrom_sizes", "bin_size", "threads"}
+
+
+def test_cooler_renders_cload_zoomify_balance_command() -> None:
+    node_class = _node_class("cooler")
+
+    cmd = node_class.render_command({
+        "input_data": "valid_pairs.pairs.gz",
+        "mode": "cload",
+        "chrom_sizes": "hg38.chrom.sizes",
+        "bin_size": 10000,
+        "threads": 8,
+        "output": "/tmp/run/cooler",
+    })
+
+    assert cmd == [
+        "cooler",
+        "cload",
+        "pairs",
+        "hg38.chrom.sizes:10000",
+        "valid_pairs.pairs.gz",
+        "/tmp/run/cooler/matrix.cool",
+        "&&",
+        "cooler",
+        "zoomify",
+        "-p",
+        "8",
+        "-o",
+        "/tmp/run/cooler/mcool.mcool",
+        "/tmp/run/cooler/matrix.cool",
+        "&&",
+        "cooler",
+        "balance",
+        "-p",
+        "8",
+        "/tmp/run/cooler/mcool.mcool",
+    ]
+
+
+def test_cooler_renders_csort_command() -> None:
+    node_class = _node_class("cooler")
+
+    cmd = node_class.render_command({
+        "input_data": "valid_pairs.pairs",
+        "mode": "csort",
+        "chrom_sizes": "hg38.chrom.sizes",
+        "threads": 4,
+        "output": "/tmp/run/cooler",
+    })
+
+    assert cmd == [
+        "cooler",
+        "csort",
+        "-k2,2n",
+        "-k4,4n",
+        "-c1",
+        "-c3",
+        "-p",
+        "4",
+        "hg38.chrom.sizes",
+        "valid_pairs.pairs",
+        "/tmp/run/cooler/sorted.pairs.gz",
+    ]
+
+
+def test_cooler_renders_balance_command() -> None:
+    node_class = _node_class("cooler")
+
+    cmd = node_class.render_command({
+        "input_data": "matrix.mcool",
+        "mode": "balance",
+        "threads": 12,
+    })
+
+    assert cmd == ["cooler", "balance", "--cis-only", "-p", "12", "matrix.mcool"]
+
+
+def test_cooler_plans_mcool_output() -> None:
+    node_class = _node_class("cooler")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/cooler/mcool.mcool"]
