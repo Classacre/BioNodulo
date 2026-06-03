@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import difflib
+import gzip
 import html
 import hashlib
 import json
@@ -925,3 +926,113 @@ class CompareResultsNode(BaseNode):
             f"<h1>Comparison Report <span class=\"status\">{status_text}</span></h1>"
             f"<pre>{report_json}</pre><h2>Diff</h2><pre>{diff_html}</pre></body></html>"
         )
+
+
+class CheckpointNode(BaseNode):
+    """Persist a workflow value to a checkpoint artifact."""
+
+    NODE_ID = "checkpoint"
+    DISPLAY_NAME = "Checkpoint"
+    CATEGORY = "workflow"
+    DESCRIPTION = "Save workflow state snapshot. Persist intermediate results for resumable workflows."
+    SEARCH_ALIASES = ["checkpoint", "snapshot", "save", "resume", "persist", "state"]
+    RETURN_TYPES = ("ANY", "FILE", "JSON")
+    RETURN_NAMES = ("passthrough", "checkpoint_file", "checkpoint_info")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("ANY", {"description": "Data to checkpoint"}),
+            },
+            "optional": {
+                "checkpoint_name": ("STRING", {"default": "", "description": "Checkpoint name; generated from node and time when empty"}),
+                "include_upstream_metadata": ("BOOLEAN", {"default": True}),
+                "compression": ("BOOLEAN", {"default": True}),
+            },
+            "hidden": {
+                "context": ("CONTEXT", {}),
+            },
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[Any, str, str]:
+        context = kwargs.pop("context", None)
+        data = kwargs.get("input")
+        include_metadata = bool(kwargs.get("include_upstream_metadata", True))
+        compress = bool(kwargs.get("compression", True))
+        checkpoint_name = self._checkpoint_name(kwargs.get("checkpoint_name", ""), context)
+        checkpoint_dir = self._checkpoint_dir(context)
+
+        timestamp = time.time()
+        payload: dict[str, Any] = {
+            "version": "1.0",
+            "checkpoint_name": checkpoint_name,
+            "timestamp": timestamp,
+            "timestamp_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)),
+            "data": data,
+        }
+        if include_metadata and context is not None:
+            payload["run_metadata"] = self._context_metadata(context)
+
+        suffix = ".json.gz" if compress else ".json"
+        checkpoint_path = (checkpoint_dir / f"{checkpoint_name}{suffix}").resolve()
+        json_bytes = json.dumps(payload, indent=2, sort_keys=True, default=str).encode("utf-8")
+        if compress:
+            checkpoint_path.write_bytes(gzip.compress(json_bytes))
+        else:
+            checkpoint_path.write_bytes(json_bytes)
+
+        checkpoint_info = {
+            "checkpoint_name": checkpoint_name,
+            "checkpoint_path": str(checkpoint_path),
+            "timestamp": timestamp,
+            "timestamp_iso": payload["timestamp_iso"],
+            "compressed": compress,
+            "size_bytes": checkpoint_path.stat().st_size,
+            "resume_supported": False,
+            "note": "Checkpoint artifact written; executor-level resume is not implemented yet.",
+        }
+
+        _ctx_log(context, "info", f"Checkpoint saved: {checkpoint_path}")
+        _ctx_emit(
+            context,
+            "checkpoint_saved",
+            {
+                "run_id": getattr(context, "run_id", ""),
+                "node_id": getattr(context, "node_id", self.NODE_ID),
+                "checkpoint_path": str(checkpoint_path),
+                "compressed": compress,
+            },
+        )
+        return (data, str(checkpoint_path), _json_text(checkpoint_info))
+
+    def _checkpoint_dir(self, context: Any) -> Path:
+        workspace_dir = getattr(context, "workspace_dir", None) if context is not None else None
+        if workspace_dir:
+            base = Path(workspace_dir) / "checkpoints"
+        elif context is not None:
+            base = _node_output_dir(self, context) / "checkpoints"
+        else:
+            base = Path("checkpoints")
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+
+    def _checkpoint_name(self, value: Any, context: Any) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            node_id = getattr(context, "node_id", self.NODE_ID)
+            raw = f"{node_id}_{int(time.time())}"
+        sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", raw).strip("._")
+        return sanitized or f"{self.NODE_ID}_{int(time.time())}"
+
+    @staticmethod
+    def _context_metadata(context: Any) -> dict[str, Any]:
+        params = getattr(context, "params", {})
+        public_params = {key: value for key, value in params.items() if not str(key).startswith("_")} if isinstance(params, dict) else {}
+        return {
+            "run_id": getattr(context, "run_id", ""),
+            "node_id": getattr(context, "node_id", ""),
+            "node_type": getattr(context, "node_type", ""),
+            "params": public_params,
+        }

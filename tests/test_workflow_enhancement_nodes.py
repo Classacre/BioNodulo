@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -47,6 +48,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "data_validator": ("Data Validator", ["passthrough", "passed", "validation_report", "report_file"]),
         "provenance": ("Provenance", ["passthrough", "provenance_record", "provenance_file"]),
         "compare_results": ("Compare Results", ["comparison_report", "match", "diff_file"]),
+        "checkpoint": ("Checkpoint", ["passthrough", "checkpoint_file", "checkpoint_info"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -352,3 +354,56 @@ async def test_compare_results_rejects_unknown_method() -> None:
             result_b="B",
             comparison_method="side_by_side",
         )
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_writes_compressed_snapshot_with_context_metadata(tmp_path: Path) -> None:
+    context = _context(tmp_path, "checkpoint-node")
+    context.node_type = "fastqc"
+    context.params = {"threads": 4, "_secret": "hidden"}
+    payload = {"report": "fastqc.html", "metrics": {"gc": 51.2}}
+
+    passthrough, checkpoint_file, info_json = await _node_class("checkpoint")().run(
+        input=payload,
+        checkpoint_name="post_qc",
+        include_upstream_metadata=True,
+        compression=True,
+        context=context,
+    )
+
+    info = json.loads(info_json)
+    checkpoint_path = Path(checkpoint_file)
+    saved = json.loads(gzip.decompress(checkpoint_path.read_bytes()).decode("utf-8"))
+    assert passthrough == payload
+    assert checkpoint_path.name == "post_qc.json.gz"
+    assert info["checkpoint_name"] == "post_qc"
+    assert info["compressed"] is True
+    assert info["resume_supported"] is False
+    assert info["size_bytes"] == checkpoint_path.stat().st_size
+    assert saved["data"] == payload
+    assert saved["run_metadata"]["run_id"] == "run-1"
+    assert saved["run_metadata"]["node_type"] == "fastqc"
+    assert saved["run_metadata"]["params"] == {"threads": 4}
+    assert context.events[0][0] == "checkpoint_saved"
+    assert context.logs[0][0] == "info"
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_writes_uncompressed_snapshot_without_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    passthrough, checkpoint_file, info_json = await _node_class("checkpoint")().run(
+        input=["sample.bam", "sample.bai"],
+        checkpoint_name="manual_checkpoint",
+        include_upstream_metadata=True,
+        compression=False,
+    )
+
+    info = json.loads(info_json)
+    checkpoint_path = Path(checkpoint_file)
+    saved = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert passthrough == ["sample.bam", "sample.bai"]
+    assert checkpoint_path == tmp_path / "checkpoints" / "manual_checkpoint.json"
+    assert info["compressed"] is False
+    assert info["checkpoint_path"] == str(checkpoint_path)
+    assert "run_metadata" not in saved
