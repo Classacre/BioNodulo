@@ -128,6 +128,27 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "vision" in info["ai_image_analysis"]["search_aliases"]
     assert "microscopy" in info["ai_image_analysis"]["search_aliases"]
 
+    assert info["model_inference"]["display_name"] == "Model Inference"
+    assert info["model_inference"]["category"] == "ai"
+    assert info["model_inference"]["output"] == ["JSON", "CSV"]
+    assert info["model_inference"]["output_name"] == ["predictions_json", "scores_csv"]
+    assert info["model_inference"]["required_conda_packages"] == ["numpy", "torch", "transformers"]
+    assert info["model_inference"]["experimental"] is True
+    assert "huggingface" in info["model_inference"]["search_aliases"]
+    assert "transformers" in info["model_inference"]["search_aliases"]
+
+    model_inference_inputs = info["model_inference"]["input"]
+    assert set(model_inference_inputs["required"]) == {"input_data", "model_name", "task"}
+    assert set(model_inference_inputs["optional"]) == {
+        "candidate_labels",
+        "batch_size",
+        "max_length",
+        "top_k",
+        "confidence_threshold",
+        "compute_device",
+        "fallback_backend",
+    }
+
     image_inputs = info["ai_image_analysis"]["input"]
     assert set(image_inputs["required"]) == {"input_image", "analysis_task"}
     assert set(image_inputs["optional"]) == {
@@ -1666,3 +1687,123 @@ def _write_tiny_png(path: Any) -> None:
             "de0000000c49444154789c63606060000000040001f61738550000000049454e44ae426082"
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_model_inference_writes_deterministic_text_classification_outputs(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("model_inference")
+    input_path = tmp_path / "abstracts.txt"
+    input_path.write_text("BRCA1 regulates DNA repair.\nTP53 responds to DNA damage.\n", encoding="utf-8")
+
+    result = await node_class().run(
+        input_data=str(input_path),
+        model_name="facebook/bart-large-mnli",
+        task="text_classification",
+        candidate_labels="repair, apoptosis, metabolism",
+        top_k=2,
+        confidence_threshold=0.0,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "model_inference" / "predictions.json"
+    csv_path = tmp_path / "model_inference" / "scores.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    rows = csv_path.read_text(encoding="utf-8").splitlines()
+
+    assert result == {"outputs": {"predictions_json": str(json_path), "scores_csv": str(csv_path)}}
+    assert payload["backend"] == "deterministic"
+    assert payload["task"] == "text_classification"
+    assert payload["model_name"] == "facebook/bart-large-mnli"
+    assert payload["input_count"] == 2
+    assert payload["returned_predictions"] == 2
+    assert payload["labels"] == ["repair", "apoptosis", "metabolism"]
+    assert payload["predictions"][0]["input_id"] == "item_0"
+    assert len(payload["predictions"][0]["top_predictions"]) == 2
+    assert rows[0] == "input_id,input_length,truncated_length,top_prediction,confidence,all_predictions"
+    assert rows[1].startswith("item_0,27,27,")
+
+
+@pytest.mark.asyncio
+async def test_model_inference_reads_inline_fasta_for_sequence_classification(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("model_inference")
+
+    await node_class().run(
+        input_data=">seqA\nMTEYKLVVVG\n>seqB\nGAGGVGKSAL\n",
+        model_name="facebook/esm2_t6_8M_UR50D",
+        task="sequence_classification",
+        candidate_labels="enzyme, receptor",
+        max_length=6,
+        confidence_threshold=0.0,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads((tmp_path / "model_inference" / "predictions.json").read_text(encoding="utf-8"))
+
+    assert payload["input_count"] == 2
+    assert [prediction["input_id"] for prediction in payload["predictions"]] == ["seqA", "seqB"]
+    assert payload["predictions"][0]["input_length"] == 10
+    assert payload["predictions"][0]["truncated_length"] == 6
+
+
+@pytest.mark.asyncio
+async def test_model_inference_auto_falls_back_and_local_requires_transformers(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("model_inference")
+    input_path = tmp_path / "items.txt"
+    input_path.write_text("one item\n", encoding="utf-8")
+
+    await node_class().run(
+        input_data=str(input_path),
+        model_name="local/missing-model",
+        task="text_classification",
+        candidate_labels="a,b",
+        confidence_threshold=0.0,
+        fallback_backend="auto",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads((tmp_path / "model_inference" / "predictions.json").read_text(encoding="utf-8"))
+
+    assert payload["backend"] == "deterministic"
+    assert payload["returned_predictions"] == 1
+
+    with pytest.raises(RuntimeError, match="torch and transformers|required|local"):
+        await node_class().run(
+            input_data=str(input_path),
+            model_name="local/missing-model",
+            task="text_classification",
+            candidate_labels="a,b",
+            fallback_backend="local",
+            context=SimpleNamespace(node_dir=tmp_path),
+        )
+
+
+@pytest.mark.asyncio
+async def test_model_inference_empty_input_writes_empty_outputs(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("model_inference")
+
+    result = await node_class().run(
+        input_data="",
+        model_name="local/model",
+        task="text_classification",
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "model_inference" / "predictions.json"
+    csv_path = tmp_path / "model_inference" / "scores.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"predictions_json": str(json_path), "scores_csv": str(csv_path)}}
+    assert payload["input_count"] == 0
+    assert payload["returned_predictions"] == 0
+    assert payload["predictions"] == []
