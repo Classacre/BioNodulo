@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -42,6 +43,30 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["llm_decision"]["output"] == ["STRING", "BOOLEAN", "JSON"]
     assert info["llm_decision"]["output_name"] == ["label", "matched", "decision_json"]
     assert info["llm_decision"]["experimental"] is True
+
+    assert info["ai_variant_interpretation"]["display_name"] == "AI Variant Interpretation"
+    assert info["ai_variant_interpretation"]["category"] == "ai"
+    assert info["ai_variant_interpretation"]["output"] == ["JSON", "CSV"]
+    assert info["ai_variant_interpretation"]["output_name"] == ["interpretation_json", "scores_csv"]
+    assert info["ai_variant_interpretation"]["required_conda_packages"] == ["litellm", "pandas"]
+    assert info["ai_variant_interpretation"]["experimental"] is True
+    assert "acmg" in info["ai_variant_interpretation"]["search_aliases"]
+
+    variant_inputs = info["ai_variant_interpretation"]["input"]
+    assert set(variant_inputs["required"]) == {"variant_table"}
+    assert set(variant_inputs["optional"]) == {
+        "framework",
+        "gene_context",
+        "include_literature",
+        "max_variants",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+    }
 
 
 def test_render_prompt_substitutes_context_and_leaves_unknown_variables() -> None:
@@ -176,3 +201,112 @@ async def test_llm_decision_uses_default_label_when_response_is_invalid(monkeypa
         model="decision-model",
         api_key="unused",
     ) == ("fail", False, {"label": "fail", "matched": False, "raw_label": "unknown", "reason": "ambiguous"})
+
+
+@pytest.mark.asyncio
+async def test_ai_variant_interpretation_writes_json_and_scores_csv(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_variant_interpretation")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    variant_table = tmp_path / "variants.tsv"
+    variant_table.write_text(
+        "chrom\tpos\tref\talt\tgene\tconsequence\taf\n"
+        "17\t43044295\tG\tA\tBRCA1\tmissense_variant\t0.00001\n"
+        "7\t140453136\tA\tT\tBRAF\tmissense_variant\t0.02\n",
+        encoding="utf-8",
+    )
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({
+                "interpretations": [
+                    {
+                        "variant_id": "17:43044295:G>A",
+                        "gene": "BRCA1",
+                        "pathogenicity": "Likely pathogenic",
+                        "confidence": 0.86,
+                        "evidence": ["PM2", "PP3"],
+                        "summary": "Rare BRCA1 missense variant with supporting computational evidence.",
+                    },
+                    {
+                        "variant_id": "7:140453136:A>T",
+                        "gene": "BRAF",
+                        "pathogenicity": "VUS",
+                        "confidence": 0.52,
+                        "evidence": ["limited context"],
+                        "summary": "BRAF variant needs external review.",
+                    },
+                ]
+            }),
+            model=config.model,
+            usage={"total_tokens": 321},
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(
+        variant_table=str(variant_table),
+        framework="ACMG",
+        gene_context="Hereditary cancer panel",
+        include_literature=True,
+        max_variants=10,
+        provider="mock",
+        model="variant-model",
+        api_key="unused",
+        temperature=0.1,
+        max_tokens=2048,
+        context=context,
+    )
+
+    json_path = tmp_path / "ai_variant_interpretation" / "interpretation_json.json"
+    csv_path = tmp_path / "ai_variant_interpretation" / "scores_csv.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    scores_csv = csv_path.read_text(encoding="utf-8")
+
+    assert result == {"outputs": {"interpretation_json": str(json_path), "scores_csv": str(csv_path)}}
+    assert payload["variant_count"] == 2
+    assert payload["framework"] == "ACMG"
+    assert payload["gene_context"] == "Hereditary cancer panel"
+    assert payload["include_literature"] is True
+    assert payload["interpretations"][0]["pathogenicity"] == "Likely pathogenic"
+    assert payload["usage"] == {"total_tokens": 321}
+    assert "variant_id,gene,pathogenicity,confidence,summary" in scores_csv
+    assert "17:43044295:G>A,BRCA1,Likely pathogenic,0.86" in scores_csv
+
+    prompt = calls[0]["messages"][-1]["content"]
+    assert calls[0]["json_mode"] is True
+    assert calls[0]["config"].model == "variant-model"
+    assert "ACMG" in prompt
+    assert "Hereditary cancer panel" in prompt
+    assert "BRCA1" in prompt
+    assert "Return a JSON object" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ai_variant_interpretation_handles_empty_variant_table(tmp_path: Any) -> None:
+    node_class = _node_class("ai_variant_interpretation")
+    variant_table = tmp_path / "variants.tsv"
+    variant_table.write_text("chrom\tpos\tref\talt\tgene\n", encoding="utf-8")
+
+    result = await node_class().run(
+        variant_table=str(variant_table),
+        provider="mock",
+        model="variant-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_variant_interpretation" / "interpretation_json.json"
+    csv_path = tmp_path / "ai_variant_interpretation" / "scores_csv.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"interpretation_json": str(json_path), "scores_csv": str(csv_path)}}
+    assert payload["variant_count"] == 0
+    assert payload["interpretations"] == []
+    assert csv_path.read_text(encoding="utf-8") == "variant_id,gene,pathogenicity,confidence,summary\n"
