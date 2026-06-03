@@ -50,6 +50,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "compare_results": ("Compare Results", ["comparison_report", "match", "diff_file"]),
         "checkpoint": ("Checkpoint", ["passthrough", "checkpoint_file", "checkpoint_info"]),
         "memoize": ("Memoize", ["output", "hash", "memo_info"]),
+        "cache_control": ("Cache Control", ["output", "cache_hit", "cache_info"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -468,3 +469,108 @@ async def test_memoize_rejects_unknown_hash_algorithm() -> None:
             input="reads.fasta",
             hash_algorithm="sha1",
         )
+
+
+@pytest.mark.asyncio
+async def test_cache_control_records_miss_then_hit_with_explicit_key(tmp_path: Path) -> None:
+    context = _context(tmp_path, "cache-node")
+    context.workspace_dir = tmp_path
+    node = _node_class("cache_control")()
+
+    output, cache_hit, cache_info_json = await node.run(
+        input={"vcf": "variants.vcf"},
+        cache_key="variant-qc",
+        ttl_seconds=3600,
+        cache_scope="run",
+        context=context,
+    )
+    first_info = json.loads(cache_info_json)
+    output2, cache_hit2, cache_info_json2 = await node.run(
+        input={"vcf": "variants.vcf"},
+        cache_key="variant-qc",
+        ttl_seconds=3600,
+        cache_scope="run",
+        context=context,
+    )
+    second_info = json.loads(cache_info_json2)
+
+    assert output == {"vcf": "variants.vcf"}
+    assert output2 == {"vcf": "variants.vcf"}
+    assert cache_hit is False
+    assert cache_hit2 is True
+    assert first_info["status"] == "miss"
+    assert second_info["status"] == "hit"
+    assert second_info["cache_key"] == first_info["cache_key"]
+    assert second_info["executor_skip_supported"] is False
+    assert context.logs[0][1].startswith("Cache Control miss")
+    assert context.logs[1][1].startswith("Cache Control hit")
+
+
+@pytest.mark.asyncio
+async def test_cache_control_force_refresh_and_invalidation_fingerprint(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "custom-cache"
+    node = _node_class("cache_control")()
+
+    _, hit1, info1_json = await node.run(
+        input="result-a",
+        cache_key="align",
+        invalidate_on_change="ref=hg38",
+        cache_scope="global",
+        cache_dir=str(cache_dir),
+    )
+    _, hit2, info2_json = await node.run(
+        input="result-a",
+        cache_key="align",
+        invalidate_on_change="ref=hg19",
+        cache_scope="global",
+        cache_dir=str(cache_dir),
+    )
+    _, hit3, info3_json = await node.run(
+        input="result-a",
+        cache_key="align",
+        invalidate_on_change="ref=hg19",
+        force_refresh=True,
+        cache_scope="global",
+        cache_dir=str(cache_dir),
+    )
+
+    info1 = json.loads(info1_json)
+    info2 = json.loads(info2_json)
+    info3 = json.loads(info3_json)
+    assert hit1 is False
+    assert hit2 is False
+    assert hit3 is False
+    assert info1["cache_key"] != info2["cache_key"]
+    assert info3["status"] == "refresh"
+    assert info3["force_refresh"] is True
+
+
+@pytest.mark.asyncio
+async def test_cache_control_ttl_expiry_and_auto_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cache_dir = tmp_path / "ttl-cache"
+    node = _node_class("cache_control")()
+    now = 1_000.0
+    monkeypatch.setattr("bionodulo.nodes.builtin.workflow_enhancement.time.time", lambda: now)
+
+    _, first_hit, first_info_json = await node.run(
+        input={"sample": "S1"},
+        cache_key="",
+        ttl_seconds=10,
+        cache_dir=str(cache_dir),
+    )
+    first_info = json.loads(first_info_json)
+    now = 1_020.0
+    _, second_hit, second_info_json = await node.run(
+        input={"sample": "S1"},
+        cache_key="",
+        ttl_seconds=10,
+        cache_dir=str(cache_dir),
+    )
+    second_info = json.loads(second_info_json)
+
+    assert first_hit is False
+    assert second_hit is False
+    assert first_info["cache_key"].startswith("cache_control_")
+    assert first_info["cache_key"] == second_info["cache_key"]
+    assert second_info["status"] == "expired"
+    assert second_info["age_seconds"] == 20.0
