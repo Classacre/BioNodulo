@@ -208,3 +208,70 @@ def test_cutesv_plans_vcf_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/cutesv/sv_vcf.vcf"]
+
+
+def test_svim_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["svim"]
+    assert node_info["display_name"] == "SVIM SV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Long-read SV caller")
+    assert node_info["output"] == ["VCF"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["svim"]
+    assert node_info["required_conda_packages"] == ["svim"]
+    assert "long-read sv" in node_info["search_aliases"]
+    assert "nanopore sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "sample_name"}
+    assert set(inputs["optional"]) == {
+        "min_sv_size",
+        "max_sv_size",
+        "sequence_alleles",
+        "symbolic_alleles",
+    }
+
+
+def test_svim_renders_long_read_sv_command() -> None:
+    node_class = _node_class("svim")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "sample_name": "tumor-01",
+        "min_sv_size": 75,
+        "max_sv_size": 250000,
+        "sequence_alleles": True,
+        "symbolic_alleles": True,
+        "output": "/tmp/run/svim",
+    })
+
+    assert cmd == [
+        "svim",
+        "alignment",
+        "--sample",
+        "tumor-01",
+        "--min_sv_size",
+        "75",
+        "--max_sv_size",
+        "250000",
+        "--sequence_alleles",
+        "--symbolic_alleles",
+        "--interspersed_duplications_as_insertions",
+        "--tandem_duplications_as_insertions",
+        "/tmp/run/svim",
+        "sample.sorted.bam",
+        "GRCh38.fa",
+    ]
+
+
+def test_svim_plans_vcf_output() -> None:
+    node_class = _node_class("svim")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/svim/sv_vcf.vcf"]
