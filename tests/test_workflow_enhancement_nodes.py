@@ -51,6 +51,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "checkpoint": ("Checkpoint", ["passthrough", "checkpoint_file", "checkpoint_info"]),
         "memoize": ("Memoize", ["output", "hash", "memo_info"]),
         "cache_control": ("Cache Control", ["output", "cache_hit", "cache_info"]),
+        "notification": ("Notification", ["success", "delivery_info"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -574,3 +575,82 @@ async def test_cache_control_ttl_expiry_and_auto_key(tmp_path: Path, monkeypatch
     assert first_info["cache_key"] == second_info["cache_key"]
     assert second_info["status"] == "expired"
     assert second_info["age_seconds"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_notification_logs_message_without_webhook(tmp_path: Path) -> None:
+    context = _context(tmp_path, "notify-node")
+    context.run_metadata = {"status": "completed", "outputs": {"report": "multiqc.html"}}
+
+    success, delivery_info_json = await _node_class("notification")().run(
+        trigger="always",
+        channel="log",
+        message="QC complete",
+        include_results=True,
+        context=context,
+    )
+
+    delivery_info = json.loads(delivery_info_json)
+    assert success is True
+    assert delivery_info["status"] == "delivered"
+    assert delivery_info["channel"] == "log"
+    assert delivery_info["payload"]["message"] == "QC complete"
+    assert delivery_info["payload"]["run_metadata"] == context.run_metadata
+    assert context.logs[0] == ("info", "Notification [log]: QC complete")
+
+
+@pytest.mark.asyncio
+async def test_notification_webhook_skips_without_url() -> None:
+    success, delivery_info_json = await _node_class("notification")().run(
+        trigger="always",
+        channel="webhook",
+        webhook_url="",
+        message="No URL",
+    )
+
+    delivery_info = json.loads(delivery_info_json)
+    assert success is False
+    assert delivery_info["status"] == "skipped"
+    assert delivery_info["reason"] == "No webhook URL configured"
+
+
+@pytest.mark.asyncio
+async def test_notification_posts_resolved_secret_webhook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    context = _context(tmp_path, "notify-secret")
+    context.resolve_secret = lambda key: "https://hooks.example.test/secret" if key == "hook" else ""
+    sent: list[dict[str, Any]] = []
+
+    async def fake_post(self: Any, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        sent.append({"url": url, "payload": payload, "timeout": timeout})
+        return {"status_code": 204, "body": ""}
+
+    monkeypatch.setattr(_node_class("notification"), "_post_json", fake_post)
+
+    success, delivery_info_json = await _node_class("notification")().run(
+        trigger="on_complete",
+        channel="slack",
+        webhook_url="",
+        message="Run finished",
+        secret_key="hook",
+        context=context,
+    )
+
+    delivery_info = json.loads(delivery_info_json)
+    assert success is True
+    assert sent[0]["url"] == "https://hooks.example.test/secret"
+    assert sent[0]["payload"]["text"] == "Run finished"
+    assert sent[0]["payload"]["blocks"][0]["text"]["text"] == "*run-1*"
+    assert delivery_info["status"] == "delivered"
+    assert delivery_info["http_status"] == 204
+    assert delivery_info["webhook_url_configured"] is True
+    assert "secret" not in delivery_info
+
+
+@pytest.mark.asyncio
+async def test_notification_rejects_unsupported_channel() -> None:
+    with pytest.raises(ValueError, match="Unsupported notification channel"):
+        await _node_class("notification")().run(
+            trigger="always",
+            channel="sms",
+            message="Hello",
+        )

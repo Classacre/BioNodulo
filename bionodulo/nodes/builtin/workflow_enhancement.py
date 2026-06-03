@@ -1265,3 +1265,161 @@ class CacheControlNode(BaseNode):
             base = root / "control" / cache_scope
         base.mkdir(parents=True, exist_ok=True)
         return base
+
+
+class NotificationNode(BaseNode):
+    """Send or record workflow notifications when this node is reached."""
+
+    NODE_ID = "notification"
+    DISPLAY_NAME = "Notification"
+    CATEGORY = "workflow"
+    DESCRIPTION = "Send notifications on workflow events. Supports webhook, Slack, Discord. Trigger: on complete, on error, or always."
+    SEARCH_ALIASES = ["notify", "alert", "slack", "discord", "webhook", "email", "message"]
+    RETURN_TYPES = ("BOOLEAN", "JSON")
+    RETURN_NAMES = ("success", "delivery_info")
+    REQUIRES_EXTERNAL_TOOLS = False
+    SUPPORTED_CHANNELS = {"webhook", "slack", "discord", "email", "log", "noop"}
+    SUPPORTED_TRIGGERS = {"on_complete", "on_error", "always"}
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "trigger": (["on_complete", "on_error", "always"], {"default": "always"}),
+                "channel": (["webhook", "slack", "discord", "email", "log", "noop"], {"default": "webhook"}),
+            },
+            "optional": {
+                "webhook_url": ("STRING", {"default": ""}),
+                "message": ("STRING", {"default": "Workflow notification", "multiline": True}),
+                "include_results": ("BOOLEAN", {"default": False}),
+                "secret_key": ("STRING", {"default": "", "description": "Secret key that resolves to a webhook URL"}),
+                "timeout_seconds": ("FLOAT", {"default": 10.0, "min": 0.1}),
+            },
+            "hidden": {
+                "context": ("CONTEXT", {}),
+            },
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[bool, str]:
+        context = kwargs.pop("context", None)
+        trigger = str(kwargs.get("trigger", "always") or "always").lower()
+        channel = str(kwargs.get("channel", "webhook") or "webhook").lower()
+        if trigger not in self.SUPPORTED_TRIGGERS:
+            raise ValueError(f"Unsupported notification trigger: {trigger}")
+        if channel not in self.SUPPORTED_CHANNELS:
+            raise ValueError(f"Unsupported notification channel: {channel}")
+
+        webhook_url = str(kwargs.get("webhook_url", "") or "")
+        message = str(kwargs.get("message", "Workflow notification") or "Workflow notification")
+        include_results = bool(kwargs.get("include_results", False))
+        secret_key = str(kwargs.get("secret_key", "") or "")
+        timeout = max(0.1, float(kwargs.get("timeout_seconds", 10.0) or 10.0))
+        webhook_url = self._resolve_webhook_url(webhook_url, secret_key, context)
+
+        run_info = {
+            "run_id": getattr(context, "run_id", "unknown"),
+            "node_id": getattr(context, "node_id", self.NODE_ID),
+            "trigger": trigger,
+            "status": getattr(context, "status", ""),
+        }
+        payload = self._build_payload(channel, message, run_info)
+        if include_results and context is not None:
+            payload["run_metadata"] = getattr(context, "run_metadata", {})
+
+        delivery_info: dict[str, Any] = {
+            "channel": channel,
+            "trigger": trigger,
+            "status": "pending",
+            "message_length": len(message),
+            "webhook_url_configured": bool(webhook_url),
+            "payload": payload if channel in {"log", "noop"} else self._redacted_payload(payload),
+        }
+
+        if channel == "noop":
+            delivery_info["status"] = "skipped"
+            delivery_info["reason"] = "No-op notification channel"
+            _ctx_log(context, "info", f"Notification [noop]: {message}")
+            return (True, _json_text(delivery_info))
+
+        if channel == "log":
+            delivery_info["status"] = "delivered"
+            _ctx_log(context, "info", f"Notification [log]: {message}")
+            return (True, _json_text(delivery_info))
+
+        if channel == "email":
+            delivery_info["status"] = "skipped"
+            delivery_info["reason"] = "Email delivery requires SMTP settings and is not implemented in this node"
+            _ctx_log(context, "warning", "Notification [email] skipped: SMTP delivery is not configured")
+            return (False, _json_text(delivery_info))
+
+        if not webhook_url:
+            delivery_info["status"] = "skipped"
+            delivery_info["reason"] = "No webhook URL configured"
+            _ctx_log(context, "warning", f"Notification [{channel}] skipped: no webhook URL configured")
+            return (False, _json_text(delivery_info))
+
+        try:
+            response = await self._post_json(webhook_url, payload, timeout)
+        except Exception as exc:
+            delivery_info.update({"status": "failed", "error": str(exc)})
+            _ctx_log(context, "error", f"Notification [{channel}] failed: {exc}")
+            return (False, _json_text(delivery_info))
+
+        status_code = int(response.get("status_code", 0) or 0)
+        success = 200 <= status_code < 300
+        delivery_info.update(
+            {
+                "status": "delivered" if success else "failed",
+                "http_status": status_code,
+                "response_body": str(response.get("body", ""))[:500],
+            }
+        )
+        _ctx_log(context, "info" if success else "warning", f"Notification [{channel}] HTTP {status_code}")
+        return (success, _json_text(delivery_info))
+
+    def _build_payload(self, channel: str, message: str, run_info: dict[str, Any]) -> dict[str, Any]:
+        if channel == "slack":
+            return {
+                "text": message,
+                "blocks": [
+                    {"type": "section", "text": {"type": "mrkdwn", "text": f"*{run_info.get('run_id', 'unknown')}*"}},
+                    {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+                ],
+            }
+        if channel == "discord":
+            color = 0x22C55E if run_info.get("status") == "completed" else 0xEF4444
+            return {
+                "content": message,
+                "embeds": [
+                    {
+                        "title": f"BioNodulo: {run_info.get('run_id', 'unknown')}",
+                        "description": message,
+                        "color": color,
+                    }
+                ],
+            }
+        return {
+            "message": message,
+            "run_id": run_info.get("run_id"),
+            "node_id": run_info.get("node_id"),
+            "trigger": run_info.get("trigger"),
+            "status": run_info.get("status"),
+        }
+
+    @staticmethod
+    def _resolve_webhook_url(webhook_url: str, secret_key: str, context: Any) -> str:
+        if not secret_key or context is None or not hasattr(context, "resolve_secret"):
+            return webhook_url
+        resolved = context.resolve_secret(secret_key)
+        return str(resolved or webhook_url)
+
+    @staticmethod
+    def _redacted_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        return json.loads(json.dumps(payload, default=str))
+
+    async def _post_json(self, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+        return {"status_code": response.status_code, "body": response.text}
