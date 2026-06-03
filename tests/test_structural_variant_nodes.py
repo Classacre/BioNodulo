@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -141,6 +142,70 @@ def test_sv_stats_plans_json_and_image_outputs() -> None:
         "/tmp/run/sv_stats/stats_json.json",
         "/tmp/run/sv_stats/stats_plot.png",
     ]
+
+
+def test_vcf_comparison_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vcf_comparison"]
+    assert node_info["display_name"] == "VCF Comparison"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Compare variant callsets")
+    assert node_info["output"] == ["JSON", "IMAGE"]
+    assert node_info["output_name"] == ["comparison", "venn_plot"]
+    assert node_info["required_executables"] == ["rtg"]
+    assert node_info["required_conda_packages"] == ["rtg-tools", "matplotlib"]
+    assert "benchmark" in node_info["search_aliases"]
+    assert "precision recall" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf_a", "vcf_b", "reference"}
+    assert set(inputs["optional"]) == {"sample", "squash_ploidy", "plot_format"}
+
+
+def test_vcf_comparison_renders_rtg_vcfeval_command() -> None:
+    node_class = _node_class("vcf_comparison")
+
+    cmd = node_class.render_command({
+        "vcf_a": "truth.vcf.gz",
+        "vcf_b": "calls.vcf.gz",
+        "reference": "GRCh38.fa",
+        "sample": "tumor-01",
+        "squash_ploidy": True,
+        "plot_format": "png",
+        "output": "/tmp/run/vcf_comparison",
+    })
+
+    assert cmd[:3] == ["bash", "-c", cmd[2]]
+    script = cmd[2]
+    assert "rtg format -o" in script
+    assert "rtg vcfeval" in script
+    assert "--squash-ploidy" in script
+    assert "--sample tumor-01" in script
+    assert "summary.txt" in script
+    assert "comparison.json" in script
+    assert "venn_plot.png" in script
+    assert "truth.vcf.gz" in script
+    assert "calls.vcf.gz" in script
+    assert "GRCh38.fa" in script
+
+
+def test_vcf_comparison_plans_json_and_image_outputs() -> None:
+    node_class = _node_class("vcf_comparison")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/vcf_comparison/comparison.json",
+        "/tmp/run/vcf_comparison/venn_plot.png",
+    ]
+
+
+def test_vcf_comparison_dependency_metadata_is_available() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["rtg"] == "rtg-tools"
+    assert PACKAGE_MIN_VERSIONS["rtg-tools"] == ">=3.12"
 
 
 def test_survivor_merge_is_registered_for_frontend_discovery() -> None:

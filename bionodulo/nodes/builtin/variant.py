@@ -282,6 +282,136 @@ plt.close(fig)
         }
 
 
+class VCFComparisonNode(CommandNode):
+    """Compare two VCF callsets with RTG vcfeval."""
+    NODE_ID = "vcf_comparison"
+    DISPLAY_NAME = "VCF Comparison"
+    CATEGORY = "variant"
+    DESCRIPTION = "Compare variant callsets and report precision, recall, F1, and overlap metrics."
+    SEARCH_ALIASES = [
+        "vcf comparison",
+        "benchmark",
+        "precision recall",
+        "rtg vcfeval",
+        "variant evaluation",
+    ]
+    RETURN_TYPES = ("JSON", "IMAGE")
+    RETURN_NAMES = ("comparison", "venn_plot")
+    REQUIRED_EXECUTABLES = ["rtg"]
+    REQUIRED_CONDA_PACKAGES = ["rtg-tools", "matplotlib"]
+    DOCUMENTATION_URL = "https://realtimegenomics.github.io/rtg-tools/rtg_command_reference.html#vcfeval"
+    VERSION = "3.12.1"
+    SHELL = False
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", "."))
+        plot_format = str(inputs.get("plot_format", "png") or "png").lower()
+        if plot_format not in {"png", "svg"}:
+            plot_format = "png"
+        sample = shlex.quote(str(inputs.get("sample", "")).strip())
+        squash_ploidy = bool(inputs.get("squash_ploidy", False))
+        reference = shlex.quote(str(inputs.get("reference", "")))
+        vcf_a = shlex.quote(str(inputs.get("vcf_a", "")))
+        vcf_b = shlex.quote(str(inputs.get("vcf_b", "")))
+        out_dir = shlex.quote(output)
+        comparison_json = shlex.quote(f"{output}/comparison.json")
+        venn_plot = shlex.quote(f"{output}/venn_plot.{plot_format}")
+
+        sample_arg = f" --sample {sample}" if sample else ""
+        squash_arg = " --squash-ploidy" if squash_ploidy else ""
+        script = f"""
+set -euo pipefail
+mkdir -p {out_dir}
+if [ ! -d {out_dir}/reference.sdf ]; then
+  rtg format -o {out_dir}/reference.sdf {reference}
+fi
+rtg vcfeval --baseline {vcf_a} --calls {vcf_b} --template {out_dir}/reference.sdf --output {out_dir}/vcfeval{sample_arg}{squash_arg}
+python - "$@" <<'PY'
+import csv
+import json
+import sys
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+summary_path, comparison_json, venn_plot = sys.argv[1:4]
+metrics = {{}}
+try:
+    with open(summary_path, encoding='utf-8') as handle:
+        for row in csv.reader(handle, delimiter='\\t'):
+            if len(row) >= 2:
+                key = row[0].strip().lower().replace(' ', '_')
+                value = row[1].strip()
+                if key:
+                    metrics[key] = value
+except FileNotFoundError:
+    pass
+
+true_positive = int(float(metrics.get('true_positives_baseline', metrics.get('tp_baseline', 0)) or 0))
+false_positive = int(float(metrics.get('false_positives', metrics.get('fp', 0)) or 0))
+false_negative = int(float(metrics.get('false_negatives', metrics.get('fn', 0)) or 0))
+precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0
+recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0
+f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0
+
+summary = {{
+    'metrics': metrics,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'true_positive': true_positive,
+    'false_positive': false_positive,
+    'false_negative': false_negative,
+}}
+with open(comparison_json, 'w', encoding='utf-8') as handle:
+    json.dump(summary, handle, indent=2, sort_keys=True)
+    handle.write('\\n')
+
+fig, ax = plt.subplots(figsize=(5, 4))
+labels = ['TP', 'FP', 'FN']
+values = [true_positive, false_positive, false_negative]
+ax.bar(labels, values, color=['#2f6f73', '#a84d3d', '#6d5f9a'])
+ax.set_title('VCF comparison')
+ax.set_ylabel('Variants')
+fig.tight_layout()
+fig.savefig(venn_plot)
+plt.close(fig)
+PY
+{out_dir}/vcfeval/summary.txt {comparison_json} {venn_plot}
+""".strip()
+        return ["bash", "-c", script]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        output_dir = Path(output_dir)
+        node_out = output_dir / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        plot_format = str(inputs.get("plot_format", "png") or "png").lower()
+        if plot_format not in {"png", "svg"}:
+            plot_format = "png"
+        return [node_out / "comparison.json", node_out / f"venn_plot.{plot_format}"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf_a": ("VCF_GZ", {"description": "Baseline/truth VCF.GZ"}),
+                "vcf_b": ("VCF_GZ", {"description": "Calls VCF.GZ to evaluate"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used by both callsets"}),
+            },
+            "optional": {
+                "sample": ("STRING", {"default": "", "description": "Optional sample name to compare", "advanced": True}),
+                "squash_ploidy": ("BOOLEAN", {"default": False, "description": "Ignore genotype ploidy differences", "advanced": True}),
+                "plot_format": ("STRING", {"default": "png", "options": ["png", "svg"], "label": "Plot Format", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class SURVIVORMergeNode(CommandNode):
     """Merge structural variant callsets into a consensus VCF with SURVIVOR."""
     NODE_ID = "survivor_merge"
