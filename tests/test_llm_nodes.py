@@ -52,6 +52,30 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ai_variant_interpretation"]["experimental"] is True
     assert "acmg" in info["ai_variant_interpretation"]["search_aliases"]
 
+    assert info["ai_sequence_analysis"]["display_name"] == "AI Sequence Analysis"
+    assert info["ai_sequence_analysis"]["category"] == "ai"
+    assert info["ai_sequence_analysis"]["output"] == ["JSON", "STRING"]
+    assert info["ai_sequence_analysis"]["output_name"] == ["analysis_json", "summary_text"]
+    assert info["ai_sequence_analysis"]["required_conda_packages"] == ["litellm", "biopython"]
+    assert "motif" in info["ai_sequence_analysis"]["search_aliases"]
+    assert "fasta" in info["ai_sequence_analysis"]["search_aliases"]
+
+    sequence_inputs = info["ai_sequence_analysis"]["input"]
+    assert set(sequence_inputs["required"]) == {"input_fasta", "analysis_type"}
+    assert set(sequence_inputs["optional"]) == {
+        "custom_prompt",
+        "max_sequences",
+        "max_seq_length",
+        "molecule_type",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+    }
+
     variant_inputs = info["ai_variant_interpretation"]["input"]
     assert set(variant_inputs["required"]) == {"variant_table"}
     assert set(variant_inputs["optional"]) == {
@@ -310,3 +334,98 @@ async def test_ai_variant_interpretation_handles_empty_variant_table(tmp_path: A
     assert payload["variant_count"] == 0
     assert payload["interpretations"] == []
     assert csv_path.read_text(encoding="utf-8") == "variant_id,gene,pathogenicity,confidence,summary\n"
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_analysis_writes_json_and_summary(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_sequence_analysis")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    fasta = tmp_path / "sequences.fasta"
+    fasta.write_text(
+        ">seq1 kinase candidate\n"
+        "MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQV\n"
+        ">seq2 promoter\n"
+        "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTA\n",
+        encoding="utf-8",
+    )
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({
+                "summary": "seq1 resembles a small GTPase-like protein; seq2 is nucleotide sequence.",
+                "sequences": [
+                    {
+                        "id": "seq1",
+                        "molecule_type": "protein",
+                        "findings": ["P-loop NTP-binding motif candidate"],
+                    },
+                    {
+                        "id": "seq2",
+                        "molecule_type": "dna",
+                        "findings": ["GC-rich short nucleotide sequence"],
+                    },
+                ],
+            }),
+            model=config.model,
+            usage={"total_tokens": 222},
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    analysis_json, summary_text = await node_class().run(
+        input_fasta=str(fasta),
+        analysis_type="motifs",
+        max_sequences=2,
+        max_seq_length=30,
+        molecule_type="auto",
+        provider="mock",
+        model="sequence-model",
+        api_key="unused",
+        temperature=0.1,
+        max_tokens=2048,
+    )
+
+    payload = json.loads(analysis_json)
+    prompt = calls[0]["messages"][-1]["content"]
+
+    assert payload["analysis_type"] == "motifs"
+    assert payload["sequence_count"] == 2
+    assert payload["sequences"][0]["id"] == "seq1"
+    assert payload["sequences"][0]["sequence"] == "MTEYKLVVVGAGGVGKSALTIQLIQNHFVD"
+    assert payload["analysis"]["sequences"][0]["findings"] == ["P-loop NTP-binding motif candidate"]
+    assert payload["usage"] == {"total_tokens": 222}
+    assert summary_text == "seq1 resembles a small GTPase-like protein; seq2 is nucleotide sequence."
+    assert calls[0]["json_mode"] is True
+    assert calls[0]["config"].model == "sequence-model"
+    assert "Identify conserved motifs" in prompt
+    assert "seq1 kinase candidate" in prompt
+    assert "Molecule type hint: auto" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_analysis_uses_custom_prompt_and_handles_empty_fasta(tmp_path: Any) -> None:
+    node_class = _node_class("ai_sequence_analysis")
+    fasta = tmp_path / "empty.fasta"
+    fasta.write_text("", encoding="utf-8")
+
+    analysis_json, summary_text = await node_class().run(
+        input_fasta=str(fasta),
+        analysis_type="custom",
+        custom_prompt="Report unusual codon patterns.",
+        provider="mock",
+        model="sequence-model",
+        api_key="unused",
+    )
+
+    payload = json.loads(analysis_json)
+
+    assert payload["analysis_type"] == "custom"
+    assert payload["sequence_count"] == 0
+    assert payload["analysis"] == {}
+    assert summary_text == "No sequences found in FASTA input."
