@@ -570,6 +570,115 @@ class ANNOVARNode(CommandNode):
         }
 
 
+class FuncotateTableNode(CommandNode):
+    """Annotate cancer variants with GATK Funcotator."""
+    NODE_ID = "funcotate_table"
+    DISPLAY_NAME = "Funcotate Table"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Oncotator-style functional annotation for cancer variants using GATK Funcotator."
+    SEARCH_ALIASES = ["funcotator", "funcotate", "cancer variants", "oncotator", "somatic annotation"]
+    RETURN_TYPES = ("FILE", "FILE")
+    RETURN_NAMES = ("annotated", "summary")
+    REQUIRED_EXECUTABLES = ["gatk"]
+    REQUIRED_CONDA_PACKAGES = ["gatk4"]
+    DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037224432-Funcotator"
+    VERSION = "4.6.2.0"
+    SHELL = True
+
+    @classmethod
+    def _output_filename(cls, output_format: str) -> str:
+        return "annotated.vcf" if output_format.upper() == "VCF" else "annotated.maf"
+
+    @staticmethod
+    def _split_annotations(value: Any) -> list[str]:
+        return [item.strip() for item in str(value or "").split(",") if item.strip()]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        output_format = str(inputs.get("output_format", "MAF")).upper()
+        annotated = f"{out_dir}/{cls._output_filename(output_format)}"
+        summary = f"{out_dir}/summary.tsv"
+        vcf = str(inputs.get("vcf", ""))
+        ref_version = str(inputs.get("ref_version", "hg38"))
+
+        cmd = [
+            "gatk",
+            "Funcotator",
+            "-R",
+            str(inputs.get("reference", "")),
+            "-V",
+            vcf,
+            "-O",
+            annotated,
+            "--output-file-format",
+            output_format,
+            "--data-sources-path",
+            str(inputs.get("data_sources", "")),
+            "--ref-version",
+            ref_version,
+        ]
+        if inputs.get("transcript_selection_mode"):
+            cmd.extend(["--transcript-selection-mode", str(inputs["transcript_selection_mode"])])
+        for annotation in cls._split_annotations(inputs.get("annotation_defaults")):
+            cmd.extend(["--annotation-default", annotation])
+        for annotation in cls._split_annotations(inputs.get("annotation_overrides")):
+            cmd.extend(["--annotation-override", annotation])
+        if inputs.get("intervals"):
+            cmd.extend(["-L", str(inputs["intervals"])])
+
+        summary_payload = (
+            f"'tool\\tgatk Funcotator\\n"
+            f"input\\t{vcf}\\n"
+            f"output\\t{annotated}\\n"
+            f"format\\t{output_format}\\n"
+            f"ref_version\\t{ref_version}\\n'"
+        )
+        cmd.extend(["&&", "printf", summary_payload, ">", summary])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        output_format = str(inputs.get("output_format", "MAF")).upper()
+        return [node_out / cls._output_filename(output_format), node_out / "summary.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input VCF to annotate"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used for the VCF"}),
+                "data_sources": ("DIRECTORY", {"description": "Funcotator data sources directory"}),
+                "ref_version": ("STRING", {"default": "hg38", "options": ["hg38", "hg19"]}),
+            },
+            "optional": {
+                "output_format": ("STRING", {"default": "MAF", "options": ["MAF", "VCF"]}),
+                "transcript_selection_mode": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "CANONICAL", "BEST_EFFECT", "ALL"],
+                        "advanced": True,
+                    },
+                ),
+                "annotation_defaults": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated KEY:VALUE defaults", "advanced": True},
+                ),
+                "annotation_overrides": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated KEY:VALUE overrides", "advanced": True},
+                ),
+                "intervals": ("FILE", {"default": "", "description": "Optional intervals to annotate", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class BcftoolsAnnotateNode(CommandNode):
     """Annotate VCF records from BED, VCF, or TSV annotation files."""
     NODE_ID = "bcftools_annotate"

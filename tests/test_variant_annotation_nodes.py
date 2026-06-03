@@ -347,6 +347,128 @@ def test_annovar_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"
 
 
+def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["funcotate_table"]
+    assert node_info["display_name"] == "Funcotate Table"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Oncotator-style functional annotation")
+    assert node_info["output"] == ["FILE", "FILE"]
+    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["required_executables"] == ["gatk"]
+    assert node_info["required_conda_packages"] == ["gatk4"]
+    assert "funcotator" in node_info["search_aliases"]
+    assert "cancer variants" in node_info["search_aliases"]
+    assert "oncotator" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf", "reference", "data_sources", "ref_version"}
+    assert set(inputs["optional"]) == {
+        "output_format",
+        "transcript_selection_mode",
+        "annotation_defaults",
+        "annotation_overrides",
+        "intervals",
+    }
+
+
+def test_funcotate_table_renders_gatk_funcotator_command() -> None:
+    node_class = _node_class("funcotate_table")
+
+    cmd = node_class.render_command({
+        "vcf": "somatic.vcf.gz",
+        "reference": "GRCh38.fa",
+        "data_sources": "/refs/funcotator",
+        "ref_version": "hg38",
+        "output_format": "MAF",
+        "transcript_selection_mode": "CANONICAL",
+        "annotation_defaults": "Center:BioNodulo,NCBI_Build:GRCh38",
+        "annotation_overrides": "Tumor_Sample_Barcode:TUMOR",
+        "intervals": "targets.interval_list",
+        "output": "/tmp/run/funcotate_table",
+    })
+
+    assert cmd == [
+        "gatk",
+        "Funcotator",
+        "-R",
+        "GRCh38.fa",
+        "-V",
+        "somatic.vcf.gz",
+        "-O",
+        "/tmp/run/funcotate_table/annotated.maf",
+        "--output-file-format",
+        "MAF",
+        "--data-sources-path",
+        "/refs/funcotator",
+        "--ref-version",
+        "hg38",
+        "--transcript-selection-mode",
+        "CANONICAL",
+        "--annotation-default",
+        "Center:BioNodulo",
+        "--annotation-default",
+        "NCBI_Build:GRCh38",
+        "--annotation-override",
+        "Tumor_Sample_Barcode:TUMOR",
+        "-L",
+        "targets.interval_list",
+        "&&",
+        "printf",
+        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotate_table/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
+        ">",
+        "/tmp/run/funcotate_table/summary.tsv",
+    ]
+
+
+def test_funcotate_table_supports_vcf_output_and_omits_empty_optional_flags() -> None:
+    node_class = _node_class("funcotate_table")
+
+    cmd = node_class.render_command({
+        "vcf": "germline.vcf.gz",
+        "reference": "GRCh37.fa",
+        "data_sources": "/refs/funcotator",
+        "ref_version": "hg19",
+        "output_format": "VCF",
+        "transcript_selection_mode": "",
+        "annotation_defaults": "",
+        "annotation_overrides": "",
+        "intervals": "",
+        "output": "/tmp/run/funcotate_table",
+    })
+
+    assert "--transcript-selection-mode" not in cmd
+    assert "--annotation-default" not in cmd
+    assert "--annotation-override" not in cmd
+    assert "-L" not in cmd
+    assert "/tmp/run/funcotate_table/annotated.vcf" in cmd
+    assert "format\\tVCF" in cmd[-3]
+
+
+def test_funcotate_table_plans_outputs_by_format() -> None:
+    node_class = _node_class("funcotate_table")
+
+    maf_outputs = node_class.PLAN_OUTPUTS({"output_format": "MAF"}, "/tmp/run")
+    vcf_outputs = node_class.PLAN_OUTPUTS({"output_format": "VCF"}, "/tmp/run")
+
+    assert [str(path) for path in maf_outputs] == [
+        "/tmp/run/funcotate_table/annotated.maf",
+        "/tmp/run/funcotate_table/summary.tsv",
+    ]
+    assert [str(path) for path in vcf_outputs] == [
+        "/tmp/run/funcotate_table/annotated.vcf",
+        "/tmp/run/funcotate_table/summary.tsv",
+    ]
+
+
+def test_funcotate_table_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["gatk"] == "gatk4"
+    assert PACKAGE_MIN_VERSIONS["gatk4"] == ">=4.4.0"
+
+
 def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
