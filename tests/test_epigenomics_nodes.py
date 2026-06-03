@@ -686,3 +686,89 @@ def test_hic_pro_plans_results_directory() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/hic_pro/hic_results"]
+
+
+def test_juicer_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["juicer"]
+    assert node_info["display_name"] == "Juicer Pipeline"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Process Hi-C data with Juicer")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["hic_file"]
+    assert node_info["required_executables"] == ["juicer.sh"]
+    assert node_info["required_conda_packages"] == ["juicer"]
+    assert "juicebox" in node_info["search_aliases"]
+    assert "hiccups" in node_info["search_aliases"]
+    assert "tad" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"fastq_dir", "genome_id", "chrom_sizes", "restriction_site"}
+    assert set(inputs["optional"]) == {"restriction_sites_bed"}
+
+
+def test_juicer_renders_command_with_restriction_sites_bed() -> None:
+    node_class = _node_class("juicer")
+
+    cmd = node_class.render_command({
+        "fastq_dir": "fastqs/",
+        "genome_id": "hg38",
+        "chrom_sizes": "hg38.chrom.sizes",
+        "restriction_site": "GATC",
+        "restriction_sites_bed": "restriction_sites.bed",
+        "output": "/tmp/run/juicer",
+    })
+
+    assert cmd == [
+        "juicer.sh",
+        "-g",
+        "hg38",
+        "-d",
+        "fastqs/",
+        "-s",
+        "GATC",
+        "-p",
+        "hg38.chrom.sizes",
+        "-D",
+        "/tmp/run/juicer",
+        "-y",
+        "restriction_sites.bed",
+    ]
+
+
+def test_juicer_omits_optional_restriction_sites_bed() -> None:
+    node_class = _node_class("juicer")
+
+    cmd = node_class.render_command({
+        "fastq_dir": "fastqs/",
+        "genome_id": "mm10",
+        "chrom_sizes": "mm10.chrom.sizes",
+        "restriction_site": "none",
+        "restriction_sites_bed": "",
+        "output": "/tmp/run/juicer",
+    })
+
+    assert cmd == [
+        "juicer.sh",
+        "-g",
+        "mm10",
+        "-d",
+        "fastqs/",
+        "-s",
+        "none",
+        "-p",
+        "mm10.chrom.sizes",
+        "-D",
+        "/tmp/run/juicer",
+    ]
+
+
+def test_juicer_plans_hic_output() -> None:
+    node_class = _node_class("juicer")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/juicer/hic_file.hic"]
