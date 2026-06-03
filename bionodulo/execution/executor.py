@@ -251,12 +251,26 @@ class WorkflowExecutor:
                 nodes = {}
                 edges = []
 
+        all_nodes = nodes
+        loop_bodies = self._loop_bodies(all_nodes, edges)
+        loop_body_node_ids = {body_node for body in loop_bodies.values() for body_node in body}
+        nodes = {
+            node_id: node
+            for node_id, node in all_nodes.items()
+            if node_id not in loop_body_node_ids
+        }
+        outer_edges = [
+            edge
+            for edge in edges
+            if edge_source(edge) in nodes and edge_target(edge) in nodes
+        ]
+
         # Build adjacency lists
         upstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
         downstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
         edge_map: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
 
-        for edge in edges:
+        for edge in outer_edges:
             src = edge_source(edge)
             tgt = edge_target(edge)
 
@@ -278,6 +292,7 @@ class WorkflowExecutor:
         node_results: dict[str, dict[str, Any]] = {}
         node_cache_keys: dict[str, str | None] = {}
         node_outputs: dict[str, dict[str, str]] = {}
+        node_inactive_outputs: dict[str, set[str]] = {}
         failed_nodes: set[str] = set()
         skipped_nodes: set[str] = set()
         previews: list[dict[str, Any]] = []
@@ -323,6 +338,30 @@ class WorkflowExecutor:
                 skipped_nodes.add(node_id)
                 continue
 
+            inactive_upstream = self._inactive_upstream(
+                node_id,
+                edge_map,
+                skipped_nodes,
+                node_inactive_outputs,
+            )
+            if inactive_upstream is not None:
+                emit(
+                    "node_skip",
+                    {
+                        "run_id": run_id,
+                        "node_id": node_id,
+                        "reason": "inactive_branch",
+                        "upstream": inactive_upstream,
+                    },
+                )
+                node_results[node_id] = {
+                    "status": "skipped",
+                    "reason": "inactive_branch",
+                    "upstream": inactive_upstream,
+                }
+                skipped_nodes.add(node_id)
+                continue
+
             # ---- Bypassed node: pass inputs through to outputs ----
             if node_meta.get("bypassed"):
                 bypass_outputs = self._bypass_outputs(node_id, node, edge_map)
@@ -365,6 +404,7 @@ class WorkflowExecutor:
             if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
                 _node_class = self.registry.get(str(node.get("type", "unknown")))
             resolved_params = self._with_defaults(node, resolved_inputs, _node_class)
+            executes_loop_body = self._executes_loop_body(_node_class)
 
             # ---- Build upstream cache key map ----
             upstream_keys: dict[str, str | None] = {}
@@ -376,7 +416,7 @@ class WorkflowExecutor:
 
             # ---- Compute cache key ----
             cache_key = None
-            forced_node = force or node_id in force_nodes
+            forced_node = force or node_id in force_nodes or executes_loop_body
             if not forced_node:
                 cache_key = self.cache.cache_key_for_node(
                     node_id=node_id,
@@ -391,6 +431,13 @@ class WorkflowExecutor:
             if cache_key is not None and self.cache.is_hit(cache_key):
                 marker = self.cache.read_marker(cache_key)
                 cached_outputs = marker.get("outputs", {}) if marker else {}
+                inactive_outputs = self._inactive_output_ports(
+                    marker or {},
+                    cached_outputs,
+                    _node_class,
+                )
+                if inactive_outputs:
+                    node_inactive_outputs[node_id] = inactive_outputs
                 emit(
                     "node_cache_hit",
                     {
@@ -450,8 +497,29 @@ class WorkflowExecutor:
 
             # ---- Execute the node ----
             try:
-                result = await self._execute_node(ctx, node, resolved_inputs)
+                if executes_loop_body:
+                    result = await self._execute_loop_node(
+                        ctx=ctx,
+                        node=node,
+                        inputs=resolved_inputs,
+                        all_nodes=all_nodes,
+                        edges=edges,
+                        body_node_ids=loop_bodies.get(node_id, set()),
+                        node_outputs=node_outputs,
+                        options=options,
+                        workflow=workflow,
+                        emit=emit,
+                    )
+                else:
+                    result = await self._execute_node(ctx, node, resolved_inputs)
                 outputs = result.get("outputs", {})
+                inactive_outputs = self._inactive_output_ports(
+                    result,
+                    outputs,
+                    _node_class,
+                )
+                if inactive_outputs:
+                    node_inactive_outputs[node_id] = inactive_outputs
                 node_results[node_id] = {
                     "status": "completed",
                     "outputs": outputs,
@@ -467,6 +535,7 @@ class WorkflowExecutor:
                         params=resolved_params,
                         inputs=resolved_inputs,
                         upstream_keys=upstream_keys,
+                        inactive_outputs=sorted(inactive_outputs) if inactive_outputs else None,
                     )
 
                 # Collect previews
@@ -543,6 +612,92 @@ class WorkflowExecutor:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _inactive_upstream(
+        self,
+        node_id: str,
+        edge_map: dict[str, list[dict[str, Any]]],
+        skipped_nodes: set[str],
+        node_inactive_outputs: dict[str, set[str]],
+    ) -> dict[str, str] | None:
+        """Return the first upstream branch edge that should prevent execution."""
+        for edge in edge_map.get(node_id, []):
+            src = edge_source(edge)
+            src_port = edge_source_port(edge)
+            if src in skipped_nodes:
+                return {"source_node": src, "source_output": src_port}
+            if src_port in node_inactive_outputs.get(src, set()):
+                return {"source_node": src, "source_output": src_port}
+        return None
+
+    def _inactive_output_ports(
+        self,
+        result: dict[str, Any],
+        outputs: dict[str, Any],
+        node_class: Any,
+    ) -> set[str]:
+        """Extract inactive output ports from flow-control node results."""
+        if not self._routes_flow(node_class):
+            return set()
+        raw = result.get("inactive_outputs")
+        if raw is not None:
+            return {str(port) for port in raw}
+        return {str(port) for port, value in outputs.items() if value is None}
+
+    @staticmethod
+    def _routes_flow(node_class: Any) -> bool:
+        return bool(getattr(node_class, "ROUTES_FLOW", False))
+
+    @staticmethod
+    def _executes_loop_body(node_class: Any) -> bool:
+        return bool(getattr(node_class, "EXECUTES_LOOP_BODY", False))
+
+    def _node_class_for(self, node: dict[str, Any]) -> Any:
+        node_class = node.get("_node_class")
+        if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
+            node_class = self.registry.get(str(node.get("type", "unknown")))
+        return node_class
+
+    def _loop_bodies(
+        self,
+        nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> dict[str, set[str]]:
+        bodies: dict[str, set[str]] = {}
+        for node_id, node in nodes.items():
+            if self._executes_loop_body(self._node_class_for(node)):
+                bodies[node_id] = self._find_loop_body(node_id, edges, nodes)
+        return bodies
+
+    def _find_loop_body(
+        self,
+        loop_node_id: str,
+        edges: list[dict[str, Any]],
+        nodes: dict[str, dict[str, Any]],
+    ) -> set[str]:
+        body: set[str] = set()
+        queue: deque[str] = deque()
+        for edge in edges:
+            if edge_source(edge) != loop_node_id:
+                continue
+            if edge_source_port(edge) != "iteration":
+                continue
+            target = edge_target(edge)
+            if target in nodes and target != loop_node_id:
+                body.add(target)
+                queue.append(target)
+
+        while queue:
+            current = queue.popleft()
+            for edge in edges:
+                if edge_source(edge) != current:
+                    continue
+                next_node = edge_target(edge)
+                if next_node == loop_node_id or next_node not in nodes or next_node in body:
+                    continue
+                body.add(next_node)
+                queue.append(next_node)
+        return body
 
     def _coerce_node_id_set(self, value: Any) -> set[str]:
         """Normalize an option value into a set of non-empty node IDs."""
@@ -647,6 +802,247 @@ class WorkflowExecutor:
         if cwd_path.exists():
             return str(cwd_path)
         return path_str
+
+    async def _execute_loop_node(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        all_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+        body_node_ids: set[str],
+        node_outputs: dict[str, dict[str, Any]],
+        options: dict[str, Any],
+        workflow: dict[str, Any],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Execute a ForEach-style node by re-running its body subgraph."""
+        if not body_node_ids:
+            return await self._execute_node(ctx, node, inputs)
+
+        items = self._coerce_loop_items(inputs.get("items", []))
+        iteration_mode = str(inputs.get("iteration_mode", "single") or "single")
+        collect_mode = str(inputs.get("collect_mode", "list") or "list")
+        stop_on_error = bool(inputs.get("stop_on_error", True))
+        max_iterations = max(1, int(inputs.get("max_iterations", 1000) or 1000))
+        batches = self._loop_batches(items, iteration_mode, int(inputs.get("batch_size", 1) or 1))
+
+        if len(batches) > max_iterations:
+            raise RuntimeError(f"Loop {ctx.node_id} would exceed max_iterations={max_iterations}")
+
+        body_nodes = {node_id: all_nodes[node_id] for node_id in body_node_ids if node_id in all_nodes}
+        body_edge_map = self._loop_body_edge_map(ctx.node_id, body_node_ids, edges)
+        body_order = self._loop_body_order(body_nodes, edges)
+        collected: list[Any] = []
+        processed_count = 0
+        all_succeeded = True
+
+        for iteration_index, batch in enumerate(batches):
+            if ctx.cancel_event.is_set():
+                raise RuntimeError(f"Loop {ctx.node_id} cancelled")
+            iteration_value: Any = batch if iteration_mode == "batch" else batch[0]
+            local_outputs: dict[str, dict[str, Any]] = {
+                ctx.node_id: {"iteration": iteration_value},
+            }
+
+            try:
+                for body_node_id in body_order:
+                    body_node = body_nodes[body_node_id]
+                    body_type = str(body_node.get("type", "unknown"))
+                    body_class = self._node_class_for(body_node)
+                    visible_iteration = iteration_index + 1
+                    emit(
+                        "node_start",
+                        {
+                            "run_id": ctx.run_id,
+                            "node_id": body_node_id,
+                            "node_type": body_type,
+                            "loop_parent": ctx.node_id,
+                            "iteration": visible_iteration,
+                        },
+                    )
+
+                    combined_outputs = {**node_outputs, **local_outputs}
+                    body_inputs = self._resolve_inputs(
+                        body_node_id,
+                        body_node,
+                        body_edge_map,
+                        combined_outputs,
+                    )
+                    body_params = self._with_defaults(body_node, body_inputs, body_class)
+                    body_dir = (
+                        self.workspace_dir
+                        / "runs"
+                        / ctx.run_id
+                        / ctx.node_id
+                        / "iterations"
+                        / f"{visible_iteration:04d}"
+                        / body_node_id
+                    )
+                    body_dir.mkdir(parents=True, exist_ok=True)
+                    body_ctx = ExecutionContext(
+                        run_id=ctx.run_id,
+                        node_id=body_node_id,
+                        node_type=body_type,
+                        node_dir=body_dir,
+                        workspace_dir=self.workspace_dir,
+                        params=body_params,
+                        api_secrets=options.get("api_secrets", {}),
+                        emit=emit,
+                        cancel_event=ctx.cancel_event,
+                        env_prefix=self._env_prefix_for_node(body_node, workflow),
+                    )
+                    body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+                    outputs = body_result.get("outputs", {})
+                    local_outputs[body_node_id] = outputs
+                    emit(
+                        "node_complete",
+                        {
+                            "run_id": ctx.run_id,
+                            "node_id": body_node_id,
+                            "outputs": outputs,
+                            "loop_parent": ctx.node_id,
+                            "iteration": visible_iteration,
+                        },
+                    )
+
+                body_value = self._loop_body_result(ctx.node_id, edges, local_outputs, body_order)
+                self._append_loop_result(collected, body_value, collect_mode)
+                processed_count += len(batch)
+            except Exception as exc:
+                all_succeeded = False
+                emit(
+                    "node_error",
+                    {
+                        "run_id": ctx.run_id,
+                        "node_id": ctx.node_id,
+                        "error": f"Loop iteration {iteration_index + 1} failed: {exc}",
+                    },
+                )
+                if stop_on_error:
+                    raise
+                self._append_loop_result(
+                    collected,
+                    {"iteration": iteration_index + 1, "error": str(exc)},
+                    collect_mode,
+                )
+                processed_count += len(batch)
+
+        return {
+            "outputs": {
+                "iteration": None,
+                "results": collected,
+                "count": processed_count,
+                "all_succeeded": all_succeeded,
+            },
+            "inactive_outputs": ["iteration"],
+        }
+
+    def _coerce_loop_items(self, value: Any) -> list[Any]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, (tuple, set)):
+            return list(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return []
+            if text.startswith("["):
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, list):
+                    return parsed
+            path = Path(text)
+            if path.exists() and path.is_file():
+                return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if "\n" in text or "," in text:
+                return [item.strip() for item in text.replace("\n", ",").split(",") if item.strip()]
+            return [text]
+        return [value]
+
+    def _loop_batches(self, items: list[Any], iteration_mode: str, batch_size: int) -> list[list[Any]]:
+        if not items:
+            return []
+        if iteration_mode != "batch":
+            return [[item] for item in items]
+        size = max(1, batch_size)
+        return [items[index:index + size] for index in range(0, len(items), size)]
+
+    def _loop_body_edge_map(
+        self,
+        loop_node_id: str,
+        body_node_ids: set[str],
+        edges: list[dict[str, Any]],
+    ) -> dict[str, list[dict[str, Any]]]:
+        edge_map: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in body_node_ids}
+        for edge in edges:
+            target = edge_target(edge)
+            if target not in body_node_ids:
+                continue
+            source = edge_source(edge)
+            if source == loop_node_id or source in body_node_ids:
+                edge_map[target].append(edge)
+        return edge_map
+
+    def _loop_body_order(
+        self,
+        body_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> list[str]:
+        upstream_of: dict[str, list[str]] = {node_id: [] for node_id in body_nodes}
+        downstream_of: dict[str, list[str]] = {node_id: [] for node_id in body_nodes}
+        for edge in edges:
+            source = edge_source(edge)
+            target = edge_target(edge)
+            if source in body_nodes and target in body_nodes:
+                upstream_of[target].append(source)
+                downstream_of[source].append(target)
+        return self._topological_sort(body_nodes, upstream_of, downstream_of)
+
+    def _loop_body_result(
+        self,
+        loop_node_id: str,
+        edges: list[dict[str, Any]],
+        local_outputs: dict[str, dict[str, Any]],
+        body_order: list[str],
+    ) -> Any:
+        values: list[Any] = []
+        for edge in edges:
+            if edge_target(edge) != loop_node_id or edge_target_port(edge) != "body_result":
+                continue
+            source = edge_source(edge)
+            source_port = edge_source_port(edge)
+            outputs = local_outputs.get(source, {})
+            if source_port in outputs:
+                values.append(outputs[source_port])
+            elif "default" in outputs:
+                values.append(outputs["default"])
+        if len(values) == 1:
+            return values[0]
+        if values:
+            return values
+        if not body_order:
+            return None
+        outputs = local_outputs.get(body_order[-1], {})
+        if len(outputs) == 1:
+            return next(iter(outputs.values()))
+        return outputs
+
+    def _append_loop_result(self, collected: list[Any], value: Any, collect_mode: str) -> None:
+        if collect_mode == "concat" and isinstance(value, (list, tuple)):
+            collected.extend(value)
+            return
+        if collect_mode == "merge" and isinstance(value, dict):
+            if not collected or not isinstance(collected[-1], dict):
+                collected.append({})
+            collected[-1].update(value)
+            return
+        collected.append(value)
 
     async def _execute_node(
         self,

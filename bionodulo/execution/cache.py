@@ -144,6 +144,7 @@ class CacheStore:
         params: dict[str, Any] | None = None,
         inputs: dict[str, Any] | None = None,
         upstream_keys: dict[str, str | None] | None = None,
+        inactive_outputs: list[str] | None = None,
     ) -> None:
         """Write metadata marker for a successful node execution.
 
@@ -153,6 +154,7 @@ class CacheStore:
             params: Node parameters (stored for provenance).
             inputs: Resolved inputs (stored for provenance).
             upstream_keys: Upstream cache keys (stored for provenance).
+            inactive_outputs: Flow-control output ports that should not execute downstream branches.
         """
         marker = {
             "cache_key": cache_key,
@@ -161,6 +163,8 @@ class CacheStore:
             "inputs": inputs or {},
             "upstream_keys": upstream_keys or {},
         }
+        if inactive_outputs is not None:
+            marker["inactive_outputs"] = inactive_outputs
         self._metadata.set(cache_key, marker)
         self._remember(cache_key)
 
