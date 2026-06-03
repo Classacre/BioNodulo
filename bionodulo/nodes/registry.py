@@ -311,6 +311,7 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "output_node": node_class.OUTPUT_NODE,
         "visual_only": node_class.VISUAL_ONLY,
         "experimental": node_class.EXPERIMENTAL,
+        "requires_external_tools": getattr(node_class, "REQUIRES_EXTERNAL_TOOLS", True),
         "version": node_class.VERSION,
         "builtin": node_class.__module__.startswith("bionodulo.nodes.builtin"),
         "python_class": f"{node_class.__module__}.{node_class.__name__}",
