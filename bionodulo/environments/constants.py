@@ -96,6 +96,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "interproscan.sh": "interproscan",
     "CRISPResso": "crispresso2",
     "mageck": "mageck",
+    "cas-offinder": "cas-offinder",
     "Rscript": "r-base",
 }
 
@@ -204,6 +205,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "interproscan": ">=5.71",
     "crispresso2": ">=2.3.2",
     "mageck": ">=0.5.9",
+    "cas-offinder": ">=2.4.1",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",

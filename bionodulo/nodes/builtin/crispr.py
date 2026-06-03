@@ -205,3 +205,72 @@ class MAGeCKTestNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class CasOffinderNode(CommandNode):
+    """Detect candidate CRISPR guide off-target sites with Cas-OFFinder."""
+    NODE_ID = "cas_offinder"
+    DISPLAY_NAME = "Cas-OFFinder"
+    CATEGORY = "crispr"
+    DESCRIPTION = "Fast off-target detection for CRISPR gRNAs. Multiple PAMs and mismatch tolerance."
+    SEARCH_ALIASES = ["cas-offinder", "off target", "crispr safety", "grna", "guide rna"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("offtarget_sites",)
+    REQUIRED_EXECUTABLES = ["cas-offinder"]
+    REQUIRED_CONDA_PACKAGES = ["cas-offinder"]
+    DOCUMENTATION_URL = "https://github.com/snugel/cas-offinder"
+    VERSION = "2.4.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        input_file = out_dir / "cas_offinder_input.txt"
+        output_file = out_dir / "offtarget_sites.txt"
+        guide_seq = str(inputs.get("guide_seq", ""))
+        pam_sequence = str(inputs.get("pam_sequence", "NNG"))
+        search_pattern = f"{'N' * len(guide_seq)}{pam_sequence}"
+        query_sequence = f"{guide_seq}{pam_sequence}"
+
+        input_file.write_text(
+            "\n".join([
+                str(inputs.get("genome_fasta", "")),
+                search_pattern,
+                f"{query_sequence} {inputs.get('mismatches', 3)}",
+            ])
+            + "\n",
+            encoding="utf-8",
+        )
+        return [
+            "cas-offinder",
+            str(input_file),
+            str(inputs.get("device", "C")),
+            str(output_file),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "offtarget_sites.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "guide_seq": ("STRING", {"description": "Guide RNA sequence without PAM"}),
+                "genome_fasta": ("FASTA", {"description": "Target genome FASTA or 2bit directory"}),
+                "mismatches": ("INT", {"default": 3, "min": 0, "max": 10}),
+            },
+            "optional": {
+                "pam_sequence": ("STRING", {"default": "NNG", "description": "PAM pattern (N=wildcard)"}),
+                "device": (
+                    "STRING",
+                    {"default": "C", "options": ["C", "G", "A"], "description": "C=CPU, G=GPU, A=accelerator"},
+                ),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

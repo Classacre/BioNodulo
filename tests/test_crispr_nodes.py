@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -305,3 +307,66 @@ def test_mageck_test_plans_outputs() -> None:
 def test_mageck_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["mageck"] == "mageck"
     assert PACKAGE_MIN_VERSIONS["mageck"] == ">=0.5.9"
+
+
+def test_cas_offinder_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cas_offinder"]
+    assert node_info["display_name"] == "Cas-OFFinder"
+    assert node_info["category"] == "crispr"
+    assert node_info["description"].startswith("Fast off-target detection")
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["offtarget_sites"]
+    assert node_info["required_executables"] == ["cas-offinder"]
+    assert node_info["required_conda_packages"] == ["cas-offinder"]
+    assert "off target" in node_info["search_aliases"]
+    assert "guide rna" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"guide_seq", "genome_fasta", "mismatches"}
+    assert set(inputs["optional"]) == {"pam_sequence", "device"}
+
+
+def test_cas_offinder_writes_input_file_and_renders_cpu_command(tmp_path: Path) -> None:
+    node_class = _node_class("cas_offinder")
+    output_dir = tmp_path / "cas_offinder"
+
+    cmd = node_class.render_command({
+        "guide_seq": "GGCCGACCTGTCGCTGACGC",
+        "genome_fasta": "/data/genomes/hg38",
+        "mismatches": 3,
+        "pam_sequence": "NNN",
+        "device": "C",
+        "output": str(output_dir),
+    })
+
+    input_file = output_dir / "cas_offinder_input.txt"
+    assert input_file.read_text(encoding="utf-8") == (
+        "/data/genomes/hg38\n"
+        "NNNNNNNNNNNNNNNNNNNNNNN\n"
+        "GGCCGACCTGTCGCTGACGCNNN 3\n"
+    )
+    assert cmd == [
+        "cas-offinder",
+        str(input_file),
+        "C",
+        str(output_dir / "offtarget_sites.txt"),
+    ]
+
+
+def test_cas_offinder_plans_outputs() -> None:
+    node_class = _node_class("cas_offinder")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cas_offinder/offtarget_sites.txt",
+    ]
+
+
+def test_cas_offinder_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["cas-offinder"] == "cas-offinder"
+    assert PACKAGE_MIN_VERSIONS["cas-offinder"] == ">=2.4.1"
