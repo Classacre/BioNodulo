@@ -46,6 +46,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "resource_monitor": ("Resource Monitor", ["passthrough", "resources_ok", "resource_stats"]),
         "data_validator": ("Data Validator", ["passthrough", "passed", "validation_report", "report_file"]),
         "provenance": ("Provenance", ["passthrough", "provenance_record", "provenance_file"]),
+        "compare_results": ("Compare Results", ["comparison_report", "match", "diff_file"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -261,3 +262,93 @@ async def test_provenance_records_invalid_custom_metadata_without_context() -> N
     assert passthrough == "variants.vcf"
     assert provenance_file == ""
     assert record["custom_metadata"] == {"parse_error": "{not json"}
+
+
+@pytest.mark.asyncio
+async def test_compare_results_checksum_and_exact_modes() -> None:
+    report_json, match, diff_file = await _node_class("compare_results")().run(
+        result_a={"sample": "S1", "variants": [3, 1, 2]},
+        result_b={"variants": [3, 1, 2], "sample": "S1"},
+        comparison_method="checksum",
+    )
+    report = json.loads(report_json)
+
+    assert match is True
+    assert diff_file == ""
+    assert report["comparison_method"] == "checksum"
+    assert report["match"] is True
+    assert len(report["checksum_a"]) == 64
+    assert report["checksum_a"] == report["checksum_b"]
+
+    report_json, match, _ = await _node_class("compare_results")().run(
+        result_a=["A", "B"],
+        result_b=["B", "A"],
+        comparison_method="exact",
+    )
+    report = json.loads(report_json)
+    assert match is False
+    assert report["match"] is False
+
+
+@pytest.mark.asyncio
+async def test_compare_results_diff_writes_diff_file_and_honors_ignore_patterns(tmp_path: Path) -> None:
+    file_a = tmp_path / "caller_a.vcf"
+    file_b = tmp_path / "caller_b.vcf"
+    file_a.write_text("##date=2026-01-01\n#CHROM\tPOS\nchr1\t10\tA\n", encoding="utf-8")
+    file_b.write_text("##date=2026-01-02\n#CHROM\tPOS\nchr1\t11\tG\n", encoding="utf-8")
+    context = _context(tmp_path, "compare-node")
+
+    report_json, match, diff_file = await _node_class("compare_results")().run(
+        result_a=str(file_a),
+        result_b=str(file_b),
+        comparison_method="diff",
+        ignore_patterns="^##date=",
+        context=context,
+    )
+    report = json.loads(report_json)
+    diff_text = Path(diff_file).read_text(encoding="utf-8")
+
+    assert match is False
+    assert report["comparison_method"] == "diff"
+    assert report["ignored_patterns"] == ["^##date="]
+    assert report["diff_lines"] > 0
+    assert "chr1\t10\tA" in diff_text
+    assert "chr1\t11\tG" in diff_text
+    assert "2026-01" not in diff_text
+    assert context.logs[0] == ("warning", "Compare Results [diff]: match=False")
+
+
+@pytest.mark.asyncio
+async def test_compare_results_size_and_statistical_tolerance() -> None:
+    report_json, match, _ = await _node_class("compare_results")().run(
+        result_a="AAAA",
+        result_b="AAAABB",
+        comparison_method="size",
+        tolerance=2,
+    )
+    report = json.loads(report_json)
+    assert match is True
+    assert report["size_a"] == 4
+    assert report["size_b"] == 6
+    assert report["size_difference"] == 2
+
+    report_json, match, _ = await _node_class("compare_results")().run(
+        result_a=[1.0, 2.0, 3.0],
+        result_b=[1.05, 1.95, 3.1],
+        comparison_method="statistical",
+        tolerance=0.11,
+    )
+    report = json.loads(report_json)
+    assert match is True
+    assert report["max_difference"] == pytest.approx(0.1)
+    assert report["mean_difference"] == pytest.approx(0.066666, rel=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_compare_results_rejects_unknown_method() -> None:
+    with pytest.raises(ValueError, match="Unsupported comparison method"):
+        await _node_class("compare_results")().run(
+            result_a="A",
+            result_b="B",
+            comparison_method="side_by_side",
+        )
