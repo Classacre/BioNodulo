@@ -26,6 +26,7 @@ def test_utility_collection_nodes_are_registered_for_frontend_discovery() -> Non
         "text_template": ("Text Template", "utils", ["STRING"], ["output"]),
         "list_operations": ("List Operations", "utils", ["STRING", "INT", "BOOLEAN"], ["result", "length", "contains"]),
         "select_from_list": ("Select From List", "utils", ["STRING", "INT"], ["item", "index"]),
+        "flatten_nested": ("Flatten Nested", "utils", ["STRING", "INT"], ["flattened_json", "count"]),
         "dictionary": ("Dictionary", "utils", ["STRING", "STRING", "INT"], ["result_json", "value", "count"]),
     }
 
@@ -174,6 +175,40 @@ async def test_select_from_list_rejects_bad_inputs_clearly() -> None:
 
     with pytest.raises(ValueError, match="index 4 is out of range"):
         await node.run(mode="index", items="S1,S2", index=4)
+
+
+@pytest.mark.asyncio
+async def test_flatten_nested_flattens_json_lists_and_object_values() -> None:
+    node = _node_class("flatten_nested")()
+
+    flattened_json, count = await node.run(data='["S1", ["S2", ["S3"]], {"sample": "S4", "lanes": ["L1", "L2"]}]')
+
+    assert json.loads(flattened_json) == ["S1", "S2", "S3", "S4", "L1", "L2"]
+    assert count == 6
+
+
+@pytest.mark.asyncio
+async def test_flatten_nested_respects_max_depth() -> None:
+    node = _node_class("flatten_nested")()
+
+    flattened_json, count = await node.run(data='["S1", ["S2", ["S3"]]]', max_depth=1)
+
+    assert json.loads(flattened_json) == ["S1", "S2", ["S3"]]
+    assert count == 3
+
+    shallow_json, shallow_count = await node.run(data='["S1", ["S2", ["S3"]]]', max_depth=0)
+    assert json.loads(shallow_json) == ["S1", ["S2", ["S3"]]]
+    assert shallow_count == 2
+
+
+@pytest.mark.asyncio
+async def test_flatten_nested_handles_scalars_and_rejects_invalid_json() -> None:
+    node = _node_class("flatten_nested")()
+
+    assert await node.run(data='"S1"') == ('["S1"]', 1)
+
+    with pytest.raises(ValueError, match="data must be valid JSON"):
+        await node.run(data="[")
 
 
 @pytest.mark.asyncio

@@ -57,6 +57,18 @@ def _parse_json_object(value: Any, field_name: str = "dictionary") -> dict[str, 
     return dict(parsed)
 
 
+def _parse_json_value(value: Any, field_name: str) -> Any:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise ValueError(f"{field_name} must be valid JSON")
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{field_name} must be valid JSON: {exc.msg}") from exc
+    return value
+
+
 class StringOperationsNode(BaseNode):
     """Multi-mode string manipulation node."""
 
@@ -363,6 +375,58 @@ class SelectFromListNode(BaseNode):
         if index < 0:
             index += len(items)
         return (items[index], index)
+
+
+class FlattenNestedNode(BaseNode):
+    """Flatten nested JSON lists and object values."""
+
+    NODE_ID = "flatten_nested"
+    DISPLAY_NAME = "Flatten Nested"
+    CATEGORY = "utils"
+    DESCRIPTION = "Flatten nested lists or JSON object values into a single JSON list"
+    SEARCH_ALIASES = ["flatten", "nested", "list", "json", "array", "unnest"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("flattened_json", "count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": (
+                    "STRING",
+                    {"default": "[]", "multiline": True, "description": "JSON list, object, or scalar to flatten"},
+                ),
+            },
+            "optional": {
+                "max_depth": (
+                    "INT",
+                    {"default": -1, "description": "Maximum nested levels to flatten; negative flattens all levels"},
+                ),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        data = _parse_json_value(kwargs.get("data", "[]"), "data")
+        max_depth = int(kwargs.get("max_depth", -1))
+        flattened = _flatten_value(data, max_depth=max_depth)
+        return (_to_json(flattened), len(flattened))
+
+
+def _flatten_value(value: Any, max_depth: int, depth: int = 0) -> list[Any]:
+    should_descend = max_depth < 0 or depth <= max_depth
+    if isinstance(value, list) and should_descend:
+        result: list[Any] = []
+        for item in value:
+            result.extend(_flatten_value(item, max_depth=max_depth, depth=depth + 1))
+        return result
+    if isinstance(value, dict) and should_descend:
+        result = []
+        for item in value.values():
+            result.extend(_flatten_value(item, max_depth=max_depth, depth=depth + 1))
+        return result
+    return [value]
 
 
 class DictionaryNode(BaseNode):
