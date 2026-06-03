@@ -208,6 +208,90 @@ def test_vcf_comparison_dependency_metadata_is_available() -> None:
     assert PACKAGE_MIN_VERSIONS["rtg-tools"] == ">=3.12"
 
 
+def test_strelka2_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["strelka2"]
+    assert node_info["display_name"] == "Strelka2"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call germline or somatic small variants")
+    assert node_info["output"] == ["VCF_GZ", "VCF_GZ"]
+    assert node_info["output_name"] == ["snv_vcf", "indel_vcf"]
+    assert node_info["required_executables"] == ["configureStrelkaGermlineWorkflow.py"]
+    assert node_info["required_conda_packages"] == ["strelka"]
+    assert "small variant" in node_info["search_aliases"]
+    assert "somatic" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference"}
+    assert set(inputs["optional"]) == {"normal_bam", "mode", "threads", "exome", "call_regions"}
+
+
+def test_strelka2_renders_germline_workflow_command() -> None:
+    node_class = _node_class("strelka2")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "reference": "GRCh38.fa",
+        "mode": "germline",
+        "threads": 12,
+        "exome": True,
+        "call_regions": "targets.bed.gz",
+        "output": "/tmp/run/strelka2",
+    })
+
+    assert cmd[:3] == ["bash", "-c", cmd[2]]
+    script = cmd[2]
+    assert "configureStrelkaGermlineWorkflow.py" in script
+    assert "--bam sample.bam" in script
+    assert "--referenceFasta GRCh38.fa" in script
+    assert "--runDir /tmp/run/strelka2/strelka_run" in script
+    assert "--exome" in script
+    assert "--callRegions targets.bed.gz" in script
+    assert "runWorkflow.py -m local -j 12" in script
+    assert "variants.vcf.gz" in script
+    assert "indels.vcf.gz" in script
+
+
+def test_strelka2_renders_somatic_workflow_command() -> None:
+    node_class = _node_class("strelka2")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.bam",
+        "normal_bam": "normal.bam",
+        "reference": "GRCh38.fa",
+        "mode": "somatic",
+        "threads": 4,
+        "output": "/tmp/run/strelka2",
+    })
+
+    script = cmd[2]
+    assert "configureStrelkaSomaticWorkflow.py" in script
+    assert "--tumorBam tumor.bam" in script
+    assert "--normalBam normal.bam" in script
+    assert "somatic.snvs.vcf.gz" in script
+    assert "somatic.indels.vcf.gz" in script
+
+
+def test_strelka2_plans_small_variant_outputs() -> None:
+    node_class = _node_class("strelka2")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/strelka2/snv_vcf.vcf.gz",
+        "/tmp/run/strelka2/indel_vcf.vcf.gz",
+    ]
+
+
+def test_strelka2_dependency_metadata_is_available() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["configureStrelkaGermlineWorkflow.py"] == "strelka"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["configureStrelkaSomaticWorkflow.py"] == "strelka"
+    assert PACKAGE_MIN_VERSIONS["strelka"] == ">=2.9.10"
+
+
 def test_survivor_merge_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
