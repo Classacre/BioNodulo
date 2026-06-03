@@ -261,3 +261,114 @@ def test_vg_construct_plans_outputs() -> None:
 def test_vg_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vg"] == "vg"
     assert PACKAGE_MIN_VERSIONS["vg"] == ">=1.62.0"
+
+
+def test_vg_call_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vg_call"]
+    assert node_info["display_name"] == "vg Call Variants"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Call variants from graph alignments")
+    assert node_info["output"] == ["VCF"]
+    assert node_info["output_name"] == ["calls_vcf"]
+    assert node_info["required_executables"] == ["vg"]
+    assert node_info["required_conda_packages"] == ["vg"]
+    assert "variant calling" in node_info["search_aliases"]
+    assert "graph caller" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"xg_graph", "gam", "threads"}
+    assert set(inputs["optional"]) == {"ref_path", "sample"}
+    assert inputs["required"]["xg_graph"][0] == "FILE"
+    assert inputs["required"]["gam"][0] == "FILE"
+
+
+def test_vg_call_renders_pack_and_call_command_with_options() -> None:
+    node_class = _node_class("vg_call")
+
+    cmd = node_class.render_command({
+        "xg_graph": "graph.xg",
+        "gam": "mapped.gam",
+        "threads": 8,
+        "ref_path": "GRCh38#chr1",
+        "sample": "HG002",
+        "output": "/tmp/run/vg_call",
+    })
+
+    assert cmd == [
+        "vg",
+        "pack",
+        "-x",
+        "graph.xg",
+        "-g",
+        "mapped.gam",
+        "-o",
+        "/tmp/run/vg_call/aln.pack",
+        "-t",
+        "8",
+        "&&",
+        "vg",
+        "call",
+        "graph.xg",
+        "-k",
+        "/tmp/run/vg_call/aln.pack",
+        "-t",
+        "8",
+        "-v",
+        "-p",
+        "GRCh38#chr1",
+        "-s",
+        "HG002",
+        ">",
+        "/tmp/run/vg_call/calls_vcf.vcf",
+    ]
+
+
+def test_vg_call_omits_empty_optional_flags() -> None:
+    node_class = _node_class("vg_call")
+
+    cmd = node_class.render_command({
+        "xg_graph": "graph.xg",
+        "gam": "mapped.gam",
+        "threads": 4,
+        "ref_path": "",
+        "sample": "",
+        "output": "/tmp/run/vg_call",
+    })
+
+    assert "-p" not in cmd
+    assert "-s" not in cmd
+    assert cmd == [
+        "vg",
+        "pack",
+        "-x",
+        "graph.xg",
+        "-g",
+        "mapped.gam",
+        "-o",
+        "/tmp/run/vg_call/aln.pack",
+        "-t",
+        "4",
+        "&&",
+        "vg",
+        "call",
+        "graph.xg",
+        "-k",
+        "/tmp/run/vg_call/aln.pack",
+        "-t",
+        "4",
+        "-v",
+        ">",
+        "/tmp/run/vg_call/calls_vcf.vcf",
+    ]
+
+
+def test_vg_call_plans_outputs() -> None:
+    node_class = _node_class("vg_call")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/vg_call/calls_vcf.vcf"]
