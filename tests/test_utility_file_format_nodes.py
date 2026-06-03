@@ -28,6 +28,7 @@ def test_file_format_utility_nodes_are_registered_for_frontend_discovery() -> No
         "write_file": ("Write File", "utils", ["STRING", "INT"], ["file_path", "bytes_written"]),
         "json_operations": ("JSON Operations", "utils/format", ["STRING", "STRING", "BOOLEAN"], ["result_json", "value", "valid"]),
         "yaml_operations": ("YAML Operations", "utils/format", ["STRING", "STRING", "BOOLEAN"], ["result_yaml", "value", "valid"]),
+        "csv_to_json": ("CSV to JSON", "utils/format", ["JSON", "STRING", "INT"], ["json_file", "preview_json", "record_count"]),
     }
 
     for node_id, (display_name, category, outputs, output_names) in expected.items():
@@ -39,6 +40,16 @@ def test_file_format_utility_nodes_are_registered_for_frontend_discovery() -> No
         assert node_info["search_aliases"]
         assert node_info["required_executables"] == []
         assert node_info["required_conda_packages"] == []
+
+    csv_to_json_inputs = info["csv_to_json"]["input"]
+    assert set(csv_to_json_inputs["required"]) == {"csv_file"}
+    assert set(csv_to_json_inputs["optional"]) == {
+        "delimiter",
+        "key_column",
+        "nest_separator",
+        "output_name",
+        "pretty",
+    }
 
 
 @pytest.mark.asyncio
@@ -199,3 +210,62 @@ async def test_yaml_operations_support_flat_yaml_and_json_conversion(tmp_path: P
 
     with pytest.raises(ValueError, match="key is required"):
         await node.run(operation="get", yaml_input=yaml_text)
+
+
+@pytest.mark.asyncio
+async def test_csv_to_json_writes_array_output_and_preview(tmp_path: Path) -> None:
+    table = tmp_path / "samples.csv"
+    table.write_text("sample,depth,status\nS1,12,pass\nS2,8,warn\n", encoding="utf-8")
+
+    json_path, preview_json, record_count = await _node_class("csv_to_json")().run(
+        csv_file=str(table),
+        delimiter="auto",
+        pretty=True,
+        context=type("Context", (), {"node_dir": tmp_path})(),
+    )
+
+    output = Path(json_path)
+    assert output.name == "samples.json"
+    assert record_count == 2
+    assert json.loads(output.read_text(encoding="utf-8")) == [
+        {"sample": "S1", "depth": "12", "status": "pass"},
+        {"sample": "S2", "depth": "8", "status": "warn"},
+    ]
+    assert json.loads(preview_json) == [{"sample": "S1", "depth": "12", "status": "pass"}]
+
+
+@pytest.mark.asyncio
+async def test_csv_to_json_supports_keyed_object_and_nested_keys(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    table.write_text(
+        "sample\tmetrics.depth\tmetrics.status\n"
+        "S1\t12\tpass\n"
+        "S2\t8\twarn\n",
+        encoding="utf-8",
+    )
+
+    json_path, preview_json, record_count = await _node_class("csv_to_json")().run(
+        csv_file=str(table),
+        delimiter="auto",
+        key_column="sample",
+        nest_separator=".",
+        output_name="keyed_samples",
+        context=type("Context", (), {"node_dir": tmp_path})(),
+    )
+
+    output = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    assert record_count == 2
+    assert output == {
+        "S1": {"sample": "S1", "metrics": {"depth": "12", "status": "pass"}},
+        "S2": {"sample": "S2", "metrics": {"depth": "8", "status": "warn"}},
+    }
+    assert json.loads(preview_json) == {"S1": {"sample": "S1", "metrics": {"depth": "12", "status": "pass"}}}
+
+
+@pytest.mark.asyncio
+async def test_csv_to_json_rejects_duplicate_key_values(tmp_path: Path) -> None:
+    table = tmp_path / "samples.csv"
+    table.write_text("sample,depth\nS1,12\nS1,8\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Duplicate key_column value"):
+        await _node_class("csv_to_json")().run(csv_file=str(table), key_column="sample")
