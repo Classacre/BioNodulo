@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 
 import pytest
@@ -30,6 +31,7 @@ def test_utility_primitive_nodes_are_registered_for_frontend_discovery() -> None
         "constants": ("Constants", "primitive", ["FLOAT", "INT", "STRING"], ["float_value", "int_value", "name"]),
         "seed": ("Seed", "primitive", ["INT"], ["seed"]),
         "random_seed": ("Random Seed", "primitive", ["INT"], ["seed"]),
+        "range_list": ("Range List", "primitive", ["STRING", "INT"], ["values_json", "count"]),
     }
 
     for node_id, (display_name, category, outputs, output_names) in expected.items():
@@ -95,3 +97,19 @@ async def test_random_seed_alias_matches_planned_node_id() -> None:
 
     assert await node_class().run(mode="fixed", seed=123, increment=4) == (127,)
     assert node_class.IS_CHANGED({"mode": "random", "seed": 42}) != node_class.IS_CHANGED({"mode": "random", "seed": 42})
+
+
+@pytest.mark.asyncio
+async def test_range_list_generates_integer_ranges() -> None:
+    node = _node_class("range_list")()
+
+    values_json, count = await node.run(start=1, stop=6, step=2)
+    assert json.loads(values_json) == [1, 3, 5]
+    assert count == 3
+
+    values_json, count = await node.run(start=5, stop=0, step=-2)
+    assert json.loads(values_json) == [5, 3, 1]
+    assert count == 3
+
+    with pytest.raises(ValueError, match="step cannot be zero"):
+        await node.run(start=0, stop=5, step=0)
