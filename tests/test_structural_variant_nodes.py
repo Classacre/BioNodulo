@@ -412,3 +412,69 @@ def test_delly_plans_bcf_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/delly/sv_calls.bcf"]
+
+
+def test_manta_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["manta"]
+    assert node_info["display_name"] == "Manta SV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call structural variants")
+    assert node_info["output"] == ["VCF_GZ", "VCF_GZ"]
+    assert node_info["output_name"] == ["candidate_sv", "diploid_sv"]
+    assert node_info["required_executables"] == ["configManta.py", "runWorkflow.py"]
+    assert node_info["required_conda_packages"] == ["manta"]
+    assert "germline sv" in node_info["search_aliases"]
+    assert "somatic sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "threads"}
+    assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
+
+
+def test_manta_renders_configure_and_run_workflow_command() -> None:
+    node_class = _node_class("manta")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "reference": "GRCh38.fa",
+        "threads": 16,
+        "normal_bam": "normal.sorted.bam",
+        "exome": True,
+        "rna": True,
+        "output": "/tmp/run/manta",
+    })
+
+    assert cmd == [
+        "configManta.py",
+        "--bam",
+        "tumor.sorted.bam",
+        "--referenceFasta",
+        "GRCh38.fa",
+        "--runDir",
+        "/tmp/run/manta",
+        "--normalBam",
+        "normal.sorted.bam",
+        "--exome",
+        "--rna",
+        "&&",
+        "/tmp/run/manta/runWorkflow.py",
+        "-m",
+        "local",
+        "-j",
+        "16",
+    ]
+
+
+def test_manta_plans_nested_variant_outputs() -> None:
+    node_class = _node_class("manta")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/manta/results/variants/candidateSV.vcf.gz",
+        "/tmp/run/manta/results/variants/diploidSV.vcf.gz",
+    ]
