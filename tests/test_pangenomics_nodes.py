@@ -258,6 +258,116 @@ def test_vg_construct_plans_outputs() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/vg_construct/vg_graph.vg"]
 
 
+def test_vcf_decompose_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vcf_decompose"]
+    assert node_info["display_name"] == "VCF Decompose"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Decompose complex variants")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["decomposed_vcf"]
+    assert node_info["required_executables"] == ["vcfdecompose", "bgzip", "tabix"]
+    assert node_info["required_conda_packages"] == ["vcflib", "htslib"]
+    assert "pangenome vcf" in node_info["search_aliases"]
+    assert "primitive variants" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf", "reference"}
+    assert set(inputs["optional"]) == {"mode", "keep_info", "threads"}
+
+
+def test_vcf_decompose_renders_normalize_and_index_command() -> None:
+    node_class = _node_class("vcf_decompose")
+
+    cmd = node_class.render_command({
+        "vcf": "graph.vcf.gz",
+        "reference": "ref.fa",
+        "mode": "normalize",
+        "keep_info": True,
+        "threads": 4,
+        "output": "/tmp/run/vcf_decompose",
+    })
+
+    assert cmd == [
+        "vcfdecompose",
+        "-k",
+        "graph.vcf.gz",
+        "|",
+        "vcfallelicprimitives",
+        "-kg",
+        "-t",
+        "DECOMPOSED",
+        "-f",
+        "ref.fa",
+        "|",
+        "bgzip",
+        "--threads",
+        "4",
+        "-c",
+        ">",
+        "/tmp/run/vcf_decompose/decomposed_vcf.vcf.gz",
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        "/tmp/run/vcf_decompose/decomposed_vcf.vcf.gz",
+    ]
+
+
+def test_vcf_decompose_supports_decompose_only_without_keep_info() -> None:
+    node_class = _node_class("vcf_decompose")
+
+    cmd = node_class.render_command({
+        "vcf": "graph.vcf",
+        "reference": "ref.fa",
+        "mode": "decompose",
+        "keep_info": False,
+        "threads": 0,
+        "output": "/tmp/run/vcf_decompose",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "vcfdecompose",
+        "graph.vcf",
+        "|",
+        "bgzip",
+        "-c",
+        ">",
+        "/tmp/run/vcf_decompose/decomposed_vcf.vcf.gz",
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        "/tmp/run/vcf_decompose/decomposed_vcf.vcf.gz",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/vcf_decompose/decomposed_vcf.vcf.gz"]
+
+
+def test_vcf_decompose_rejects_unsupported_mode() -> None:
+    node_class = _node_class("vcf_decompose")
+
+    assert node_class.VALIDATE_INPUTS({
+        "vcf": "graph.vcf.gz",
+        "reference": "ref.fa",
+        "mode": "explode",
+    }) == "Unsupported VCF decompose mode: explode"
+
+
+def test_vcflib_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["vcfdecompose"] == "vcflib"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["vcfallelicprimitives"] == "vcflib"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["bgzip"] == "htslib"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["tabix"] == "htslib"
+    assert PACKAGE_MIN_VERSIONS["vcflib"] == ">=1.0.9"
+    assert PACKAGE_MIN_VERSIONS["htslib"] == ">=1.15"
+
+
 def test_vg_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vg"] == "vg"
     assert PACKAGE_MIN_VERSIONS["vg"] == ">=1.62.0"

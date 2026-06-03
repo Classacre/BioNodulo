@@ -100,6 +100,10 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "odgi": "odgi",
     "pggb": "pggb",
     "vg": "vg",
+    "vcfdecompose": "vcflib",
+    "vcfallelicprimitives": "vcflib",
+    "bgzip": "htslib",
+    "tabix": "htslib",
     "Rscript": "r-base",
 }
 
@@ -212,6 +216,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "odgi": ">=0.9.0",
     "pggb": ">=0.7.3",
     "vg": ">=1.62.0",
+    "vcflib": ">=1.0.9",
+    "htslib": ">=1.15",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
