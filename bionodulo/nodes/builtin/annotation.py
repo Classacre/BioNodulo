@@ -325,3 +325,89 @@ class SnpEffNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class VEPNode(CommandNode):
+    """Annotate variants with Ensembl Variant Effect Predictor."""
+    NODE_ID = "vep"
+    DISPLAY_NAME = "VEP"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Ensembl Variant Effect Predictor. Comprehensive functional annotation with frequencies, clinical significance."
+    SEARCH_ALIASES = ["vep", "variant effect predictor", "ensembl", "variant annotation", "clinvar"]
+    RETURN_TYPES = ("VCF", "HTML_REPORT")
+    RETURN_NAMES = ("annotated_vcf", "vep_report")
+    REQUIRED_EXECUTABLES = ["vep"]
+    REQUIRED_CONDA_PACKAGES = ["ensembl-vep"]
+    DOCUMENTATION_URL = "https://www.ensembl.org/info/docs/tools/vep/"
+    VERSION = "113"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        vcf = str(inputs.get("vcf", ""))
+        fmt = str(inputs.get("output_format", "vcf"))
+        cmd = [
+            "vep",
+            "-i",
+            vcf,
+            "-o",
+            f"{out_dir}/annotated_vcf.{fmt}",
+            "--format",
+            "vcf",
+            f"--{fmt}",
+            "--fork",
+            str(inputs.get("threads", 4)),
+            "--assembly",
+            str(inputs.get("assembly", "GRCh38")),
+            "--cache",
+            "--dir_cache",
+            str(inputs.get("cache_dir", "~/.vep")),
+        ]
+        if inputs.get("everything"):
+            cmd.append("--everything")
+        if inputs.get("symbol"):
+            cmd.append("--symbol")
+        if inputs.get("af"):
+            cmd.append("--af")
+        if inputs.get("max_af"):
+            cmd.append("--max_af")
+        if inputs.get("sift"):
+            cmd.extend(["--sift", str(inputs["sift"])])
+        if inputs.get("polyphen"):
+            cmd.extend(["--polyphen", str(inputs["polyphen"])])
+        if inputs.get("clinvar"):
+            cmd.extend(["--custom", f"{inputs['clinvar']},ClinVar,vcf,exact,0,CLNSIG"])
+        cmd.extend(["--stats_file", f"{out_dir}/vep_report.html"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        fmt = str(inputs.get("output_format", "vcf"))
+        return [node_out / f"annotated_vcf.{fmt}", node_out / "vep_report.html"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input VCF"}),
+                "assembly": ("STRING", {"default": "GRCh38"}),
+                "cache_dir": ("DIRECTORY", {"description": "VEP cache (~10-20GB)"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
+            },
+            "optional": {
+                "everything": ("BOOLEAN", {"default": True}),
+                "symbol": ("BOOLEAN", {"default": True}),
+                "af": ("BOOLEAN", {"default": True}),
+                "max_af": ("BOOLEAN", {"default": True}),
+                "sift": ("STRING", {"default": "b", "options": ["b", "s", "p"]}),
+                "polyphen": ("STRING", {"default": "b", "options": ["b", "s", "p"]}),
+                "clinvar": ("VCF_GZ", {"description": "ClinVar VCF"}),
+                "output_format": ("STRING", {"default": "vcf", "options": ["vcf", "tab"]}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

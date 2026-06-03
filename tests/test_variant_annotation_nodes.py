@@ -104,3 +104,129 @@ def test_snpeff_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["java"] == "openjdk"
     assert PACKAGE_MIN_VERSIONS["snpeff"] == ">=5.2"
     assert PACKAGE_MIN_VERSIONS["openjdk"] == ">=17"
+
+
+def test_vep_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vep"]
+    assert node_info["display_name"] == "VEP"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Ensembl Variant Effect Predictor")
+    assert node_info["output"] == ["VCF", "HTML_REPORT"]
+    assert node_info["output_name"] == ["annotated_vcf", "vep_report"]
+    assert node_info["required_executables"] == ["vep"]
+    assert node_info["required_conda_packages"] == ["ensembl-vep"]
+    assert "variant effect predictor" in node_info["search_aliases"]
+    assert "ensembl" in node_info["search_aliases"]
+    assert "clinvar" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf", "assembly", "cache_dir", "threads"}
+    assert set(inputs["optional"]) == {
+        "everything",
+        "symbol",
+        "af",
+        "max_af",
+        "sift",
+        "polyphen",
+        "clinvar",
+        "output_format",
+    }
+
+
+def test_vep_renders_command_with_annotation_flags() -> None:
+    node_class = _node_class("vep")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "assembly": "GRCh38",
+        "cache_dir": "/refs/vep-cache",
+        "threads": 8,
+        "everything": True,
+        "symbol": True,
+        "af": True,
+        "max_af": True,
+        "sift": "b",
+        "polyphen": "p",
+        "clinvar": "clinvar.vcf.gz",
+        "output_format": "vcf",
+        "output": "/tmp/run/vep",
+    })
+
+    assert cmd == [
+        "vep",
+        "-i",
+        "variants.vcf.gz",
+        "-o",
+        "/tmp/run/vep/annotated_vcf.vcf",
+        "--format",
+        "vcf",
+        "--vcf",
+        "--fork",
+        "8",
+        "--assembly",
+        "GRCh38",
+        "--cache",
+        "--dir_cache",
+        "/refs/vep-cache",
+        "--everything",
+        "--symbol",
+        "--af",
+        "--max_af",
+        "--sift",
+        "b",
+        "--polyphen",
+        "p",
+        "--custom",
+        "clinvar.vcf.gz,ClinVar,vcf,exact,0,CLNSIG",
+        "--stats_file",
+        "/tmp/run/vep/vep_report.html",
+    ]
+
+
+def test_vep_omits_disabled_optional_flags_and_supports_tab_output() -> None:
+    node_class = _node_class("vep")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf",
+        "assembly": "GRCh37",
+        "cache_dir": "/refs/vep-cache",
+        "threads": 2,
+        "everything": False,
+        "symbol": False,
+        "af": False,
+        "max_af": False,
+        "sift": "",
+        "polyphen": "",
+        "clinvar": "",
+        "output_format": "tab",
+        "output": "/tmp/run/vep",
+    })
+
+    assert "--everything" not in cmd
+    assert "--symbol" not in cmd
+    assert "--af" not in cmd
+    assert "--max_af" not in cmd
+    assert "--sift" not in cmd
+    assert "--polyphen" not in cmd
+    assert "--custom" not in cmd
+    assert cmd[:8] == ["vep", "-i", "variants.vcf", "-o", "/tmp/run/vep/annotated_vcf.tab", "--format", "vcf", "--tab"]
+
+
+def test_vep_plans_outputs() -> None:
+    node_class = _node_class("vep")
+
+    outputs = node_class.PLAN_OUTPUTS({"output_format": "tab"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/vep/annotated_vcf.tab",
+        "/tmp/run/vep/vep_report.html",
+    ]
+
+
+def test_vep_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["vep"] == "ensembl-vep"
+    assert PACKAGE_MIN_VERSIONS["ensembl-vep"] == ">=113"

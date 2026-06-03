@@ -90,6 +90,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "python": "python",
     "snpEff": "snpeff",
     "java": "openjdk",
+    "vep": "ensembl-vep",
     "Rscript": "r-base",
 }
 
@@ -193,6 +194,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "torch": ">=2.0",
     "snpeff": ">=5.2",
     "openjdk": ">=17",
+    "ensembl-vep": ">=113",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
