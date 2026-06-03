@@ -1,0 +1,186 @@
+"""Shared LLM backend for workflow AI nodes."""
+from __future__ import annotations
+
+import json
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    """Resolved LiteLLM call configuration."""
+
+    provider: str = "openai"
+    model: str = "openai/gpt-4.1-mini"
+    api_key: str = ""
+    api_base: str = ""
+    temperature: float = 0.2
+    max_tokens: int = 1024
+    timeout: float = 60.0
+
+
+@dataclass
+class LLMResponse:
+    """Normalized LLM completion response."""
+
+    content: str
+    model: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
+    finish_reason: str = ""
+    raw_response: Any = None
+
+
+def resolve_llm_config(
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+    api_base: str | None = None,
+    temperature: float | int | None = None,
+    max_tokens: int | None = None,
+    timeout: float | int | None = None,
+    context: Any = None,
+) -> LLMConfig:
+    """Resolve explicit node inputs, workflow secrets, and environment defaults."""
+    normalized_provider = (provider or os.environ.get("BIONODULO_LLM_PROVIDER") or "openai").strip().lower()
+    resolved_api_key = (api_key or "").strip()
+    if not resolved_api_key and context is not None and hasattr(context, "resolve_secret"):
+        secret = context.resolve_secret("llm_api_key")
+        if secret:
+            resolved_api_key = str(secret).strip()
+    if not resolved_api_key:
+        resolved_api_key = _provider_api_key(normalized_provider)
+
+    resolved_api_base = (api_base or "").strip()
+    if not resolved_api_base:
+        resolved_api_base = os.environ.get("BIONODULO_LLM_BASE_URL", "")
+    if normalized_provider == "litellm" and not resolved_api_base:
+        resolved_api_base = os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
+
+    return LLMConfig(
+        provider=normalized_provider,
+        model=_provider_model_str(normalized_provider, model),
+        api_key=resolved_api_key,
+        api_base=resolved_api_base,
+        temperature=float(0.2 if temperature is None else temperature),
+        max_tokens=int(1024 if max_tokens is None else max_tokens),
+        timeout=float(60.0 if timeout is None else timeout),
+    )
+
+
+def _provider_api_key(provider: str) -> str:
+    if provider == "anthropic":
+        return os.environ.get("ANTHROPIC_API_KEY", "")
+    if provider == "openrouter":
+        return os.environ.get("OPENROUTER_API_KEY", "")
+    if provider in {"custom", "litellm", "mock"}:
+        return os.environ.get("LITELLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    return os.environ.get("OPENAI_API_KEY", "")
+
+
+def _provider_model_str(provider: str, model: str | None) -> str:
+    chosen = (model or "").strip()
+    if provider == "anthropic":
+        chosen = chosen or "claude-3-5-sonnet-20241022"
+        return chosen if chosen.startswith("anthropic/") else f"anthropic/{chosen}"
+    if provider == "openrouter":
+        chosen = chosen or "openai/gpt-4.1-mini"
+        return chosen if chosen.startswith("openrouter/") else f"openrouter/{chosen}"
+    if provider == "openai":
+        chosen = chosen or "gpt-4.1-mini"
+        return chosen if chosen.startswith("openai/") else f"openai/{chosen}"
+    return chosen or "gpt-4.1-mini"
+
+
+async def call_llm(
+    config: LLMConfig,
+    messages: list[dict[str, str]],
+    *,
+    json_mode: bool = False,
+) -> LLMResponse:
+    """Call LiteLLM and normalize the response."""
+    if not config.api_key and config.provider not in {"custom", "litellm", "mock"}:
+        raise ValueError(f"{config.provider} API key is required.")
+    try:
+        import litellm
+    except ImportError as exc:
+        raise RuntimeError("LiteLLM is required for workflow AI nodes. Install with `pip install litellm`.") from exc
+
+    kwargs: dict[str, Any] = {
+        "model": config.model,
+        "messages": messages,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+        "timeout": config.timeout,
+        "stream": False,
+    }
+    if config.api_key:
+        kwargs["api_key"] = config.api_key
+    if config.api_base:
+        kwargs["api_base"] = config.api_base
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    try:
+        response = await litellm.acompletion(**kwargs)
+    except Exception as exc:
+        raise RuntimeError(f"LLM provider error: {exc}") from exc
+
+    choices = _obj_get(response, "choices", [])
+    if not choices:
+        return LLMResponse(content="", model=config.model, raw_response=response)
+    choice = choices[0]
+    message = _obj_get(choice, "message", {})
+    content = _obj_get(message, "content", "") or ""
+    usage = _obj_get(response, "usage", {}) or {}
+    if not isinstance(usage, dict):
+        usage = dict(usage) if hasattr(usage, "items") else {}
+    return LLMResponse(
+        content=str(content),
+        model=str(_obj_get(response, "model", config.model) or config.model),
+        usage=usage,
+        finish_reason=str(_obj_get(choice, "finish_reason", "") or ""),
+        raw_response=response,
+    )
+
+
+def render_prompt(template: str, variables: dict[str, Any] | None = None) -> str:
+    """Render {{ variable }} placeholders using a simple safe substitution."""
+    values = variables or {}
+
+    def replace(match: re.Match[str]) -> str:
+        key = match.group(1).strip()
+        if key not in values:
+            return match.group(0)
+        return _stringify_prompt_value(values[key])
+
+    return re.sub(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}", replace, str(template))
+
+
+def safe_json_parse(text: str) -> dict[str, Any]:
+    """Parse JSON objects from plain or fenced LLM output."""
+    raw = str(text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
+        raw = re.sub(r"\s*```$", "", raw)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _stringify_prompt_value(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_stringify_prompt_value(item) for item in value)
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True, default=str)
+    return str(value)
+
+
+def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
