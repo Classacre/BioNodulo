@@ -334,3 +334,86 @@ class DeepToolsComputeMatrixNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DeepToolsPlotHeatmapNode(CommandNode):
+    """Generate heatmap and profile images from deepTools matrix output."""
+    NODE_ID = "deeptools_plot_heatmap"
+    DISPLAY_NAME = "deepTools Plot Heatmap"
+    CATEGORY = "epigenomics"
+    DESCRIPTION = "Publication-quality heatmaps and profile plots from computeMatrix output."
+    SEARCH_ALIASES = ["deeptools", "plotheatmap", "heatmap", "profile plot"]
+    RETURN_TYPES = ("IMAGE", "IMAGE")
+    RETURN_NAMES = ("heatmap", "profile_plot")
+    REQUIRED_EXECUTABLES = ["plotHeatmap"]
+    REQUIRED_CONDA_PACKAGES = ["deeptools"]
+    DOCUMENTATION_URL = "https://deeptools.readthedocs.io/"
+    VERSION = "3.5.6"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        matrix = str(inputs.get("matrix", ""))
+        heatmap = [
+            "plotHeatmap",
+            "-m",
+            matrix,
+            "--heatmapHeight",
+            str(inputs.get("heatmap_height", 25)),
+            "--heatmapWidth",
+            str(inputs.get("heatmap_width", 15)),
+            "--colorMap",
+            str(inputs.get("colormap", "RdBu_r")),
+            "--outFileName",
+            f"{out_dir}/heatmap.png",
+        ]
+        sort_regions = inputs.get("sort_regions")
+        if sort_regions and sort_regions != "no":
+            heatmap.extend(["--sortRegions", str(sort_regions)])
+        if inputs.get("kmeans") and int(inputs["kmeans"]) > 0:
+            heatmap.extend(["--kmeans", str(inputs["kmeans"])])
+        plot_title = inputs.get("plot_title")
+        if plot_title:
+            heatmap.extend(["--plotTitle", str(plot_title)])
+        profile = [
+            "plotProfile",
+            "-m",
+            matrix,
+            "--outFileName",
+            f"{out_dir}/profile_plot.png",
+        ]
+        if plot_title:
+            profile.extend(["--plotTitle", str(plot_title)])
+        return heatmap + ["&&"] + profile
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "heatmap.png", node_out / "profile_plot.png"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "matrix": ("FILE", {"description": "Matrix from computeMatrix"}),
+            },
+            "optional": {
+                "heatmap_height": ("INT", {"default": 25, "min": 5}),
+                "heatmap_width": ("INT", {"default": 15, "min": 5}),
+                "colormap": (
+                    "STRING",
+                    {"default": "RdBu_r", "options": ["RdBu_r", "hot", "coolwarm", "viridis"]},
+                ),
+                "sort_regions": (
+                    "STRING",
+                    {"default": "no", "options": ["no", "descend", "ascend", "mean"]},
+                ),
+                "kmeans": ("INT", {"default": 0, "min": 0, "max": 20, "label": "K-means (0=off)"}),
+                "plot_title": ("STRING", {"default": ""}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

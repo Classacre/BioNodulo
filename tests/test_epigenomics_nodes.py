@@ -488,3 +488,105 @@ def test_deeptools_compute_matrix_plans_matrix_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/deeptools_compute_matrix/matrix.out"]
+
+
+def test_deeptools_plot_heatmap_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["deeptools_plot_heatmap"]
+    assert node_info["display_name"] == "deepTools Plot Heatmap"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Publication-quality heatmaps")
+    assert node_info["output"] == ["IMAGE", "IMAGE"]
+    assert node_info["output_name"] == ["heatmap", "profile_plot"]
+    assert node_info["required_executables"] == ["plotHeatmap"]
+    assert node_info["required_conda_packages"] == ["deeptools"]
+    assert "plotheatmap" in node_info["search_aliases"]
+    assert "profile plot" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"matrix"}
+    assert set(inputs["optional"]) == {
+        "heatmap_height",
+        "heatmap_width",
+        "colormap",
+        "sort_regions",
+        "kmeans",
+        "plot_title",
+    }
+
+
+def test_deeptools_plot_heatmap_renders_heatmap_and_profile_command() -> None:
+    node_class = _node_class("deeptools_plot_heatmap")
+
+    cmd = node_class.render_command({
+        "matrix": "matrix.gz",
+        "heatmap_height": 30,
+        "heatmap_width": 20,
+        "colormap": "viridis",
+        "sort_regions": "descend",
+        "kmeans": 4,
+        "plot_title": "Signal heatmap",
+        "output": "/tmp/run/deeptools_plot_heatmap",
+    })
+
+    assert cmd == [
+        "plotHeatmap",
+        "-m",
+        "matrix.gz",
+        "--heatmapHeight",
+        "30",
+        "--heatmapWidth",
+        "20",
+        "--colorMap",
+        "viridis",
+        "--outFileName",
+        "/tmp/run/deeptools_plot_heatmap/heatmap.png",
+        "--sortRegions",
+        "descend",
+        "--kmeans",
+        "4",
+        "--plotTitle",
+        "Signal heatmap",
+        "&&",
+        "plotProfile",
+        "-m",
+        "matrix.gz",
+        "--outFileName",
+        "/tmp/run/deeptools_plot_heatmap/profile_plot.png",
+        "--plotTitle",
+        "Signal heatmap",
+    ]
+
+
+def test_deeptools_plot_heatmap_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("deeptools_plot_heatmap")
+
+    cmd = node_class.render_command({
+        "matrix": "matrix.gz",
+        "heatmap_height": 25,
+        "heatmap_width": 15,
+        "colormap": "RdBu_r",
+        "sort_regions": "no",
+        "kmeans": 0,
+        "plot_title": "",
+        "output": "/tmp/run/deeptools_plot_heatmap",
+    })
+
+    assert "--sortRegions" not in cmd
+    assert "--kmeans" not in cmd
+    assert "--plotTitle" not in cmd
+    assert "&&" in cmd
+
+
+def test_deeptools_plot_heatmap_plans_image_outputs() -> None:
+    node_class = _node_class("deeptools_plot_heatmap")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/deeptools_plot_heatmap/heatmap.png",
+        "/tmp/run/deeptools_plot_heatmap/profile_plot.png",
+    ]
