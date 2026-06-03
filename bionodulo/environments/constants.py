@@ -79,6 +79,8 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "HiC-Pro": "hic-pro",
     "juicer.sh": "juicer",
     "cooler": "cooler",
+    "MaxQuantCmd.exe": "maxquant",
+    "mono": "mono",
     "cellranger": "cellranger",
     "Rscript": "r-base",
 }
@@ -172,6 +174,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "juicer": ">=2.0",
     "cooler": ">=0.10.0",
     "cooltools": ">=0.7.0",
+    "maxquant": ">=2.6.0",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",
