@@ -397,3 +397,119 @@ def test_openms_feature_finder_plans_featurexml_output() -> None:
 def test_openms_feature_finder_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["FeatureFinderCentroided"] == "openms"
     assert PACKAGE_MIN_VERSIONS["openms"] == ">=3.2"
+
+
+def test_dia_nn_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dia_nn"]
+    assert node_info["display_name"] == "DIA-NN"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Analyze DIA")
+    assert node_info["output"] == ["TSV", "JSON"]
+    assert node_info["output_name"] == ["report", "stats"]
+    assert node_info["required_executables"] == ["diann"]
+    assert node_info["required_conda_packages"] == ["diann"]
+    assert "dia" in node_info["search_aliases"]
+    assert "data independent acquisition" in node_info["search_aliases"]
+    assert "quantification" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"raw_files", "library", "fasta"}
+    assert set(inputs["optional"]) == {"threads", "qvalue", "mass_accuracy", "use_predictor"}
+
+
+def test_dia_nn_renders_batch_analysis_command_with_optional_flags() -> None:
+    node_class = _node_class("dia_nn")
+
+    cmd = node_class.render_command({
+        "raw_files": ["run1.mzML", "run2.mzML"],
+        "library": "library.tsv",
+        "fasta": "proteome.fa",
+        "threads": 12,
+        "qvalue": 0.005,
+        "mass_accuracy": 15,
+        "use_predictor": True,
+        "output": "/tmp/run/dia_nn",
+    })
+
+    assert cmd == [
+        "diann",
+        "--lib",
+        "library.tsv",
+        "--fasta",
+        "proteome.fa",
+        "--out",
+        "/tmp/run/dia_nn/report.tsv",
+        "--threads",
+        "12",
+        "--qvalue",
+        "0.005",
+        "--mass-acc",
+        "15",
+        "--predictor",
+        "--f",
+        "run1.mzML",
+        "--f",
+        "run2.mzML",
+        "&&",
+        "python",
+        "-c",
+        "import csv, json, sys; rows=list(csv.DictReader(open(sys.argv[1]), delimiter='\\t')); "
+        "json.dump({'rows': len(rows), 'columns': list(rows[0]) if rows else []}, open(sys.argv[2], 'w'))",
+        "/tmp/run/dia_nn/report.tsv",
+        "/tmp/run/dia_nn/stats.json",
+    ]
+
+
+def test_dia_nn_accepts_single_raw_file_and_omits_disabled_predictor() -> None:
+    node_class = _node_class("dia_nn")
+
+    cmd = node_class.render_command({
+        "raw_files": "run1.mzML",
+        "library": "library.tsv",
+        "fasta": "proteome.fa",
+        "threads": 4,
+        "qvalue": 0.01,
+        "mass_accuracy": 0,
+        "use_predictor": False,
+        "output": "/tmp/run/dia_nn",
+    })
+
+    assert "--predictor" not in cmd
+    assert "--mass-acc" not in cmd
+    assert cmd[0:15] == [
+        "diann",
+        "--lib",
+        "library.tsv",
+        "--fasta",
+        "proteome.fa",
+        "--out",
+        "/tmp/run/dia_nn/report.tsv",
+        "--threads",
+        "4",
+        "--qvalue",
+        "0.01",
+        "--f",
+        "run1.mzML",
+        "&&",
+        "python",
+    ]
+
+
+def test_dia_nn_plans_outputs() -> None:
+    node_class = _node_class("dia_nn")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/dia_nn/report.tsv",
+        "/tmp/run/dia_nn/stats.json",
+    ]
+
+
+def test_dia_nn_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["diann"] == "diann"
+    assert PACKAGE_MIN_VERSIONS["diann"] == ">=1.8"
