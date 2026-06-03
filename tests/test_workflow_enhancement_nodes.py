@@ -53,6 +53,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "cache_control": ("Cache Control", ["output", "cache_hit", "cache_info"]),
         "notification": ("Notification", ["success", "delivery_info"]),
         "retry": ("Retry", ["passthrough", "retry_log"]),
+        "batch_submitter": ("Batch Submitter", ["job_ids", "status_summary", "batch_log"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -708,3 +709,126 @@ async def test_retry_rejects_invalid_policy_values() -> None:
 
     with pytest.raises(ValueError, match="retry_on"):
         await _node_class("retry")().run(input="x", retry_on="network")
+
+
+@pytest.mark.asyncio
+async def test_batch_submitter_writes_planned_workflows_without_queue(tmp_path: Path) -> None:
+    context = _context(tmp_path, "batch-node")
+    workflow_template = json.dumps(
+        {
+            "name": "align-{{sample}}",
+            "nodes": [
+                {
+                    "id": "input",
+                    "type": "input_file",
+                    "params": {"path": "{{fastq}}", "sample": "{{sample}}"},
+                }
+            ],
+        }
+    )
+    param_matrix = json.dumps(
+        [
+            {"sample": "S1", "fastq": "s1.fastq.gz"},
+            {"sample": "S2", "fastq": "s2.fastq.gz"},
+        ]
+    )
+
+    job_ids_json, summary_json, batch_log = await _node_class("batch_submitter")().run(
+        workflow_template=workflow_template,
+        param_matrix=param_matrix,
+        scheduler="slurm",
+        array_size=1,
+        partition="short",
+        memory_per_job="4G",
+        walltime="01:00:00",
+        context=context,
+    )
+
+    jobs = json.loads(job_ids_json)
+    summary = json.loads(summary_json)
+    log_path = Path(batch_log)
+    first_workflow = json.loads((context.node_dir / "batch_job_0.json").read_text(encoding="utf-8"))
+    second_workflow = json.loads((context.node_dir / "batch_job_1.json").read_text(encoding="utf-8"))
+
+    assert [job["status"] for job in jobs] == ["planned", "planned"]
+    assert jobs[0]["job_id"] == "planned:batch-node:0"
+    assert jobs[0]["workflow_file"] == str(context.node_dir / "batch_job_0.json")
+    assert first_workflow["name"] == "align-S1"
+    assert first_workflow["nodes"][0]["params"] == {"path": "s1.fastq.gz", "sample": "S1"}
+    assert second_workflow["name"] == "align-S2"
+    assert summary["total"] == 2
+    assert summary["planned"] == 2
+    assert summary["queued"] == 0
+    assert summary["queue_submission_supported"] is False
+    assert summary["hpc_submission_supported"] is False
+    assert summary["array_size"] == 1
+    assert summary["scheduler"] == "slurm"
+    assert log_path == context.node_dir / "batch_submitter_log.json"
+    assert json.loads(log_path.read_text(encoding="utf-8"))["jobs"] == jobs
+    assert context.logs[0] == ("info", "Batch Submitter planned 2 jobs via slurm")
+
+
+@pytest.mark.asyncio
+async def test_batch_submitter_submits_workflows_to_context_queue(tmp_path: Path) -> None:
+    context = _context(tmp_path, "batch-queue")
+    submitted: list[dict[str, Any]] = []
+
+    class FakeQueue:
+        async def submit(self, **kwargs: Any) -> str:
+            submitted.append(kwargs)
+            return f"queued-{len(submitted)}"
+
+    context.queue = FakeQueue()
+
+    job_ids_json, summary_json, batch_log = await _node_class("batch_submitter")().run(
+        workflow_template=json.dumps(
+            {
+                "name": "qc-{{sample}}",
+                "nodes": [{"id": "qc", "type": "fastqc", "params": {"input": "{{fastq}}"}}],
+            }
+        ),
+        param_matrix=[
+            {"sample": "S1", "fastq": "s1.fq.gz"},
+            {"sample": "S2", "fastq": "s2.fq.gz"},
+        ],
+        scheduler="local_queue",
+        context=context,
+    )
+
+    jobs = json.loads(job_ids_json)
+    summary = json.loads(summary_json)
+    assert [job["job_id"] for job in jobs] == ["queued-1", "queued-2"]
+    assert [job["status"] for job in jobs] == ["queued", "queued"]
+    assert submitted[0]["workflow"]["name"] == "qc-S1"
+    assert submitted[1]["workflow"]["nodes"][0]["params"]["input"] == "s2.fq.gz"
+    assert submitted[0]["metadata"] == {
+        "source": "batch_submitter",
+        "parent_run_id": "run-1",
+        "parent_node_id": "batch-queue",
+        "batch_index": 0,
+        "scheduler": "local_queue",
+        "params": {"sample": "S1", "fastq": "s1.fq.gz"},
+    }
+    assert summary["total"] == 2
+    assert summary["queued"] == 2
+    assert summary["planned"] == 0
+    assert summary["failed"] == 0
+    assert summary["queue_submission_supported"] is True
+    assert summary["hpc_submission_supported"] is False
+    assert Path(batch_log).exists()
+    assert context.events[0][0] == "batch_submitted"
+
+
+@pytest.mark.asyncio
+async def test_batch_submitter_rejects_invalid_json_inputs() -> None:
+    with pytest.raises(ValueError, match="workflow_template must be valid JSON"):
+        await _node_class("batch_submitter")().run(
+            workflow_template="{not-json",
+            param_matrix="[]",
+        )
+
+    with pytest.raises(ValueError, match="param_matrix must be a JSON array or object"):
+        await _node_class("batch_submitter")().run(
+            workflow_template="{}",
+            param_matrix='"not-a-matrix"',
+        )
