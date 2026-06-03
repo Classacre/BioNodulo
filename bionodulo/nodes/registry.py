@@ -306,6 +306,7 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "name": node_class.NODE_ID,
         "display_name": node_class.DISPLAY_NAME or node_class.NODE_ID,
         "description": node_class.DESCRIPTION,
+        "search_aliases": list(node_class.SEARCH_ALIASES),
         "category": node_class.CATEGORY,
         "output_node": node_class.OUTPUT_NODE,
         "visual_only": node_class.VISUAL_ONLY,

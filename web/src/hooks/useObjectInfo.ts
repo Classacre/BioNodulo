@@ -51,6 +51,7 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       display_name: String(raw.display_name || raw.name || key),
       category: String(raw.category || 'Other'),
       description: raw.description ? String(raw.description) : undefined,
+      search_aliases: Array.isArray(raw.search_aliases) ? raw.search_aliases.map(String) : [],
       input_types: normalizeInputs(raw.input),
       return_types: Array.isArray(raw.output) ? raw.output.map(String) : [],
       return_names: Array.isArray(raw.output_name) ? raw.output_name.map(String) : [],
