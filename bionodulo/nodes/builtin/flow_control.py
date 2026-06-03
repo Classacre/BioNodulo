@@ -990,6 +990,58 @@ class WaitForNode(BaseNode):
             waited += sleep_for
 
 
+class BreakContinueNode(BaseNode):
+    """Emit an explicit loop-control signal for ForEach body subgraphs."""
+
+    NODE_ID = "break_continue"
+    DISPLAY_NAME = "Break / Continue"
+    CATEGORY = "flow_control"
+    DESCRIPTION = "Conditionally request a For Each loop to break or continue."
+    SEARCH_ALIASES = ["break", "continue", "loop", "stop", "skip iteration", "control flow"]
+    RETURN_TYPES = ("STRING", "ANY", "BOOLEAN", "STRING")
+    RETURN_NAMES = ("signal", "value", "triggered", "reason")
+    REQUIRES_EXTERNAL_TOOLS = False
+    ROUTES_FLOW = True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "action": ("STRING", {"default": "break", "options": ["break", "continue"]}),
+            },
+            "optional": {
+                "condition": ("BOOLEAN", {"default": True}),
+                "value": ("ANY", {}),
+                "reason": ("STRING", {"default": ""}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.pop("context", None)
+        requested = str(kwargs.get("action", "break") or "break").strip().lower()
+        if requested not in {"break", "continue"}:
+            raise ValueError(f"Unsupported break/continue action: {requested}")
+
+        triggered = _bool_value(kwargs.get("condition", True))
+        signal = requested if triggered else "none"
+        reason = str(kwargs.get("reason", "") or "")
+        return {
+            "outputs": {
+                "signal": signal,
+                "value": kwargs.get("value"),
+                "triggered": triggered,
+                "reason": reason,
+            },
+            "flow_control": {
+                "type": "break_continue",
+                "action": signal,
+                "triggered": triggered,
+                "reason": reason,
+            },
+        }
+
+
 class CounterAccumulatorNode(BaseNode):
     """Maintain counters and accumulated values across loop iterations."""
 

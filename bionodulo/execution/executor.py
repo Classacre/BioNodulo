@@ -845,6 +845,7 @@ class WorkflowExecutor:
             local_outputs: dict[str, dict[str, Any]] = {
                 ctx.node_id: {"iteration": iteration_value},
             }
+            loop_signal = "none"
 
             try:
                 for body_node_id in body_order:
@@ -906,9 +907,16 @@ class WorkflowExecutor:
                             "iteration": visible_iteration,
                         },
                     )
+                    loop_signal = self._loop_control_signal(body_result)
+                    if loop_signal in {"break", "continue"}:
+                        break
 
-                body_value = self._loop_body_result(ctx.node_id, edges, local_outputs, body_order)
-                self._append_loop_result(collected, body_value, collect_mode)
+                if loop_signal == "break":
+                    processed_count += len(batch)
+                    break
+                if loop_signal != "continue":
+                    body_value = self._loop_body_result(ctx.node_id, edges, local_outputs, body_order)
+                    self._append_loop_result(collected, body_value, collect_mode)
                 processed_count += len(batch)
             except Exception as exc:
                 all_succeeded = False
@@ -929,6 +937,9 @@ class WorkflowExecutor:
                 )
                 processed_count += len(batch)
 
+            if loop_signal == "break":
+                break
+
         return {
             "outputs": {
                 "iteration": None,
@@ -938,6 +949,15 @@ class WorkflowExecutor:
             },
             "inactive_outputs": ["iteration"],
         }
+
+    @staticmethod
+    def _loop_control_signal(result: dict[str, Any]) -> str:
+        flow_control = result.get("flow_control")
+        if isinstance(flow_control, dict) and flow_control.get("type") == "break_continue":
+            action = str(flow_control.get("action", "none") or "none").lower()
+            if flow_control.get("triggered") is True and action in {"break", "continue"}:
+                return action
+        return "none"
 
     def _coerce_loop_items(self, value: Any) -> list[Any]:
         if value is None:

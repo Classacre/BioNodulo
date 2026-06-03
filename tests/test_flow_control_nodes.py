@@ -57,6 +57,12 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["wait_for"]["category"] == "flow_control"
     assert info["wait_for"]["output_name"] == ["triggered", "actual_wait_seconds", "value"]
     assert info["wait_for"]["output"] == ["BOOLEAN", "FLOAT", "ANY"]
+    assert info["break_continue"]["display_name"] == "Break / Continue"
+    assert info["break_continue"]["category"] == "flow_control"
+    assert info["break_continue"]["output_name"] == ["signal", "value", "triggered", "reason"]
+    assert info["break_continue"]["output"] == ["STRING", "ANY", "BOOLEAN", "STRING"]
+    assert "break" in info["break_continue"]["search_aliases"]
+    assert "continue" in info["break_continue"]["search_aliases"]
     assert info["counter_accumulator"]["display_name"] == "Counter / Accumulator"
     assert info["counter_accumulator"]["category"] == "flow_control"
     assert info["counter_accumulator"]["output_name"] == ["value", "count", "accumulator"]
@@ -84,6 +90,10 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
         "on_timeout",
         "value",
     }
+
+    break_continue_inputs = info["break_continue"]["input"]
+    assert set(break_continue_inputs["required"]) == {"action"}
+    assert set(break_continue_inputs["optional"]) == {"condition", "value", "reason"}
 
 
 @pytest.mark.asyncio
@@ -191,6 +201,46 @@ async def test_wait_for_timeout_can_pass_through(monkeypatch: pytest.MonkeyPatch
     assert sleeps == [0.25]
     assert result["outputs"]["triggered"] is False
     assert result["outputs"]["value"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_break_continue_emits_triggered_loop_control_signal() -> None:
+    node = _node_class("break_continue")()
+
+    result = await node.run(action="break", condition=True, value="sample-3", reason="QC failed")
+
+    assert result["outputs"] == {
+        "signal": "break",
+        "value": "sample-3",
+        "triggered": True,
+        "reason": "QC failed",
+    }
+    assert result["flow_control"] == {
+        "type": "break_continue",
+        "action": "break",
+        "triggered": True,
+        "reason": "QC failed",
+    }
+
+
+@pytest.mark.asyncio
+async def test_break_continue_condition_false_emits_noop_signal() -> None:
+    node = _node_class("break_continue")()
+
+    result = await node.run(action="continue", condition=False, value="sample-3")
+
+    assert result["outputs"] == {
+        "signal": "none",
+        "value": "sample-3",
+        "triggered": False,
+        "reason": "",
+    }
+    assert result["flow_control"] == {
+        "type": "break_continue",
+        "action": "none",
+        "triggered": False,
+        "reason": "",
+    }
 
 
 @pytest.mark.asyncio
@@ -1106,3 +1156,165 @@ async def test_executor_runs_foreach_body_subgraph_for_each_item(tmp_path: Path)
     assert result["outputs"]["loop"]["all_succeeded"] is True
     assert CollectorNode.calls == [expected_results]
     assert result["outputs"]["after_loop"] == {"out": expected_results}
+
+
+@pytest.mark.asyncio
+async def test_executor_foreach_continue_skips_remaining_body_for_iteration(tmp_path: Path) -> None:
+    foreach_node = _node_class("foreach")
+    break_continue_node = _node_class("break_continue")
+
+    class ContinueOnS2Node:
+        NODE_ID = "continue_on_s2"
+        RETURN_NAMES = ("signal", "value", "triggered", "reason")
+        RETURN_TYPES = ("STRING", "ANY", "BOOLEAN", "STRING")
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return await break_continue_node().run(
+                action="continue",
+                condition=value == "S2",
+                value=value,
+                reason="skip S2",
+            )
+
+    class BodyNode:
+        NODE_ID = "body"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"processed:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "foreach": foreach_node,
+                "continue_on_s2": ContinueOnS2Node,
+                "body": BodyNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "foreach",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3"]},
+                    "iteration_mode": {"value": "single"},
+                    "collect_mode": {"value": "list"},
+                },
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            {"id": "control", "type": "continue_on_s2", "outputs": {"signal": {}, "value": {}, "triggered": {}, "reason": {}}},
+            {"id": "body", "type": "body", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "control", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "control", "target_node": "body", "source_output": "value", "target_input": "value"},
+            {"source_node": "body", "target_node": "loop", "source_output": "out", "target_input": "body_result"},
+        ],
+    }
+    ContinueOnS2Node.calls = []
+    BodyNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("foreach-continue", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert ContinueOnS2Node.calls == ["S1", "S2", "S3"]
+    assert BodyNode.calls == ["S1", "S3"]
+    assert result["outputs"]["loop"]["results"] == ["processed:S1", "processed:S3"]
+    assert result["outputs"]["loop"]["count"] == 3
+    assert result["outputs"]["loop"]["all_succeeded"] is True
+
+
+@pytest.mark.asyncio
+async def test_executor_foreach_break_stops_remaining_iterations(tmp_path: Path) -> None:
+    foreach_node = _node_class("foreach")
+    break_continue_node = _node_class("break_continue")
+
+    class BreakOnS2Node:
+        NODE_ID = "break_on_s2"
+        RETURN_NAMES = ("signal", "value", "triggered", "reason")
+        RETURN_TYPES = ("STRING", "ANY", "BOOLEAN", "STRING")
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return await break_continue_node().run(
+                action="break",
+                condition=value == "S2",
+                value=value,
+                reason="stop at S2",
+            )
+
+    class BodyNode:
+        NODE_ID = "body"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"processed:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "foreach": foreach_node,
+                "break_on_s2": BreakOnS2Node,
+                "body": BodyNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "foreach",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3"]},
+                    "iteration_mode": {"value": "single"},
+                    "collect_mode": {"value": "list"},
+                },
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            {"id": "control", "type": "break_on_s2", "outputs": {"signal": {}, "value": {}, "triggered": {}, "reason": {}}},
+            {"id": "body", "type": "body", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "control", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "control", "target_node": "body", "source_output": "value", "target_input": "value"},
+            {"source_node": "body", "target_node": "loop", "source_output": "out", "target_input": "body_result"},
+        ],
+    }
+    BreakOnS2Node.calls = []
+    BodyNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("foreach-break", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert BreakOnS2Node.calls == ["S1", "S2"]
+    assert BodyNode.calls == ["S1"]
+    assert result["outputs"]["loop"]["results"] == ["processed:S1"]
+    assert result["outputs"]["loop"]["count"] == 2
+    assert result["outputs"]["loop"]["all_succeeded"] is True
