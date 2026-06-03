@@ -86,6 +86,31 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "entities" in info["ai_data_extraction"]["search_aliases"]
     assert "biocuration" in info["ai_data_extraction"]["search_aliases"]
 
+    assert info["ai_pipeline_advisor"]["display_name"] == "AI Pipeline Advisor"
+    assert info["ai_pipeline_advisor"]["category"] == "ai"
+    assert info["ai_pipeline_advisor"]["output"] == ["JSON", "STRING"]
+    assert info["ai_pipeline_advisor"]["output_name"] == ["recommendations_json", "rationale_text"]
+    assert info["ai_pipeline_advisor"]["required_conda_packages"] == ["litellm"]
+    assert info["ai_pipeline_advisor"]["experimental"] is True
+    assert "pipeline" in info["ai_pipeline_advisor"]["search_aliases"]
+    assert "parameters" in info["ai_pipeline_advisor"]["search_aliases"]
+
+    advisor_inputs = info["ai_pipeline_advisor"]["input"]
+    assert set(advisor_inputs["required"]) == {"experiment_type", "metadata"}
+    assert set(advisor_inputs["optional"]) == {
+        "analysis_goal",
+        "available_inputs",
+        "constraints",
+        "output_format",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+    }
+
     extraction_inputs = info["ai_data_extraction"]["input"]
     assert set(extraction_inputs["required"]) == {"input_text", "extraction_schema"}
     assert set(extraction_inputs["optional"]) == {
@@ -1000,6 +1025,136 @@ async def test_ai_data_extraction_resolves_api_key_from_context_secret(
         output_format="json",
         provider="mock",
         model="extract-model",
+        api_key="",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda key: "secret-key" if key == "llm_api_key" else None),
+    )
+
+    assert calls[0].api_key == "secret-key"
+
+
+@pytest.mark.asyncio
+async def test_ai_pipeline_advisor_writes_recommendations_and_rationale(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_pipeline_advisor")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({
+                "recommended_pipeline": "RNA-seq differential expression",
+                "recommended_nodes": [
+                    {"node_id": "fastqc", "reason": "Assess read quality"},
+                    {"node_id": "salmon_quant", "parameters": {"lib_type": "A"}, "reason": "Transcript quantification"},
+                    {"node_id": "deseq2_analysis", "parameters": {"design": "~ condition"}, "reason": "Differential expression"},
+                ],
+                "parameter_recommendations": {
+                    "salmon_quant": {"lib_type": "A"},
+                    "deseq2_analysis": {"design": "~ condition"},
+                },
+                "quality_controls": ["Run FastQC and MultiQC before quantification"],
+                "warnings": ["Confirm strandedness before running quantification"],
+                "rationale": "Bulk RNA-seq with replicates should use QC, transcript quantification, and differential expression.",
+            }),
+            model=config.model,
+            usage={"total_tokens": 444},
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    result = await node_class().run(
+        experiment_type="bulk_rnaseq",
+        metadata='{"organism": "human", "samples": 6, "groups": ["control", "treated"], "paired_end": true}',
+        analysis_goal="Find differentially expressed genes",
+        available_inputs="FASTQ files, sample sheet",
+        constraints="Prefer lightweight tools",
+        output_format="both",
+        provider="mock",
+        model="advisor-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_pipeline_advisor" / "recommendations.json"
+    rationale_path = tmp_path / "ai_pipeline_advisor" / "rationale.txt"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    prompt = calls[0]["messages"][-1]["content"]
+
+    assert result == {"outputs": {"recommendations_json": str(json_path), "rationale_text": str(rationale_path)}}
+    assert payload["experiment_type"] == "bulk_rnaseq"
+    assert payload["analysis_goal"] == "Find differentially expressed genes"
+    assert payload["metadata"]["organism"] == "human"
+    assert payload["recommendations"]["recommended_pipeline"] == "RNA-seq differential expression"
+    assert payload["recommendations"]["recommended_nodes"][1]["node_id"] == "salmon_quant"
+    assert payload["usage"] == {"total_tokens": 444}
+    assert payload["model"] == "advisor-model"
+    assert rationale_path.read_text(encoding="utf-8").startswith("Bulk RNA-seq with replicates")
+    assert calls[0]["json_mode"] is True
+    assert calls[0]["config"].model == "advisor-model"
+    assert "Experiment type: bulk_rnaseq" in prompt
+    assert '"samples": 6' in prompt
+    assert "Available inputs: FASTQ files, sample sheet" in prompt
+    assert "Prefer lightweight tools" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ai_pipeline_advisor_supports_json_only_and_invalid_response(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_pipeline_advisor")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        return LLMResponse(content="Use QC then alignment.", model=config.model)
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    result = await node_class().run(
+        experiment_type="chip_seq",
+        metadata={"target": "H3K27ac", "samples": 4},
+        output_format="json",
+        provider="mock",
+        model="advisor-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_pipeline_advisor" / "recommendations.json"
+    rationale_path = tmp_path / "ai_pipeline_advisor" / "rationale.txt"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"recommendations_json": str(json_path), "rationale_text": ""}}
+    assert rationale_path.exists()
+    assert payload["metadata"] == {"target": "H3K27ac", "samples": 4}
+    assert payload["recommendations"] == {"raw_recommendations": "Use QC then alignment."}
+    assert rationale_path.read_text(encoding="utf-8") == "Use QC then alignment."
+
+
+@pytest.mark.asyncio
+async def test_ai_pipeline_advisor_resolves_api_key_from_context_secret(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_pipeline_advisor")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[LLMConfig] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append(config)
+        return LLMResponse(content='{"rationale": "Use a standard QC-first workflow."}', model=config.model)
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    await node_class().run(
+        experiment_type="variant_calling",
+        metadata="{}",
+        output_format="json",
+        provider="mock",
+        model="advisor-model",
         api_key="",
         context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda key: "secret-key" if key == "llm_api_key" else None),
     )
