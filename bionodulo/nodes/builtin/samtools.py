@@ -11,6 +11,36 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
+def _safe_stem(value: str, default: str) -> str:
+    stem = "_".join(str(value or "").strip().split())
+    stem = "".join(char if char.isalnum() or char in "._-" else "_" for char in stem)
+    stem = stem.strip("._-")
+    return stem or default
+
+
+def _bam_output_stem(inputs: dict[str, Any], default: str) -> str:
+    if inputs.get("output_name"):
+        return _safe_stem(str(inputs["output_name"]), default)
+    bam = str(inputs.get("bam", "") or "")
+    if not bam:
+        return default
+    stem = Path(bam).name
+    for suffix in (".bam", ".sam", ".cram"):
+        if stem.lower().endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    processing_suffixes = (".markdup", ".dedup", ".sorted", ".coordinate", ".fixmate", ".name_collated", ".collated")
+    changed = True
+    while changed:
+        changed = False
+        for suffix in processing_suffixes:
+            if stem.lower().endswith(suffix):
+                stem = stem[: -len(suffix)]
+                changed = True
+                break
+    return _safe_stem(stem, default)
+
+
 class SamtoolsSortNode(CommandNode):
     """Sort BAM file by coordinate."""
     NODE_ID = "samtools_sort"
@@ -116,6 +146,230 @@ class SamtoolsIndexNode(CommandNode):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(str(bai_path), str(target))
         return result
+
+
+class SamtoolsCollateNode(CommandNode):
+    """Name-collate alignments before mate fixing."""
+
+    NODE_ID = "samtools_collate"
+    DISPLAY_NAME = "Samtools Collate"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Name-collate a BAM before samtools fixmate and duplicate marking"
+    SEARCH_ALIASES = ["samtools", "collate", "name collate", "queryname", "fixmate", "markdup prerequisite"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("name_collated_bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-collate.html"
+    VERSION = "1.23.1"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam": ("BAM", {"description": "Input BAM file"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+                "temp_prefix": ("STRING", {"default": "", "description": "Temporary file prefix", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
+        output_bam = output / f"{cls._output_stem(inputs)}.name_collated.bam"
+        cmd = [
+            "samtools",
+            "collate",
+            "-@",
+            str(inputs.get("threads", 4)),
+            "-o",
+            str(output_bam),
+        ]
+        if inputs.get("temp_prefix"):
+            cmd.extend(["-T", str(inputs["temp_prefix"])])
+        cmd.append(str(inputs.get("bam", "")))
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / f"{cls._output_stem(inputs)}.name_collated.bam"]
+
+    @classmethod
+    def _output_stem(cls, inputs: dict[str, Any]) -> str:
+        return _bam_output_stem(inputs, "collated")
+
+
+class SamtoolsFixmateNode(CommandNode):
+    """Add mate-coordinate and mate-score tags before duplicate marking."""
+
+    NODE_ID = "samtools_fixmate"
+    DISPLAY_NAME = "Samtools Fixmate"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Add mate coordinates and duplicate-marking tags to a name-collated BAM"
+    SEARCH_ALIASES = ["samtools", "fixmate", "mate coordinates", "ms tag", "mc tag", "markdup prerequisite"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("fixmate_bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-fixmate.html"
+    VERSION = "1.23.1"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam": ("BAM", {"description": "Name-collated BAM from samtools collate"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "add_markdup_tags": ("BOOLEAN", {"default": True, "description": "Add ms tags required by samtools markdup"}),
+                "remove_secondary_and_unmapped": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Remove secondary and unmapped alignments", "advanced": True},
+                ),
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
+        output_bam = output / f"{cls._output_stem(inputs)}.fixmate.bam"
+        cmd = [
+            "samtools",
+            "fixmate",
+            "-@",
+            str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("add_markdup_tags", True):
+            cmd.append("-m")
+        if inputs.get("remove_secondary_and_unmapped"):
+            cmd.append("-r")
+        cmd.extend([str(inputs.get("bam", "")), str(output_bam)])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / f"{cls._output_stem(inputs)}.fixmate.bam"]
+
+    @classmethod
+    def _output_stem(cls, inputs: dict[str, Any]) -> str:
+        return _bam_output_stem(inputs, "fixmate")
+
+
+class SamtoolsMarkdupNode(CommandNode):
+    """Mark or remove duplicate alignments in a coordinate-sorted BAM file."""
+
+    NODE_ID = "samtools_markdup"
+    DISPLAY_NAME = "Samtools Markdup"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = (
+        "Mark or remove duplicate alignments from coordinate-sorted BAM files "
+        "prepared with samtools fixmate -m"
+    )
+    SEARCH_ALIASES = [
+        "samtools",
+        "markdup",
+        "mark duplicates",
+        "remove duplicates",
+        "duplicate marking",
+        "picard equivalent",
+        "variant preprocessing",
+    ]
+    RETURN_TYPES = ("BAM", "STATS_FILE")
+    RETURN_NAMES = ("marked_bam", "duplicate_stats")
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-markdup.html"
+    VERSION = "1.23.1"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam": ("BAM", {"description": "Coordinate-sorted BAM prepared with samtools fixmate -m"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "remove_duplicates": ("BOOLEAN", {"default": False, "description": "Remove duplicates instead of only marking them"}),
+                "mark_supplementary": ("BOOLEAN", {"default": False, "description": "Mark supplementary duplicate alignments", "advanced": True}),
+                "mark_optical_duplicates": ("BOOLEAN", {"default": False, "description": "Use optical duplicate distance tagging", "advanced": True}),
+                "optical_distance": ("INT", {"default": 100, "min": 0, "advanced": True}),
+                "read_name_regex": ("STRING", {"default": "", "description": "Regex for extracting read coordinates", "advanced": True}),
+                "clear_existing_duplicate_flags": ("BOOLEAN", {"default": False, "description": "Clear existing duplicate flags before marking", "advanced": True}),
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        raw_threads = inputs.get("threads", 4)
+        threads = 4 if raw_threads is None else int(raw_threads)
+        if not 1 <= threads <= 64:
+            return "threads must be between 1 and 64"
+        optical_distance = int(inputs.get("optical_distance", 100) or 0)
+        if optical_distance < 0:
+            return "optical_distance must be non-negative"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
+        output_name = cls._output_stem(inputs)
+        output_bam = output / f"{output_name}.markdup.bam"
+        duplicate_stats = output / f"{output_name}.duplicate_stats.txt"
+
+        cmd = [
+            "samtools",
+            "markdup",
+            "-@",
+            str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("remove_duplicates"):
+            cmd.append("-r")
+        if inputs.get("mark_supplementary"):
+            cmd.append("-S")
+        if inputs.get("mark_optical_duplicates"):
+            cmd.extend(["-d", str(inputs.get("optical_distance", 100))])
+            if inputs.get("read_name_regex"):
+                cmd.extend(["--read-coords", str(inputs["read_name_regex"])])
+        if inputs.get("clear_existing_duplicate_flags"):
+            cmd.append("-c")
+        cmd.extend(["-f", str(duplicate_stats), str(inputs.get("bam", "")), str(output_bam)])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        output_name = cls._output_stem(inputs)
+        return [
+            node_out / f"{output_name}.markdup.bam",
+            node_out / f"{output_name}.duplicate_stats.txt",
+        ]
+
+    @classmethod
+    def _output_stem(cls, inputs: dict[str, Any]) -> str:
+        return _bam_output_stem(inputs, "markdup")
 
 
 class SamtoolsFlagstatNode(CommandNode):
