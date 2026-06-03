@@ -119,6 +119,31 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "deeploc" in info["ai_sequence_classification"]["search_aliases"]
     assert "signalp" in info["ai_sequence_classification"]["search_aliases"]
 
+    assert info["ai_image_analysis"]["display_name"] == "AI Image Analysis"
+    assert info["ai_image_analysis"]["category"] == "ai"
+    assert info["ai_image_analysis"]["output"] == ["JSON", "STRING"]
+    assert info["ai_image_analysis"]["output_name"] == ["analysis_json", "description_text"]
+    assert info["ai_image_analysis"]["required_conda_packages"] == ["litellm"]
+    assert info["ai_image_analysis"]["experimental"] is True
+    assert "vision" in info["ai_image_analysis"]["search_aliases"]
+    assert "microscopy" in info["ai_image_analysis"]["search_aliases"]
+
+    image_inputs = info["ai_image_analysis"]["input"]
+    assert set(image_inputs["required"]) == {"input_image", "analysis_task"}
+    assert set(image_inputs["optional"]) == {
+        "custom_prompt",
+        "expected_ladder",
+        "scale_bar",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+        "json_mode",
+    }
+
     classification_inputs = info["ai_sequence_classification"]["input"]
     assert set(classification_inputs["required"]) == {"input_fasta", "classifier"}
     assert set(classification_inputs["optional"]) == {
@@ -1518,3 +1543,126 @@ async def test_ai_sequence_classification_custom_model_and_top_k_are_clamped(
     assert payload["labels"] == ["class_0", "class_1"]
     assert payload["top_k"] == 2
     assert len(payload["predictions"][0]["top_predictions"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_ai_image_analysis_builds_multimodal_message_and_writes_outputs(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("bionodulo.nodes.builtin.llm")
+    calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, Any]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({"description": "Gel image with two lanes.", "lanes": [{"lane": 1}, {"lane": 2}]}),
+            model=config.model,
+            usage={"total_tokens": 8},
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    node_class = _node_class("ai_image_analysis")
+    image_path = tmp_path / "gel.png"
+    _write_tiny_png(image_path)
+
+    result = await node_class().run(
+        input_image=str(image_path),
+        analysis_task="gel_electrophoresis",
+        expected_ladder="1000,500,100",
+        provider="openai",
+        api_key="test-key",
+        json_mode=True,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_image_analysis" / "analysis.json"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    user_content = calls[0]["messages"][1]["content"]
+
+    assert result == {"outputs": {"analysis_json": str(json_path), "description_text": "Gel image with two lanes."}}
+    assert payload["analysis_task"] == "gel_electrophoresis"
+    assert payload["mime_type"] == "image/png"
+    assert payload["image_size_bytes"] == image_path.stat().st_size
+    assert payload["model"] == "openai/gpt-4o"
+    assert payload["usage"] == {"total_tokens": 8}
+    assert payload["analysis"]["lanes"] == [{"lane": 1}, {"lane": 2}]
+    assert calls[0]["json_mode"] is True
+    assert "gel electrophoresis" in user_content[0]["text"].lower()
+    assert "1000,500,100" in user_content[0]["text"]
+    assert user_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+@pytest.mark.asyncio
+async def test_ai_image_analysis_custom_prompt_plain_text_response(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("bionodulo.nodes.builtin.llm")
+    calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, Any]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(content="Approximately 42 colonies are visible.", model=config.model)
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    node_class = _node_class("ai_image_analysis")
+    image_path = tmp_path / "colonies.jpg"
+    _write_tiny_png(image_path)
+
+    result = await node_class().run(
+        input_image=str(image_path),
+        analysis_task="custom",
+        custom_prompt="Count colonies and report uncertainty.",
+        model="gpt-4o",
+        api_key="test-key",
+        json_mode=False,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_image_analysis" / "analysis.json"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result["outputs"]["analysis_json"] == str(json_path)
+    assert result["outputs"]["description_text"] == "Approximately 42 colonies are visible."
+    assert payload["analysis"]["description"] == "Approximately 42 colonies are visible."
+    assert calls[0]["json_mode"] is False
+    assert calls[0]["messages"][1]["content"][0]["text"] == "Count colonies and report uncertainty."
+    assert calls[0]["messages"][1]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+@pytest.mark.asyncio
+async def test_ai_image_analysis_missing_image_writes_error_outputs(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("bionodulo.nodes.builtin.llm")
+
+    async def fake_call_llm(*args: Any, **kwargs: Any) -> LLMResponse:
+        raise AssertionError("call_llm should not run for a missing image")
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+    node_class = _node_class("ai_image_analysis")
+    missing_path = tmp_path / "missing.png"
+
+    result = await node_class().run(
+        input_image=str(missing_path),
+        analysis_task="microscopy",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_image_analysis" / "analysis.json"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"analysis_json": str(json_path), "description_text": f"Image not found: {missing_path}"}}
+    assert payload["error"] == f"Image not found: {missing_path}"
+    assert payload["analysis_task"] == "microscopy"
+
+
+def _write_tiny_png(path: Any) -> None:
+    path.write_bytes(
+        bytes.fromhex(
+            "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
+            "de0000000c49444154789c63606060000000040001f61738550000000049454e44ae426082"
+        )
+    )
