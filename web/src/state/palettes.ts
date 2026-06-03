@@ -220,14 +220,37 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
   },
 ];
 
-let activePaletteId: string =
-  (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) || BUILT_IN_PALETTES[0].id;
+function getPaletteStorage(): Storage | undefined {
+  try {
+    const storage = globalThis.localStorage;
+    return storage &&
+      typeof storage.getItem === 'function' &&
+      typeof storage.setItem === 'function'
+      ? storage
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getStoredPaletteId(): string | null {
+  const storage = getPaletteStorage();
+  if (!storage) return null;
+  try {
+    return storage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+let activePaletteId: string = getStoredPaletteId() || BUILT_IN_PALETTES[0].id;
 let customPalettes: ThemePalette[] = loadCustomPalettes();
 
 function loadCustomPalettes(): ThemePalette[] {
-  if (typeof localStorage === 'undefined') return [];
+  const storage = getPaletteStorage();
+  if (!storage) return [];
   try {
-    const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
+    const raw = storage.getItem(CUSTOM_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -237,9 +260,10 @@ function loadCustomPalettes(): ThemePalette[] {
 }
 
 function persistCustomPalettes() {
-  if (typeof localStorage === 'undefined') return;
+  const storage = getPaletteStorage();
+  if (!storage) return;
   try {
-    localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customPalettes));
+    storage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customPalettes));
   } catch {
     /* quota — ignore */
   }
@@ -265,8 +289,9 @@ export function getActivePaletteId(): string {
 
 export function setActivePaletteId(id: string): void {
   activePaletteId = id;
-  if (typeof localStorage !== 'undefined') {
-    try { localStorage.setItem(STORAGE_KEY, id); } catch { /* quota */ }
+  const storage = getPaletteStorage();
+  if (storage) {
+    try { storage.setItem(STORAGE_KEY, id); } catch { /* quota */ }
   }
   notify();
 }
