@@ -5,6 +5,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
 import pytest
 
 from bionodulo.ai.llm_backend import (
@@ -94,6 +95,28 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ai_pipeline_advisor"]["experimental"] is True
     assert "pipeline" in info["ai_pipeline_advisor"]["search_aliases"]
     assert "parameters" in info["ai_pipeline_advisor"]["search_aliases"]
+
+    assert info["ai_embedding"]["display_name"] == "AI Embedding"
+    assert info["ai_embedding"]["category"] == "ai"
+    assert info["ai_embedding"]["output"] == ["EMBEDDING", "JSON"]
+    assert info["ai_embedding"]["output_name"] == ["embeddings_npy", "metadata_json"]
+    assert info["ai_embedding"]["required_conda_packages"] == ["numpy", "biopython", "torch", "transformers"]
+    assert info["ai_embedding"]["experimental"] is True
+    assert "esm" in info["ai_embedding"]["search_aliases"]
+    assert "dnabert" in info["ai_embedding"]["search_aliases"]
+
+    embedding_inputs = info["ai_embedding"]["input"]
+    assert set(embedding_inputs["required"]) == {"input_data", "embedding_model"}
+    assert set(embedding_inputs["optional"]) == {
+        "molecule_type",
+        "batch_size",
+        "max_length",
+        "pooling",
+        "layer",
+        "normalize",
+        "compute_device",
+        "fallback_backend",
+    }
 
     advisor_inputs = info["ai_pipeline_advisor"]["input"]
     assert set(advisor_inputs["required"]) == {"experiment_type", "metadata"}
@@ -1160,3 +1183,140 @@ async def test_ai_pipeline_advisor_resolves_api_key_from_context_secret(
     )
 
     assert calls[0].api_key == "secret-key"
+
+
+@pytest.mark.asyncio
+async def test_ai_embedding_generates_normalized_fallback_embeddings_from_fasta(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">protA\nMTEYKLVVVG\n>protB\nGAGGVGKSAL\n", encoding="utf-8")
+
+    result = await node_class().run(
+        input_data=str(fasta_path),
+        embedding_model="esm2_t6_8M",
+        molecule_type="protein",
+        max_length=8,
+        pooling="mean",
+        layer=-1,
+        normalize=True,
+        compute_device="cpu",
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    npy_path = tmp_path / "ai_embedding" / "embeddings.npy"
+    metadata_path = tmp_path / "ai_embedding" / "metadata.json"
+    embeddings = np.load(npy_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"embeddings_npy": str(npy_path), "metadata_json": str(metadata_path)}}
+    assert embeddings.shape == (2, 32)
+    assert np.allclose(np.linalg.norm(embeddings, axis=1), 1.0)
+    assert metadata["backend"] == "deterministic"
+    assert metadata["embedding_model"] == "esm2_t6_8M"
+    assert metadata["model_name"] == "facebook/esm2_t6_8M_UR50D"
+    assert metadata["molecule_type"] == "protein"
+    assert metadata["sequence_count"] == 2
+    assert metadata["sequence_ids"] == ["protA", "protB"]
+    assert metadata["embedding_shape"] == [2, 32]
+    assert metadata["truncated_lengths"] == [8, 8]
+    assert metadata["normalize"] is True
+
+
+@pytest.mark.asyncio
+async def test_ai_embedding_reads_raw_text_without_normalization(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+
+    await node_class().run(
+        input_data="BRCA1 regulates DNA repair.\nTP53 responds to DNA damage.",
+        embedding_model="text_embedding",
+        molecule_type="text",
+        max_length=128,
+        normalize=False,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    embeddings = np.load(tmp_path / "ai_embedding" / "embeddings.npy")
+    metadata = json.loads((tmp_path / "ai_embedding" / "metadata.json").read_text(encoding="utf-8"))
+
+    assert embeddings.shape == (2, 32)
+    assert not np.allclose(np.linalg.norm(embeddings, axis=1), 1.0)
+    assert metadata["sequence_ids"] == ["item_0", "item_1"]
+    assert metadata["molecule_type"] == "text"
+    assert metadata["backend"] == "deterministic"
+
+
+@pytest.mark.asyncio
+async def test_ai_embedding_empty_input_writes_empty_outputs(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+
+    result = await node_class().run(
+        input_data="",
+        embedding_model="text_embedding",
+        molecule_type="text",
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    npy_path = tmp_path / "ai_embedding" / "embeddings.npy"
+    metadata_path = tmp_path / "ai_embedding" / "metadata.json"
+    embeddings = np.load(npy_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"embeddings_npy": str(npy_path), "metadata_json": str(metadata_path)}}
+    assert embeddings.shape == (0, 0)
+    assert metadata["sequence_count"] == 0
+    assert metadata["embedding_shape"] == [0, 0]
+
+
+@pytest.mark.asyncio
+async def test_ai_embedding_parses_long_inline_fasta_without_path_probe_failure(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+    long_sequence = "M" * 5000
+
+    await node_class().run(
+        input_data=f">inline_protein\n{long_sequence}\n",
+        embedding_model="esm2_t6_8M",
+        molecule_type="protein",
+        max_length=64,
+        normalize=False,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    embeddings = np.load(tmp_path / "ai_embedding" / "embeddings.npy")
+    metadata = json.loads((tmp_path / "ai_embedding" / "metadata.json").read_text(encoding="utf-8"))
+
+    assert embeddings.shape == (1, 32)
+    assert metadata["sequence_ids"] == ["inline_protein"]
+    assert metadata["original_lengths"] == [5000]
+    assert metadata["truncated_lengths"] == [64]
+
+
+@pytest.mark.asyncio
+async def test_ai_embedding_preserves_explicit_zero_layer(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+
+    await node_class().run(
+        input_data="MTEYKLVVVG",
+        embedding_model="esm2_t6_8M",
+        molecule_type="protein",
+        layer=0,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    metadata = json.loads((tmp_path / "ai_embedding" / "metadata.json").read_text(encoding="utf-8"))
+
+    assert metadata["layer"] == 0

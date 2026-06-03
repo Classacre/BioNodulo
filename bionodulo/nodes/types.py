@@ -102,6 +102,7 @@ class BioType(str, Enum):
     YAML = "YAML"
     CSV = "CSV"
     TSV = "TSV"
+    EMBEDDING = "EMBEDDING"
 
 
 _COMPATIBILITY: dict[BioType, set[BioType]] = {
@@ -164,6 +165,7 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.CSV: {BioType.FILE, BioType.STRING, BioType.TSV},
     BioType.TSV: {BioType.FILE, BioType.STRING, BioType.CSV},
     BioType.IMAGE: {BioType.FILE, BioType.STRING},
+    BioType.EMBEDDING: {BioType.FILE, BioType.STRING},
     BioType.PAML_RESULTS: {BioType.FILE, BioType.STRING},
     BioType.TRANSCRIPTS: {BioType.FILE, BioType.STRING, BioType.FASTA},
 }
@@ -273,6 +275,7 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.CSV: ".csv",
         BioType.TSV: ".tsv",
         BioType.IMAGE: ".png",
+        BioType.EMBEDDING: ".npy",
         BioType.TRANSCRIPTS: ".transcripts.fasta",
     }
     bt = _coerce_to_biotype(biotype)

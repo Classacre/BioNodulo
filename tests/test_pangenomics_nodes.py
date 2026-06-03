@@ -29,6 +29,13 @@ def test_pangenome_graph_types_are_file_compatible() -> None:
     assert file_extension_for("ODGI") == ".odgi"
 
 
+def test_embedding_type_is_file_compatible() -> None:
+    assert BioType.EMBEDDING.value == "EMBEDDING"
+    assert is_compatible("EMBEDDING", "FILE")
+    assert is_compatible("EMBEDDING", "STRING")
+    assert file_extension_for("EMBEDDING") == ".npy"
+
+
 def test_executor_resolves_pangenome_graph_file_inputs(tmp_path: Path) -> None:
     class PangenomeInputNode:
         @classmethod

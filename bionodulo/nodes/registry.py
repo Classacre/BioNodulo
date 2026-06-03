@@ -368,6 +368,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "JSON",
         "CSV",
         "TSV",
+        "EMBEDDING",
     }
     if bionodulo_type in passthrough_types:
         return bionodulo_type
