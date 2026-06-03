@@ -145,3 +145,66 @@ def test_survivor_merge_accepts_single_vcf_string(tmp_path: Path) -> None:
     assert (output_dir / "sample_files.txt").read_text(encoding="utf-8") == "sniffles.vcf.gz\n"
     assert cmd[2] == str(output_dir / "sample_files.txt")
     assert cmd[-1] == str(output_dir / "merged_sv.vcf")
+
+
+def test_cutesv_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cutesv"]
+    assert node_info["display_name"] == "cuteSV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Efficient long-read SV caller")
+    assert node_info["output"] == ["VCF"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["cuteSV"]
+    assert node_info["required_conda_packages"] == ["cute-sv"]
+    assert "long-read sv" in node_info["search_aliases"]
+    assert "pacbio sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "sample_name", "threads"}
+    assert set(inputs["optional"]) == {"max_cluster_bias_ins", "min_size", "max_size"}
+
+
+def test_cutesv_renders_long_read_sv_command() -> None:
+    node_class = _node_class("cutesv")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "sample_name": "tumor-01",
+        "threads": 16,
+        "max_cluster_bias_ins": 750,
+        "min_size": 40,
+        "max_size": 50000,
+        "output": "/tmp/run/cutesv",
+    })
+
+    assert cmd == [
+        "cuteSV",
+        "--threads",
+        "16",
+        "--genome",
+        "GRCh38.fa",
+        "--sample",
+        "tumor-01",
+        "--max_cluster_bias_INS",
+        "750",
+        "--min_size",
+        "40",
+        "--max_size",
+        "50000",
+        "sample.sorted.bam",
+        "/tmp/run/cutesv/sv_vcf.vcf",
+        "/tmp/run/cutesv",
+    ]
+
+
+def test_cutesv_plans_vcf_output() -> None:
+    node_class = _node_class("cutesv")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/cutesv/sv_vcf.vcf"]
