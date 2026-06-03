@@ -114,6 +114,13 @@ def test_bismark_methylation_extractor_is_registered_for_frontend_discovery() ->
     assert "bedgraph" in node_info["search_aliases"]
     assert "methylation" in node_info["search_aliases"]
     assert "cytosine" in node_info["search_aliases"]
+    assert info["bismark_methylation"]["display_name"] == "Bismark Methylation"
+    assert info["bismark_methylation"]["category"] == "epigenomics"
+    assert info["bismark_methylation"]["output"] == ["DIRECTORY"]
+    assert info["bismark_methylation"]["output_name"] == ["methylation_output"]
+    assert info["bismark_methylation"]["required_executables"] == ["bismark_methylation_extractor"]
+    assert info["bismark_methylation"]["required_conda_packages"] == ["bismark"]
+    assert issubclass(registry.get("bismark_methylation"), registry.get("bismark_methylation_extractor"))
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"bam", "multicore"}

@@ -32,6 +32,14 @@ def test_spaceranger_count_is_registered_for_frontend_discovery() -> None:
     assert "10x visium" in node_info["search_aliases"]
     assert "spatial transcriptomics" in node_info["search_aliases"]
     assert "visium" in node_info["search_aliases"]
+    assert info["spaceranger"]["display_name"] == "Space Ranger"
+    assert info["spaceranger"]["category"] == "spatial_transcriptomics"
+    assert info["spaceranger"]["output"] == ["DIRECTORY"]
+    assert info["spaceranger"]["output_name"] == ["spaceranger_out"]
+    assert info["spaceranger"]["required_executables"] == ["spaceranger"]
+    assert info["spaceranger"]["required_conda_packages"] == ["spaceranger"]
+    assert info["spaceranger"]["experimental"] is True
+    assert issubclass(registry.get("spaceranger"), registry.get("spaceranger_count"))
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {
@@ -144,6 +152,13 @@ def test_squidpy_qc_is_registered_for_frontend_discovery() -> None:
     assert "squidpy" in node_info["search_aliases"]
     assert "quality control" in node_info["search_aliases"]
     assert "spatial analysis" in node_info["search_aliases"]
+    assert info["squidpy"]["display_name"] == "Squidpy"
+    assert info["squidpy"]["category"] == "spatial_transcriptomics"
+    assert info["squidpy"]["output"] == ["H5AD", "IMAGE"]
+    assert info["squidpy"]["output_name"] == ["adata", "spatial_plot"]
+    assert info["squidpy"]["required_executables"] == ["python"]
+    assert info["squidpy"]["required_conda_packages"] == ["squidpy", "scanpy", "anndata", "matplotlib"]
+    assert issubclass(registry.get("squidpy"), registry.get("squidpy_qc"))
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"visium_path"}

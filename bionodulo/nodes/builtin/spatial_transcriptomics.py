@@ -84,6 +84,15 @@ class SpaceRangerNode(CommandNode):
         }
 
 
+class SpaceRangerCompatibilityNode(SpaceRangerNode):
+    """Compatibility wrapper for the original Space Ranger roadmap node ID."""
+
+    NODE_ID = "spaceranger"
+    DISPLAY_NAME = "Space Ranger"
+    DESCRIPTION = "Process 10x Genomics Visium data with Space Ranger count."
+    SEARCH_ALIASES = ["spaceranger", "space ranger", "10x visium", "spatial transcriptomics", "visium"]
+
+
 class SquidpyQCNode(CommandNode):
     """Run Visium QC and spatial neighborhood analysis with Squidpy."""
     NODE_ID = "squidpy_qc"
@@ -165,6 +174,15 @@ print("Done")
                 "output": ("STRING", {}),
             },
         }
+
+
+class SquidpyNode(SquidpyQCNode):
+    """Compatibility wrapper for the original Squidpy roadmap node ID."""
+
+    NODE_ID = "squidpy"
+    DISPLAY_NAME = "Squidpy"
+    DESCRIPTION = "Run Visium QC, preprocessing, and spatial analysis with Squidpy."
+    SEARCH_ALIASES = ["squidpy", "spatial", "visium", "quality control", "spatial analysis"]
 
 
 class Cell2locationNode(CommandNode):

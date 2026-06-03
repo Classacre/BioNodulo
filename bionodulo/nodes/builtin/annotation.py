@@ -490,6 +490,22 @@ class VEPNode(CommandNode):
         }
 
 
+class VEPAnnotateNode(VEPNode):
+    """Compatibility wrapper for the VEP annotation roadmap node ID."""
+
+    NODE_ID = "vep_annotate"
+    DISPLAY_NAME = "VEP Annotate"
+    DESCRIPTION = "Annotate variants with Ensembl Variant Effect Predictor."
+    SEARCH_ALIASES = [
+        "vep annotate",
+        "vep",
+        "variant effect predictor",
+        "ensembl",
+        "variant annotation",
+        "clinvar",
+    ]
+
+
 class ANNOVARNode(CommandNode):
     """Annotate variants with ANNOVAR."""
     NODE_ID = "annovar"

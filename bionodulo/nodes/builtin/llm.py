@@ -867,6 +867,25 @@ class AIEmbeddingNode(BaseNode):
         return {"outputs": {"embeddings_npy": str(npy_path), "metadata_json": str(metadata_path)}}
 
 
+class EmbeddingGenerationNode(AIEmbeddingNode):
+    """Compatibility wrapper for the original embedding generation roadmap node ID."""
+
+    NODE_ID = "embedding_generation"
+    DISPLAY_NAME = "Embedding Generation"
+    DESCRIPTION = "Generate embedding vectors for biological sequences or text."
+    SEARCH_ALIASES = [
+        "embedding generation",
+        "embedding",
+        "vector",
+        "esm",
+        "dnabert",
+        "transformer",
+        "representation",
+        "encode",
+        "features",
+    ]
+
+
 class AISequenceClassificationNode(BaseNode):
     """Classify biological sequences with local models or deterministic fallback."""
 

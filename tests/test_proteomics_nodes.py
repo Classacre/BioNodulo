@@ -327,6 +327,13 @@ def test_openms_feature_finder_is_registered_for_frontend_discovery() -> None:
     assert "lc-ms" in node_info["search_aliases"]
     assert "peptide feature" in node_info["search_aliases"]
     assert "topp" in node_info["search_aliases"]
+    assert info["openms_feature"]["display_name"] == "OpenMS Feature"
+    assert info["openms_feature"]["category"] == "proteomics"
+    assert info["openms_feature"]["output"] == ["FILE"]
+    assert info["openms_feature"]["output_name"] == ["feature_xml"]
+    assert info["openms_feature"]["required_executables"] == ["FeatureFinderCentroided"]
+    assert info["openms_feature"]["required_conda_packages"] == ["openms"]
+    assert issubclass(registry.get("openms_feature"), registry.get("openms_feature_finder"))
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"mzml_file"}

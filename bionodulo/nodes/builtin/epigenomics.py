@@ -124,6 +124,24 @@ class BismarkMethylationExtractorNode(CommandNode):
         }
 
 
+class BismarkMethylationNode(BismarkMethylationExtractorNode):
+    """Compatibility wrapper for the original Bismark methylation roadmap node ID."""
+
+    NODE_ID = "bismark_methylation"
+    DISPLAY_NAME = "Bismark Methylation"
+    DESCRIPTION = "Extract methylation calls from Bismark-aligned BAM files."
+    SEARCH_ALIASES = [
+        "bismark methylation",
+        "bismark",
+        "methylation",
+        "methylation extractor",
+        "cpg",
+        "cytosine",
+        "bedgraph",
+        "bisulfite",
+    ]
+
+
 class MethylDackelNode(CommandNode):
     """Extract per-base methylation from alignments with MethylDackel."""
     NODE_ID = "methyldackel"

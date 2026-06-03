@@ -11,6 +11,34 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def test_bcftools_mpileup_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["bcftools_mpileup"]
+    assert node_info["display_name"] == "bcftools mpileup + call"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Generate VCF variant calls")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["vcf"]
+    assert node_info["required_executables"] == ["bcftools"]
+    assert node_info["required_conda_packages"] == ["bcftools"]
+    assert "variant call" in node_info["search_aliases"]
+    assert "snp calling" in node_info["search_aliases"]
+    assert info["bcftools_call"]["display_name"] == "bcftools Call"
+    assert info["bcftools_call"]["category"] == "variant"
+    assert info["bcftools_call"]["output"] == ["VCF_GZ"]
+    assert info["bcftools_call"]["output_name"] == ["vcf"]
+    assert info["bcftools_call"]["required_executables"] == ["bcftools"]
+    assert info["bcftools_call"]["required_conda_packages"] == ["bcftools"]
+    assert issubclass(registry.get("bcftools_call"), registry.get("bcftools_mpileup"))
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference"}
+    assert set(inputs["optional"]) == {"max_depth", "min_bq", "ploidy"}
+
+
 def test_bcftools_norm_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()

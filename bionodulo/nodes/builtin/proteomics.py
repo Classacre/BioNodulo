@@ -282,6 +282,15 @@ class OpenMSFeatureFinderNode(CommandNode):
         }
 
 
+class OpenMSFeatureNode(OpenMSFeatureFinderNode):
+    """Compatibility wrapper for the original OpenMS feature roadmap node ID."""
+
+    NODE_ID = "openms_feature"
+    DISPLAY_NAME = "OpenMS Feature"
+    DESCRIPTION = "Detect peptide features from centroided LC-MS data with OpenMS FeatureFinder."
+    SEARCH_ALIASES = ["openms feature", "openms", "feature finder", "lc-ms", "peptide feature", "topp"]
+
+
 class DIANNNode(CommandNode):
     """Analyze DIA proteomics data with DIA-NN."""
 

@@ -140,6 +140,13 @@ def test_vep_is_registered_for_frontend_discovery() -> None:
     assert "variant effect predictor" in node_info["search_aliases"]
     assert "ensembl" in node_info["search_aliases"]
     assert "clinvar" in node_info["search_aliases"]
+    assert info["vep_annotate"]["display_name"] == "VEP Annotate"
+    assert info["vep_annotate"]["category"] == "annotation"
+    assert info["vep_annotate"]["output"] == ["VCF", "HTML_REPORT"]
+    assert info["vep_annotate"]["output_name"] == ["annotated_vcf", "vep_report"]
+    assert info["vep_annotate"]["required_executables"] == ["vep"]
+    assert info["vep_annotate"]["required_conda_packages"] == ["ensembl-vep"]
+    assert issubclass(registry.get("vep_annotate"), registry.get("vep"))
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"vcf", "assembly", "cache_dir", "threads"}

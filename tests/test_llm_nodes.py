@@ -104,6 +104,18 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ai_embedding"]["experimental"] is True
     assert "esm" in info["ai_embedding"]["search_aliases"]
     assert "dnabert" in info["ai_embedding"]["search_aliases"]
+    assert info["embedding_generation"]["display_name"] == "Embedding Generation"
+    assert info["embedding_generation"]["category"] == "ai"
+    assert info["embedding_generation"]["output"] == ["EMBEDDING", "JSON"]
+    assert info["embedding_generation"]["output_name"] == ["embeddings_npy", "metadata_json"]
+    assert info["embedding_generation"]["required_conda_packages"] == [
+        "numpy",
+        "biopython",
+        "torch",
+        "transformers",
+    ]
+    assert info["embedding_generation"]["experimental"] is True
+    assert issubclass(registry.get("embedding_generation"), registry.get("ai_embedding"))
 
     assert info["ai_sequence_classification"]["display_name"] == "AI Sequence Classification"
     assert info["ai_sequence_classification"]["category"] == "ai"
