@@ -105,6 +105,32 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "esm" in info["ai_embedding"]["search_aliases"]
     assert "dnabert" in info["ai_embedding"]["search_aliases"]
 
+    assert info["ai_sequence_classification"]["display_name"] == "AI Sequence Classification"
+    assert info["ai_sequence_classification"]["category"] == "ai"
+    assert info["ai_sequence_classification"]["output"] == ["JSON", "CSV"]
+    assert info["ai_sequence_classification"]["output_name"] == ["classifications_json", "classifications_csv"]
+    assert info["ai_sequence_classification"]["required_conda_packages"] == [
+        "numpy",
+        "biopython",
+        "torch",
+        "transformers",
+    ]
+    assert info["ai_sequence_classification"]["experimental"] is True
+    assert "deeploc" in info["ai_sequence_classification"]["search_aliases"]
+    assert "signalp" in info["ai_sequence_classification"]["search_aliases"]
+
+    classification_inputs = info["ai_sequence_classification"]["input"]
+    assert set(classification_inputs["required"]) == {"input_fasta", "classifier"}
+    assert set(classification_inputs["optional"]) == {
+        "custom_model",
+        "batch_size",
+        "max_length",
+        "confidence_threshold",
+        "compute_device",
+        "top_k",
+        "fallback_backend",
+    }
+
     embedding_inputs = info["ai_embedding"]["input"]
     assert set(embedding_inputs["required"]) == {"input_data", "embedding_model"}
     assert set(embedding_inputs["optional"]) == {
@@ -1320,3 +1346,175 @@ async def test_ai_embedding_preserves_explicit_zero_layer(
     metadata = json.loads((tmp_path / "ai_embedding" / "metadata.json").read_text(encoding="utf-8"))
 
     assert metadata["layer"] == 0
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_writes_deterministic_outputs_from_fasta(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">secreted\nMKKLLFAIPLVVPFYSHS\n>membrane\nMALWMRLLPLLALLALWG\n", encoding="utf-8")
+
+    result = await node_class().run(
+        input_fasta=str(fasta_path),
+        classifier="deeploc",
+        max_length=10,
+        top_k=3,
+        confidence_threshold=0.0,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_sequence_classification" / "classifications.json"
+    csv_path = tmp_path / "ai_sequence_classification" / "classifications.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    rows = csv_path.read_text(encoding="utf-8").splitlines()
+
+    assert result == {"outputs": {"classifications_json": str(json_path), "classifications_csv": str(csv_path)}}
+    assert payload["classifier"] == "deeploc"
+    assert payload["backend"] == "deterministic"
+    assert payload["model"] == "ElnaggarLab/ankh-base"
+    assert payload["total_sequences"] == 2
+    assert payload["returned_predictions"] == 2
+    assert payload["labels"][:3] == ["Cytoplasm", "Nucleus", "Extracellular"]
+    assert [prediction["sequence_id"] for prediction in payload["predictions"]] == ["secreted", "membrane"]
+    assert payload["predictions"][0]["sequence_length"] == 18
+    assert payload["predictions"][0]["truncated_length"] == 10
+    assert len(payload["predictions"][0]["top_predictions"]) == 3
+    assert rows[0] == "sequence_id,sequence_length,truncated_length,top_prediction,confidence,all_predictions"
+    assert rows[1].startswith("secreted,18,10,")
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_filters_by_confidence(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">low\nACDEFGHIKLMNPQRSTVWY\n", encoding="utf-8")
+
+    await node_class().run(
+        input_fasta=str(fasta_path),
+        classifier="signalp",
+        confidence_threshold=1.1,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads((tmp_path / "ai_sequence_classification" / "classifications.json").read_text(encoding="utf-8"))
+    csv_rows = (tmp_path / "ai_sequence_classification" / "classifications.csv").read_text(encoding="utf-8").splitlines()
+
+    assert payload["total_sequences"] == 1
+    assert payload["returned_predictions"] == 0
+    assert payload["filtered_out"] == 1
+    assert payload["predictions"] == []
+    assert csv_rows == ["sequence_id,sequence_length,truncated_length,top_prediction,confidence,all_predictions"]
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_empty_input_writes_empty_outputs(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "empty.fasta"
+    fasta_path.write_text("", encoding="utf-8")
+
+    result = await node_class().run(
+        input_fasta=str(fasta_path),
+        classifier="tmhmm",
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_sequence_classification" / "classifications.json"
+    csv_path = tmp_path / "ai_sequence_classification" / "classifications.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"classifications_json": str(json_path), "classifications_csv": str(csv_path)}}
+    assert payload["total_sequences"] == 0
+    assert payload["returned_predictions"] == 0
+    assert payload["predictions"] == []
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_auto_falls_back_without_local_model(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">protein\nMKKLLFAIPLVVPFYSHS\n", encoding="utf-8")
+
+    await node_class().run(
+        input_fasta=str(fasta_path),
+        classifier="signalp",
+        confidence_threshold=0.0,
+        fallback_backend="auto",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads((tmp_path / "ai_sequence_classification" / "classifications.json").read_text(encoding="utf-8"))
+
+    assert payload["backend"] == "deterministic"
+    assert payload["returned_predictions"] == 1
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_local_backend_requires_local_transformer(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">protein\nMKKLLFAIPLVVPFYSHS\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="torch and transformers|required|local"):
+        await node_class().run(
+            input_fasta=str(fasta_path),
+            classifier="signalp",
+            fallback_backend="local",
+            context=SimpleNamespace(node_dir=tmp_path),
+        )
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_custom_requires_model(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">protein\nMKKLLFAIPLVVPFYSHS\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="custom_model"):
+        await node_class().run(
+            input_fasta=str(fasta_path),
+            classifier="custom",
+            custom_model="",
+            fallback_backend="deterministic",
+            context=SimpleNamespace(node_dir=tmp_path),
+        )
+
+
+@pytest.mark.asyncio
+async def test_ai_sequence_classification_custom_model_and_top_k_are_clamped(
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_sequence_classification")
+    fasta_path = tmp_path / "proteins.fasta"
+    fasta_path.write_text(">protein\nMKKLLFAIPLVVPFYSHS\n", encoding="utf-8")
+
+    await node_class().run(
+        input_fasta=str(fasta_path),
+        classifier="custom",
+        custom_model="local/custom-protein-classifier",
+        top_k=10,
+        confidence_threshold=0.0,
+        fallback_backend="deterministic",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads((tmp_path / "ai_sequence_classification" / "classifications.json").read_text(encoding="utf-8"))
+
+    assert payload["model"] == "local/custom-protein-classifier"
+    assert payload["labels"] == ["class_0", "class_1"]
+    assert payload["top_k"] == 2
+    assert len(payload["predictions"][0]["top_predictions"]) == 2
