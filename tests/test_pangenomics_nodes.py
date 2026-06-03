@@ -162,3 +162,102 @@ def test_odgi_visualize_plans_outputs() -> None:
 def test_odgi_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["odgi"] == "odgi"
     assert PACKAGE_MIN_VERSIONS["odgi"] == ">=0.9.0"
+
+
+def test_vg_construct_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vg_construct"]
+    assert node_info["display_name"] == "vg Construct"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Construct a variation graph")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["vg_graph"]
+    assert node_info["required_executables"] == ["vg"]
+    assert node_info["required_conda_packages"] == ["vg"]
+    assert "variation graph" in node_info["search_aliases"]
+    assert "graph genome" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reference", "vcf"}
+    assert set(inputs["optional"]) == {"region", "max_node_size", "progress"}
+    assert inputs["required"]["reference"][0] == "FASTA"
+    assert inputs["required"]["vcf"][0] == "VCF_GZ"
+    assert _node_class("vg_construct").INPUT_TYPES()["required"]["vcf"][0] == "VCF_GZ"
+
+
+def test_vg_construct_renders_graph_command_for_compressed_vcf() -> None:
+    node_class = _node_class("vg_construct")
+
+    cmd = node_class.render_command({
+        "reference": "ref.fa",
+        "vcf": "variants.vcf.gz",
+        "region": "chr1:1-1000000",
+        "max_node_size": 64,
+        "progress": True,
+        "output": "/tmp/run/vg_construct",
+    })
+
+    assert cmd == [
+        "vg",
+        "construct",
+        "-r",
+        "ref.fa",
+        "-a",
+        "-f",
+        "-S",
+        "-v",
+        "variants.vcf.gz",
+        "-R",
+        "chr1:1-1000000",
+        "-m",
+        "64",
+        "-p",
+        ">",
+        "/tmp/run/vg_construct/vg_graph.vg",
+    ]
+
+
+def test_vg_construct_uses_plain_vcf_flag_and_omits_empty_options() -> None:
+    node_class = _node_class("vg_construct")
+
+    cmd = node_class.render_command({
+        "reference": "ref.fa",
+        "vcf": "variants.vcf",
+        "region": "",
+        "max_node_size": 0,
+        "progress": False,
+        "output": "/tmp/run/vg_construct",
+    })
+
+    assert "-R" not in cmd
+    assert "-m" not in cmd
+    assert "-p" not in cmd
+    assert cmd == [
+        "vg",
+        "construct",
+        "-r",
+        "ref.fa",
+        "-a",
+        "-f",
+        "-S",
+        "-V",
+        "variants.vcf",
+        ">",
+        "/tmp/run/vg_construct/vg_graph.vg",
+    ]
+
+
+def test_vg_construct_plans_outputs() -> None:
+    node_class = _node_class("vg_construct")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/vg_construct/vg_graph.vg"]
+
+
+def test_vg_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["vg"] == "vg"
+    assert PACKAGE_MIN_VERSIONS["vg"] == ">=1.62.0"

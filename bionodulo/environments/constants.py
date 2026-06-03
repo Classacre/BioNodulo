@@ -98,6 +98,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "mageck": "mageck",
     "cas-offinder": "cas-offinder",
     "odgi": "odgi",
+    "vg": "vg",
     "Rscript": "r-base",
 }
 
@@ -208,6 +209,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "mageck": ">=0.5.9",
     "cas-offinder": ">=2.4.1",
     "odgi": ">=0.9.0",
+    "vg": ">=1.62.0",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",

@@ -7,6 +7,69 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
+class VGConstructNode(CommandNode):
+    """Construct variation graphs from a reference FASTA and VCF."""
+    NODE_ID = "vg_construct"
+    DISPLAY_NAME = "vg Construct"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Construct a variation graph from reference FASTA and VCF variants. Foundation for pangenome alignment."
+    SEARCH_ALIASES = ["vg", "construct", "variation graph", "pangenome", "graph genome"]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("vg_graph",)
+    REQUIRED_EXECUTABLES = ["vg"]
+    REQUIRED_CONDA_PACKAGES = ["vg"]
+    DOCUMENTATION_URL = "https://github.com/vgteam/vg"
+    VERSION = "1.62.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        vcf = str(inputs.get("vcf", ""))
+        cmd = [
+            "vg",
+            "construct",
+            "-r",
+            str(inputs.get("reference", "")),
+            "-a",
+            "-f",
+            "-S",
+        ]
+        if vcf:
+            cmd.extend(["-v" if vcf.endswith(".gz") else "-V", vcf])
+        if inputs.get("region"):
+            cmd.extend(["-R", str(inputs["region"])])
+        if inputs.get("max_node_size"):
+            cmd.extend(["-m", str(inputs["max_node_size"])])
+        if inputs.get("progress"):
+            cmd.append("-p")
+        cmd.extend([">", f"{out_dir}/vg_graph.vg"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "vg_graph.vg"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "vcf": ("VCF_GZ", {"description": "VCF with variants to embed"}),
+            },
+            "optional": {
+                "region": ("STRING", {"default": "", "description": "Region (e.g., chr1:1-1000000)"}),
+                "max_node_size": ("INT", {"default": 32, "min": 1}),
+                "progress": ("BOOLEAN", {"default": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class ODGIVisualizeNode(CommandNode):
     """Visualize pangenome graph layouts with odgi."""
     NODE_ID = "odgi_visualize"
