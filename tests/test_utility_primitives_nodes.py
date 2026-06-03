@@ -29,6 +29,7 @@ def test_utility_primitive_nodes_are_registered_for_frontend_discovery() -> None
         "compare": ("Compare", "utils", ["BOOLEAN"], ["result"]),
         "constants": ("Constants", "primitive", ["FLOAT", "INT", "STRING"], ["float_value", "int_value", "name"]),
         "seed": ("Seed", "primitive", ["INT"], ["seed"]),
+        "random_seed": ("Random Seed", "primitive", ["INT"], ["seed"]),
     }
 
     for node_id, (display_name, category, outputs, output_names) in expected.items():
@@ -85,4 +86,12 @@ async def test_seed_node_supports_fixed_increment_and_random_cache_busting() -> 
 
     random_seed = (await node_class().run(mode="random", seed=42))[0]
     assert 0 <= random_seed <= 2_147_483_647
+    assert node_class.IS_CHANGED({"mode": "random", "seed": 42}) != node_class.IS_CHANGED({"mode": "random", "seed": 42})
+
+
+@pytest.mark.asyncio
+async def test_random_seed_alias_matches_planned_node_id() -> None:
+    node_class = _node_class("random_seed")
+
+    assert await node_class().run(mode="fixed", seed=123, increment=4) == (127,)
     assert node_class.IS_CHANGED({"mode": "random", "seed": 42}) != node_class.IS_CHANGED({"mode": "random", "seed": 42})

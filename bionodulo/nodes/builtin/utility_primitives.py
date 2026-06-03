@@ -341,3 +341,12 @@ class SeedNode(BaseNode):
         base_seed = random.randint(0, 2_147_483_647) if mode == "random" else int(kwargs.get("seed", 42))
         increment = int(kwargs.get("increment", 0))
         return ((base_seed + increment) % 2_147_483_648,)
+
+
+class RandomSeedNode(SeedNode):
+    """Planned random seed node ID, sharing SeedNode behavior."""
+
+    NODE_ID = "random_seed"
+    DISPLAY_NAME = "Random Seed"
+    DESCRIPTION = "Set a random seed for reproducible results, or generate a new random seed"
+    SEARCH_ALIASES = ["random seed", "seed", "random", "rng", "reproducible", "deterministic"]
