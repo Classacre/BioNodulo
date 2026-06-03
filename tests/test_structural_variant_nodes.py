@@ -275,3 +275,63 @@ def test_svim_plans_vcf_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/svim/sv_vcf.vcf"]
+
+
+def test_smoove_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["smoove"]
+    assert node_info["display_name"] == "Smoove SV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Automated SV calling")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["genotyped_sv"]
+    assert node_info["required_executables"] == ["smoove"]
+    assert node_info["required_conda_packages"] == ["smoove", "lumpy-sv", "svtyper"]
+    assert "lumpy" in node_info["search_aliases"]
+    assert "genotyped sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "sample_name", "threads"}
+    assert set(inputs["optional"]) == {"exclude", "genotype"}
+
+
+def test_smoove_renders_structural_variant_command() -> None:
+    node_class = _node_class("smoove")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "sample_name": "tumor-01",
+        "threads": 12,
+        "exclude": "exclude.bed",
+        "genotype": True,
+        "output": "/tmp/run/smoove",
+    })
+
+    assert cmd == [
+        "smoove",
+        "call",
+        "--name",
+        "tumor-01",
+        "--fasta",
+        "GRCh38.fa",
+        "-p",
+        "12",
+        "--outdir",
+        "/tmp/run/smoove",
+        "--genotype",
+        "--exclude",
+        "exclude.bed",
+        "sample.sorted.bam",
+    ]
+
+
+def test_smoove_plans_genotyped_vcf_output() -> None:
+    node_class = _node_class("smoove")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/smoove/genotyped_sv.vcf.gz"]
