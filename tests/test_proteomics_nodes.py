@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -104,3 +106,103 @@ def test_maxquant_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["MaxQuantCmd.exe"] == "maxquant"
     assert EXECUTABLE_TO_CONDA_PACKAGE["mono"] == "mono"
     assert PACKAGE_MIN_VERSIONS["maxquant"] == ">=2.6.0"
+
+
+def test_msfragger_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["msfragger"]
+    assert node_info["display_name"] == "MSFragger"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Ultra-fast peptide identification")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["pepxml"]
+    assert node_info["required_executables"] == ["msfragger"]
+    assert node_info["required_conda_packages"] == ["msfragger"]
+    assert node_info["experimental"] is True
+    assert "fragpipe" in node_info["search_aliases"]
+    assert "peptide identification" in node_info["search_aliases"]
+    assert "database search" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"raw_files", "fasta_db", "threads"}
+    assert set(inputs["optional"]) == {
+        "open_search",
+        "prec_tol_low",
+        "prec_tol_high",
+        "prec_tol_units",
+        "frag_tol",
+        "frag_tol_units",
+        "calibrate_mass",
+    }
+
+
+def test_msfragger_renders_command_and_closed_search_params(tmp_path: Path) -> None:
+    node_class = _node_class("msfragger")
+    output_dir = tmp_path / "msfragger"
+
+    cmd = node_class.render_command({
+        "raw_files": ["sample1.mzML", "sample2.raw"],
+        "fasta_db": "target_decoy.fa",
+        "threads": 8,
+        "open_search": False,
+        "prec_tol_low": 10,
+        "prec_tol_high": 25,
+        "prec_tol_units": 1,
+        "frag_tol": 0.02,
+        "frag_tol_units": 0,
+        "calibrate_mass": "iterative",
+        "output": str(output_dir),
+    })
+
+    params_file = output_dir / "fragger.params"
+    assert cmd == ["msfragger", str(params_file), "sample1.mzML", "sample2.raw"]
+    assert params_file.read_text() == (
+        "database_name = target_decoy.fa\n"
+        "num_threads = 8\n"
+        "precursor_mass_lower = -10\n"
+        "precursor_mass_upper = 25\n"
+        "precursor_mass_units = 1\n"
+        "fragment_mass_tolerance = 0.02\n"
+        "fragment_mass_units = 0\n"
+        "calibrate_mass = iterative\n"
+        "variable_mod_01 = 15.99490 M\n"
+        "variable_mod_02 = 42.01060 [^\n"
+        "output_format = pepxml\n"
+    )
+
+
+def test_msfragger_open_search_omits_default_variable_mods(tmp_path: Path) -> None:
+    node_class = _node_class("msfragger")
+    output_dir = tmp_path / "msfragger"
+
+    cmd = node_class.render_command({
+        "raw_files": "sample.mzML",
+        "fasta_db": "target_decoy.fa",
+        "threads": 4,
+        "open_search": True,
+        "output": str(output_dir),
+    })
+
+    params_text = (output_dir / "fragger.params").read_text()
+    assert cmd == ["msfragger", str(output_dir / "fragger.params"), "sample.mzML"]
+    assert "variable_mod_01" not in params_text
+    assert "variable_mod_02" not in params_text
+    assert "precursor_mass_lower = -20\n" in params_text
+    assert "precursor_mass_upper = 20\n" in params_text
+    assert "calibrate_mass = none\n" in params_text
+
+
+def test_msfragger_plans_pepxml_output() -> None:
+    node_class = _node_class("msfragger")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/msfragger/pepxml.pepXML"]
+
+
+def test_msfragger_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["msfragger"] == "msfragger"
+    assert PACKAGE_MIN_VERSIONS["msfragger"] == ">=4.0"
