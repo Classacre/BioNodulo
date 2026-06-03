@@ -499,6 +499,66 @@ class MantaNode(CommandNode):
         }
 
 
+class CNVkitCallNode(CommandNode):
+    """Convert CNVkit segment ratios to copy-number calls."""
+    NODE_ID = "cnvkit_call"
+    DISPLAY_NAME = "CNVkit Call"
+    CATEGORY = "variant"
+    DESCRIPTION = (
+        "Convert segmented CNV ratios to absolute copy number calls. "
+        "Supports purity, ploidy, and BAF integration."
+    )
+    SEARCH_ALIASES = ["cnvkit", "cnv call", "copy number", "segment", "call"]
+    RETURN_TYPES = ("VCF",)
+    RETURN_NAMES = ("cnv_calls",)
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    REQUIRED_CONDA_PACKAGES = ["cnvkit"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/"
+    VERSION = "0.9.12"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "cnvkit.py",
+            "call",
+            str(inputs.get("cns_file", "")),
+            "-o",
+            f"{inputs.get('output', '.')}/cnv_calls.vcf",
+        ]
+        if inputs.get("vcf"):
+            cmd.extend(["--vcf", str(inputs["vcf"])])
+        if inputs.get("sample_sex"):
+            cmd.extend(["--sample-sex", str(inputs["sample_sex"])])
+        if inputs.get("ploidy"):
+            cmd.extend(["--ploidy", str(inputs["ploidy"])])
+        if inputs.get("purity"):
+            cmd.extend(["--purity", str(inputs["purity"])])
+        if inputs.get("method"):
+            cmd.extend(["--method", str(inputs["method"])])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "cns_file": ("FILE", {"description": "CNVkit .cns segment file"}),
+            },
+            "optional": {
+                "vcf": ("VCF_GZ", {"description": "SNV VCF for BAF integration"}),
+                "sample_sex": ("STRING", {"default": "", "options": ["", "male", "female"]}),
+                "ploidy": ("INT", {"default": 2, "min": 1, "max": 8}),
+                "purity": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05, "label": "Tumor Purity"},
+                ),
+                "method": ("STRING", {"default": "threshold", "options": ["threshold", "clonal", "none"]}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class BcftoolsIndexNode(CommandNode):
     """Index a VCF/BCF file."""
     NODE_ID = "bcftools_index"
