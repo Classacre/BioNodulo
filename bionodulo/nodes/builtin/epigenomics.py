@@ -419,6 +419,106 @@ class DeepToolsPlotHeatmapNode(CommandNode):
         }
 
 
+class DeepToolsPlotProfileNode(CommandNode):
+    """Generate average profile plots from deepTools matrix output."""
+    NODE_ID = "deeptools_plot_profile"
+    DISPLAY_NAME = "deepTools Plot Profile"
+    CATEGORY = "epigenomics"
+    DESCRIPTION = "Plot average signal profiles from deepTools computeMatrix output."
+    SEARCH_ALIASES = ["deeptools", "plotprofile", "profile plot", "average profile", "signal profile"]
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("profile",)
+    REQUIRED_EXECUTABLES = ["plotProfile"]
+    REQUIRED_CONDA_PACKAGES = ["deeptools"]
+    DOCUMENTATION_URL = "https://deeptools.readthedocs.io/"
+    VERSION = "3.5.6"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "plotProfile",
+            "-m",
+            str(inputs.get("matrix", "")),
+            "--outFileName",
+            f"{out_dir}/profile.png",
+        ]
+        plot_title = inputs.get("plot_title")
+        if plot_title:
+            cmd.extend(["--plotTitle", str(plot_title)])
+        plot_type = inputs.get("plot_type", "lines")
+        if plot_type:
+            cmd.extend(["--plotType", str(plot_type)])
+        if inputs.get("plot_height"):
+            cmd.extend(["--plotHeight", str(inputs["plot_height"])])
+        if inputs.get("plot_width"):
+            cmd.extend(["--plotWidth", str(inputs["plot_width"])])
+        if inputs.get("per_group"):
+            cmd.append("--perGroup")
+        for input_name, flag in (
+            ("colors", "--colors"),
+            ("samples_label", "--samplesLabel"),
+            ("regions_label", "--regionsLabel"),
+            ("y_axis_label", "--yAxisLabel"),
+            ("start_label", "--startLabel"),
+            ("end_label", "--endLabel"),
+        ):
+            value = inputs.get(input_name)
+            if value:
+                cmd.extend([flag, str(value)])
+        legend_location = inputs.get("legend_location", "best")
+        if legend_location:
+            cmd.extend(["--legendLocation", str(legend_location)])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "profile.png"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "matrix": ("FILE", {"description": "Matrix from computeMatrix"}),
+            },
+            "optional": {
+                "plot_title": ("STRING", {"default": ""}),
+                "plot_type": (
+                    "STRING",
+                    {"default": "lines", "options": ["lines", "fill", "se", "std", "overlapped_lines", "heatmap"]},
+                ),
+                "plot_height": ("FLOAT", {"default": 0.0, "min": 0.0}),
+                "plot_width": ("FLOAT", {"default": 0.0, "min": 0.0}),
+                "per_group": ("BOOLEAN", {"default": False}),
+                "colors": ("STRING", {"default": "", "description": "Space-separated matplotlib color names"}),
+                "samples_label": ("STRING", {"default": ""}),
+                "regions_label": ("STRING", {"default": ""}),
+                "y_axis_label": ("STRING", {"default": ""}),
+                "start_label": ("STRING", {"default": ""}),
+                "end_label": ("STRING", {"default": ""}),
+                "legend_location": (
+                    "STRING",
+                    {
+                        "default": "best",
+                        "options": [
+                            "best",
+                            "upper-right",
+                            "upper-left",
+                            "lower-left",
+                            "lower-right",
+                            "none",
+                        ],
+                    },
+                ),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class HICProNode(CommandNode):
     """Run the HiC-Pro pipeline for Hi-C read processing."""
     NODE_ID = "hic_pro"

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -591,6 +593,143 @@ def test_deeptools_plot_heatmap_plans_image_outputs() -> None:
     assert [str(path) for path in outputs] == [
         "/tmp/run/deeptools_plot_heatmap/heatmap.png",
         "/tmp/run/deeptools_plot_heatmap/profile_plot.png",
+    ]
+
+
+def test_deeptools_plot_profile_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["deeptools_plot_profile"]
+    assert node_info["display_name"] == "deepTools Plot Profile"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Plot average signal profiles")
+    assert node_info["output"] == ["IMAGE"]
+    assert node_info["output_name"] == ["profile"]
+    assert node_info["required_executables"] == ["plotProfile"]
+    assert node_info["required_conda_packages"] == ["deeptools"]
+    assert "plotprofile" in node_info["search_aliases"]
+    assert "average profile" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"matrix"}
+    assert set(inputs["optional"]) == {
+        "plot_title",
+        "plot_type",
+        "plot_height",
+        "plot_width",
+        "per_group",
+        "colors",
+        "samples_label",
+        "regions_label",
+        "y_axis_label",
+        "start_label",
+        "end_label",
+        "legend_location",
+    }
+
+
+def test_deeptools_plot_profile_renders_full_command() -> None:
+    node_class = _node_class("deeptools_plot_profile")
+
+    cmd = node_class.render_command({
+        "matrix": "matrix.gz",
+        "plot_title": "ATAC signal",
+        "plot_type": "se",
+        "plot_height": 6.5,
+        "plot_width": 9.0,
+        "per_group": True,
+        "colors": "red blue green",
+        "samples_label": "Ctrl Treated",
+        "regions_label": "Promoters Enhancers",
+        "y_axis_label": "RPGC normalized signal",
+        "start_label": "-3 kb",
+        "end_label": "+3 kb",
+        "legend_location": "upper-right",
+        "output": "/tmp/run/deeptools_plot_profile",
+    })
+
+    assert cmd == [
+        "plotProfile",
+        "-m",
+        "matrix.gz",
+        "--outFileName",
+        "/tmp/run/deeptools_plot_profile/profile.png",
+        "--plotTitle",
+        "ATAC signal",
+        "--plotType",
+        "se",
+        "--plotHeight",
+        "6.5",
+        "--plotWidth",
+        "9.0",
+        "--perGroup",
+        "--colors",
+        "red blue green",
+        "--samplesLabel",
+        "Ctrl Treated",
+        "--regionsLabel",
+        "Promoters Enhancers",
+        "--yAxisLabel",
+        "RPGC normalized signal",
+        "--startLabel",
+        "-3 kb",
+        "--endLabel",
+        "+3 kb",
+        "--legendLocation",
+        "upper-right",
+    ]
+
+
+def test_deeptools_plot_profile_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("deeptools_plot_profile")
+
+    cmd = node_class.render_command({
+        "matrix": "matrix.gz",
+        "plot_title": "",
+        "plot_type": "lines",
+        "plot_height": 0,
+        "plot_width": 0,
+        "per_group": False,
+        "colors": "",
+        "samples_label": "",
+        "regions_label": "",
+        "y_axis_label": "",
+        "start_label": "",
+        "end_label": "",
+        "legend_location": "best",
+        "output": "/tmp/run/deeptools_plot_profile",
+    })
+
+    assert cmd == [
+        "plotProfile",
+        "-m",
+        "matrix.gz",
+        "--outFileName",
+        "/tmp/run/deeptools_plot_profile/profile.png",
+        "--plotType",
+        "lines",
+        "--legendLocation",
+        "best",
+    ]
+
+
+def test_deeptools_plot_profile_plans_image_output() -> None:
+    node_class = _node_class("deeptools_plot_profile")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/deeptools_plot_profile/profile.png"]
+
+
+def test_deeptools_plot_profile_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["plotProfile"] == "deeptools"
+    assert workflow_to_packages({"nodes": [{"id": "profile", "type": "deeptools_plot_profile"}]}, registry) == [
+        "deeptools"
     ]
 
 
