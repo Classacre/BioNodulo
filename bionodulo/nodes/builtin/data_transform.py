@@ -135,6 +135,22 @@ def _write_records(path: Path, output_format: str, records: list[dict[str, Any]]
     _write_table(path, fieldnames, records, "," if output_format == "csv" else "	")
 
 
+def _fasta_header(value: Any) -> str:
+    header = re.sub(r"\s+", "_", str(value or "").strip())
+    header = re.sub(r"[^A-Za-z0-9_.|:-]", "_", header)
+    return header or "sequence"
+
+
+def _fasta_sequence(value: Any) -> str:
+    return re.sub(r"\s+", "", str(value or "")).upper()
+
+
+def _wrap_sequence(sequence: str, line_width: int) -> list[str]:
+    if line_width <= 0:
+        return [sequence]
+    return [sequence[index:index + line_width] for index in range(0, len(sequence), line_width)]
+
+
 class FilterRowsNode(BaseNode):
     """Filter CSV/TSV rows by a column condition."""
 
@@ -554,6 +570,61 @@ class JoinTablesNode(BaseNode):
             out_field = f"{field}{right_suffix}" if field in overlapping else field
             row[out_field] = right.get(field, "") if right else ""
         return row
+
+
+class TSVToFastaNode(BaseNode):
+    """Convert a delimited sequence table into FASTA records."""
+
+    NODE_ID = "tsv_to_fasta"
+    DISPLAY_NAME = "TSV to FASTA"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Convert a TSV or CSV table with sequence data to FASTA format."
+    SEARCH_ALIASES = ["tsv", "csv", "fasta", "sequence", "convert", "table"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("fasta",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "table": ("FILE", {"description": "TSV or CSV table with a header row"}),
+                "id_column": ("STRING", {"description": "Column used for FASTA record IDs"}),
+                "seq_column": ("STRING", {"description": "Column containing nucleotide or protein sequences"}),
+            },
+            "optional": {
+                "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
+                "line_width": (
+                    "INT",
+                    {"default": 80, "min": 0, "description": "FASTA line wrap width; 0 disables wrapping"},
+                ),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        context = kwargs.pop("context", None)
+        table = kwargs["table"]
+        delim = _delimiter(str(kwargs.get("delimiter", "auto")), table)
+        fieldnames, rows = _read_table(table, delim)
+        id_column = str(kwargs["id_column"])
+        seq_column = str(kwargs["seq_column"])
+        missing = [column for column in (id_column, seq_column) if column not in fieldnames]
+        if missing:
+            raise ValueError(f"Column(s) not found: {', '.join(missing)}")
+
+        line_width = int(kwargs.get("line_width", 80))
+        lines: list[str] = []
+        for index, row in enumerate(rows, start=1):
+            sequence = _fasta_sequence(row.get(seq_column, ""))
+            if not sequence:
+                raise ValueError(f"Row {index} has an empty sequence")
+            lines.append(f">{_fasta_header(row.get(id_column, ''))}")
+            lines.extend(_wrap_sequence(sequence, line_width))
+
+        out_path = _node_output_dir(self, context) / f"{Path(str(table)).stem}.fasta"
+        out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return (str(out_path),)
 
 
 class AggregateByGroupNode(BaseNode):

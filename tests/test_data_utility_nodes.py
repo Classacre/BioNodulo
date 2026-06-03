@@ -319,6 +319,83 @@ def test_transpose_table_is_registered_for_frontend_discovery() -> None:
     assert info["transpose_table"]["output"] == ["CSV"]
 
 
+def test_tsv_to_fasta_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["tsv_to_fasta"]
+    assert node_info["display_name"] == "TSV to FASTA"
+    assert node_info["category"] == "data_transform"
+    assert node_info["output_name"] == ["fasta"]
+    assert node_info["output"] == ["FASTA"]
+    assert set(node_info["input"]["required"]) == {"table", "id_column", "seq_column"}
+
+
+@pytest.mark.asyncio
+async def test_tsv_to_fasta_converts_table_rows_to_records(tmp_path: Path) -> None:
+    table = tmp_path / "sequences.tsv"
+    _write_table(table, [
+        {"sample": "S1", "sequence": "ACGTACGT", "condition": "case"},
+        {"sample": "S2", "sequence": "TTTTCCCC", "condition": "control"},
+    ])
+
+    result = await _node_class("tsv_to_fasta")().run(
+        table=str(table),
+        id_column="sample",
+        seq_column="sequence",
+        delimiter="tsv",
+        context=_context(tmp_path, "tsv-fasta"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "sequences.fasta"
+    assert output_path.read_text(encoding="utf-8") == ">S1\nACGTACGT\n>S2\nTTTTCCCC\n"
+
+
+@pytest.mark.asyncio
+async def test_tsv_to_fasta_auto_detects_csv_and_wraps_sequences(tmp_path: Path) -> None:
+    table = tmp_path / "amplicons.csv"
+    _write_table(table, [
+        {"id": "amp 1", "seq": "ACGTACGTAC"},
+    ], delimiter=",")
+
+    result = await _node_class("tsv_to_fasta")().run(
+        table=str(table),
+        id_column="id",
+        seq_column="seq",
+        line_width=4,
+        context=_context(tmp_path, "csv-fasta"),
+    )
+
+    assert Path(result[0]).read_text(encoding="utf-8") == ">amp_1\nACGT\nACGT\nAC\n"
+
+
+@pytest.mark.asyncio
+async def test_tsv_to_fasta_rejects_missing_columns_and_empty_sequences(tmp_path: Path) -> None:
+    table = tmp_path / "sequences.tsv"
+    _write_table(table, [
+        {"sample": "S1", "sequence": ""},
+    ])
+    node = _node_class("tsv_to_fasta")()
+
+    with pytest.raises(ValueError, match="Column\\(s\\) not found: missing"):
+        await node.run(
+            table=str(table),
+            id_column="sample",
+            seq_column="missing",
+            context=_context(tmp_path, "missing-column"),
+        )
+
+    with pytest.raises(ValueError, match="Row 1 has an empty sequence"):
+        await node.run(
+            table=str(table),
+            id_column="sample",
+            seq_column="sequence",
+            context=_context(tmp_path, "empty-sequence"),
+        )
+
+
 @pytest.mark.asyncio
 async def test_transpose_table_transposes_tsv_using_first_column_ids(tmp_path: Path) -> None:
     table = tmp_path / "counts.tsv"
