@@ -499,6 +499,82 @@ class MantaNode(CommandNode):
         }
 
 
+class CNVkitBatchNode(CommandNode):
+    """Run the CNVkit batch pipeline for copy-number analysis."""
+    NODE_ID = "cnvkit_batch"
+    DISPLAY_NAME = "CNVkit Batch Pipeline"
+    CATEGORY = "variant"
+    DESCRIPTION = (
+        "Complete CNVkit pipeline: coverage -> reference -> fix -> segment -> call. "
+        "For targeted/WGS tumor/normal CNV detection."
+    )
+    SEARCH_ALIASES = ["cnvkit", "cnv", "copy number", "batch", "cbs"]
+    RETURN_TYPES = ("DIRECTORY", "DIRECTORY")
+    RETURN_NAMES = ("cnr_files", "cns_files")
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    REQUIRED_CONDA_PACKAGES = ["cnvkit"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/"
+    VERSION = "0.9.12"
+    SHELL = True
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [
+            node_out / "cnr_files",
+            node_out / "cns_files",
+        ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "cnvkit.py",
+            "batch",
+            str(inputs.get("tumor_bams", "")),
+            "--fasta",
+            str(inputs.get("reference", "")),
+            "--output-reference",
+            f"{out_dir}/reference.cnn",
+            "--output-dir",
+            str(out_dir),
+            "--processes",
+            str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("normal_bams"):
+            cmd.extend(["--normal", str(inputs["normal_bams"])])
+        if inputs.get("targets"):
+            cmd.extend(["--targets", str(inputs["targets"])])
+        if inputs.get("method"):
+            cmd.extend(["--method", str(inputs["method"])])
+        if inputs.get("diagram"):
+            cmd.append("--diagram")
+        if inputs.get("scatter"):
+            cmd.append("--scatter")
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "tumor_bams": ("BAM", {"description": "Tumor BAM file(s)"}),
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "normal_bams": ("BAM", {"description": "Normal BAM for matched analysis"}),
+                "targets": ("BED", {"description": "Target regions BED (exome capture baits)"}),
+                "method": ("STRING", {"default": "hybrid", "options": ["hybrid", "amplicon", "wgs"]}),
+                "diagram": ("BOOLEAN", {"default": False, "description": "Generate diagram plots"}),
+                "scatter": ("BOOLEAN", {"default": False, "description": "Generate scatter plots"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class CNVkitCallNode(CommandNode):
     """Convert CNVkit segment ratios to copy-number calls."""
     NODE_ID = "cnvkit_call"
