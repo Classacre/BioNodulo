@@ -263,6 +263,132 @@ def test_vg_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["vg"] == ">=1.62.0"
 
 
+def test_vg_map_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vg_map"]
+    assert node_info["display_name"] == "vg Map/Giraffe"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Map reads to a variation graph")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["gam_alignment"]
+    assert node_info["required_executables"] == ["vg"]
+    assert node_info["required_conda_packages"] == ["vg"]
+    assert "giraffe" in node_info["search_aliases"]
+    assert "graph alignment" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reads", "mapper", "threads"}
+    assert set(inputs["optional"]) == {
+        "reads2",
+        "gbz_index",
+        "minimizer_index",
+        "distance_index",
+        "xg_index",
+        "gcsa_index",
+        "min_identity",
+    }
+    assert inputs["required"]["reads"][0] == "FASTQ"
+    assert inputs["required"]["mapper"][0] == "STRING"
+    assert _node_class("vg_map").INPUT_TYPES()["optional"]["gbz_index"][0] == "FILE"
+
+
+def test_vg_map_renders_giraffe_command_with_paired_reads() -> None:
+    node_class = _node_class("vg_map")
+
+    cmd = node_class.render_command({
+        "reads": "reads_R1.fastq.gz",
+        "reads2": "reads_R2.fastq.gz",
+        "mapper": "giraffe",
+        "gbz_index": "graph.gbz",
+        "minimizer_index": "graph.min",
+        "distance_index": "graph.dist",
+        "threads": 12,
+        "output": "/tmp/run/vg_map",
+    })
+
+    assert cmd == [
+        "vg",
+        "giraffe",
+        "-Z",
+        "graph.gbz",
+        "-m",
+        "graph.min",
+        "-d",
+        "graph.dist",
+        "-f",
+        "reads_R1.fastq.gz",
+        "-p",
+        "-t",
+        "12",
+        "-f",
+        "reads_R2.fastq.gz",
+        ">",
+        "/tmp/run/vg_map/gam_alignment.gam",
+    ]
+
+
+def test_vg_map_renders_classic_map_command_with_min_identity() -> None:
+    node_class = _node_class("vg_map")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "reads2": "",
+        "mapper": "map",
+        "xg_index": "graph.xg",
+        "gcsa_index": "graph.gcsa",
+        "min_identity": 0.82,
+        "threads": 8,
+        "output": "/tmp/run/vg_map",
+    })
+
+    assert cmd == [
+        "vg",
+        "map",
+        "-x",
+        "graph.xg",
+        "-g",
+        "graph.gcsa",
+        "-f",
+        "reads.fastq.gz",
+        "-t",
+        "8",
+        "-p",
+        "--min-ident",
+        "0.82",
+        ">",
+        "/tmp/run/vg_map/gam_alignment.gam",
+    ]
+
+
+def test_vg_map_omits_empty_optional_flags() -> None:
+    node_class = _node_class("vg_map")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "reads2": "",
+        "mapper": "map",
+        "xg_index": "graph.xg",
+        "gcsa_index": "graph.gcsa",
+        "min_identity": 0,
+        "threads": 4,
+        "output": "/tmp/run/vg_map",
+    })
+
+    assert "--min-ident" not in cmd
+    assert cmd.count("-f") == 1
+
+
+def test_vg_map_plans_outputs() -> None:
+    node_class = _node_class("vg_map")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/vg_map/gam_alignment.gam"]
+
+
 def test_vg_call_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()

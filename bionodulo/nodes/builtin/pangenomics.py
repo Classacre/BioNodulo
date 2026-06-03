@@ -70,6 +70,97 @@ class VGConstructNode(CommandNode):
         }
 
 
+class VGMapNode(CommandNode):
+    """Map reads to variation graphs with vg map or giraffe."""
+    NODE_ID = "vg_map"
+    DISPLAY_NAME = "vg Map/Giraffe"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Map reads to a variation graph using vg map or vg giraffe. Produces GAM alignments."
+    SEARCH_ALIASES = ["vg", "map", "giraffe", "pangenome align", "graph alignment", "gam"]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("gam_alignment",)
+    REQUIRED_EXECUTABLES = ["vg"]
+    REQUIRED_CONDA_PACKAGES = ["vg"]
+    DOCUMENTATION_URL = "https://github.com/vgteam/vg"
+    VERSION = "1.62.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        mapper = inputs.get("mapper", "giraffe")
+        reads = str(inputs.get("reads", ""))
+        reads2 = str(inputs.get("reads2", ""))
+        threads = str(inputs.get("threads", 8))
+
+        if mapper == "giraffe":
+            cmd = [
+                "vg",
+                "giraffe",
+                "-Z",
+                str(inputs.get("gbz_index", "")),
+                "-m",
+                str(inputs.get("minimizer_index", "")),
+                "-d",
+                str(inputs.get("distance_index", "")),
+                "-f",
+                reads,
+                "-p",
+                "-t",
+                threads,
+            ]
+            if reads2:
+                cmd.extend(["-f", reads2])
+        else:
+            cmd = [
+                "vg",
+                "map",
+                "-x",
+                str(inputs.get("xg_index", "")),
+                "-g",
+                str(inputs.get("gcsa_index", "")),
+                "-f",
+                reads,
+                "-t",
+                threads,
+                "-p",
+            ]
+            if reads2:
+                cmd.extend(["-f", reads2])
+            if inputs.get("min_identity"):
+                cmd.extend(["--min-ident", str(inputs["min_identity"])])
+        cmd.extend([">", str(out_dir / "gam_alignment.gam")])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "gam_alignment.gam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("FASTQ", {"description": "Forward/single-end FASTQ"}),
+                "mapper": ("STRING", {"default": "giraffe", "options": ["giraffe", "map"]}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "reads2": ("FASTQ", {"description": "Reverse FASTQ (paired)"}),
+                "gbz_index": ("FILE", {"description": "Giraffe GBZ index"}),
+                "minimizer_index": ("FILE", {"description": "Minimizer index"}),
+                "distance_index": ("FILE", {"description": "Distance index"}),
+                "xg_index": ("FILE", {"description": "XG index (for vg map)"}),
+                "gcsa_index": ("FILE", {"description": "GCSA index (for vg map)"}),
+                "min_identity": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class VGCallNode(CommandNode):
     """Call variants from graph alignments with vg."""
     NODE_ID = "vg_call"
