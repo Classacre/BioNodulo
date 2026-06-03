@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import csv
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -10,6 +17,17 @@ def _node_class(node_id: str) -> type:
     node_class = registry.get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+def _context(tmp_path: Path, name: str) -> SimpleNamespace:
+    node_dir = tmp_path / name
+    node_dir.mkdir()
+    return SimpleNamespace(node_dir=node_dir)
+
+
+def _read_table(path: str | Path, delimiter: str = "	") -> list[dict[str, str]]:
+    with Path(path).open(newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh, delimiter=delimiter))
 
 
 def test_snpeff_is_registered_for_frontend_discovery() -> None:
@@ -527,6 +545,89 @@ def test_bedtools_closest_plans_outputs() -> None:
 def test_bedtools_closest_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["bedtools"] == "bedtools"
     assert PACKAGE_MIN_VERSIONS["bedtools"] == ">=2.31.0"
+
+
+def test_intersect_genes_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["intersect_genes"]
+    assert node_info["display_name"] == "Intersect Genes"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Intersect variant or gene lists")
+    assert node_info["output"] == ["TSV", "JSON"]
+    assert node_info["output_name"] == ["overlap", "enrichment"]
+    assert node_info["requires_external_tools"] is False
+    assert "gene set" in node_info["search_aliases"]
+    assert "pathway overlap" in node_info["search_aliases"]
+    assert "enrichment" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_genes", "database"}
+    assert set(inputs["optional"]) == {"input_column", "database_format", "case_sensitive"}
+
+
+@pytest.mark.asyncio
+async def test_intersect_genes_writes_overlap_table_and_enrichment_json(tmp_path: Path) -> None:
+    genes = tmp_path / "query_genes.txt"
+    genes.write_text("BRCA1\nTP53\nEGFR\nBRCA1\n", encoding="utf-8")
+    database = tmp_path / "gene_sets.json"
+    database.write_text(
+        json.dumps({
+            "DNA Repair": ["BRCA1", "BRCA2", "RAD51"],
+            "Cancer Drivers": ["TP53", "EGFR", "KRAS"],
+            "Metabolism": ["G6PC", "ALDOB"],
+        }),
+        encoding="utf-8",
+    )
+
+    overlap_path, enrichment_path = await _node_class("intersect_genes")().run(
+        input_genes=str(genes),
+        database=str(database),
+        database_format="json",
+        case_sensitive=False,
+        context=_context(tmp_path, "intersect"),
+    )
+
+    assert Path(overlap_path).name == "overlap.tsv"
+    assert _read_table(overlap_path) == [
+        {"gene": "BRCA1", "gene_set": "DNA Repair"},
+        {"gene": "TP53", "gene_set": "Cancer Drivers"},
+        {"gene": "EGFR", "gene_set": "Cancer Drivers"},
+    ]
+
+    enrichment = json.loads(Path(enrichment_path).read_text(encoding="utf-8"))
+    assert enrichment["query_gene_count"] == 3
+    assert enrichment["overlap_gene_count"] == 3
+    assert enrichment["sets"] == [
+        {"gene_set": "Cancer Drivers", "overlap_count": 2, "set_size": 3, "genes": ["TP53", "EGFR"]},
+        {"gene_set": "DNA Repair", "overlap_count": 1, "set_size": 3, "genes": ["BRCA1"]},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_intersect_genes_reads_table_gene_sets(tmp_path: Path) -> None:
+    genes = tmp_path / "variants.tsv"
+    genes.write_text("gene\timpact\nbrca1\thigh\ntp53\tmoderate\n", encoding="utf-8")
+    database = tmp_path / "pathways.tsv"
+    database.write_text("gene_set\tgene\nDNA Repair\tBRCA1\nCancer Drivers\tTP53\n", encoding="utf-8")
+
+    overlap_path, enrichment_path = await _node_class("intersect_genes")().run(
+        input_genes=str(genes),
+        database=str(database),
+        input_column="gene",
+        database_format="tsv",
+        case_sensitive=False,
+        context=_context(tmp_path, "intersect_table"),
+    )
+
+    assert _read_table(overlap_path) == [
+        {"gene": "brca1", "gene_set": "DNA Repair"},
+        {"gene": "tp53", "gene_set": "Cancer Drivers"},
+    ]
+    enrichment = json.loads(Path(enrichment_path).read_text(encoding="utf-8"))
+    assert [item["gene_set"] for item in enrichment["sets"]] == ["Cancer Drivers", "DNA Repair"]
 
 
 def test_interproscan_is_registered_for_frontend_discovery() -> None:
