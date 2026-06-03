@@ -148,6 +148,52 @@ class StringOperationsNode(BaseNode):
         raise ValueError(f"Unsupported string operation: {operation}")
 
 
+class RegexExtractNode(BaseNode):
+    """Extract regex matches from text."""
+
+    NODE_ID = "regex_extract"
+    DISPLAY_NAME = "Regex Extract"
+    CATEGORY = "utils"
+    DESCRIPTION = "Extract text using regular expressions with capture group selection"
+    SEARCH_ALIASES = ["regex", "extract", "capture", "pattern", "match", "text parse"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("matches_json", "count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "text": ("STRING", {"default": "", "multiline": True, "description": "Text to search"}),
+                "pattern": ("STRING", {"default": "", "description": "Regular expression pattern"}),
+            },
+            "optional": {
+                "group": ("INT", {"default": 0, "min": 0, "description": "Capture group to return; 0 returns full match"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        text = str(kwargs.get("text", ""))
+        pattern = str(kwargs.get("pattern", "") or "")
+        if not pattern:
+            raise ValueError("pattern is required")
+        group = int(kwargs.get("group", 0))
+
+        try:
+            compiled = re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid regex pattern: {exc}") from exc
+
+        matches: list[str] = []
+        for match in compiled.finditer(text):
+            if group > len(match.groups()):
+                raise ValueError(f"group {group} is out of range for {len(match.groups())} capture groups")
+            matches.append(match.group(group))
+
+        return (_to_json(matches), len(matches))
+
+
 class ListOperationsNode(BaseNode):
     """Multi-mode list manipulation node."""
 

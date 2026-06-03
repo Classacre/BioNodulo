@@ -22,6 +22,7 @@ def test_utility_collection_nodes_are_registered_for_frontend_discovery() -> Non
 
     expected = {
         "string_operations": ("String Operations", "utils", ["STRING", "INT", "BOOLEAN"], ["result", "length", "matched"]),
+        "regex_extract": ("Regex Extract", "utils", ["STRING", "INT"], ["matches_json", "count"]),
         "list_operations": ("List Operations", "utils", ["STRING", "INT", "BOOLEAN"], ["result", "length", "contains"]),
         "select_from_list": ("Select From List", "utils", ["STRING", "INT"], ["item", "index"]),
         "dictionary": ("Dictionary", "utils", ["STRING", "STRING", "INT"], ["result_json", "value", "count"]),
@@ -67,6 +68,38 @@ async def test_string_operations_reject_bad_inputs_clearly() -> None:
 
     with pytest.raises(ValueError, match="split index 5 is out of range"):
         await node.run(operation="split", string="a,b", delimiter=",", index=5)
+
+
+@pytest.mark.asyncio
+async def test_regex_extract_returns_capture_group_matches_as_json() -> None:
+    node = _node_class("regex_extract")()
+
+    matches_json, count = await node.run(
+        text="sample=S1 depth=12\nsample=S2 depth=25",
+        pattern=r"sample=(S\d+)\s+depth=(\d+)",
+        group=1,
+    )
+
+    assert json.loads(matches_json) == ["S1", "S2"]
+    assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_regex_extract_supports_full_match_and_rejects_bad_inputs() -> None:
+    node = _node_class("regex_extract")()
+
+    matches_json, count = await node.run(text="chr1:10-20 chr2:30-40", pattern=r"chr\d+:\d+-\d+", group=0)
+    assert json.loads(matches_json) == ["chr1:10-20", "chr2:30-40"]
+    assert count == 2
+
+    with pytest.raises(ValueError, match="pattern is required"):
+        await node.run(text="abc", pattern="", group=0)
+
+    with pytest.raises(ValueError, match="group 3 is out of range"):
+        await node.run(text="abc-123", pattern=r"([a-z]+)-(\d+)", group=3)
+
+    with pytest.raises(ValueError, match="Invalid regex pattern"):
+        await node.run(text="abc", pattern="[", group=0)
 
 
 @pytest.mark.asyncio
