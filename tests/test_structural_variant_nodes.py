@@ -81,6 +81,68 @@ def test_sniffles2_plans_compressed_vcf_output() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/sniffles2/sv_vcf.vcf.gz"]
 
 
+def test_sv_stats_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["sv_stats"]
+    assert node_info["display_name"] == "SV Stats"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Compute structural variant statistics")
+    assert node_info["output"] == ["JSON", "IMAGE"]
+    assert node_info["output_name"] == ["stats_json", "stats_plot"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["pysam", "matplotlib"]
+    assert "sv stats" in node_info["search_aliases"]
+    assert "size distribution" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"sv_vcf", "reference"}
+    assert set(inputs["optional"]) == {"min_size", "max_size", "plot_format"}
+
+
+def test_sv_stats_renders_embedded_python_command() -> None:
+    node_class = _node_class("sv_stats")
+
+    cmd = node_class.render_command({
+        "sv_vcf": "calls.vcf.gz",
+        "reference": "GRCh38.fa",
+        "min_size": 50,
+        "max_size": 100000,
+        "plot_format": "png",
+        "output": "/tmp/run/sv_stats",
+    })
+
+    assert cmd[:3] == ["python", "-c", cmd[2]]
+    script = cmd[2]
+    assert "import pysam" in script
+    assert "matplotlib.use('Agg')" in script
+    assert "SVTYPE" in script
+    assert "SVLEN" in script
+    assert "json.dump(summary" in script
+    assert "fig.savefig(stats_plot)" in script
+    assert cmd[3:] == [
+        "calls.vcf.gz",
+        "GRCh38.fa",
+        "/tmp/run/sv_stats/stats_json.json",
+        "/tmp/run/sv_stats/stats_plot.png",
+        "50",
+        "100000",
+    ]
+
+
+def test_sv_stats_plans_json_and_image_outputs() -> None:
+    node_class = _node_class("sv_stats")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/sv_stats/stats_json.json",
+        "/tmp/run/sv_stats/stats_plot.png",
+    ]
+
+
 def test_survivor_merge_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
