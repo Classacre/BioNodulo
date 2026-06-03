@@ -83,6 +83,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "mono": "mono",
     "msfragger": "msfragger",
     "percolator": "percolator",
+    "FeatureFinderCentroided": "openms",
     "cellranger": "cellranger",
     "Rscript": "r-base",
 }
@@ -179,6 +180,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "maxquant": ">=2.6.0",
     "msfragger": ">=4.0",
     "percolator": ">=3.7",
+    "openms": ">=3.2",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",

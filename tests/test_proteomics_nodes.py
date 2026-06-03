@@ -307,3 +307,93 @@ def test_percolator_plans_outputs() -> None:
 def test_percolator_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["percolator"] == "percolator"
     assert PACKAGE_MIN_VERSIONS["percolator"] == ">=3.7"
+
+
+def test_openms_feature_finder_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["openms_feature_finder"]
+    assert node_info["display_name"] == "OpenMS FeatureFinder"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Detect peptide features")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["feature_xml"]
+    assert node_info["required_executables"] == ["FeatureFinderCentroided"]
+    assert node_info["required_conda_packages"] == ["openms"]
+    assert "openms" in node_info["search_aliases"]
+    assert "feature finder" in node_info["search_aliases"]
+    assert "lc-ms" in node_info["search_aliases"]
+    assert "peptide feature" in node_info["search_aliases"]
+    assert "topp" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"mzml_file"}
+    assert set(inputs["optional"]) == {"ini_file", "min_peak_width", "signal_to_noise", "threads"}
+
+
+def test_openms_feature_finder_renders_default_algorithm_command() -> None:
+    node_class = _node_class("openms_feature_finder")
+
+    cmd = node_class.render_command({
+        "mzml_file": "sample.centroided.mzML",
+        "min_peak_width": 0.3,
+        "signal_to_noise": 5.0,
+        "threads": 8,
+        "output": "/tmp/run/openms_feature_finder",
+    })
+
+    assert cmd == [
+        "FeatureFinderCentroided",
+        "-in",
+        "sample.centroided.mzML",
+        "-out",
+        "/tmp/run/openms_feature_finder/feature_xml.featureXML",
+        "-algorithm:min_peak_width",
+        "0.3",
+        "-algorithm:signal_to_noise",
+        "5.0",
+        "-threads",
+        "8",
+    ]
+
+
+def test_openms_feature_finder_uses_ini_file_instead_of_algorithm_flags() -> None:
+    node_class = _node_class("openms_feature_finder")
+
+    cmd = node_class.render_command({
+        "mzml_file": "sample.centroided.mzML",
+        "ini_file": "feature_finder.ini",
+        "min_peak_width": 0.3,
+        "signal_to_noise": 5.0,
+        "threads": 4,
+        "output": "/tmp/run/openms_feature_finder",
+    })
+
+    assert cmd == [
+        "FeatureFinderCentroided",
+        "-in",
+        "sample.centroided.mzML",
+        "-out",
+        "/tmp/run/openms_feature_finder/feature_xml.featureXML",
+        "-ini",
+        "feature_finder.ini",
+        "-threads",
+        "4",
+    ]
+
+
+def test_openms_feature_finder_plans_featurexml_output() -> None:
+    node_class = _node_class("openms_feature_finder")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/openms_feature_finder/feature_xml.featureXML",
+    ]
+
+
+def test_openms_feature_finder_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["FeatureFinderCentroided"] == "openms"
+    assert PACKAGE_MIN_VERSIONS["openms"] == ">=3.2"
