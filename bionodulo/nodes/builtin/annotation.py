@@ -493,6 +493,74 @@ class ANNOVARNode(CommandNode):
         }
 
 
+class BcftoolsAnnotateNode(CommandNode):
+    """Annotate VCF records from BED, VCF, or TSV annotation files."""
+    NODE_ID = "bcftools_annotate"
+    DISPLAY_NAME = "bcftools Annotate"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Annotate VCF with custom annotations from BED, VCF, or TSV files."
+    SEARCH_ALIASES = ["bcftools", "annotate", "vcf annotation", "custom annotation", "bed annotation"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("annotated_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    REQUIRED_CONDA_PACKAGES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html#annotate"
+    VERSION = "1.15"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        out_vcf = f"{out_dir}/annotated_vcf.vcf.gz"
+        cmd = [
+            "bcftools",
+            "annotate",
+            "-a",
+            str(inputs.get("annotations", "")),
+        ]
+        if inputs.get("columns"):
+            cmd.extend(["-c", str(inputs["columns"])])
+        if inputs.get("header_lines"):
+            cmd.extend(["-h", str(inputs["header_lines"])])
+        if inputs.get("threads"):
+            cmd.extend(["--threads", str(inputs["threads"])])
+        cmd.extend([
+            "-Oz",
+            "-o",
+            out_vcf,
+            str(inputs.get("vcf", "")),
+            "&&",
+            "bcftools",
+            "index",
+            "-t",
+            out_vcf,
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "annotated_vcf.vcf.gz"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input bgzipped VCF"}),
+                "annotations": ("FILE", {"description": "BED, VCF, or TSV annotations"}),
+            },
+            "optional": {
+                "columns": ("STRING", {"default": "", "description": "Annotation columns, e.g. CHROM,FROM,TO,GENE"}),
+                "header_lines": ("FILE", {"description": "Header lines to add to the output VCF"}),
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class InterProScanNode(CommandNode):
     """Scan protein sequences for domains and functional annotations."""
     NODE_ID = "interproscan"

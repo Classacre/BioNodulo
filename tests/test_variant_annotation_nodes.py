@@ -329,6 +329,110 @@ def test_annovar_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"
 
 
+def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["bcftools_annotate"]
+    assert node_info["display_name"] == "bcftools Annotate"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Annotate VCF with custom annotations")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["annotated_vcf"]
+    assert node_info["required_executables"] == ["bcftools"]
+    assert node_info["required_conda_packages"] == ["bcftools"]
+    assert "bcftools" in node_info["search_aliases"]
+    assert "annotate" in node_info["search_aliases"]
+    assert "custom annotation" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"vcf", "annotations"}
+    assert set(inputs["optional"]) == {"columns", "header_lines", "threads"}
+
+
+def test_bcftools_annotate_renders_custom_annotation_command() -> None:
+    node_class = _node_class("bcftools_annotate")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "annotations": "genes.bed.gz",
+        "columns": "CHROM,FROM,TO,GENE",
+        "header_lines": "genes.hdr",
+        "threads": 8,
+        "output": "/tmp/run/bcftools_annotate",
+    })
+
+    assert cmd == [
+        "bcftools",
+        "annotate",
+        "-a",
+        "genes.bed.gz",
+        "-c",
+        "CHROM,FROM,TO,GENE",
+        "-h",
+        "genes.hdr",
+        "--threads",
+        "8",
+        "-Oz",
+        "-o",
+        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+        "variants.vcf.gz",
+        "&&",
+        "bcftools",
+        "index",
+        "-t",
+        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+    ]
+
+
+def test_bcftools_annotate_omits_empty_optional_flags() -> None:
+    node_class = _node_class("bcftools_annotate")
+
+    cmd = node_class.render_command({
+        "vcf": "variants.vcf.gz",
+        "annotations": "annotations.tsv.gz",
+        "columns": "",
+        "header_lines": "",
+        "threads": 0,
+        "output": "/tmp/run/bcftools_annotate",
+    })
+
+    assert "-c" not in cmd
+    assert "-h" not in cmd
+    assert "--threads" not in cmd
+    assert cmd == [
+        "bcftools",
+        "annotate",
+        "-a",
+        "annotations.tsv.gz",
+        "-Oz",
+        "-o",
+        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+        "variants.vcf.gz",
+        "&&",
+        "bcftools",
+        "index",
+        "-t",
+        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+    ]
+
+
+def test_bcftools_annotate_plans_outputs() -> None:
+    node_class = _node_class("bcftools_annotate")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+    ]
+
+
+def test_bcftools_annotate_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["bcftools"] == "bcftools"
+    assert PACKAGE_MIN_VERSIONS["bcftools"] == ">=1.15"
+
+
 def test_interproscan_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
