@@ -77,6 +77,32 @@ def test_llm_nodes_are_registered_for_frontend_discovery() -> None:
     assert "pubmed" in info["ai_literature_search"]["search_aliases"]
     assert "literature" in info["ai_literature_search"]["search_aliases"]
 
+    assert info["ai_data_extraction"]["display_name"] == "AI Data Extraction"
+    assert info["ai_data_extraction"]["category"] == "ai"
+    assert info["ai_data_extraction"]["output"] == ["JSON", "CSV"]
+    assert info["ai_data_extraction"]["output_name"] == ["extracted_json", "extracted_csv"]
+    assert info["ai_data_extraction"]["required_conda_packages"] == ["litellm"]
+    assert info["ai_data_extraction"]["experimental"] is True
+    assert "entities" in info["ai_data_extraction"]["search_aliases"]
+    assert "biocuration" in info["ai_data_extraction"]["search_aliases"]
+
+    extraction_inputs = info["ai_data_extraction"]["input"]
+    assert set(extraction_inputs["required"]) == {"input_text", "extraction_schema"}
+    assert set(extraction_inputs["optional"]) == {
+        "custom_entities",
+        "input_file",
+        "output_format",
+        "include_context",
+        "normalize_ids",
+        "provider",
+        "model",
+        "api_key",
+        "api_base",
+        "temperature",
+        "max_tokens",
+        "timeout",
+    }
+
     literature_inputs = info["ai_literature_search"]["input"]
     assert set(literature_inputs["required"]) == {"research_question"}
     assert set(literature_inputs["optional"]) == {
@@ -786,3 +812,196 @@ async def test_ai_literature_search_handles_empty_results_without_synthesis(
     assert saved_payload == payload
     assert [call["endpoint"] for call in json_calls] == ["esearch.fcgi"]
     assert [call["json_mode"] for call in llm_calls] == [True]
+
+
+@pytest.mark.asyncio
+async def test_ai_data_extraction_writes_json_and_flattened_csv(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_data_extraction")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"config": config, "messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({
+                "genes": [
+                    {
+                        "gene_symbol": "BRCA1",
+                        "full_name": "BRCA1 DNA repair associated",
+                        "normalized_id": "HGNC:1100",
+                        "context": "BRCA1 c.68_69delAG is associated with hereditary breast cancer.",
+                    }
+                ],
+                "variants": [
+                    {
+                        "hgvs": "NM_007294.4:c.68_69delAG",
+                        "gene": "BRCA1",
+                        "significance": "pathogenic",
+                        "context": "BRCA1 c.68_69delAG is pathogenic.",
+                    }
+                ],
+                "diseases": [
+                    {
+                        "disease_name": "hereditary breast cancer",
+                        "mondo_id": "MONDO:0016419",
+                        "context": "hereditary breast cancer",
+                    }
+                ],
+            }),
+            model=config.model,
+            usage={"total_tokens": 333},
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    result = await node_class().run(
+        input_text="BRCA1 c.68_69delAG is associated with hereditary breast cancer.",
+        extraction_schema="genes_variants_diseases",
+        output_format="both",
+        include_context=True,
+        normalize_ids=True,
+        provider="mock",
+        model="extract-model",
+        api_key="unused",
+        temperature=0.1,
+        max_tokens=2048,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_data_extraction" / "extracted.json"
+    csv_path = tmp_path / "ai_data_extraction" / "extracted.csv"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    csv_text = csv_path.read_text(encoding="utf-8")
+    prompt = calls[0]["messages"][-1]["content"]
+
+    assert result == {"outputs": {"extracted_json": str(json_path), "extracted_csv": str(csv_path)}}
+    assert payload["extraction_schema"] == "genes_variants_diseases"
+    assert payload["source_text_length"] == 65
+    assert payload["entities"]["genes"][0]["gene_symbol"] == "BRCA1"
+    assert payload["usage"] == {"total_tokens": 333}
+    assert payload["model"] == "extract-model"
+    assert "entity_type,field,value,context" in csv_text
+    assert "genes,gene_symbol,BRCA1,BRCA1 c.68_69delAG is associated with hereditary breast cancer." in csv_text
+    assert "variants,hgvs,NM_007294.4:c.68_69delAG,BRCA1 c.68_69delAG is pathogenic." in csv_text
+    assert calls[0]["json_mode"] is True
+    assert calls[0]["config"].model == "extract-model"
+    assert "genes: list of objects" in prompt
+    assert "variants: list of objects" in prompt
+    assert "Include the surrounding text context" in prompt
+    assert "Add normalized database IDs" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ai_data_extraction_reads_input_file_and_supports_csv_only(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_data_extraction")
+    module = importlib.import_module(node_class.__module__)
+    input_file = tmp_path / "paper.txt"
+    input_file.write_text("Drug X inhibits EGFR in lung cancer.", encoding="utf-8")
+    calls: list[dict[str, Any]] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append({"messages": messages, "json_mode": json_mode})
+        return LLMResponse(
+            content=json.dumps({
+                "drugs": [{"drug_name": "Drug X", "drug_class": "small molecule"}],
+                "targets": [{"target_gene": "EGFR", "target_protein": "EGFR"}],
+                "relationships": [{"drug": "Drug X", "target": "EGFR", "relationship_type": "inhibits"}],
+            }),
+            model=config.model,
+        )
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    result = await node_class().run(
+        input_text="This text should be ignored.",
+        input_file=str(input_file),
+        extraction_schema="drugs_targets",
+        output_format="csv",
+        include_context=False,
+        normalize_ids=False,
+        provider="mock",
+        model="extract-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    csv_path = tmp_path / "ai_data_extraction" / "extracted.csv"
+    json_path = tmp_path / "ai_data_extraction" / "extracted.json"
+    prompt = calls[0]["messages"][-1]["content"]
+
+    assert result == {"outputs": {"extracted_json": "", "extracted_csv": str(csv_path)}}
+    assert json_path.exists()
+    assert "Drug X inhibits EGFR" in prompt
+    assert "This text should be ignored" not in prompt
+    assert "Include the surrounding text context" not in prompt
+    assert "Add normalized database IDs" not in prompt
+    assert "relationships,relationship_type,inhibits," in csv_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_ai_data_extraction_wraps_invalid_json_as_raw_extraction(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_data_extraction")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        return LLMResponse(content="BRCA1; TP53", model=config.model)
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    result = await node_class().run(
+        input_text="BRCA1 and TP53 were mentioned.",
+        extraction_schema="custom",
+        custom_entities="genes:Gene symbols mentioned in text\npathways:Pathway names",
+        output_format="json",
+        include_context=True,
+        normalize_ids=False,
+        provider="mock",
+        model="extract-model",
+        api_key="unused",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    json_path = tmp_path / "ai_data_extraction" / "extracted.json"
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"extracted_json": str(json_path), "extracted_csv": ""}}
+    assert payload["extraction_schema"] == "custom"
+    assert payload["entities"] == {"raw_extraction": "BRCA1; TP53"}
+    assert payload["custom_entities"] == ["genes", "pathways"]
+
+
+@pytest.mark.asyncio
+async def test_ai_data_extraction_resolves_api_key_from_context_secret(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ai_data_extraction")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[LLMConfig] = []
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        calls.append(config)
+        return LLMResponse(content='{"genes": []}', model=config.model)
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    await node_class().run(
+        input_text="BRCA1 was mentioned.",
+        extraction_schema="genes_variants_diseases",
+        output_format="json",
+        provider="mock",
+        model="extract-model",
+        api_key="",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda key: "secret-key" if key == "llm_api_key" else None),
+    )
+
+    assert calls[0].api_key == "secret-key"
