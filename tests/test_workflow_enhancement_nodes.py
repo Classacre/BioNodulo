@@ -56,6 +56,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "batch_submitter": ("Batch Submitter", ["job_ids", "status_summary", "batch_log"]),
         "workflow_trigger": ("Workflow Trigger", ["trigger_info", "triggered"]),
         "pause_resume": ("Pause / Resume", ["output", "approved", "pause_info"]),
+        "sub_workflow": ("Sub-Workflow", ["outputs", "run_metadata"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -1019,4 +1020,107 @@ async def test_pause_resume_rejects_invalid_default_action() -> None:
         await _node_class("pause_resume")().run(
             input="x",
             default_action="continue",
+        )
+
+
+@pytest.mark.asyncio
+async def test_sub_workflow_records_planned_execution_without_executor(tmp_path: Path) -> None:
+    workflow_path = tmp_path / "nested.json"
+    workflow_path.write_text(
+        json.dumps(
+            {
+                "name": "Nested QC",
+                "nodes": [{"id": "input", "type": "string", "params": {"value": "{{sample}}"}}],
+                "edges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    context = _context(tmp_path, "sub-node")
+    context.workspace_dir = tmp_path
+
+    outputs_json, metadata_file = await _node_class("sub_workflow")().run(
+        workflow_path="nested.json",
+        inputs='{"sample": "S1"}',
+        target_nodes="multiqc, report",
+        timeout_seconds=30,
+        inherit_secrets=True,
+        context=context,
+    )
+
+    outputs = json.loads(outputs_json)
+    metadata = json.loads(Path(metadata_file).read_text(encoding="utf-8"))
+    prepared = json.loads((context.node_dir / "sub_workflow_prepared.json").read_text(encoding="utf-8"))
+    assert outputs["status"] == "planned"
+    assert outputs["execution_supported"] is False
+    assert outputs["workflow_path"] == str(workflow_path)
+    assert outputs["inputs"] == {"sample": "S1"}
+    assert outputs["target_nodes"] == ["multiqc", "report"]
+    assert metadata["status"] == "planned"
+    assert metadata["executor_available"] is False
+    assert metadata["prepared_workflow_file"] == str(context.node_dir / "sub_workflow_prepared.json")
+    assert prepared["nodes"][0]["params"]["value"] == "S1"
+    assert context.events[0][0] == "sub_workflow_planned"
+    assert context.logs[0] == ("info", "Sub-workflow planned: Nested QC")
+
+
+@pytest.mark.asyncio
+async def test_sub_workflow_executes_when_context_executor_exists(tmp_path: Path) -> None:
+    workflow_path = tmp_path / "nested-exec.json"
+    workflow_path.write_text(
+        json.dumps({"name": "Nested Exec", "nodes": [{"id": "n1", "type": "noop"}], "edges": []}),
+        encoding="utf-8",
+    )
+    context = _context(tmp_path, "sub-exec")
+    context.workspace_dir = tmp_path
+    context.api_secrets = {"token": "secret"}
+    context.cancel_event = object()
+    calls: list[dict[str, Any]] = []
+
+    class FakeExecutor:
+        async def execute(self, **kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs)
+            return {
+                "status": "completed",
+                "outputs": {"report": "multiqc.html"},
+                "metadata": {"duration": 1.25},
+            }
+
+    context.executor = FakeExecutor()
+
+    outputs_json, metadata_file = await _node_class("sub_workflow")().run(
+        workflow_path=str(workflow_path),
+        inputs={"sample": "S2"},
+        target_nodes="report",
+        timeout_seconds=10,
+        inherit_secrets=True,
+        context=context,
+    )
+
+    outputs = json.loads(outputs_json)
+    metadata = json.loads(Path(metadata_file).read_text(encoding="utf-8"))
+    assert outputs == {"report": "multiqc.html"}
+    assert metadata["status"] == "completed"
+    assert metadata["execution_supported"] is True
+    assert metadata["executor_metadata"] == {"duration": 1.25}
+    assert calls[0]["run_id"] == "run-1_sub_sub-exec"
+    assert calls[0]["workflow"]["name"] == "Nested Exec"
+    assert calls[0]["options"]["target_nodes"] == ["report"]
+    assert calls[0]["options"]["api_secrets"] == {"token": "secret"}
+    assert calls[0]["cancel_event"] is context.cancel_event
+    assert context.events[0][0] == "sub_workflow_started"
+    assert context.events[1][0] == "sub_workflow_completed"
+
+
+@pytest.mark.asyncio
+async def test_sub_workflow_rejects_missing_or_invalid_inputs(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Sub-workflow not found"):
+        await _node_class("sub_workflow")().run(workflow_path=str(tmp_path / "missing.json"))
+
+    workflow_path = tmp_path / "nested.json"
+    workflow_path.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="inputs must be valid JSON"):
+        await _node_class("sub_workflow")().run(
+            workflow_path=str(workflow_path),
+            inputs="{not-json",
         )
