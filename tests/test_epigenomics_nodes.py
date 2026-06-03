@@ -92,3 +92,89 @@ def test_bismark_align_plans_bam_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/bismark_align/aligned_bam.bam"]
+
+
+def test_bismark_methylation_extractor_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["bismark_methylation_extractor"]
+    assert node_info["display_name"] == "Bismark Methylation Extractor"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Extract methylation calls")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["methylation_output"]
+    assert node_info["required_executables"] == ["bismark_methylation_extractor"]
+    assert node_info["required_conda_packages"] == ["bismark"]
+    assert "bedgraph" in node_info["search_aliases"]
+    assert "methylation" in node_info["search_aliases"]
+    assert "cytosine" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "multicore"}
+    assert set(inputs["optional"]) == {"cytosine_report", "genome_folder", "no_overlap", "merge_non_cpg"}
+
+
+def test_bismark_methylation_extractor_renders_default_command() -> None:
+    node_class = _node_class("bismark_methylation_extractor")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "multicore": 4,
+        "cytosine_report": True,
+        "genome_folder": "bismark_genome/",
+        "no_overlap": True,
+        "merge_non_cpg": False,
+        "output": "/tmp/run/bismark_methylation_extractor",
+    })
+
+    assert cmd == [
+        "bismark_methylation_extractor",
+        "--bedGraph",
+        "--comprehensive",
+        "--gzip",
+        "--multicore",
+        "4",
+        "--output",
+        "/tmp/run/bismark_methylation_extractor",
+        "--cytosine_report",
+        "--genome_folder",
+        "bismark_genome/",
+        "--no_overlap",
+        "sample.bam",
+    ]
+
+
+def test_bismark_methylation_extractor_omits_optional_flags() -> None:
+    node_class = _node_class("bismark_methylation_extractor")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "multicore": 1,
+        "cytosine_report": False,
+        "no_overlap": False,
+        "merge_non_cpg": True,
+        "output": "/tmp/run/bismark_methylation_extractor",
+    })
+
+    assert cmd == [
+        "bismark_methylation_extractor",
+        "--bedGraph",
+        "--comprehensive",
+        "--gzip",
+        "--multicore",
+        "1",
+        "--output",
+        "/tmp/run/bismark_methylation_extractor",
+        "--merge_non_CpG",
+        "sample.bam",
+    ]
+
+
+def test_bismark_methylation_extractor_plans_output_directory() -> None:
+    node_class = _node_class("bismark_methylation_extractor")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/bismark_methylation_extractor/methylation_output"]

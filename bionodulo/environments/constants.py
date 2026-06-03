@@ -73,6 +73,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "macs2": "macs2",
     "bedtools": "bedtools",
     "bismark": "bismark",
+    "bismark_methylation_extractor": "bismark",
     "bamCoverage": "deeptools",
     "cellranger": "cellranger",
     "Rscript": "r-base",
