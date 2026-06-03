@@ -603,3 +603,132 @@ def test_minigraph_plans_outputs() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/minigraph/output_gfa.gfa"]
+
+
+def test_pggb_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pggb"]
+    assert node_info["display_name"] == "PGGB Build"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Reference-free pangenome graph builder")
+    assert node_info["output"] == ["GFA", "FASTA"]
+    assert node_info["output_name"] == ["smooth_gfa", "consensus_fasta"]
+    assert node_info["required_executables"] == ["pggb"]
+    assert node_info["required_conda_packages"] == ["pggb"]
+    assert "all-vs-all" in node_info["search_aliases"]
+    assert "graph construction" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_fasta", "num_haplotypes", "threads"}
+    assert set(inputs["optional"]) == {
+        "map_pct_id",
+        "segment_length",
+        "min_match_length",
+        "graph_poas",
+        "consensus_spec",
+        "do_viz",
+        "do_layout",
+    }
+    assert inputs["required"]["input_fasta"][0] == "FASTA"
+
+
+def test_pggb_renders_build_command_with_optional_flags() -> None:
+    node_class = _node_class("pggb")
+
+    cmd = node_class.render_command({
+        "input_fasta": "haplotypes.fa",
+        "num_haplotypes": 6,
+        "threads": 32,
+        "map_pct_id": 95,
+        "segment_length": 10000,
+        "min_match_length": 29,
+        "graph_poas": 3,
+        "consensus_spec": "100,1000,10000",
+        "do_viz": True,
+        "do_layout": True,
+        "output": "/tmp/run/pggb",
+    })
+
+    assert cmd == [
+        "pggb",
+        "-i",
+        "haplotypes.fa",
+        "-o",
+        "/tmp/run/pggb",
+        "-n",
+        "6",
+        "-t",
+        "32",
+        "-p",
+        "95",
+        "-s",
+        "10000",
+        "-k",
+        "29",
+        "-G",
+        "3",
+        "--do-viz",
+        "--do-layout",
+        "-C",
+        "100,1000,10000",
+    ]
+
+
+def test_pggb_omits_empty_optional_flags() -> None:
+    node_class = _node_class("pggb")
+
+    cmd = node_class.render_command({
+        "input_fasta": "haplotypes.fa",
+        "num_haplotypes": 2,
+        "threads": 16,
+        "map_pct_id": 90,
+        "segment_length": 5000,
+        "min_match_length": 19,
+        "graph_poas": 2,
+        "consensus_spec": "",
+        "do_viz": False,
+        "do_layout": False,
+        "output": "/tmp/run/pggb",
+    })
+
+    assert "--do-viz" not in cmd
+    assert "--do-layout" not in cmd
+    assert "-C" not in cmd
+    assert cmd == [
+        "pggb",
+        "-i",
+        "haplotypes.fa",
+        "-o",
+        "/tmp/run/pggb",
+        "-n",
+        "2",
+        "-t",
+        "16",
+        "-p",
+        "90",
+        "-s",
+        "5000",
+        "-k",
+        "19",
+        "-G",
+        "2",
+    ]
+
+
+def test_pggb_plans_outputs() -> None:
+    node_class = _node_class("pggb")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/pggb/smooth_gfa.gfa",
+        "/tmp/run/pggb/consensus_fasta.fa",
+    ]
+
+
+def test_pggb_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["pggb"] == "pggb"
+    assert PACKAGE_MIN_VERSIONS["pggb"] == ">=0.7.3"

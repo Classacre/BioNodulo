@@ -304,6 +304,79 @@ class MinigraphNode(CommandNode):
         }
 
 
+class PGGBNode(CommandNode):
+    """Build reference-free pangenome graphs with PGGB."""
+    NODE_ID = "pggb"
+    DISPLAY_NAME = "PGGB Build"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Reference-free pangenome graph builder via all-vs-all WGA. Produces GFA, ODGI, VCF."
+    SEARCH_ALIASES = ["pggb", "pangenome graph builder", "wga", "all-vs-all", "graph construction"]
+    RETURN_TYPES = ("GFA", "FASTA")
+    RETURN_NAMES = ("smooth_gfa", "consensus_fasta")
+    REQUIRED_EXECUTABLES = ["pggb"]
+    REQUIRED_CONDA_PACKAGES = ["pggb"]
+    DOCUMENTATION_URL = "https://github.com/pangenome/pggb"
+    VERSION = "0.7.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "pggb",
+            "-i",
+            str(inputs.get("input_fasta", "")),
+            "-o",
+            str(inputs.get("output", ".")),
+            "-n",
+            str(inputs.get("num_haplotypes", 2)),
+            "-t",
+            str(inputs.get("threads", 16)),
+            "-p",
+            str(inputs.get("map_pct_id", 90)),
+            "-s",
+            str(inputs.get("segment_length", 5000)),
+            "-k",
+            str(inputs.get("min_match_length", 19)),
+            "-G",
+            str(inputs.get("graph_poas", 2)),
+        ]
+        if inputs.get("do_viz"):
+            cmd.append("--do-viz")
+        if inputs.get("do_layout"):
+            cmd.append("--do-layout")
+        if inputs.get("consensus_spec"):
+            cmd.extend(["-C", str(inputs["consensus_spec"])])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "smooth_gfa.gfa", node_out / "consensus_fasta.fa"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fasta": ("FASTA", {"description": "Multi-sequence FASTA with all haplotypes"}),
+                "num_haplotypes": ("INT", {"default": 2, "min": 2}),
+                "threads": ("INT", {"default": 16, "min": 1, "max": 128}),
+            },
+            "optional": {
+                "map_pct_id": ("INT", {"default": 90, "min": 50, "max": 100}),
+                "segment_length": ("INT", {"default": 5000, "min": 1000}),
+                "min_match_length": ("INT", {"default": 19, "min": 1}),
+                "graph_poas": ("INT", {"default": 2, "min": 1, "max": 8}),
+                "consensus_spec": ("STRING", {"default": "", "description": "Consensus spec (e.g., '100,1000,10000')"}),
+                "do_viz": ("BOOLEAN", {"default": True}),
+                "do_layout": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class ODGIVisualizeNode(CommandNode):
     """Visualize pangenome graph layouts with odgi."""
     NODE_ID = "odgi_visualize"
