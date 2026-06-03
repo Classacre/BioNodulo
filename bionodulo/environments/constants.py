@@ -95,6 +95,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "convert2annovar.pl": "annovar",
     "interproscan.sh": "interproscan",
     "CRISPResso": "crispresso2",
+    "mageck": "mageck",
     "Rscript": "r-base",
 }
 
@@ -202,6 +203,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "annovar": ">=2020-06-08",
     "interproscan": ">=5.71",
     "crispresso2": ">=2.3.2",
+    "mageck": ">=0.5.9",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
