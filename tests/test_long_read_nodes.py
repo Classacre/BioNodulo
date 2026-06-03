@@ -418,3 +418,98 @@ def test_medaka_consensus_plans_consensus_fasta_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/medaka_consensus/consensus.fasta"]
+
+
+def test_dorado_basecaller_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dorado_basecaller"]
+    assert node_info["display_name"] == "Dorado Basecaller"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"].startswith("Basecall ONT POD5 reads")
+    assert node_info["output"] == ["BAM"]
+    assert node_info["output_name"] == ["basecalled_bam"]
+    assert node_info["required_executables"] == ["dorado"]
+    assert node_info["required_conda_packages"] == ["dorado"]
+    assert node_info["experimental"] is True
+    assert "modified bases" in node_info["search_aliases"]
+    assert "methylation" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"pod5_dir", "model"}
+    assert set(inputs["optional"]) == {
+        "modified_bases",
+        "kit_name",
+        "trim",
+        "min_qscore",
+        "reference",
+    }
+
+
+def test_dorado_basecaller_renders_basecalling_command() -> None:
+    node_class = _node_class("dorado_basecaller")
+
+    cmd = node_class.render_command({
+        "pod5_dir": "pod5/",
+        "model": "sup@latest",
+        "modified_bases": "5mC 6mA",
+        "kit_name": "SQK-NBD114-24",
+        "trim": "adapters",
+        "min_qscore": 10,
+        "reference": "hg38.fa",
+        "output": "/tmp/run/dorado_basecaller",
+    })
+
+    assert cmd == [
+        "dorado",
+        "basecaller",
+        "sup@latest",
+        "pod5/",
+        "--modified-bases",
+        "5mC",
+        "6mA",
+        "--kit-name",
+        "SQK-NBD114-24",
+        "--trim",
+        "adapters",
+        "--min-qscore",
+        "10",
+        "--reference",
+        "hg38.fa",
+        ">",
+        "/tmp/run/dorado_basecaller/basecalled_bam.bam",
+    ]
+
+
+def test_dorado_basecaller_omits_empty_optional_flags() -> None:
+    node_class = _node_class("dorado_basecaller")
+
+    cmd = node_class.render_command({
+        "pod5_dir": "pod5/",
+        "model": "hac@latest",
+        "modified_bases": "",
+        "kit_name": "",
+        "trim": "",
+        "min_qscore": 0,
+        "reference": "",
+        "output": "/tmp/run/dorado_basecaller",
+    })
+
+    assert cmd == [
+        "dorado",
+        "basecaller",
+        "hac@latest",
+        "pod5/",
+        ">",
+        "/tmp/run/dorado_basecaller/basecalled_bam.bam",
+    ]
+
+
+def test_dorado_basecaller_plans_bam_output() -> None:
+    node_class = _node_class("dorado_basecaller")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/dorado_basecaller/basecalled_bam.bam"]

@@ -244,3 +244,64 @@ class MedakaConsensusNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DoradoBasecallerNode(CommandNode):
+    """Basecall Oxford Nanopore POD5 reads with Dorado."""
+    NODE_ID = "dorado_basecaller"
+    DISPLAY_NAME = "Dorado Basecaller"
+    CATEGORY = "long_read"
+    DESCRIPTION = (
+        "Basecall ONT POD5 reads with Dorado. Supports simplex, modified base calling "
+        "(5mC, 6mA). GPU-accelerated."
+    )
+    SEARCH_ALIASES = ["dorado", "basecaller", "ont", "nanopore", "modified bases", "methylation"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("basecalled_bam",)
+    REQUIRED_EXECUTABLES = ["dorado"]
+    REQUIRED_CONDA_PACKAGES = ["dorado"]
+    DOCUMENTATION_URL = "https://github.com/nanoporetech/dorado"
+    VERSION = "0.9.6"
+    SHELL = True
+    EXPERIMENTAL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "dorado",
+            "basecaller",
+            str(inputs.get("model", "sup@latest")),
+            str(inputs.get("pod5_dir", "")),
+        ]
+        if inputs.get("modified_bases"):
+            cmd.extend(["--modified-bases", *str(inputs["modified_bases"]).split()])
+        if inputs.get("kit_name"):
+            cmd.extend(["--kit-name", str(inputs["kit_name"])])
+        if inputs.get("trim"):
+            cmd.extend(["--trim", str(inputs["trim"])])
+        if inputs.get("min_qscore"):
+            cmd.extend(["--min-qscore", str(inputs["min_qscore"])])
+        if inputs.get("reference"):
+            cmd.extend(["--reference", str(inputs["reference"])])
+        cmd.extend([">", f"{out_dir}/basecalled_bam.bam"])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "pod5_dir": ("DIRECTORY", {"description": "Directory with POD5 signal files"}),
+                "model": ("STRING", {"default": "sup@latest", "description": "Model (sup@latest, hac@latest, fast@latest)"}),
+            },
+            "optional": {
+                "modified_bases": ("STRING", {"default": "", "description": "Modified bases to call (e.g., '5mC 6mA')"}),
+                "kit_name": ("STRING", {"default": "", "description": "Barcoding kit for demux"}),
+                "trim": ("STRING", {"default": "all", "options": ["all", "primers", "adapters", "none"]}),
+                "min_qscore": ("INT", {"default": 0, "min": 0, "max": 30}),
+                "reference": ("FASTA", {"description": "Reference for alignment during basecalling"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
