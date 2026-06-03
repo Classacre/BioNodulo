@@ -183,3 +183,74 @@ class MethylDackelNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DeepToolsBamCoverageNode(CommandNode):
+    """Convert BAM alignments to bigWig coverage tracks with deepTools."""
+    NODE_ID = "deeptools_bamcoverage"
+    DISPLAY_NAME = "deepTools bamCoverage"
+    CATEGORY = "epigenomics"
+    DESCRIPTION = "Convert BAM to bigWig coverage tracks. Supports CPM, RPGC, BPM normalization."
+    SEARCH_ALIASES = ["deeptools", "bamcoverage", "bigwig", "coverage", "chip-seq", "atac-seq"]
+    RETURN_TYPES = ("BIGWIG",)
+    RETURN_NAMES = ("coverage_bw",)
+    REQUIRED_EXECUTABLES = ["bamCoverage"]
+    REQUIRED_CONDA_PACKAGES = ["deeptools"]
+    DOCUMENTATION_URL = "https://deeptools.readthedocs.io/"
+    VERSION = "3.5.6"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = inputs.get("output", ".")
+        cmd = [
+            "bamCoverage",
+            "-b",
+            str(inputs.get("bam", "")),
+            "-o",
+            f"{output}/coverage_bw.bw",
+            "-p",
+            str(inputs.get("threads", 4)),
+            "--binSize",
+            str(inputs.get("bin_size", 10)),
+        ]
+        normalize_using = inputs.get("normalize_using", "CPM")
+        if normalize_using and normalize_using != "None":
+            cmd.extend(["--normalizeUsing", str(normalize_using)])
+        if inputs.get("effective_genome_size"):
+            cmd.extend(["--effectiveGenomeSize", str(inputs["effective_genome_size"])])
+        if inputs.get("center_reads"):
+            cmd.append("--centerReads")
+        if inputs.get("ignore_duplicates"):
+            cmd.append("--ignoreDuplicates")
+        if inputs.get("extend_reads"):
+            cmd.extend(["--extendReads", str(inputs["extend_reads"])])
+        if inputs.get("blacklist"):
+            cmd.extend(["--blackListFileName", str(inputs["blacklist"])])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam": ("BAM", {"description": "Sorted, indexed BAM"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
+                "normalize_using": (
+                    "STRING",
+                    {"default": "CPM", "options": ["CPM", "BPM", "RPGC", "RPKM", "None"]},
+                ),
+            },
+            "optional": {
+                "bin_size": ("INT", {"default": 10, "min": 1}),
+                "effective_genome_size": (
+                    "INT",
+                    {"default": 0, "min": 0, "label": "Eff. Genome Size (0=auto)"},
+                ),
+                "center_reads": ("BOOLEAN", {"default": False}),
+                "ignore_duplicates": ("BOOLEAN", {"default": True}),
+                "extend_reads": ("INT", {"default": 0, "min": 0, "label": "Extend Reads (0=auto)"}),
+                "blacklist": ("BED", {"description": "Blacklist regions"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

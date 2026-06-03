@@ -259,3 +259,120 @@ def test_methyldackel_plans_bed_outputs() -> None:
         "/tmp/run/methyldackel/methylation_bedgraph.bed",
         "/tmp/run/methyldackel/mbias_report.bed",
     ]
+
+
+def test_deeptools_bamcoverage_is_registered_for_epigenomics_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["deeptools_bamcoverage"]
+    assert node_info["display_name"] == "deepTools bamCoverage"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Convert BAM to bigWig")
+    assert node_info["output"] == ["BIGWIG"]
+    assert node_info["output_name"] == ["coverage_bw"]
+    assert node_info["required_executables"] == ["bamCoverage"]
+    assert node_info["required_conda_packages"] == ["deeptools"]
+    assert "bigwig" in node_info["search_aliases"]
+    assert "coverage" in node_info["search_aliases"]
+    assert "atac-seq" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "threads", "normalize_using"}
+    assert set(inputs["optional"]) == {
+        "bin_size",
+        "effective_genome_size",
+        "center_reads",
+        "ignore_duplicates",
+        "extend_reads",
+        "blacklist",
+    }
+
+
+def test_deeptools_bamcoverage_renders_default_command() -> None:
+    node_class = _node_class("deeptools_bamcoverage")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "threads": 4,
+        "normalize_using": "CPM",
+        "bin_size": 10,
+        "ignore_duplicates": True,
+        "output": "/tmp/run/deeptools_bamcoverage",
+    })
+
+    assert cmd == [
+        "bamCoverage",
+        "-b",
+        "sample.bam",
+        "-o",
+        "/tmp/run/deeptools_bamcoverage/coverage_bw.bw",
+        "-p",
+        "4",
+        "--binSize",
+        "10",
+        "--normalizeUsing",
+        "CPM",
+        "--ignoreDuplicates",
+    ]
+
+
+def test_deeptools_bamcoverage_renders_optional_flags() -> None:
+    node_class = _node_class("deeptools_bamcoverage")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "threads": 8,
+        "normalize_using": "RPGC",
+        "bin_size": 25,
+        "effective_genome_size": 2913022398,
+        "center_reads": True,
+        "ignore_duplicates": True,
+        "extend_reads": 150,
+        "blacklist": "blacklist.bed",
+        "output": "/tmp/run/deeptools_bamcoverage",
+    })
+
+    assert "--normalizeUsing" in cmd
+    assert cmd[cmd.index("--normalizeUsing") + 1] == "RPGC"
+    assert "--effectiveGenomeSize" in cmd
+    assert cmd[cmd.index("--effectiveGenomeSize") + 1] == "2913022398"
+    assert "--centerReads" in cmd
+    assert "--ignoreDuplicates" in cmd
+    assert "--extendReads" in cmd
+    assert cmd[cmd.index("--extendReads") + 1] == "150"
+    assert "--blackListFileName" in cmd
+    assert cmd[cmd.index("--blackListFileName") + 1] == "blacklist.bed"
+
+
+def test_deeptools_bamcoverage_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("deeptools_bamcoverage")
+
+    cmd = node_class.render_command({
+        "bam": "sample.bam",
+        "threads": 2,
+        "normalize_using": "None",
+        "bin_size": 50,
+        "effective_genome_size": 0,
+        "center_reads": False,
+        "ignore_duplicates": False,
+        "extend_reads": 0,
+        "blacklist": "",
+        "output": "/tmp/run/deeptools_bamcoverage",
+    })
+
+    assert "--normalizeUsing" not in cmd
+    assert "--effectiveGenomeSize" not in cmd
+    assert "--centerReads" not in cmd
+    assert "--ignoreDuplicates" not in cmd
+    assert "--extendReads" not in cmd
+    assert "--blackListFileName" not in cmd
+
+
+def test_deeptools_bamcoverage_plans_bigwig_output() -> None:
+    node_class = _node_class("deeptools_bamcoverage")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/deeptools_bamcoverage/coverage_bw.bw"]
