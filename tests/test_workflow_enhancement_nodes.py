@@ -52,6 +52,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "memoize": ("Memoize", ["output", "hash", "memo_info"]),
         "cache_control": ("Cache Control", ["output", "cache_hit", "cache_info"]),
         "notification": ("Notification", ["success", "delivery_info"]),
+        "retry": ("Retry", ["passthrough", "retry_log"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -654,3 +655,56 @@ async def test_notification_rejects_unsupported_channel() -> None:
             channel="sms",
             message="Hello",
         )
+
+
+@pytest.mark.asyncio
+async def test_retry_records_policy_in_context_metadata_and_event(tmp_path: Path) -> None:
+    context = _context(tmp_path, "retry-node")
+
+    passthrough, retry_log_json = await _node_class("retry")().run(
+        input="reads.fastq.gz",
+        max_retries=4,
+        delay_seconds=2.5,
+        backoff_multiplier=3.0,
+        max_delay=30,
+        retry_on="timeout",
+        only_retry_specific_nodes="align, call_variants",
+        context=context,
+    )
+
+    retry_log = json.loads(retry_log_json)
+    assert passthrough == "reads.fastq.gz"
+    assert retry_log["max_retries"] == 4
+    assert retry_log["retry_on"] == "timeout"
+    assert retry_log["target_nodes"] == ["align", "call_variants"]
+    assert retry_log["delays_seconds"] == [2.5, 7.5, 22.5, 30.0]
+    assert retry_log["executor_retry_supported"] is False
+    assert context.run_metadata["retry_policies"][0]["node_id"] == "retry-node"
+    assert context.events[0][0] == "retry_policy_registered"
+    assert context.logs[0][0] == "info"
+
+
+@pytest.mark.asyncio
+async def test_retry_writes_policy_file_when_context_exists(tmp_path: Path) -> None:
+    context = _context(tmp_path, "retry-file")
+
+    _, retry_log_json = await _node_class("retry")().run(
+        input={"sample": "S1"},
+        max_retries=0,
+        delay_seconds=1,
+        context=context,
+    )
+
+    retry_log = json.loads(retry_log_json)
+    policy_file = Path(retry_log["policy_file"])
+    assert policy_file == tmp_path / "retry-file" / "retry_policy.json"
+    assert json.loads(policy_file.read_text(encoding="utf-8"))["max_retries"] == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_rejects_invalid_policy_values() -> None:
+    with pytest.raises(ValueError, match="max_retries"):
+        await _node_class("retry")().run(input="x", max_retries=-1)
+
+    with pytest.raises(ValueError, match="retry_on"):
+        await _node_class("retry")().run(input="x", retry_on="network")
