@@ -260,3 +260,68 @@ class EggNOGMapperNode(CommandNode):
             if actual.exists():
                 shutil.copy2(str(actual), str(outputs[0]))
         return result
+
+
+class SnpEffNode(CommandNode):
+    """Annotate variants and predict effects with SnpEff."""
+    NODE_ID = "snpeff"
+    DISPLAY_NAME = "SnpEff"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Fast variant annotation: missense, nonsense, frameshift, splice site. Supports many genomes."
+    SEARCH_ALIASES = ["snpeff", "variant annotation", "effect prediction", "functional effect"]
+    RETURN_TYPES = ("VCF", "HTML_REPORT")
+    RETURN_NAMES = ("annotated_vcf", "summary_report")
+    REQUIRED_EXECUTABLES = ["snpEff"]
+    REQUIRED_CONDA_PACKAGES = ["snpeff"]
+    DOCUMENTATION_URL = "https://pcingola.github.io/SnpEff/"
+    VERSION = "5.2"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        genome = str(inputs.get("genome", "GRCh38"))
+        cmd = [
+            "java",
+            "-jar",
+            f"-Xmx{inputs.get('memory', 4)}g",
+            "snpEff.jar",
+            "-v",
+            "-stats",
+            f"{out_dir}/summary_report.html",
+        ]
+        if inputs.get("canonical"):
+            cmd.append("-canon")
+        if inputs.get("no_upstream"):
+            cmd.append("-no-upstream")
+        if inputs.get("no_downstream"):
+            cmd.append("-no-downstream")
+        if inputs.get("no_intergenic"):
+            cmd.append("-no-intergenic")
+        cmd.extend([genome, str(inputs.get("vcf", "")), ">", f"{out_dir}/annotated_vcf.vcf"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "annotated_vcf.vcf", node_out / "summary_report.html"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "VCF to annotate"}),
+                "genome": ("STRING", {"default": "GRCh38", "description": "SnpEff genome (GRCh38, GRCh37, GRCm39)"}),
+                "memory": ("INT", {"default": 4, "min": 1, "max": 128, "label": "Max Memory (GB)"}),
+            },
+            "optional": {
+                "canonical": ("BOOLEAN", {"default": False, "description": "Canonical transcripts only"}),
+                "no_upstream": ("BOOLEAN", {"default": False}),
+                "no_downstream": ("BOOLEAN", {"default": False}),
+                "no_intergenic": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }

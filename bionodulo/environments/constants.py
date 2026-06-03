@@ -88,6 +88,8 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "baysor": "baysor",
     "cellranger": "cellranger",
     "python": "python",
+    "snpEff": "snpeff",
+    "java": "openjdk",
     "Rscript": "r-base",
 }
 
@@ -189,6 +191,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "squidpy": ">=1.6",
     "cell2location": ">=0.1",
     "torch": ">=2.0",
+    "snpeff": ">=5.2",
+    "openjdk": ">=17",
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
