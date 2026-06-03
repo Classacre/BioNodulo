@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import string
 from typing import Any
 
 from bionodulo.nodes.base import BaseNode
@@ -192,6 +193,47 @@ class RegexExtractNode(BaseNode):
             matches.append(match.group(group))
 
         return (_to_json(matches), len(matches))
+
+
+class TextTemplateNode(BaseNode):
+    """Render text from a template and JSON variables."""
+
+    NODE_ID = "text_template"
+    DISPLAY_NAME = "Text Template"
+    CATEGORY = "utils"
+    DESCRIPTION = "Fill a text template with variables from a JSON object"
+    SEARCH_ALIASES = ["template", "text template", "format text", "variables", "render"]
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("output",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "template": (
+                    "STRING",
+                    {"default": "", "multiline": True, "description": "Template using $name or ${name} placeholders"},
+                ),
+                "variables": (
+                    "STRING",
+                    {"default": "{}", "multiline": True, "description": "JSON object with template variables"},
+                ),
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        template_text = str(kwargs.get("template", ""))
+        variables = _parse_json_object(kwargs.get("variables", "{}"), "variables")
+        try:
+            rendered = string.Template(template_text).substitute({key: str(value) for key, value in variables.items()})
+        except KeyError as exc:
+            raise ValueError(f"Missing template variable: {exc.args[0]}") from exc
+        except ValueError as exc:
+            raise ValueError(f"Invalid template: {exc}") from exc
+        return (rendered,)
 
 
 class ListOperationsNode(BaseNode):

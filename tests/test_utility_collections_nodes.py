@@ -23,6 +23,7 @@ def test_utility_collection_nodes_are_registered_for_frontend_discovery() -> Non
     expected = {
         "string_operations": ("String Operations", "utils", ["STRING", "INT", "BOOLEAN"], ["result", "length", "matched"]),
         "regex_extract": ("Regex Extract", "utils", ["STRING", "INT"], ["matches_json", "count"]),
+        "text_template": ("Text Template", "utils", ["STRING"], ["output"]),
         "list_operations": ("List Operations", "utils", ["STRING", "INT", "BOOLEAN"], ["result", "length", "contains"]),
         "select_from_list": ("Select From List", "utils", ["STRING", "INT"], ["item", "index"]),
         "dictionary": ("Dictionary", "utils", ["STRING", "STRING", "INT"], ["result_json", "value", "count"]),
@@ -100,6 +101,32 @@ async def test_regex_extract_supports_full_match_and_rejects_bad_inputs() -> Non
 
     with pytest.raises(ValueError, match="Invalid regex pattern"):
         await node.run(text="abc", pattern="[", group=0)
+
+
+@pytest.mark.asyncio
+async def test_text_template_renders_json_variables() -> None:
+    node = _node_class("text_template")()
+
+    (output,) = await node.run(
+        template="sample=${sample}\ncondition=${condition}\nreads=${reads}",
+        variables='{"sample": "S1", "condition": "tumor", "reads": 42}',
+    )
+
+    assert output == "sample=S1\ncondition=tumor\nreads=42"
+
+
+@pytest.mark.asyncio
+async def test_text_template_rejects_invalid_variables_and_missing_keys() -> None:
+    node = _node_class("text_template")()
+
+    with pytest.raises(ValueError, match="variables must be a JSON object"):
+        await node.run(template="${sample}", variables='["S1"]')
+
+    with pytest.raises(ValueError, match="Missing template variable: sample"):
+        await node.run(template="${sample}", variables="{}")
+
+    with pytest.raises(ValueError, match="Invalid template"):
+        await node.run(template="${sample", variables='{"sample": "S1"}')
 
 
 @pytest.mark.asyncio
