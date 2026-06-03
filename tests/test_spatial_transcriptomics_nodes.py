@@ -207,3 +207,77 @@ def test_squidpy_qc_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["scanpy"] == ">=1.10"
     assert PACKAGE_MIN_VERSIONS["anndata"] == ">=0.10"
     assert PACKAGE_MIN_VERSIONS["matplotlib"] == ">=3.8"
+
+
+def test_cell2location_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cell2location"]
+    assert node_info["display_name"] == "Cell2location"
+    assert node_info["category"] == "spatial_transcriptomics"
+    assert node_info["description"].startswith("Deconvolute spatial transcriptomics")
+    assert node_info["output"] == ["H5AD", "IMAGE"]
+    assert node_info["output_name"] == ["spatial_deconv", "celltype_map"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["cell2location", "torch", "scanpy", "anndata"]
+    assert node_info["experimental"] is True
+    assert "cell2location" in node_info["search_aliases"]
+    assert "spatial deconvolution" in node_info["search_aliases"]
+    assert "cell type mapping" in node_info["search_aliases"]
+    assert "cell2loc" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"visium_adata", "scrna_adata", "cell_type_key"}
+    assert set(inputs["optional"]) == {"ref_epochs", "deconv_epochs", "n_cells_per_spot"}
+
+
+def test_cell2location_writes_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("cell2location")
+    output_dir = tmp_path / "cell2location"
+
+    cmd = node_class.render_command({
+        "visium_adata": "visium.h5ad",
+        "scrna_adata": "reference.h5ad",
+        "cell_type_key": "annotation",
+        "ref_epochs": 100,
+        "deconv_epochs": 2000,
+        "n_cells_per_spot": 25,
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "cell2location_run.py"
+    assert cmd == ["python", str(script_file)]
+    script = script_file.read_text()
+    assert "import cell2location" in script
+    assert "import scanpy as sc" in script
+    assert "matplotlib.use('Agg')" in script
+    assert "adata_vis = sc.read_h5ad('visium.h5ad')" in script
+    assert "adata_ref = sc.read_h5ad('reference.h5ad')" in script
+    assert "RegressionModel.setup_anndata(adata_ref, labels_key='annotation')" in script
+    assert "mod.train(max_epochs=100)" in script
+    assert "from cell2location.models import Cell2location" in script
+    assert "N_cells_per_location=25" in script
+    assert "mod.train(max_epochs=2000)" in script
+    assert f"adata_vis.write('{output_dir}/spatial_deconv.h5ad')" in script
+    assert f"adata_vis.obsm['q05_cell_abundance_w_sf'].to_csv('{output_dir}/celltype_map.csv')" in script
+
+
+def test_cell2location_plans_outputs() -> None:
+    node_class = _node_class("cell2location")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cell2location/spatial_deconv.h5ad",
+        "/tmp/run/cell2location/celltype_map.csv",
+    ]
+
+
+def test_cell2location_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
+    assert PACKAGE_MIN_VERSIONS["cell2location"] == ">=0.1"
+    assert PACKAGE_MIN_VERSIONS["torch"] == ">=2.0"
+    assert PACKAGE_MIN_VERSIONS["scanpy"] == ">=1.10"
+    assert PACKAGE_MIN_VERSIONS["anndata"] == ">=0.10"
