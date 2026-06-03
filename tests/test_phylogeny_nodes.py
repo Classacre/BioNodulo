@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -234,3 +235,115 @@ def test_raxml_ng_supports_evaluate_mode_and_plans_outputs() -> None:
         "/tmp/run/raxml_ng/raxml_ng.raxml.bestTree",
         "/tmp/run/raxml_ng/raxml_ng.raxml.bootstraps",
     ]
+
+
+def test_raxml_ng_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["raxml-ng"] == "raxml-ng"
+    assert PACKAGE_MIN_VERSIONS["raxml-ng"] == ">=1.2.2"
+
+
+def test_modeltest_ng_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["modeltest_ng"]
+    assert node_info["display_name"] == "ModelTest-NG"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Select best-fit substitution model")
+    assert node_info["output"] == ["STRING", "JSON"]
+    assert node_info["output_name"] == ["best_model", "model_stats"]
+    assert node_info["required_executables"] == ["modeltest-ng"]
+    assert node_info["required_conda_packages"] == ["modeltest-ng"]
+    assert "modeltest-ng" in node_info["search_aliases"]
+    assert "substitution model" in node_info["search_aliases"]
+    assert "phylogeny" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"alignment", "datatype", "threads"}
+    assert set(inputs["optional"]) == {"template", "models", "schemes", "ascertainment_bias"}
+
+
+def test_modeltest_ng_renders_model_selection_command() -> None:
+    node_class = _node_class("modeltest_ng")
+
+    cmd = node_class.render_command({
+        "alignment": "alignment.fasta",
+        "datatype": "nt",
+        "threads": 8,
+        "template": "raxml",
+        "models": "GTR,HKY,JC",
+        "schemes": 5,
+        "ascertainment_bias": True,
+        "output": "/tmp/run/modeltest_ng",
+    })
+
+    assert cmd == [
+        "modeltest-ng",
+        "-i",
+        "alignment.fasta",
+        "-d",
+        "nt",
+        "-p",
+        "8",
+        "-o",
+        "/tmp/run/modeltest_ng/modeltest",
+        "-T",
+        "raxml",
+        "-m",
+        "GTR,HKY,JC",
+        "-s",
+        "5",
+        "--asc-bias",
+        "&&",
+        "printf",
+        "'best_model\\tSee /tmp/run/modeltest_ng/modeltest.out\\n'",
+        ">",
+        "/tmp/run/modeltest_ng/best_model.txt",
+        "&&",
+        "printf",
+        "'{\\n  \"modeltest_output\": \"/tmp/run/modeltest_ng/modeltest.out\",\\n  \"ranking\": \"/tmp/run/modeltest_ng/modeltest.ranking\"\\n}\\n'",
+        ">",
+        "/tmp/run/modeltest_ng/model_stats.json",
+    ]
+
+
+def test_modeltest_ng_omits_empty_optional_flags_and_plans_outputs() -> None:
+    node_class = _node_class("modeltest_ng")
+
+    cmd = node_class.render_command({
+        "alignment": "proteins.phy",
+        "datatype": "aa",
+        "threads": 2,
+        "template": "",
+        "models": "",
+        "schemes": 0,
+        "ascertainment_bias": False,
+        "output": "/tmp/run/modeltest_ng",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert "-T" not in cmd
+    assert "-m" not in cmd
+    assert "-s" not in cmd
+    assert "--asc-bias" not in cmd
+    assert cmd[:9] == [
+        "modeltest-ng",
+        "-i",
+        "proteins.phy",
+        "-d",
+        "aa",
+        "-p",
+        "2",
+        "-o",
+        "/tmp/run/modeltest_ng/modeltest",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/modeltest_ng/best_model.txt",
+        "/tmp/run/modeltest_ng/model_stats.json",
+    ]
+
+
+def test_modeltest_ng_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["modeltest-ng"] == "modeltest-ng"
+    assert PACKAGE_MIN_VERSIONS["modeltest-ng"] == ">=0.1.7"
