@@ -49,6 +49,7 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         "provenance": ("Provenance", ["passthrough", "provenance_record", "provenance_file"]),
         "compare_results": ("Compare Results", ["comparison_report", "match", "diff_file"]),
         "checkpoint": ("Checkpoint", ["passthrough", "checkpoint_file", "checkpoint_info"]),
+        "memoize": ("Memoize", ["output", "hash", "memo_info"]),
     }
     for node_id, (display_name, output_names) in expected.items():
         node_info = info[node_id]
@@ -407,3 +408,63 @@ async def test_checkpoint_writes_uncompressed_snapshot_without_context(tmp_path:
     assert info["compressed"] is False
     assert info["checkpoint_path"] == str(checkpoint_path)
     assert "run_metadata" not in saved
+
+
+@pytest.mark.asyncio
+async def test_memoize_hashes_inputs_and_records_cache_miss(tmp_path: Path) -> None:
+    context = _context(tmp_path, "memo-node")
+    context.workspace_dir = tmp_path
+
+    output, input_hash, memo_info_json = await _node_class("memoize")().run(
+        input={"query": "ACGT", "params": {"evalue": 1e-5}},
+        salt="blast-2.15.0",
+        hash_algorithm="sha256",
+        context=context,
+    )
+
+    memo_info = json.loads(memo_info_json)
+    assert output == {"query": "ACGT", "params": {"evalue": 1e-5}}
+    assert len(input_hash) == 64
+    assert memo_info["input_hash"] == input_hash
+    assert memo_info["status"] == "miss"
+    assert memo_info["cache_key"].startswith("memoize_")
+    assert memo_info["cache_dir"] == str(tmp_path / "cache")
+    assert context.logs[0][0] == "info"
+
+
+@pytest.mark.asyncio
+async def test_memoize_returns_cached_data_on_repeated_hash(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "memo-cache"
+    node = _node_class("memoize")()
+
+    first_output, first_hash, first_info_json = await node.run(
+        input={"sample": "S1", "value": 42},
+        salt="v1",
+        hash_algorithm="blake2b",
+        cache_dir=str(cache_dir),
+    )
+    second_output, second_hash, second_info_json = await node.run(
+        input={"value": 42, "sample": "S1"},
+        salt="v1",
+        hash_algorithm="blake2b",
+        cache_dir=str(cache_dir),
+    )
+
+    first_info = json.loads(first_info_json)
+    second_info = json.loads(second_info_json)
+    assert first_output == {"sample": "S1", "value": 42}
+    assert second_output == {"sample": "S1", "value": 42}
+    assert first_hash == second_hash
+    assert first_info["status"] == "miss"
+    assert second_info["status"] == "hit"
+    assert second_info["cached_at"] is None
+    assert second_info["cache_marker_found"] is True
+
+
+@pytest.mark.asyncio
+async def test_memoize_rejects_unknown_hash_algorithm() -> None:
+    with pytest.raises(ValueError, match="Unsupported hash algorithm"):
+        await _node_class("memoize")().run(
+            input="reads.fasta",
+            hash_algorithm="sha1",
+        )
