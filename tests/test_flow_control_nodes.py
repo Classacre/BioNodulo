@@ -49,6 +49,14 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["delay_wait"]["category"] == "flow_control"
     assert info["delay_wait"]["output_name"] == ["value", "condition_met", "actual_wait_seconds"]
     assert info["delay_wait"]["output"] == ["ANY", "BOOLEAN", "FLOAT"]
+    assert info["sleep"]["display_name"] == "Sleep"
+    assert info["sleep"]["category"] == "flow_control"
+    assert info["sleep"]["output_name"] == ["done", "actual_wait_seconds", "value"]
+    assert info["sleep"]["output"] == ["BOOLEAN", "FLOAT", "ANY"]
+    assert info["wait_for"]["display_name"] == "Wait For"
+    assert info["wait_for"]["category"] == "flow_control"
+    assert info["wait_for"]["output_name"] == ["triggered", "actual_wait_seconds", "value"]
+    assert info["wait_for"]["output"] == ["BOOLEAN", "FLOAT", "ANY"]
     assert info["counter_accumulator"]["display_name"] == "Counter / Accumulator"
     assert info["counter_accumulator"]["category"] == "flow_control"
     assert info["counter_accumulator"]["output_name"] == ["value", "count", "accumulator"]
@@ -61,6 +69,21 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["while_loop"]["category"] == "flow_control"
     assert info["while_loop"]["output_name"] == ["results", "iterations", "converged"]
     assert info["while_loop"]["output"] == ["ANY", "INT", "BOOLEAN"]
+
+    sleep_inputs = info["sleep"]["input"]
+    assert set(sleep_inputs["required"]) == {"seconds"}
+    assert set(sleep_inputs["optional"]) == {"value"}
+
+    wait_for_inputs = info["wait_for"]["input"]
+    assert set(wait_for_inputs["required"]) == {"condition"}
+    assert set(wait_for_inputs["optional"]) == {
+        "path",
+        "seconds",
+        "poll_interval",
+        "timeout",
+        "on_timeout",
+        "value",
+    }
 
 
 @pytest.mark.asyncio
@@ -99,6 +122,75 @@ async def test_switch_routes_passthrough_to_matching_case() -> None:
         "default": None,
     }
     assert result["inactive_outputs"] == ["output_1", "output_3", "output_4", "default"]
+
+
+@pytest.mark.asyncio
+async def test_sleep_waits_for_requested_seconds_and_passes_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    import bionodulo.nodes.builtin.flow_control as module
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+
+    result = await _node_class("sleep")().run(seconds=2.5, value="sample.bam")
+
+    assert sleeps == [2.5]
+    assert result["outputs"]["done"] is True
+    assert result["outputs"]["value"] == "sample.bam"
+    assert result["outputs"]["actual_wait_seconds"] >= 0.0
+
+
+@pytest.mark.asyncio
+async def test_wait_for_file_exists_triggers_without_sleep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import bionodulo.nodes.builtin.flow_control as module
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+    marker = tmp_path / "finished.flag"
+    marker.write_text("done\n", encoding="utf-8")
+
+    result = await _node_class("wait_for")().run(
+        condition="file_exists",
+        path=str(marker),
+        timeout=1.0,
+        value="next-step",
+    )
+
+    assert sleeps == []
+    assert result["outputs"]["triggered"] is True
+    assert result["outputs"]["value"] == "next-step"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_timeout_can_pass_through(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import bionodulo.nodes.builtin.flow_control as module
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+
+    result = await _node_class("wait_for")().run(
+        condition="file_exists",
+        path=str(tmp_path / "missing.flag"),
+        poll_interval=0.25,
+        timeout=0.25,
+        on_timeout="pass_through",
+        value="fallback",
+    )
+
+    assert sleeps == [0.25]
+    assert result["outputs"]["triggered"] is False
+    assert result["outputs"]["value"] == "fallback"
 
 
 @pytest.mark.asyncio

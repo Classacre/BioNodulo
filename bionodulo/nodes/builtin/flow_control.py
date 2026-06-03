@@ -863,6 +863,133 @@ class DelayWaitNode(BaseNode):
             return False
 
 
+class SleepNode(BaseNode):
+    """Pause execution for a fixed number of seconds."""
+
+    NODE_ID = "sleep"
+    DISPLAY_NAME = "Sleep"
+    CATEGORY = "flow_control"
+    DESCRIPTION = "Pause execution for a fixed number of seconds before passing through an optional value."
+    SEARCH_ALIASES = ["sleep", "delay", "pause", "wait", "rate_limit"]
+    RETURN_TYPES = ("BOOLEAN", "FLOAT", "ANY")
+    RETURN_NAMES = ("done", "actual_wait_seconds", "value")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "seconds": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 86400.0}),
+            },
+            "optional": {
+                "value": ("ANY", {}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.pop("context", None)
+        seconds = max(0.0, float(kwargs.get("seconds", 0.0) or 0.0))
+        value = kwargs.get("value")
+        started_at = time.monotonic()
+
+        await asyncio.sleep(seconds)
+
+        return {
+            "outputs": {
+                "done": True,
+                "actual_wait_seconds": time.monotonic() - started_at,
+                "value": value,
+            },
+        }
+
+
+class WaitForNode(BaseNode):
+    """Wait until a simple condition is met."""
+
+    NODE_ID = "wait_for"
+    DISPLAY_NAME = "Wait For"
+    CATEGORY = "flow_control"
+    DESCRIPTION = "Wait for a file condition or elapsed time before passing through an optional value."
+    SEARCH_ALIASES = ["wait", "wait for", "file exists", "file not exists", "timer", "poll", "watch"]
+    RETURN_TYPES = ("BOOLEAN", "FLOAT", "ANY")
+    RETURN_NAMES = ("triggered", "actual_wait_seconds", "value")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "condition": ("STRING", {
+                    "default": "file_exists",
+                    "options": ["file_exists", "file_not_exists", "elapsed_time"],
+                }),
+            },
+            "optional": {
+                "path": ("STRING", {"default": "", "description": "Path for file_exists or file_not_exists"}),
+                "seconds": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 86400.0}),
+                "poll_interval": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 3600.0}),
+                "timeout": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 86400.0}),
+                "on_timeout": ("STRING", {"default": "error", "options": ["error", "pass_through"]}),
+                "value": ("ANY", {}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        kwargs.pop("context", None)
+        condition = str(kwargs.get("condition", "file_exists") or "file_exists")
+        timeout = max(0.0, float(kwargs.get("timeout", 0.0) or 0.0))
+        on_timeout = str(kwargs.get("on_timeout", "error") or "error")
+        value = kwargs.get("value")
+        started_at = time.monotonic()
+
+        try:
+            triggered = await self._wait_for_condition(condition, kwargs, timeout)
+        except asyncio.TimeoutError as exc:
+            if on_timeout != "pass_through":
+                raise RuntimeError(f"Wait For timed out after {timeout:g}s for condition {condition}") from exc
+            triggered = False
+
+        return {
+            "outputs": {
+                "triggered": triggered,
+                "actual_wait_seconds": time.monotonic() - started_at,
+                "value": value,
+            },
+        }
+
+    async def _wait_for_condition(self, condition: str, kwargs: dict[str, Any], timeout: float) -> bool:
+        if condition == "elapsed_time":
+            seconds = max(0.0, float(kwargs.get("seconds", 0.0) or 0.0))
+            if timeout > 0 and seconds > timeout:
+                await asyncio.sleep(timeout)
+                raise asyncio.TimeoutError()
+            await asyncio.sleep(seconds)
+            return True
+
+        if condition in {"file_exists", "file_not_exists"}:
+            path = Path(str(kwargs.get("path", "") or ""))
+            should_exist = condition == "file_exists"
+            poll_interval = max(0.0, float(kwargs.get("poll_interval", 1.0) or 0.0))
+            return await self._poll_until(lambda: path.exists() is should_exist, poll_interval, timeout)
+
+        raise ValueError(f"Unsupported wait condition: {condition}")
+
+    async def _poll_until(self, predicate: Any, poll_interval: float, timeout: float) -> bool:
+        waited = 0.0
+        while True:
+            if predicate():
+                return True
+            if timeout > 0 and waited >= timeout:
+                raise asyncio.TimeoutError()
+            sleep_for = poll_interval
+            if timeout > 0:
+                sleep_for = min(sleep_for, max(0.0, timeout - waited))
+            await asyncio.sleep(max(0.0, sleep_for))
+            waited += sleep_for
+
+
 class CounterAccumulatorNode(BaseNode):
     """Maintain counters and accumulated values across loop iterations."""
 
