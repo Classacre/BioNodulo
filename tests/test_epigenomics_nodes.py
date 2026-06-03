@@ -376,3 +376,115 @@ def test_deeptools_bamcoverage_plans_bigwig_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/deeptools_bamcoverage/coverage_bw.bw"]
+
+
+def test_deeptools_compute_matrix_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["deeptools_compute_matrix"]
+    assert node_info["display_name"] == "deepTools computeMatrix"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Prepare signal matrices")
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["matrix"]
+    assert node_info["required_executables"] == ["computeMatrix"]
+    assert node_info["required_conda_packages"] == ["deeptools"]
+    assert "computematrix" in node_info["search_aliases"]
+    assert "heatmap matrix" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bigwig", "regions", "mode", "threads"}
+    assert set(inputs["optional"]) == {
+        "reference_point",
+        "before_region",
+        "after_region",
+        "region_body_length",
+        "skip_zeros",
+    }
+
+
+def test_deeptools_compute_matrix_renders_reference_point_command() -> None:
+    node_class = _node_class("deeptools_compute_matrix")
+
+    cmd = node_class.render_command({
+        "bigwig": "signal.bw",
+        "regions": "genes.bed",
+        "mode": "reference-point",
+        "threads": 8,
+        "bin_size": 25,
+        "reference_point": "TSS",
+        "before_region": 2000,
+        "after_region": 1000,
+        "skip_zeros": True,
+        "output": "/tmp/run/deeptools_compute_matrix",
+    })
+
+    assert cmd == [
+        "computeMatrix",
+        "reference-point",
+        "-S",
+        "signal.bw",
+        "-R",
+        "genes.bed",
+        "-o",
+        "/tmp/run/deeptools_compute_matrix/matrix.gz",
+        "-p",
+        "8",
+        "--binSize",
+        "25",
+        "--referencePoint",
+        "TSS",
+        "-b",
+        "2000",
+        "-a",
+        "1000",
+        "--skipZeros",
+    ]
+
+
+def test_deeptools_compute_matrix_renders_scale_regions_command() -> None:
+    node_class = _node_class("deeptools_compute_matrix")
+
+    cmd = node_class.render_command({
+        "bigwig": "signal.bw",
+        "regions": "genes.bed",
+        "mode": "scale-regions",
+        "threads": 4,
+        "bin_size": 10,
+        "before_region": 3000,
+        "after_region": 3000,
+        "region_body_length": 5000,
+        "skip_zeros": False,
+        "output": "/tmp/run/deeptools_compute_matrix",
+    })
+
+    assert cmd == [
+        "computeMatrix",
+        "scale-regions",
+        "-S",
+        "signal.bw",
+        "-R",
+        "genes.bed",
+        "-o",
+        "/tmp/run/deeptools_compute_matrix/matrix.gz",
+        "-p",
+        "4",
+        "--binSize",
+        "10",
+        "-b",
+        "3000",
+        "-a",
+        "3000",
+        "--regionBodyLength",
+        "5000",
+    ]
+
+
+def test_deeptools_compute_matrix_plans_matrix_output() -> None:
+    node_class = _node_class("deeptools_compute_matrix")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/deeptools_compute_matrix/matrix.out"]

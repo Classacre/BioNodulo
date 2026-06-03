@@ -254,3 +254,83 @@ class DeepToolsBamCoverageNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DeepToolsComputeMatrixNode(CommandNode):
+    """Prepare signal matrices around genomic features for deepTools plots."""
+    NODE_ID = "deeptools_compute_matrix"
+    DISPLAY_NAME = "deepTools computeMatrix"
+    CATEGORY = "epigenomics"
+    DESCRIPTION = "Prepare signal matrices around genomic features for heatmap/profile plots."
+    SEARCH_ALIASES = ["deeptools", "computematrix", "heatmap matrix", "signal profile"]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("matrix",)
+    REQUIRED_EXECUTABLES = ["computeMatrix"]
+    REQUIRED_CONDA_PACKAGES = ["deeptools"]
+    DOCUMENTATION_URL = "https://deeptools.readthedocs.io/"
+    VERSION = "3.5.6"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        mode = str(inputs.get("mode", "reference-point"))
+        cmd = [
+            "computeMatrix",
+            mode,
+            "-S",
+            str(inputs.get("bigwig", "")),
+            "-R",
+            str(inputs.get("regions", "")),
+            "-o",
+            f"{out_dir}/matrix.gz",
+            "-p",
+            str(inputs.get("threads", 4)),
+            "--binSize",
+            str(inputs.get("bin_size", 10)),
+        ]
+        if mode == "reference-point":
+            cmd.extend([
+                "--referencePoint",
+                str(inputs.get("reference_point", "TSS")),
+                "-b",
+                str(inputs.get("before_region", 3000)),
+                "-a",
+                str(inputs.get("after_region", 3000)),
+            ])
+        else:
+            cmd.extend([
+                "-b",
+                str(inputs.get("before_region", 3000)),
+                "-a",
+                str(inputs.get("after_region", 3000)),
+                "--regionBodyLength",
+                str(inputs.get("region_body_length", 5000)),
+            ])
+        if inputs.get("skip_zeros"):
+            cmd.append("--skipZeros")
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bigwig": ("BIGWIG", {"description": "bigWig file(s)"}),
+                "regions": ("BED", {"description": "Regions BED"}),
+                "mode": (
+                    "STRING",
+                    {"default": "reference-point", "options": ["reference-point", "scale-regions"]},
+                ),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
+            },
+            "optional": {
+                "reference_point": ("STRING", {"default": "TSS", "options": ["TSS", "TES", "center"]}),
+                "before_region": ("INT", {"default": 3000, "min": 0}),
+                "after_region": ("INT", {"default": 3000, "min": 0}),
+                "region_body_length": ("INT", {"default": 5000, "min": 0}),
+                "skip_zeros": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
