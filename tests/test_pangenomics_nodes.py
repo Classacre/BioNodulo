@@ -161,6 +161,117 @@ def test_odgi_visualize_plans_outputs() -> None:
     ]
 
 
+def test_odgi_view_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["odgi_view"]
+    assert node_info["display_name"] == "ODGI View"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Visualize and extract information")
+    assert node_info["output"] == ["FILE", "JSON"]
+    assert node_info["output_name"] == ["view", "stats"]
+    assert node_info["required_executables"] == ["odgi"]
+    assert node_info["required_conda_packages"] == ["odgi"]
+    assert "odgi stats" in node_info["search_aliases"]
+    assert "pangenome graph" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"graph", "mode"}
+    assert set(inputs["optional"]) == {"width", "height", "show_path_names"}
+    assert inputs["required"]["graph"][0] == "ODGI"
+    assert inputs["required"]["mode"][0] == "STRING"
+
+
+def test_odgi_view_renders_png_view_and_stats_command() -> None:
+    node_class = _node_class("odgi_view")
+
+    cmd = node_class.render_command({
+        "graph": "pan.odgi",
+        "mode": "png",
+        "width": 1600,
+        "height": 260,
+        "show_path_names": True,
+        "output": "/tmp/run/odgi_view",
+    })
+    outputs = node_class.PLAN_OUTPUTS({"mode": "png"}, "/tmp/run")
+
+    assert cmd == [
+        "odgi",
+        "viz",
+        "-i",
+        "pan.odgi",
+        "-o",
+        "/tmp/run/odgi_view/view.png",
+        "-x",
+        "1600",
+        "-y",
+        "260",
+        "-p",
+        "&&",
+        "odgi",
+        "stats",
+        "-i",
+        "pan.odgi",
+        "-j",
+        ">",
+        "/tmp/run/odgi_view/stats.json",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/odgi_view/view.png",
+        "/tmp/run/odgi_view/stats.json",
+    ]
+
+
+def test_odgi_view_renders_text_view_and_omits_optional_flags() -> None:
+    node_class = _node_class("odgi_view")
+
+    cmd = node_class.render_command({
+        "graph": "pan.odgi",
+        "mode": "paths",
+        "width": 0,
+        "height": 0,
+        "show_path_names": False,
+        "output": "/tmp/run/odgi_view",
+    })
+    outputs = node_class.PLAN_OUTPUTS({"mode": "paths"}, "/tmp/run")
+
+    assert "-x" not in cmd
+    assert "-y" not in cmd
+    assert "-p" not in cmd
+    assert cmd == [
+        "odgi",
+        "paths",
+        "-i",
+        "pan.odgi",
+        "-L",
+        ">",
+        "/tmp/run/odgi_view/view.txt",
+        "&&",
+        "odgi",
+        "stats",
+        "-i",
+        "pan.odgi",
+        "-j",
+        ">",
+        "/tmp/run/odgi_view/stats.json",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/odgi_view/view.txt",
+        "/tmp/run/odgi_view/stats.json",
+    ]
+
+
+def test_odgi_view_rejects_unsupported_mode() -> None:
+    node_class = _node_class("odgi_view")
+
+    assert node_class.VALIDATE_INPUTS({
+        "graph": "pan.odgi",
+        "mode": "heatmap",
+    }) == "Unsupported ODGI view mode: heatmap"
+
+
 def test_odgi_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["odgi"] == "odgi"
     assert PACKAGE_MIN_VERSIONS["odgi"] == ">=0.9.0"

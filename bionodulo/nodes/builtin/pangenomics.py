@@ -894,3 +894,109 @@ class ODGIVisualizeNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class ODGIViewNode(CommandNode):
+    """Visualize and inspect ODGI pangenome graphs."""
+
+    NODE_ID = "odgi_view"
+    DISPLAY_NAME = "ODGI View"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Visualize and extract information from ODGI pangenome graphs."
+    SEARCH_ALIASES = ["odgi", "odgi stats", "pangenome graph", "graph view", "paths"]
+    RETURN_TYPES = ("FILE", "JSON")
+    RETURN_NAMES = ("view", "stats")
+    REQUIRED_EXECUTABLES = ["odgi"]
+    REQUIRED_CONDA_PACKAGES = ["odgi"]
+    DOCUMENTATION_URL = "https://odgi.readthedocs.io/"
+    VERSION = "0.9.0"
+    SHELL = True
+
+    _MODES = {"png", "paths"}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        mode = str(inputs.get("mode", "png") or "png")
+        if mode not in cls._MODES:
+            return f"Unsupported ODGI view mode: {mode}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        graph = str(inputs.get("graph", ""))
+        mode = str(inputs.get("mode", "png") or "png")
+        view = out_dir / ("view.png" if mode == "png" else "view.txt")
+        stats = out_dir / "stats.json"
+
+        if mode == "png":
+            cmd = [
+                "odgi",
+                "viz",
+                "-i",
+                graph,
+                "-o",
+                str(view),
+            ]
+            width = int(inputs.get("width", 0) or 0)
+            height = int(inputs.get("height", 0) or 0)
+            if width > 0:
+                cmd.extend(["-x", str(width)])
+            if height > 0:
+                cmd.extend(["-y", str(height)])
+            if inputs.get("show_path_names"):
+                cmd.append("-p")
+        else:
+            cmd = [
+                "odgi",
+                "paths",
+                "-i",
+                graph,
+                "-L",
+                ">",
+                str(view),
+            ]
+
+        cmd.extend([
+            "&&",
+            "odgi",
+            "stats",
+            "-i",
+            graph,
+            "-j",
+            ">",
+            str(stats),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        mode = str(inputs.get("mode", "png") or "png")
+        view_name = "view.png" if mode == "png" else "view.txt"
+        return [node_out / view_name, node_out / "stats.json"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "graph": ("ODGI", {"description": "Input pangenome graph in ODGI format"}),
+                "mode": ("STRING", {"default": "png", "options": ["png", "paths"]}),
+            },
+            "optional": {
+                "width": ("INT", {"default": 1200, "min": 0, "max": 10000}),
+                "height": ("INT", {"default": 200, "min": 0, "max": 5000}),
+                "show_path_names": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
