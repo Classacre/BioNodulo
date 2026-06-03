@@ -4,6 +4,7 @@ from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import workflow_to_packages
+from bionodulo.nodes.builtin.epigenomics import DSS_DMR_SCRIPT
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -159,6 +160,149 @@ def test_macs2_bdgpeak_rejects_invalid_mode_and_missing_control_for_bdgcmp() -> 
 def test_macs2_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["macs2"] == "macs2"
     assert PACKAGE_MIN_VERSIONS["macs2"] == ">=2.2.9"
+
+
+def test_dss_dmr_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dss_dmr"]
+    assert node_info["display_name"] == "DSS DMR"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Detect differentially methylated regions")
+    assert node_info["output"] == ["BED", "FILE"]
+    assert node_info["output_name"] == ["dmr", "dmr_stats"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == ["r-base", "bioconductor-dss", "r-readr"]
+    assert "differential methylation" in node_info["search_aliases"]
+    assert "DSS" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"methylation_files", "sample_info", "condition_column", "sample_column"}
+    assert set(inputs["optional"]) == {"smoothing", "delta", "pvalue", "minlen", "mincg", "output_prefix"}
+
+
+def test_dss_dmr_renders_rscript_command() -> None:
+    node_class = _node_class("dss_dmr")
+
+    cmd = node_class.render_command({
+        "methylation_files": "tumor.tsv,normal.tsv",
+        "sample_info": "samples.tsv",
+        "condition_column": "condition",
+        "sample_column": "sample",
+        "smoothing": True,
+        "delta": 0.2,
+        "pvalue": 0.001,
+        "minlen": 75,
+        "mincg": 4,
+        "output_prefix": "case control",
+        "output": "/tmp/run/dss_dmr",
+    })
+
+    assert cmd == [
+        "Rscript",
+        str(DSS_DMR_SCRIPT),
+        "--methylation-files",
+        "tumor.tsv,normal.tsv",
+        "--sample-info",
+        "samples.tsv",
+        "--condition-column",
+        "condition",
+        "--sample-column",
+        "sample",
+        "--output-bed",
+        "/tmp/run/dss_dmr/case_control.dmr.bed",
+        "--output-stats",
+        "/tmp/run/dss_dmr/case_control.dmr_stats.tsv",
+        "--delta",
+        "0.2",
+        "--pvalue",
+        "0.001",
+        "--minlen",
+        "75",
+        "--mincg",
+        "4",
+        "--smoothing",
+    ]
+
+
+def test_dss_dmr_accepts_list_inputs_and_omits_smoothing_flag() -> None:
+    node_class = _node_class("dss_dmr")
+
+    cmd = node_class.render_command({
+        "methylation_files": ["tumor.tsv", "normal.tsv"],
+        "sample_info": "samples.tsv",
+        "condition_column": "group",
+        "sample_column": "sample_id",
+        "smoothing": False,
+        "output": "/tmp/run/dss_dmr",
+    })
+
+    assert "--smoothing" not in cmd
+    assert cmd == [
+        "Rscript",
+        str(DSS_DMR_SCRIPT),
+        "--methylation-files",
+        "tumor.tsv,normal.tsv",
+        "--sample-info",
+        "samples.tsv",
+        "--condition-column",
+        "group",
+        "--sample-column",
+        "sample_id",
+        "--output-bed",
+        "/tmp/run/dss_dmr/dss_dmr.dmr.bed",
+        "--output-stats",
+        "/tmp/run/dss_dmr/dss_dmr.dmr_stats.tsv",
+        "--delta",
+        "0.1",
+        "--pvalue",
+        "0.001",
+        "--minlen",
+        "50",
+        "--mincg",
+        "3",
+    ]
+
+
+def test_dss_dmr_plans_named_outputs() -> None:
+    node_class = _node_class("dss_dmr")
+
+    outputs = node_class.PLAN_OUTPUTS({"output_prefix": "case control"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/dss_dmr/case_control.dmr.bed",
+        "/tmp/run/dss_dmr/case_control.dmr_stats.tsv",
+    ]
+
+
+def test_dss_dmr_rejects_missing_or_single_methylation_file() -> None:
+    node_class = _node_class("dss_dmr")
+
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "methylation_files": "",
+            "sample_info": "samples.tsv",
+            "condition_column": "condition",
+            "sample_column": "sample",
+        })
+        == "At least two methylation files are required"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "methylation_files": "tumor.tsv",
+            "sample_info": "samples.tsv",
+            "condition_column": "condition",
+            "sample_column": "sample",
+        })
+        == "At least two methylation files are required"
+    )
+
+
+def test_dss_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["Rscript"] == "r-base"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-dss"] == ">=2.48.0"
 
 
 def test_bismark_align_is_registered_for_frontend_discovery() -> None:
