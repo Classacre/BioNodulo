@@ -50,6 +50,38 @@ def test_pivot_table_is_registered_for_frontend_discovery() -> None:
     )
 
 
+def test_reshape_table_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["reshape_table"]
+    assert node_info["display_name"] == "Reshape Table"
+    assert node_info["category"] == "data_transform"
+    assert node_info["description"].startswith("Convert tables between wide and long formats")
+    assert node_info["output_name"] == ["reshaped_table"]
+    assert node_info["output"] == ["CSV"]
+    assert node_info["python_class"] == (
+        "bionodulo.nodes.builtin.pivot_table.ReshapeTableNode"
+    )
+    assert "melt" in node_info["search_aliases"]
+    assert "pivot_longer" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"table", "direction", "id_vars"}
+    assert inputs["required"]["direction"][1]["options"] == ["long", "wide"]
+    assert set(inputs["optional"]) == {
+        "value_vars",
+        "names_to",
+        "values_to",
+        "names_from",
+        "values_from",
+        "fill_value",
+        "delimiter",
+        "output_type",
+    }
+
+
 @pytest.mark.asyncio
 async def test_pivot_wide_reshapes_long_tsv_with_fill_value(tmp_path: Path) -> None:
     table = tmp_path / "expression.tsv"
@@ -138,3 +170,80 @@ async def test_pivot_table_agg_sums_duplicate_long_values(tmp_path: Path) -> Non
     assert rows == [
         {"gene": "BRCA1", "S1": "12", "S2": "5"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_reshape_table_long_direction_melts_wide_tsv(tmp_path: Path) -> None:
+    table = tmp_path / "counts.tsv"
+    _write_table(table, [
+        {"gene": "BRCA1", "S1": "10", "S2": "12"},
+        {"gene": "TP53", "S1": "3", "S2": "8"},
+    ])
+
+    result = await _node_class("reshape_table")().run(
+        table=str(table),
+        direction="long",
+        id_vars="gene",
+        value_vars="S1,S2",
+        names_to="sample",
+        values_to="count",
+        output_type="TSV",
+        context=_context(tmp_path, "reshape-long"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "counts.long.tsv"
+    assert output_path.parent.name == "reshape_table"
+    rows = _read_table(output_path)
+    assert list(rows[0]) == ["gene", "sample", "count"]
+    assert rows == [
+        {"gene": "BRCA1", "sample": "S1", "count": "10"},
+        {"gene": "BRCA1", "sample": "S2", "count": "12"},
+        {"gene": "TP53", "sample": "S1", "count": "3"},
+        {"gene": "TP53", "sample": "S2", "count": "8"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reshape_table_wide_direction_pivots_long_tsv(tmp_path: Path) -> None:
+    table = tmp_path / "expression.tsv"
+    _write_table(table, [
+        {"gene": "BRCA1", "sample": "S1", "count": "10"},
+        {"gene": "BRCA1", "sample": "S2", "count": "12"},
+        {"gene": "TP53", "sample": "S1", "count": "3"},
+    ])
+
+    result = await _node_class("reshape_table")().run(
+        table=str(table),
+        direction="wide",
+        id_vars="gene",
+        names_from="sample",
+        values_from="count",
+        fill_value="0",
+        output_type="TSV",
+        context=_context(tmp_path, "reshape-wide"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "expression.wide.tsv"
+    assert output_path.parent.name == "reshape_table"
+    rows = _read_table(output_path)
+    assert list(rows[0]) == ["gene", "S1", "S2"]
+    assert rows == [
+        {"gene": "BRCA1", "S1": "10", "S2": "12"},
+        {"gene": "TP53", "S1": "3", "S2": "0"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reshape_table_rejects_unknown_direction(tmp_path: Path) -> None:
+    table = tmp_path / "counts.tsv"
+    _write_table(table, [{"gene": "BRCA1", "S1": "10"}])
+
+    with pytest.raises(ValueError, match="Unsupported reshape direction: sideways"):
+        await _node_class("reshape_table")().run(
+            table=str(table),
+            direction="sideways",
+            id_vars="gene",
+            context=_context(tmp_path, "reshape-invalid"),
+        )
