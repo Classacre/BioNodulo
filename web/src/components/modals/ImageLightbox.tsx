@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 
 export interface LightboxImage {
@@ -15,6 +16,7 @@ interface ImageLightboxProps {
 }
 
 export default function ImageLightbox({ images, initialIndex, isOpen, onClose }: ImageLightboxProps) {
+  const { t } = useTranslation();
   const [index, setIndex] = useState(initialIndex);
   const [zoomed, setZoomed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,13 +79,13 @@ export default function ImageLightbox({ images, initialIndex, isOpen, onClose }:
       }}
     >
       {/* Close button (top-right) */}
-      <button className="lightbox-close" onClick={onClose} title="Close (Esc)">
+      <button className="lightbox-close" onClick={onClose} title={t('imageLightbox.closeEsc')} aria-label={t('imageLightbox.closeEsc')}>
         <Icon name="close" size={20} />
       </button>
 
       {/* Prev arrow */}
       {total > 1 && (
-        <button className="lightbox-nav lightbox-nav-prev" onClick={goPrev} title="Previous (←)">
+        <button className="lightbox-nav lightbox-nav-prev" onClick={goPrev} title={t('imageLightbox.previous')} aria-label={t('imageLightbox.previous')}>
           <Icon name="chevronLeft" size={32} />
         </button>
       )}
@@ -103,7 +105,7 @@ export default function ImageLightbox({ images, initialIndex, isOpen, onClose }:
 
       {/* Next arrow */}
       {total > 1 && (
-        <button className="lightbox-nav lightbox-nav-next" onClick={goNext} title="Next (→)">
+        <button className="lightbox-nav lightbox-nav-next" onClick={goNext} title={t('imageLightbox.next')} aria-label={t('imageLightbox.next')}>
           <Icon name="chevronRight" size={32} />
         </button>
       )}
@@ -113,8 +115,8 @@ export default function ImageLightbox({ images, initialIndex, isOpen, onClose }:
         <span className="lightbox-counter">{index + 1} / {total}</span>
         <span className="lightbox-filename" title={current.filename}>{current.filename}</span>
         <div style={{ flex: 1 }} />
-        <button className="btn btn-sm btn-ghost" onClick={handleSave} title="Save image">
-          <Icon name="download" size={14} /> Save
+        <button className="btn btn-sm btn-ghost" onClick={handleSave} title={t('imageLightbox.saveImage')}>
+          <Icon name="download" size={14} /> {t('common.save')}
         </button>
       </div>
     </div>

@@ -1202,6 +1202,12 @@ const es = {
     openInNewTab: 'Abrir en una pestana nueva',
     closeEsc: 'Cerrar (Esc)',
   },
+  imageLightbox: {
+    closeEsc: 'Cerrar (Esc)',
+    previous: 'Anterior (←)',
+    next: 'Siguiente (→)',
+    saveImage: 'Guardar imagen',
+  },
   search: {
     workflowSearch: 'Search workflow',
     workflowSearchPlaceholder: 'Find a node by name, type, or parameter',
