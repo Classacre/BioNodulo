@@ -1235,6 +1235,178 @@ class ODGIVisualizeNode(CommandNode):
         }
 
 
+class ODGIVizNode(CommandNode):
+    """Render a pangenome graph image for workflow-level reports."""
+
+    NODE_ID = "odgi_viz"
+    DISPLAY_NAME = "ODGI Viz"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Render a pangenome graph image from GFA input using odgi viz."
+    SEARCH_ALIASES = ["odgi", "odgi viz", "graph visualization", "pangenome graph", "graph layout"]
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("viz_image",)
+    REQUIRED_EXECUTABLES = ["odgi"]
+    REQUIRED_CONDA_PACKAGES = ["odgi"]
+    DOCUMENTATION_URL = "https://odgi.readthedocs.io/"
+    VERSION = "0.9.0"
+    SHELL = True
+
+    _MODES = {"plain", "gradient"}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        mode = str(inputs.get("viz_mode", "plain") or "plain")
+        if mode not in cls._MODES:
+            return f"Unsupported ODGI Viz mode: {mode}"
+        if int(inputs.get("threads", 0) or 0) < 0:
+            return "ODGI Viz threads must be zero or greater."
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        graph = out_dir / "graph.og"
+        viz_image = out_dir / "viz_image.png"
+        threads = int(inputs.get("threads", 0) or 0)
+
+        cmd = [
+            "odgi",
+            "build",
+            "-g",
+            str(inputs.get("gfa_graph", "")),
+            "-o",
+            str(graph),
+        ]
+        if threads > 0:
+            cmd.extend(["-t", str(threads)])
+        cmd.extend([
+            "&&",
+            "odgi",
+            "viz",
+            "-i",
+            str(graph),
+            "-o",
+            str(viz_image),
+            "-x",
+            str(inputs.get("width", 1200)),
+            "-y",
+            str(inputs.get("height", 200)),
+        ])
+        if inputs.get("show_paths"):
+            cmd.append("-p")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "viz_image.png"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gfa_graph": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+            },
+            "optional": {
+                "width": ("INT", {"default": 1200, "min": 100, "max": 10000}),
+                "height": ("INT", {"default": 200, "min": 50, "max": 5000}),
+                "show_paths": ("BOOLEAN", {"default": False, "description": "Draw path names when supported"}),
+                "viz_mode": ("STRING", {"default": "plain", "options": ["plain", "gradient"]}),
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class ODGIStatsNode(CommandNode):
+    """Compute JSON graph statistics from a GFA pangenome graph."""
+
+    NODE_ID = "odgi_stats"
+    DISPLAY_NAME = "ODGI Stats"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Compute JSON graph statistics from GFA input using odgi stats."
+    SEARCH_ALIASES = ["odgi", "odgi stats", "graph statistics", "pangenome graph", "stats json"]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("stats_json",)
+    REQUIRED_EXECUTABLES = ["odgi"]
+    REQUIRED_CONDA_PACKAGES = ["odgi"]
+    DOCUMENTATION_URL = "https://odgi.readthedocs.io/"
+    VERSION = "0.9.0"
+    SHELL = True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if int(inputs.get("threads", 0) or 0) < 0:
+            return "ODGI Stats threads must be zero or greater."
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        graph = out_dir / "graph.og"
+        stats = out_dir / "stats.json"
+        threads = int(inputs.get("threads", 0) or 0)
+
+        cmd = [
+            "odgi",
+            "build",
+            "-g",
+            str(inputs.get("gfa_graph", "")),
+            "-o",
+            str(graph),
+        ]
+        if threads > 0:
+            cmd.extend(["-t", str(threads)])
+        cmd.extend([
+            "&&",
+            "odgi",
+            "stats",
+            "-i",
+            str(graph),
+            "-j",
+            ">",
+            str(stats),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "stats.json"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gfa_graph": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+            },
+            "optional": {
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class ODGIViewNode(CommandNode):
     """Visualize and inspect ODGI pangenome graphs."""
 

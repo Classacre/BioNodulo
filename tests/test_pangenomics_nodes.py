@@ -168,6 +168,164 @@ def test_odgi_visualize_plans_outputs() -> None:
     ]
 
 
+def test_odgi_viz_is_registered_for_workflow_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["odgi_viz"]
+    assert node_info["display_name"] == "ODGI Viz"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Render a pangenome graph")
+    assert node_info["output"] == ["IMAGE"]
+    assert node_info["output_name"] == ["viz_image"]
+    assert node_info["required_executables"] == ["odgi"]
+    assert node_info["required_conda_packages"] == ["odgi"]
+    assert "odgi viz" in node_info["search_aliases"]
+    assert "graph visualization" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"gfa_graph"}
+    assert set(inputs["optional"]) == {"width", "height", "show_paths", "viz_mode", "threads"}
+    assert inputs["required"]["gfa_graph"][0] == "GFA"
+    assert _node_class("odgi_viz").INPUT_TYPES()["required"]["gfa_graph"][0] == "GFA"
+
+
+def test_odgi_viz_renders_gfa_visualization_command() -> None:
+    node_class = _node_class("odgi_viz")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "pan.gfa",
+        "width": 1600,
+        "height": 260,
+        "show_paths": True,
+        "viz_mode": "gradient",
+        "threads": 6,
+        "output": "/tmp/run/odgi_viz",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "odgi",
+        "build",
+        "-g",
+        "pan.gfa",
+        "-o",
+        "/tmp/run/odgi_viz/graph.og",
+        "-t",
+        "6",
+        "&&",
+        "odgi",
+        "viz",
+        "-i",
+        "/tmp/run/odgi_viz/graph.og",
+        "-o",
+        "/tmp/run/odgi_viz/viz_image.png",
+        "-x",
+        "1600",
+        "-y",
+        "260",
+        "-p",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/odgi_viz/viz_image.png"]
+
+
+def test_odgi_viz_omits_optional_flags_and_rejects_bad_inputs() -> None:
+    node_class = _node_class("odgi_viz")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "pan.gfa",
+        "width": 1200,
+        "height": 200,
+        "show_paths": False,
+        "viz_mode": "plain",
+        "threads": 0,
+        "output": "/tmp/run/odgi_viz",
+    })
+
+    assert "-p" not in cmd
+    assert "-t" not in cmd
+    assert node_class.VALIDATE_INPUTS({
+        "gfa_graph": "pan.gfa",
+        "viz_mode": "heatmap",
+        "threads": 1,
+    }) == "Unsupported ODGI Viz mode: heatmap"
+    assert node_class.VALIDATE_INPUTS({
+        "gfa_graph": "pan.gfa",
+        "viz_mode": "plain",
+        "threads": -1,
+    }) == "ODGI Viz threads must be zero or greater."
+
+
+def test_odgi_stats_is_registered_for_workflow_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["odgi_stats"]
+    assert node_info["display_name"] == "ODGI Stats"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Compute JSON graph statistics")
+    assert node_info["output"] == ["JSON"]
+    assert node_info["output_name"] == ["stats_json"]
+    assert node_info["required_executables"] == ["odgi"]
+    assert node_info["required_conda_packages"] == ["odgi"]
+    assert "odgi stats" in node_info["search_aliases"]
+    assert "graph statistics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"gfa_graph"}
+    assert set(inputs["optional"]) == {"threads"}
+    assert inputs["required"]["gfa_graph"][0] == "GFA"
+
+
+def test_odgi_stats_renders_json_stats_command() -> None:
+    node_class = _node_class("odgi_stats")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "pan.gfa",
+        "threads": 4,
+        "output": "/tmp/run/odgi_stats",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "odgi",
+        "build",
+        "-g",
+        "pan.gfa",
+        "-o",
+        "/tmp/run/odgi_stats/graph.og",
+        "-t",
+        "4",
+        "&&",
+        "odgi",
+        "stats",
+        "-i",
+        "/tmp/run/odgi_stats/graph.og",
+        "-j",
+        ">",
+        "/tmp/run/odgi_stats/stats.json",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/odgi_stats/stats.json"]
+
+
+def test_odgi_stats_omits_threads_and_rejects_negative_threads() -> None:
+    node_class = _node_class("odgi_stats")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "pan.gfa",
+        "threads": 0,
+        "output": "/tmp/run/odgi_stats",
+    })
+
+    assert "-t" not in cmd
+    assert node_class.VALIDATE_INPUTS({
+        "gfa_graph": "pan.gfa",
+        "threads": -1,
+    }) == "ODGI Stats threads must be zero or greater."
+
+
 def test_odgi_view_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
