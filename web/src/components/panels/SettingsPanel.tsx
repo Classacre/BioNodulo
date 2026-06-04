@@ -14,7 +14,7 @@ import {
   exportTelemetryAsText,
   subscribeTelemetry,
 } from '../../state/telemetry';
-import { appPath } from '../../utils/appBase';
+import { ApiError, apiPost } from '../../api/client';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -329,15 +329,12 @@ export default function SettingsPanel({
               style={{ padding: '4px 12px', fontSize: 12 }}
               onClick={async () => {
                 try {
-                  const r = await fetch(appPath('/api/cache/clear'), { method: 'POST' });
-                  if (r.ok) {
-                    const data = await r.json();
-                    toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries deleted` });
-                  } else {
-                    toast.error('Failed to clear cache');
-                  }
-                } catch {
-                  toast.error('Failed to clear cache', { message: 'Server unreachable' });
+                  const data = await apiPost<{ entries_deleted?: number }>('/cache/clear');
+                  toast.success('Cache cleared', { message: `${data?.entries_deleted || 0} entries deleted` });
+                } catch (err) {
+                  toast.error('Failed to clear cache', {
+                    message: err instanceof ApiError ? undefined : 'Server unreachable',
+                  });
                 }
               }}
             >

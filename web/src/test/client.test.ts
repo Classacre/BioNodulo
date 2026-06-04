@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, apiGet, apiPost, clearApiCache } from '../api/client';
+import { ApiError, apiGet, apiGetText, apiPost, clearApiCache } from '../api/client';
 
 describe('api/client', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -17,6 +17,12 @@ describe('api/client', () => {
       }
       if (url.endsWith('/api/empty')) {
         return new Response('', { status: 200 });
+      }
+      if (url.endsWith('/api/text')) {
+        return new Response('plain text payload', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain' },
+        });
       }
       if (url.endsWith('/api/not-found')) {
         return new Response(JSON.stringify({ error: 'missing' }), {
@@ -62,6 +68,11 @@ describe('api/client', () => {
   it('returns undefined when POST receives an empty body', async () => {
     const out = await apiPost('/empty');
     expect(out).toBeUndefined();
+  });
+
+  it('returns raw text responses with apiGetText', async () => {
+    const out = await apiGetText('/text');
+    expect(out).toBe('plain text payload');
   });
 
   it('stringifies JSON bodies and sets Content-Type for apiPost', async () => {

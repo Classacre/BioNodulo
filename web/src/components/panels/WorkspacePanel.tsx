@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
-import { apiGet, apiPost, ApiError } from '../../api/client';
-import { appPath } from '../../utils/appBase';
+import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
 
 interface FileEntry {
   name: string;
@@ -138,15 +137,10 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     setPreviewContent('');
     setPreviewLoading(true);
     try {
-      const r = await fetch(appPath(`/api/workspace/file?path=${encodeURIComponent(file.path)}`));
-      if (r.ok) {
-        const text = await r.text();
-        setPreviewContent(text);
-      } else {
-        setPreviewContent(`Error loading file: ${r.status}`);
-      }
-    } catch {
-      setPreviewContent('Network error');
+      const text = await apiGetText(`/workspace/file?path=${encodeURIComponent(file.path)}`);
+      setPreviewContent(text);
+    } catch (err) {
+      setPreviewContent(err instanceof ApiError ? `Error loading file: ${err.status}` : 'Network error');
     }
     setPreviewLoading(false);
   };
