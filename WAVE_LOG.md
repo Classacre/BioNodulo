@@ -473,6 +473,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Shared UI hooks now live under `web/src/hooks/ui/` with a category barrel; App, layout controls, dialogs, keyboard shortcuts, and modal focus traps import command-palette/keybinding/focus-trap hooks from the category.
 - Node versioning now has an explicit lifecycle contract for node authors: `BaseNode` exposes previous versions, deprecation metadata, replacement hints, and migration descriptors; `NodeRegistry.object_info()` and saved node manifests preserve those fields, and the frontend object-info hook keeps them available to UI/plugin consumers.
 - Workflow validation now emits non-blocking warnings when a saved node's cached `node_info.version` differs from the currently registered node version, giving users upgrade/drift visibility without preventing existing workflows from running.
+- Custom node packaging now has a concrete `bionodulo.toml` manifest contract: the manager can parse required package name/version fields, optional repository/entrypoints/requirements metadata, and list manifest-backed plus legacy custom-node installs.
 
 ---
 

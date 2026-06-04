@@ -5,9 +5,11 @@ custom node packages.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,109 @@ DEFAULT_REGISTRIES: dict[str, str] = {
     "bionodulo-community": "https://github.com/bionodulo/community-nodes.git",
     "bioconda-nodes": "https://github.com/bioconda/bionodulo-nodes.git",
 }
+
+
+@dataclasses.dataclass(frozen=True)
+class CustomNodePackage:
+    """Manifest-backed metadata for a custom node package."""
+
+    name: str
+    version: str
+    directory: str
+    description: str = ""
+    repository: str = ""
+    entrypoints: list[str] = dataclasses.field(default_factory=list)
+    requirements: list[str] = dataclasses.field(default_factory=list)
+    manifest_path: str = ""
+    manifest_present: bool = False
+    valid: bool = True
+    errors: list[str] = dataclasses.field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize package metadata for manager/UI consumers."""
+        return {
+            "name": self.name,
+            "version": self.version,
+            "description": self.description,
+            "repository": self.repository,
+            "entrypoints": list(self.entrypoints),
+            "requirements": list(self.requirements),
+            "directory": self.directory,
+            "manifest_path": self.manifest_path,
+            "manifest_present": self.manifest_present,
+            "valid": self.valid,
+            "errors": list(self.errors),
+        }
+
+
+def load_package_manifest(package_dir: str | Path) -> CustomNodePackage:
+    """Load and validate a custom node package manifest.
+
+    The manifest lives at ``bionodulo.toml`` and uses a ``[package]`` table.
+    Required fields are ``name`` and ``version``. Optional fields are
+    ``description``, ``repository``, ``entrypoints``, and ``requirements``.
+    """
+    path = Path(package_dir)
+    manifest_path = path / "bionodulo.toml"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Custom node package manifest not found: {manifest_path}")
+
+    data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    package = data.get("package", {})
+    if not isinstance(package, dict):
+        raise ValueError("bionodulo.toml must contain a [package] table")
+
+    errors: list[str] = []
+    name = _string_field(package, "name")
+    version = _string_field(package, "version")
+    if not name:
+        errors.append("package.name is required")
+    if not version:
+        errors.append("package.version is required")
+    if errors:
+        raise ValueError("; ".join(errors))
+
+    entrypoints = _string_list_field(package, "entrypoints")
+    requirements = _string_list_field(package, "requirements")
+
+    return CustomNodePackage(
+        name=name,
+        version=version,
+        description=_string_field(package, "description"),
+        repository=_string_field(package, "repository"),
+        entrypoints=entrypoints,
+        requirements=requirements,
+        directory=path.name,
+        manifest_path=str(manifest_path),
+        manifest_present=True,
+        valid=True,
+        errors=[],
+    )
+
+
+def list_installed_packages(custom_nodes_dir: str | Path) -> list[dict[str, Any]]:
+    """List custom node packages installed in a custom_nodes directory."""
+    root = Path(custom_nodes_dir)
+    if not root.exists():
+        return []
+
+    packages: list[CustomNodePackage] = []
+    for entry in sorted(root.iterdir(), key=lambda p: p.name):
+        if entry.name.startswith("_") or entry.name.endswith(".pyc"):
+            continue
+        if entry.is_dir():
+            manifest = entry / "bionodulo.toml"
+            if manifest.exists():
+                packages.append(load_package_manifest(entry))
+            elif (entry / "__init__.py").exists():
+                packages.append(_legacy_package(entry))
+        elif entry.is_file() and entry.suffix == ".py":
+            packages.append(_legacy_package(entry))
+
+    return [
+        package.to_dict()
+        for package in sorted(packages, key=lambda package: package.name.lower())
+    ]
 
 
 def install_git(
@@ -175,3 +280,37 @@ def _install_requirements(req_file: Path) -> bool:
     except Exception as exc:
         logger.warning("Failed to install requirements: %s", exc)
         return False
+
+
+def _string_field(data: dict[str, Any], key: str) -> str:
+    value = data.get(key, "")
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f"package.{key} must be a string")
+    return value.strip()
+
+
+def _string_list_field(data: dict[str, Any], key: str) -> list[str]:
+    value = data.get(key, [])
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"package.{key} must be a list of strings")
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"package.{key} must be a list of strings")
+        if item.strip():
+            result.append(item.strip())
+    return result
+
+
+def _legacy_package(path: Path) -> CustomNodePackage:
+    name = path.stem if path.is_file() else path.name
+    return CustomNodePackage(
+        name=name,
+        version="",
+        directory=path.name,
+        manifest_present=False,
+    )
