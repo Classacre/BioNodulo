@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkflowVersion, VersionDiffResult } from './types';
 import VersionDiff from './VersionDiff';
 import Icon from '../components/ui/Icon';
@@ -14,15 +15,16 @@ interface VersionHistoryProps {
   onRestore: (versionJson: unknown) => void;
 }
 
-function timeAgo(ts: string): string {
+function timeAgo(ts: string, translate: (key: string, options?: Record<string, unknown>) => string): string {
   const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return translate('collab.timeJustNow');
+  if (s < 3600) return translate('collab.timeMinutesAgo', { count: Math.floor(s / 60) });
+  if (s < 86400) return translate('collab.timeHoursAgo', { count: Math.floor(s / 3600) });
+  return translate('collab.timeDaysAgo', { count: Math.floor(s / 86400) });
 }
 
 export default function VersionHistory({ workflowId, isOpen, onClose, onRestore }: VersionHistoryProps) {
+  const { t } = useTranslation();
   const [versions, setVersions] = useState<WorkflowVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,12 +126,12 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-          <strong style={{ fontSize: 14 }}>Version History</strong>
+          <strong style={{ fontSize: 14 }}>{t('collab.versionHistoryTitle')}</strong>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-sm" onClick={handleSaveVersion} disabled={saving} style={{ fontSize: 10 }}>
-              {saving ? 'Saving...' : '+ Save'}
+              {saving ? t('collab.versionHistorySaving') : t('collab.versionHistorySaveAction')}
             </button>
-            <button className="btn btn-icon btn-xs" onClick={onClose} title="Close"><Icon name="close" size={12} /></button>
+            <button className="btn btn-icon btn-xs" onClick={onClose} title={t('common.close')}><Icon name="close" size={12} /></button>
           </div>
         </div>
 
@@ -137,31 +139,33 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
 
         {/* Version list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-          {loading && versions.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Loading versions...</div>}
-          {versions.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>No saved versions yet.</div>}
+          {loading && versions.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.versionHistoryLoading')}</div>}
+          {versions.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.versionHistoryEmpty')}</div>}
           {versions.map((v, idx) => (
             <div key={v.id} style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                 {/* Auto-save icon */}
-                <div style={{ marginTop: 2, fontSize: 12, color: v.auto_save ? '#94a3b8' : '#3b82f6' }} title={v.auto_save ? 'Auto-saved' : 'Manual save'}>
+                <div style={{ marginTop: 2, fontSize: 12, color: v.auto_save ? '#94a3b8' : '#3b82f6' }} title={v.auto_save ? t('collab.versionHistoryAutoSaved') : t('collab.versionHistoryManualSave')}>
                   <Icon name={v.auto_save ? 'clock' : 'check'} size={12} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {v.name || (v.auto_save ? `Auto-save #${versions.length - idx}` : `Version ${versions.length - idx}`)}
+                    {v.name || (v.auto_save
+                      ? t('collab.versionHistoryAutoSaveName', { count: versions.length - idx })
+                      : t('collab.versionHistoryVersionName', { count: versions.length - idx }))}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
-                    {v.user_name} • {timeAgo(v.created_at)} • {v.node_count} nodes, {v.edge_count} edges
+                    {v.user_name} • {timeAgo(v.created_at, t)} • {t('collab.versionHistoryMeta', { nodes: v.node_count, edges: v.edge_count })}
                   </div>
                 </div>
               </div>
               {/* Actions */}
               <div style={{ display: 'flex', gap: 4, marginTop: 6, paddingLeft: 20 }}>
-                <button className="btn btn-xs" onClick={() => handleRestore(v.id)} style={{ fontSize: 9, padding: '2px 8px' }}>Restore</button>
+                <button className="btn btn-xs" onClick={() => handleRestore(v.id)} style={{ fontSize: 9, padding: '2px 8px' }}>{t('collab.versionHistoryRestore')}</button>
                 {idx < versions.length - 1 && (
-                  <button className="btn btn-xs" onClick={() => handleDiff(versions[idx + 1], v)} style={{ fontSize: 9, padding: '2px 8px' }}>Diff</button>
+                  <button className="btn btn-xs" onClick={() => handleDiff(versions[idx + 1], v)} style={{ fontSize: 9, padding: '2px 8px' }}>{t('collab.versionHistoryDiff')}</button>
                 )}
-                <button className="btn btn-xs" onClick={() => handleDelete(v.id)} style={{ fontSize: 9, padding: '2px 8px', color: '#ef4444' }}>Delete</button>
+                <button className="btn btn-xs" onClick={() => handleDelete(v.id)} style={{ fontSize: 9, padding: '2px 8px', color: '#ef4444' }}>{t('common.delete')}</button>
               </div>
             </div>
           ))}
