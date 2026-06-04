@@ -416,6 +416,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Share dialog title, offline notice, invite controls, room-link copy/actions, share-list states, role labels, revoke/close actions, and copy-link toasts now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Design token documentation now covers the complete 66-token palette contract from `ALL_PALETTE_TOKENS`, derived-token behavior, semantic token groups, current built-in canvas pattern mappings, and custom palette authoring guidance. The palette test suite now guards `docs/DESIGN_TOKENS.md` against missing CSS custom properties or stale built-in pattern rows.
 - ForEach executor body runs now inject declared hidden loop runtime inputs (`_loop_state`, `_iteration`) into body nodes while still filtering undeclared internal `_` metadata. `counter_accumulator` can now maintain shared accumulator state across real foreach iterations instead of only in direct node-level calls, with executor coverage for accumulating `["S1", "S2", "S3"]` through the loop body.
+- TypeScript strictness now has a config-contract test that guards `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`, and `verbatimModuleSyntax` in `web/tsconfig.json`, so the strict-flag gap cannot silently regress.
 
 ---
 
@@ -426,7 +427,7 @@ Items from the gap analysis that haven't landed yet:
 - #6 UI primitives library (Radix UI) — large scope.
 - #12 i18n string externalisation — partial: infrastructure/dictionaries exist; migrate remaining hard-coded UI strings surface by surface.
 - #15 ESLint + Prettier setup — DONE in Wave O.§5.
-- #19 Strict TS checks (`noUnusedLocals`, `verbatimModuleSyntax`).
+- #19 Strict TS checks (`noUnusedLocals`, `verbatimModuleSyntax`) — DONE (compiler flags enabled and guarded by a config-contract test).
 - #49 Extension/plugin system — large scope.
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
