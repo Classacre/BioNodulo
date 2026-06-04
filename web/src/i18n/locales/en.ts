@@ -1038,6 +1038,42 @@ const en = {
       notes: 'Notes',
       hint: 'Tip: select another node on the canvas to view its docs here.',
     },
+    content: {
+      gettingStarted: `
+<h3>Welcome to BioNodulo v2</h3>
+<p>BioNodulo is a visual bioinformatics workflow workbench. Build pipelines by connecting nodes on an infinite canvas.</p>
+
+<h4>Quick Start</h4>
+<ol>
+<li><strong>Add nodes:</strong> Double-click empty canvas or press <kbd>Ctrl+F</kbd> to open the node palette.</li>
+<li><strong>Connect nodes:</strong> Drag from an output slot (right side) to an input slot (left side).</li>
+<li><strong>Configure:</strong> Double-click a node to edit its parameters.</li>
+<li><strong>Run:</strong> Click the <strong>Run</strong> button in the top bar to execute your workflow.</li>
+<li><strong>Note nodes:</strong> Add yellow Note nodes to document your workflow.</li>
+</ol>
+
+<h4>Node Categories</h4>
+<table>
+<tr><th>Category</th><th>Description</th><th>Example Tools</th></tr>
+<tr><td>Input</td><td>Load data files</td><td>FASTQ, FASTA, VCF, GFF, Sample Sheet</td></tr>
+<tr><td>Quality Control</td><td>Assess data quality</td><td>FastQC, MultiQC</td></tr>
+<tr><td>Read Preprocessing</td><td>Trim and filter reads</td><td>fastp, Trimmomatic</td></tr>
+<tr><td>Alignment</td><td>Map reads to reference</td><td>BWA, Bowtie2, STAR, HISAT2, Minimap2</td></tr>
+<tr><td>SAM/BAM Processing</td><td>Manipulate alignments</td><td>samtools sort, index, flagstat, merge</td></tr>
+<tr><td>Variant Calling</td><td>Identify variants</td><td>GATK, bcftools, FreeBayes</td></tr>
+<tr><td>Assembly</td><td>Assemble genomes</td><td>SPAdes, MEGAHIT</td></tr>
+<tr><td>Annotation</td><td>Annotate genomes</td><td>Prokka</td></tr>
+<tr><td>RNA-Seq</td><td>Transcriptomics</td><td>Salmon, Kallisto, featureCounts</td></tr>
+<tr><td>Metagenomics</td><td>Microbial communities</td><td>Kraken2, Bracken, MetaPhlAn, HUMAnN</td></tr>
+<tr><td>ChIP-Seq</td><td>Peak calling</td><td>MACS2</td></tr>
+<tr><td>Single Cell</td><td>10x Genomics</td><td>Cell Ranger</td></tr>
+<tr><td>Phylogenetics</td><td>Tree building</td><td>MAFFT, IQ-TREE</td></tr>
+<tr><td>Utility</td><td>General tools</td><td>Shell Command, Note, Collect Files</td></tr>
+<tr><td>R / Plotting</td><td>Visualization</td><td>R DataFrame, R Plot, R Script</td></tr>
+<tr><td>BioPython</td><td>Python bioinformatics</td><td>SeqIO, Translate, BLAST</td></tr>
+</table>
+`,
+    },
     sections: {
       gettingStarted: 'Getting started',
       tutorials: 'Tutorials',

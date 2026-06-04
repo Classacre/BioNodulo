@@ -92,42 +92,7 @@ const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
   { id: 'keyboard-shortcuts', titleKey: 'helpWiki.pages.keyboardShortcuts', fallbackTitle: 'Keyboard Shortcuts' },
 ];
 
-const CONTENT: Record<WikiPage, string> = {
-  'getting-started': `
-<h3>Welcome to BioNodulo v2</h3>
-<p>BioNodulo is a visual bioinformatics workflow workbench. Build pipelines by connecting nodes on an infinite canvas.</p>
-
-<h4>Quick Start</h4>
-<ol>
-<li><strong>Add nodes:</strong> Double-click empty canvas or press <kbd>Ctrl+F</kbd> to open the node palette.</li>
-<li><strong>Connect nodes:</strong> Drag from an output slot (right side) to an input slot (left side).</li>
-<li><strong>Configure:</strong> Double-click a node to edit its parameters.</li>
-<li><strong>Run:</strong> Click the <strong>Run</strong> button in the top bar to execute your workflow.</li>
-<li><strong>Note nodes:</strong> Add yellow Note nodes to document your workflow.</li>
-</ol>
-
-<h4>Node Categories</h4>
-<table>
-<tr><th>Category</th><th>Description</th><th>Example Tools</th></tr>
-<tr><td>Input</td><td>Load data files</td><td>FASTQ, FASTA, VCF, GFF, Sample Sheet</td></tr>
-<tr><td>Quality Control</td><td>Assess data quality</td><td>FastQC, MultiQC</td></tr>
-<tr><td>Read Preprocessing</td><td>Trim and filter reads</td><td>fastp, Trimmomatic</td></tr>
-<tr><td>Alignment</td><td>Map reads to reference</td><td>BWA, Bowtie2, STAR, HISAT2, Minimap2</td></tr>
-<tr><td>SAM/BAM Processing</td><td>Manipulate alignments</td><td>samtools sort, index, flagstat, merge</td></tr>
-<tr><td>Variant Calling</td><td>Identify variants</td><td>GATK, bcftools, FreeBayes</td></tr>
-<tr><td>Assembly</td><td>Assemble genomes</td><td>SPAdes, MEGAHIT</td></tr>
-<tr><td>Annotation</td><td>Annotate genomes</td><td>Prokka</td></tr>
-<tr><td>RNA-Seq</td><td>Transcriptomics</td><td>Salmon, Kallisto, featureCounts</td></tr>
-<tr><td>Metagenomics</td><td>Microbial communities</td><td>Kraken2, Bracken, MetaPhlAn, HUMAnN</td></tr>
-<tr><td>ChIP-Seq</td><td>Peak calling</td><td>MACS2</td></tr>
-<tr><td>Single Cell</td><td>10x Genomics</td><td>Cell Ranger</td></tr>
-<tr><td>Phylogenetics</td><td>Tree building</td><td>MAFFT, IQ-TREE</td></tr>
-<tr><td>Utility</td><td>General tools</td><td>Shell Command, Note, Collect Files</td></tr>
-<tr><td>R / Plotting</td><td>Visualization</td><td>R DataFrame, R Plot, R Script</td></tr>
-<tr><td>BioPython</td><td>Python bioinformatics</td><td>SeqIO, Translate, BLAST</td></tr>
-</table>
-`,
-
+const CONTENT: Partial<Record<WikiPage, string>> = {
   'canvas-features': `
 <h3>Canvas Features</h3>
 <p>The canvas is an infinite 2D workspace where you build workflows by placing and connecting nodes.</p>
@@ -362,6 +327,10 @@ class MyToolNode(CommandNode):
 `,
 };
 
+const CONTENT_KEYS: Partial<Record<WikiPage, string>> = {
+  'getting-started': 'helpWiki.content.gettingStarted',
+};
+
 function stripHtml(html: string): string {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
@@ -430,6 +399,11 @@ function pageTitle(page: (typeof PAGES)[number], t: TFunction): string {
   return t(page.titleKey, { defaultValue: page.fallbackTitle });
 }
 
+function wikiContent(page: WikiPage, t: TFunction): string {
+  const key = CONTENT_KEYS[page];
+  return key ? t(key) : CONTENT[page] || '';
+}
+
 export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: HelpWikiPanelProps) {
   const { t } = useTranslation();
   const [page, setPage] = useState<WikiPage>('getting-started');
@@ -448,10 +422,10 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
     if (!q) return [];
     return PAGES.filter(p => {
       const title = pageTitle(p, t);
-      const text = (CONTENT[p.id] || '').toLowerCase();
+      const text = wikiContent(p.id, t).toLowerCase();
       return title.toLowerCase().includes(q) || p.fallbackTitle.toLowerCase().includes(q) || text.includes(q);
     }).map(p => {
-      const content = CONTENT[p.id];
+      const content = wikiContent(p.id, t);
       const plain = stripHtml(content);
       const idx = plain.toLowerCase().indexOf(q);
       const snippet = idx >= 0 ? plain.slice(Math.max(0, idx - 40), idx + 120) : plain.slice(0, 100);
@@ -475,7 +449,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
     return hits;
   }, [query, objectInfo]);
 
-  const currentContent = CONTENT[page] || '';
+  const currentContent = wikiContent(page, t);
 
   return (
     <div className="rail-panel">

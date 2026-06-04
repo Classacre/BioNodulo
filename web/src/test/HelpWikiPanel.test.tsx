@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ObjectInfo } from '../types';
 
 const storage = new Map<string, string>();
@@ -143,5 +145,44 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('Nodos')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /DIA-NN/i }));
     expect(screen.getByText('desde busqueda')).toBeInTheDocument();
+  });
+
+  it('renders getting-started article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    expect(screen.getByRole('heading', { name: 'Bienvenido a BioNodulo v2' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Inicio rapido' })).toBeInTheDocument();
+    expect(screen.getByText(/BioNodulo es un entorno visual/)).toBeInTheDocument();
+    expect(screen.queryByText('Welcome to BioNodulo v2')).not.toBeInTheDocument();
+  });
+
+  it('searches getting-started article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'lienzo infinito' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Primeros pasos')).toBeInTheDocument();
+  });
+
+  it('keeps getting-started wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.gettingStarted');
+    expect(source).not.toContain('Welcome to BioNodulo v2');
+    expect(source).not.toContain('BioNodulo is a visual bioinformatics workflow workbench.');
+    expect(source).not.toContain('Quick Start');
   });
 });

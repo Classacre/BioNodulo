@@ -1039,6 +1039,42 @@ const es = {
       notes: 'Notas',
       hint: 'Consejo: selecciona otro nodo en el lienzo para ver su documentacion aqui.',
     },
+    content: {
+      gettingStarted: `
+<h3>Bienvenido a BioNodulo v2</h3>
+<p>BioNodulo es un entorno visual de workflows de bioinformatica. Construye pipelines conectando nodos en un lienzo infinito.</p>
+
+<h4>Inicio rapido</h4>
+<ol>
+<li><strong>Agrega nodos:</strong> Haz doble clic en un area vacia del lienzo o pulsa <kbd>Ctrl+F</kbd> para abrir la paleta de nodos.</li>
+<li><strong>Conecta nodos:</strong> Arrastra desde una ranura de salida (lado derecho) hacia una ranura de entrada (lado izquierdo).</li>
+<li><strong>Configura:</strong> Haz doble clic en un nodo para editar sus parametros.</li>
+<li><strong>Ejecuta:</strong> Haz clic en el boton <strong>Run</strong> de la barra superior para ejecutar tu workflow.</li>
+<li><strong>Nodos de nota:</strong> Agrega nodos Note amarillos para documentar tu workflow.</li>
+</ol>
+
+<h4>Categorias de nodos</h4>
+<table>
+<tr><th>Categoria</th><th>Descripcion</th><th>Herramientas de ejemplo</th></tr>
+<tr><td>Entrada</td><td>Cargar archivos de datos</td><td>FASTQ, FASTA, VCF, GFF, Sample Sheet</td></tr>
+<tr><td>Control de calidad</td><td>Evaluar calidad de datos</td><td>FastQC, MultiQC</td></tr>
+<tr><td>Preprocesamiento de lecturas</td><td>Recortar y filtrar lecturas</td><td>fastp, Trimmomatic</td></tr>
+<tr><td>Alineamiento</td><td>Mapear lecturas contra una referencia</td><td>BWA, Bowtie2, STAR, HISAT2, Minimap2</td></tr>
+<tr><td>Procesamiento SAM/BAM</td><td>Manipular alineamientos</td><td>samtools sort, index, flagstat, merge</td></tr>
+<tr><td>Llamado de variantes</td><td>Identificar variantes</td><td>GATK, bcftools, FreeBayes</td></tr>
+<tr><td>Ensamblaje</td><td>Ensamblar genomas</td><td>SPAdes, MEGAHIT</td></tr>
+<tr><td>Anotacion</td><td>Anotar genomas</td><td>Prokka</td></tr>
+<tr><td>RNA-Seq</td><td>Transcriptomica</td><td>Salmon, Kallisto, featureCounts</td></tr>
+<tr><td>Metagenomica</td><td>Comunidades microbianas</td><td>Kraken2, Bracken, MetaPhlAn, HUMAnN</td></tr>
+<tr><td>ChIP-Seq</td><td>Llamado de picos</td><td>MACS2</td></tr>
+<tr><td>Celula unica</td><td>10x Genomics</td><td>Cell Ranger</td></tr>
+<tr><td>Filogenetica</td><td>Construccion de arboles</td><td>MAFFT, IQ-TREE</td></tr>
+<tr><td>Utilidad</td><td>Herramientas generales</td><td>Shell Command, Note, Collect Files</td></tr>
+<tr><td>R / Graficos</td><td>Visualizacion</td><td>R DataFrame, R Plot, R Script</td></tr>
+<tr><td>BioPython</td><td>Bioinformatica en Python</td><td>SeqIO, Translate, BLAST</td></tr>
+</table>
+`,
+    },
     sections: {
       gettingStarted: 'Primeros pasos',
       tutorials: 'Tutoriales',
