@@ -315,6 +315,11 @@ class CommandNode(BaseNode):
                     f"Command failed (exit {result.get('returncode')}): {stderr[:500]}"
                 )
 
+            missing_outputs = [path for path in outputs if not path.exists()]
+            if missing_outputs:
+                missing = ", ".join(str(path) for path in missing_outputs)
+                raise RuntimeError(f"Command completed but did not create expected output(s): {missing}")
+
             # Return output paths as tuple
             if len(outputs) == 1:
                 return (str(outputs[0]),)

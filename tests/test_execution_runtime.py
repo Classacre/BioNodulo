@@ -17,7 +17,7 @@ from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.manager.diagnostics import _check_r_packages_env_aware
-from bionodulo.nodes.command_node import _shell_join
+from bionodulo.nodes.command_node import CommandNode, _shell_join
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.graph import (
     edge_source,
@@ -69,6 +69,18 @@ def test_shell_join_preserves_file_descriptor_redirects() -> None:
     command = _shell_join(["tool", "input file.txt", ">", "tool.log", "2>&1"])
 
     assert command == "tool 'input file.txt' > tool.log 2>&1"
+
+
+@pytest.mark.asyncio
+async def test_command_node_rejects_missing_planned_outputs(tmp_path: Path) -> None:
+    class MissingOutputNode(CommandNode):
+        NODE_ID = "missing_output"
+        COMMAND = ["true"]
+        RETURN_TYPES = ("FILE",)
+        RETURN_NAMES = ("output",)
+
+    with pytest.raises(RuntimeError, match="Command completed but did not create expected output"):
+        await MissingOutputNode().run(output_dir=tmp_path)
 
 
 def test_cache_clear_preserves_unrelated_files(tmp_path: Path) -> None:
