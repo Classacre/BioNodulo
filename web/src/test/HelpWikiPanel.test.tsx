@@ -310,4 +310,48 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Templates are pre-built workflows');
     expect(source).not.toContain('Creating Custom Templates');
   });
+
+  it('renders custom-nodes article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nodos personalizados' }));
+
+    expect(screen.getByRole('heading', { name: 'Nodos personalizados' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Crear un nodo personalizado' })).toBeInTheDocument();
+    expect(screen.getByText(/BioNodulo admite nodos personalizados/)).toBeInTheDocument();
+    expect(screen.getByText(/custom_nodes\//)).toBeInTheDocument();
+    expect(screen.getByText(/CommandNode/)).toBeInTheDocument();
+    expect(screen.getByText(/DOCUMENTATION_URL/)).toBeInTheDocument();
+    expect(screen.queryByText('Creating a Custom Node')).not.toBeInTheDocument();
+  });
+
+  it('searches custom-nodes article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'automaticamente' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Nodos personalizados')).toBeInTheDocument();
+  });
+
+  it('keeps custom-nodes wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.customNodes');
+    expect(source).not.toContain('BioNodulo supports custom nodes');
+    expect(source).not.toContain('Creating a Custom Node');
+    expect(source).not.toContain('Node Registration');
+  });
 });

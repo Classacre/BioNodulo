@@ -93,40 +93,6 @@ const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
 ];
 
 const CONTENT: Partial<Record<WikiPage, string>> = {
-  'custom-nodes': `
-<h3>Custom Nodes</h3>
-<p>BioNodulo supports custom nodes for tools not included in the built-in library.</p>
-
-<h4>Creating a Custom Node</h4>
-<p>Create a Python file in the <code>custom_nodes/</code> directory:</p>
-<pre>
-from bionodulo.nodes.command_node import CommandNode
-
-class MyToolNode(CommandNode):
-    NODE_ID = "my_tool"
-    DISPLAY_NAME = "My Tool"
-    CATEGORY = "Utility"
-    DESCRIPTION = "Run my custom tool"
-    SEARCH_ALIASES = ["mytool", "custom"]
-    COMMAND = ["my_tool", "--input", "{inputs.input}", "--output", "{outputs.output}"]
-    RETURN_TYPES = ["FILE"]
-    RETURN_NAMES = ["output"]
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {"input": {"type": "FILE", "label": "Input file"}},
-            "optional": {"threads": {"type": "INT", "default": 4, "min": 1, "max": 64}},
-        }
-</pre>
-
-<h4>Node Registration</h4>
-<p>Custom nodes are automatically discovered on startup. To reload without restarting, restart the backend server.</p>
-
-<h4>Node Info & Documentation</h4>
-<p>Set <code>DESCRIPTION</code> for a short summary. Set <code>DOCUMENTATION_URL</code> to link to external docs. Users can view full node info by right-clicking a node and selecting <strong>Node Info</strong>.</p>
-`,
-
   'hpc-integration': `
 <h3>HPC Integration</h3>
 <p>BioNodulo can submit workflows to High Performance Computing clusters via job schedulers.</p>
@@ -220,6 +186,7 @@ const CONTENT_KEYS: Partial<Record<WikiPage, string>> = {
   'canvas-features': 'helpWiki.content.canvasFeatures',
   'nodes-reference': 'helpWiki.content.nodesReference',
   'templates-guide': 'helpWiki.content.templatesGuide',
+  'custom-nodes': 'helpWiki.content.customNodes',
 };
 
 function stripHtml(html: string): string {

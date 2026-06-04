@@ -1183,6 +1183,39 @@ const es = {
 <h4>Crear plantillas personalizadas</h4>
 <p>Guarda cualquier workflow como plantilla exportandolo a JSON y colocandolo en el directorio <code>templates/</code>. Las plantillas deben incluir los campos <code>version</code>, <code>app</code>, <code>name</code>, <code>description</code>, <code>nodes</code>, <code>edges</code> y <code>groups</code>.</p>
 `,
+      customNodes: `
+<h3>Nodos personalizados</h3>
+<p>BioNodulo admite nodos personalizados para herramientas que no estan incluidas en la biblioteca integrada.</p>
+
+<h4>Crear un nodo personalizado</h4>
+<p>Crea un archivo Python en el directorio <code>custom_nodes/</code>:</p>
+<pre>
+from bionodulo.nodes.command_node import CommandNode
+
+class MyToolNode(CommandNode):
+    NODE_ID = "my_tool"
+    DISPLAY_NAME = "My Tool"
+    CATEGORY = "Utility"
+    DESCRIPTION = "Run my custom tool"
+    SEARCH_ALIASES = ["mytool", "custom"]
+    COMMAND = ["my_tool", "--input", "{inputs.input}", "--output", "{outputs.output}"]
+    RETURN_TYPES = ["FILE"]
+    RETURN_NAMES = ["output"]
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {"input": {"type": "FILE", "label": "Input file"}},
+            "optional": {"threads": {"type": "INT", "default": 4, "min": 1, "max": 64}},
+        }
+</pre>
+
+<h4>Registro de nodos</h4>
+<p>Los nodos personalizados se descubren automaticamente al iniciar. Para recargar sin reiniciar la aplicacion completa, reinicia el servidor backend.</p>
+
+<h4>Info y documentacion del nodo</h4>
+<p>Define <code>DESCRIPTION</code> para un resumen corto. Define <code>DOCUMENTATION_URL</code> para enlazar documentacion externa. Los usuarios pueden ver la informacion completa del nodo haciendo clic derecho en un nodo y seleccionando <strong>Info del nodo</strong>.</p>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',
