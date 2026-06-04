@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkflowGroup, WorkflowNode } from '../../types';
 import { promptDialog } from '../ui';
 
@@ -86,6 +87,7 @@ function fitGroupToNodes(
 }
 
 export default function GroupContextMenu({ x, y, groupId, groups, nodes, onGroupsChange, onNodesChange, onClose }: GroupContextMenuProps) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [showColors, setShowColors] = useState(false);
 
@@ -103,7 +105,7 @@ export default function GroupContextMenu({ x, y, groupId, groups, nodes, onGroup
     return (
       <div ref={ref} className="context-menu" style={{ left: x, top: y, zIndex: 200 }}>
         <div className="context-menu-body">
-          <div className="context-menu-item" onClick={() => setShowColors(false)}>← Back</div>
+          <div className="context-menu-item" onClick={() => setShowColors(false)}>{t('canvas.groupColorBack')}</div>
           <div className="context-menu-sep" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4, padding: '4px 8px' }}>
             {PRESET_COLORS.map(c => (
@@ -128,54 +130,54 @@ export default function GroupContextMenu({ x, y, groupId, groups, nodes, onGroup
         <div className="context-menu-item" onClick={async () => {
           const g = groups.find(gg => gg.id === groupId);
           const name = await promptDialog({
-            title: 'Rename group',
-            message: 'Choose a group name.',
-            inputLabel: 'Group name',
-            defaultValue: g?.name || 'Group',
+            title: t('canvas.renameGroup'),
+            message: t('canvas.renameGroupMessage'),
+            inputLabel: t('canvas.groupNameInput'),
+            defaultValue: g?.name || t('canvas.groupFallbackName'),
           });
           if (name !== null) {
             onGroupsChange(groups.map(gg => gg.id === groupId ? { ...gg, name } : gg));
           }
           onClose();
-        }}>Rename</div>
-        <div className="context-menu-item" onClick={() => setShowColors(true)}>Set Color</div>
+        }}>{t('common.rename')}</div>
+        <div className="context-menu-item" onClick={() => setShowColors(true)}>{t('canvas.setGroupColor')}</div>
         <div className="context-menu-item" onClick={() => {
           if (group) {
             const fitted = fitGroupToNodes(group, nodes);
             onGroupsChange(groups.map(gg => gg.id === groupId ? fitted : gg));
           }
           onClose();
-        }}>Fit to Nodes</div>
+        }}>{t('canvas.fitGroupToNodes')}</div>
         <div className="context-menu-sep" />
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ muted: true })));
           onClose();
-        }}>Mute All</div>
+        }}>{t('canvas.muteGroupNodes')}</div>
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ muted: false })));
           onClose();
-        }}>Unmute All</div>
+        }}>{t('canvas.unmuteGroupNodes')}</div>
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ bypassed: true })));
           onClose();
-        }}>Bypass All</div>
+        }}>{t('canvas.bypassGroupNodes')}</div>
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ bypassed: false })));
           onClose();
-        }}>Enable All</div>
+        }}>{t('canvas.enableGroupNodes')}</div>
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ pinned: true })));
           onClose();
-        }}>Pin All</div>
+        }}>{t('canvas.pinGroupNodes')}</div>
         <div className="context-menu-item" onClick={() => {
           onNodesChange(applyToGroupNodes(group, nodes, () => ({ pinned: false })));
           onClose();
-        }}>Unpin All</div>
+        }}>{t('canvas.unpinGroupNodes')}</div>
         <div className="context-menu-sep" />
         <div className="context-menu-item" onClick={() => {
           onGroupsChange(groups.filter(gg => gg.id !== groupId));
           onClose();
-        }}>Delete Group</div>
+        }}>{t('canvas.deleteGroup')}</div>
       </div>
     </div>
   );
