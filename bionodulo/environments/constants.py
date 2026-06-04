@@ -248,6 +248,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "scanpy": ">=1.10",
     "anndata": ">=0.10",
     "matplotlib": ">=3.8",
+    "pysbol3": ">=1.1",
     "r-base": ">=4.3.0",
     "r-ggplot2": ">=3.4.0",
     "r-dplyr": ">=1.1.0",
