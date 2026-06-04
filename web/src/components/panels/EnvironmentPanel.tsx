@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '../ui/Icon';
 import { confirmDialog } from '../ui';
-import { apiGet } from '../../api/client';
-import { appPath } from '../../utils/appBase';
+import { ApiError, apiDelete, apiGet, apiPost } from '../../api/client';
 
 interface PackageInfo {
   name: string;
@@ -27,6 +26,16 @@ interface EnvironmentPanelProps {
 function shortId(id: string) {
   if (id.length <= 8) return id;
   return `${id.slice(0, 3)}...${id.slice(-3)}`;
+}
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  if (!(err instanceof ApiError)) return 'Network error';
+  if (err.body && typeof err.body === 'object' && 'detail' in err.body) {
+    const detail = (err.body as { detail?: unknown }).detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+  }
+  if (typeof err.body === 'string' && err.body.trim()) return err.body;
+  return fallback;
 }
 
 export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
@@ -69,20 +78,11 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       return;
     }
     try {
-      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(id)}/rename`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: renameValue.trim() }),
-      });
-      if (r.ok) {
-        setMessage(`Renamed to '${renameValue.trim()}'`);
-        fetchEnvs();
-      } else {
-        const data = await r.json();
-        setMessage(data.detail || 'Rename failed');
-      }
-    } catch {
-      setMessage('Network error');
+      await apiPost(`/manager/environments/${encodeURIComponent(id)}/rename`, { name: renameValue.trim() });
+      setMessage(`Renamed to '${renameValue.trim()}'`);
+      fetchEnvs();
+    } catch (err) {
+      setMessage(apiErrorMessage(err, 'Rename failed'));
     }
     setRenamingId(null);
   };
@@ -97,35 +97,22 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     });
     if (!ok) return;
     try {
-      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(env.id)}`), { method: 'DELETE' });
-      if (r.ok) {
-        setMessage(`Deleted environment '${env.name}'`);
-        fetchEnvs();
-      } else {
-        const data = await r.json();
-        setMessage(data.detail || 'Delete failed');
-      }
-    } catch {
-      setMessage('Network error');
+      await apiDelete(`/manager/environments/${encodeURIComponent(env.id)}`);
+      setMessage(`Deleted environment '${env.name}'`);
+      fetchEnvs();
+    } catch (err) {
+      setMessage(apiErrorMessage(err, 'Delete failed'));
     }
   };
 
   const handleDuplicate = async (env: EnvInfo) => {
     setMenuOpenId(null);
     try {
-      const r = await fetch(appPath(`/api/manager/environments/${encodeURIComponent(env.id)}/duplicate`), {
-        method: 'POST',
-      });
-      if (!r.ok) {
-        const data = await r.json();
-        setMessage(data.detail || 'Duplicate failed');
-        return;
-      }
-      const data = await r.json();
+      const data = await apiPost<{ message?: string }>(`/manager/environments/${encodeURIComponent(env.id)}/duplicate`);
       setMessage(data.message || `Duplicated '${env.name}'`);
       fetchEnvs();
-    } catch {
-      setMessage('Network error');
+    } catch (err) {
+      setMessage(apiErrorMessage(err, 'Duplicate failed'));
     }
   };
 
@@ -138,20 +125,13 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     });
     if (!ok) return;
     try {
-      const r = await fetch(
-        appPath(`/api/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`),
-        { method: 'POST' }
+      const data = await apiPost<{ message?: string }>(
+        `/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`,
       );
-      if (!r.ok) {
-        const data = await r.json();
-        setMessage(data.detail || 'Remove failed');
-        return;
-      }
-      const data = await r.json();
       setMessage(data.message || `Removed '${pkg.name}'`);
       fetchEnvs();
-    } catch {
-      setMessage('Network error');
+    } catch (err) {
+      setMessage(apiErrorMessage(err, 'Remove failed'));
     }
   };
 

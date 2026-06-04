@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../types';
-import { getToken } from '../collab/auth';
-import { appPath } from '../utils/appBase';
+import { apiPost, apiRequest } from '../api/client';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -127,15 +126,9 @@ export function useWorkflow() {
 
   const validate = useCallback(async (wf: Workflow) => {
     try {
-      const r = await fetch(appPath('/api/workflow/validate'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: wf }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        setValidation(data);
-        return data;
-      }
+      const data = await apiPost<{ valid: boolean; errors: string[] }>('/workflow/validate', { workflow: wf });
+      setValidation(data);
+      return data;
     } catch { /* offline */ }
     setValidation({ valid: true, errors: [] });
     return { valid: true, errors: [] };
@@ -144,17 +137,11 @@ export function useWorkflow() {
   const resolve = useCallback(async (wf: Workflow) => {
     const requestId = ++resolveRequestIdRef.current;
     try {
-      const r = await fetch(appPath('/api/manager/resolve'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: wf }),
-      });
-      if (r.ok) {
-        const data = await r.json() as ResolveReport;
-        if (requestId === resolveRequestIdRef.current) {
-          setResolveReport(data);
-        }
-        return data;
+      const data = await apiPost<ResolveReport>('/manager/resolve', { workflow: wf });
+      if (requestId === resolveRequestIdRef.current) {
+        setResolveReport(data);
       }
+      return data;
     } catch (err) {
       void err;
     }
@@ -171,14 +158,9 @@ export function useWorkflow() {
     force_nodes?: string[];
     target_nodes?: string[];
   }) => {
-    const token = getToken();
-    const r = await fetch(appPath('/api/runs'), {
+    const r = await apiRequest('/runs', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
+      json: {
         workflow: wf,
         workflow_id: wf.id || null,
         name: options?.name || wf.name || 'Untitled',
@@ -186,23 +168,15 @@ export function useWorkflow() {
         environment: options?.environment || null,
         force_nodes: options?.force_nodes || [],
         target_nodes: options?.target_nodes || [],
-      }),
+      },
     });
-    if (!r.ok) {
-      const text = await r.text();
-      throw new Error(`Run submission failed: ${r.status} ${text}`);
-    }
     const data = await r.json();
     return data as RunRecord;
   }, []);
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
     try {
-      const r = await fetch(appPath('/api/workflow/export'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow: wf, format }),
-      });
-      if (r.ok) return await r.json();
+      return await apiPost('/workflow/export', { workflow: wf, format });
     } catch { /* offline */ }
     // Fallback: export as JSON
     return { content: JSON.stringify(wf, null, 2), filename: `${wf.name || 'workflow'}.${format === 'json' ? 'json' : format}` };
@@ -210,14 +184,8 @@ export function useWorkflow() {
 
   const importWorkflow = useCallback(async (source: string, format: string) => {
     try {
-      const r = await fetch(appPath('/api/workflow/import'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source, format }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        return data.workflow as Workflow;
-      }
+      const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source, format });
+      return data.workflow ?? null;
     } catch {
       // Try parsing as JSON directly
       try { return JSON.parse(source) as Workflow; } catch { /* not JSON */ }

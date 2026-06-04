@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 const migratedFiles = [
   'src/components/panels/SettingsPanel.tsx',
   'src/components/panels/WorkspacePanel.tsx',
+  'src/components/panels/EnvironmentPanel.tsx',
   'src/hooks/useObjectInfo.ts',
+  'src/hooks/useWorkflow.ts',
 ];
 
 describe('API client migration', () => {
