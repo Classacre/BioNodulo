@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useAtomValue } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { getToken } from './auth';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
@@ -24,12 +25,12 @@ function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function timeAgo(ts: string): string {
+function timeAgo(ts: string, translate: (key: string, options?: Record<string, unknown>) => string): string {
   const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return translate('collab.timeJustNow');
+  if (s < 3600) return translate('collab.timeMinutesAgo', { count: Math.floor(s / 60) });
+  if (s < 86400) return translate('collab.timeHoursAgo', { count: Math.floor(s / 3600) });
+  return translate('collab.timeDaysAgo', { count: Math.floor(s / 86400) });
 }
 
 function renderCommentContent(text: string, resolved: boolean): ReactNode {
@@ -58,6 +59,7 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
 }
 
 export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange, onWorkflowNamesChange }: CommentsPanelProps) {
+  const { t } = useTranslation();
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       const token = getToken();
       if (!token) {
         setComments([]);
-        setError('Join collaboration before using workflow comments.');
+        setError(t('collab.commentsJoinRequired'));
         return;
       }
       const url = selectedNodeId && !showAll
@@ -90,9 +92,9 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       onWorkflowNamesChange?.(data.workflow_names ?? {});
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load comments');
+      setError(err instanceof Error ? err.message : t('collab.commentsLoadError'));
     }
-  }, [workflowId, selectedNodeId, showAll, onCommentsChange, onWorkflowNamesChange]);
+  }, [workflowId, selectedNodeId, showAll, onCommentsChange, onWorkflowNamesChange, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -105,7 +107,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
 
   const postComment = async (content: string, parentId: string | null = null, nodeId: string | null = null) => {
     const token = getToken();
-    if (!token) throw new Error('Join collaboration before posting comments.');
+    if (!token) throw new Error(t('collab.commentsPostJoinRequired'));
     return apiPost(`${API_BASE}/workflows/${workflowId}/comments`, { content, parent_id: parentId, node_id: nodeId });
   };
 
@@ -116,7 +118,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       setNewContent('');
       fetchComments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to post comment');
+      setError(err instanceof Error ? err.message : t('collab.commentsPostError'));
     }
   };
 
@@ -134,7 +136,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       setReplyTo(null);
       fetchComments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to post reply');
+      setError(err instanceof Error ? err.message : t('collab.commentsReplyError'));
     }
   };
 
@@ -149,15 +151,15 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
       fetchComments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resolve comment');
+      setError(err instanceof Error ? err.message : t('collab.commentsResolveError'));
     }
   };
 
   const handleDelete = async (commentId: string) => {
     const ok = await confirmDialog({
-      title: 'Delete comment?',
-      message: 'Delete this comment?',
-      confirmLabel: 'Delete',
+      title: t('collab.commentsDeleteTitle'),
+      message: t('collab.commentsDeleteMessage'),
+      confirmLabel: t('common.delete'),
       tone: 'danger',
     });
     if (!ok) return;
@@ -165,7 +167,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       await apiDelete(`${API_BASE}/comments/${commentId}`);
       fetchComments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete comment');
+      setError(err instanceof Error ? err.message : t('collab.commentsDeleteError'));
     }
   };
 
@@ -184,16 +186,16 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
         <div>
-          <strong style={{ fontSize: 14 }}>Comments</strong>
+          <strong style={{ fontSize: 14 }}>{t('collab.commentsTitle')}</strong>
           <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>({unresolvedCount})</span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {selectedNodeId && (
             <button className="btn btn-xs" onClick={() => setShowAll(v => !v)} style={{ fontSize: 10 }}>
-              {showAll ? 'Node Only' : 'Show All'}
+              {showAll ? t('collab.commentsNodeOnly') : t('collab.commentsShowAll')}
             </button>
           )}
-          <button className="btn btn-icon btn-xs" onClick={onClose} title="Close"><Icon name="close" size={12} /></button>
+          <button className="btn btn-icon btn-xs" onClick={onClose} title={t('common.close')}><Icon name="close" size={12} /></button>
         </div>
       </div>
 
@@ -202,10 +204,10 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
 
       {/* Comment list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {loading && comments.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Loading comments...</div>}
+        {loading && comments.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.commentsLoading')}</div>}
         {rootComments.length === 0 && !loading && (
           <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
-            {selectedNodeId && !showAll ? 'No comments for this node.\nClick "Show All" to see all comments.' : 'No comments yet across your workflows.\nStart the conversation!'}
+            {selectedNodeId && !showAll ? t('collab.commentsEmptyNode', { showAll: t('collab.commentsShowAll') }) : t('collab.commentsEmptyAll')}
           </div>
         )}
         {rootComments.map(comment => (
@@ -218,23 +220,23 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
               }}>{getInitials(comment.user_name)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{comment.user_name}</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>{timeAgo(comment.created_at)}</span>
+                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>{timeAgo(comment.created_at, t)}</span>
               </div>
               {!comment.resolved && (
-                <button className="btn btn-icon btn-xs" onClick={() => handleResolve(comment.id)} title="Resolve" style={{ padding: '2px 6px' }}><Icon name="check" size={12} /></button>
+                <button className="btn btn-icon btn-xs" onClick={() => handleResolve(comment.id)} title={t('collab.resolveComment')} style={{ padding: '2px 6px' }}><Icon name="check" size={12} /></button>
               )}
               {comment.user_id === currentUser.id && (
-                <button className="btn btn-icon btn-xs" onClick={() => handleDelete(comment.id)} title="Delete" style={{ fontSize: 9 }}><Icon name="trash" size={12} /></button>
+                <button className="btn btn-icon btn-xs" onClick={() => handleDelete(comment.id)} title={t('common.delete')} style={{ fontSize: 9 }}><Icon name="trash" size={12} /></button>
               )}
             </div>
             {comment.node_id && (
               <button
                 className="btn btn-xs"
                 onClick={() => onFocusNode?.(comment.node_id!)}
-                title="Focus this node on the canvas"
+                title={t('collab.commentsFocusNodeTitle')}
                 style={{ fontSize: 10, margin: '0 0 5px 32px' }}
               >
-                <Icon name="target" size={10} /> Go to node
+                <Icon name="target" size={10} /> {t('collab.commentsGoToNode')}
               </button>
             )}
             <div title={comment.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 32, marginBottom: 4 }}>
@@ -246,7 +248,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
             </div>
             {/* Reply button */}
             <div style={{ paddingLeft: 32, marginTop: 4 }}>
-              <button className="btn btn-xs" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} style={{ fontSize: 10, color: 'var(--accent, #3b82f6)' }}>Reply</button>
+              <button className="btn btn-xs" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)} style={{ fontSize: 10, color: 'var(--accent, #3b82f6)' }}>{t('collab.reply')}</button>
             </div>
             {/* Reply form */}
             {replyTo === comment.id && (
@@ -255,12 +257,12 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
                   value={replyContent}
                   onChange={e => setReplyContent(e.target.value)}
                   onKeyDown={e => handleReplyKeyDown(e, comment.id)}
-                  placeholder="Write a reply..."
+                  placeholder={t('collab.commentsWriteReplyPlaceholder')}
                   style={{ flex: 1, fontSize: 12, padding: 6, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', resize: 'none', minHeight: 50 }}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <button className="btn btn-sm" onClick={() => handleReply(comment.id)} style={{ fontSize: 10 }}>Send</button>
-                  <button className="btn btn-xs" onClick={() => { setReplyTo(null); setReplyContent(''); }} style={{ fontSize: 10 }}>Cancel</button>
+                  <button className="btn btn-sm" onClick={() => handleReply(comment.id)} style={{ fontSize: 10 }}>{t('collab.commentsSend')}</button>
+                  <button className="btn btn-xs" onClick={() => { setReplyTo(null); setReplyContent(''); }} style={{ fontSize: 10 }}>{t('common.cancel')}</button>
                 </div>
               </div>
             )}
@@ -273,7 +275,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', flexShrink: 0,
                   }}>{getInitials(reply.user_name)}</div>
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{reply.user_name}</span>
-                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>{timeAgo(reply.created_at)}</span>
+                  <span style={{ fontSize: 9, color: 'var(--muted)' }}>{timeAgo(reply.created_at, t)}</span>
                 </div>
                 <div style={{ fontSize: 11, lineHeight: 1.4, paddingLeft: 24, whiteSpace: 'pre-wrap' }}>
                   {renderCommentContent(reply.content, reply.resolved)}
@@ -290,11 +292,11 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
           value={newContent}
           onChange={e => setNewContent(e.target.value)}
           onKeyDown={handleCommentKeyDown}
-          placeholder={selectedNodeId ? 'Comment on this node... Use @name to mention' : 'New comment... Use @name to mention'}
+          placeholder={selectedNodeId ? t('collab.commentsNodePlaceholder') : t('collab.commentsNewPlaceholder')}
           style={{ width: '100%', fontSize: 12, padding: 8, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)', resize: 'none', minHeight: 60, boxSizing: 'border-box' }}
         />
         <button className="btn btn-sm" onClick={handleSubmit} disabled={!newContent.trim()} style={{ marginTop: 6, width: '100%', fontSize: 12 }}>
-          Post Comment
+          {t('collab.postComment')}
         </button>
       </div>
     </div>
