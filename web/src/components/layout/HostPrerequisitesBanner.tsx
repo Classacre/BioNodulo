@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { HostStatus } from '../../types';
 import { apiPost } from '../../api/client';
@@ -11,28 +12,34 @@ interface Props {
 }
 
 export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConsole, onRecheck }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installMsg, setInstallMsg] = useState<string | null>(null);
+  const [installMsgKind, setInstallMsgKind] = useState<'success' | 'error' | null>(null);
 
   const handleInstall = useCallback(async () => {
     setInstalling(true);
     setInstallMsg(null);
+    setInstallMsgKind(null);
     onOpenConsole();
     try {
       const data = await apiPost<{ success?: boolean; already_installed?: boolean; message?: string }>('/host_status/install-pixi');
       if (data.success) {
-        setInstallMsg(data.already_installed ? 'Already installed' : 'Installed successfully — reload the page to activate.');
+        setInstallMsg(data.already_installed ? t('hostStatus.alreadyInstalled') : t('hostStatus.installedSuccessfully'));
+        setInstallMsgKind('success');
       } else {
-        setInstallMsg(`Install failed: ${data.message || 'unknown error'}`);
+        setInstallMsg(t('hostStatus.installFailed', { message: data.message || t('hostStatus.unknownError') }));
+        setInstallMsgKind('error');
       }
     } catch {
-      setInstallMsg('Install request failed — check server logs.');
+      setInstallMsg(t('hostStatus.installRequestFailed'));
+      setInstallMsgKind('error');
     } finally {
       setInstalling(false);
       onRecheck();
     }
-  }, [onOpenConsole, onRecheck]);
+  }, [onOpenConsole, onRecheck, t]);
 
   const missingRequired = status.missing_required || [];
 
@@ -43,8 +50,8 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
           <Icon name="warning" size={16} />
         </span>
         <span className="dep-banner-text">
-          <strong>Host prerequisite missing:</strong>{' '}
-          {status.message || `${missingRequired.length} required tool(s) missing`}
+          <strong>{t('hostStatus.prerequisiteMissingTitle')}</strong>{' '}
+          {status.message || t('hostStatus.requiredToolsMissing', { count: missingRequired.length })}
         </span>
         <div className="dep-banner-actions">
           {missingRequired.includes('pixi') && (
@@ -55,19 +62,19 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
             >
               {installing ? (
                 <>
-                  <Icon name="spinner" size={12} /> Installing...
+                  <Icon name="spinner" size={12} /> {t('hostStatus.installing')}
                 </>
               ) : (
                 <>
-                  <Icon name="download" size={12} /> Auto Install Pixi
+                  <Icon name="download" size={12} /> {t('hostStatus.autoInstallPixi')}
                 </>
               )}
             </button>
           )}
           <button className="btn btn-sm" onClick={() => setExpanded(v => !v)}>
-            {expanded ? 'Hide' : 'Details'}
+            {expanded ? t('common.hide') : t('resolveReport.details')}
           </button>
-          <button className="btn btn-sm btn-ghost" onClick={onDismiss} title="Dismiss">
+          <button className="btn btn-sm btn-ghost" onClick={onDismiss} title={t('common.dismiss')} aria-label={t('common.dismiss')}>
             <Icon name="close" size={12} />
           </button>
         </div>
@@ -75,7 +82,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
 
       {installMsg && (
         <div className="dep-banner-details" style={{ borderTop: '1px solid var(--border)' }}>
-          <span style={{ color: installMsg.includes('failed') ? 'var(--danger)' : 'var(--success)', fontSize: 12 }}>
+          <span style={{ color: installMsgKind === 'error' ? 'var(--danger)' : 'var(--success)', fontSize: 12 }}>
             {installMsg}
           </span>
         </div>
@@ -84,7 +91,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
       {expanded && (
         <div className="dep-banner-details">
           <div className="dep-banner-section">
-            <h4>Host Checks</h4>
+            <h4>{t('hostStatus.hostChecks')}</h4>
             <ul>
               {Object.entries(status.checks).map(([name, check]) => (
                 <li key={name}>
@@ -93,10 +100,10 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
                   </span>
                   <span className="dep-banner-source"> — {check.description}</span>
                   {!check.available && check.required && !check.auto_installable && (
-                    <span className="dep-banner-msg">Install manually and ensure it is on PATH</span>
+                    <span className="dep-banner-msg">{t('hostStatus.installManually')}</span>
                   )}
                   {!check.available && check.auto_installable && (
-                    <span className="dep-banner-msg">Can be auto-installed</span>
+                    <span className="dep-banner-msg">{t('hostStatus.canAutoInstall')}</span>
                   )}
                 </li>
               ))}

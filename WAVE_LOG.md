@@ -409,6 +409,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - HTML preview modal toolbar save/open/close tooltips and accessible action labels now read from `htmlPreview` / `common` i18n keys with Spanish unit coverage.
 - Image lightbox close/previous/next/save image tooltips and accessible action labels now read from `imageLightbox` / `common` i18n keys with Spanish unit coverage.
 - Missing dependency banner title, fallback summary, env status, install/detail/dismiss controls, job fallback text, and expanded report headings now read from `resolveReport` / `common` i18n keys with Spanish unit coverage.
+- Host prerequisite banner title, fallback summary, Pixi install controls/status messages, detail/dismiss controls, host-check heading, and manual/auto-install hints now read from `hostStatus` / `common` / `resolveReport` i18n keys with Spanish unit coverage.
 
 ---
 
