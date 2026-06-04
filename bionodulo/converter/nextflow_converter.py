@@ -12,6 +12,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from bionodulo.converter.edge_utils import edge_source, edge_target
+
 
 def export_to_nextflow(
     workflow: dict[str, Any],
@@ -34,8 +36,8 @@ def export_to_nextflow(
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     for edge in edges:
-        src = edge.get("source")
-        tgt = edge.get("target")
+        src = edge_source(edge)
+        tgt = edge_target(edge)
         if src in nodes and tgt in nodes:
             incoming[tgt].append(edge)
             outgoing[src].append(edge)
@@ -72,7 +74,7 @@ def export_to_nextflow(
 
         input_defs: list[str] = []
         for i, edge in enumerate(incoming[node_id]):
-            src = edge.get("source")
+            src = edge_source(edge)
             input_defs.append("        path input_" + str(i) + " from " + str(src))
         if input_defs:
             lines.append("    input:")
@@ -105,7 +107,7 @@ def export_to_nextflow(
         process_name = _sanitize_process_name(node_id)
         inc = incoming[node_id]
         if inc:
-            srcs = [e.get("source") for e in inc]
+            srcs = [edge_source(e) for e in inc]
             lines.append("    " + process_name + "(ch_" + str(srcs[0]) + ")")
             lines.append("    ch_" + node_id + " = " + process_name + ".out")
         else:
@@ -351,7 +353,7 @@ def _topological_sort_nf(
         order.append(nid)
         for other_nid in nodes:
             for edge in incoming.get(other_nid, []):
-                if edge.get("source") == nid:
+                if edge_source(edge) == nid:
                     in_degree[other_nid] -= 1
                     if in_degree[other_nid] == 0:
                         queue.append(other_nid)

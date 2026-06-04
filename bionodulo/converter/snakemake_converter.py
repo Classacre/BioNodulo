@@ -11,6 +11,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target
+
 
 def export_to_snakemake(
     workflow: dict[str, Any],
@@ -35,8 +37,8 @@ def export_to_snakemake(
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     for edge in edges:
-        src = edge.get("source")
-        tgt = edge.get("target")
+        src = edge_source(edge)
+        tgt = edge_target(edge)
         if src in nodes and tgt in nodes:
             incoming[tgt].append(edge)
             outgoing[src].append(edge)
@@ -74,8 +76,8 @@ def export_to_snakemake(
         # Inputs
         input_paths: list[str] = []
         for edge in incoming[node_id]:
-            src = edge.get("source")
-            src_port = edge.get("source_output", "default")
+            src = edge_source(edge)
+            src_port = edge_source_port(edge)
             if src in nodes:
                 src_node = nodes[src]
                 src_out = src_node.get("outputs", {}).get(src_port, {})

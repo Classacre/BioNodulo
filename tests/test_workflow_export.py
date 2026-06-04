@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 
 import pytest
 
@@ -27,6 +28,41 @@ def _workflow(node_type: str) -> dict:
             }
         ],
         "edges": [],
+    }
+
+
+def _frontend_connected_workflow() -> dict:
+    return {
+        "id": "frontend-export-test",
+        "name": "Frontend Export Test",
+        "nodes": [
+            {
+                "id": "qc",
+                "type": "fastqc",
+                "widgets": {},
+                "outputs": {
+                    "html": {"path": "results/qc/fastqc.html"},
+                },
+                "meta": {},
+            },
+            {
+                "id": "summary",
+                "type": "multiqc",
+                "widgets": {},
+                "inputs": {"reports": {"type": "FILE"}},
+                "outputs": {
+                    "html": {"path": "results/summary/multiqc.html"},
+                },
+                "meta": {},
+            },
+        ],
+        "edges": [
+            {
+                "id": "edge-qc-summary",
+                "from": {"node": "qc", "output": "html"},
+                "to": {"node": "summary", "input": "reports"},
+            }
+        ],
     }
 
 
@@ -87,3 +123,41 @@ def test_cwl_export_rejects_unsupported_node_types_instead_of_placeholder_comman
 def test_galaxy_export_rejects_unsupported_node_types_instead_of_placeholder_tools() -> None:
     with pytest.raises(ValueError, match="Cannot export unsupported node type 'custom_python' to Galaxy"):
         export_to_galaxy(_workflow("custom_python"))
+
+
+def test_snakemake_export_preserves_frontend_shaped_edges() -> None:
+    exported = export_to_snakemake(_frontend_connected_workflow())
+
+    assert (
+        'rule summary:\n'
+        '    input:\n'
+        '        "results/qc/fastqc.html",\n'
+        '    output:'
+    ) in exported
+
+
+def test_nextflow_export_preserves_frontend_shaped_edges() -> None:
+    exported = export_to_nextflow(_frontend_connected_workflow())
+
+    assert "process summary {\n" in exported
+    assert "    input:\n        path input_0 from qc" in exported
+    assert "    summary(ch_qc)" in exported
+
+
+def test_cwl_export_preserves_frontend_shaped_edges() -> None:
+    exported = export_to_cwl(_frontend_connected_workflow())
+    workflow = json.loads(exported["workflow.cwl"])
+
+    assert workflow["steps"]["summary"]["in"] == {"reports": "qc/html"}
+
+
+def test_galaxy_export_preserves_frontend_shaped_edges() -> None:
+    exported = json.loads(export_to_galaxy(_frontend_connected_workflow()))
+    summary_step = next(step for step in exported["steps"].values() if step["label"] == "summary")
+
+    assert summary_step["input_connections"] == {
+        "reports": {
+            "id": 1,
+            "output_name": "html",
+        }
+    }

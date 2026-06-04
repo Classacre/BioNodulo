@@ -12,6 +12,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port
+
 
 def export_to_galaxy(
     workflow: dict[str, Any],
@@ -32,8 +34,8 @@ def export_to_galaxy(
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     for edge in edges:
-        src = edge.get("source")
-        tgt = edge.get("target")
+        src = edge_source(edge)
+        tgt = edge_target(edge)
         if src in nodes and tgt in nodes:
             incoming[tgt].append(edge)
             outgoing[src].append(edge)
@@ -83,9 +85,9 @@ def export_to_galaxy(
             })
 
         for edge in incoming[node_id]:
-            src = edge.get("source")
-            src_port = edge.get("source_output", "default")
-            tgt_port = edge.get("target_input", "default")
+            src = edge_source(edge)
+            src_port = edge_source_port(edge)
+            tgt_port = edge_target_port(edge)
             if src in step_index:
                 galaxy_step["input_connections"][tgt_port] = {
                     "id": step_index[src],
@@ -308,7 +310,7 @@ def _topological_sort_galaxy(
         order.append(nid)
         for other_nid in nodes:
             for edge in incoming.get(other_nid, []):
-                if edge.get("source") == nid:
+                if edge_source(edge) == nid:
                     in_degree[other_nid] -= 1
                     if in_degree[other_nid] == 0:
                         queue.append(other_nid)
