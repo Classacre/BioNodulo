@@ -406,6 +406,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Batch sample-sheet modal title, helper copy, upload/name controls, sheet summary, column mapping controls, preview heading, validation errors, and queue/submitting actions now read from `batchSampleSheet` / `common` i18n keys with Spanish unit coverage.
 - Import modal title, helper text, parse/error alerts, parsing state, and footer actions now read from `importModal` / `common` i18n keys with Spanish unit coverage.
 - Export modal title, format tabs, PNG option copy, generation actions, thumbnail alt text, converter fallback copy, and footer actions now read from `exportModal` / `common` i18n keys with Spanish unit coverage.
+- HTML preview modal toolbar save/open/close tooltips and accessible action labels now read from `htmlPreview` / `common` i18n keys with Spanish unit coverage.
 
 ---
 

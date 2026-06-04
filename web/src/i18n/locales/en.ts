@@ -1197,6 +1197,11 @@ const en = {
     converterFallbackTitle: '{{format}} export',
     converterFallbackMessage: 'Backend converter not available ({{status}})',
   },
+  htmlPreview: {
+    downloadHtml: 'Download HTML',
+    openInNewTab: 'Open in new tab',
+    closeEsc: 'Close (Esc)',
+  },
   search: {
     workflowSearch: 'Search workflow',
     workflowSearchPlaceholder: 'Find a node by name, type, or parameter',

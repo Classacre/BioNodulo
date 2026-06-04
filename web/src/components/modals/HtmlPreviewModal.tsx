@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 
 interface HtmlPreviewModalProps {
@@ -20,6 +21,8 @@ interface HtmlPreviewModalProps {
  * remove allow-scripts entirely.
  */
 export default function HtmlPreviewModal({ src, filename, isOpen, onClose }: HtmlPreviewModalProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -72,13 +75,13 @@ export default function HtmlPreviewModal({ src, filename, isOpen, onClose }: Htm
             {filename}
           </strong>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-sm btn-ghost" onClick={download} title="Download HTML">
-            <Icon name="download" size={14} /> Save
+          <button className="btn btn-sm btn-ghost" onClick={download} title={t('htmlPreview.downloadHtml')}>
+            <Icon name="download" size={14} /> {t('common.save')}
           </button>
-          <button className="btn btn-sm btn-ghost" onClick={openExternal} title="Open in new tab">
-            <Icon name="link" size={14} /> Open
+          <button className="btn btn-sm btn-ghost" onClick={openExternal} title={t('htmlPreview.openInNewTab')}>
+            <Icon name="link" size={14} /> {t('common.open')}
           </button>
-          <button className="btn btn-icon btn-sm" onClick={onClose} title="Close (Esc)">
+          <button className="btn btn-icon btn-sm" onClick={onClose} title={t('htmlPreview.closeEsc')} aria-label={t('htmlPreview.closeEsc')}>
             <Icon name="close" size={14} />
           </button>
         </div>
