@@ -26,6 +26,7 @@ MANHATTAN_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 COVERAGE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 VCF_STATS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 FOREST_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+TREE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -4492,6 +4493,171 @@ def _render_tree_svg(
     path.write_text("\n".join(parts) + "\n", encoding="utf-8")
 
 
+def _tree_position_payload(
+    node: TreeNode,
+    positions: dict[int, tuple[float, float]],
+    max_depth: float,
+) -> list[Any]:
+    x, y = positions[id(node)]
+    return [
+        node.name,
+        round(node.length, 10),
+        round(x, 4),
+        round(y, 4),
+        round(max_depth, 10),
+    ]
+
+
+def _render_tree_html(
+    path: Path,
+    *,
+    root: TreeNode,
+    tree_layout: str,
+    show_bootstrap: bool,
+    bootstrap_threshold: float,
+    branch_width: float,
+    tip_label_size: int,
+    color_branches: bool,
+    title: str,
+    layout: PlotLayout,
+) -> None:
+    if tree_layout in {"circular", "radial"}:
+        positions, _ = _polar_tree_positions(root, layout=layout)
+    else:
+        positions, _ = _assign_tree_coordinates(root, layout=layout)
+    max_depth = _tree_max_depth(root, 0.0)
+
+    branch_traces: list[dict[str, Any]] = []
+    for parent, child in _tree_edges(root):
+        parent_x, parent_y = positions[id(parent)]
+        child_x, child_y = positions[id(child)]
+        support = _bootstrap_value(child.name)
+        colour = "#111827"
+        if color_branches and support is not None:
+            colour = "#16A34A" if support >= bootstrap_threshold else "#DC2626"
+        if tree_layout == "rectangular":
+            x_values = [parent_x, parent_x, child_x]
+            y_values = [parent_y, child_y, child_y]
+        else:
+            x_values = [parent_x, child_x]
+            y_values = [parent_y, child_y]
+        branch_traces.append({
+            "type": "scatter",
+            "mode": "lines",
+            "name": "Branches",
+            "x": [round(value, 4) for value in x_values],
+            "y": [round(value, 4) for value in y_values],
+            "line": {"color": colour, "width": max(branch_width, 0.5), "shape": "linear"},
+            "customdata": [_tree_position_payload(child, positions, max_depth)] * len(x_values),
+            "hovertemplate": (
+                "branch length: %{customdata[1]}<br>"
+                "node: %{customdata[0]}<extra></extra>"
+            ),
+            "showlegend": False,
+        })
+
+    leaves = _tree_leaves(root)
+    tip_trace = {
+        "type": "scatter",
+        "mode": "markers+text",
+        "name": "Tips",
+        "x": [round(positions[id(leaf)][0], 4) for leaf in leaves],
+        "y": [round(positions[id(leaf)][1], 4) for leaf in leaves],
+        "text": [leaf.name for leaf in leaves],
+        "textposition": "middle right" if tree_layout == "rectangular" else "top center",
+        "textfont": {"size": max(tip_label_size, 4), "color": "#111827"},
+        "customdata": [_tree_position_payload(leaf, positions, max_depth) for leaf in leaves],
+        "hovertemplate": (
+            "<b>%{customdata[0]}</b><br>"
+            "branch length: %{customdata[1]}<extra></extra>"
+        ),
+        "marker": {
+            "color": "#2563EB",
+            "size": 7,
+            "line": {"color": "#ffffff", "width": 1},
+        },
+        "showlegend": False,
+    }
+    traces = [*branch_traces, tip_trace]
+
+    bootstrap_nodes = [
+        node
+        for node in _tree_internal_nodes(root)
+        if (support := _bootstrap_value(node.name)) is not None
+        and show_bootstrap
+        and support >= bootstrap_threshold
+    ]
+    if bootstrap_nodes:
+        traces.append({
+            "type": "scatter",
+            "mode": "text",
+            "name": "Bootstrap",
+            "x": [round(positions[id(node)][0] + 5.0, 4) for node in bootstrap_nodes],
+            "y": [round(positions[id(node)][1] - 5.0, 4) for node in bootstrap_nodes],
+            "text": [f"bootstrap: {_bootstrap_value(node.name):g}" for node in bootstrap_nodes],
+            "textposition": "top right",
+            "textfont": {"size": 11, "color": "#475569"},
+            "hoverinfo": "skip",
+            "showlegend": False,
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "visible": False,
+            "range": [0, layout.width],
+            "scaleanchor": "y" if tree_layout in {"circular", "radial"} else None,
+        },
+        "yaxis": {
+            "visible": False,
+            "range": [layout.height, 0],
+        },
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": False,
+    }
+    if plot_layout["xaxis"]["scaleanchor"] is None:
+        del plot_layout["xaxis"]["scaleanchor"]
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "phylo_tree"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_tree_png(
     path: Path,
     *,
@@ -6742,7 +6908,7 @@ class PhylogeneticTreeViewerNode(BaseNode):
                 "tip_label_size": ("INT", {"default": 10, "min": 4, "max": 24}),
                 "color_branches": ("BOOLEAN", {"default": False}),
                 "title": ("STRING", {"default": "Phylogenetic Tree"}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(TREE_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 12.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 8.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -6753,7 +6919,7 @@ class PhylogeneticTreeViewerNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in TREE_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported phylogenetic tree format: {output_format}")
 
         tree_layout = str(kwargs.get("layout", "rectangular") or "rectangular").strip().lower()
@@ -6778,6 +6944,19 @@ class PhylogeneticTreeViewerNode(BaseNode):
         output_path = out_dir / f"phylo_tree.{output_format}"
         if output_format == "svg":
             _render_tree_svg(
+                output_path,
+                root=root,
+                tree_layout=tree_layout,
+                show_bootstrap=show_bootstrap,
+                bootstrap_threshold=bootstrap_threshold,
+                branch_width=branch_width,
+                tip_label_size=tip_label_size,
+                color_branches=color_branches,
+                title=title,
+                layout=layout,
+            )
+        elif output_format == "html":
+            _render_tree_html(
                 output_path,
                 root=root,
                 tree_layout=tree_layout,

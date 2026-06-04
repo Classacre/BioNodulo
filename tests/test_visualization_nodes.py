@@ -164,6 +164,8 @@ def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
 def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("phylo_tree_viewer")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -172,6 +174,7 @@ def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None
     assert info["phylo_tree_viewer"]["output_name"] == ["tree_image"]
     assert info["phylo_tree_viewer"]["output"] == ["IMAGE"]
     assert info["phylo_tree_viewer"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_vcf_stats_chart_is_registered_for_frontend_discovery() -> None:
@@ -1141,6 +1144,47 @@ async def test_phylogenetic_tree_viewer_writes_svg_with_bootstrap_and_preview(tm
     assert 'data-bootstrap="95"' in svg
     assert "Sample_C" in svg
     assert previews == [(str(svg_path), "Phylogenetic Tree")]
+
+
+@pytest.mark.asyncio
+async def test_phylogenetic_tree_viewer_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("phylo_tree_viewer")
+    tree = tmp_path / "tree.nwk"
+    tree.write_text("((Sample_A:0.1,Sample_B:0.2)95:0.3,Sample_C:0.4);", encoding="utf-8")
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        tree_file=str(tree),
+        layout="rectangular",
+        show_bootstrap=True,
+        bootstrap_threshold=70.0,
+        title="Example Phylogeny",
+        format="html",
+        width=8,
+        height=5,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["tree_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "phylo_tree.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Example Phylogeny" in document
+    assert '"type": "scatter"' in document
+    assert '"mode": "lines"' in document
+    assert '"mode": "markers+text"' in document
+    assert '"Sample_A"' in document
+    assert '"Sample_C"' in document
+    assert '"bootstrap: 95"' in document
+    assert '"customdata":' in document
+    assert '["Sample_A", 0.1' in document
+    assert previews == [(str(html_path), "Phylogenetic Tree")]
 
 
 @pytest.mark.asyncio
