@@ -440,4 +440,47 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Supported Formats');
     expect(source).not.toContain('Container directives');
   });
+
+  it('renders keyboard-shortcuts article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Atajos de teclado' }));
+
+    expect(screen.getByRole('heading', { name: 'Atajos de teclado' })).toBeInTheDocument();
+    expect(screen.getByText('Accion')).toBeInTheDocument();
+    expect(screen.getByText('Abrir paleta de nodos / busqueda')).toBeInTheDocument();
+    expect(screen.getByText('Alternar paneles del riel izquierdo')).toBeInTheDocument();
+    expect(screen.getByText('Menu contextual del grupo')).toBeInTheDocument();
+    expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
+  });
+
+  it('searches keyboard-shortcuts article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'paleta de nodos' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Atajos de teclado')).toBeInTheDocument();
+  });
+
+  it('keeps keyboard-shortcuts wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.keyboardShortcuts');
+    expect(source).not.toContain('Open node palette / search');
+    expect(source).not.toContain('Toggle left rail panels');
+    expect(source).not.toContain('Group context menu');
+  });
 });

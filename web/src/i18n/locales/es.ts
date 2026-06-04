@@ -1270,6 +1270,36 @@ class MyToolNode(CommandNode):
 <li>Las directivas de contenedor se convierten en especificaciones de entorno</li>
 </ul>
 `,
+      keyboardShortcuts: `
+<h3>Atajos de teclado</h3>
+<table>
+<tr><th>Atajo</th><th>Accion</th></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Abrir paleta de nodos / busqueda</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>R</kbd></td><td>Ejecutar workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Exportar workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Importar workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>A</kbd></td><td>Seleccionar todos los nodos</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd></td><td>Copiar nodos seleccionados</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Pegar nodos</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>X</kbd></td><td>Cortar nodos seleccionados</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Deshacer</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Y</kbd></td><td>Rehacer</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Rehacer (alternativo)</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>G</kbd></td><td>Agrupar nodos seleccionados</td></tr>
+<tr><td><kbd>Alt</kbd> + <kbd>C</kbd></td><td>Contraer / expandir nodos seleccionados</td></tr>
+<tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Eliminar nodos seleccionados</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>1</kbd>-<kbd>7</kbd></td><td>Alternar paneles del riel izquierdo</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td><td>Abrir Settings</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>\`</kbd></td><td>Alternar consola</td></tr>
+<tr><td><kbd>Alt</kbd> + Arrastrar</td><td>Desplazar lienzo</td></tr>
+<tr><td><kbd>Shift</kbd> + Clic</td><td>Alternar seleccion de nodo</td></tr>
+<tr><td>Doble clic en lienzo</td><td>Abrir paleta de nodos</td></tr>
+<tr><td>Doble clic en nodo</td><td>Editar parametros del nodo</td></tr>
+<tr><td>Clic derecho en nodo</td><td>Menu contextual del nodo</td></tr>
+<tr><td>Clic derecho en lienzo</td><td>Menu contextual del lienzo</td></tr>
+<tr><td>Clic derecho en grupo</td><td>Menu contextual del grupo</td></tr>
+</table>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',

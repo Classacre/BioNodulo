@@ -1269,6 +1269,36 @@ class MyToolNode(CommandNode):
 <li>Container directives are converted to environment specs</li>
 </ul>
 `,
+      keyboardShortcuts: `
+<h3>Keyboard Shortcuts</h3>
+<table>
+<tr><th>Shortcut</th><th>Action</th></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Open node palette / search</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>R</kbd></td><td>Run workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Export workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Import workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>A</kbd></td><td>Select all nodes</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd></td><td>Copy selected nodes</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Paste nodes</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>X</kbd></td><td>Cut selected nodes</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Y</kbd></td><td>Redo</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Redo (alternative)</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>G</kbd></td><td>Group selected nodes</td></tr>
+<tr><td><kbd>Alt</kbd> + <kbd>C</kbd></td><td>Collapse / expand selected nodes</td></tr>
+<tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected nodes</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>1</kbd>-<kbd>7</kbd></td><td>Toggle left rail panels</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td><td>Open Settings</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>\`</kbd></td><td>Toggle console</td></tr>
+<tr><td><kbd>Alt</kbd> + Drag</td><td>Pan canvas</td></tr>
+<tr><td><kbd>Shift</kbd> + Click</td><td>Toggle node selection</td></tr>
+<tr><td>Double-click canvas</td><td>Open node palette</td></tr>
+<tr><td>Double-click node</td><td>Edit node parameters</td></tr>
+<tr><td>Right-click node</td><td>Node context menu</td></tr>
+<tr><td>Right-click canvas</td><td>Canvas context menu</td></tr>
+<tr><td>Right-click group</td><td>Group context menu</td></tr>
+</table>
+`,
     },
     sections: {
       gettingStarted: 'Getting started',
