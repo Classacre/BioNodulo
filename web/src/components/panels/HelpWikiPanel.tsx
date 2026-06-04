@@ -93,31 +93,6 @@ const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
 ];
 
 const CONTENT: Partial<Record<WikiPage, string>> = {
-  'templates-guide': `
-<h3>Workflow Templates</h3>
-<p>Templates are pre-built workflows for common bioinformatics analyses. Load a template as a starting point and customize it.</p>
-
-<h4>Available Templates</h4>
-<ul>
-<li><strong>FASTQ QC Pipeline:</strong> FastQC → MultiQC quality assessment</li>
-<li><strong>RNA-Seq Pipeline:</strong> HISAT2 → samtools sort → featureCounts → QC</li>
-<li><strong>Variant Calling:</strong> BWA-MEM → samtools → GATK → bcftools filter</li>
-<li><strong>WGS Variant Pipeline:</strong> Complete germline variant discovery</li>
-<li><strong>Metagenomics:</strong> Kraken2 → Bracken profiling</li>
-<li><strong>Genome Assembly:</strong> SPAdes → Quast evaluation</li>
-<li><strong>Phylogenetics:</strong> MAFFT → IQ-TREE tree building</li>
-<li><strong>ChIP-Seq:</strong> Bowtie2 → MACS2 peak calling</li>
-<li><strong>Single Cell:</strong> Cell Ranger count pipeline</li>
-<li><strong>Differential Expression:</strong> DESeq2 / edgeR analysis</li>
-</ul>
-
-<h4>Loading Templates</h4>
-<p>Click the Templates icon in the left rail to browse available templates. Click a template card to load it onto the canvas. Each template includes a yellow <strong>Note</strong> node at the top describing the pipeline.</p>
-
-<h4>Creating Custom Templates</h4>
-<p>Save any workflow as a template by exporting it to JSON and placing it in the <code>templates/</code> directory. Templates must include <code>version</code>, <code>app</code>, <code>name</code>, <code>description</code>, <code>nodes</code>, <code>edges</code>, and <code>groups</code> fields.</p>
-`,
-
   'custom-nodes': `
 <h3>Custom Nodes</h3>
 <p>BioNodulo supports custom nodes for tools not included in the built-in library.</p>
@@ -244,6 +219,7 @@ const CONTENT_KEYS: Partial<Record<WikiPage, string>> = {
   'getting-started': 'helpWiki.content.gettingStarted',
   'canvas-features': 'helpWiki.content.canvasFeatures',
   'nodes-reference': 'helpWiki.content.nodesReference',
+  'templates-guide': 'helpWiki.content.templatesGuide',
 };
 
 function stripHtml(html: string): string {

@@ -268,4 +268,46 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Node Structure');
     expect(source).not.toContain('Common Parameters');
   });
+
+  it('renders templates-guide article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guia de plantillas' }));
+
+    expect(screen.getByRole('heading', { name: 'Plantillas de workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plantillas disponibles' })).toBeInTheDocument();
+    expect(screen.getByText(/Las plantillas son workflows preconstruidos/)).toBeInTheDocument();
+    expect(screen.getByText(/Kraken2 -> Bracken/)).toBeInTheDocument();
+    expect(screen.queryByText('Workflow Templates')).not.toBeInTheDocument();
+  });
+
+  it('searches templates-guide article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'preconstruidos' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Guia de plantillas')).toBeInTheDocument();
+  });
+
+  it('keeps templates-guide wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.templatesGuide');
+    expect(source).not.toContain('Workflow Templates');
+    expect(source).not.toContain('Templates are pre-built workflows');
+    expect(source).not.toContain('Creating Custom Templates');
+  });
 });

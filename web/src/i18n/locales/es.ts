@@ -1159,6 +1159,30 @@ const es = {
 <tr><td>output</td><td>Directorio de salida</td><td>Generado automaticamente</td></tr>
 </table>
 `,
+      templatesGuide: `
+<h3>Plantillas de workflow</h3>
+<p>Las plantillas son workflows preconstruidos para analisis comunes de bioinformatica. Carga una plantilla como punto de partida y personalizala.</p>
+
+<h4>Plantillas disponibles</h4>
+<ul>
+<li><strong>Pipeline FASTQ QC:</strong> evaluacion de calidad con FastQC -> MultiQC</li>
+<li><strong>Pipeline RNA-Seq:</strong> HISAT2 -> samtools sort -> featureCounts -> QC</li>
+<li><strong>Llamado de variantes:</strong> BWA-MEM -> samtools -> GATK -> bcftools filter</li>
+<li><strong>Pipeline WGS de variantes:</strong> descubrimiento completo de variantes germinales</li>
+<li><strong>Metagenomica:</strong> perfilado con Kraken2 -> Bracken</li>
+<li><strong>Ensamblaje de genomas:</strong> evaluacion con SPAdes -> Quast</li>
+<li><strong>Filogenetica:</strong> construccion de arboles con MAFFT -> IQ-TREE</li>
+<li><strong>ChIP-Seq:</strong> llamado de picos con Bowtie2 -> MACS2</li>
+<li><strong>Celula unica:</strong> pipeline Cell Ranger count</li>
+<li><strong>Expresion diferencial:</strong> analisis DESeq2 / edgeR</li>
+</ul>
+
+<h4>Cargar plantillas</h4>
+<p>Haz clic en el icono Plantillas de la barra izquierda para explorar las plantillas disponibles. Haz clic en una tarjeta de plantilla para cargarla en el lienzo. Cada plantilla incluye un nodo <strong>Note</strong> amarillo en la parte superior que describe el pipeline.</p>
+
+<h4>Crear plantillas personalizadas</h4>
+<p>Guarda cualquier workflow como plantilla exportandolo a JSON y colocandolo en el directorio <code>templates/</code>. Las plantillas deben incluir los campos <code>version</code>, <code>app</code>, <code>name</code>, <code>description</code>, <code>nodes</code>, <code>edges</code> y <code>groups</code>.</p>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',
