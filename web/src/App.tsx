@@ -52,6 +52,7 @@ import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { makeAppFileActionCopy } from './utils/appFileActionCopy';
+import { promptWorkflowRunParameters } from './utils/workflowParameters';
 import { makeAppCollabCopy } from './collab/appCollabCopy';
 import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
@@ -1341,12 +1342,26 @@ export default function App() {
         setIsRunning(false);
         return;
       }
+      const parameterOverrides = await promptWorkflowRunParameters(activeWorkflow.parameters, promptDialog, {
+        title: 'Workflow parameters',
+        message: parameter => (
+          parameter.description
+            ? `${parameter.name} (${parameter.type}) — ${parameter.description}`
+            : `${parameter.name} (${parameter.type})`
+        ),
+        confirmLabel: 'Use value',
+        cancelLabel: 'Cancel run',
+      });
+      if (parameterOverrides === null) {
+        setIsRunning(false);
+        return;
+      }
       const count = Math.max(1, Math.min(99, batchCount));
       for (let index = 0; index < count; index += 1) {
         const batchName = count > 1
           ? `${activeWorkflow.name || 'Untitled'} (${index + 1}/${count})`
           : activeWorkflow.name || 'Untitled';
-        const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled, name: batchName });
+        const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled, name: batchName, parameters: parameterOverrides });
         addRun({
           run_id: result.run_id,
           status: 'pending',
@@ -1435,10 +1450,25 @@ export default function App() {
         setIsRunning(false);
         return;
       }
+      const parameterOverrides = await promptWorkflowRunParameters(activeWorkflow.parameters, promptDialog, {
+        title: 'Workflow parameters',
+        message: parameter => (
+          parameter.description
+            ? `${parameter.name} (${parameter.type}) — ${parameter.description}`
+            : `${parameter.name} (${parameter.type})`
+        ),
+        confirmLabel: 'Use value',
+        cancelLabel: 'Cancel run',
+      });
+      if (parameterOverrides === null) {
+        setIsRunning(false);
+        return;
+      }
       const result = await submitRun(activeWorkflow, {
         no_cache: !cacheEnabled,
         target_nodes: nodeIds,
         name: `${activeWorkflow.name || 'Untitled'} (selection)`,
+        parameters: parameterOverrides,
       });
       addRun({
         run_id: result.run_id,

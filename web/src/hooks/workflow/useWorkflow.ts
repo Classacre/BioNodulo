@@ -157,6 +157,7 @@ export function useWorkflow() {
     environment?: string;
     force_nodes?: string[];
     target_nodes?: string[];
+    parameters?: Record<string, unknown>;
   }) => {
     const r = await apiRequest('/runs', {
       method: 'POST',
@@ -168,6 +169,7 @@ export function useWorkflow() {
         environment: options?.environment || null,
         force_nodes: options?.force_nodes || [],
         target_nodes: options?.target_nodes || [],
+        parameters: options?.parameters || {},
       },
     });
     const data = await r.json();

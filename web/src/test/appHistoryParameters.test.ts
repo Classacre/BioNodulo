@@ -12,4 +12,13 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain('activeWorkflow.parameters');
     expect(appSource.match(/parameters: state\.parameters/g)).toHaveLength(2);
   });
+
+  it('prompts for workflow parameter overrides before submitting runs', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain("import { promptWorkflowRunParameters } from './utils/workflowParameters';");
+    expect(appSource.match(/promptWorkflowRunParameters\(activeWorkflow\.parameters, promptDialog/g)).toHaveLength(2);
+    expect(appSource.match(/parameters: parameterOverrides/g)).toHaveLength(2);
+    expect(appSource).toContain('if (parameterOverrides === null)');
+  });
 });

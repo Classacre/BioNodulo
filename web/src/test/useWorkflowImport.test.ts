@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiPost } from '../api/client';
+import { apiPost, apiRequest } from '../api/client';
 import { useWorkflow } from '../hooks/workflow/useWorkflow';
 import type { Workflow } from '../types';
 
@@ -86,6 +86,59 @@ describe('useWorkflow exportWorkflow', () => {
     expect(apiPost).toHaveBeenCalledWith('/workflow/export', {
       workflow,
       format: 'snakemake',
+    });
+  });
+});
+
+describe('useWorkflow submitRun', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+    vi.mocked(apiRequest).mockReset();
+  });
+
+  it('posts runtime workflow parameter overrides to the run API', async () => {
+    const workflow = {
+      id: 'wf-1',
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'Parameterized workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+      parameters: [
+        { name: 'sample_id', type: 'STRING', required: true },
+      ],
+    } as Workflow;
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify({
+      run_id: 'run-1',
+      status: 'pending',
+      workflow_name: 'Parameterized workflow',
+      node_statuses: [],
+      node_outputs: {},
+      execution_plan: [],
+      previews: {},
+      artifacts: {},
+    })));
+    const { result } = renderHook(() => useWorkflow());
+
+    await act(async () => {
+      await result.current.submitRun(workflow, {
+        no_cache: true,
+        parameters: { sample_id: 'S1' },
+      });
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/runs', {
+      method: 'POST',
+      json: expect.objectContaining({
+        workflow,
+        workflow_id: 'wf-1',
+        no_cache: true,
+        parameters: { sample_id: 'S1' },
+      }),
     });
   });
 });
