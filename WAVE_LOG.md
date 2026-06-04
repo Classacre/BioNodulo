@@ -402,6 +402,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Help wiki panel chrome, search headings/no-results copy, page navigation labels, node-source hints, and generated node documentation labels now read from `helpWiki` i18n keys with Spanish unit coverage; embedded static article HTML remains deferred.
 - Output comparison modal title, run pickers, loading/empty states, summary counts, section headings, error labels, and footer action now read from `outputDiff` / `common` i18n keys with Spanish unit coverage.
 - Bulk parameter modal title, shared-parameter header, no-common-parameter states, pluralized apply action, varies placeholder, and reset-field tooltip now read from `paramBulk` / `common` i18n keys with Spanish unit coverage.
+- Workflow doctor modal title, severity summaries, healthy/empty states, diagnostic finding titles/details, jump action, and footer close action now read from `doctor` / `common` i18n keys with Spanish unit coverage.
 
 ---
 

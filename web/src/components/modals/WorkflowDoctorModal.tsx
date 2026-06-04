@@ -7,6 +7,7 @@
 // node id that the canvas can focus when the user clicks "Jump".
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
 import type { Workflow, ObjectInfo } from '../../types';
 
@@ -22,8 +23,9 @@ type Severity = 'error' | 'warning' | 'info';
 interface Finding {
   id: string;
   severity: Severity;
-  title: string;
-  detail?: string;
+  titleKey: string;
+  titleValues?: Record<string, string>;
+  detailKey?: string;
   nodeId?: string;
 }
 
@@ -59,8 +61,9 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
         findings.push({
           id: `missing-${node.id}-${key}`,
           severity: 'error',
-          title: `${node.ui?.title || node.type}: required input "${key}" is unset`,
-          detail: 'Connect an upstream output or set a default in the node editor.',
+          titleKey: 'missingRequiredTitle',
+          titleValues: { node: node.ui?.title || node.type, input: key },
+          detailKey: 'missingRequiredDetail',
           nodeId: node.id,
         });
       }
@@ -74,8 +77,9 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
       findings.push({
         id: `orphan-${node.id}`,
         severity: 'warning',
-        title: `${node.ui?.title || node.type} has unused outputs`,
-        detail: 'Connect to a downstream node, or remove if intentional.',
+        titleKey: 'unusedOutputsTitle',
+        titleValues: { node: node.ui?.title || node.type },
+        detailKey: 'unusedOutputsDetail',
         nodeId: node.id,
       });
     }
@@ -87,7 +91,8 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
       findings.push({
         id: `tools-${node.id}`,
         severity: 'info',
-        title: `${node.ui?.title || node.type} requires: ${requires.join(', ')}`,
+        titleKey: 'externalToolsTitle',
+        titleValues: { node: node.ui?.title || node.type, tools: requires.join(', ') },
         nodeId: node.id,
       });
     }
@@ -98,16 +103,16 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
     findings.push({
       id: 'empty-graph',
       severity: 'info',
-      title: 'Workflow is empty',
-      detail: 'Drop a template, drag a file from the workspace, or open the node library to start.',
+      titleKey: 'emptyGraphTitle',
+      detailKey: 'emptyGraphDetail',
     });
   }
   if (edges.length === 0 && nodes.length > 1) {
     findings.push({
       id: 'no-edges',
       severity: 'warning',
-      title: 'No connections between nodes',
-      detail: 'Wire outputs to inputs by dragging between slots.',
+      titleKey: 'noEdgesTitle',
+      detailKey: 'noEdgesDetail',
     });
   }
 
@@ -125,6 +130,7 @@ function severityColor(s: Severity): string {
 }
 
 export default function WorkflowDoctorModal({ workflow, objectInfo, onClose, onJumpToNode }: WorkflowDoctorModalProps) {
+  const { t } = useTranslation();
   const findings = useMemo(() => diagnose(workflow, objectInfo), [workflow, objectInfo]);
   const counts = useMemo(() => {
     const c = { error: 0, warning: 0, info: 0 };
@@ -133,62 +139,66 @@ export default function WorkflowDoctorModal({ workflow, objectInfo, onClose, onJ
   }, [findings]);
 
   const footer = (
-    <button className="btn" type="button" onClick={onClose}>Close</button>
+    <button className="btn" type="button" onClick={onClose}>{t('common.close')}</button>
   );
 
   return (
     <Dialog
-      title="Workflow doctor"
+      title={t('doctor.title')}
       width={680}
       maxHeight="80vh"
       onClose={onClose}
       footer={footer}
       header={(
         <span>
-          {counts.error > 0 && <span style={{ color: 'var(--danger, #ef4444)', marginRight: 12 }}>{counts.error} error{counts.error === 1 ? '' : 's'}</span>}
-          {counts.warning > 0 && <span style={{ color: 'var(--warning, #f59e0b)', marginRight: 12 }}>{counts.warning} warning{counts.warning === 1 ? '' : 's'}</span>}
-          {counts.info > 0 && <span style={{ color: 'var(--muted)' }}>{counts.info} info</span>}
-          {findings.length === 0 && <span style={{ color: 'var(--success, #22c55e)' }}>Workflow looks healthy ✓</span>}
+          {counts.error > 0 && <span style={{ color: 'var(--danger, #ef4444)', marginRight: 12 }}>{t('doctor.countError', { count: counts.error })}</span>}
+          {counts.warning > 0 && <span style={{ color: 'var(--warning, #f59e0b)', marginRight: 12 }}>{t('doctor.countWarning', { count: counts.warning })}</span>}
+          {counts.info > 0 && <span style={{ color: 'var(--muted)' }}>{t('doctor.countInfo', { count: counts.info })}</span>}
+          {findings.length === 0 && <span style={{ color: 'var(--success, #22c55e)' }}>{t('doctor.healthy')}</span>}
         </span>
       )}
     >
       {findings.length === 0 ? (
         <div style={{ color: 'var(--muted)', fontSize: 12, padding: '12px 0' }}>
-          No issues found. Everything looks wired up.
+          {t('doctor.noIssues')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {findings.map(f => (
-            <div
-              key={f.id}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                padding: 10,
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderLeft: `3px solid ${severityColor(f.severity)}`,
-                borderRadius: 6,
-              }}
-            >
-              <span aria-hidden="true">{severityIcon(f.severity)}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{f.title}</div>
-                {f.detail && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{f.detail}</div>}
+          {findings.map(f => {
+            const title = t(`doctor.findings.${f.titleKey}`, f.titleValues);
+            const detail = f.detailKey ? t(`doctor.findings.${f.detailKey}`) : null;
+            return (
+              <div
+                key={f.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: 10,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${severityColor(f.severity)}`,
+                  borderRadius: 6,
+                }}
+              >
+                <span aria-hidden="true">{severityIcon(f.severity)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{title}</div>
+                  {detail && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{detail}</div>}
+                </div>
+                {f.nodeId && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => onJumpToNode(f.nodeId!)}
+                    title={t('doctor.jumpTitle')}
+                  >
+                    {t('doctor.jump')}
+                  </button>
+                )}
               </div>
-              {f.nodeId && (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => onJumpToNode(f.nodeId!)}
-                  title="Centre the canvas on this node"
-                >
-                  Jump
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Dialog>
