@@ -205,3 +205,9 @@ export async function apiGetText(path: string, init: ApiRequestInit = {}): Promi
   const response = await apiRequest(path, { ...init, method: 'GET' });
   return response.text();
 }
+
+/** Fetch raw Blob response (e.g. downloadable exports). */
+export async function apiGetBlob(path: string, init: ApiRequestInit = {}): Promise<Blob> {
+  const response = await apiRequest(path, { ...init, method: 'GET' });
+  return response.blob();
+}

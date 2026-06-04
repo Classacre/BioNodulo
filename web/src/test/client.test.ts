@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, apiGet, apiGetText, apiPost, clearApiCache } from '../api/client';
+import { ApiError, apiGet, apiGetBlob, apiGetText, apiPost, clearApiCache } from '../api/client';
 
 describe('api/client', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -22,6 +22,12 @@ describe('api/client', () => {
         return new Response('plain text payload', {
           status: 200,
           headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+      if (url.endsWith('/api/blob')) {
+        return new Response('csv,payload\n', {
+          status: 200,
+          headers: { 'Content-Type': 'text/csv' },
         });
       }
       if (url.endsWith('/api/not-found')) {
@@ -73,6 +79,12 @@ describe('api/client', () => {
   it('returns raw text responses with apiGetText', async () => {
     const out = await apiGetText('/text');
     expect(out).toBe('plain text payload');
+  });
+
+  it('returns blob responses with apiGetBlob', async () => {
+    const out = await apiGetBlob('/blob');
+    expect(out).toBeInstanceOf(Blob);
+    await expect(out.text()).resolves.toBe('csv,payload\n');
   });
 
   it('stringifies JSON bodies and sets Content-Type for apiPost', async () => {

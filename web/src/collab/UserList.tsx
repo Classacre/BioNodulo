@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
 import type { CollabRole, LivePresenceUser } from './types';
-import { appPath } from '../utils/appBase';
+import { apiDelete, apiGet, apiPost } from '../api/client';
 
 interface ShareRecord {
   id: string;
@@ -56,12 +56,12 @@ const UserList: React.FC<UserListProps> = ({
     const token = getToken();
     if (!token) return;
     const entries = await Promise.all(workflows.map(async workflowId => {
-      const response = await fetch(appPath(`/api/collab/shares/${workflowId}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return [workflowId, []] as const;
-      const data = await response.json() as { shares?: ShareRecord[] };
-      return [workflowId, data.shares ?? []] as const;
+      try {
+        const data = await apiGet<{ shares?: ShareRecord[] }>(`/api/collab/shares/${workflowId}`);
+        return [workflowId, data.shares ?? []] as const;
+      } catch {
+        return [workflowId, []] as const;
+      }
     }));
     setShares(Object.fromEntries(entries));
   }, [workflows]);
@@ -83,12 +83,9 @@ const UserList: React.FC<UserListProps> = ({
     const token = getToken();
     if (!token) return;
     setError(null);
-    const response = await fetch(appPath('/api/collab/share'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ workflow_id: user.workflow_id, user_id: user.user_id, role }),
-    });
-    if (!response.ok) {
+    try {
+      await apiPost('/api/collab/share', { workflow_id: user.workflow_id, user_id: user.user_id, role });
+    } catch {
       setError(`Could not change ${user.name}'s role.`);
       return;
     }
@@ -101,11 +98,9 @@ const UserList: React.FC<UserListProps> = ({
     const share = shares[user.workflow_id]?.find(record => record.user_id === user.user_id);
     if (!token || !share) return;
     setError(null);
-    const response = await fetch(appPath(`/api/collab/share/${share.id}`), {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
+    try {
+      await apiDelete(`/api/collab/share/${share.id}`);
+    } catch {
       setError(`Could not remove ${user.name}.`);
       return;
     }

@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getToken } from './auth';
 import type { WorkflowVersion, VersionDiffResult } from './types';
 import VersionDiff from './VersionDiff';
 import Icon from '../components/ui/Icon';
 import { confirmDialog, promptDialog } from '../components/ui';
-import { appPath } from '../utils/appBase';
+import { apiDelete, apiGet, apiPost } from '../api/client';
 
 const API_BASE = 'api/collab';
 
@@ -34,12 +33,9 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
     if (!workflowId) return;
     setLoading(true);
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/versions`), { headers });
-      if (!res.ok) throw new Error(`Failed to fetch versions: ${res.status}`);
-      const data = await res.json() as { versions: WorkflowVersion[]; count: number };
+      const data = await apiGet<{ versions: WorkflowVersion[]; count: number }>(
+        `${API_BASE}/workflows/${workflowId}/versions`,
+      );
       setVersions(data.versions ?? []);
       setError(null);
     } catch (err) {
@@ -65,15 +61,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
     if (name === null) return;
     setSaving(true);
     try {
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/versions`), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ name: name || null }),
-      });
-      if (!res.ok) throw new Error(`Failed to save version: ${res.status}`);
+      await apiPost(`${API_BASE}/workflows/${workflowId}/versions`, { name: name || null });
       fetchVersions();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save version');
@@ -91,15 +79,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
     });
     if (!ok) return;
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/versions/${versionId}/restore`), {
-        method: 'POST',
-        headers,
-      });
-      if (!res.ok) throw new Error(`Failed to restore: ${res.status}`);
-      const data = await res.json() as { snapshot: unknown };
+      const data = await apiPost<{ snapshot: unknown }>(`${API_BASE}/versions/${versionId}/restore`);
       onRestore(data.snapshot);
       onClose();
     } catch (err) {
@@ -116,14 +96,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
     });
     if (!ok) return;
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/versions/${versionId}`), {
-        method: 'DELETE',
-        headers,
-      });
-      if (!res.ok) throw new Error(`Failed to delete: ${res.status}`);
+      await apiDelete(`${API_BASE}/versions/${versionId}`);
       fetchVersions();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete version');
@@ -132,12 +105,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
 
   const handleDiff = async (a: WorkflowVersion, b: WorkflowVersion) => {
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/versions/${a.id}/diff/${b.id}`), { headers });
-      if (!res.ok) throw new Error(`Failed to fetch diff: ${res.status}`);
-      const diff = await res.json() as VersionDiffResult;
+      const diff = await apiGet<VersionDiffResult>(`${API_BASE}/versions/${a.id}/diff/${b.id}`);
       setDiffData({ a, b, diff });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load diff');

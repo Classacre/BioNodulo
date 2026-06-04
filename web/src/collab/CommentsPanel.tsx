@@ -6,7 +6,7 @@ import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
 import { selectedNodeIdAtom } from '../state/uiAtoms';
-import { appPath } from '../utils/appBase';
+import { apiDelete, apiGet, apiPost } from '../api/client';
 
 const API_BASE = 'api/collab';
 
@@ -81,11 +81,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       const url = selectedNodeId && !showAll
         ? `${API_BASE}/workflows/${workflowId}/comments?node_id=${encodeURIComponent(selectedNodeId)}`
         : `${API_BASE}/comments`;
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(url), { headers });
-      if (!res.ok) throw new Error(`Failed to fetch comments: ${res.status}`);
-      const data = await res.json() as { comments: Comment[]; count: number; workflow_names?: Record<string, string> };
+      const data = await apiGet<{ comments: Comment[]; count: number; workflow_names?: Record<string, string> }>(url);
       setComments(data.comments ?? []);
       if (selectedNodeId && !showAll) {
         onCommentsChange?.(data.comments ?? []);
@@ -105,20 +101,12 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
     fetchComments().then(() => setLoading(false));
     intervalRef.current = setInterval(fetchComments, 2500);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isOpen, fetchComments]);
+  }, [isOpen, fetchComments, selectedNodeId]);
 
   const postComment = async (content: string, parentId: string | null = null, nodeId: string | null = null) => {
     const token = getToken();
     if (!token) throw new Error('Join collaboration before posting comments.');
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/comments`), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ content, parent_id: parentId, node_id: nodeId }),
-    });
-    if (!res.ok) throw new Error(`Failed to post comment: ${res.status}`);
-    return res.json();
+    return apiPost(`${API_BASE}/workflows/${workflowId}/comments`, { content, parent_id: parentId, node_id: nodeId });
   };
 
   const handleSubmit = async () => {
@@ -158,14 +146,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
 
   const handleResolve = async (commentId: string) => {
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/comments/${commentId}/resolve`), {
-        method: 'POST',
-        headers,
-      });
-      if (!res.ok) throw new Error('Failed to resolve');
+      await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
       fetchComments();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resolve comment');
@@ -181,14 +162,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
     });
     if (!ok) return;
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/comments/${commentId}`), {
-        method: 'DELETE',
-        headers,
-      });
-      if (!res.ok) throw new Error('Failed to delete');
+      await apiDelete(`${API_BASE}/comments/${commentId}`);
       fetchComments();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete comment');

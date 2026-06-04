@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import Icon from '../components/ui/Icon';
-import { getToken } from './auth';
 import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
-import { appPath } from '../utils/appBase';
+import { apiPost } from '../api/client';
 
 interface NodeCommentPopoverProps {
   workflowId: string;
@@ -26,19 +25,6 @@ function timeAgo(timestamp: string): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-async function collabRequest(url: string, init: RequestInit) {
-  const token = getToken();
-  const response = await fetch(appPath(url), {
-    ...init,
-    headers: {
-      ...init.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
-  return response;
 }
 
 export default function NodeCommentPopover({
@@ -64,10 +50,10 @@ export default function NodeCommentPopover({
   const post = async (text: string, parentId: string | null) => {
     if (!text.trim()) return;
     try {
-      await collabRequest(`${API_BASE}/workflows/${workflowId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text.trim(), parent_id: parentId, node_id: nodeId }),
+      await apiPost(`${API_BASE}/workflows/${workflowId}/comments`, {
+        content: text.trim(),
+        parent_id: parentId,
+        node_id: nodeId,
       });
       setContent('');
       setReply('');
@@ -81,7 +67,7 @@ export default function NodeCommentPopover({
 
   const resolve = async (commentId: string) => {
     try {
-      await collabRequest(`${API_BASE}/comments/${commentId}/resolve`, { method: 'POST' });
+      await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
       setError(null);
       onChanged();
     } catch (err) {

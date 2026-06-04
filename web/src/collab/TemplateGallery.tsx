@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getToken } from './auth';
 import type { WorkflowTemplate } from './types';
 import type { Workflow } from '../types';
 import Icon from '../components/ui/Icon';
 import { promptDialog } from '../components/ui';
-import { appPath } from '../utils/appBase';
+import { apiGet, apiPost } from '../api/client';
 
 const API_BASE = 'api/collab';
 
@@ -38,12 +37,10 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (activeTag) params.set('tags', activeTag);
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/templates?${params.toString()}`), { headers });
-      if (!res.ok) throw new Error(`Failed to fetch templates: ${res.status}`);
-      const data = await res.json() as { templates: WorkflowTemplate[]; count: number };
+      const query = params.toString();
+      const data = await apiGet<{ templates: WorkflowTemplate[]; count: number }>(
+        `${API_BASE}/templates${query ? `?${query}` : ''}`,
+      );
       setTemplates(data.templates ?? []);
       setError(null);
     } catch (err) {
@@ -69,15 +66,9 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
   const handleFork = async (templateId: string) => {
     setForkingId(templateId);
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/templates/${templateId}/fork`), {
-        method: 'POST',
-        headers,
-      });
-      if (!res.ok) throw new Error(`Fork failed: ${res.status}`);
-      const data = await res.json() as { workflow_id?: string; workflow?: Workflow };
+      const data = await apiPost<{ workflow_id?: string; workflow?: Workflow }>(
+        `${API_BASE}/templates/${templateId}/fork`,
+      );
       const workflowId = data.workflow_id || data.workflow?.id;
       if (workflowId) {
         onFork({ workflowId, workflow: data.workflow });
@@ -117,15 +108,13 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
     }) || '';
     setSavingWorkflowId(currentWorkflowId);
     try {
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/templates`), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ workflow_id: currentWorkflowId, title, description, tags, is_public: true }),
+      await apiPost(`${API_BASE}/templates`, {
+        workflow_id: currentWorkflowId,
+        title,
+        description,
+        tags,
+        is_public: true,
       });
-      if (!res.ok) throw new Error(`Failed to save template: ${res.status}`);
       fetchTemplates();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');

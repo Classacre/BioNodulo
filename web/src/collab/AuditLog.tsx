@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getToken } from './auth';
 import type { AuditEntry } from './types';
 import Icon from '../components/ui/Icon';
-import { appPath } from '../utils/appBase';
+import { apiGet, apiGetBlob } from '../api/client';
 
 const API_BASE = 'api/collab';
 const PAGE_SIZE = 50;
@@ -52,17 +51,15 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
     if (!workflowId) return;
     setLoading(true);
     try {
-      const token = getToken();
       const params = new URLSearchParams();
       if (filterUser) params.set('user_id', filterUser);
       if (filterAction) params.set('action', filterAction);
       if (filterFrom) params.set('from_date', filterFrom);
       if (filterTo) params.set('to_date', filterTo);
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/audit?${params.toString()}`), { headers });
-      if (!res.ok) throw new Error(`Failed to fetch audit log: ${res.status}`);
-      const data = await res.json() as { entries: AuditEntry[]; count: number };
+      const query = params.toString();
+      const data = await apiGet<{ entries: AuditEntry[]; count: number }>(
+        `${API_BASE}/workflows/${workflowId}/audit${query ? `?${query}` : ''}`,
+      );
       setEntries(data.entries ?? []);
       setError(null);
       setPage(1);
@@ -105,17 +102,15 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
 
   const handleExportCsv = async () => {
     try {
-      const token = getToken();
       const params = new URLSearchParams();
       if (filterUser) params.set('user_id', filterUser);
       if (filterAction) params.set('action', filterAction);
       if (filterFrom) params.set('from_date', filterFrom);
       if (filterTo) params.set('to_date', filterTo);
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(appPath(`${API_BASE}/workflows/${workflowId}/audit/export?${params.toString()}`), { headers });
-      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
-      const blob = await res.blob();
+      const query = params.toString();
+      const blob = await apiGetBlob(
+        `${API_BASE}/workflows/${workflowId}/audit/export${query ? `?${query}` : ''}`,
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
