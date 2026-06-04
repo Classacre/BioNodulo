@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { alertDialog } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
@@ -21,6 +22,7 @@ const FORMATS: { id: ImportFormat; name: string; placeholder: string }[] = [
 ];
 
 export default function ImportModal({ onImport, onClose }: ImportModalProps) {
+  const { t } = useTranslation();
   const [format, setFormat] = useState<ImportFormat>('json');
   const [source, setSource] = useState('');
   const [parsing, setParsing] = useState(false);
@@ -52,7 +54,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         onImport(wf);
         onClose();
       } catch {
-        await alertDialog('Could not parse the workflow. Ensure the format is correct.');
+        await alertDialog(t('importModal.errors.parseFormat'));
       }
     } catch {
       try {
@@ -60,7 +62,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         onImport(wf);
         onClose();
       } catch {
-        await alertDialog('Could not parse the workflow.');
+        await alertDialog(t('importModal.errors.parse'));
       }
     }
     setParsing(false);
@@ -76,11 +78,11 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         className="modal-content"
         role="dialog"
         aria-modal="true"
-        aria-label="Import workflow"
+        aria-label={t('importModal.title')}
         style={{ width: 700, maxHeight: '80vh' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="modal-header">Import Workflow</div>
+        <div className="modal-header">{t('importModal.title')}</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {FORMATS.map(f => (
@@ -96,7 +98,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
             style={{ width: '100%', minHeight: 300, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', resize: 'vertical' }}
           />
           <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
-            Paste workflow code above, or upload a file (PNGs with embedded workflow metadata are decoded automatically):
+            {t('importModal.uploadHint')}
             <input
               type="file"
               accept=".json,.smk,.nf,.cwl,.ga,.png,.txt,application/json,image/png"
@@ -114,12 +116,12 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
                       return;
                     }
                     await alertDialog({
-                      title: 'No workflow found',
-                      message: 'This PNG does not contain a BioNodulo workflow tEXt chunk. Export with the "PNG (workflow embedded)" option to produce one.',
+                      title: t('importModal.errors.noPngWorkflowTitle'),
+                      message: t('importModal.errors.noPngWorkflowMessage'),
                     });
                   } catch (err) {
                     await alertDialog({
-                      title: 'PNG read failed',
+                      title: t('importModal.errors.pngReadFailedTitle'),
                       message: err instanceof Error ? err.message : String(err),
                     });
                   }
@@ -133,9 +135,9 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
           <button className="btn btn-primary" onClick={parse} disabled={!source.trim() || parsing}>
-            {parsing ? 'Parsing...' : 'Import'}
+            {parsing ? t('importModal.parsing') : t('common.import')}
           </button>
         </div>
       </div>

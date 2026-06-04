@@ -1161,6 +1161,18 @@ const es = {
       noMapping: 'Asigna al menos una columna a un parametro de nodo.',
     },
   },
+  importModal: {
+    title: 'Importar workflow',
+    uploadHint: 'Pega codigo de workflow arriba o sube un archivo (los PNG con metadatos de workflow incrustados se decodifican automaticamente):',
+    parsing: 'Analizando...',
+    errors: {
+      parseFormat: 'No se pudo analizar el workflow. Asegurate de que el formato sea correcto.',
+      parse: 'No se pudo analizar el workflow.',
+      noPngWorkflowTitle: 'No se encontro ningun workflow',
+      noPngWorkflowMessage: 'Este PNG no contiene un fragmento tEXt de workflow de BioNodulo. Exporta con la opcion "PNG (workflow incrustado)" para generar uno.',
+      pngReadFailedTitle: 'No se pudo leer el PNG',
+    },
+  },
   search: {
     workflowSearch: 'Search workflow',
     workflowSearchPlaceholder: 'Find a node by name, type, or parameter',

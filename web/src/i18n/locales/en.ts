@@ -1161,6 +1161,18 @@ const en = {
       noMapping: 'Map at least one column to a node parameter.',
     },
   },
+  importModal: {
+    title: 'Import workflow',
+    uploadHint: 'Paste workflow code above, or upload a file (PNGs with embedded workflow metadata are decoded automatically):',
+    parsing: 'Parsing...',
+    errors: {
+      parseFormat: 'Could not parse the workflow. Ensure the format is correct.',
+      parse: 'Could not parse the workflow.',
+      noPngWorkflowTitle: 'No workflow found',
+      noPngWorkflowMessage: 'This PNG does not contain a BioNodulo workflow tEXt chunk. Export with the "PNG (workflow embedded)" option to produce one.',
+      pngReadFailedTitle: 'PNG read failed',
+    },
+  },
   search: {
     workflowSearch: 'Search workflow',
     workflowSearchPlaceholder: 'Find a node by name, type, or parameter',
