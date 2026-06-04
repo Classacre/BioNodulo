@@ -1312,3 +1312,256 @@ def test_cooler_plans_mcool_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/cooler/mcool.mcool"]
+
+
+def test_cooltools_compartments_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cooltools_compartments"]
+    assert node_info["display_name"] == "cooltools Compartments"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Call A/B compartments")
+    assert node_info["output"] == ["TSV", "FILE"]
+    assert node_info["output_name"] == ["compartment_track", "eigenvalues"]
+    assert node_info["required_executables"] == ["cooltools"]
+    assert node_info["required_conda_packages"] == ["cooltools"]
+    assert "eigs-cis" in node_info["search_aliases"]
+    assert "compartments" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"cooler_uri"}
+    assert set(inputs["optional"]) == {
+        "phasing_track",
+        "view_file",
+        "n_eigs",
+        "clr_weight_name",
+        "ignore_diags",
+        "output_prefix",
+    }
+
+
+def test_cooltools_compartments_renders_eigs_cis_command() -> None:
+    node_class = _node_class("cooltools_compartments")
+
+    cmd = node_class.render_command({
+        "cooler_uri": "matrix.mcool::resolutions/100000",
+        "phasing_track": "gc.tsv::GC",
+        "view_file": "view.tsv",
+        "n_eigs": 2,
+        "clr_weight_name": "weight",
+        "ignore_diags": 3,
+        "output_prefix": "sample compartments",
+        "output": "/tmp/run/cooltools_compartments",
+    })
+
+    assert cmd == [
+        "cooltools",
+        "eigs-cis",
+        "--phasing-track",
+        "gc.tsv::GC",
+        "--view",
+        "view.tsv",
+        "--n-eigs",
+        "2",
+        "--clr-weight-name",
+        "weight",
+        "--ignore-diags",
+        "3",
+        "-o",
+        "/tmp/run/cooltools_compartments/sample_compartments",
+        "matrix.mcool::resolutions/100000",
+    ]
+
+
+def test_cooltools_compartments_omits_empty_optional_flags() -> None:
+    node_class = _node_class("cooltools_compartments")
+
+    cmd = node_class.render_command({
+        "cooler_uri": "matrix.cool",
+        "phasing_track": "",
+        "view_file": "",
+        "n_eigs": 1,
+        "clr_weight_name": "",
+        "ignore_diags": 0,
+        "output": "/tmp/run/cooltools_compartments",
+    })
+
+    assert "--phasing-track" not in cmd
+    assert "--view" not in cmd
+    assert "--clr-weight-name" not in cmd
+    assert "--ignore-diags" not in cmd
+    assert cmd == [
+        "cooltools",
+        "eigs-cis",
+        "--n-eigs",
+        "1",
+        "-o",
+        "/tmp/run/cooltools_compartments/compartments",
+        "matrix.cool",
+    ]
+
+
+def test_cooltools_compartments_plans_eigs_outputs() -> None:
+    node_class = _node_class("cooltools_compartments")
+
+    outputs = node_class.PLAN_OUTPUTS({"output_prefix": "sample compartments"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cooltools_compartments/sample_compartments.cis.vecs.tsv",
+        "/tmp/run/cooltools_compartments/sample_compartments.cis.lam.txt",
+    ]
+
+
+def test_cooltools_compartments_rejects_invalid_eigenvector_settings() -> None:
+    node_class = _node_class("cooltools_compartments")
+
+    assert node_class.VALIDATE_INPUTS({"cooler_uri": "matrix.cool", "n_eigs": 0}) == "n_eigs must be at least 1."
+    assert (
+        node_class.VALIDATE_INPUTS({"cooler_uri": "matrix.cool", "n_eigs": 1, "ignore_diags": -1})
+        == "ignore_diags must be zero or greater."
+    )
+
+
+def test_cooltools_insulation_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cooltools_insulation"]
+    assert node_info["display_name"] == "cooltools Insulation"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Calculate diamond insulation scores")
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["insulation"]
+    assert node_info["required_executables"] == ["cooltools"]
+    assert node_info["required_conda_packages"] == ["cooltools"]
+    assert "insulation" in node_info["search_aliases"]
+    assert "boundaries" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"cooler_uri", "window_sizes"}
+    assert set(inputs["optional"]) == {
+        "view_file",
+        "nproc",
+        "clr_weight_name",
+        "ignore_diags",
+        "min_frac_valid_pixels",
+        "min_dist_bad_bin",
+        "threshold",
+        "window_pixels",
+        "append_raw_scores",
+        "chunksize",
+    }
+
+
+def test_cooltools_insulation_renders_boundary_command() -> None:
+    node_class = _node_class("cooltools_insulation")
+
+    cmd = node_class.render_command({
+        "cooler_uri": "matrix.mcool::resolutions/25000",
+        "window_sizes": "100000,250000",
+        "view_file": "view.tsv",
+        "nproc": 6,
+        "clr_weight_name": "weight",
+        "ignore_diags": 2,
+        "min_frac_valid_pixels": 0.75,
+        "min_dist_bad_bin": 1,
+        "threshold": "Li",
+        "window_pixels": True,
+        "append_raw_scores": True,
+        "chunksize": 5000000,
+        "output": "/tmp/run/cooltools_insulation",
+    })
+
+    assert cmd == [
+        "cooltools",
+        "insulation",
+        "-p",
+        "6",
+        "-o",
+        "/tmp/run/cooltools_insulation/insulation.tsv",
+        "--view",
+        "view.tsv",
+        "--clr-weight-name",
+        "weight",
+        "--ignore-diags",
+        "2",
+        "--min-frac-valid-pixels",
+        "0.75",
+        "--min-dist-bad-bin",
+        "1",
+        "--threshold",
+        "Li",
+        "--window-pixels",
+        "--append-raw-scores",
+        "--chunksize",
+        "5000000",
+        "matrix.mcool::resolutions/25000",
+        "100000",
+        "250000",
+    ]
+
+
+def test_cooltools_insulation_omits_empty_optional_flags() -> None:
+    node_class = _node_class("cooltools_insulation")
+
+    cmd = node_class.render_command({
+        "cooler_uri": "matrix.cool",
+        "window_sizes": "100000",
+        "nproc": 1,
+        "view_file": "",
+        "clr_weight_name": "",
+        "ignore_diags": 0,
+        "threshold": "",
+        "window_pixels": False,
+        "append_raw_scores": False,
+        "chunksize": 0,
+        "output": "/tmp/run/cooltools_insulation",
+    })
+
+    assert "--view" not in cmd
+    assert "--clr-weight-name" not in cmd
+    assert "--ignore-diags" not in cmd
+    assert "--threshold" not in cmd
+    assert "--window-pixels" not in cmd
+    assert "--append-raw-scores" not in cmd
+    assert "--chunksize" not in cmd
+    assert cmd == [
+        "cooltools",
+        "insulation",
+        "-p",
+        "1",
+        "-o",
+        "/tmp/run/cooltools_insulation/insulation.tsv",
+        "matrix.cool",
+        "100000",
+    ]
+
+
+def test_cooltools_insulation_plans_insulation_output() -> None:
+    node_class = _node_class("cooltools_insulation")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/cooltools_insulation/insulation.tsv"]
+
+
+def test_cooltools_insulation_rejects_invalid_window_and_resource_settings() -> None:
+    node_class = _node_class("cooltools_insulation")
+
+    assert node_class.VALIDATE_INPUTS({"cooler_uri": "matrix.cool", "window_sizes": ""}) == "At least one window size is required."
+    assert (
+        node_class.VALIDATE_INPUTS({"cooler_uri": "matrix.cool", "window_sizes": "100000", "nproc": 0})
+        == "nproc must be at least 1."
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({"cooler_uri": "matrix.cool", "window_sizes": "100000", "min_frac_valid_pixels": 1.5})
+        == "min_frac_valid_pixels must be between 0 and 1."
+    )
+
+
+def test_cooltools_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["cooltools"] == "cooltools"
+    assert PACKAGE_MIN_VERSIONS["cooltools"] == ">=0.7.0"

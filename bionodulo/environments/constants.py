@@ -90,6 +90,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "HiC-Pro": "hic-pro",
     "juicer.sh": "juicer",
     "cooler": "cooler",
+    "cooltools": "cooltools",
     "MaxQuantCmd.exe": "maxquant",
     "mono": "mono",
     "msfragger": "msfragger",
