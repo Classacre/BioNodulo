@@ -309,6 +309,21 @@ class FeatureCountsNode(CommandNode):
         }
 
 
+class FeatureCountsAliasNode(FeatureCountsNode):
+    """Planner/workflow compatibility alias for featureCounts."""
+    NODE_ID = "feature_counts"
+    DISPLAY_NAME = "Feature Counts"
+    DESCRIPTION = "Count reads per gene with featureCounts for RNA-seq workflows."
+    SEARCH_ALIASES = [
+        "feature_counts",
+        "featurecounts",
+        "feature counts",
+        "gene counts",
+        "subread",
+        "rna-seq counts",
+    ]
+
+
 class StringTieNode(CommandNode):
     """Transcript assembly and quantification with StringTie."""
     NODE_ID = "stringtie"
