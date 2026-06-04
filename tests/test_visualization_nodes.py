@@ -108,6 +108,19 @@ def test_manhattan_plot_is_registered_for_frontend_discovery() -> None:
     assert info["manhattan_plot"]["output_node"] is True
 
 
+def test_forest_plot_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    info = registry.object_info()
+
+    assert info["forest_plot"]["display_name"] == "Forest Plot"
+    assert info["forest_plot"]["category"] == "visualization"
+    assert info["forest_plot"]["output_name"] == ["forest_image"]
+    assert info["forest_plot"]["output"] == ["IMAGE"]
+    assert info["forest_plot"]["output_node"] is True
+
+
 def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -496,6 +509,100 @@ async def test_manhattan_plot_writes_svg_with_thresholds_labels_and_preview(tmp_
     assert 'class="suggestive-threshold"' in svg
     assert "rs3" in svg
     assert previews == [(str(svg_path), "Manhattan Plot")]
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_writes_svg_with_intervals_pooled_row_and_preview(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text(
+        "study\tlogFC\tci_lower\tci_upper\tweight\tpooled\n"
+        "GSE12345\t0.42\t0.10\t0.74\t26.5\tfalse\n"
+        "GSE67890\t0.80\t0.28\t1.32\t21.0\tfalse\n"
+        "GSE24680\t-0.12\t-0.50\t0.26\t18.5\tfalse\n"
+        "Pooled\t0.39\t0.15\t0.63\t100\ttrue\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        table=str(table),
+        label_column="study",
+        effect_column="logFC",
+        lower_column="ci_lower",
+        upper_column="ci_upper",
+        weight_column="weight",
+        pooled_column="pooled",
+        title="Meta-Analysis Forest Plot",
+        x_label="Log fold change",
+        format="svg",
+        width=9,
+        height=5,
+        context=context,
+    )
+
+    svg_path = Path(result["outputs"]["forest_image"])
+    svg = svg_path.read_text(encoding="utf-8")
+
+    assert svg_path.name == "forest_plot.svg"
+    assert "<svg" in svg
+    assert "Meta-Analysis Forest Plot" in svg
+    assert "Log fold change" in svg
+    assert 'class="forest-ci"' in svg
+    assert 'class="forest-effect"' in svg
+    assert 'class="forest-pooled"' in svg
+    assert 'data-label="GSE12345"' in svg
+    assert 'data-effect="0.39"' in svg
+    assert "Pooled" in svg
+    assert previews == [(str(svg_path), "Forest Plot")]
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_derives_intervals_from_standard_error(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text(
+        "study\tlogFC\tSE\n"
+        "GSE12345\t0.42\t0.10\n"
+        "Pooled\t0.39\t0.05\n",
+        encoding="utf-8",
+    )
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(table=str(table), format="svg", context=context)
+
+    svg = Path(result["outputs"]["forest_image"]).read_text(encoding="utf-8")
+
+    assert 'data-label="GSE12345"' in svg
+    assert 'data-lower="0.224"' in svg
+    assert 'data-upper="0.616"' in svg
+    assert 'class="forest-pooled"' in svg
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_uses_standard_error_when_row_interval_is_missing(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text(
+        "study\tlogFC\tci_lower\tci_upper\tSE\n"
+        "GSE12345\t0.42\t0.10\t0.74\t0.10\n"
+        "GSE67890\t0.80\t\t\t0.20\n",
+        encoding="utf-8",
+    )
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(table=str(table), format="svg", context=context)
+
+    svg = Path(result["outputs"]["forest_image"]).read_text(encoding="utf-8")
+
+    assert 'data-label="GSE12345"' in svg
+    assert 'data-label="GSE67890"' in svg
+    assert 'data-lower="0.408"' in svg
+    assert 'data-upper="1.192"' in svg
 
 
 @pytest.mark.asyncio
@@ -898,6 +1005,26 @@ async def test_manhattan_plot_writes_default_png(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_forest_plot_writes_default_png(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text(
+        "study\tlogFC\tci_lower\tci_upper\n"
+        "GSE12345\t0.42\t0.10\t0.74\n"
+        "Pooled\t0.39\t0.15\t0.63\n",
+        encoding="utf-8",
+    )
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(table=str(table), context=context)
+
+    png_path = Path(result["outputs"]["forest_image"])
+
+    assert png_path.name == "forest_plot.png"
+    assert png_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+@pytest.mark.asyncio
 async def test_coverage_plot_writes_default_png(tmp_path: Path) -> None:
     node_class = _node_class("coverage_plot")
     coverage = tmp_path / "sample.bedgraph"
@@ -1126,6 +1253,46 @@ async def test_manhattan_plot_rejects_bad_format(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Unsupported Manhattan plot format"):
         await node_class().run(results_table=str(table), format="pdf")
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_rejects_missing_columns(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "bad.tsv"
+    table.write_text("study\teffect\tlower\nGSE12345\t0.42\t0.10\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Column\\(s\\) not found"):
+        await node_class().run(
+            table=str(table),
+            label_column="study",
+            effect_column="effect",
+            lower_column="lower",
+            upper_column="upper",
+        )
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_rejects_non_numeric_intervals(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "bad.tsv"
+    table.write_text(
+        "study\tlogFC\tci_lower\tci_upper\n"
+        "GSE12345\thigh\tlow\twide\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="No numeric rows found"):
+        await node_class().run(table=str(table))
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_rejects_bad_format(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text("study\tlogFC\tci_lower\tci_upper\nGSE12345\t0.42\t0.10\t0.74\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported forest plot format"):
+        await node_class().run(table=str(table), format="pdf")
 
 
 @pytest.mark.asyncio

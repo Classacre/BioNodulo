@@ -66,6 +66,18 @@ class BarDatum:
 
 
 @dataclass(frozen=True)
+class ForestPlotRow:
+    """A parsed forest plot study or pooled estimate row."""
+
+    label: str
+    effect: float
+    lower: float
+    upper: float
+    weight: float | None
+    pooled: bool
+
+
+@dataclass(frozen=True)
 class LineSeries:
     """A parsed line chart series."""
 
@@ -498,6 +510,127 @@ def _read_bar_rows(
     return rows
 
 
+def _truthy_cell(value: Any) -> bool:
+    text = str(value or "").strip().lower()
+    return text in {"1", "true", "t", "yes", "y", "pooled", "overall", "summary"}
+
+
+def _read_forest_rows(
+    path: Path,
+    *,
+    delimiter: Any,
+    label_column: str,
+    effect_column: str,
+    lower_column: str,
+    upper_column: str,
+    se_column: str,
+    weight_column: str,
+    pooled_column: str,
+) -> list[ForestPlotRow]:
+    if not path.exists():
+        raise FileNotFoundError(f"Forest plot table not found: {path}")
+
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        sample = handle.read(4096)
+        handle.seek(0)
+        resolved_delimiter = _resolve_delimiter(delimiter, sample)
+        reader = csv.reader(handle, delimiter=resolved_delimiter)
+        try:
+            raw_header = next(reader)
+        except StopIteration as exc:
+            raise ValueError("Forest plot table is empty") from exc
+
+        header = [name.strip() for name in raw_header]
+        required_columns = [label_column, effect_column]
+        has_interval_columns = bool(lower_column and upper_column and lower_column in header and upper_column in header)
+        has_se_column = bool(se_column and se_column in header)
+        if not has_interval_columns and not has_se_column:
+            if lower_column:
+                required_columns.append(lower_column)
+            if upper_column:
+                required_columns.append(upper_column)
+            if se_column:
+                required_columns.append(se_column)
+        if weight_column:
+            required_columns.append(weight_column)
+        if pooled_column:
+            required_columns.append(pooled_column)
+
+        missing = [column for column in required_columns if column not in header]
+        if missing:
+            missing_text = ", ".join(missing)
+            available_text = ", ".join(header) if header else "<none>"
+            raise ValueError(
+                f"Column(s) not found: {missing_text}. Available columns: {available_text}"
+            )
+
+        column_index = {name: idx for idx, name in enumerate(header)}
+        label_index = column_index[label_column]
+        effect_index = column_index[effect_column]
+        lower_index = column_index.get(lower_column) if lower_column else None
+        upper_index = column_index.get(upper_column) if upper_column else None
+        se_index = column_index.get(se_column) if se_column else None
+        weight_index = column_index.get(weight_column) if weight_column else None
+        pooled_index = column_index.get(pooled_column) if pooled_column else None
+        rows: list[ForestPlotRow] = []
+
+        for row_number, row in enumerate(reader, start=2):
+            if not row or all(not cell.strip() for cell in row):
+                continue
+
+            effect = _parse_float(row[effect_index] if effect_index < len(row) else None)
+            if effect is None:
+                continue
+
+            lower: float | None = None
+            upper: float | None = None
+            if lower_index is not None and upper_index is not None:
+                lower = _parse_float(row[lower_index] if lower_index < len(row) else None)
+                upper = _parse_float(row[upper_index] if upper_index < len(row) else None)
+            if (lower is None or upper is None) and se_index is not None:
+                se = _parse_float(row[se_index] if se_index < len(row) else None)
+                if se is not None and se >= 0:
+                    lower = effect - 1.96 * se
+                    upper = effect + 1.96 * se
+
+            if lower is None or upper is None:
+                continue
+            if lower > upper:
+                lower, upper = upper, lower
+
+            label = row[label_index].strip() if label_index < len(row) else ""
+            weight = None
+            if weight_index is not None and weight_index < len(row):
+                weight = _parse_float(row[weight_index])
+            pooled = False
+            if pooled_index is not None and pooled_index < len(row):
+                pooled = _truthy_cell(row[pooled_index])
+            elif "pooled" in label.lower() or "overall" in label.lower():
+                pooled = True
+
+            rows.append(
+                ForestPlotRow(
+                    label=label or f"row_{row_number}",
+                    effect=effect,
+                    lower=lower,
+                    upper=upper,
+                    weight=weight,
+                    pooled=pooled,
+                )
+            )
+
+    if not rows:
+        interval_text = (
+            f"'{lower_column}' and '{upper_column}'"
+            if lower_column and upper_column
+            else f"standard error column '{se_column}'"
+        )
+        raise ValueError(
+            f"No numeric rows found for columns '{effect_column}' and {interval_text}"
+        )
+    return rows
+
+
 def _read_line_series(
     path: Path,
     *,
@@ -888,6 +1021,19 @@ def _line_bounds(series: list[LineSeries]) -> XYBounds:
     return XYBounds(x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
 
 
+def _forest_bounds(rows: list[ForestPlotRow], *, reference: float) -> tuple[float, float]:
+    x_min = min([row.lower for row in rows] + [reference])
+    x_max = max([row.upper for row in rows] + [reference])
+    if math.isclose(x_min, x_max):
+        x_min -= 0.5
+        x_max += 0.5
+    else:
+        pad = (x_max - x_min) * 0.10
+        x_min -= pad
+        x_max += pad
+    return x_min, x_max
+
+
 def _pixel_dimensions(width: Any, height: Any, dpi: Any) -> tuple[int, int]:
     width_value = max(_coerce_float(width, 8.0), 1.0)
     height_value = max(_coerce_float(height, 6.0), 1.0)
@@ -939,6 +1085,12 @@ def _project_xy_x(value: float, bounds: XYBounds, layout: PlotLayout) -> float:
 def _project_xy_y(value: float, bounds: XYBounds, layout: PlotLayout) -> float:
     span = bounds.y_max - bounds.y_min
     return layout.top + (1.0 - ((value - bounds.y_min) / span)) * layout.plot_height
+
+
+def _project_forest_x(value: float, bounds: tuple[float, float], layout: PlotLayout) -> float:
+    low, high = bounds
+    span = high - low
+    return layout.left + ((value - low) / span) * layout.plot_width
 
 
 def _colour_map(up_color: str, down_color: str, ns_color: str) -> dict[str, str]:
@@ -3251,7 +3403,6 @@ def _render_tree_svg(
     x0 = layout.left
     x1 = layout.width - layout.right
     y0 = layout.top
-    y1 = layout.height - layout.bottom
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{layout.width}" '
         f'height="{layout.height}" viewBox="0 0 {layout.width} {layout.height}" '
@@ -4357,6 +4508,317 @@ def _render_bar_png(
                         _set_pixel(pixels, layout.width, layout.height, x, y, colour)
 
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _forest_marker_radius(row: ForestPlotRow) -> float:
+    if row.pooled:
+        return 7.0
+    if row.weight is None:
+        return 5.0
+    return 3.8 + math.sqrt(max(row.weight, 0.0)) * 0.35
+
+
+def _render_forest_svg(
+    path: Path,
+    *,
+    rows: list[ForestPlotRow],
+    bounds: tuple[float, float],
+    layout: PlotLayout,
+    title: str,
+    x_label: str,
+    reference: float,
+    show_weights: bool,
+) -> None:
+    x0 = layout.left
+    x1 = layout.width - layout.right
+    y0 = layout.top
+    y1 = layout.height - layout.bottom
+    reference_x = _project_forest_x(reference, bounds, layout)
+    row_step = layout.plot_height / max(1, len(rows))
+    label_x = max(12, x0 - 10)
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{layout.width}" '
+        f'height="{layout.height}" viewBox="0 0 {layout.width} {layout.height}" '
+        'role="img">',
+        f"<title>{html.escape(title)}</title>",
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+        f'<text x="{layout.width / 2:.1f}" y="{max(24, layout.top - 28)}" '
+        'text-anchor="middle" font-family="Arial, sans-serif" font-size="20" '
+        f'font-weight="700" fill="#111827">{html.escape(title)}</text>',
+        f'<rect x="{x0}" y="{y0}" width="{layout.plot_width}" height="{layout.plot_height}" '
+        'fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>',
+        f'<line x1="{reference_x:.2f}" y1="{y0}" x2="{reference_x:.2f}" y2="{y1}" '
+        'stroke="#64748B" stroke-width="1" stroke-dasharray="6 5" class="forest-reference"/>',
+        f'<line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#111827" stroke-width="1.5"/>',
+        f'<text x="{(x0 + x1) / 2:.1f}" y="{layout.height - 20}" text-anchor="middle" '
+        'font-family="Arial, sans-serif" font-size="14" fill="#111827">'
+        f"{html.escape(x_label)}</text>",
+        f'<text x="{x0}" y="{layout.height - 40}" text-anchor="start" '
+        'font-family="Arial, sans-serif" font-size="11" fill="#475569">'
+        f"{bounds[0]:.3g}</text>",
+        f'<text x="{reference_x:.2f}" y="{layout.height - 40}" text-anchor="middle" '
+        'font-family="Arial, sans-serif" font-size="11" fill="#475569">'
+        f"{reference:g}</text>",
+        f'<text x="{x1}" y="{layout.height - 40}" text-anchor="end" '
+        'font-family="Arial, sans-serif" font-size="11" fill="#475569">'
+        f"{bounds[1]:.3g}</text>",
+    ]
+
+    for index, row in enumerate(rows):
+        y = y0 + row_step * (index + 0.5)
+        if index % 2 == 1:
+            parts.append(
+                f'<rect x="{x0}" y="{y - row_step / 2:.2f}" width="{layout.plot_width}" '
+                f'height="{row_step:.2f}" fill="#EEF2F7" fill-opacity="0.45"/>'
+            )
+
+        lower_x = _project_forest_x(row.lower, bounds, layout)
+        upper_x = _project_forest_x(row.upper, bounds, layout)
+        effect_x = _project_forest_x(row.effect, bounds, layout)
+        label_attr = html.escape(row.label, quote=True)
+        stroke = "#0F172A" if row.pooled else "#334155"
+        fill = "#0F172A" if row.pooled else "#2563EB"
+        radius = _forest_marker_radius(row)
+
+        parts.append(
+            f'<text x="{label_x}" y="{y + 4:.2f}" text-anchor="end" '
+            'font-family="Arial, sans-serif" font-size="12" '
+            f'font-weight="{700 if row.pooled else 400}" fill="#111827">'
+            f"{html.escape(row.label)}</text>"
+        )
+        parts.append(
+            f'<line x1="{lower_x:.2f}" y1="{y:.2f}" x2="{upper_x:.2f}" y2="{y:.2f}" '
+            f'stroke="{stroke}" stroke-width="{2.4 if row.pooled else 1.8}" '
+            f'class="forest-ci" data-label="{label_attr}" data-effect="{row.effect:.6g}" '
+            f'data-lower="{row.lower:.6g}" data-upper="{row.upper:.6g}"/>'
+        )
+        parts.append(
+            f'<line x1="{lower_x:.2f}" y1="{y - 5:.2f}" x2="{lower_x:.2f}" y2="{y + 5:.2f}" '
+            f'stroke="{stroke}" stroke-width="1.4"/>'
+        )
+        parts.append(
+            f'<line x1="{upper_x:.2f}" y1="{y - 5:.2f}" x2="{upper_x:.2f}" y2="{y + 5:.2f}" '
+            f'stroke="{stroke}" stroke-width="1.4"/>'
+        )
+
+        if row.pooled:
+            diamond = (
+                f"{effect_x:.2f},{y - radius:.2f} "
+                f"{effect_x + radius:.2f},{y:.2f} "
+                f"{effect_x:.2f},{y + radius:.2f} "
+                f"{effect_x - radius:.2f},{y:.2f}"
+            )
+            parts.append(
+                f'<polygon points="{diamond}" fill="{fill}" stroke="#ffffff" stroke-width="1" '
+                f'class="forest-pooled" data-label="{label_attr}" data-effect="{row.effect:.6g}">'
+                f"<title>{html.escape(row.label)}: {row.effect:.3g} "
+                f"[{row.lower:.3g}, {row.upper:.3g}]</title></polygon>"
+            )
+        else:
+            parts.append(
+                f'<circle cx="{effect_x:.2f}" cy="{y:.2f}" r="{radius:.2f}" fill="{fill}" '
+                'fill-opacity="0.88" stroke="#ffffff" stroke-width="1" '
+                f'class="forest-effect" data-label="{label_attr}" data-effect="{row.effect:.6g}">'
+                f"<title>{html.escape(row.label)}: {row.effect:.3g} "
+                f"[{row.lower:.3g}, {row.upper:.3g}]</title></circle>"
+            )
+
+        if show_weights and row.weight is not None:
+            parts.append(
+                f'<text x="{x1 + 8}" y="{y + 4:.2f}" text-anchor="start" '
+                'font-family="Arial, sans-serif" font-size="11" fill="#475569">'
+                f"{row.weight:g}%</text>"
+            )
+
+    parts.append("</svg>")
+    path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+
+
+def _render_forest_png(
+    path: Path,
+    *,
+    rows: list[ForestPlotRow],
+    bounds: tuple[float, float],
+    layout: PlotLayout,
+    reference: float,
+) -> None:
+    pixels = bytearray([255, 255, 255]) * (layout.width * layout.height)
+    background = (248, 250, 252)
+    axis = (17, 24, 39)
+    frame = (203, 213, 225)
+    interval = (51, 65, 85)
+    marker = (37, 99, 235)
+    pooled_marker = (15, 23, 42)
+
+    x0 = layout.left
+    x1 = layout.width - layout.right
+    y0 = layout.top
+    y1 = layout.height - layout.bottom
+
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            _set_pixel(pixels, layout.width, layout.height, x, y, background)
+    _draw_line(pixels, layout.width, layout.height, x0, y0, x1, y0, frame)
+    _draw_line(pixels, layout.width, layout.height, x1, y0, x1, y1, frame)
+    _draw_line(pixels, layout.width, layout.height, x1, y1, x0, y1, axis)
+    _draw_line(pixels, layout.width, layout.height, x0, y1, x0, y0, frame)
+
+    reference_x = int(round(_project_forest_x(reference, bounds, layout)))
+    _draw_line(pixels, layout.width, layout.height, reference_x, y0, reference_x, y1, (100, 116, 139))
+
+    row_step = layout.plot_height / max(1, len(rows))
+    for index, row in enumerate(rows):
+        y = int(round(y0 + row_step * (index + 0.5)))
+        lower_x = int(round(_project_forest_x(row.lower, bounds, layout)))
+        upper_x = int(round(_project_forest_x(row.upper, bounds, layout)))
+        effect_x = int(round(_project_forest_x(row.effect, bounds, layout)))
+        colour = pooled_marker if row.pooled else marker
+        line_colour = pooled_marker if row.pooled else interval
+        _draw_line(pixels, layout.width, layout.height, lower_x, y, upper_x, y, line_colour)
+        _draw_line(pixels, layout.width, layout.height, lower_x, y - 5, lower_x, y + 5, line_colour)
+        _draw_line(pixels, layout.width, layout.height, upper_x, y - 5, upper_x, y + 5, line_colour)
+        if row.pooled:
+            radius = int(round(_forest_marker_radius(row)))
+            for dy in range(-radius, radius + 1):
+                span = radius - abs(dy)
+                _draw_line(
+                    pixels,
+                    layout.width,
+                    layout.height,
+                    effect_x - span,
+                    y + dy,
+                    effect_x + span,
+                    y + dy,
+                    colour,
+                )
+        else:
+            _draw_circle(
+                pixels,
+                layout.width,
+                layout.height,
+                effect_x,
+                y,
+                int(round(_forest_marker_radius(row))),
+                colour,
+            )
+
+    _write_png(path, layout.width, layout.height, pixels)
+
+
+class ForestPlotNode(BaseNode):
+    """Create a forest plot from meta-analysis effect estimates."""
+
+    NODE_ID = "forest_plot"
+    DISPLAY_NAME = "Forest Plot"
+    CATEGORY = "visualization"
+    DESCRIPTION = "Create forest plots for per-study and pooled meta-analysis effect sizes."
+    SEARCH_ALIASES = ["forest", "meta-analysis", "effect size", "confidence interval", "pooled estimate"]
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("forest_image",)
+    OUTPUT_NODE = True
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "table": ("FILE", {"description": "CSV/TSV table with study effects and intervals"}),
+            },
+            "optional": {
+                "label_column": ("STRING", {"default": "study"}),
+                "study_column": ("STRING", {"default": ""}),
+                "effect_column": ("STRING", {"default": "logFC"}),
+                "lower_column": ("STRING", {"default": "ci_lower"}),
+                "upper_column": ("STRING", {"default": "ci_upper"}),
+                "se_column": ("STRING", {"default": "SE"}),
+                "weight_column": ("STRING", {"default": ""}),
+                "pooled_column": ("STRING", {"default": ""}),
+                "title": ("STRING", {"default": "Forest Plot"}),
+                "x_label": ("STRING", {"default": "Effect size"}),
+                "reference": ("FLOAT", {"default": 0.0}),
+                "show_weights": ("BOOLEAN", {"default": True}),
+                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
+                "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
+                "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
+                "delimiter": ("STRING", {"default": "auto"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        context = kwargs.pop("context", None)
+        output_format = str(kwargs.get("format", "png") or "png").strip().lower()
+        if output_format not in SUPPORTED_IMAGE_FORMATS:
+            raise ValueError(f"Unsupported forest plot format: {output_format}")
+
+        label_column = str(kwargs.get("study_column", "") or "").strip()
+        if not label_column:
+            label_column = str(kwargs.get("label_column", "study") or "study").strip()
+        effect_column = str(kwargs.get("effect_column", "logFC") or "logFC").strip()
+        lower_column = str(kwargs.get("lower_column", "ci_lower") or "ci_lower").strip()
+        upper_column = str(kwargs.get("upper_column", "ci_upper") or "ci_upper").strip()
+        se_column = str(kwargs.get("se_column", "SE") or "SE").strip()
+        weight_column = str(kwargs.get("weight_column", "") or "").strip()
+        pooled_column = str(kwargs.get("pooled_column", "") or "").strip()
+        if not label_column or not effect_column:
+            raise ValueError("Forest plot requires label/study and effect columns")
+
+        rows = _read_forest_rows(
+            Path(str(kwargs["table"])),
+            delimiter=kwargs.get("delimiter", "auto"),
+            label_column=label_column,
+            effect_column=effect_column,
+            lower_column=lower_column,
+            upper_column=upper_column,
+            se_column=se_column,
+            weight_column=weight_column,
+            pooled_column=pooled_column,
+        )
+        reference = _coerce_float(kwargs.get("reference", 0.0), 0.0)
+        bounds = _forest_bounds(rows, reference=reference)
+        width_px, height_px = _pixel_dimensions(
+            kwargs.get("width", 10.0),
+            kwargs.get("height", 6.0),
+            kwargs.get("dpi", 150),
+        )
+        layout = _layout(width_px, height_px)
+        layout = PlotLayout(
+            width=layout.width,
+            height=layout.height,
+            left=max(layout.left, 118),
+            right=max(layout.right, 78 if any(row.weight is not None for row in rows) else layout.right),
+            top=layout.top,
+            bottom=layout.bottom,
+        )
+
+        out_dir = _node_output_dir(self, context)
+        output_path = out_dir / f"forest_plot.{output_format}"
+        if output_format == "svg":
+            _render_forest_svg(
+                output_path,
+                rows=rows,
+                bounds=bounds,
+                layout=layout,
+                title=str(kwargs.get("title", "Forest Plot") or "Forest Plot"),
+                x_label=str(kwargs.get("x_label", "Effect size") or "Effect size"),
+                reference=reference,
+                show_weights=bool(kwargs.get("show_weights", True)),
+            )
+        else:
+            _render_forest_png(
+                output_path,
+                rows=rows,
+                bounds=bounds,
+                layout=layout,
+                reference=reference,
+            )
+
+        if context is not None and hasattr(context, "register_preview"):
+            context.register_preview(output_path, label="Forest Plot")
+
+        return {"outputs": {"forest_image": str(output_path)}}
 
 
 class LineChartNode(BaseNode):
