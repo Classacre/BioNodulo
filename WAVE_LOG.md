@@ -424,6 +424,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Follow-user control titles, followed-user copy, active-user heading/empty state, activity labels, and follow/unfollow actions now read from `collab` i18n keys with Spanish unit coverage.
 - App-level collaboration create-link, join-link, leave-session, connected-role, invalid-link, and workflow-fallback copy now reads from `collab` i18n keys with Spanish helper coverage and an App wiring guard.
 - App-level shared-template save unavailable alert, success toast, and fallback error now read from `collab` i18n keys with Spanish helper coverage and an App wiring guard.
+- App-level pasted and dropped workspace file feedback now reads from `workspace` i18n keys with Spanish unit coverage and an App wiring guard.
 - Live collaboration authorization and WebSocket fallback errors now read from `collab` i18n keys with Spanish unit coverage and a `useCollab` static wiring guard.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.

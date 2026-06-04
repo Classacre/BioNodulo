@@ -51,6 +51,7 @@ import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
+import { makeAppFileActionCopy } from './utils/appFileActionCopy';
 import { makeAppCollabCopy } from './collab/appCollabCopy';
 import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
@@ -223,6 +224,7 @@ export default function App() {
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
   const consoleActionCopy = useMemo(() => makeConsoleActionCopy(t), [t]);
+  const appFileActionCopy = useMemo(() => makeAppFileActionCopy(t), [t]);
   const appCollabCopy = useMemo(() => makeAppCollabCopy(t), [t]);
 
   // Authentication state — extracted to useAuth.
@@ -1262,7 +1264,7 @@ export default function App() {
       event.preventDefault();
       const meta = objectInfo.input_file;
       if (!meta) {
-        toast.warning('No input_file node registered; cannot wire pasted file');
+        toast.warning(appFileActionCopy.error.missingInputFileForPaste);
         return;
       }
       for (let i = 0; i < files.length; i += 1) {
@@ -1289,17 +1291,17 @@ export default function App() {
           };
           handleNodesChange([...activeWorkflowRef.current.nodes, newNode]);
           pushHistory();
-          toast.success('Pasted file added', {
-            message: `${data.original_name || file.name} (${data.content_type || 'file'})`,
+          toast.success(appFileActionCopy.toast.pastedFileAdded, {
+            message: `${data.original_name || file.name} (${data.content_type || appFileActionCopy.fileTypeFallback})`,
           });
         } catch (err) {
-          toast.error('Could not upload pasted file', { message: err instanceof Error ? err.message : String(err) });
+          toast.error(appFileActionCopy.error.couldNotUploadPastedFile, { message: err instanceof Error ? err.message : String(err) });
         }
       }
     };
     window.addEventListener('paste', handler);
     return () => window.removeEventListener('paste', handler);
-  }, [handleNodesChange, objectInfo, pushHistory]);
+  }, [appFileActionCopy, handleNodesChange, objectInfo, pushHistory]);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -2858,7 +2860,7 @@ export default function App() {
             e.preventDefault();
             const inputMeta = objectInfo['input_file'];
             if (!inputMeta) {
-              toast.warning('No input_file node registered; cannot create node for dropped file');
+              toast.warning(appFileActionCopy.error.missingInputFileForDrop);
               return;
             }
             const vp = canvasRef.current?.getViewport();
@@ -2880,7 +2882,7 @@ export default function App() {
             };
             const next: Workflow = { ...activeWorkflow, nodes: [...activeWorkflow.nodes, newNode] };
             updateWorkflow(activeIndex, next);
-            toast.success('File dropped', { message: fileName });
+            toast.success(appFileActionCopy.toast.fileDropped, { message: fileName });
           }
         }}
       >
