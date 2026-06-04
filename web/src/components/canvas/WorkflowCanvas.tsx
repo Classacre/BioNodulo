@@ -3469,9 +3469,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           // when present so hovering a widget surfaces backend-authored docs.
           // Fall back to the copy-to-selection hint when no doc is available.
           const tooltipText = (spec?.tooltip || spec?.description || '').toString().trim();
+          const copyWidgetValueHint = t('canvas.copyWidgetValueHint');
           const labelTitle = tooltipText
-            ? `${tooltipText}\n\n(Right-click to copy this value to selected nodes)`
-            : 'Right-click to copy this value to selected nodes';
+            ? t('canvas.widgetTooltipWithCopyHint', { tooltip: tooltipText, hint: copyWidgetValueHint })
+            : copyWidgetValueHint;
           const labelProps = {
             style: common,
             onContextMenu: onWidgetContextMenu,
@@ -3570,14 +3571,14 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 type="button"
                 className="node-error-badge"
                 title={message}
-                aria-label={`Error: ${message.slice(0, 80)}`}
+                aria-label={t('canvas.nodeErrorAria', { message: message.slice(0, 80) })}
               >
                 !
               </button>
               <div className="node-error-popover">
-                <div className="node-error-popover-title">Node error</div>
+                <div className="node-error-popover-title">{t('canvas.nodeErrorTitle')}</div>
                 <pre className="node-error-popover-message">{message}</pre>
-                <div className="node-error-popover-hint">Edit the node's parameters to dismiss.</div>
+                <div className="node-error-popover-hint">{t('canvas.nodeErrorDismissHint')}</div>
               </div>
             </div>
           );
