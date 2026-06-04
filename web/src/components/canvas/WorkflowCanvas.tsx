@@ -2931,9 +2931,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       const node = graphNodes.find(n => n.id === nodeId);
       if (node) {
         const newTitle = await promptDialog({
-          title: 'Rename node',
-          message: 'Choose a display name for this node.',
-          inputLabel: 'Node name',
+          title: t('canvas.renameNodeTitle'),
+          message: t('canvas.renameNodeMessage'),
+          inputLabel: t('canvas.nodeNameInput'),
           defaultValue: node.title,
         });
         if (newTitle !== null && newTitle.trim() !== '') {
@@ -2987,22 +2987,22 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     } else if (action === 'saveSubgraphBlueprint') {
       const node = nodes.find(n => n.id === nodeId);
       if (!node || node.type !== 'subgraph') {
-        toast.warning('Save to library only works on subgraph nodes');
+        toast.warning(t('canvas.saveSubgraphLibraryOnlySubgraph'));
       } else {
         const innerWorkflow = node.params?.workflow as Workflow | undefined;
         const inputPorts = (node.params?.input_ports as unknown[] | undefined) ?? [];
         const outputPorts = (node.params?.output_ports as unknown[] | undefined) ?? [];
         if (!innerWorkflow) {
-          toast.error('Subgraph has no embedded workflow');
+          toast.error(t('canvas.subgraphMissingEmbeddedWorkflow'));
         } else {
-          const name = node.ui?.title || node.node_info?.display_name || 'Subgraph';
+          const name = node.ui?.title || node.node_info?.display_name || t('canvas.subgraphFallbackName');
           saveBlueprint({
             name: String(name),
             workflow: innerWorkflow,
             inputPorts: inputPorts as never,
             outputPorts: outputPorts as never,
           });
-          toast.success('Saved to subgraph library', { message: String(name) });
+          toast.success(t('canvas.subgraphLibrarySaved'), { message: String(name) });
         }
       }
     } else if (action === 'promoteWidgets') {
@@ -3014,16 +3014,16 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       const node = nodes.find(n => n.id === nodeId);
       if (node) {
         const { savePreset } = await import('../../state/nodePresets');
-        const defaultName = `${node.ui?.title || node.type} preset`;
+        const defaultName = t('canvas.presetDefaultName', { name: node.ui?.title || node.type });
         const name = await promptDialog({
-          title: 'Save parameter preset',
-          message: 'The current parameter values will be saved for this node type.',
-          inputLabel: 'Preset name',
+          title: t('canvas.savePresetTitle'),
+          message: t('canvas.savePresetMessage'),
+          inputLabel: t('canvas.presetNameInput'),
           defaultValue: defaultName,
         });
         if (name) {
           savePreset(node.type, name, node.params || {});
-          toast.success('Preset saved', { message: name });
+          toast.success(t('canvas.presetSaved'), { message: name });
         }
       }
     } else if (action === 'applyPreset') {
@@ -3032,13 +3032,13 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         const { listPresetsForType } = await import('../../state/nodePresets');
         const presets = listPresetsForType(node.type);
         if (presets.length === 0) {
-          toast.info('No presets saved for this node type yet');
+          toast.info(t('canvas.noPresetsForNodeType'));
         } else {
           const labels = presets.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
           const choice = await promptDialog({
-            title: 'Apply preset',
-            message: `Pick a preset by number:\n${labels}`,
-            inputLabel: 'Number',
+            title: t('canvas.applyPresetTitle'),
+            message: t('canvas.applyPresetMessage', { labels }),
+            inputLabel: t('canvas.presetNumberInput'),
             defaultValue: '1',
           });
           const index = Math.max(1, Math.min(presets.length, parseInt(choice || '1', 10))) - 1;
@@ -3054,7 +3054,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               }
             }
             onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, params: nextParams } : n));
-            toast.success('Preset applied', { message: preset.name });
+            toast.success(t('canvas.presetApplied'), { message: preset.name });
           }
         }
       }
@@ -3063,7 +3063,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       onExecuteSelectedRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
     }
     onPushHistory();
-  }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory]);
+  }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, t]);
 
   const handleNodeParamChange = useCallback((nodeId: string, key: string, value: unknown) => {
     onNodesChange(nodes.map(n =>
@@ -3992,7 +3992,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               outline: 'none',
               boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
             }}
-            aria-label="Rename node"
+            aria-label={t('canvas.renameNodeTitle')}
           />
         );
       })()}
