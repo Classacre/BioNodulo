@@ -356,6 +356,16 @@ const es = {
       attachFileTitle: 'Adjuntar archivo',
       placeholder: 'Pregunta sobre workflows... (pega imagenes directamente)',
       send: 'Enviar',
+      pastedNodes: {
+        prompt: 'Aqui estan mis nodos seleccionados ({{nodeLabel}}{{edgeSuffix}}): {{nodeNames}}',
+        nodeLabel: '{{count}} nodo',
+        nodeLabel_plural: '{{count}} nodos',
+        nodeLabel_other: '{{count}} nodos',
+        edgeSuffix: ', {{edgeLabel}}',
+        edgeLabel: '{{count}} arista',
+        edgeLabel_plural: '{{count}} aristas',
+        edgeLabel_other: '{{count}} aristas',
+      },
     },
     steps: {
       showReasoning: 'Mostrar razonamiento',

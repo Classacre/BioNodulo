@@ -215,7 +215,13 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         if (att) {
           setAttachments(prev => [...prev, att]);
           if (!input.trim()) {
-            setInput(`Here are my selected nodes (${nodeCount} nodes${edgeCount > 0 ? `, ${edgeCount} edges` : ''}): ${nodeNames}`);
+            const nodeLabel = t('aiWorkflow.input.pastedNodes.nodeLabel', { count: nodeCount });
+            const edgeSuffix = edgeCount > 0
+              ? t('aiWorkflow.input.pastedNodes.edgeSuffix', {
+                  edgeLabel: t('aiWorkflow.input.pastedNodes.edgeLabel', { count: edgeCount }),
+                })
+              : '';
+            setInput(t('aiWorkflow.input.pastedNodes.prompt', { nodeLabel, edgeSuffix, nodeNames }));
           }
         }
       } catch { /* ignore malformed clipboard */ }
@@ -241,7 +247,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         setAttachments(prev => [...prev, ...newAttachments]);
       }
     }
-  }, [readFileAsAttachment, input]);
+  }, [readFileAsAttachment, input, t]);
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));

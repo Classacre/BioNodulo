@@ -356,6 +356,16 @@ const en = {
       attachFileTitle: 'Attach file',
       placeholder: 'Ask about workflows... (Paste images directly)',
       send: 'Send',
+      pastedNodes: {
+        prompt: 'Here are my selected nodes ({{nodeLabel}}{{edgeSuffix}}): {{nodeNames}}',
+        nodeLabel: '{{count}} node',
+        nodeLabel_plural: '{{count}} nodes',
+        nodeLabel_other: '{{count}} nodes',
+        edgeSuffix: ', {{edgeLabel}}',
+        edgeLabel: '{{count}} edge',
+        edgeLabel_plural: '{{count}} edges',
+        edgeLabel_other: '{{count}} edges',
+      },
     },
     steps: {
       showReasoning: 'Show reasoning',

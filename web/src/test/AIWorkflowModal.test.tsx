@@ -226,6 +226,33 @@ describe('AIWorkflowModal i18n', () => {
     );
   });
 
+  it('renders pasted canvas node prompt from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    fireEvent.paste(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      clipboardData: {
+        getData: (type: string) =>
+          type === 'text'
+            ? 'bionodulo_clipboard:{"nodes":[{"type":"fastqc"},{"type":"multiqc"}],"edges":[{"from":"a","to":"b"}]}'
+            : '',
+        items: [],
+      },
+    });
+
+    expect(await screen.findByDisplayValue('Aqui estan mis nodos seleccionados (2 nodos, 1 arista): fastqc, multiqc')).toBeInTheDocument();
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -248,6 +275,10 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.input.attachFileTitle',
       'aiWorkflow.input.placeholder',
       'aiWorkflow.input.send',
+      'aiWorkflow.input.pastedNodes.prompt',
+      'aiWorkflow.input.pastedNodes.nodeLabel',
+      'aiWorkflow.input.pastedNodes.edgeSuffix',
+      'aiWorkflow.input.pastedNodes.edgeLabel',
       'aiWorkflow.steps.showReasoning',
       'aiWorkflow.steps.hideReasoning',
       'aiWorkflow.steps.toolResult',
@@ -289,6 +320,9 @@ describe('AIWorkflowModal i18n', () => {
       'title="Attach file"',
       'placeholder="Ask about workflows... (Paste images directly)"',
       '>Send<',
+      'Here are my selected nodes',
+      '${nodeCount} nodes',
+      '${edgeCount} edges',
       'Hide reasoning',
       'Show reasoning',
       '${step.name} result',
