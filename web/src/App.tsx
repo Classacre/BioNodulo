@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
@@ -50,6 +51,7 @@ import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
+import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
@@ -208,6 +210,7 @@ async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow |
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const { get, getBool, set, ready: settingsReady } = useSettings();
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
@@ -219,6 +222,7 @@ export default function App() {
   const { getBinding } = useKeybindings();
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
+  const consoleActionCopy = useMemo(() => makeConsoleActionCopy(t), [t]);
 
   // Authentication state — extracted to useAuth.
   const collabEnabled = getBool('bionodulo.collab.enabled');
@@ -1680,21 +1684,16 @@ export default function App() {
   }, [activeIndex, persistViewportStore, workflows]);
 
   const handleCancelRun = useCallback(async (run: RunRecord) => {
-    const ok = await confirmDialog({
-      title: 'Cancel run?',
-      message: `Cancel ${run.workflow_name || run.run_id}?`,
-      confirmLabel: 'Cancel Run',
-      tone: 'danger',
-    });
+    const ok = await confirmDialog(consoleActionCopy.cancelRunDialog(run));
     if (!ok) return;
     try {
       await apiPost(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`);
       updateRun(run.run_id, { status: 'cancelled', end_time: new Date().toISOString() });
-      toast.warning('Run cancelled', { message: run.workflow_name || run.run_id });
+      toast.warning(consoleActionCopy.toast.runCancelled, { message: run.workflow_name || run.run_id });
     } catch (err) {
-      toast.error('Could not cancel run', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotCancelRun, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [updateRun]);
+  }, [consoleActionCopy, updateRun]);
 
   const handleLoadRunWorkflow = useCallback(async (run: RunRecord) => {
     try {
@@ -1703,21 +1702,21 @@ export default function App() {
       );
       const workflow = data.workflow;
       if (!workflow || !Array.isArray(workflow.nodes)) {
-        throw new Error('Run does not have an associated workflow snapshot');
+        throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
       }
       const named: Workflow = {
         ...workflow,
-        name: workflow.name || `${run.workflow_name || 'Run'} ${run.run_id.slice(0, 8)}`,
+        name: workflow.name || run.workflow_name || consoleActionCopy.loadedRunWorkflowName(run),
       };
       addWorkflow(withWorkflowId(named));
-      toast.success('Workflow loaded from run', { message: named.name });
+      toast.success(consoleActionCopy.toast.workflowLoadedFromRun, { message: named.name });
       requestAnimationFrame(() => {
         requestAnimationFrame(() => canvasRef.current?.fitView());
       });
     } catch (err) {
-      toast.error('Could not load workflow', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotLoadWorkflow, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addWorkflow]);
+  }, [addWorkflow, consoleActionCopy]);
 
   const handleRetryRun = useCallback(async (run: RunRecord) => {
     try {
@@ -1727,7 +1726,7 @@ export default function App() {
       addRun({
         run_id: data.run_id,
         status: 'pending',
-        workflow_name: `${run.workflow_name || 'Untitled'} (retry)`,
+        workflow_name: consoleActionCopy.retryWorkflowName(run),
         node_statuses: [],
         node_outputs: {},
         execution_plan: run.execution_plan ?? [],
@@ -1737,11 +1736,11 @@ export default function App() {
       });
       setConsoleVisible(true);
       setRailTab('console');
-      toast.success('Retry queued', { message: data.run_id });
+      toast.success(consoleActionCopy.toast.retryQueued, { message: data.run_id });
     } catch (err) {
-      toast.error('Could not retry run', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotRetryRun, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addRun, setRailTab]);
+  }, [addRun, consoleActionCopy, setRailTab]);
 
   const handleMoveRun = useCallback(async (run: RunRecord, direction: 'up' | 'down') => {
     const pending = queuedRuns.filter(candidate => candidate.status === 'pending');
@@ -1762,43 +1761,33 @@ export default function App() {
         return next;
       });
     } catch (err) {
-      toast.error('Could not reorder queue', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotReorderQueue, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [queuedRuns, setRuns]);
+  }, [consoleActionCopy, queuedRuns, setRuns]);
 
   const handleClearQueue = useCallback(async () => {
-    const ok = await confirmDialog({
-      title: 'Clear queue?',
-      message: 'Remove all pending runs from the queue?',
-      confirmLabel: 'Clear Queue',
-      tone: 'warning',
-    });
+    const ok = await confirmDialog(consoleActionCopy.clearQueueDialog());
     if (!ok) return;
     try {
       await apiPost('/queue/clear');
       setRuns(prev => prev.filter(run => run.status !== 'pending'));
-      toast.success('Queue cleared');
+      toast.success(consoleActionCopy.toast.queueCleared);
     } catch (err) {
-      toast.error('Could not clear queue', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotClearQueue, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [setRuns]);
+  }, [consoleActionCopy, setRuns]);
 
   const handleClearHistory = useCallback(async () => {
-    const ok = await confirmDialog({
-      title: 'Clear history?',
-      message: 'Remove all completed runs from history? This cannot be undone.',
-      confirmLabel: 'Clear History',
-      tone: 'warning',
-    });
+    const ok = await confirmDialog(consoleActionCopy.clearHistoryDialog());
     if (!ok) return;
     try {
       await apiPost('/history/clear');
       setRuns(prev => prev.filter(run => run.status === 'pending' || run.status === 'running'));
-      toast.success('History cleared');
+      toast.success(consoleActionCopy.toast.historyCleared);
     } catch (err) {
-      toast.error('Could not clear history', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(consoleActionCopy.error.couldNotClearHistory, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [setRuns]);
+  }, [consoleActionCopy, setRuns]);
 
   const handleDeleteHistoryEntry = useCallback(async (run: RunRecord) => {
     try {
@@ -1806,9 +1795,9 @@ export default function App() {
       setRuns(prev => prev.filter(r => r.run_id !== run.run_id));
     } catch (err) {
       const detail = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);
-      toast.error('Could not delete run', { message: detail });
+      toast.error(consoleActionCopy.error.couldNotDeleteRun, { message: detail });
     }
-  }, [setRuns]);
+  }, [consoleActionCopy, setRuns]);
 
   const handleSaveTemplate = useCallback(async (draft: TemplateSaveDraft) => {
     const token = getToken();
