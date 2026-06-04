@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS, R_PACKAGE_TO_CONDA_PACKAGE
+from bionodulo.environments.constants import (
+    EXECUTABLE_TO_CONDA_PACKAGE,
+    PACKAGE_MIN_VERSIONS,
+    R_PACKAGE_TO_CONDA_PACKAGE,
+)
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -126,3 +130,149 @@ def test_xcms_peak_detection_environment_metadata_is_declared() -> None:
     assert R_PACKAGE_TO_CONDA_PACKAGE["jsonlite"] == "r-jsonlite"
     assert PACKAGE_MIN_VERSIONS["bioconductor-xcms"] == ">=3.20"
     assert PACKAGE_MIN_VERSIONS["r-jsonlite"] == ">=1.8"
+
+
+def test_sirius_formula_id_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["sirius_formula_id"]
+    assert node_info["display_name"] == "SIRIUS Formula ID"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Identify molecular formulas")
+    assert node_info["output"] == ["DIRECTORY", "TSV", "JSON"]
+    assert node_info["output_name"] == ["results_dir", "summary", "metadata"]
+    assert node_info["required_executables"] == ["sirius"]
+    assert node_info["required_conda_packages"] == ["sirius"]
+    assert "sirius" in node_info["search_aliases"]
+    assert "formula identification" in node_info["search_aliases"]
+    assert "canopus" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"spectra_file"}
+    assert set(inputs["optional"]) == {
+        "database",
+        "profile",
+        "ionization",
+        "ppm_max",
+        "cores",
+        "run_zodiac",
+        "run_structure",
+        "run_canopus",
+        "output_name",
+    }
+
+
+def test_sirius_formula_id_renders_command_with_optional_tools() -> None:
+    node_class = _node_class("sirius_formula_id")
+
+    cmd = node_class.render_command({
+        "spectra_file": "input.ms",
+        "database": "ALL",
+        "profile": "orbitrap",
+        "ionization": "[M+H]+",
+        "ppm_max": 10,
+        "cores": 8,
+        "run_zodiac": True,
+        "run_structure": True,
+        "run_canopus": True,
+        "output_name": "sample one",
+        "output": "/tmp/run/sirius_formula_id",
+    })
+
+    assert cmd == [
+        "sirius",
+        "-i",
+        "input.ms",
+        "-o",
+        "/tmp/run/sirius_formula_id/sample_one",
+        "--database",
+        "ALL",
+        "--profile",
+        "orbitrap",
+        "--ionization",
+        "[M+H]+",
+        "--ppm-max",
+        "10",
+        "--cores",
+        "8",
+        "formula",
+        "zodiac",
+        "structure",
+        "canopus",
+        "&&",
+        "python",
+        "-c",
+        node_class.SUMMARY_SCRIPT,
+        "/tmp/run/sirius_formula_id/sample_one",
+        "/tmp/run/sirius_formula_id/sample_one.summary.tsv",
+        "/tmp/run/sirius_formula_id/sample_one.metadata.json",
+        "input.ms",
+        "ALL",
+        "orbitrap",
+        "[M+H]+",
+    ]
+
+
+def test_sirius_formula_id_defaults_to_formula_only_and_sanitized_input_stem() -> None:
+    node_class = _node_class("sirius_formula_id")
+
+    cmd = node_class.render_command({
+        "spectra_file": "/data/compound-spectrum.mgf",
+        "database": "",
+        "profile": "",
+        "ionization": "",
+        "ppm_max": 0,
+        "cores": 1,
+        "run_zodiac": False,
+        "run_structure": False,
+        "run_canopus": False,
+        "output_name": "",
+        "output": "/tmp/run/sirius_formula_id",
+    })
+
+    assert cmd == [
+        "sirius",
+        "-i",
+        "/data/compound-spectrum.mgf",
+        "-o",
+        "/tmp/run/sirius_formula_id/compound-spectrum",
+        "--cores",
+        "1",
+        "formula",
+        "&&",
+        "python",
+        "-c",
+        node_class.SUMMARY_SCRIPT,
+        "/tmp/run/sirius_formula_id/compound-spectrum",
+        "/tmp/run/sirius_formula_id/compound-spectrum.summary.tsv",
+        "/tmp/run/sirius_formula_id/compound-spectrum.metadata.json",
+        "/data/compound-spectrum.mgf",
+        "",
+        "",
+        "",
+    ]
+    assert "zodiac" not in cmd
+    assert "structure" not in cmd
+    assert "canopus" not in cmd
+
+
+def test_sirius_formula_id_plans_outputs() -> None:
+    node_class = _node_class("sirius_formula_id")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"spectra_file": "input.ms", "output_name": "sample one"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/sirius_formula_id/sample_one",
+        "/tmp/run/sirius_formula_id/sample_one.summary.tsv",
+        "/tmp/run/sirius_formula_id/sample_one.metadata.json",
+    ]
+
+
+def test_sirius_formula_id_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["sirius"] == "sirius"
+    assert PACKAGE_MIN_VERSIONS["sirius"] == ">=5.8"
