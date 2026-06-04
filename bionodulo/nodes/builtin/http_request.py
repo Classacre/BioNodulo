@@ -1,7 +1,6 @@
 """Generic HTTP request node for arbitrary REST APIs."""
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import re
@@ -11,6 +10,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 HTTP_USER_AGENT = "BioNodulo/2.0 (workflow node; generic HTTP)"
@@ -104,33 +104,37 @@ async def _request(
     timeout: float,
     follow_redirects: bool,
     retries: int = MAX_RETRIES,
+    retry_delay: float = RETRY_DELAY_S,
+    cache_ttl: float | None = None,
+    rate_limit_per_second: float | None = None,
 ) -> httpx.Response:
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
-                response = await client.request(
-                    method,
-                    url,
-                    params=params,
-                    headers=headers,
-                    json=json_body,
-                    data=data,
-                )
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"HTTP Request failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"HTTP Request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"HTTP Request failed: {last_error}")
+    cache = APICache(ttl_seconds=cache_ttl) if cache_ttl and cache_ttl > 0 else None
+    rate_limiter = (
+        TokenBucketRateLimiter(rate_per_second=rate_limit_per_second, burst=1)
+        if rate_limit_per_second and rate_limit_per_second > 0
+        else None
+    )
+    client = APIHttpClient(cache=cache, rate_limiter=rate_limiter)
+    try:
+        return await client.request(
+            method,
+            url,
+            params=params,
+            headers=headers,
+            json=json_body,
+            data=data,
+            timeout=timeout,
+            follow_redirects=follow_redirects,
+            retries=retries,
+            retry_delay=retry_delay,
+            cache_ttl=cache_ttl,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"HTTP Request failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"HTTP Request failed: {exc}") from exc
 
 
 class HTTPRequestNode(BaseNode):
@@ -165,6 +169,8 @@ class HTTPRequestNode(BaseNode):
                 "password": ("STRING", {"default": "", "advanced": True}),
                 "timeout": ("FLOAT", {"default": REQUEST_TIMEOUT_S, "min": 1}),
                 "follow_redirects": ("BOOLEAN", {"default": True}),
+                "cache_ttl": ("FLOAT", {"default": 0, "min": 0, "description": "Cache GET/HEAD responses for N seconds; 0 disables cache"}),
+                "rate_limit_per_second": ("FLOAT", {"default": 0, "min": 0, "description": "Maximum requests per second; 0 disables rate limiting"}),
                 "output_name": ("STRING", {"default": "", "description": "Optional response filename stem"}),
             },
             "hidden": {},
@@ -188,6 +194,14 @@ class HTTPRequestNode(BaseNode):
         json_body, data = _request_body(str(kwargs.get("body_format", "none")), kwargs.get("body", ""))
         timeout = float(kwargs.get("timeout", REQUEST_TIMEOUT_S) or REQUEST_TIMEOUT_S)
         follow_redirects = bool(kwargs.get("follow_redirects", True))
+        cache_ttl = float(kwargs.get("cache_ttl", 0) or 0)
+        rate_limit_per_second = float(kwargs.get("rate_limit_per_second", 0) or 0)
+
+        request_options: dict[str, Any] = {}
+        if cache_ttl > 0:
+            request_options["cache_ttl"] = cache_ttl
+        if rate_limit_per_second > 0:
+            request_options["rate_limit_per_second"] = rate_limit_per_second
 
         response = await _request(
             method=method,
@@ -198,6 +212,7 @@ class HTTPRequestNode(BaseNode):
             data=data,
             timeout=timeout,
             follow_redirects=follow_redirects,
+            **request_options,
         )
 
         content_type = str(response.headers.get("content-type", "")).split(";", 1)[0].strip().lower()

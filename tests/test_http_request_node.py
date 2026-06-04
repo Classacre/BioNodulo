@@ -27,6 +27,8 @@ def test_http_request_is_registered_for_frontend_discovery() -> None:
     assert info["http_request"]["display_name"] == "HTTP Request"
     assert info["http_request"]["category"] == "api"
     assert info["http_request"]["output_name"] == ["response_body", "metadata"]
+    assert "cache_ttl" in info["http_request"]["input"]["optional"]
+    assert "rate_limit_per_second" in info["http_request"]["input"]["optional"]
 
 
 @pytest.mark.asyncio
@@ -96,3 +98,62 @@ async def test_http_request_posts_json_and_writes_response_outputs(
             "follow_redirects": True,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_http_request_passes_cache_and_rate_limit_options_to_shared_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("http_request")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, **kwargs: Any) -> None:
+            calls.append({"init": kwargs})
+
+        async def request(self, *args: Any, **kwargs: Any) -> Any:
+            calls.append({"request": {"args": args, "kwargs": kwargs}})
+            return SimpleNamespace(
+                status_code=200,
+                headers={"content-type": "text/plain"},
+                text="ok",
+                url="https://api.example.test/resource",
+                raise_for_status=lambda: None,
+            )
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._request(
+        method="GET",
+        url="https://api.example.test/resource",
+        params={"gene": "TP53"},
+        headers={"User-Agent": "test"},
+        json_body=None,
+        data=None,
+        timeout=10,
+        follow_redirects=False,
+        retries=4,
+        cache_ttl=60,
+        rate_limit_per_second=2,
+    )
+
+    assert response.text == "ok"
+    assert calls[0]["init"]["cache"] is not None
+    assert calls[0]["init"]["rate_limiter"] is not None
+    assert calls[1] == {
+        "request": {
+            "args": ("GET", "https://api.example.test/resource"),
+            "kwargs": {
+                "params": {"gene": "TP53"},
+                "headers": {"User-Agent": "test"},
+                "json": None,
+                "data": None,
+                "timeout": 10,
+                "follow_redirects": False,
+                "retries": 4,
+                "retry_delay": 1.0,
+                "cache_ttl": 60,
+            },
+        }
+    }

@@ -377,6 +377,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Retry policies are now consumed by the executor for downstream matching nodes: the executor retries failed nodes according to the recorded policy, emits `node_retry`, records attempt counts, and respects `only_retry_specific_nodes`.
 - ForEach loop body subgraphs now honor inactive branch outputs, so conditional routing inside loops skips inactive body branches per iteration.
 - Workflow LLM backend calls now retry transient provider errors and return a normalized `LLMResponse.error` after exhausted attempts; `llm_prompt` includes that provider error in metadata instead of hiding it behind an empty response.
+- API-backed nodes now have shared HTTP primitives for retries, 429 `Retry-After`, optional GET/HEAD caching, and token-bucket rate limiting; `http_request` delegates through the shared client while preserving its existing helper interface.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---
