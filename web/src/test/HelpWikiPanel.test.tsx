@@ -185,4 +185,45 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('BioNodulo is a visual bioinformatics workflow workbench.');
     expect(source).not.toContain('Quick Start');
   });
+
+  it('renders canvas-features article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lienzo y nodos' }));
+
+    expect(screen.getByRole('heading', { name: 'Funciones del lienzo' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Navegacion' })).toBeInTheDocument();
+    expect(screen.getByText(/El lienzo es un espacio de trabajo 2D infinito/)).toBeInTheDocument();
+    expect(screen.queryByText('Canvas Features')).not.toBeInTheDocument();
+  });
+
+  it('searches canvas-features article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'caja de seleccion' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Lienzo y nodos')).toBeInTheDocument();
+  });
+
+  it('keeps canvas-features wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.canvasFeatures');
+    expect(source).not.toContain('Canvas Features');
+    expect(source).not.toContain('The canvas is an infinite 2D workspace');
+    expect(source).not.toContain('Undo / Redo');
+  });
 });

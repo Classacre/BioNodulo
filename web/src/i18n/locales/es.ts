@@ -1074,6 +1074,56 @@ const es = {
 <tr><td>BioPython</td><td>Bioinformatica en Python</td><td>SeqIO, Translate, BLAST</td></tr>
 </table>
 `,
+      canvasFeatures: `
+<h3>Funciones del lienzo</h3>
+<p>El lienzo es un espacio de trabajo 2D infinito donde construyes workflows colocando y conectando nodos.</p>
+
+<h4>Navegacion</h4>
+<table>
+<tr><th>Accion</th><th>Como</th></tr>
+<tr><td>Desplazar</td><td>Arrastra con clic medio o <kbd>Alt</kbd> + arrastra con clic izquierdo</td></tr>
+<tr><td>Zoom</td><td>Rueda del mouse o botones de la barra de herramientas</td></tr>
+<tr><td>Ajustar vista</td><td>Haz clic en el boton Ajustar vista o clic derecho en el lienzo -> Ajustar vista</td></tr>
+</table>
+
+<h4>Nodos</h4>
+<table>
+<tr><th>Accion</th><th>Como</th></tr>
+<tr><td>Agregar nodo</td><td>Doble clic en el lienzo o <kbd>Ctrl+F</kbd></td></tr>
+<tr><td>Mover nodo</td><td>Arrastra el cuerpo del nodo</td></tr>
+<tr><td>Seleccionar varios</td><td>Shift+clic o arrastra la caja de seleccion</td></tr>
+<tr><td>Contraer</td><td>Haz clic en la flecha del encabezado o <kbd>Alt+C</kbd></td></tr>
+<tr><td>Editar parametros</td><td>Doble clic en el nodo o clic derecho -> Editar</td></tr>
+<tr><td>Info del nodo</td><td>Clic derecho -> Info del nodo</td></tr>
+<tr><td>Duplicar</td><td>Clic derecho -> Duplicar o <kbd>Ctrl+D</kbd></td></tr>
+<tr><td>Eliminar</td><td>Tecla <kbd>Delete</kbd> o clic derecho -> Eliminar</td></tr>
+<tr><td>Silenciar / Omitir</td><td>Clic derecho -> Silenciar / Omitir</td></tr>
+<tr><td>Cambiar color</td><td>Clic derecho -> Definir color</td></tr>
+</table>
+
+<h4>Enlaces y conexiones</h4>
+<table>
+<tr><th>Accion</th><th>Como</th></tr>
+<tr><td>Crear enlace</td><td>Arrastra desde una ranura de salida hacia una ranura de entrada</td></tr>
+<tr><td>Cancelar arrastre de enlace</td><td>Clic derecho o Esc</td></tr>
+<tr><td>Hover de ranura</td><td>Las ranuras brillan en turquesa al pasar el cursor</td></tr>
+</table>
+
+<h4>Grupos</h4>
+<p>Organiza nodos relacionados en cajas delimitadoras con color:</p>
+<ul>
+<li><strong>Crear grupo:</strong> Selecciona nodos -> clic derecho en el lienzo -> Agrupar seleccionados o <kbd>Ctrl+G</kbd></li>
+<li><strong>Mover grupo:</strong> Arrastra el encabezado del grupo; todos los nodos incluidos se mueven juntos</li>
+<li><strong>Redimensionar grupo:</strong> Arrastra el manejador inferior derecho</li>
+<li><strong>Renombrar / Color:</strong> Clic derecho en el grupo</li>
+</ul>
+
+<h4>Nodos de nota</h4>
+<p>Los nodos Note amarillos permiten agregar descripciones de texto al workflow. No tienen entradas ni salidas y ajustan automaticamente su tamano al contenido.</p>
+
+<h4>Deshacer / Rehacer</h4>
+<p>Usa <kbd>Ctrl+Z</kbd> y <kbd>Ctrl+Y</kbd> o <kbd>Ctrl+Shift+Z</kbd> para deshacer y rehacer acciones. El historial conserva hasta 50 estados.</p>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',

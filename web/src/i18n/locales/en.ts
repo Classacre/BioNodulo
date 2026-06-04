@@ -1073,6 +1073,56 @@ const en = {
 <tr><td>BioPython</td><td>Python bioinformatics</td><td>SeqIO, Translate, BLAST</td></tr>
 </table>
 `,
+      canvasFeatures: `
+<h3>Canvas Features</h3>
+<p>The canvas is an infinite 2D workspace where you build workflows by placing and connecting nodes.</p>
+
+<h4>Navigation</h4>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Pan</td><td>Middle-click drag or <kbd>Alt</kbd> + left-click drag</td></tr>
+<tr><td>Zoom</td><td>Mouse wheel or toolbar buttons</td></tr>
+<tr><td>Fit view</td><td>Click the Fit View button or right-click canvas -> Fit View</td></tr>
+</table>
+
+<h4>Nodes</h4>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Add node</td><td>Double-click canvas or <kbd>Ctrl+F</kbd></td></tr>
+<tr><td>Move node</td><td>Drag the node body</td></tr>
+<tr><td>Select multiple</td><td>Shift+click or drag selection box</td></tr>
+<tr><td>Collapse</td><td>Click the arrow on the header or <kbd>Alt+C</kbd></td></tr>
+<tr><td>Edit params</td><td>Double-click node or right-click -> Edit</td></tr>
+<tr><td>Node info</td><td>Right-click -> Node Info</td></tr>
+<tr><td>Duplicate</td><td>Right-click -> Duplicate or <kbd>Ctrl+D</kbd></td></tr>
+<tr><td>Delete</td><td><kbd>Delete</kbd> key or right-click -> Delete</td></tr>
+<tr><td>Mute / Bypass</td><td>Right-click -> Mute / Bypass</td></tr>
+<tr><td>Change color</td><td>Right-click -> Set Color</td></tr>
+</table>
+
+<h4>Links & Connections</h4>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Create link</td><td>Drag from output slot to input slot</td></tr>
+<tr><td>Cancel link drag</td><td>Right-click or Esc</td></tr>
+<tr><td>Slot hover</td><td>Slots glow teal when hovered</td></tr>
+</table>
+
+<h4>Groups</h4>
+<p>Organize related nodes into colored bounding boxes:</p>
+<ul>
+<li><strong>Create group:</strong> Select nodes -> right-click canvas -> Group Selected or <kbd>Ctrl+G</kbd></li>
+<li><strong>Move group:</strong> Drag the group header; all contained nodes move together</li>
+<li><strong>Resize group:</strong> Drag the bottom-right handle</li>
+<li><strong>Rename / Color:</strong> Right-click on the group</li>
+</ul>
+
+<h4>Note Nodes</h4>
+<p>Yellow Note nodes let you add text descriptions to your workflow. They have no inputs or outputs and auto-size to fit their text content.</p>
+
+<h4>Undo / Redo</h4>
+<p>Use <kbd>Ctrl+Z</kbd> and <kbd>Ctrl+Y</kbd> (or <kbd>Ctrl+Shift+Z</kbd>) to undo and redo actions. The history tracks up to 50 states.</p>
+`,
     },
     sections: {
       gettingStarted: 'Getting started',
