@@ -2170,8 +2170,10 @@ class WorkflowTriggerNode(BaseNode):
             "watch_event": watch_event,
             "path_exists": exists,
             "path_type": "directory" if path and path.is_dir() else "file" if path and path.is_file() else "missing",
+            "baseline_snapshot": self._file_watch_snapshot(path) if exists and path is not None else {},
+            "file_watch_runner_contract_supported": exists,
             "active_file_watcher_supported": False,
-            "note": "File-watch intent recorded; active filesystem watcher execution is not implemented yet.",
+            "note": "File-watch registration written with pollable baseline metadata; active filesystem watcher execution is not implemented yet.",
         }
         if not exists:
             info["error"] = f"Watch path does not exist: {watch_path}"
@@ -2210,6 +2212,70 @@ class WorkflowTriggerNode(BaseNode):
                 due_info["trigger_file"] = str(trigger_file)
                 due.append(due_info)
         return due
+
+    @classmethod
+    def due_file_watch_triggers(cls, trigger_dir: str | Path) -> list[dict[str, Any]]:
+        base = Path(trigger_dir)
+        if not base.exists():
+            return []
+        due: list[dict[str, Any]] = []
+        for trigger_file in sorted(base.glob("file_watch_*.json")):
+            try:
+                info = json.loads(trigger_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"file-watch trigger file is not valid JSON: {trigger_file}") from exc
+            if not isinstance(info, dict) or info.get("trigger_type") != "file_watch":
+                continue
+            events = cls._file_watch_events(info)
+            if events:
+                due_info = dict(info)
+                due_info["trigger_file"] = str(trigger_file)
+                due_info["events"] = events
+                due.append(due_info)
+        return due
+
+    @classmethod
+    def _file_watch_events(cls, info: dict[str, Any]) -> list[dict[str, str]]:
+        path = Path(str(info.get("watch_path", "") or ""))
+        if not path.exists():
+            return []
+        watch_event = str(info.get("watch_event", "create") or "create")
+        baseline = info.get("baseline_snapshot", {})
+        if not isinstance(baseline, dict):
+            baseline = {}
+        current = cls._file_watch_snapshot(path)
+        events: list[dict[str, str]] = []
+        if watch_event == "create":
+            for relative_path in sorted(set(current) - set(baseline)):
+                events.append(
+                    {
+                        "event": "create",
+                        "path": current[relative_path]["path"],
+                        "relative_path": relative_path,
+                    }
+                )
+        return events
+
+    @staticmethod
+    def _file_watch_snapshot(path: Path) -> dict[str, dict[str, Any]]:
+        if path.is_file():
+            paths = [path]
+            root = path.parent
+        else:
+            paths = [entry for entry in path.rglob("*") if entry.is_file()]
+            root = path
+        snapshot: dict[str, dict[str, Any]] = {}
+        for entry in sorted(paths):
+            try:
+                stat = entry.stat()
+            except OSError:
+                continue
+            snapshot[entry.relative_to(root).as_posix()] = {
+                "path": str(entry),
+                "size_bytes": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        return snapshot
 
     @staticmethod
     def _coerce_utc_datetime(value: str | datetime | None) -> datetime:

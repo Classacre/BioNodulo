@@ -1195,6 +1195,47 @@ async def test_workflow_trigger_records_file_watch_intent(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
+async def test_workflow_trigger_file_watch_polling_detects_created_files(tmp_path: Path) -> None:
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    (watch_dir / "existing.fastq").write_text("@old\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-watch-create")
+    context.workspace_dir = tmp_path
+
+    trigger_info_json, triggered = await node_class().run(
+        trigger_type="file_watch",
+        watch_path=str(watch_dir),
+        watch_event="create",
+        target_workflow="auto-import",
+        payload={"project": "P1"},
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    assert triggered is True
+    assert trigger_info["file_watch_runner_contract_supported"] is True
+    assert node_class.due_file_watch_triggers(tmp_path / "workflow_triggers") == []
+
+    new_file = watch_dir / "new.fastq"
+    new_file.write_text("@new\nTGCA\n+\n!!!!\n", encoding="utf-8")
+
+    due = node_class.due_file_watch_triggers(tmp_path / "workflow_triggers")
+    assert len(due) == 1
+    assert due[0]["trigger_type"] == "file_watch"
+    assert due[0]["target_workflow"] == "auto-import"
+    assert due[0]["payload"] == {"project": "P1"}
+    assert due[0]["events"] == [
+        {
+            "event": "create",
+            "path": str(new_file),
+            "relative_path": "new.fastq",
+        }
+    ]
+    assert Path(due[0]["trigger_file"]) == tmp_path / "workflow_triggers" / "file_watch_trigger-watch-create.json"
+
+
+@pytest.mark.asyncio
 async def test_workflow_trigger_rejects_invalid_configuration() -> None:
     with pytest.raises(ValueError, match="Unsupported trigger_type"):
         await _node_class("workflow_trigger")().run(trigger_type="email")
