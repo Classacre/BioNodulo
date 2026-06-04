@@ -254,6 +254,140 @@ def test_xcms_retention_correction_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == ">=1.34"
 
 
+def test_camera_annotation_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["camera_annotation"]
+    assert node_info["display_name"] == "CAMERA Annotation"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Annotate LC-MS peaks")
+    assert node_info["output"] == ["TSV", "FILE", "JSON"]
+    assert node_info["output_name"] == ["annotated_peaklist", "camera_object", "summary"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == [
+        "r-base",
+        "bioconductor-camera",
+        "bioconductor-xcms",
+        "r-jsonlite",
+        "r-readr",
+    ]
+    assert node_info["required_r_packages"] == ["CAMERA", "xcms", "jsonlite", "readr"]
+    assert "camera" in node_info["search_aliases"]
+    assert "adducts" in node_info["search_aliases"]
+    assert "isotopes" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"xcms_object"}
+    assert set(inputs["optional"]) == {
+        "polarity",
+        "perfwhm",
+        "sigma",
+        "maxcharge",
+        "maxiso",
+        "isotope_ppm",
+        "isotope_mzabs",
+        "cor_eic_th",
+        "pval",
+        "run_group_corr",
+        "run_adducts",
+        "adduct_ppm",
+        "adduct_mzabs",
+        "intval",
+        "output_name",
+    }
+
+
+def test_camera_annotation_writes_r_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("camera_annotation")
+    output_dir = tmp_path / "camera_annotation"
+
+    cmd = node_class.render_command({
+        "xcms_object": "/data/study.aligned.xcms.rds",
+        "polarity": "negative",
+        "perfwhm": 0.7,
+        "sigma": 5,
+        "maxcharge": 2,
+        "maxiso": 5,
+        "isotope_ppm": 7,
+        "isotope_mzabs": 0.02,
+        "cor_eic_th": 0.8,
+        "pval": 0.01,
+        "run_group_corr": True,
+        "run_adducts": True,
+        "adduct_ppm": 6,
+        "adduct_mzabs": 0.015,
+        "intval": "into",
+        "output_name": "annotated study",
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "camera_annotation.R"
+    assert cmd == ["Rscript", str(script_file)]
+    script = script_file.read_text()
+    assert 'library("CAMERA")' in script
+    assert 'library("xcms")' in script
+    assert 'library("jsonlite")' in script
+    assert 'library("readr")' in script
+    assert 'xdata <- readRDS("/data/study.aligned.xcms.rds")' in script
+    assert 'if (is(xdata, "xcmsSet")) {' in script
+    assert 'if (any(msLevel(xdata) > 1)) stop("CAMERA conversion from XCMSnExp to xcmsSet supports MS1-only objects.' in script
+    assert 'xset <- as(xdata, "xcmsSet")' in script
+    assert 'xsa <- xsAnnotate(xset, polarity = "negative")' in script
+    assert 'xsa <- groupFWHM(xsa, sigma = 5, perfwhm = 0.7, intval = "into")' in script
+    assert 'xsa <- findIsotopes(xsa, maxcharge = 2, maxiso = 5, ppm = 7, mzabs = 0.02, intval = "into")' in script
+    assert 'xsa <- groupCorr(xsa, cor_eic_th = 0.8, pval = 0.01, calcIso = TRUE, intval = "into")' in script
+    assert 'xsa <- findAdducts(xsa, ppm = 6, mzabs = 0.015, polarity = "negative", intval = "into")' in script
+    assert 'peaklist <- as.data.frame(getPeaklist(xsa, intval = "into"))' in script
+    assert f'write_tsv(peaklist, "{output_dir}/annotated_study.camera_peaklist.tsv")' in script
+    assert f'saveRDS(xsa, "{output_dir}/annotated_study.camera.rds")' in script
+    assert f'write_json(summary, "{output_dir}/annotated_study.camera.summary.json", pretty = TRUE, auto_unbox = TRUE)' in script
+
+
+def test_camera_annotation_can_skip_correlation_and_adduct_steps(tmp_path: Path) -> None:
+    node_class = _node_class("camera_annotation")
+    output_dir = tmp_path / "camera_annotation"
+
+    cmd = node_class.render_command({
+        "xcms_object": "/data/study.aligned.xcms.rds",
+        "run_group_corr": False,
+        "run_adducts": False,
+        "output_name": "",
+        "output": str(output_dir),
+    })
+
+    assert cmd == ["Rscript", str(output_dir / "camera_annotation.R")]
+    script = (output_dir / "camera_annotation.R").read_text()
+    assert 'xsa <- xsAnnotate(xset, polarity = "positive")' in script
+    assert 'xsa <- groupFWHM(xsa, sigma = 6, perfwhm = 0.6, intval = "into")' in script
+    assert 'xsa <- findIsotopes(xsa, maxcharge = 3, maxiso = 4, ppm = 5, mzabs = 0.01, intval = "into")' in script
+    assert "groupCorr(" not in script
+    assert "findAdducts(" not in script
+    assert f'write_tsv(peaklist, "{output_dir}/study.aligned.camera_peaklist.tsv")' in script
+    assert f'saveRDS(xsa, "{output_dir}/study.aligned.camera.rds")' in script
+
+
+def test_camera_annotation_plans_outputs() -> None:
+    node_class = _node_class("camera_annotation")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"xcms_object": "input.xcms.rds", "output_name": "study one"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/camera_annotation/study_one.camera_peaklist.tsv",
+        "/tmp/run/camera_annotation/study_one.camera.rds",
+        "/tmp/run/camera_annotation/study_one.camera.summary.json",
+    ]
+
+
+def test_camera_annotation_environment_metadata_is_declared() -> None:
+    assert R_PACKAGE_TO_CONDA_PACKAGE["CAMERA"] == "bioconductor-camera"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-camera"] == ">=1.66"
+
+
 def test_sirius_formula_id_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
