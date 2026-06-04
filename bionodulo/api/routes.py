@@ -1604,12 +1604,13 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
         return {"workflow": workflow, "source": source, "imported": True}
     except ImportError as exc:
         logger.warning("Converter module not available: %s", exc)
-        return {
-            "workflow": {"version": "1.0", "app": "bionodulo", "nodes": {}, "edges": [], "groups": []},
-            "source": source,
-            "imported": False,
-            "note": f"Converter for {source} not available. Install converter dependencies.",
-        }
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Converter for {source} is unavailable. "
+                "Install converter dependencies before importing this format."
+            ),
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Import failed: {exc}") from exc
 
