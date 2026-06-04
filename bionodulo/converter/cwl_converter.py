@@ -89,8 +89,9 @@ def import_from_cwl(
         run_ref = step.get("run", "")
         if run_ref:
             tool_path = tools_dir / Path(run_ref).name if tools_dir else Path(run_ref)
-            if tool_path.is_file():
-                tool_def = json.loads(tool_path.read_text(encoding="utf-8"))
+            if not tool_path.is_file():
+                raise FileNotFoundError(f"Referenced CWL tool file not found: {tool_path}")
+            tool_def = json.loads(tool_path.read_text(encoding="utf-8"))
 
         node_type = _cwl_tool_to_node_type(tool_def)
 

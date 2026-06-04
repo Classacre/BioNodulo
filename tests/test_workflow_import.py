@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from bionodulo.converter.cwl_converter import import_from_cwl
 from bionodulo.converter.galaxy_converter import import_from_galaxy
 from bionodulo.converter.nextflow_converter import import_from_nextflow
@@ -88,6 +90,31 @@ def test_cwl_import_maps_unknown_tool_to_generic_command(tmp_path: Path) -> None
     node = workflow["nodes"][0]
     assert node["type"] == "generic_command"
     assert node["widgets"]["command"] == "custom_tool --flag"
+
+
+def test_cwl_import_rejects_missing_referenced_tool_file(tmp_path: Path) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    workflow_path = tmp_path / "workflow.cwl"
+    workflow_path.write_text(
+        json.dumps(
+            {
+                "class": "Workflow",
+                "cwlVersion": "v1.2",
+                "steps": {
+                    "missing_step": {
+                        "run": "tools/missing_step.cwl",
+                        "in": {},
+                        "out": ["out"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileNotFoundError, match="Referenced CWL tool file not found"):
+        import_from_cwl(workflow_path)
 
 
 def test_galaxy_import_maps_unknown_tool_to_generic_command() -> None:
