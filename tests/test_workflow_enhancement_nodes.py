@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -700,6 +701,71 @@ async def test_notification_posts_resolved_secret_webhook(monkeypatch: pytest.Mo
     assert delivery_info["http_status"] == 204
     assert delivery_info["webhook_url_configured"] is True
     assert "secret" not in delivery_info
+
+
+@pytest.mark.asyncio
+async def test_notification_sends_email_with_smtp_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    context = _context(tmp_path, "notify-email")
+    sent: list[dict[str, Any]] = []
+
+    async def fake_send_email(self: Any, settings: dict[str, Any], payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        sent.append({"settings": settings, "payload": payload, "timeout": timeout})
+        return {"message_id": "smtp-123", "recipients": ["ops@example.test"]}
+
+    monkeypatch.setattr(_node_class("notification"), "_send_email", fake_send_email)
+
+    success, delivery_info_json = await _node_class("notification")().run(
+        trigger="on_error",
+        channel="email",
+        message="Variant workflow failed",
+        smtp_host="smtp.example.test",
+        smtp_port=2525,
+        smtp_username="bio",
+        smtp_password="secret-password",
+        smtp_from="noreply@example.test",
+        smtp_to="ops@example.test",
+        smtp_use_tls=True,
+        timeout_seconds=3.5,
+        context=context,
+    )
+
+    delivery_info = json.loads(delivery_info_json)
+    assert success is True
+    assert sent[0]["settings"] == {
+        "host": "smtp.example.test",
+        "port": 2525,
+        "username": "bio",
+        "password": "secret-password",
+        "from_address": "noreply@example.test",
+        "to_addresses": ["ops@example.test"],
+        "use_tls": True,
+    }
+    assert sent[0]["payload"]["message"] == "Variant workflow failed"
+    assert sent[0]["timeout"] == 3.5
+    assert delivery_info["status"] == "delivered"
+    assert delivery_info["smtp_host_configured"] is True
+    assert delivery_info["recipients"] == ["ops@example.test"]
+    assert delivery_info["message_id"] == "smtp-123"
+    assert "secret-password" not in delivery_info_json
+    assert context.logs[0] == ("info", "Notification [email] delivered to 1 recipient(s)")
+
+
+@pytest.mark.asyncio
+async def test_notification_email_skips_without_smtp_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in tuple(os.environ):
+        if key.startswith("BIONODULO_SMTP_"):
+            monkeypatch.delenv(key, raising=False)
+
+    success, delivery_info_json = await _node_class("notification")().run(
+        trigger="always",
+        channel="email",
+        message="No SMTP",
+    )
+
+    delivery_info = json.loads(delivery_info_json)
+    assert success is False
+    assert delivery_info["status"] == "skipped"
+    assert delivery_info["reason"] == "No SMTP host or recipients configured"
 
 
 @pytest.mark.asyncio

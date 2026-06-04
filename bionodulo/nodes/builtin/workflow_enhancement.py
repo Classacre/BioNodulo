@@ -9,11 +9,14 @@ import html
 import hashlib
 import json
 import math
+import os
 import platform
 import re
+import smtplib
 import sys
 import time
 from datetime import datetime, timedelta, timezone as dt_timezone
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -1306,6 +1309,13 @@ class NotificationNode(BaseNode):
                 "include_results": ("BOOLEAN", {"default": False}),
                 "secret_key": ("STRING", {"default": "", "description": "Secret key that resolves to a webhook URL"}),
                 "timeout_seconds": ("FLOAT", {"default": 10.0, "min": 0.1}),
+                "smtp_host": ("STRING", {"default": "", "description": "SMTP host for email notifications"}),
+                "smtp_port": ("INT", {"default": 587, "min": 1, "max": 65535}),
+                "smtp_username": ("STRING", {"default": ""}),
+                "smtp_password": ("STRING", {"default": "", "password": True}),
+                "smtp_from": ("STRING", {"default": ""}),
+                "smtp_to": ("STRING", {"default": "", "description": "Comma-separated email recipients"}),
+                "smtp_use_tls": ("BOOLEAN", {"default": True}),
             },
             "hidden": {
                 "context": ("CONTEXT", {}),
@@ -1359,10 +1369,34 @@ class NotificationNode(BaseNode):
             return (True, _json_text(delivery_info))
 
         if channel == "email":
-            delivery_info["status"] = "skipped"
-            delivery_info["reason"] = "Email delivery requires SMTP settings and is not implemented in this node"
-            _ctx_log(context, "warning", "Notification [email] skipped: SMTP delivery is not configured")
-            return (False, _json_text(delivery_info))
+            settings = self._resolve_email_settings(kwargs)
+            delivery_info.update(
+                {
+                    "smtp_host_configured": bool(settings["host"]),
+                    "recipients": settings["to_addresses"],
+                }
+            )
+            if not settings["host"] or not settings["to_addresses"]:
+                delivery_info["status"] = "skipped"
+                delivery_info["reason"] = "No SMTP host or recipients configured"
+                _ctx_log(context, "warning", "Notification [email] skipped: no SMTP host or recipients configured")
+                return (False, _json_text(delivery_info))
+            try:
+                email_result = await self._send_email(settings, payload, timeout)
+            except Exception as exc:
+                delivery_info.update({"status": "failed", "error": str(exc)})
+                _ctx_log(context, "error", f"Notification [email] failed: {exc}")
+                return (False, _json_text(delivery_info))
+            recipients = [str(item) for item in email_result.get("recipients", settings["to_addresses"])]
+            delivery_info.update(
+                {
+                    "status": "delivered",
+                    "message_id": email_result.get("message_id", ""),
+                    "recipients": recipients,
+                }
+            )
+            _ctx_log(context, "info", f"Notification [email] delivered to {len(recipients)} recipient(s)")
+            return (True, _json_text(delivery_info))
 
         if not webhook_url:
             delivery_info["status"] = "skipped"
@@ -1428,6 +1462,71 @@ class NotificationNode(BaseNode):
     @staticmethod
     def _redacted_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return json.loads(json.dumps(payload, default=str))
+
+    @staticmethod
+    def _resolve_email_settings(inputs: dict[str, Any]) -> dict[str, Any]:
+        host = str(inputs.get("smtp_host", "") or os.environ.get("BIONODULO_SMTP_HOST", "")).strip()
+        port = int(inputs.get("smtp_port", 0) or os.environ.get("BIONODULO_SMTP_PORT", "587") or 587)
+        username = str(inputs.get("smtp_username", "") or os.environ.get("BIONODULO_SMTP_USERNAME", "")).strip()
+        password = str(inputs.get("smtp_password", "") or os.environ.get("BIONODULO_SMTP_PASSWORD", ""))
+        from_address = str(inputs.get("smtp_from", "") or os.environ.get("BIONODULO_SMTP_FROM", "")).strip()
+        to_text = str(inputs.get("smtp_to", "") or os.environ.get("BIONODULO_SMTP_TO", "")).strip()
+        use_tls_raw = inputs.get("smtp_use_tls", os.environ.get("BIONODULO_SMTP_USE_TLS", "true"))
+        if isinstance(use_tls_raw, str):
+            use_tls = use_tls_raw.strip().lower() not in {"0", "false", "no", "off"}
+        else:
+            use_tls = bool(use_tls_raw)
+        to_addresses = [item.strip() for item in re.split(r"[,;\n]+", to_text) if item.strip()]
+        return {
+            "host": host,
+            "port": port,
+            "username": username,
+            "password": password,
+            "from_address": from_address or username,
+            "to_addresses": to_addresses,
+            "use_tls": use_tls,
+        }
+
+    async def _send_email(self, settings: dict[str, Any], payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        return await asyncio.to_thread(self._send_email_sync, settings, payload, timeout)
+
+    @staticmethod
+    def _send_email_sync(settings: dict[str, Any], payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        from_address = str(settings.get("from_address", "") or "")
+        recipients = [str(item) for item in settings.get("to_addresses", [])]
+        if not from_address:
+            raise ValueError("SMTP from address is required")
+        if not recipients:
+            raise ValueError("At least one email recipient is required")
+
+        message = EmailMessage()
+        message["Subject"] = f"BioNodulo notification: {payload.get('run_id', 'workflow')}"
+        message["From"] = from_address
+        message["To"] = ", ".join(recipients)
+        message.set_content(
+            "\n".join(
+                [
+                    str(payload.get("message", "Workflow notification")),
+                    "",
+                    f"Run ID: {payload.get('run_id', '')}",
+                    f"Node ID: {payload.get('node_id', '')}",
+                    f"Trigger: {payload.get('trigger', '')}",
+                    f"Status: {payload.get('status', '')}",
+                ]
+            )
+        )
+
+        with smtplib.SMTP(str(settings["host"]), int(settings["port"]), timeout=timeout) as smtp:
+            if settings.get("use_tls"):
+                smtp.starttls()
+            username = str(settings.get("username", "") or "")
+            password = str(settings.get("password", "") or "")
+            if username or password:
+                smtp.login(username, password)
+            refused = smtp.send_message(message)
+        if refused:
+            raise RuntimeError(f"SMTP refused recipients: {sorted(refused)}")
+        return {"message_id": message.get("Message-ID", ""), "recipients": recipients}
 
     async def _post_json(self, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         import httpx
