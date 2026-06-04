@@ -17,6 +17,7 @@ from bionodulo.nodes.base import BaseNode
 
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
 SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -3224,6 +3225,126 @@ def _render_line_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _plotly_dash(line_style: str) -> str:
+    style = str(line_style or "solid").strip().lower()
+    return {
+        "dashed": "dash",
+        "dotted": "dot",
+        "dashdot": "dashdot",
+    }.get(style, "solid")
+
+
+def _plotly_marker_symbol(marker: str) -> str:
+    marker_name = str(marker or "none").strip()
+    return {
+        "o": "circle",
+        "s": "square",
+        "^": "triangle-up",
+        "D": "diamond",
+        "*": "star",
+    }.get(marker_name, "circle")
+
+
+def _render_line_html(
+    path: Path,
+    *,
+    series: list[LineSeries],
+    bounds: XYBounds,
+    layout: PlotLayout,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    palette: str,
+    line_style: str,
+    marker: str,
+    show_grid: bool,
+) -> None:
+    marker_name = str(marker or "none").strip()
+    mode = "lines+markers" if marker_name != "none" else "lines"
+    traces = []
+    for series_index, item in enumerate(series):
+        ordered_points = sorted(item.points, key=lambda point: point[0])
+        traces.append({
+            "type": "scatter",
+            "mode": mode,
+            "name": item.name,
+            "x": [point[0] for point in ordered_points],
+            "y": [point[1] for point in ordered_points],
+            "line": {
+                "color": _line_colour(palette, series_index),
+                "width": 2.4,
+                "dash": _plotly_dash(line_style),
+            },
+            "marker": {
+                "color": _line_colour(palette, series_index),
+                "size": 8,
+                "symbol": _plotly_marker_symbol(marker_name),
+                "line": {"color": "#ffffff", "width": 0.8},
+            },
+            "hovertemplate": f"{html.escape(item.name)}<br>{html.escape(xlabel)}: %{{x}}"
+            f"<br>{html.escape(ylabel)}: %{{y}}<extra></extra>",
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": xlabel,
+            "range": [bounds.x_min, bounds.x_max],
+            "zeroline": False,
+            "showgrid": show_grid,
+            "gridcolor": "#E2E8F0",
+        },
+        "yaxis": {
+            "title": ylabel,
+            "range": [bounds.y_min, bounds.y_max],
+            "zeroline": False,
+            "showgrid": show_grid,
+            "gridcolor": "#E2E8F0",
+        },
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "x unified",
+        "showlegend": True,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "line_chart"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_heatmap_svg(
     path: Path,
     *,
@@ -5060,7 +5181,7 @@ class LineChartNode(BaseNode):
                 "line_style": ("STRING", {"default": "solid", "options": ["solid", "dashed", "dotted", "dashdot"]}),
                 "marker": ("STRING", {"default": "none", "options": ["none", "o", "s", "^", "D", "*"]}),
                 "show_grid": ("BOOLEAN", {"default": True}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(LINE_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -5072,7 +5193,7 @@ class LineChartNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in LINE_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported line chart format: {output_format}")
 
         x_column = str(kwargs.get("x_column", "") or "").strip()
@@ -5114,6 +5235,20 @@ class LineChartNode(BaseNode):
         output_path = out_dir / f"line_chart.{output_format}"
         if output_format == "svg":
             _render_line_svg(
+                output_path,
+                series=series,
+                bounds=bounds,
+                layout=layout,
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel,
+                palette=palette,
+                line_style=line_style,
+                marker=marker,
+                show_grid=show_grid,
+            )
+        elif output_format == "html":
+            _render_line_html(
                 output_path,
                 series=series,
                 bounds=bounds,

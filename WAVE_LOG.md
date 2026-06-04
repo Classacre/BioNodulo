@@ -476,6 +476,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Custom node packaging now has a concrete `bionodulo.toml` manifest contract: the manager can parse required package name/version fields, optional repository/entrypoints/requirements metadata, and list manifest-backed plus legacy custom-node installs.
 - Workflow parameters now have a passive schema foundation: backend workflow JSON preserves parameter definitions, validation rejects malformed or duplicate parameter names, frontend workflow validation keeps parameter metadata, new workflows initialise `parameters: []`, and history signatures track parameter-only edits.
 - Scatter Plot now has an interactive HTML output mode alongside PNG/SVG: it emits a Plotly-backed `scatter_plot.html`, preserves the existing `plot_image` output name for compatibility, registers HTML previews through the existing preview pipeline, and keeps static image formats as the default.
+- Line Chart now has a matching interactive HTML output mode: multi-series traces render through Plotly with line style, marker, grid, palette, and axis metadata preserved, while the existing `chart_image` output and PNG/SVG defaults remain compatible.
 
 ---
 
