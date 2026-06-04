@@ -272,7 +272,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       const respondLocally = () => setSessions(prev =>
         prev.map(s =>
           s.id === activeSessionId
-            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg, t) }] }
             : s
         )
       );
@@ -321,7 +321,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       setSessions(prev =>
         prev.map(s =>
           s.id === activeSessionId
-            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg) }] }
+            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg, t) }] }
             : s
         )
       );
@@ -725,34 +725,34 @@ function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
   } as Workflow;
 }
 
-function getLocalResponse(msg: string): string {
+function getLocalResponse(msg: string, t: ReturnType<typeof useTranslation>['t']): string {
   const lower = msg.toLowerCase();
   if (lower.includes('rna') || lower.includes('transcript')) {
-    return 'For RNA-Seq, I recommend: input_fastq → fastp (trim) → STAR or HISAT2 (align) → featureCounts (quantify). Add a Sample Sheet node for multi-sample runs. The RNA-Seq template has this wired up for you!';
+    return t('aiWorkflow.localResponses.rna');
   }
   if (lower.includes('variant') || lower.includes('snp') || lower.includes('vcf')) {
-    return 'For variant calling: input_fastq → fastp → BWA-MEM → samtools sort/index → GATK HaplotypeCaller → bcftools filter. The Variant Calling template includes BAM QC with samtools flagstat too.';
+    return t('aiWorkflow.localResponses.variant');
   }
   if (lower.includes('assembly') || lower.includes('spades') || lower.includes('megahit')) {
-    return 'For assembly: input_fastq → fastp → SPAdes (or MEGAHIT for metagenomes) → QUAST (quality assessment). If you have a reference, add it to QUAST for comparative metrics.';
+    return t('aiWorkflow.localResponses.assembly');
   }
   if (lower.includes('meta') || lower.includes('kraken') || lower.includes('humann')) {
-    return 'For metagenomics: input_fastq → Kraken2 (taxonomic classification) → Bracken (abundance estimation) → MetaPhlAn (profile) → HUMAnN (functional profiling). The Metagenomics template has the full pipeline.';
+    return t('aiWorkflow.localResponses.metagenomics');
   }
   if (lower.includes('chip') || lower.includes('peak')) {
-    return 'For ChIP-Seq: input_fastq → Bowtie2 → samtools sort → MACS2 CallPeak. Add a control BAM to the MACS2 node for proper peak calling.';
+    return t('aiWorkflow.localResponses.chipSeq');
   }
   if (lower.includes('qc') || lower.includes('quality') || lower.includes('fastqc')) {
-    return 'For QC: input_fastq → FastQC (per-sample reports) → MultiQC (aggregated report). This is the simplest pipeline and a great starting point!';
+    return t('aiWorkflow.localResponses.qc');
   }
   if (lower.includes('phylo') || lower.includes('tree')) {
-    return 'For phylogenetics: input_fasta → MAFFT (alignment) → IQ-TREE (tree inference). You can also try FastTree for quick exploratory trees.';
+    return t('aiWorkflow.localResponses.phylogenetics');
   }
   if (lower.includes('single cell') || lower.includes('scRNA') || lower.includes('cellranger')) {
-    return 'For single-cell: input_directory (FASTQs) + reference_transcriptome → Cell Ranger Count. The Single Cell template is pre-configured for 10x Genomics data.';
+    return t('aiWorkflow.localResponses.singleCell');
   }
   if (lower.includes('plot') || lower.includes('r ') || lower.includes('ggplot')) {
-    return 'For plotting: use the R Plot node. Connect a DataFrame Builder node with your x/y columns, choose scatter/line/bar/boxplot, and set optional color/title parameters.';
+    return t('aiWorkflow.localResponses.plotting');
   }
-  return 'I can help you design bioinformatics workflows! Try asking about RNA-Seq, variant calling, assembly, metagenomics, ChIP-Seq, QC, phylogenetics, or single-cell analysis.';
+  return t('aiWorkflow.localResponses.default');
 }

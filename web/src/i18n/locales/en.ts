@@ -386,6 +386,18 @@ const en = {
       regenerateTitle: 'Re-run the previous question',
       regenerate: 'Regenerate',
     },
+    localResponses: {
+      rna: 'For RNA-Seq, I recommend: input_fastq -> fastp (trim) -> STAR or HISAT2 (align) -> featureCounts (quantify). Add a Sample Sheet node for multi-sample runs. The RNA-Seq template has this wired up for you!',
+      variant: 'For variant calling: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. The Variant Calling template includes BAM QC with samtools flagstat too.',
+      assembly: 'For assembly: input_fastq -> fastp -> SPAdes (or MEGAHIT for metagenomes) -> QUAST (quality assessment). If you have a reference, add it to QUAST for comparative metrics.',
+      metagenomics: 'For metagenomics: input_fastq -> Kraken2 (taxonomic classification) -> Bracken (abundance estimation) -> MetaPhlAn (profile) -> HUMAnN (functional profiling). The Metagenomics template has the full pipeline.',
+      chipSeq: 'For ChIP-Seq: input_fastq -> Bowtie2 -> samtools sort -> MACS2 CallPeak. Add a control BAM to the MACS2 node for proper peak calling.',
+      qc: 'For QC: input_fastq -> FastQC (per-sample reports) -> MultiQC (aggregated report). This is the simplest pipeline and a great starting point!',
+      phylogenetics: 'For phylogenetics: input_fasta -> MAFFT (alignment) -> IQ-TREE (tree inference). You can also try FastTree for quick exploratory trees.',
+      singleCell: 'For single-cell: input_directory (FASTQs) + reference_transcriptome -> Cell Ranger Count. The Single Cell template is pre-configured for 10x Genomics data.',
+      plotting: 'For plotting: use the R Plot node. Connect a DataFrame Builder node with your x/y columns, choose scatter/line/bar/boxplot, and set optional color/title parameters.',
+      default: 'I can help you design bioinformatics workflows! Try asking about RNA-Seq, variant calling, assembly, metagenomics, ChIP-Seq, QC, phylogenetics, or single-cell analysis.',
+    },
   },
   panels: {
     nodeLibrary: 'Node library',

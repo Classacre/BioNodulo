@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { apiPost } from '../api/client';
 import type { Workflow } from '../types';
 
 vi.mock('../api/client', () => {
@@ -290,6 +291,47 @@ describe('AIWorkflowModal i18n', () => {
     expect(await screen.findByDisplayValue('Aqui estan mis nodos seleccionados (2 nodos, 1 arista): fastqc, multiqc')).toBeInTheDocument();
   });
 
+  it('renders local fallback responses from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    async function expectFallback(prompt: string, expected: string) {
+      storage.clear();
+      vi.mocked(apiPost).mockRejectedValueOnce(new Error('offline'));
+
+      render(
+        <AIWorkflowModal
+          workflow={workflow()}
+          onClose={() => undefined}
+          onApplyWorkflow={() => undefined}
+        />,
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+        target: { value: prompt },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+      cleanup();
+    }
+
+    await expectFallback(
+      'rna workflow',
+      'Para RNA-Seq, recomiendo: input_fastq -> fastp (recorte) -> STAR o HISAT2 (alinear) -> featureCounts (cuantificar). Agrega un nodo Sample Sheet para ejecuciones con multiples muestras. La plantilla RNA-Seq ya lo trae conectado.',
+    );
+    await expectFallback(
+      'variant calling',
+      'Para llamada de variantes: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. La plantilla Variant Calling tambien incluye QC de BAM con samtools flagstat.',
+    );
+    await expectFallback(
+      'something else',
+      'Puedo ayudarte a disenar workflows de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis single-cell.',
+    );
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -331,6 +373,16 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.generation.stopped',
       'aiWorkflow.generation.regenerateTitle',
       'aiWorkflow.generation.regenerate',
+      'aiWorkflow.localResponses.rna',
+      'aiWorkflow.localResponses.variant',
+      'aiWorkflow.localResponses.assembly',
+      'aiWorkflow.localResponses.metagenomics',
+      'aiWorkflow.localResponses.chipSeq',
+      'aiWorkflow.localResponses.qc',
+      'aiWorkflow.localResponses.phylogenetics',
+      'aiWorkflow.localResponses.singleCell',
+      'aiWorkflow.localResponses.plotting',
+      'aiWorkflow.localResponses.default',
       'common.close',
       'common.rename',
       'common.delete',
@@ -376,6 +428,16 @@ describe('AIWorkflowModal i18n', () => {
       '_Stopped by user._',
       'Re-run the previous question',
       '↻ Regenerate',
+      'For RNA-Seq, I recommend',
+      'For variant calling:',
+      'For assembly:',
+      'For metagenomics:',
+      'For ChIP-Seq:',
+      'For QC:',
+      'For phylogenetics:',
+      'For single-cell:',
+      'For plotting:',
+      'I can help you design bioinformatics workflows!',
     ].forEach(text => expect(source).not.toContain(text));
   });
 });
