@@ -219,6 +219,7 @@ const es = {
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',
+    nodes: 'Nodos',
     parameters: 'Parametros',
     inspector: 'Inspector',
     workspace: 'Espacio de trabajo',

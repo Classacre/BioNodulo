@@ -219,6 +219,7 @@ const en = {
   },
   panels: {
     nodeLibrary: 'Node library',
+    nodes: 'Nodes',
     parameters: 'Parameters',
     inspector: 'Inspector',
     workspace: 'Workspace',

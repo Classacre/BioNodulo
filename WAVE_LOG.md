@@ -386,6 +386,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Workflow-owned `useWorkflow` and `useHistory` now live under `web/src/hooks/workflow/` and export through that category barrel; the workflow message hook imports notifications directly instead of pulling in the full UI barrel during hook-only tests.
 - Node Library panel chrome, search summaries, result actions, bookmark affordances, tooltip headings, subgraph actions, and empty states now read from `nodeLibrary` i18n keys, with Spanish unit and browser coverage for the panel surface.
 - Templates panel dialog chrome, save form, search/sort controls, result summaries, card affordances, counts, and empty/error states now read from `templates` i18n keys, with Spanish unit coverage for the panel surface.
+- Left rail built-in panel labels, button titles, and accessible names now read from `panels` i18n keys, with Spanish unit coverage while preserving the existing tab ids and shortcut suffixes.
 
 ---
 

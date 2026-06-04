@@ -1,6 +1,7 @@
 import Icon from '../ui/Icon';
 import { Tooltip } from '../ui';
 import { useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/useKeybindings';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
@@ -59,6 +60,7 @@ function RailButton({ active, icon, label, shortcut, onClick }: RailButtonProps)
 }
 
 export default function LeftRail({ active, onChange }: LeftRailProps) {
+  const { t } = useTranslation();
   const consoleVisible = useAtomValue(consoleVisibleAtom);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
   const toggle = (tab: RailTab) => onChange(active === tab ? null : tab);
@@ -72,12 +74,12 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
 
   return (
     <nav className="left-rail">
-      <RailButton active={active === 'data'} icon="folder" label="Data" shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
-      <RailButton active={active === 'nodes'} icon="nodes" label="Nodes" shortcut={getBinding('rail.nodes') ?? undefined} onClick={() => toggle('nodes')} />
-      <RailButton active={active === 'templates'} icon="template" label="Templates" shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
+      <RailButton active={active === 'data'} icon="folder" label={t('panels.workspace')} shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
+      <RailButton active={active === 'nodes'} icon="nodes" label={t('panels.nodes')} shortcut={getBinding('rail.nodes') ?? undefined} onClick={() => toggle('nodes')} />
+      <RailButton active={active === 'templates'} icon="template" label={t('panels.templates')} shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
       <div className="rail-sep" />
-      <RailButton active={active === 'environments'} icon="dna" label="Environments" shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
-      <RailButton active={active === 'hpc'} icon="server" label="HPC" shortcut={getBinding('rail.hpc') ?? undefined} onClick={() => toggle('hpc')} />
+      <RailButton active={active === 'environments'} icon="dna" label={t('panels.environment')} shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
+      <RailButton active={active === 'hpc'} icon="server" label={t('panels.hpc')} shortcut={getBinding('rail.hpc') ?? undefined} onClick={() => toggle('hpc')} />
       {registered.length > 0 && <div className="rail-sep" />}
       {registered.map(panel => (
         <RailButton
@@ -90,10 +92,10 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
         />
       ))}
       <div className="rail-sep" />
-      <RailButton active={active === 'help'} icon="help" label="Help / Wiki" shortcut={getBinding('rail.help') ?? undefined} onClick={() => toggle('help')} />
-      <RailButton active={active === 'console' || consoleVisible} icon="console" label="Console" shortcut={getBinding('rail.console') ?? undefined} onClick={toggleConsole} />
+      <RailButton active={active === 'help'} icon="help" label={t('panels.helpWiki')} shortcut={getBinding('rail.help') ?? undefined} onClick={() => toggle('help')} />
+      <RailButton active={active === 'console' || consoleVisible} icon="console" label={t('panels.console')} shortcut={getBinding('rail.console') ?? undefined} onClick={toggleConsole} />
       <div className="rail-sep" />
-      <RailButton active={active === 'settings'} icon="settings" label="Settings" shortcut={getBinding('settings.toggle') ?? undefined} onClick={() => toggle('settings')} />
+      <RailButton active={active === 'settings'} icon="settings" label={t('panels.settings')} shortcut={getBinding('settings.toggle') ?? undefined} onClick={() => toggle('settings')} />
     </nav>
   );
 }
