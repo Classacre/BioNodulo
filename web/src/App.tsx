@@ -1795,10 +1795,7 @@ export default function App() {
   const handleSaveTemplate = useCallback(async (draft: TemplateSaveDraft) => {
     const token = getToken();
     if (!collabSessionActive || !token || !activeWorkflowId) {
-      await alertDialog({
-        title: 'Template sharing unavailable',
-        message: 'Start collaboration and sign in to save shared workflow templates.',
-      });
+      await alertDialog(appCollabCopy.saveTemplateUnavailableDialog());
       return;
     }
     try {
@@ -1811,11 +1808,11 @@ export default function App() {
         tags: draft.tags,
         is_public: false,
       });
-      toast.success('Template saved', { message: draft.name });
+      toast.success(appCollabCopy.toast.templateSaved, { message: draft.name });
     } catch (err) {
-      toast.error('Could not save template', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(appCollabCopy.error.saveTemplateFailed, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [activeWorkflow, activeWorkflowId, collabSessionActive, publishCollabWorkflowSnapshot]);
+  }, [activeWorkflow, activeWorkflowId, appCollabCopy, collabSessionActive, publishCollabWorkflowSnapshot]);
 
   const handleToggleQueue = useCallback(() => {
     const isVisible = consoleVisible || railTab === 'console';

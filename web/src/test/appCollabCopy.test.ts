@@ -50,6 +50,10 @@ describe('App collaboration copy i18n', () => {
       placeholder: 'https://bionodulo.example/?workflow=...&invite=...',
       confirmLabel: 'Unirse',
     });
+    expect(copy.saveTemplateUnavailableDialog()).toMatchObject({
+      title: 'Compartir plantilla no disponible',
+      message: 'Inicia colaboracion e inicia sesion para guardar plantillas de workflow compartidas.',
+    });
     expect(copy.connectedAsRole('editor')).toBe('Conectado como Editor.');
     expect(copy.connectedAsRole('viewer')).toBe('Conectado como Lector.');
     expect(copy.workflowFallback('workflow-1234567890abcdef')).toBe('Workflow workflow-123');
@@ -58,13 +62,15 @@ describe('App collaboration copy i18n', () => {
     expect(copy.toast.joined).toBe('Colaboracion unida');
     expect(copy.toast.stopped).toBe('Colaboracion detenida');
     expect(copy.toast.offlineModeRestored).toBe('Este navegador vuelve al modo sin conexion.');
+    expect(copy.toast.templateSaved).toBe('Plantilla guardada');
     expect(copy.error.invalidLinkTitle).toBe('Enlace de colaboracion invalido');
     expect(copy.error.invalidLinkMessage).toBe('Se esperaba una URL de BioNodulo con ?workflow=... o un ID de sala.');
     expect(copy.error.createLinkFailed).toBe('No se pudo crear el enlace de colaboracion');
     expect(copy.error.joinFailed).toBe('No se pudo unir a la colaboracion');
+    expect(copy.error.saveTemplateFailed).toBe('No se pudo guardar la plantilla');
   });
 
-  it('keeps App collaboration create/join/leave copy behind i18n helpers', () => {
+  it('keeps App collaboration create/join/leave/template copy behind i18n helpers', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
     expect(appSource).toContain('makeAppCollabCopy');
@@ -86,6 +92,10 @@ describe('App collaboration copy i18n', () => {
       'Could not join collaboration',
       'Collaboration stopped',
       'This browser is back in offline mode.',
+      'Template sharing unavailable',
+      'Start collaboration and sign in to save shared workflow templates.',
+      'Template saved',
+      'Could not save template',
     ].forEach(text => {
       expect(appSource).not.toContain(text);
     });

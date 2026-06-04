@@ -1,11 +1,12 @@
 import type { TFunction } from 'i18next';
-import type { PromptDialogOptions } from '../state/dialogs';
+import type { DialogOptions, PromptDialogOptions } from '../state/dialogs';
 import type { CollabRole } from './types';
 
 export interface AppCollabCopy {
   createLinkCopiedMessage: (hasPublicBaseUrl: boolean) => string;
   createLinkReadyMessage: (hasPublicBaseUrl: boolean) => string;
   joinPrompt: () => PromptDialogOptions;
+  saveTemplateUnavailableDialog: () => DialogOptions;
   connectedAsRole: (role: string) => string;
   workflowFallback: (workflowId: string) => string;
   toast: {
@@ -14,12 +15,14 @@ export interface AppCollabCopy {
     joined: string;
     stopped: string;
     offlineModeRestored: string;
+    templateSaved: string;
   };
   error: {
     createLinkFailed: string;
     invalidLinkTitle: string;
     invalidLinkMessage: string;
     joinFailed: string;
+    saveTemplateFailed: string;
   };
 }
 
@@ -44,6 +47,10 @@ export function makeAppCollabCopy(t: TFunction): AppCollabCopy {
       placeholder: t('collab.appJoinPromptPlaceholder'),
       confirmLabel: t('collab.appJoinPromptConfirm'),
     }),
+    saveTemplateUnavailableDialog: () => ({
+      title: t('collab.appSaveTemplateUnavailableTitle'),
+      message: t('collab.appSaveTemplateUnavailableMessage'),
+    }),
     connectedAsRole: role => t('collab.appConnectedAsRole', { role: roleLabel(t, role) }),
     workflowFallback: workflowId => t('collab.badgeWorkflowFallback', { id: workflowId.slice(0, 12) }),
     toast: {
@@ -52,12 +59,14 @@ export function makeAppCollabCopy(t: TFunction): AppCollabCopy {
       joined: t('collab.appJoinedCollaboration'),
       stopped: t('collab.appCollaborationStopped'),
       offlineModeRestored: t('collab.appOfflineModeRestored'),
+      templateSaved: t('collab.appTemplateSaved'),
     },
     error: {
       createLinkFailed: t('collab.appCreateLinkError'),
       invalidLinkTitle: t('collab.appInvalidLinkTitle'),
       invalidLinkMessage: t('collab.appInvalidLinkMessage'),
       joinFailed: t('collab.appJoinError'),
+      saveTemplateFailed: t('collab.appSaveTemplateError'),
     },
   };
 }
