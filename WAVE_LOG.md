@@ -393,6 +393,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Environment panel manager chrome, loading/empty states, row menus, package counts/actions, confirmation copy, and local fallback status messages now read from `environment` / `common` / `errors` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Workflow tab-strip default names, dirty-state affordance, new-tab action, scroll controls, and context-menu labels now read from `workflowTabs` / `topbar` / `common` / `dialogs` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings dialog shell, close affordance, section navigation labels, search placeholder/summary, and section headings now read from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
+- Settings Appearance and Canvas rows now read labels, descriptions, actions, and select options from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 
 ---
 

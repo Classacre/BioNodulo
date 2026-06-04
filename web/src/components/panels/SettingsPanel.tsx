@@ -128,6 +128,7 @@ export default function SettingsPanel({
   const trimmedQuery = query.trim();
   const isSectionVisible = (id: SettingsSectionId) => Boolean(trimmedQuery) || activeSection === id;
   const sectionTitle = (id: SettingsSectionId) => t(SETTINGS_SECTION_TITLE_KEYS[id]);
+  const st = (key: string) => t(`settings.${key}`);
 
   // Recount visible rows after each render so the toolbar can show "X matches"
   // and a "no matches" hint when the query rules everything out. We sample the
@@ -195,30 +196,30 @@ export default function SettingsPanel({
         </div>
         {/* Appearance */}
         <SettingsGroup active={isSectionVisible('appearance')} query={query} title={sectionTitle('appearance')}>
-          <SettingRow query={query} label="Theme" desc="Select app theme" keywords="dark light system mode">
+          <SettingRow query={query} label={st('theme')} desc={st('appearance.themeDescription')} keywords="dark light system mode tema claro oscuro sistema">
             <select className="select-input" value={String(get('bionodulo.theme'))} onChange={e => set('bionodulo.theme', e.target.value)}>
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
+              <option value="system">{st('appearance.themeSystem')}</option>
+              <option value="light">{st('appearance.themeLight')}</option>
+              <option value="dark">{st('appearance.themeDark')}</option>
             </select>
           </SettingRow>
-          <SettingRow query={query} label="Tooltips" desc="Show tooltips on hover" keywords="hint hover help">
+          <SettingRow query={query} label={st('appearance.tooltips')} desc={st('appearance.tooltipsDescription')} keywords="hint hover help tooltip cursor ayuda">
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
-          <SettingRow query={query} label="Palette" desc="Switch color palette" keywords="theme color swatch">
+          <SettingRow query={query} label={st('palette')} desc={st('appearance.paletteDescription')} keywords="theme color swatch paleta colores">
             <div className="palette-setting">
               <select className="select-input" value={paletteId} onChange={event => setPalette(event.target.value)}>
                 {palettes.map(palette => (
                   <option key={palette.id} value={palette.id}>{palette.name}</option>
                 ))}
               </select>
-              <button className="btn btn-sm" onClick={resetPalette} type="button">Reset</button>
+              <button className="btn btn-sm" onClick={resetPalette} type="button">{t('common.reset')}</button>
             </div>
           </SettingRow>
           <div className="palette-actions">
-            <button className="btn btn-sm" onClick={exportPalette} type="button">Export Palette</button>
+            <button className="btn btn-sm" onClick={exportPalette} type="button">{st('appearance.exportPalette')}</button>
             <label className="btn btn-sm">
-              Import Palette
+              {st('appearance.importPalette')}
               <input accept=".json,application/json" onChange={event => event.target.files?.[0] && void importPalette(event.target.files[0])} type="file" />
             </label>
           </div>
@@ -242,51 +243,51 @@ export default function SettingsPanel({
 
         {/* Canvas */}
         <SettingsGroup active={isSectionVisible('canvas')} query={query} title={sectionTitle('canvas')}>
-          <SettingRow query={query} label="Snap to Grid" desc="Align nodes to grid" keywords="grid alignment">
+          <SettingRow query={query} label={st('snapToGrid')} desc={st('canvas.snapToGridDescription')} keywords="grid alignment cuadricula alineacion">
             <div className={`toggle ${get('bionodulo.snapToGrid') ? 'on' : ''}`} onClick={() => toggle('bionodulo.snapToGrid')} />
           </SettingRow>
-          <SettingRow query={query} label="Lock Viewport" desc="Prevent canvas pan/zoom" keywords="zoom pan camera">
+          <SettingRow query={query} label={st('canvas.lockViewport')} desc={st('canvas.lockViewportDescription')} keywords="zoom pan camera bloquear vista lienzo">
             <div className={`toggle ${get('bionodulo.viewportLocked') ? 'on' : ''}`} onClick={() => toggle('bionodulo.viewportLocked')} />
           </SettingRow>
-          <SettingRow query={query} label="Preserve View" desc="Remember canvas position" keywords="zoom pan persist">
+          <SettingRow query={query} label={st('canvas.preserveView')} desc={st('canvas.preserveViewDescription')} keywords="zoom pan persist conservar posicion">
             <div className={`toggle ${get('bionodulo.preserveView') ? 'on' : ''}`} onClick={() => toggle('bionodulo.preserveView')} />
           </SettingRow>
-          <SettingRow query={query} label="Auto Save" desc="Automatically save workflows" keywords="autosave persist localstorage">
+          <SettingRow query={query} label={st('autoSave')} desc={st('canvas.autoSaveDescription')} keywords="autosave persist localstorage guardado automatico">
             <select className="select-input" value={String(get('bionodulo.autoSave'))} onChange={e => set('bionodulo.autoSave', e.target.value)}>
-              <option value="off">Off</option>
-              <option value="30s">Every 30s</option>
-              <option value="60s">Every minute</option>
+              <option value="off">{st('canvas.autoSaveOff')}</option>
+              <option value="30s">{st('canvas.autoSaveEvery30s')}</option>
+              <option value="60s">{st('canvas.autoSaveEveryMinute')}</option>
             </select>
           </SettingRow>
-          <SettingRow query={query} label="Render Quality" desc="Visual fidelity vs. performance on large graphs" keywords="quality performance shadows smoothing antialias fps">
+          <SettingRow query={query} label={st('canvas.renderQuality')} desc={st('canvas.renderQualityDescription')} keywords="quality performance shadows smoothing antialias fps calidad rendimiento">
             <select
               className="select-input"
               value={String(get('bionodulo.canvas.quality') || 'auto')}
               onChange={e => set('bionodulo.canvas.quality', e.target.value)}
             >
-              <option value="auto">Auto (recommended)</option>
-              <option value="high">High (always)</option>
-              <option value="low">Low (fast)</option>
+              <option value="auto">{st('canvas.renderQualityAuto')}</option>
+              <option value="high">{st('canvas.renderQualityHigh')}</option>
+              <option value="low">{st('canvas.renderQualityLow')}</option>
             </select>
           </SettingRow>
-          <SettingRow query={query} label="Node Shadows" desc="Draw drop shadows behind nodes" keywords="shadow depth performance">
+          <SettingRow query={query} label={st('canvas.nodeShadows')} desc={st('canvas.nodeShadowsDescription')} keywords="shadow depth performance sombra nodos">
             <div className={`toggle ${getBool('bionodulo.canvas.shadows', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.shadows', !getBool('bionodulo.canvas.shadows', true))} />
           </SettingRow>
-          <SettingRow query={query} label="Smooth Links" desc="Anti-alias bezier connections" keywords="antialias smoothing links edges">
+          <SettingRow query={query} label={st('canvas.smoothLinks')} desc={st('canvas.smoothLinksDescription')} keywords="antialias smoothing links edges enlaces suavizado">
             <div className={`toggle ${getBool('bionodulo.canvas.smoothLinks', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.smoothLinks', !getBool('bionodulo.canvas.smoothLinks', true))} />
           </SettingRow>
-          <SettingRow query={query} label="Color by Status" desc="Tint node headers by last run status (completed/error/cached)" keywords="color status run completed error cached tint">
+          <SettingRow query={query} label={st('canvas.colorByStatus')} desc={st('canvas.colorByStatusDescription')} keywords="color status run completed error cached tint estado">
             <div className={`toggle ${getBool('bionodulo.canvas.colorByStatus') ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.colorByStatus', !getBool('bionodulo.canvas.colorByStatus'))} />
           </SettingRow>
-          <SettingRow query={query} label="Link Color" desc="How connection lines are colored" keywords="color edge link data type gradient">
+          <SettingRow query={query} label={st('canvas.linkColor')} desc={st('canvas.linkColorDescription')} keywords="color edge link data type gradient enlace dato">
             <select
               className="select-input"
               value={String(get('bionodulo.canvas.linkColorMode') || 'type')}
               onChange={e => set('bionodulo.canvas.linkColorMode', e.target.value)}
             >
-              <option value="type">By data type</option>
-              <option value="gradient">Gradient (mismatch highlight)</option>
-              <option value="uniform">Uniform</option>
+              <option value="type">{st('canvas.linkColorByType')}</option>
+              <option value="gradient">{st('canvas.linkColorGradient')}</option>
+              <option value="uniform">{st('canvas.linkColorUniform')}</option>
             </select>
           </SettingRow>
         </SettingsGroup>
