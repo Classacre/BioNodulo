@@ -5,6 +5,7 @@
 // z-index so a child dialog renders above its parent.
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import {
   pushDialog,
@@ -54,6 +55,7 @@ export function Dialog({
   className,
   style,
 }: DialogProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const id = useId();
 
@@ -102,7 +104,7 @@ export function Dialog({
               type="button"
               className="btn btn-icon btn-sm"
               onClick={onClose}
-              aria-label={`Close ${title}`}
+              aria-label={t('common.close')}
               style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--muted)' }}
             >
               ×

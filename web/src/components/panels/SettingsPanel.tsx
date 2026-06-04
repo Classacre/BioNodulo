@@ -1,5 +1,6 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../hooks/useSettings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
@@ -39,17 +40,29 @@ type SettingsSectionId =
   | 'feature_flags'
   | 'telemetry';
 
-const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId; title: string }> = [
-  { id: 'appearance', title: 'Appearance' },
-  { id: 'canvas', title: 'Canvas' },
-  { id: 'collaboration', title: 'Collaboration' },
-  { id: 'cache', title: 'Cache' },
-  { id: 'execution', title: 'Execution' },
-  { id: 'files', title: 'Files' },
-  { id: 'ai', title: 'AI Assistant' },
-  { id: 'feature_flags', title: 'Feature Flags' },
-  { id: 'telemetry', title: 'Telemetry' },
+const SETTINGS_SECTIONS: Array<{ id: SettingsSectionId }> = [
+  { id: 'appearance' },
+  { id: 'canvas' },
+  { id: 'collaboration' },
+  { id: 'cache' },
+  { id: 'execution' },
+  { id: 'files' },
+  { id: 'ai' },
+  { id: 'feature_flags' },
+  { id: 'telemetry' },
 ];
+
+const SETTINGS_SECTION_TITLE_KEYS: Record<SettingsSectionId, string> = {
+  appearance: 'settings.section.appearance',
+  canvas: 'settings.section.canvas',
+  collaboration: 'settings.section.collaboration',
+  cache: 'settings.section.cache',
+  execution: 'settings.section.execution',
+  files: 'settings.section.files',
+  ai: 'settings.section.aiAssistant',
+  feature_flags: 'settings.section.featureFlags',
+  telemetry: 'settings.section.telemetry',
+};
 
 const AI_PROVIDER_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
@@ -79,6 +92,7 @@ export default function SettingsPanel({
   onJoinCollabSession,
   onLeaveCollabSession,
 }: SettingsPanelProps) {
+  const { t } = useTranslation();
   const { get, getBool, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
@@ -113,6 +127,7 @@ export default function SettingsPanel({
   const bodyRef = useRef<HTMLDivElement>(null);
   const trimmedQuery = query.trim();
   const isSectionVisible = (id: SettingsSectionId) => Boolean(trimmedQuery) || activeSection === id;
+  const sectionTitle = (id: SettingsSectionId) => t(SETTINGS_SECTION_TITLE_KEYS[id]);
 
   // Recount visible rows after each render so the toolbar can show "X matches"
   // and a "no matches" hint when the query rules everything out. We sample the
@@ -131,14 +146,14 @@ export default function SettingsPanel({
 
   return (
     <Dialog
-      title="Settings"
+      title={t('settings.title')}
       onClose={onClose}
       width={920}
       maxHeight="84vh"
       className="settings-menu-dialog"
     >
       <div className="settings-menu-layout">
-        <nav className="settings-section-tabs" aria-label="Settings sections">
+        <nav className="settings-section-tabs" aria-label={t('settings.sectionsNav')}>
           {SETTINGS_SECTIONS.map(section => (
             <button
               key={section.id}
@@ -147,7 +162,7 @@ export default function SettingsPanel({
               onClick={() => setActiveSection(section.id)}
               aria-current={activeSection === section.id ? 'page' : undefined}
             >
-              {section.title}
+              {sectionTitle(section.id)}
             </button>
           ))}
         </nav>
@@ -155,10 +170,10 @@ export default function SettingsPanel({
           <div className="settings-search-bar">
           <input
             type="search"
-            placeholder="Search settings... (e.g. theme, cache, hpc)"
+            placeholder={t('settings.searchPlaceholder')}
             value={query}
             onChange={event => setQuery(event.target.value)}
-            aria-label="Search settings"
+            aria-label={t('settings.searchAria')}
             style={{
               width: '100%',
               padding: '6px 10px',
@@ -172,14 +187,14 @@ export default function SettingsPanel({
           {trimmedQuery && (
             <div className="settings-search-summary">
               {matchCount === 0
-                ? <span className="settings-search-empty">No settings match "{trimmedQuery}"</span>
-                : <span>{matchCount ?? '…'} match{matchCount === 1 ? '' : 'es'}</span>}
-              <button type="button" className="settings-search-clear" onClick={() => setQuery('')}>Clear</button>
+                ? <span className="settings-search-empty">{t('settings.searchNoMatch', { query: trimmedQuery })}</span>
+                : <span>{matchCount === null ? t('settings.searchCounting') : t('settings.searchMatchCount', { count: matchCount })}</span>}
+              <button type="button" className="settings-search-clear" onClick={() => setQuery('')}>{t('common.clear')}</button>
             </div>
           )}
         </div>
         {/* Appearance */}
-        <SettingsGroup active={isSectionVisible('appearance')} query={query} title="Appearance">
+        <SettingsGroup active={isSectionVisible('appearance')} query={query} title={sectionTitle('appearance')}>
           <SettingRow query={query} label="Theme" desc="Select app theme" keywords="dark light system mode">
             <select className="select-input" value={String(get('bionodulo.theme'))} onChange={e => set('bionodulo.theme', e.target.value)}>
               <option value="system">System</option>
@@ -226,7 +241,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* Canvas */}
-        <SettingsGroup active={isSectionVisible('canvas')} query={query} title="Canvas">
+        <SettingsGroup active={isSectionVisible('canvas')} query={query} title={sectionTitle('canvas')}>
           <SettingRow query={query} label="Snap to Grid" desc="Align nodes to grid" keywords="grid alignment">
             <div className={`toggle ${get('bionodulo.snapToGrid') ? 'on' : ''}`} onClick={() => toggle('bionodulo.snapToGrid')} />
           </SettingRow>
@@ -277,7 +292,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* Collaboration */}
-        <SettingsGroup active={isSectionVisible('collaboration')} query={query} title="Collaboration">
+        <SettingsGroup active={isSectionVisible('collaboration')} query={query} title={sectionTitle('collaboration')}>
           <SettingRow query={query} label="Mode" desc="BioNodulo starts offline. Create or join a temporary room when you want shared editing." keywords="yjs collab share multi-user offline">
             <span className={`collab-mode-pill ${collabEnabled ? 'online' : 'offline'}`}>
               {collabEnabled
@@ -319,7 +334,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* Cache */}
-        <SettingsGroup active={isSectionVisible('cache')} query={query} title="Cache">
+        <SettingsGroup active={isSectionVisible('cache')} query={query} title={sectionTitle('cache')}>
           <SettingRow query={query} label="Enable Cache" desc="Cache workflow node results between runs" keywords="cache memoize">
             <div className={`toggle ${get('bionodulo.cacheEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.cacheEnabled')} />
           </SettingRow>
@@ -344,7 +359,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* Execution */}
-        <SettingsGroup active={isSectionVisible('execution')} query={query} title="Execution">
+        <SettingsGroup active={isSectionVisible('execution')} query={query} title={sectionTitle('execution')}>
           <SettingRow query={query} label="Queue History Size" desc="Maximum history entries" keywords="queue history">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.queueHistorySize'))} onChange={e => set('bionodulo.queueHistorySize', parseInt(e.target.value))} />
           </SettingRow>
@@ -354,7 +369,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* Files */}
-        <SettingsGroup active={isSectionVisible('files')} query={query} title="Files">
+        <SettingsGroup active={isSectionVisible('files')} query={query} title={sectionTitle('files')}>
           <SettingRow query={query} label="Explorer Depth" desc="File tree nesting limit" keywords="workspace file tree">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.fileExplorerDepth'))} onChange={e => set('bionodulo.fileExplorerDepth', parseInt(e.target.value))} />
           </SettingRow>
@@ -367,7 +382,7 @@ export default function SettingsPanel({
         </SettingsGroup>
 
         {/* LLM */}
-        <SettingsGroup active={isSectionVisible('ai')} query={query} title="AI Assistant">
+        <SettingsGroup active={isSectionVisible('ai')} query={query} title={sectionTitle('ai')}>
           <SettingRow query={query} label="Provider" desc="LLM API provider" keywords="openai anthropic claude openrouter litellm proxy custom llm ai">
             <select className="select-input" value={String(get('bionodulo.llm.provider'))} onChange={e => set('bionodulo.llm.provider', e.target.value)}>
               {AI_PROVIDER_OPTIONS.map(option => (
@@ -392,15 +407,15 @@ export default function SettingsPanel({
           </SettingRow>
         </SettingsGroup>
 
-        <FeatureFlagsGroup active={isSectionVisible('feature_flags')} query={query} />
-        <TelemetryGroup active={isSectionVisible('telemetry')} query={query} />
+        <FeatureFlagsGroup active={isSectionVisible('feature_flags')} query={query} title={sectionTitle('feature_flags')} />
+        <TelemetryGroup active={isSectionVisible('telemetry')} query={query} title={sectionTitle('telemetry')} />
         </div>
       </div>
     </Dialog>
   );
 }
 
-function TelemetryGroup({ active, query }: { active: boolean; query: string }) {
+function TelemetryGroup({ active, query, title }: { active: boolean; query: string; title: string }) {
   const [enabled, setEnabled] = useState(() => isTelemetryEnabled());
   const [eventCount, setEventCount] = useState(() => getTelemetryEvents().length);
   useEffect(() => subscribeTelemetry(events => setEventCount(events.length)), []);
@@ -427,7 +442,7 @@ function TelemetryGroup({ active, query }: { active: boolean; query: string }) {
   };
 
   return (
-    <SettingsGroup active={active} query={query} title="Telemetry (local-only)">
+    <SettingsGroup active={active} query={query} title={title}>
       <SettingRow query={query} label="Record diagnostic events" desc="Capture a local ring buffer of UI events for debugging. Never leaves your machine." keywords="telemetry diagnostics analytics debug">
         <div className={`toggle ${enabled ? 'on' : ''}`} onClick={handleToggle} />
       </SettingRow>
@@ -441,14 +456,14 @@ function TelemetryGroup({ active, query }: { active: boolean; query: string }) {
   );
 }
 
-function FeatureFlagsGroup({ active, query }: { active: boolean; query: string }) {
+function FeatureFlagsGroup({ active, query, title }: { active: boolean; query: string; title: string }) {
   // Subscribe via useFeatureFlag for the first flag (forces re-render) — the
   // hook below handles the rest. We re-read the definitions list every render
   // since registerFlag() is cheap and is the source of truth.
   const flags = listFeatureFlags();
   if (flags.length === 0) return null;
   return (
-    <SettingsGroup active={active} query={query} title="Feature Flags">
+    <SettingsGroup active={active} query={query} title={title}>
       {flags.map(flag => (
         <FeatureFlagRow key={flag.key} query={query} flag={flag} />
       ))}
