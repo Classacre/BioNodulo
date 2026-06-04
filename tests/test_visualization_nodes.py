@@ -36,6 +36,8 @@ def test_volcano_plot_is_registered_for_frontend_discovery() -> None:
 def test_ma_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("ma_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -44,6 +46,7 @@ def test_ma_plot_is_registered_for_frontend_discovery() -> None:
     assert info["ma_plot"]["output_name"] == ["ma_image"]
     assert info["ma_plot"]["output"] == ["IMAGE"]
     assert info["ma_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_scatter_plot_is_registered_for_frontend_discovery() -> None:
@@ -339,6 +342,54 @@ async def test_ma_plot_writes_svg_and_registers_preview(tmp_path: Path) -> None:
     assert "TP53" in svg
     assert "BRCA1" in svg
     assert previews == [(str(svg_path), "MA Plot")]
+
+
+@pytest.mark.asyncio
+async def test_ma_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("ma_plot")
+    table = tmp_path / "deseq2_results.tsv"
+    table.write_text(
+        "gene\tbaseMean\tlog2FoldChange\tpadj\n"
+        "TP53\t120\t2.5\t0.0001\n"
+        "BRCA1\t55\t-2.0\t0.001\n"
+        "ACTB\t400\t0.1\t0.8\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        results_table=str(table),
+        mean_column="baseMean",
+        logfc_column="log2FoldChange",
+        pvalue_column="padj",
+        gene_column="gene",
+        logfc_threshold=1.0,
+        pvalue_threshold=0.05,
+        title="MA: Treatment vs Control",
+        label_top_n=2,
+        format="html",
+        width=8,
+        height=6,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["ma_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "ma_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "MA: Treatment vs Control" in document
+    assert '"type": "scatter"' in document
+    assert '"name": "Significant"' in document
+    assert '"name": "Not significant"' in document
+    assert '"TP53"' in document
+    assert '"BRCA1"' in document
+    assert previews == [(str(html_path), "MA Plot")]
 
 
 @pytest.mark.asyncio

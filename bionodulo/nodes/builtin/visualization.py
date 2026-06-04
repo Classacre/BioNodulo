@@ -17,6 +17,7 @@ from bionodulo.nodes.base import BaseNode
 
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
 VOLCANO_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+MA_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
@@ -2802,6 +2803,150 @@ def _render_ma_png(
         _draw_circle(pixels, layout.width, layout.height, x, y, 4, significant_rgb if point.significant else ns_rgb)
 
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _render_ma_html(
+    path: Path,
+    *,
+    points: list[MAPoint],
+    bounds: MABounds,
+    layout: PlotLayout,
+    logfc_threshold: float,
+    title: str,
+    label_top_n: int,
+    significant_color: str,
+    ns_color: str,
+) -> None:
+    traces = []
+    for label, significant, colour in (
+        ("Significant", True, significant_color),
+        ("Not significant", False, ns_color),
+    ):
+        group = [point for point in points if point.significant is significant]
+        traces.append({
+            "type": "scatter",
+            "mode": "markers",
+            "name": label,
+            "x": [point.log_mean for point in group],
+            "y": [point.logfc for point in group],
+            "text": [
+                (
+                    f"{html.escape(point.gene)}<br>"
+                    f"mean expression: {point.mean:.6g}<br>"
+                    f"log2 fold change: {point.logfc:.6g}<br>"
+                    f"p-value: {point.pvalue:.6g}"
+                )
+                for point in group
+            ],
+            "hovertemplate": "%{text}<extra></extra>",
+            "marker": {
+                "color": colour,
+                "size": 9,
+                "opacity": 0.82,
+                "line": {"color": "#ffffff", "width": 0.8},
+            },
+        })
+
+    labels = [
+        point
+        for point in sorted(points, key=lambda item: abs(item.logfc), reverse=True)
+        if point.significant and point.gene
+    ][: max(label_top_n, 0)]
+    if labels:
+        traces.append({
+            "type": "scatter",
+            "mode": "text",
+            "name": "Labels",
+            "showlegend": False,
+            "x": [point.log_mean for point in labels],
+            "y": [point.logfc for point in labels],
+            "text": [point.gene for point in labels],
+            "textposition": "top right",
+            "hoverinfo": "skip",
+            "textfont": {"color": "#111827", "size": 11},
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": "Mean expression (log10 scale)",
+            "range": [bounds.x_min, bounds.x_max],
+            "zeroline": False,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "yaxis": {
+            "title": "Log2 Fold Change",
+            "range": [bounds.y_min, bounds.y_max],
+            "zeroline": True,
+            "zerolinecolor": "#111827",
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "shapes": [
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": logfc_threshold,
+                "y1": logfc_threshold,
+                "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+            },
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": -logfc_threshold,
+                "y1": -logfc_threshold,
+                "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+            },
+        ],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": True,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "ma_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
 
 
 def _render_scatter_svg(
@@ -6580,7 +6725,7 @@ class MAPlotNode(BaseNode):
                 "sig_color": ("STRING", {"default": DEFAULT_UP_COLOR}),
                 "ns_color": ("STRING", {"default": DEFAULT_NS_COLOR}),
                 "label_top_n": ("INT", {"default": 10, "min": 0, "max": 100}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(MA_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 8.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -6592,7 +6737,7 @@ class MAPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in MA_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported MA plot format: {output_format}")
 
         mean_column = str(kwargs.get("mean_column", "baseMean") or "baseMean").strip()
@@ -6634,6 +6779,8 @@ class MAPlotNode(BaseNode):
 
         out_dir = _node_output_dir(self, context)
         output_path = out_dir / f"ma_plot.{output_format}"
+        title = str(kwargs.get("title", "MA Plot") or "MA Plot")
+        label_top_n = _coerce_int(kwargs.get("label_top_n", 10), 10)
         if output_format == "svg":
             _render_ma_svg(
                 output_path,
@@ -6641,8 +6788,20 @@ class MAPlotNode(BaseNode):
                 bounds=bounds,
                 layout=layout,
                 logfc_threshold=logfc_threshold,
-                title=str(kwargs.get("title", "MA Plot") or "MA Plot"),
-                label_top_n=_coerce_int(kwargs.get("label_top_n", 10), 10),
+                title=title,
+                label_top_n=label_top_n,
+                significant_color=significant_color,
+                ns_color=ns_color,
+            )
+        elif output_format == "html":
+            _render_ma_html(
+                output_path,
+                points=points,
+                bounds=bounds,
+                layout=layout,
+                logfc_threshold=logfc_threshold,
+                title=title,
+                label_top_n=label_top_n,
                 significant_color=significant_color,
                 ns_color=ns_color,
             )

@@ -480,6 +480,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Bar Chart now has an interactive HTML output mode as well: grouped vertical and horizontal bars render through Plotly, preserve value labels and group colors, keep the existing `chart_image` output path, and were browser-checked with Playwright against a generated HTML artifact.
 - Heatmap now supports interactive HTML output through Plotly while preserving clustering, row/column scaling, labels, colour-scale choices, the existing `heatmap_image` output name, and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 - Volcano Plot now supports interactive HTML output through Plotly: Up/Down/NS points render as separate traces, threshold lines and top-gene labels are preserved, the existing `volcano_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
+- MA Plot now supports interactive HTML output through Plotly: significant and non-significant genes render as separate traces, fold-change threshold guides and top-gene labels are preserved, the existing `ma_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
 
 ---
 
