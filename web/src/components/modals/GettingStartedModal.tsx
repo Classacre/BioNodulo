@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { useFocusTrap } from '../../hooks/ui';
@@ -237,7 +238,7 @@ export default function GettingStartedModal({
                 return (
                 <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>Recent workflows</div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{t('gettingStarted.recentsTitle')}</div>
                     {allTags.length > 0 && (
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         <button
@@ -245,7 +246,7 @@ export default function GettingStartedModal({
                           onClick={() => setRecentTagFilter('')}
                           className={`env-type-tab ${!recentTagFilter ? 'active' : ''}`}
                           style={{ fontSize: 10, padding: '2px 8px' }}
-                        >All</button>
+                        >{t('gettingStarted.recentsAll')}</button>
                         {allTags.map(tag => (
                           <button
                             key={tag}
@@ -287,7 +288,7 @@ export default function GettingStartedModal({
                             textAlign: 'left',
                             padding: 0,
                           }}
-                          title={`Open ${entry.name}`}
+                          title={t('gettingStarted.recentOpenTitle', { name: entry.name })}
                         >
                           {entry.thumbnailUrl ? (
                             <img
@@ -301,7 +302,11 @@ export default function GettingStartedModal({
                           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                             <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.name}</span>
                             <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                              {entry.source} · {entry.nodeCount ?? 0} nodes · {timeAgo(entry.openedAt)}
+                              {t('gettingStarted.recentMeta', {
+                                source: recentSourceLabel(entry.source, t),
+                                nodes: t('gettingStarted.recentNodeCount', { count: entry.nodeCount ?? 0 }),
+                                age: timeAgo(entry.openedAt, t),
+                              })}
                             </span>
                             {(entry.tags && entry.tags.length > 0) && (
                               <span style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
@@ -317,7 +322,7 @@ export default function GettingStartedModal({
                             autoFocus
                             value={tagDraft}
                             onChange={e => setTagDraft(e.target.value)}
-                            placeholder="tag1, tag2"
+                            placeholder={t('gettingStarted.recentTagsPlaceholder')}
                             onBlur={() => {
                               const tags = tagDraft.split(',').map(t => t.trim()).filter(Boolean);
                               setRecentTags(entry.id, tags);
@@ -333,13 +338,13 @@ export default function GettingStartedModal({
                               background: 'var(--surface)', border: '1px solid var(--accent, #2dd4bf)',
                               color: 'var(--text)', borderRadius: 4,
                             }}
-                            aria-label="Edit tags (comma-separated)"
+                            aria-label={t('gettingStarted.recentTagsLabel')}
                           />
                         ) : (
                           <button
                             type="button"
                             onClick={() => { setTaggingRecentId(entry.id); setTagDraft((entry.tags || []).join(', ')); }}
-                            title="Edit tags"
+                            title={t('gettingStarted.recentEditTagsTitle')}
                             style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}
                           >
                             #
@@ -348,7 +353,7 @@ export default function GettingStartedModal({
                         <button
                           type="button"
                           onClick={() => forgetRecentWorkflow(entry.id)}
-                          title="Forget this entry"
+                          title={t('gettingStarted.recentForgetTitle')}
                           style={{
                             background: 'transparent',
                             border: 'none',
@@ -392,21 +397,21 @@ export default function GettingStartedModal({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                   {liveReleases && liveReleases.length > 0
-                    ? `Live from GitHub releases · ${liveReleases.length} entries`
+                    ? t('gettingStarted.newsLiveStatus', { count: liveReleases.length })
                     : releasesLoading
-                      ? 'Fetching latest releases…'
+                      ? t('gettingStarted.newsFetching')
                       : releasesError
-                        ? `Offline mode — showing bundled changelog`
-                        : 'Showing bundled changelog'}
+                        ? t('gettingStarted.newsOffline')
+                        : t('gettingStarted.newsBundled')}
                 </div>
                 {liveReleases && (
                   <button
                     type="button"
                     onClick={() => { setLiveReleases(null); }}
                     style={{ background: 'transparent', border: 0, color: 'var(--accent-dark, var(--accent))', fontSize: 11, cursor: 'pointer' }}
-                    title="Refetch release notes"
+                    title={t('gettingStarted.newsRefetchTitle')}
                   >
-                    Refresh
+                    {t('common.refresh')}
                   </button>
                 )}
               </div>
@@ -425,7 +430,7 @@ export default function GettingStartedModal({
                           rel="noreferrer"
                           style={{ fontSize: 10, color: 'var(--accent-dark, var(--accent))' }}
                         >
-                          View on GitHub
+                          {t('gettingStarted.newsViewOnGitHub')}
                         </a>
                       )}
                     </div>
@@ -504,15 +509,32 @@ export default function GettingStartedModal({
   );
 }
 
-function timeAgo(ts: number): string {
+function recentSourceLabel(source: RecentWorkflow['source'], t: TFunction): string {
+  switch (source) {
+    case 'template':
+      return t('gettingStarted.recentSource.template');
+    case 'import':
+      return t('gettingStarted.recentSource.import');
+    case 'collab':
+      return t('gettingStarted.recentSource.collab');
+    case 'workspace':
+      return t('gettingStarted.recentSource.workspace');
+    case 'manual':
+      return t('gettingStarted.recentSource.manual');
+    default:
+      return source;
+  }
+}
+
+function timeAgo(ts: number, t: TFunction): string {
   const diff = Date.now() - ts;
   const sec = Math.floor(diff / 1000);
-  if (sec < 60) return 'just now';
+  if (sec < 60) return t('gettingStarted.recentJustNow');
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return t('gettingStarted.recentMinutesAgo', { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return t('gettingStarted.recentHoursAgo', { count: hr });
   const day = Math.floor(hr / 24);
-  if (day < 7) return `${day}d ago`;
+  if (day < 7) return t('gettingStarted.recentDaysAgo', { count: day });
   return new Date(ts).toLocaleDateString();
 }

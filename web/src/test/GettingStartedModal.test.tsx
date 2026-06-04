@@ -109,6 +109,58 @@ describe('GettingStartedModal i18n', () => {
     expectFullText('Consejo: usa el Asistente de IA (Ctrl+Shift+A) para generar workflows desde descripciones en lenguaje natural.');
   });
 
+  it('renders getting-started recents and news status from the active locale', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    storage.set('bionodulo.recentWorkflows', JSON.stringify([{
+      id: 'recent-1',
+      name: 'RNA QC',
+      source: 'template',
+      openedAt: Date.now() - 2 * 60 * 1000,
+      nodeCount: 3,
+      tags: ['rna'],
+    }]));
+    storage.set('bionodulo.releases.cache', JSON.stringify({
+      fetchedAt: Date.now(),
+      releases: [{
+        version: 'BioNodulo 3.0',
+        date: '2026-01-01',
+        url: 'https://example.com/release',
+        items: ['Cached release item'],
+      }],
+    }));
+
+    render(
+      <GettingStartedModal
+        onClose={() => undefined}
+        onDontShowAgain={() => undefined}
+        onOpenRecent={() => undefined}
+        showOnStartup
+      />,
+    );
+
+    expect(screen.getByText('Workflows recientes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Todo' })).toBeInTheDocument();
+    expect(screen.getByTitle('Abrir RNA QC')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Plantilla - 3 nodos - hace 2 min')).toBeInTheDocument();
+    expect(screen.getByTitle('Editar etiquetas')).toBeInTheDocument();
+    expect(screen.getByTitle('Olvidar esta entrada')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Editar etiquetas'));
+
+    expect(screen.getByLabelText('Editar etiquetas (separadas por comas)')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('etiqueta1, etiqueta2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
+
+    expect(screen.getByText('Desde releases de GitHub - 1 entrada')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actualizar' })).toHaveAttribute('title', 'Volver a cargar release notes');
+    expect(screen.getByRole('link', { name: 'Ver en GitHub' })).toHaveAttribute('href', 'https://example.com/release');
+    expect(screen.getByText('Cached release item')).toBeInTheDocument();
+  });
+
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
@@ -133,6 +185,21 @@ describe('GettingStartedModal i18n', () => {
       'gettingStarted.aiTipPrefix',
       'gettingStarted.aiAssistant',
       'gettingStarted.aiTipSuffix',
+      'gettingStarted.recentsTitle',
+      'gettingStarted.recentsAll',
+      'gettingStarted.recentOpenTitle',
+      'gettingStarted.recentMeta',
+      'gettingStarted.recentSource.template',
+      'gettingStarted.recentNodeCount',
+      'gettingStarted.recentMinutesAgo',
+      'gettingStarted.recentEditTagsTitle',
+      'gettingStarted.recentForgetTitle',
+      'gettingStarted.newsLiveStatus',
+      'gettingStarted.newsFetching',
+      'gettingStarted.newsOffline',
+      'gettingStarted.newsBundled',
+      'gettingStarted.newsRefetchTitle',
+      'gettingStarted.newsViewOnGitHub',
       'gettingStarted.resources.wikiTitle',
       'gettingStarted.resources.githubDescription',
       'gettingStarted.resources.issueTitle',
@@ -155,6 +222,21 @@ describe('GettingStartedModal i18n', () => {
       'Press <kbd>Ctrl+R</kbd> to validate and run your workflow.',
       'Watch real-time logs in the <strong>Console</strong>',
       'Tip: Use the <strong>AI Assistant</strong>',
+      '>Recent workflows<',
+      '>All<',
+      'title={`Open ${entry.name}`}',
+      '${entry.nodeCount ?? 0} nodes',
+      'placeholder="tag1, tag2"',
+      'aria-label="Edit tags (comma-separated)"',
+      'title="Edit tags"',
+      'title="Forget this entry"',
+      'Live from GitHub releases',
+      'Fetching latest releases',
+      'Offline mode',
+      'Showing bundled changelog',
+      'title="Refetch release notes"',
+      '>Refresh<',
+      '>View on GitHub<',
       'Wiki & Documentation',
       'Learn how to build workflows and use nodes',
       'GitHub Repository',
