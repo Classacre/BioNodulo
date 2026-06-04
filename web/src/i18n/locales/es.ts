@@ -263,6 +263,16 @@ const es = {
     welcomeIntro: 'Bienvenido a',
     welcomeDescription: 'un constructor visual de workflows para bioinformatica.',
     welcomeBuildShare: 'Crea, ejecuta y comparte pipelines reproducibles usando un lienzo basado en nodos.',
+    resources: {
+      wikiTitle: 'Wiki y documentacion',
+      wikiDescription: 'Aprende a crear workflows y usar nodos',
+      githubTitle: 'Repositorio de GitHub',
+      githubDescription: 'Codigo fuente, releases e incidencias',
+      issueTitle: 'Reportar una incidencia',
+      issueDescription: 'Reportes de bugs y solicitudes de funciones',
+      inAppHelpTitle: 'Ayuda en la app',
+      inAppHelpDescription: 'Abrir el panel Ayuda y Wiki',
+    },
     hideOnStartup: 'Ocultar al inicio',
   },
   panels: {

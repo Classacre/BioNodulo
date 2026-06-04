@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -57,6 +57,32 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByRole('button', { name: 'Cerrar' })).toBeInTheDocument();
   });
 
+  it('renders getting-started resource links from the active locale', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <GettingStartedModal
+        onClose={() => undefined}
+        onDontShowAgain={() => undefined}
+        showOnStartup
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recursos' }));
+
+    expect(screen.getByText('Wiki y documentacion')).toBeInTheDocument();
+    expect(screen.getByText('Aprende a crear workflows y usar nodos')).toBeInTheDocument();
+    expect(screen.getByText('Repositorio de GitHub')).toBeInTheDocument();
+    expect(screen.getByText('Codigo fuente, releases e incidencias')).toBeInTheDocument();
+    expect(screen.getByText('Reportar una incidencia')).toBeInTheDocument();
+    expect(screen.getByText('Reportes de bugs y solicitudes de funciones')).toBeInTheDocument();
+    expect(screen.getByText('Ayuda en la app')).toBeInTheDocument();
+    expect(screen.getByText('Abrir el panel Ayuda y Wiki')).toBeInTheDocument();
+  });
+
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
@@ -67,6 +93,10 @@ describe('GettingStartedModal i18n', () => {
       'gettingStarted.tabs.resources',
       'gettingStarted.welcomeIntro',
       'gettingStarted.welcomeBuildShare',
+      'gettingStarted.resources.wikiTitle',
+      'gettingStarted.resources.githubDescription',
+      'gettingStarted.resources.issueTitle',
+      'gettingStarted.resources.inAppHelpDescription',
       'gettingStarted.hideOnStartup',
       'common.close',
     ].forEach(key => expect(source).toContain(key));
@@ -79,6 +109,14 @@ describe('GettingStartedModal i18n', () => {
       '>Getting Started<',
       'Welcome to <strong>BioNodulo</strong>',
       'Build, run, and share reproducible pipelines using a node-based canvas.',
+      'Wiki & Documentation',
+      'Learn how to build workflows and use nodes',
+      'GitHub Repository',
+      'Source code, releases, and issues',
+      'Report an Issue',
+      'Bug reports and feature requests',
+      'In-App Help',
+      'Open the Help & Wiki panel',
       '>Hide on startup<',
       '>Close<',
     ].forEach(text => expect(source).not.toContain(text));

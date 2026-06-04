@@ -444,22 +444,22 @@ export default function GettingStartedModal({
                 <a href="https://github.com/Classacre/BioNodulo/wiki" target="_blank" rel="noreferrer" className="resource-link">
                   <span>📖</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>Wiki & Documentation</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Learn how to build workflows and use nodes</div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{t('gettingStarted.resources.wikiTitle')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('gettingStarted.resources.wikiDescription')}</div>
                   </div>
                 </a>
                 <a href="https://github.com/Classacre/BioNodulo" target="_blank" rel="noreferrer" className="resource-link">
                   <span>🐙</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>GitHub Repository</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Source code, releases, and issues</div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{t('gettingStarted.resources.githubTitle')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('gettingStarted.resources.githubDescription')}</div>
                   </div>
                 </a>
                 <a href="https://github.com/Classacre/BioNodulo/issues/new" target="_blank" rel="noreferrer" className="resource-link">
                   <span>🐛</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>Report an Issue</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Bug reports and feature requests</div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{t('gettingStarted.resources.issueTitle')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('gettingStarted.resources.issueDescription')}</div>
                   </div>
                 </a>
                 <button
@@ -474,8 +474,8 @@ export default function GettingStartedModal({
                 >
                   <span>❓</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 12 }}>In-App Help</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Open the Help & Wiki panel</div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{t('gettingStarted.resources.inAppHelpTitle')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('gettingStarted.resources.inAppHelpDescription')}</div>
                   </div>
                 </button>
               </div>

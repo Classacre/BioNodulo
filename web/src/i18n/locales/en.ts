@@ -263,6 +263,16 @@ const en = {
     welcomeIntro: 'Welcome to',
     welcomeDescription: 'a visual workflow builder for bioinformatics.',
     welcomeBuildShare: 'Build, run, and share reproducible pipelines using a node-based canvas.',
+    resources: {
+      wikiTitle: 'Wiki & Documentation',
+      wikiDescription: 'Learn how to build workflows and use nodes',
+      githubTitle: 'GitHub Repository',
+      githubDescription: 'Source code, releases, and issues',
+      issueTitle: 'Report an Issue',
+      issueDescription: 'Bug reports and feature requests',
+      inAppHelpTitle: 'In-App Help',
+      inAppHelpDescription: 'Open the Help & Wiki panel',
+    },
     hideOnStartup: 'Hide on startup',
   },
   panels: {
