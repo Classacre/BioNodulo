@@ -1124,6 +1124,41 @@ const es = {
 <h4>Deshacer / Rehacer</h4>
 <p>Usa <kbd>Ctrl+Z</kbd> y <kbd>Ctrl+Y</kbd> o <kbd>Ctrl+Shift+Z</kbd> para deshacer y rehacer acciones. El historial conserva hasta 50 estados.</p>
 `,
+      nodesReference: `
+<h3>Referencia de nodos</h3>
+<p>BioNodulo proporciona mas de 80 nodos integrados que cubren herramientas y utilidades principales de bioinformatica.</p>
+
+<h4>Estructura del nodo</h4>
+<p>Cada nodo tiene:</p>
+<ul>
+<li><strong>Entradas:</strong> Parametros obligatorios y opcionales (circulos de color a la izquierda)</li>
+<li><strong>Salidas:</strong> Archivos o datos generados (circulos de color a la derecha)</li>
+<li><strong>Parametros:</strong> Ajustes configurables visibles al hacer doble clic en el nodo</li>
+</ul>
+
+<h4>Tipos de entrada / salida</h4>
+<table>
+<tr><th>Tipo</th><th>Descripcion</th><th>Color</th></tr>
+<tr><td>FASTQ / FASTQ_LIST</td><td>Lecturas de secuenciacion</td><td>Naranja</td></tr>
+<tr><td>FASTA</td><td>Genoma de referencia o secuencias</td><td>Purpura</td></tr>
+<tr><td>BAM / SAM</td><td>Lecturas alineadas</td><td>Azul</td></tr>
+<tr><td>VCF</td><td>Llamadas de variantes</td><td>Rojo</td></tr>
+<tr><td>GFF</td><td>Anotaciones genicas</td><td>Verde</td></tr>
+<tr><td>FILE</td><td>Archivo generico</td><td>Gris</td></tr>
+<tr><td>DIRECTORY</td><td>Ruta de carpeta</td><td>Gris</td></tr>
+<tr><td>STRING</td><td>Texto</td><td>Gris oscuro</td></tr>
+<tr><td>INT / FLOAT</td><td>Numeros</td><td>Indigo / Rosa</td></tr>
+<tr><td>BOOLEAN</td><td>Verdadero / Falso</td><td>Amarillo</td></tr>
+</table>
+
+<h4>Parametros comunes</h4>
+<table>
+<tr><th>Parametro</th><th>Descripcion</th><th>Predeterminado</th></tr>
+<tr><td>threads</td><td>Numero de hilos de CPU</td><td>4</td></tr>
+<tr><td>memory</td><td>Limite de memoria</td><td>8G</td></tr>
+<tr><td>output</td><td>Directorio de salida</td><td>Generado automaticamente</td></tr>
+</table>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',

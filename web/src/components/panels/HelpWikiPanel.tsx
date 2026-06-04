@@ -93,42 +93,6 @@ const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
 ];
 
 const CONTENT: Partial<Record<WikiPage, string>> = {
-  'nodes-reference': `
-<h3>Node Reference</h3>
-<p>BioNodulo provides 80+ built-in nodes covering major bioinformatics tools and utilities.</p>
-
-<h4>Node Structure</h4>
-<p>Each node has:</p>
-<ul>
-<li><strong>Inputs:</strong> Required and optional parameters (colored circles on the left)</li>
-<li><strong>Outputs:</strong> Generated files or data (colored circles on the right)</li>
-<li><strong>Parameters:</strong> Configurable settings visible when you double-click the node</li>
-</ul>
-
-<h4>Input / Output Types</h4>
-<table>
-<tr><th>Type</th><th>Description</th><th>Color</th></tr>
-<tr><td>FASTQ / FASTQ_LIST</td><td>Sequencing reads</td><td>Orange</td></tr>
-<tr><td>FASTA</td><td>Reference genome or sequences</td><td>Purple</td></tr>
-<tr><td>BAM / SAM</td><td>Aligned reads</td><td>Blue</td></tr>
-<tr><td>VCF</td><td>Variant calls</td><td>Red</td></tr>
-<tr><td>GFF</td><td>Gene annotations</td><td>Green</td></tr>
-<tr><td>FILE</td><td>Generic file</td><td>Gray</td></tr>
-<tr><td>DIRECTORY</td><td>Folder path</td><td>Gray</td></tr>
-<tr><td>STRING</td><td>Text</td><td>Dark gray</td></tr>
-<tr><td>INT / FLOAT</td><td>Numbers</td><td>Indigo / Rose</td></tr>
-<tr><td>BOOLEAN</td><td>True / False</td><td>Yellow</td></tr>
-</table>
-
-<h4>Common Parameters</h4>
-<table>
-<tr><th>Parameter</th><th>Description</th><th>Default</th></tr>
-<tr><td>threads</td><td>Number of CPU threads</td><td>4</td></tr>
-<tr><td>memory</td><td>Memory limit</td><td>8G</td></tr>
-<tr><td>output</td><td>Output directory</td><td>Auto-generated</td></tr>
-</table>
-`,
-
   'templates-guide': `
 <h3>Workflow Templates</h3>
 <p>Templates are pre-built workflows for common bioinformatics analyses. Load a template as a starting point and customize it.</p>
@@ -279,6 +243,7 @@ class MyToolNode(CommandNode):
 const CONTENT_KEYS: Partial<Record<WikiPage, string>> = {
   'getting-started': 'helpWiki.content.gettingStarted',
   'canvas-features': 'helpWiki.content.canvasFeatures',
+  'nodes-reference': 'helpWiki.content.nodesReference',
 };
 
 function stripHtml(html: string): string {

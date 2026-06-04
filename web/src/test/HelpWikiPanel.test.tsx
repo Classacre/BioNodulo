@@ -226,4 +226,46 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('The canvas is an infinite 2D workspace');
     expect(source).not.toContain('Undo / Redo');
   });
+
+  it('renders nodes-reference article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Referencia de nodos' }));
+
+    expect(screen.getByRole('heading', { name: 'Referencia de nodos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tipos de entrada / salida' })).toBeInTheDocument();
+    expect(screen.getByText(/BioNodulo proporciona mas de 80 nodos integrados/)).toBeInTheDocument();
+    expect(screen.getByText('FASTQ / FASTQ_LIST')).toBeInTheDocument();
+    expect(screen.queryByText('Node Reference')).not.toBeInTheDocument();
+  });
+
+  it('searches nodes-reference article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'secuenciacion' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Referencia de nodos')).toBeInTheDocument();
+  });
+
+  it('keeps nodes-reference wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.nodesReference');
+    expect(source).not.toContain('BioNodulo provides 80+ built-in nodes');
+    expect(source).not.toContain('Node Structure');
+    expect(source).not.toContain('Common Parameters');
+  });
 });
