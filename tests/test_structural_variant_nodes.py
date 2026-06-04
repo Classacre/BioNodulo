@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -290,6 +291,127 @@ def test_strelka2_dependency_metadata_is_available() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["configureStrelkaGermlineWorkflow.py"] == "strelka"
     assert EXECUTABLE_TO_CONDA_PACKAGE["configureStrelkaSomaticWorkflow.py"] == "strelka"
     assert PACKAGE_MIN_VERSIONS["strelka"] == ">=2.9.10"
+
+
+def test_melt_mobile_elements_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["melt_mobile_elements"]
+    assert node_info["display_name"] == "MELT Mobile Elements"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call mobile element insertions")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["melt_output"]
+    assert node_info["required_executables"] == ["java"]
+    assert node_info["required_conda_packages"] == []
+    assert "mobile element" in node_info["search_aliases"]
+    assert "mei" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {
+        "bam",
+        "reference",
+        "melt_jar",
+        "mei_list",
+        "genome_annotation",
+        "output_prefix",
+        "coverage",
+    }
+    assert set(inputs["optional"]) == {"exome"}
+
+
+def test_melt_mobile_elements_renders_single_command() -> None:
+    node_class = _node_class("melt_mobile_elements")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "melt_jar": "/opt/MELT/MELT.jar",
+        "mei_list": "/refs/melt/mei_list",
+        "genome_annotation": "/refs/melt/Hg38.genes.bed",
+        "output_prefix": "tumor-01",
+        "coverage": 30,
+        "exome": False,
+        "output": "/tmp/run/melt_mobile_elements",
+    })
+
+    assert cmd == [
+        "java",
+        "-jar",
+        "/opt/MELT/MELT.jar",
+        "Single",
+        "-bamfile",
+        "sample.sorted.bam",
+        "-h",
+        "GRCh38.fa",
+        "-n",
+        "/refs/melt/Hg38.genes.bed",
+        "-t",
+        "/refs/melt/mei_list",
+        "-c",
+        "30",
+        "-w",
+        "/tmp/run/melt_mobile_elements/tumor-01",
+        "-exome",
+        "false",
+    ]
+
+
+def test_melt_mobile_elements_supports_exome_mode_and_plans_output_directory() -> None:
+    node_class = _node_class("melt_mobile_elements")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "melt_jar": "MELT.jar",
+        "mei_list": "mei_list",
+        "genome_annotation": "genes.bed",
+        "output_prefix": "sample",
+        "coverage": 8,
+        "exome": True,
+        "output": "/tmp/run/melt_mobile_elements",
+    })
+    outputs = node_class.PLAN_OUTPUTS({"output_prefix": "sample"}, "/tmp/run")
+
+    assert cmd[-2:] == ["-exome", "true"]
+    assert [str(path) for path in outputs] == ["/tmp/run/melt_mobile_elements/sample"]
+
+
+def test_melt_mobile_elements_rejects_empty_paths_prefix_and_invalid_threads() -> None:
+    node_class = _node_class("melt_mobile_elements")
+    valid_inputs = {
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "melt_jar": "MELT.jar",
+        "mei_list": "mei_list",
+        "genome_annotation": "genes.bed",
+        "output_prefix": "sample",
+        "coverage": 4,
+    }
+
+    assert node_class.VALIDATE_INPUTS(valid_inputs) is True
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"bam": " "}) == "Input 'bam' must not be empty"
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"reference": ""}) == "Input 'reference' must not be empty"
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"melt_jar": "  "}) == "Input 'melt_jar' must not be empty"
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"mei_list": ""}) == "Input 'mei_list' must not be empty"
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"genome_annotation": ""}) == (
+        "Input 'genome_annotation' must not be empty"
+    )
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"output_prefix": " "}) == (
+        "Input 'output_prefix' must not be empty"
+    )
+    assert node_class.VALIDATE_INPUTS(valid_inputs | {"coverage": 0}) == "Input 'coverage' must be at least 1"
+
+
+def test_melt_mobile_elements_environment_metadata_uses_java_without_fake_melt_package() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["java"] == "openjdk"
+    assert PACKAGE_MIN_VERSIONS["openjdk"] == ">=17"
+    assert workflow_to_packages({"nodes": [{"id": "melt", "type": "melt_mobile_elements"}]}, registry) == ["openjdk"]
 
 
 def test_survivor_merge_is_registered_for_frontend_discovery() -> None:
