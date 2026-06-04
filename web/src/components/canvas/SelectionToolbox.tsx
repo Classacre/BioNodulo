@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GraphNode } from './WorkflowCanvas';
 import type { WorkflowGroup } from '../../types';
 
@@ -20,6 +21,7 @@ const PRESET_COLORS = [
 ];
 
 export default function SelectionToolbox({ graphNodes, groups, offset, scale, isDragging, onAction, hostRef }: SelectionToolboxProps) {
+  const { t } = useTranslation();
   const [showColorPicker, setShowColorPicker] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -86,19 +88,19 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
         pointerEvents: 'auto',
       }}
     >
-      <ToolboxButton title="Delete" onClick={() => onAction('delete')}>
+      <ToolboxButton title={t('canvas.deleteSelection')} onClick={() => onAction('delete')}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
       </ToolboxButton>
-      <ToolboxButton title="Duplicate" onClick={() => onAction('duplicate')}>
+      <ToolboxButton title={t('canvas.duplicateSelection')} onClick={() => onAction('duplicate')}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
       </ToolboxButton>
       {singleNode && (
         <>
           <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
-          <ToolboxButton title="Mute" onClick={() => onAction('mute')}>
+          <ToolboxButton title={t('canvas.muteSelection')} onClick={() => onAction('mute')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Bypass" onClick={() => onAction('bypass')}>
+          <ToolboxButton title={t('canvas.bypassSelection')} onClick={() => onAction('bypass')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
           </ToolboxButton>
         </>
@@ -106,7 +108,7 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
       {hasCollapsible && (
         <>
           <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
-          <ToolboxButton title="Collapse/Expand" onClick={() => onAction('collapse')}>
+          <ToolboxButton title={t('canvas.toggleCollapseSelection')} onClick={() => onAction('collapse')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
           </ToolboxButton>
         </>
@@ -114,30 +116,30 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
       {selectedNodes.length >= 2 && (
         <>
           <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
-          <ToolboxButton title="Align left" onClick={() => onAction('alignLeft')}>
+          <ToolboxButton title={t('canvas.alignLeft')} onClick={() => onAction('alignLeft')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="3" x2="3" y2="21" /><rect x="6" y="5" width="11" height="4" /><rect x="6" y="14" width="14" height="4" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Align center horizontal" onClick={() => onAction('alignCenterH')}>
+          <ToolboxButton title={t('canvas.alignCenterHorizontal')} onClick={() => onAction('alignCenterH')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="3" x2="12" y2="21" /><rect x="6.5" y="5" width="11" height="4" /><rect x="5" y="14" width="14" height="4" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Align right" onClick={() => onAction('alignRight')}>
+          <ToolboxButton title={t('canvas.alignRight')} onClick={() => onAction('alignRight')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="3" x2="21" y2="21" /><rect x="7" y="5" width="11" height="4" /><rect x="4" y="14" width="14" height="4" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Align top" onClick={() => onAction('alignTop')}>
+          <ToolboxButton title={t('canvas.alignTop')} onClick={() => onAction('alignTop')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="3" x2="21" y2="3" /><rect x="5" y="6" width="4" height="11" /><rect x="14" y="6" width="4" height="14" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Align center vertical" onClick={() => onAction('alignCenterV')}>
+          <ToolboxButton title={t('canvas.alignCenterVertical')} onClick={() => onAction('alignCenterV')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><rect x="5" y="6.5" width="4" height="11" /><rect x="14" y="5" width="4" height="14" /></svg>
           </ToolboxButton>
-          <ToolboxButton title="Align bottom" onClick={() => onAction('alignBottom')}>
+          <ToolboxButton title={t('canvas.alignBottom')} onClick={() => onAction('alignBottom')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="7" width="4" height="11" /><rect x="14" y="4" width="4" height="14" /></svg>
           </ToolboxButton>
           {selectedNodes.length >= 3 && (
             <>
-              <ToolboxButton title="Distribute horizontally" onClick={() => onAction('distributeH')}>
+              <ToolboxButton title={t('canvas.distributeHorizontal')} onClick={() => onAction('distributeH')}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="4" height="12" /><rect x="10" y="6" width="4" height="12" /><rect x="18" y="6" width="4" height="12" /></svg>
               </ToolboxButton>
-              <ToolboxButton title="Distribute vertically" onClick={() => onAction('distributeV')}>
+              <ToolboxButton title={t('canvas.distributeVertical')} onClick={() => onAction('distributeV')}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="4" /><rect x="6" y="10" width="12" height="4" /><rect x="6" y="18" width="12" height="4" /></svg>
               </ToolboxButton>
             </>
@@ -146,7 +148,7 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
       )}
       <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
       <div style={{ position: 'relative' }}>
-        <ToolboxButton title="Color" onClick={() => setShowColorPicker(v => !v)}>
+        <ToolboxButton title={t('canvas.colorSelection')} onClick={() => setShowColorPicker(v => !v)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5" /><path d="M13.5 9c-2.5 0-3.5 1.5-3.5 3.5 0 2.5 3.5 4.5 3.5 9" /><path d="M9 18c-1.5 0-3-1-3-3.5s2.5-5 5-7.5" /><path d="M18 18c1.5 0 3-1 3-3.5s-2.5-5-5-7.5" /></svg>
         </ToolboxButton>
         {showColorPicker && (
@@ -168,6 +170,7 @@ export default function SelectionToolbox({ graphNodes, groups, offset, scale, is
             {PRESET_COLORS.map(c => (
               <div
                 key={c}
+                title={c}
                 style={{ width: 18, height: 18, borderRadius: 4, background: c, cursor: 'pointer', border: '1px solid var(--border)' }}
                 onClick={() => { onAction('color', c); setShowColorPicker(false); }}
               />

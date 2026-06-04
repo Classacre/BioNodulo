@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../components/ui/Icon';
 import { getCommentPinSize } from './commentLayout';
 
@@ -22,15 +23,19 @@ const CommentPin: React.FC<CommentPinProps> = ({
   x,
   y,
 }) => {
+  const { t } = useTranslation();
   if (commentCount === 0) return null;
 
   const size = getCommentPinSize(commentCount);
+  const title = hasUnresolved
+    ? t('collab.commentPinTitleWithUnresolved', { count: commentCount, unresolvedCount: commentCount })
+    : t('collab.commentPinTitle', { count: commentCount });
 
   return (
     <div
       onClick={onClick}
       onMouseDown={event => event.stopPropagation()}
-      title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}${hasUnresolved ? ` (${commentCount} unresolved)` : ''}`}
+      title={title}
       style={{
         position: 'absolute',
         left: x,
