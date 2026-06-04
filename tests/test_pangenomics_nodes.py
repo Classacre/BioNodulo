@@ -491,6 +491,154 @@ def test_vg_construct_plans_outputs() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/vg_construct/vg_graph.vg"]
 
 
+def test_vg_index_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["vg_index"]
+    assert node_info["display_name"] == "vg Autoindex"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Build vg autoindex files")
+    assert node_info["output"] == ["FILE", "FILE", "FILE", "FILE", "FILE"]
+    assert node_info["output_name"] == [
+        "gbz_index",
+        "minimizer_index",
+        "zipcode_index",
+        "distance_index",
+        "xg_index",
+    ]
+    assert node_info["required_executables"] == ["vg"]
+    assert node_info["required_conda_packages"] == ["vg"]
+    assert "autoindex" in node_info["search_aliases"]
+    assert "giraffe" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"graph_gfa"}
+    assert set(inputs["optional"]) == {"workflow", "threads", "output_prefix", "reference", "tmp_dir", "target_mem"}
+    assert inputs["required"]["graph_gfa"][0] == "GFA"
+    assert inputs["optional"]["reference"][0] == "FASTA"
+    assert _node_class("vg_index").INPUT_TYPES()["required"]["graph_gfa"][0] == "GFA"
+
+
+def test_vg_index_renders_autoindex_and_xg_conversion_command() -> None:
+    node_class = _node_class("vg_index")
+
+    cmd = node_class.render_command({
+        "graph_gfa": "pan.gfa",
+        "workflow": "giraffe",
+        "threads": 12,
+        "output_prefix": "study graph",
+        "reference": "ref.fa",
+        "tmp_dir": "/scratch/vg",
+        "target_mem": "64G",
+        "output": "/tmp/run/vg_index",
+    })
+
+    assert cmd == [
+        "vg",
+        "autoindex",
+        "--workflow",
+        "giraffe",
+        "--gfa",
+        "pan.gfa",
+        "--ref-fasta",
+        "ref.fa",
+        "--prefix",
+        "/tmp/run/vg_index/study_graph",
+        "--threads",
+        "12",
+        "--tmp-dir",
+        "/scratch/vg",
+        "--target-mem",
+        "64G",
+        "&&",
+        "vg",
+        "convert",
+        "-x",
+        "--drop-haplotypes",
+        "/tmp/run/vg_index/study_graph.giraffe.gbz",
+        ">",
+        "/tmp/run/vg_index/study_graph.xg",
+    ]
+
+
+def test_vg_index_omits_empty_optional_arguments() -> None:
+    node_class = _node_class("vg_index")
+
+    cmd = node_class.render_command({
+        "graph_gfa": "/data/pan.gfa",
+        "workflow": "giraffe",
+        "threads": 8,
+        "output_prefix": "",
+        "reference": "",
+        "tmp_dir": "",
+        "target_mem": "",
+        "output": "/tmp/run/vg_index",
+    })
+
+    assert "--ref-fasta" not in cmd
+    assert "--tmp-dir" not in cmd
+    assert "--target-mem" not in cmd
+    assert cmd == [
+        "vg",
+        "autoindex",
+        "--workflow",
+        "giraffe",
+        "--gfa",
+        "/data/pan.gfa",
+        "--prefix",
+        "/tmp/run/vg_index/pan",
+        "--threads",
+        "8",
+        "&&",
+        "vg",
+        "convert",
+        "-x",
+        "--drop-haplotypes",
+        "/tmp/run/vg_index/pan.giraffe.gbz",
+        ">",
+        "/tmp/run/vg_index/pan.xg",
+    ]
+
+
+def test_vg_index_plans_outputs() -> None:
+    node_class = _node_class("vg_index")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"graph_gfa": "pan.gfa", "output_prefix": "study graph"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/vg_index/study_graph.giraffe.gbz",
+        "/tmp/run/vg_index/study_graph.shortread.withzip.min",
+        "/tmp/run/vg_index/study_graph.shortread.zipcodes",
+        "/tmp/run/vg_index/study_graph.dist",
+        "/tmp/run/vg_index/study_graph.xg",
+    ]
+
+
+def test_vg_index_rejects_unsupported_workflow() -> None:
+    node_class = _node_class("vg_index")
+
+    assert node_class.VALIDATE_INPUTS({
+        "graph_gfa": "pan.gfa",
+        "workflow": "mpmap",
+        "threads": 8,
+    }) == "Unsupported vg Autoindex workflow: mpmap"
+
+
+def test_vg_index_rejects_non_positive_threads() -> None:
+    node_class = _node_class("vg_index")
+
+    assert node_class.VALIDATE_INPUTS({
+        "graph_gfa": "pan.gfa",
+        "workflow": "giraffe",
+        "threads": 0,
+    }) == "vg Autoindex threads must be greater than zero."
+
+
 def test_vcf_decompose_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -1071,6 +1219,7 @@ def test_vg_map_is_registered_for_frontend_discovery() -> None:
         "reads2",
         "gbz_index",
         "minimizer_index",
+        "zipcode_index",
         "distance_index",
         "xg_index",
         "gcsa_index",
@@ -1090,6 +1239,7 @@ def test_vg_map_renders_giraffe_command_with_paired_reads() -> None:
         "mapper": "giraffe",
         "gbz_index": "graph.gbz",
         "minimizer_index": "graph.min",
+        "zipcode_index": "graph.zipcodes",
         "distance_index": "graph.dist",
         "threads": 12,
         "output": "/tmp/run/vg_map",
@@ -1102,6 +1252,8 @@ def test_vg_map_renders_giraffe_command_with_paired_reads() -> None:
         "graph.gbz",
         "-m",
         "graph.min",
+        "-z",
+        "graph.zipcodes",
         "-d",
         "graph.dist",
         "-f",

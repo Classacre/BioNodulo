@@ -87,6 +87,120 @@ class VGConstructNode(CommandNode):
         }
 
 
+class VGIndexNode(CommandNode):
+    """Build vg autoindex artifacts for graph read mapping."""
+
+    NODE_ID = "vg_index"
+    DISPLAY_NAME = "vg Autoindex"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Build vg autoindex files for Giraffe graph read mapping and downstream graph calling."
+    SEARCH_ALIASES = ["vg", "autoindex", "giraffe", "gbz", "minimizer", "distance index", "pangenome index"]
+    RETURN_TYPES = ("FILE", "FILE", "FILE", "FILE", "FILE")
+    RETURN_NAMES = ("gbz_index", "minimizer_index", "zipcode_index", "distance_index", "xg_index")
+    REQUIRED_EXECUTABLES = ["vg"]
+    REQUIRED_CONDA_PACKAGES = ["vg"]
+    DOCUMENTATION_URL = "https://github.com/vgteam/vg/wiki/Automatic-indexing-for-read-mapping-and-downstream-inference"
+    VERSION = "1.62.0"
+    SHELL = True
+
+    _WORKFLOWS = {"giraffe"}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        workflow = str(inputs.get("workflow", "giraffe") or "giraffe")
+        if workflow not in cls._WORKFLOWS:
+            return f"Unsupported vg Autoindex workflow: {workflow}"
+        if int(inputs.get("threads", 8) or 0) <= 0:
+            return "vg Autoindex threads must be greater than zero."
+        return True
+
+    @classmethod
+    def _prefix(cls, inputs: dict[str, Any], output_dir: str | Path) -> Path:
+        node_out = Path(output_dir)
+        fallback_stem = _safe_output_stem(inputs.get("graph_gfa"), "graph")
+        stem = _safe_output_stem(inputs.get("output_prefix"), fallback_stem)
+        return node_out / stem
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        prefix = cls._prefix(inputs, out_dir)
+        workflow = str(inputs.get("workflow", "giraffe") or "giraffe")
+        gbz_index = f"{prefix}.giraffe.gbz"
+        xg_index = f"{prefix}.xg"
+
+        cmd = [
+            "vg",
+            "autoindex",
+            "--workflow",
+            workflow,
+            "--gfa",
+            str(inputs.get("graph_gfa", "")),
+        ]
+        if inputs.get("reference"):
+            cmd.extend(["--ref-fasta", str(inputs["reference"])])
+        cmd.extend([
+            "--prefix",
+            str(prefix),
+            "--threads",
+            str(inputs.get("threads", 8)),
+        ])
+        if inputs.get("tmp_dir"):
+            cmd.extend(["--tmp-dir", str(inputs["tmp_dir"])])
+        if inputs.get("target_mem"):
+            cmd.extend(["--target-mem", str(inputs["target_mem"])])
+        cmd.extend([
+            "&&",
+            "vg",
+            "convert",
+            "-x",
+            "--drop-haplotypes",
+            gbz_index,
+            ">",
+            xg_index,
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        prefix = cls._prefix(inputs, node_out)
+        return [
+            Path(f"{prefix}.giraffe.gbz"),
+            Path(f"{prefix}.shortread.withzip.min"),
+            Path(f"{prefix}.shortread.zipcodes"),
+            Path(f"{prefix}.dist"),
+            Path(f"{prefix}.xg"),
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "graph_gfa": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+            },
+            "optional": {
+                "workflow": ("STRING", {"default": "giraffe", "options": ["giraffe"]}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 128, "display": "slider"}),
+                "output_prefix": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+                "reference": ("FASTA", {"description": "Reference FASTA for named reference paths"}),
+                "tmp_dir": ("STRING", {"default": "", "description": "Optional temporary directory for vg autoindex"}),
+                "target_mem": ("STRING", {"default": "", "description": "Optional target memory limit, for example 64G"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class VGMapNode(CommandNode):
     """Map reads to variation graphs with vg map or giraffe."""
     NODE_ID = "vg_map"
@@ -118,6 +232,8 @@ class VGMapNode(CommandNode):
                 str(inputs.get("gbz_index", "")),
                 "-m",
                 str(inputs.get("minimizer_index", "")),
+                "-z",
+                str(inputs.get("zipcode_index", "")),
                 "-d",
                 str(inputs.get("distance_index", "")),
                 "-f",
@@ -167,6 +283,7 @@ class VGMapNode(CommandNode):
                 "reads2": ("FASTQ", {"description": "Reverse FASTQ (paired)"}),
                 "gbz_index": ("FILE", {"description": "Giraffe GBZ index"}),
                 "minimizer_index": ("FILE", {"description": "Minimizer index"}),
+                "zipcode_index": ("FILE", {"description": "Zipcodes index"}),
                 "distance_index": ("FILE", {"description": "Distance index"}),
                 "xg_index": ("FILE", {"description": "XG index (for vg map)"}),
                 "gcsa_index": ("FILE", {"description": "GCSA index (for vg map)"}),
