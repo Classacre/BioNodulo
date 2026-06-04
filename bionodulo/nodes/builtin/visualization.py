@@ -16,6 +16,7 @@ from bionodulo.nodes.base import BaseNode
 
 
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
+SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -2833,6 +2834,215 @@ def _render_scatter_png(
         _draw_circle(pixels, layout.width, layout.height, x, y, radius, colour)
 
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _json_for_script(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=True).replace("</", "<\\/")
+
+
+def _scatter_hover_text(point: ScatterPoint, *, color_column: str, size_column: str) -> str:
+    parts = [f"x: {point.x:.6g}", f"y: {point.y:.6g}"]
+    if color_column:
+        parts.append(f"{color_column}: {point.color_value or 'Unlabelled'}")
+    if size_column and point.size_value is not None:
+        parts.append(f"{size_column}: {point.size_value:.6g}")
+    return "<br>".join(html.escape(part) for part in parts)
+
+
+def _scatter_marker_payload(
+    points: list[ScatterPoint],
+    *,
+    color_column: str,
+    point_size: int,
+    alpha: float,
+    color_mode: str,
+    category_colours: dict[str, str] | None,
+    numeric_range: tuple[float, float] | None,
+    size_range: tuple[float, float] | None,
+) -> dict[str, Any]:
+    marker: dict[str, Any] = {
+        "size": [
+            round(_scatter_radius(point, point_size=point_size, size_range=size_range) * 2.0, 2)
+            for point in points
+        ],
+        "opacity": _clamp(alpha, 0.1, 1.0),
+        "line": {"color": "#ffffff", "width": 0.8},
+    }
+    if color_mode == "numeric" and numeric_range:
+        marker["color"] = [_parse_float(point.color_value) for point in points]
+        marker["colorscale"] = "Viridis"
+        marker["colorbar"] = {"title": color_column}
+        marker["cmin"], marker["cmax"] = numeric_range
+    else:
+        marker["color"] = [
+            _scatter_point_color(
+                point,
+                color_mode=color_mode,
+                category_colours=category_colours,
+                numeric_range=numeric_range,
+            )
+            for point in points
+        ]
+    return marker
+
+
+def _scatter_html_traces(
+    *,
+    points: list[ScatterPoint],
+    bounds: XYBounds,
+    color_column: str,
+    size_column: str,
+    point_size: int,
+    alpha: float,
+    regression: bool,
+) -> list[dict[str, Any]]:
+    color_mode, category_colours, numeric_range = _scatter_color_data(
+        points,
+        color_column=color_column,
+    )
+    size_range = _scatter_size_range(points)
+    traces: list[dict[str, Any]] = []
+
+    if color_mode == "categorical" and category_colours:
+        for category, colour in category_colours.items():
+            category_points = [
+                point for point in points if (point.color_value or "Unlabelled") == category
+            ]
+            traces.append({
+                "type": "scatter",
+                "mode": "markers",
+                "name": category,
+                "x": [point.x for point in category_points],
+                "y": [point.y for point in category_points],
+                "text": [
+                    _scatter_hover_text(point, color_column=color_column, size_column=size_column)
+                    for point in category_points
+                ],
+                "hovertemplate": "%{text}<extra></extra>",
+                "marker": {
+                    "color": colour,
+                    "size": [
+                        round(_scatter_radius(point, point_size=point_size, size_range=size_range) * 2.0, 2)
+                        for point in category_points
+                    ],
+                    "opacity": _clamp(alpha, 0.1, 1.0),
+                    "line": {"color": "#ffffff", "width": 0.8},
+                },
+            })
+    else:
+        traces.append({
+            "type": "scatter",
+            "mode": "markers",
+            "name": "Points",
+            "x": [point.x for point in points],
+            "y": [point.y for point in points],
+            "text": [
+                _scatter_hover_text(point, color_column=color_column, size_column=size_column)
+                for point in points
+            ],
+            "hovertemplate": "%{text}<extra></extra>",
+            "marker": _scatter_marker_payload(
+                points,
+                color_column=color_column,
+                point_size=point_size,
+                alpha=alpha,
+                color_mode=color_mode,
+                category_colours=category_colours,
+                numeric_range=numeric_range,
+                size_range=size_range,
+            ),
+        })
+
+    if regression:
+        fitted = _regression_line(points)
+        if fitted is not None:
+            slope, intercept = fitted
+            traces.append({
+                "type": "scatter",
+                "mode": "lines",
+                "name": "Regression",
+                "x": [bounds.x_min, bounds.x_max],
+                "y": [
+                    slope * bounds.x_min + intercept,
+                    slope * bounds.x_max + intercept,
+                ],
+                "line": {"color": "#DC2626", "width": 2, "dash": "dash"},
+                "hoverinfo": "skip",
+            })
+
+    return traces
+
+
+def _render_scatter_html(
+    path: Path,
+    *,
+    points: list[ScatterPoint],
+    bounds: XYBounds,
+    layout: PlotLayout,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    color_column: str,
+    size_column: str,
+    point_size: int,
+    alpha: float,
+    regression: bool,
+) -> None:
+    traces = _scatter_html_traces(
+        points=points,
+        bounds=bounds,
+        color_column=color_column,
+        size_column=size_column,
+        point_size=point_size,
+        alpha=alpha,
+        regression=regression,
+    )
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {"title": xlabel, "range": [bounds.x_min, bounds.x_max], "zeroline": False},
+        "yaxis": {"title": ylabel, "range": [bounds.y_min, bounds.y_max], "zeroline": False},
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": bool(color_column),
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "scatter_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
 
 
 def _render_line_svg(
@@ -5944,7 +6154,7 @@ class ScatterPlotNode(BaseNode):
                 "regression": ("BOOLEAN", {"default": False}),
                 "alpha": ("FLOAT", {"default": 0.6, "min": 0.1, "max": 1.0}),
                 "point_size": ("INT", {"default": 30, "min": 5, "max": 200}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(SCATTER_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 8.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 7.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -5956,7 +6166,7 @@ class ScatterPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in SCATTER_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported scatter plot format: {output_format}")
 
         x_column = str(kwargs.get("x_column", "") or "").strip()
@@ -6000,6 +6210,21 @@ class ScatterPlotNode(BaseNode):
                 xlabel=xlabel,
                 ylabel=ylabel,
                 color_column=color_column,
+                point_size=point_size,
+                alpha=alpha,
+                regression=regression,
+            )
+        elif output_format == "html":
+            _render_scatter_html(
+                output_path,
+                points=rows,
+                bounds=bounds,
+                layout=layout,
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel,
+                color_column=color_column,
+                size_column=size_column,
                 point_size=point_size,
                 alpha=alpha,
                 regression=regression,

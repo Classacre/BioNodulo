@@ -46,6 +46,8 @@ def test_ma_plot_is_registered_for_frontend_discovery() -> None:
 def test_scatter_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("scatter_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -54,6 +56,7 @@ def test_scatter_plot_is_registered_for_frontend_discovery() -> None:
     assert info["scatter_plot"]["output_name"] == ["plot_image"]
     assert info["scatter_plot"]["output"] == ["IMAGE"]
     assert info["scatter_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_bar_chart_is_registered_for_frontend_discovery() -> None:
@@ -322,6 +325,54 @@ async def test_scatter_plot_writes_svg_with_groups_regression_and_preview(tmp_pa
     assert 'data-category="treated"' in svg
     assert 'class="regression-line"' in svg
     assert previews == [(str(svg_path), "Scatter Plot")]
+
+
+@pytest.mark.asyncio
+async def test_scatter_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("scatter_plot")
+    table = tmp_path / "pca.tsv"
+    table.write_text(
+        "sample\tPC1\tPC2\tcondition\tvariance\n"
+        "S1\t-1.0\t-0.5\tcontrol\t10\n"
+        "S2\t-0.4\t0.1\tcontrol\t15\n"
+        "S3\t0.5\t0.8\ttreated\t20\n"
+        "S4\t1.2\t1.4\ttreated\t25\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        table=str(table),
+        x_column="PC1",
+        y_column="PC2",
+        color_column="condition",
+        size_column="variance",
+        title="PCA Samples",
+        xlabel="PC1",
+        ylabel="PC2",
+        regression=True,
+        format="html",
+        width=8,
+        height=7,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["plot_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "scatter_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "PCA Samples" in document
+    assert '"type": "scatter"' in document
+    assert '"control"' in document
+    assert '"treated"' in document
+    assert '"name": "Regression"' in document
+    assert previews == [(str(html_path), "Scatter Plot")]
 
 
 @pytest.mark.asyncio
