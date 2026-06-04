@@ -1343,14 +1343,14 @@ export default function App() {
         return;
       }
       const parameterOverrides = await promptWorkflowRunParameters(activeWorkflow.parameters, promptDialog, {
-        title: 'Workflow parameters',
+        title: t('parameters.runPromptTitle'),
         message: parameter => (
           parameter.description
             ? `${parameter.name} (${parameter.type}) — ${parameter.description}`
             : `${parameter.name} (${parameter.type})`
         ),
-        confirmLabel: 'Use value',
-        cancelLabel: 'Cancel run',
+        confirmLabel: t('parameters.runPromptConfirm'),
+        cancelLabel: t('parameters.runPromptCancel'),
       });
       if (parameterOverrides === null) {
         setIsRunning(false);
@@ -1389,7 +1389,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, setRailTab]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, setRailTab, t]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -1451,14 +1451,14 @@ export default function App() {
         return;
       }
       const parameterOverrides = await promptWorkflowRunParameters(activeWorkflow.parameters, promptDialog, {
-        title: 'Workflow parameters',
+        title: t('parameters.runPromptTitle'),
         message: parameter => (
           parameter.description
             ? `${parameter.name} (${parameter.type}) — ${parameter.description}`
             : `${parameter.name} (${parameter.type})`
         ),
-        confirmLabel: 'Use value',
-        cancelLabel: 'Cancel run',
+        confirmLabel: t('parameters.runPromptConfirm'),
+        cancelLabel: t('parameters.runPromptCancel'),
       });
       if (parameterOverrides === null) {
         setIsRunning(false);
@@ -1496,7 +1496,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, addLog, addRun, cacheEnabled, submitRun, validate, setRailTab]);
+  }, [activeWorkflow, addLog, addRun, cacheEnabled, submitRun, validate, setRailTab, t]);
 
   const handleSaveSnippet = useCallback(async () => {
     const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];

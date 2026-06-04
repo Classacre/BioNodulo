@@ -541,6 +541,9 @@ const en = {
   parameters: {
     selectNodeHint: 'Select a node to edit its parameters',
     multiSelectHint: '{{count}} nodes selected — bulk edit available',
+    runPromptTitle: 'Workflow parameters',
+    runPromptConfirm: 'Use value',
+    runPromptCancel: 'Cancel run',
     invalidValue: 'Invalid value',
     requiredField: 'This field is required',
     revertChanges: 'Revert changes',

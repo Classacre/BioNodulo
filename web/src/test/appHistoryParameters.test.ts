@@ -1,8 +1,36 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const storage = new Map<string, string>();
+const localStorageStub: Storage = {
+  get length() {
+    return storage.size;
+  },
+  clear: () => storage.clear(),
+  getItem: (key: string) => storage.get(key) ?? null,
+  key: (index: number) => Array.from(storage.keys())[index] ?? null,
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
+  setItem: (key: string, value: string) => {
+    storage.set(key, String(value));
+  },
+};
 
 describe('App inline history workflow parameters', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+  });
+
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
   it('tracks workflow parameters in snapshots, dedup signatures, and undo/redo restore', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
@@ -20,5 +48,23 @@ describe('App inline history workflow parameters', () => {
     expect(appSource.match(/promptWorkflowRunParameters\(activeWorkflow\.parameters, promptDialog/g)).toHaveLength(2);
     expect(appSource.match(/parameters: parameterOverrides/g)).toHaveLength(2);
     expect(appSource).toContain('if (parameterOverrides === null)');
+  });
+
+  it('keeps workflow parameter run prompt copy behind i18n keys', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    await setLanguage('es');
+
+    expect(i18n.t('parameters.runPromptTitle')).toBe('Parametros del workflow');
+    expect(i18n.t('parameters.runPromptConfirm')).toBe('Usar valor');
+    expect(i18n.t('parameters.runPromptCancel')).toBe('Cancelar ejecucion');
+    await setLanguage('en');
+    expect(i18n.t('parameters.runPromptTitle')).toBe('Workflow parameters');
+    expect(i18n.t('parameters.runPromptConfirm')).toBe('Use value');
+    expect(i18n.t('parameters.runPromptCancel')).toBe('Cancel run');
+    expect(appSource).toContain("title: t('parameters.runPromptTitle')");
+    expect(appSource).toContain("confirmLabel: t('parameters.runPromptConfirm')");
+    expect(appSource).toContain("cancelLabel: t('parameters.runPromptCancel')");
   });
 });
