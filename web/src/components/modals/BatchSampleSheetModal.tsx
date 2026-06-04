@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { Skeleton } from '../ui/Skeleton';
 import type { Workflow, WorkflowNode } from '../../types';
@@ -95,9 +96,10 @@ function nodeLabel(node: WorkflowNode): string {
 }
 
 export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: BatchSampleSheetModalProps) {
+  const { t } = useTranslation();
   const [rawText, setRawText] = useState('');
   const [columnMap, setColumnMap] = useState<Record<number, string>>({});
-  const [namePrefix, setNamePrefix] = useState(workflow.name || 'Sample');
+  const [namePrefix, setNamePrefix] = useState(workflow.name || t('batchSampleSheet.defaultNamePrefix'));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,11 +148,15 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
       const label = nodeLabel(node);
       const params = node.params || {};
       for (const param of Object.keys(params)) {
-        options.push({ value: `${node.id}::${param}`, label: `${label} -> ${param}`, group: node.type });
+        options.push({
+          value: `${node.id}::${param}`,
+          label: t('batchSampleSheet.paramOptionLabel', { node: label, param }),
+          group: node.type,
+        });
       }
     }
     return options;
-  }, [workflow.nodes]);
+  }, [t, workflow.nodes]);
 
   const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -205,15 +211,15 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
 
   const handleSubmit = async () => {
     if (!parsed) {
-      setError('Paste or upload a CSV/TSV sample sheet first.');
+      setError(t('batchSampleSheet.errors.emptySheet'));
       return;
     }
     if (parsed.rows.length === 0) {
-      setError('Sample sheet has no data rows.');
+      setError(t('batchSampleSheet.errors.noRows'));
       return;
     }
     if (mappedColumnCount === 0) {
-      setError('Map at least one column to a node parameter.');
+      setError(t('batchSampleSheet.errors.noMapping'));
       return;
     }
     setError(null);
@@ -238,23 +244,23 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
         className="modal-content"
         role="dialog"
         aria-modal="true"
-        aria-label="Batch run from sample sheet"
+        aria-label={t('batchSampleSheet.title')}
         style={{ width: 760, maxHeight: '85vh' }}
         onClick={event => event.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>Batch run from sample sheet</h3>
-          <button className="btn btn-icon btn-sm" onClick={onClose} title="Close">
+          <h3>{t('batchSampleSheet.title')}</h3>
+          <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')}>
             <Icon name="close" size={14} />
           </button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 12 }}>
-            One run per row. Map columns to node parameters; the rest are ignored. CSV or TSV both work.
+            {t('batchSampleSheet.description')}
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
-              <Icon name="import" size={12} /> Upload sample sheet
+              <Icon name="import" size={12} /> {t('batchSampleSheet.upload')}
               <input
                 type="file"
                 accept=".csv,.tsv,.txt"
@@ -263,19 +269,23 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
               />
             </label>
             <input
-              placeholder="Run name prefix"
+              placeholder={t('batchSampleSheet.runNamePrefixPlaceholder')}
               value={namePrefix}
               onChange={event => setNamePrefix(event.target.value)}
               style={{ ...INPUT_STYLE, flex: 1, maxWidth: 240 }}
             />
             {parsed && (
               <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                {parsed.rows.length} rows, {parsed.headers.length} columns ({parsed.delimiter === '\t' ? 'TSV' : 'CSV'})
+                {t('batchSampleSheet.sheetSummary', {
+                  rows: t('batchSampleSheet.rowCount', { count: parsed.rows.length }),
+                  columns: t('batchSampleSheet.columnCount', { count: parsed.headers.length }),
+                  format: parsed.delimiter === '\t' ? 'TSV' : 'CSV',
+                })}
               </span>
             )}
           </div>
           <textarea
-            placeholder="sample,fastq_in,threads&#10;ctrl_01,/data/c1.fastq.gz,8&#10;ctrl_02,/data/c2.fastq.gz,8"
+            placeholder={t('batchSampleSheet.sheetPlaceholder')}
             value={rawText}
             onChange={event => setRawText(event.target.value)}
             style={{ ...INPUT_STYLE, minHeight: 120, fontFamily: 'JetBrains Mono, ui-monospace, monospace', resize: 'vertical' }}
@@ -289,18 +299,18 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
           )}
           {parsed && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>Column mapping</strong>
+              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('batchSampleSheet.columnMapping')}</strong>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 {parsed.headers.map((header, index) => (
                   <div key={`${header}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{header || `(column ${index + 1})`}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{header || t('batchSampleSheet.columnFallback', { index: index + 1 })}</span>
                     <select
                       value={columnMap[index] ?? SKIP_VALUE}
                       onChange={event => setColumnMap(prev => ({ ...prev, [index]: event.target.value }))}
                       style={INPUT_STYLE}
                     >
-                      <option value={SKIP_VALUE}>Skip</option>
-                      <option value={NAME_VALUE}>Use as run name</option>
+                      <option value={SKIP_VALUE}>{t('batchSampleSheet.skip')}</option>
+                      <option value={NAME_VALUE}>{t('batchSampleSheet.useAsRunName')}</option>
                       {paramOptions.map(option => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
@@ -312,7 +322,12 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
           )}
           {parsed && previewRuns.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>Preview ({Math.min(previewRuns.length, MAX_PREVIEW_ROWS)} of {parsed.rows.length})</strong>
+              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {t('batchSampleSheet.preview', {
+                  shown: Math.min(previewRuns.length, MAX_PREVIEW_ROWS),
+                  total: parsed.rows.length,
+                })}
+              </strong>
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text)' }}>
                 {previewRuns.map(run => (
                   <li key={run.rowIndex}>{run.name}</li>
@@ -323,14 +338,16 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
           {error && <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12 }}>{error}</div>}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('common.cancel')}</button>
           <button
             className="btn btn-primary btn-sm"
             disabled={!parsed || parsed.rows.length === 0 || mappedColumnCount === 0 || submitting}
             onClick={handleSubmit}
           >
             <Icon name="play" size={12} />
-            {submitting ? ' Submitting...' : ` Queue ${parsed?.rows.length ?? 0} runs`}
+            {submitting
+              ? ` ${t('batchSampleSheet.submitting')}`
+              : ` ${t('batchSampleSheet.queueRuns', { count: parsed?.rows.length ?? 0 })}`}
           </button>
         </div>
       </div>

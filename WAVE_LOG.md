@@ -403,6 +403,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Output comparison modal title, run pickers, loading/empty states, summary counts, section headings, error labels, and footer action now read from `outputDiff` / `common` i18n keys with Spanish unit coverage.
 - Bulk parameter modal title, shared-parameter header, no-common-parameter states, pluralized apply action, varies placeholder, and reset-field tooltip now read from `paramBulk` / `common` i18n keys with Spanish unit coverage.
 - Workflow doctor modal title, severity summaries, healthy/empty states, diagnostic finding titles/details, jump action, and footer close action now read from `doctor` / `common` i18n keys with Spanish unit coverage.
+- Batch sample-sheet modal title, helper copy, upload/name controls, sheet summary, column mapping controls, preview heading, validation errors, and queue/submitting actions now read from `batchSampleSheet` / `common` i18n keys with Spanish unit coverage.
 
 ---
 
