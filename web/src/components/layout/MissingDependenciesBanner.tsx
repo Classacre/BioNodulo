@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { ResolveReport, InstallJobStatus, Workflow } from '../../types';
 import { apiGet, apiPost } from '../../api/client';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function MissingDependenciesBanner({ report, workflow, onDismiss, onOpenConsole, onResolve }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [jobStatus, setJobStatus] = useState<InstallJobStatus | null>(null);
@@ -65,7 +67,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
     };
   }, []);
 
-  const summary = report.summary || `${totalMissing} missing`;
+  const summary = report.summary || t('resolveReport.missingCount', { count: totalMissing });
 
   return (
     <div className="dep-banner">
@@ -74,26 +76,26 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
           <Icon name="warning" size={16} />
         </span>
         <span className="dep-banner-text">
-          <strong>Missing dependencies:</strong> {summary}
+          <strong>{t('resolveReport.missingDependenciesTitle')}</strong> {summary}
           {report.env_id && (
             <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>
-              env: {report.env_id.slice(0, 8)} {report.env_ready ? '(ready)' : '(not ready)'}
+              {t('resolveReport.envLabel')}: {report.env_id.slice(0, 8)} {report.env_ready ? t('resolveReport.envReadyStatus') : t('resolveReport.envNotReadyStatus')}
             </span>
           )}
         </span>
         <div className="dep-banner-actions">
           {!report.env_ready && (
             <button className="btn btn-primary btn-sm" onClick={startInstall} disabled={installing}>
-              {installing ? <><Icon name="spinner" size={12} /> Installing...</> : <><Icon name="download" size={12} /> Install Env</>}
+              {installing ? <><Icon name="spinner" size={12} /> {t('resolveReport.installing')}</> : <><Icon name="download" size={12} /> {t('resolveReport.installEnv')}</>}
             </button>
           )}
           {report.env_ready && (
-            <span className="dep-badge ok" style={{ fontSize: 12 }}>Env ready</span>
+            <span className="dep-badge ok" style={{ fontSize: 12 }}>{t('resolveReport.envReady')}</span>
           )}
           <button className="btn btn-sm" onClick={() => setExpanded(v => !v)}>
-            {expanded ? 'Hide' : 'Details'}
+            {expanded ? t('common.hide') : t('resolveReport.details')}
           </button>
-          <button className="btn btn-sm btn-ghost" onClick={onDismiss} title="Dismiss">
+          <button className="btn btn-sm btn-ghost" onClick={onDismiss} title={t('common.dismiss')} aria-label={t('common.dismiss')}>
             <Icon name="close" size={12} />
           </button>
         </div>
@@ -102,7 +104,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
       {installing && jobStatus && (
         <div className="dep-banner-details" style={{ borderTop: '1px solid var(--border)' }}>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            <Icon name="spinner" size={12} /> {jobStatus.current_step || 'Installing...'} {jobStatus.message}
+            <Icon name="spinner" size={12} /> {jobStatus.current_step || t('resolveReport.installing')} {jobStatus.message}
           </span>
         </div>
       )}
@@ -111,7 +113,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
         <div className="dep-banner-details">
           {report.required_packages.length > 0 && (
             <div className="dep-banner-section">
-              <h4>Required Packages ({report.required_packages.length})</h4>
+              <h4>{t('resolveReport.requiredPackages', { count: report.required_packages.length })}</h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {report.required_packages.map(p => (
                   <code key={p} style={{ fontSize: 11, padding: '2px 6px', background: 'var(--surface)', borderRadius: 4 }}>{p}</code>
@@ -122,7 +124,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
 
           {report.missing_nodes.length > 0 && (
             <div className="dep-banner-section">
-              <h4>Missing Nodes ({report.missing_nodes.length})</h4>
+              <h4>{t('resolveReport.missingNodes', { count: report.missing_nodes.length })}</h4>
               <ul>
                 {report.missing_nodes.map(n => (
                   <li key={n.node_type}>
@@ -137,7 +139,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
 
           {report.missing_packages.length > 0 && (
             <div className="dep-banner-section">
-              <h4>Missing Python Packages ({report.missing_packages.length})</h4>
+              <h4>{t('resolveReport.missingPythonPackages', { count: report.missing_packages.length })}</h4>
               <ul>
                 {report.missing_packages.map(p => (
                   <li key={p.name}>
@@ -151,7 +153,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
 
           {report.missing_r_packages.length > 0 && (
             <div className="dep-banner-section">
-              <h4>Missing R Packages ({report.missing_r_packages.length})</h4>
+              <h4>{t('resolveReport.missingRPackages', { count: report.missing_r_packages.length })}</h4>
               <ul>
                 {report.missing_r_packages.map(p => (
                   <li key={p.name}>
@@ -165,7 +167,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
 
           {report.errors.length > 0 && (
             <div className="dep-banner-section">
-              <h4>Errors</h4>
+              <h4>{t('resolveReport.errors')}</h4>
               <ul>
                 {report.errors.map((err, i) => (
                   <li key={i} className="dep-banner-error">{err}</li>
