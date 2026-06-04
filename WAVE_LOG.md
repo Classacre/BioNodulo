@@ -419,6 +419,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Collaboration badge status text, tooltip labels, offline/link actions, menu navigation, follow-viewport copy, and workflow fallbacks now read from `collab` i18n keys with Spanish unit coverage.
 - Audit log title, export action, summaries, filters, loading/empty states, table headers, pagination labels, and common action/target labels now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Collaboration user list title, close affordance, empty state, role chips, current-user suffix, workflow fallback, access menu, and role-change/remove errors now read from `collab` / `common` i18n keys with Spanish unit coverage.
+- Collaboration auth dialog title, helper copy, display-name controls, join/guest actions, secure-session hint, and fallback errors now read from `collab` i18n keys with Spanish unit coverage.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.
 - Version history drawer title, save/close affordances, loading/empty states, auto/manual labels, fallback version names, metadata, relative-time labels, and row actions now read from `collab` / `common` i18n keys with Spanish unit coverage.

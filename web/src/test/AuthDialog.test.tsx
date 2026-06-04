@@ -1,0 +1,65 @@
+import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const authMocks = vi.hoisted(() => ({
+  fetchToken: vi.fn(),
+  generateGuestName: vi.fn(() => 'Guest User'),
+  setAuthSession: vi.fn(),
+}));
+
+vi.mock('../collab/auth', () => authMocks);
+
+const storage = new Map<string, string>();
+const localStorageStub: Storage = {
+  get length() {
+    return storage.size;
+  },
+  clear: () => storage.clear(),
+  getItem: (key: string) => storage.get(key) ?? null,
+  key: (index: number) => Array.from(storage.keys())[index] ?? null,
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
+  setItem: (key: string, value: string) => {
+    storage.set(key, String(value));
+  },
+};
+
+describe('AuthDialog i18n', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+    authMocks.fetchToken.mockReset();
+    authMocks.generateGuestName.mockReturnValue('Guest User');
+    authMocks.setAuthSession.mockReset();
+  });
+
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders join controls from the active locale', async () => {
+    const { default: AuthDialog } = await import('../collab/AuthDialog');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    render(
+      <AuthDialog
+        isOpen
+        onLogin={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Unirse a colaboracion' })).toBeInTheDocument();
+    expect(screen.getByText('Ingresa tu nombre visible para colaborar en workflows en tiempo real.')).toBeInTheDocument();
+    expect(screen.getByText('Nombre visible')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Tu nombre')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unirse' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continuar como invitado' })).toBeInTheDocument();
+    expect(screen.getByText('Tu sesion esta autenticada con un token seguro.')).toBeInTheDocument();
+  });
+});

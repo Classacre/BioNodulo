@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchToken, setAuthSession, generateGuestName } from './auth';
 
 interface AuthDialogProps {
@@ -8,6 +9,7 @@ interface AuthDialogProps {
 }
 
 const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,11 +31,11 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(displayName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join');
+      setError(err instanceof Error ? err.message : t('collab.authJoinError'));
     } finally {
       setIsLoading(false);
     }
-  }, [name, onLogin]);
+  }, [name, onLogin, t]);
 
   const handleGuest = useCallback(async () => {
     const guestName = generateGuestName();
@@ -44,11 +46,11 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(guestName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join as guest');
+      setError(err instanceof Error ? err.message : t('collab.authGuestJoinError'));
     } finally {
       setIsLoading(false);
     }
-  }, [onLogin]);
+  }, [onLogin, t]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isLoading) {
@@ -98,7 +100,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
           fontWeight: 700,
           color: 'var(--text)',
         }}>
-          Join Collaboration
+          {t('collab.authJoinTitle')}
         </h2>
         <p style={{
           margin: '0 0 20px',
@@ -106,7 +108,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
           color: 'var(--muted)',
           lineHeight: 1.5,
         }}>
-          Enter your display name to collaborate on workflows in real time.
+          {t('collab.authJoinDescription')}
         </p>
 
         <div style={{ marginBottom: 16 }}>
@@ -117,11 +119,11 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
             color: 'var(--text)',
             marginBottom: 6,
           }}>
-            Display Name
+            {t('collab.authDisplayNameLabel')}
           </label>
           <input
             type="text"
-            placeholder="Your name"
+            placeholder={t('collab.authNamePlaceholder')}
             value={name}
             onChange={e => setName(e.target.value)}
             autoFocus
@@ -184,7 +186,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
               transition: 'opacity 0.2s',
             }}
           >
-            {isLoading ? 'Joining…' : 'Join'}
+            {isLoading ? t('collab.authJoining') : t('collab.authJoinAction')}
           </button>
 
           <button
@@ -203,7 +205,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
               opacity: isLoading ? 0.5 : 1,
             }}
           >
-            Continue as Guest
+            {t('collab.authContinueAsGuest')}
           </button>
         </div>
 
@@ -213,7 +215,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
           fontSize: 11,
           color: 'var(--muted)',
         }}>
-          Your session is authenticated with a secure token.
+          {t('collab.authSecureTokenHint')}
         </div>
       </div>
     </div>
