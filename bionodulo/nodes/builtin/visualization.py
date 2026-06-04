@@ -24,6 +24,7 @@ BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 HEATMAP_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 MANHATTAN_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 COVERAGE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+VCF_STATS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -4763,6 +4764,137 @@ def _render_vcf_stats_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _render_vcf_stats_html(
+    path: Path,
+    *,
+    stats: VCFStats,
+    title: str,
+    quality_bins: int,
+    min_quality: float,
+    max_quality: float | None,
+    layout: PlotLayout,
+) -> None:
+    variant_items = [(key, value) for key, value in stats.variant_types.items() if value > 0]
+    quality_histogram = _histogram(
+        stats.qualities,
+        quality_bins,
+        min_quality if min_quality > 0 else None,
+        max_quality,
+    )
+    chromosome_items = sorted(
+        stats.chromosome_counts.items(),
+        key=lambda item: _chromosome_sort_key(item[0].removeprefix("chr").removeprefix("CHR")),
+    )
+    traces = [
+        {
+            "type": "bar",
+            "name": "Variant Types",
+            "x": [label for label, _ in variant_items],
+            "y": [value for _, value in variant_items],
+            "marker": {"color": "#2563EB"},
+            "hovertemplate": "%{x}: %{y}<extra></extra>",
+            "xaxis": "x",
+            "yaxis": "y",
+        },
+        {
+            "type": "bar",
+            "name": "Quality Distribution",
+            "x": [(start + end) / 2 for start, end, _ in quality_histogram],
+            "y": [count for _, _, count in quality_histogram],
+            "width": [max(0.1, end - start) for start, end, _ in quality_histogram],
+            "customdata": [[start, end, count] for start, end, count in quality_histogram],
+            "marker": {"color": "#0891B2"},
+            "hovertemplate": "QUAL %{customdata[0]:.3g}-%{customdata[1]:.3g}: %{customdata[2]}<extra></extra>",
+            "xaxis": "x2",
+            "yaxis": "y2",
+        },
+        {
+            "type": "bar",
+            "name": "Ti/Tv Ratio",
+            "x": ["Transitions", "Transversions"],
+            "y": [stats.transitions, stats.transversions],
+            "marker": {"color": "#16A34A"},
+            "hovertemplate": "%{x}: %{y}<extra></extra>",
+            "xaxis": "x3",
+            "yaxis": "y3",
+        },
+        {
+            "type": "bar",
+            "name": "Variants per Chromosome",
+            "x": [label for label, _ in chromosome_items],
+            "y": [value for _, value in chromosome_items],
+            "marker": {"color": "#9333EA"},
+            "hovertemplate": "%{x}: %{y}<extra></extra>",
+            "xaxis": "x4",
+            "yaxis": "y4",
+        },
+    ]
+    titv_title = (
+        f"Ti/Tv Ratio: {stats.titv_ratio:g}"
+        if stats.titv_ratio is not None
+        else "Ti/Tv Ratio: N/A"
+    )
+    plot_layout = {
+        "title": {"text": title},
+        "grid": {"rows": 2, "columns": 2, "pattern": "independent"},
+        "xaxis": {"title": "Variant type", "domain": [0, 0.47]},
+        "yaxis": {"title": "Count", "domain": [0.56, 1]},
+        "xaxis2": {"title": "QUAL", "domain": [0.53, 1]},
+        "yaxis2": {"title": "Count", "domain": [0.56, 1]},
+        "xaxis3": {"title": "Kind", "domain": [0, 0.47]},
+        "yaxis3": {"title": "Count", "domain": [0, 0.44]},
+        "xaxis4": {"title": "Chromosome", "domain": [0.53, 1]},
+        "yaxis4": {"title": "Count", "domain": [0, 0.44]},
+        "annotations": [
+            {"text": "Variant Types", "xref": "paper", "yref": "paper", "x": 0.235, "y": 1.06, "showarrow": False, "font": {"size": 13}},
+            {"text": "Quality Distribution", "xref": "paper", "yref": "paper", "x": 0.765, "y": 1.06, "showarrow": False, "font": {"size": 13}},
+            {"text": titv_title, "xref": "paper", "yref": "paper", "x": 0.235, "y": 0.48, "showarrow": False, "font": {"size": 13}},
+            {"text": "Variants per Chromosome", "xref": "paper", "yref": "paper", "x": 0.765, "y": 0.48, "showarrow": False, "font": {"size": 13}},
+        ],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "showlegend": False,
+        "bargap": 0.12,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "vcf_stats"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _draw_panel_frame(pixels: bytearray, layout: PlotLayout, panel: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
     x, y, width, height = panel
     x0 = int(round(x))
@@ -6521,7 +6653,7 @@ class VCFStatsChartNode(BaseNode):
                 "quality_bins": ("INT", {"default": 50, "min": 1, "max": 200}),
                 "min_quality": ("FLOAT", {"default": 0.0}),
                 "max_quality": ("FLOAT", {"default": 0.0}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(VCF_STATS_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 16.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 12.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -6532,7 +6664,7 @@ class VCFStatsChartNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in VCF_STATS_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported VCF stats chart format: {output_format}")
 
         records = _read_vcf_records(Path(str(kwargs["vcf"])))
@@ -6559,6 +6691,16 @@ class VCFStatsChartNode(BaseNode):
 
         if output_format == "svg":
             _render_vcf_stats_svg(
+                image_path,
+                stats=stats,
+                title=title,
+                quality_bins=quality_bins,
+                min_quality=min_quality,
+                max_quality=max_quality,
+                layout=layout,
+            )
+        elif output_format == "html":
+            _render_vcf_stats_html(
                 image_path,
                 stats=stats,
                 title=title,

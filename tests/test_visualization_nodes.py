@@ -174,6 +174,8 @@ def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None
 def test_vcf_stats_chart_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("vcf_stats_chart")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -182,6 +184,7 @@ def test_vcf_stats_chart_is_registered_for_frontend_discovery() -> None:
     assert info["vcf_stats_chart"]["output_name"] == ["stats_image", "stats_json"]
     assert info["vcf_stats_chart"]["output"] == ["IMAGE", "JSON"]
     assert info["vcf_stats_chart"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_circos_plot_is_registered_for_frontend_discovery() -> None:
@@ -1138,6 +1141,58 @@ async def test_vcf_stats_chart_writes_svg_json_and_registers_preview(tmp_path: P
     assert stats["titv_ratio"] == 1.0
     assert stats["chromosome_counts"] == {"chr1": 2, "chr2": 2}
     assert previews == [(str(svg_path), "VCF Stats Chart")]
+
+
+@pytest.mark.asyncio
+async def test_vcf_stats_chart_writes_interactive_html_json_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("vcf_stats_chart")
+    vcf = tmp_path / "variants.vcf"
+    vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=12\n"
+        "chr1\t120\trs2\tC\tA\t80\tPASS\tDP=30\n"
+        "chr2\t200\trs3\tA\tAT\t60\tPASS\tDP=9\n"
+        "chr2\t240\trs4\tAT\tA\t20\tPASS\tDP=4\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        vcf=str(vcf),
+        title="Variant QC",
+        format="html",
+        quality_bins=4,
+        min_quality=0,
+        max_quality=100,
+        width=10,
+        height=7,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["stats_image"])
+    json_path = Path(result["outputs"]["stats_json"])
+    document = html_path.read_text(encoding="utf-8")
+    stats = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert html_path.name == "vcf_stats.html"
+    assert json_path.name == "vcf_stats.json"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Variant QC" in document
+    assert '"Variant Types"' in document
+    assert '"Quality Distribution"' in document
+    assert '"Variants per Chromosome"' in document
+    assert '"SNP"' in document
+    assert '"chr1"' in document
+    assert stats["total_variants"] == 4
+    assert stats["variant_types"]["SNP"] == 2
+    assert stats["chromosome_counts"] == {"chr1": 2, "chr2": 2}
+    assert previews == [(str(html_path), "VCF Stats Chart")]
 
 
 @pytest.mark.asyncio
