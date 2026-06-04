@@ -832,3 +832,157 @@ def test_metaboanalyst_stats_environment_metadata_is_declared_without_fake_conda
 
     assert "MetaboAnalystR" not in packages
     assert packages == ["r-base", "r-jsonlite", "r-readr"]
+
+
+def test_msdial_processing_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["msdial_processing"]
+    assert node_info["display_name"] == "MS-DIAL Processing"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Run MS-DIAL console batch processing")
+    assert node_info["output"] == ["DIRECTORY", "TSV", "JSON"]
+    assert node_info["output_name"] == ["results_dir", "result_index", "metadata"]
+    assert node_info["required_executables"] == ["mono"]
+    assert node_info["required_conda_packages"] == ["mono"]
+    assert node_info["experimental"] is True
+    assert "ms-dial" in node_info["search_aliases"]
+    assert "lcmsdda" in node_info["search_aliases"]
+    assert "gcms" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_dir", "parameter_file"}
+    assert set(inputs["optional"]) == {
+        "analysis_type",
+        "msdial_executable",
+        "use_mono",
+        "keep_project_file",
+        "output_name",
+    }
+
+
+def test_msdial_processing_renders_mono_command_with_project_retention() -> None:
+    node_class = _node_class("msdial_processing")
+
+    cmd = node_class.render_command({
+        "input_dir": "/data/lcms",
+        "parameter_file": "/params/lcmsdda.txt",
+        "analysis_type": "lcmsdda",
+        "msdial_executable": "/opt/msdial/MsdialConsoleApp.exe",
+        "use_mono": True,
+        "keep_project_file": True,
+        "output_name": "study one",
+        "output": "/tmp/run/msdial_processing",
+    })
+
+    assert cmd == [
+        "mono",
+        "/opt/msdial/MsdialConsoleApp.exe",
+        "lcmsdda",
+        "-i",
+        "/data/lcms",
+        "-o",
+        "/tmp/run/msdial_processing/study_one",
+        "-m",
+        "/params/lcmsdda.txt",
+        "-p",
+        "&&",
+        "python",
+        "-c",
+        node_class.INDEX_SCRIPT,
+        "/tmp/run/msdial_processing/study_one",
+        "/tmp/run/msdial_processing/study_one.result_index.tsv",
+        "/tmp/run/msdial_processing/study_one.metadata.json",
+        "/data/lcms",
+        "/params/lcmsdda.txt",
+        "lcmsdda",
+        "/opt/msdial/MsdialConsoleApp.exe",
+        "true",
+        "true",
+    ]
+
+
+def test_msdial_processing_renders_custom_executable_without_mono() -> None:
+    node_class = _node_class("msdial_processing")
+
+    cmd = node_class.render_command({
+        "input_dir": "/data/gcms",
+        "parameter_file": "/params/gcms.txt",
+        "analysis_type": "gcms",
+        "msdial_executable": "MsdialConsoleApp.exe",
+        "use_mono": False,
+        "keep_project_file": False,
+        "output_name": "",
+        "output": "/tmp/run/msdial_processing",
+    })
+
+    assert cmd == [
+        "MsdialConsoleApp.exe",
+        "gcms",
+        "-i",
+        "/data/gcms",
+        "-o",
+        "/tmp/run/msdial_processing/gcms",
+        "-m",
+        "/params/gcms.txt",
+        "&&",
+        "python",
+        "-c",
+        node_class.INDEX_SCRIPT,
+        "/tmp/run/msdial_processing/gcms",
+        "/tmp/run/msdial_processing/gcms.result_index.tsv",
+        "/tmp/run/msdial_processing/gcms.metadata.json",
+        "/data/gcms",
+        "/params/gcms.txt",
+        "gcms",
+        "MsdialConsoleApp.exe",
+        "false",
+        "false",
+    ]
+    assert "mono" not in cmd
+    assert "-p" not in cmd
+
+
+def test_msdial_processing_rejects_unsupported_analysis_type() -> None:
+    node_class = _node_class("msdial_processing")
+
+    try:
+        node_class.render_command({
+            "input_dir": "/data/lcms",
+            "parameter_file": "/params/params.txt",
+            "analysis_type": "invalid",
+            "output": "/tmp/run/msdial_processing",
+        })
+    except ValueError as exc:
+        assert "analysis_type" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unsupported MS-DIAL analysis type")
+
+
+def test_msdial_processing_plans_outputs() -> None:
+    node_class = _node_class("msdial_processing")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"analysis_type": "lcmsdia", "output_name": "dia study"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/msdial_processing/dia_study",
+        "/tmp/run/msdial_processing/dia_study.result_index.tsv",
+        "/tmp/run/msdial_processing/dia_study.metadata.json",
+    ]
+
+
+def test_msdial_processing_environment_metadata_avoids_fake_msdial_conda_package() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["mono"] == "mono"
+    packages = workflow_to_packages({"nodes": [{"id": "msdial", "type": "msdial_processing"}]}, registry)
+
+    assert packages == ["mono"]
+    assert "msdial" not in packages
+    assert "MsdialConsoleApp.exe" not in packages
