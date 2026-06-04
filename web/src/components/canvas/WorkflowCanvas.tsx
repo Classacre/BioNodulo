@@ -3635,9 +3635,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             <div className="node-hover-card-meta">{node.category}</div>
             {node.meta.description && <p>{node.meta.description}</p>}
             <div className="node-hover-card-grid">
-              <span>Inputs</span><strong>{node.inputs.length}</strong>
-              <span>Outputs</span><strong>{node.outputs.length}</strong>
-              {node.meta.version && <><span>Version</span><strong>{node.meta.version}</strong></>}
+              <span>{t('canvas.hoverInputs')}</span><strong>{node.inputs.length}</strong>
+              <span>{t('canvas.hoverOutputs')}</span><strong>{node.outputs.length}</strong>
+              {node.meta.version && <><span>{t('canvas.hoverVersion')}</span><strong>{node.meta.version}</strong></>}
             </div>
           </div>
         );
@@ -3765,7 +3765,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       {canvasMenu && (
         <div className="context-menu" style={{ left: canvasMenu.x, top: canvasMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
-            <div className="context-menu-item" onClick={() => { setPalettePos({ x: canvasMenu.x, y: canvasMenu.y }); setCanvasMenu(null); }}>Add Node</div>
+            <div className="context-menu-item" onClick={() => { setPalettePos({ x: canvasMenu.x, y: canvasMenu.y }); setCanvasMenu(null); }}>{t('canvas.addNode')}</div>
             <div className="context-menu-item" onClick={() => {
               const rerouteMeta = objectInfo.reroute;
               if (rerouteMeta) {
@@ -3785,8 +3785,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Add Reroute Here</div>
-            <div className="context-menu-item" onClick={() => { fitView(); setCanvasMenu(null); }}>Fit View</div>
+            }}>{t('canvas.addRerouteHere')}</div>
+            <div className="context-menu-item" onClick={() => { fitView(); setCanvasMenu(null); }}>{t('canvas.fitView')}</div>
             <div className="context-menu-sep" />
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
@@ -3796,9 +3796,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Group Selected Nodes</div>
+            }}>{t('canvas.groupSelectedNodes')}</div>
             <div className="context-menu-sep" />
-            <div className="context-menu-item" onClick={() => { onNodesChange(nodes.map(n => ({ ...n, selected: true }))); setCanvasMenu(null); }}>Select All</div>
+            <div className="context-menu-item" onClick={() => { onNodesChange(nodes.map(n => ({ ...n, selected: true }))); setCanvasMenu(null); }}>{t('canvas.selectAll')}</div>
             <div className="context-menu-sep" />
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
@@ -3812,7 +3812,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Align Left</div>
+            }}>{t('canvas.alignLeft')}</div>
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
               if (selected.length > 1) {
@@ -3825,7 +3825,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Align Top</div>
+            }}>{t('canvas.alignTop')}</div>
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
               if (selected.length > 1) {
@@ -3841,7 +3841,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Distribute Horizontally</div>
+            }}>{t('canvas.distributeHorizontal')}</div>
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
               if (selected.length > 1) {
@@ -3857,7 +3857,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                 onPushHistory();
               }
               setCanvasMenu(null);
-            }}>Distribute Vertically</div>
+            }}>{t('canvas.distributeVertical')}</div>
             <div className="context-menu-item" onClick={() => {
               const layout = arrangeNodesLayout(graphNodes, edges);
               setGraphNodes(prev => prev.map(n => {
@@ -3871,7 +3871,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               onNodesChange(updatedNodes);
               onPushHistory();
               setCanvasMenu(null);
-            }}>Arrange Nodes</div>
+            }}>{t('canvas.arrangeNodes')}</div>
             <div className="context-menu-item" onClick={() => {
               const dataUrl = exportThumbnailDataURL(graphNodes, edges, groups);
               const a = document.createElement('a');
@@ -3879,9 +3879,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               a.download = 'workflow_thumbnail.png';
               a.click();
               setCanvasMenu(null);
-            }}>Export Thumbnail</div>
+            }}>{t('canvas.exportThumbnail')}</div>
             <div className="context-menu-sep" />
-            <div className="context-menu-item" onClick={() => { onNodesChange([]); onEdgesChange([]); onPushHistory(); setCanvasMenu(null); }}>Clear Workflow</div>
+            <div className="context-menu-item" onClick={() => { onNodesChange([]); onEdgesChange([]); onPushHistory(); setCanvasMenu(null); }}>{t('canvas.clearWorkflow')}</div>
           </div>
         </div>
       )}
@@ -3904,12 +3904,12 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       {linkContextMenu && (
         <div className="context-menu" style={{ left: linkContextMenu.x, top: linkContextMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
-            <div className="context-menu-item" onClick={() => insertRerouteOnEdge(linkContextMenu.edgeId, { x: linkContextMenu.worldX, y: linkContextMenu.worldY })}>Insert Reroute</div>
+            <div className="context-menu-item" onClick={() => insertRerouteOnEdge(linkContextMenu.edgeId, { x: linkContextMenu.worldX, y: linkContextMenu.worldY })}>{t('canvas.insertReroute')}</div>
             <div className="context-menu-item" onClick={() => {
               onEdgesChange(edges.filter(e => e.id !== linkContextMenu.edgeId));
               onPushHistory();
               setLinkContextMenu(null);
-            }}>Delete Link</div>
+            }}>{t('canvas.deleteLink')}</div>
           </div>
         </div>
       )}
