@@ -515,6 +515,155 @@ def test_dorado_basecaller_plans_bam_output() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/dorado_basecaller/basecalled_bam.bam"]
 
 
+def test_dorado_demux_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dorado_demux"]
+    assert node_info["display_name"] == "Dorado Demux"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"].startswith("Demultiplex ONT reads")
+    assert node_info["output"] == ["DIRECTORY", "TSV"]
+    assert node_info["output_name"] == ["demux_dir", "barcode_summary"]
+    assert node_info["required_executables"] == ["dorado"]
+    assert node_info["required_conda_packages"] == ["dorado"]
+    assert node_info["experimental"] is True
+    assert "barcoding" in node_info["search_aliases"]
+    assert "demultiplex" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reads", "mode"}
+    assert set(inputs["optional"]) == {
+        "kit_name",
+        "sample_sheet",
+        "barcode_arrangement",
+        "barcode_sequences",
+        "emit_fastq",
+        "emit_summary",
+        "no_trim",
+        "sort_bam",
+        "recursive",
+        "threads",
+        "output_name",
+    }
+
+
+def test_dorado_demux_renders_classify_and_demux_command() -> None:
+    node_class = _node_class("dorado_demux")
+
+    cmd = node_class.render_command({
+        "reads": "calls.bam",
+        "mode": "classify",
+        "kit_name": "SQK-NBD114-24",
+        "sample_sheet": "samples.csv",
+        "barcode_arrangement": "arrangement.toml",
+        "barcode_sequences": "barcodes.fasta",
+        "emit_fastq": True,
+        "emit_summary": True,
+        "no_trim": True,
+        "sort_bam": False,
+        "recursive": True,
+        "threads": 6,
+        "output_name": "run one",
+        "output": "/tmp/run/dorado_demux",
+    })
+
+    assert cmd == [
+        "dorado",
+        "demux",
+        "--output-dir",
+        "/tmp/run/dorado_demux/run_one",
+        "--kit-name",
+        "SQK-NBD114-24",
+        "--sample-sheet",
+        "samples.csv",
+        "--barcode-arrangement",
+        "arrangement.toml",
+        "--barcode-sequences",
+        "barcodes.fasta",
+        "--emit-fastq",
+        "--emit-summary",
+        "--no-trim",
+        "--recursive",
+        "--threads",
+        "6",
+        "calls.bam",
+    ]
+
+
+def test_dorado_demux_renders_no_classify_split_command() -> None:
+    node_class = _node_class("dorado_demux")
+
+    cmd = node_class.render_command({
+        "reads": "/data/basecalled.bam",
+        "mode": "split",
+        "kit_name": "",
+        "emit_fastq": False,
+        "emit_summary": False,
+        "no_trim": True,
+        "sort_bam": True,
+        "recursive": False,
+        "threads": 0,
+        "output_name": "",
+        "output": "/tmp/run/dorado_demux",
+    })
+
+    assert "--kit-name" not in cmd
+    assert "--emit-fastq" not in cmd
+    assert "--emit-summary" not in cmd
+    assert "--threads" not in cmd
+    assert cmd == [
+        "dorado",
+        "demux",
+        "--output-dir",
+        "/tmp/run/dorado_demux/basecalled_demux",
+        "--no-classify",
+        "--no-trim",
+        "--sort-bam",
+        "/data/basecalled.bam",
+    ]
+
+
+def test_dorado_demux_plans_output_directory_and_summary() -> None:
+    node_class = _node_class("dorado_demux")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"reads": "/data/calls.bam", "output_name": "run one"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/dorado_demux/run_one",
+        "/tmp/run/dorado_demux/run_one/barcode_summary.tsv",
+    ]
+
+
+def test_dorado_demux_validation_rejects_invalid_mode_and_missing_kit() -> None:
+    node_class = _node_class("dorado_demux")
+
+    assert node_class.VALIDATE_INPUTS({
+        "reads": "calls.bam",
+        "mode": "trim",
+    }) == "Unsupported Dorado demux mode: trim"
+    assert node_class.VALIDATE_INPUTS({
+        "reads": "calls.bam",
+        "mode": "classify",
+        "kit_name": "",
+    }) == "kit_name is required when mode is classify."
+    assert node_class.VALIDATE_INPUTS({
+        "reads": "calls.bam",
+        "mode": "split",
+        "kit_name": "SQK-NBD114-24",
+    }) == "kit_name cannot be used when mode is split."
+    assert node_class.VALIDATE_INPUTS({
+        "reads": "calls.bam",
+        "mode": "split",
+        "sort_bam": True,
+        "no_trim": False,
+    }) == "sort_bam requires no_trim so mapped reads remain valid."
+
+
 def test_dorado_duplex_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
