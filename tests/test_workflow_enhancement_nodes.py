@@ -68,6 +68,11 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         assert node_info["required_executables"] == []
 
 
+def test_control_nodes_declare_always_run_executor_cache_policy() -> None:
+    for node_id in ("checkpoint", "memoize", "cache_control", "retry", "pause_resume", "sub_workflow"):
+        assert getattr(_node_class(node_id), "EXECUTOR_CACHE_POLICY") == "always_run"
+
+
 @pytest.mark.asyncio
 async def test_timer_passes_value_and_records_timing_metadata(tmp_path: Path) -> None:
     context = _context(tmp_path, "timer-node")

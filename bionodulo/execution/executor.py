@@ -55,6 +55,8 @@ class ExecutionContext:
         cancel_event: Asyncio event that signals cancellation.
         env_prefix: Optional command prefix for environment isolation
             (e.g. ["pixi", "run", "-e", "qc", "--"]).
+        run_metadata: Mutable metadata for the whole workflow run.
+        executor: The active workflow executor instance.
     """
 
     run_id: str
@@ -67,6 +69,8 @@ class ExecutionContext:
     emit: Callable[[str, dict[str, Any]], None]
     cancel_event: asyncio.Event
     env_prefix: list[str] = field(default_factory=list)
+    run_metadata: dict[str, Any] = field(default_factory=dict)
+    executor: Any | None = None
 
     # Mutable state set during execution
     _previews: list[dict[str, Any]] = field(default_factory=list, repr=False)
@@ -416,7 +420,12 @@ class WorkflowExecutor:
 
             # ---- Compute cache key ----
             cache_key = None
-            forced_node = force or node_id in force_nodes or executes_loop_body
+            forced_node = (
+                force
+                or node_id in force_nodes
+                or executes_loop_body
+                or self._executor_cache_policy(_node_class) == "always_run"
+            )
             if not forced_node:
                 cache_key = self.cache.cache_key_for_node(
                     node_id=node_id,
@@ -493,6 +502,8 @@ class WorkflowExecutor:
                 emit=emit,
                 cancel_event=cancel_event,
                 env_prefix=env_prefix,
+                run_metadata=run_metadata,
+                executor=self,
             )
 
             # ---- Execute the node ----
@@ -612,6 +623,10 @@ class WorkflowExecutor:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _executor_cache_policy(node_class: Any) -> str:
+        return str(getattr(node_class, "EXECUTOR_CACHE_POLICY", "cacheable") or "cacheable")
 
     def _inactive_upstream(
         self,
@@ -893,6 +908,8 @@ class WorkflowExecutor:
                         emit=emit,
                         cancel_event=ctx.cancel_event,
                         env_prefix=self._env_prefix_for_node(body_node, workflow),
+                        run_metadata=ctx.run_metadata,
+                        executor=ctx.executor or self,
                     )
                     body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                     outputs = body_result.get("outputs", {})

@@ -333,6 +333,82 @@ async def test_workflow_executor_target_nodes_execute_upstream_dependencies_only
     assert result["metadata"]["target_nodes"] == ["c"]
 
 
+@pytest.mark.asyncio
+async def test_workflow_executor_context_exposes_executor_and_shared_run_metadata(tmp_path: Path) -> None:
+    class ContextProbeNode:
+        RETURN_NAMES = ("out",)
+        observations: list[dict[str, Any]] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            context.run_metadata.setdefault("context_probe", []).append(context.node_id)
+            self.observations.append({
+                "node_id": context.node_id,
+                "has_executor": context.executor is not None,
+                "shared_metadata": context.run_metadata,
+            })
+            return {"outputs": {"out": context.node_id}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[ContextProbeNode]:
+            return ContextProbeNode
+
+    workflow = {
+        "nodes": [{"id": "probe", "type": "context_probe", "outputs": {"out": {}}}],
+        "edges": [],
+    }
+    ContextProbeNode.observations = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("context-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["metadata"]["context_probe"] == ["probe"]
+    assert ContextProbeNode.observations == [{
+        "node_id": "probe",
+        "has_executor": True,
+        "shared_metadata": result["metadata"],
+    }]
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_always_run_cache_policy_bypasses_generic_cache(tmp_path: Path) -> None:
+    class AlwaysRunNode:
+        RETURN_NAMES = ("out",)
+        EXECUTOR_CACHE_POLICY = "always_run"
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return {"outputs": {"out": f"run-{type(self).calls}"}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[AlwaysRunNode]:
+            return AlwaysRunNode
+
+    workflow = {
+        "nodes": [{"id": "control", "type": "always_run", "outputs": {"out": {}}}],
+        "edges": [],
+    }
+    AlwaysRunNode.calls = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    first = await executor.execute("first", workflow)
+    second = await executor.execute("second", workflow)
+
+    assert first["outputs"]["control"]["out"] == "run-1"
+    assert second["outputs"]["control"]["out"] == "run-2"
+    assert second["node_results"]["control"]["status"] == "completed"
+    assert second["node_results"]["control"]["cache_key"] is None
+
+
 def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
     run_request = RunCreateRequest(
         workflow={"nodes": [], "edges": []},

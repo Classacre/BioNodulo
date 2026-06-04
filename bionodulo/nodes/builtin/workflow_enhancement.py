@@ -939,6 +939,7 @@ class CheckpointNode(BaseNode):
     RETURN_TYPES = ("ANY", "FILE", "JSON")
     RETURN_NAMES = ("passthrough", "checkpoint_file", "checkpoint_info")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -1049,6 +1050,7 @@ class MemoizeNode(BaseNode):
     RETURN_TYPES = ("ANY", "STRING", "JSON")
     RETURN_NAMES = ("output", "hash", "memo_info")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
     SUPPORTED_ALGORITHMS = {"sha256", "md5", "blake2b"}
 
     @classmethod
@@ -1141,6 +1143,7 @@ class CacheControlNode(BaseNode):
     RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
     RETURN_NAMES = ("output", "cache_hit", "cache_info")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -1436,6 +1439,7 @@ class RetryNode(BaseNode):
     RETURN_TYPES = ("ANY", "JSON")
     RETURN_NAMES = ("passthrough", "retry_log")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
     RETRY_ON_OPTIONS = {"all", "timeout", "memory", "exit_code"}
 
     @classmethod
@@ -1933,6 +1937,7 @@ class PauseResumeNode(BaseNode):
     RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
     RETURN_NAMES = ("output", "approved", "pause_info")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
     DEFAULT_ACTIONS = {"wait", "approve", "reject"}
 
     @classmethod
@@ -2065,6 +2070,7 @@ class SubWorkflowNode(BaseNode):
     RETURN_TYPES = ("JSON", "FILE")
     RETURN_NAMES = ("outputs", "run_metadata")
     REQUIRES_EXTERNAL_TOOLS = False
+    EXECUTOR_CACHE_POLICY = "always_run"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
