@@ -293,6 +293,152 @@ def test_strelka2_dependency_metadata_is_available() -> None:
     assert PACKAGE_MIN_VERSIONS["strelka"] == ">=2.9.10"
 
 
+def test_gridss_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["gridss"]
+    assert node_info["display_name"] == "GRIDSS SV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call structural variants with GRIDSS")
+    assert node_info["output"] == ["VCF_GZ", "BAM"]
+    assert node_info["output_name"] == ["sv_vcf", "assembly_bam"]
+    assert node_info["required_executables"] == ["gridss"]
+    assert node_info["required_conda_packages"] == ["gridss"]
+    assert "breakend" in node_info["search_aliases"]
+    assert "assembly sv" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bams", "reference", "threads"}
+    assert set(inputs["optional"]) == {"blacklist", "labels", "steps", "gridss_jar", "jvm_heap"}
+
+
+def test_gridss_renders_joint_calling_command_with_optional_flags() -> None:
+    node_class = _node_class("gridss")
+
+    cmd = node_class.render_command({
+        "bams": ["tumor.bam", "normal.bam"],
+        "reference": "GRCh38.fa",
+        "threads": 12,
+        "blacklist": "encode_blacklist.bed",
+        "labels": "tumor,normal",
+        "steps": "all",
+        "gridss_jar": "/opt/gridss/gridss.jar",
+        "jvm_heap": "31g",
+        "output": "/tmp/run/gridss",
+    })
+
+    assert cmd == [
+        "gridss",
+        "--reference",
+        "GRCh38.fa",
+        "--output",
+        "/tmp/run/gridss/sv_vcf.vcf.gz",
+        "--assembly",
+        "/tmp/run/gridss/assembly_bam.bam",
+        "--threads",
+        "12",
+        "--workingdir",
+        "/tmp/run/gridss/gridss_working",
+        "--blacklist",
+        "encode_blacklist.bed",
+        "--labels",
+        "tumor,normal",
+        "--steps",
+        "all",
+        "--jar",
+        "/opt/gridss/gridss.jar",
+        "--jvmheap",
+        "31g",
+        "tumor.bam",
+        "normal.bam",
+    ]
+
+
+def test_gridss_omits_optional_flags_for_single_sample_calling() -> None:
+    node_class = _node_class("gridss")
+
+    cmd = node_class.render_command({
+        "bams": "sample.bam",
+        "reference": "GRCh38.fa",
+        "threads": 4,
+        "blacklist": "",
+        "labels": "",
+        "steps": "all",
+        "gridss_jar": "",
+        "jvm_heap": "",
+        "output": "/tmp/run/gridss",
+    })
+
+    assert "--blacklist" not in cmd
+    assert "--labels" not in cmd
+    assert "--jar" not in cmd
+    assert "--jvmheap" not in cmd
+    assert cmd == [
+        "gridss",
+        "--reference",
+        "GRCh38.fa",
+        "--output",
+        "/tmp/run/gridss/sv_vcf.vcf.gz",
+        "--assembly",
+        "/tmp/run/gridss/assembly_bam.bam",
+        "--threads",
+        "4",
+        "--workingdir",
+        "/tmp/run/gridss/gridss_working",
+        "--steps",
+        "all",
+        "sample.bam",
+    ]
+
+
+def test_gridss_plans_vcf_and_assembly_bam_outputs() -> None:
+    node_class = _node_class("gridss")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/gridss/sv_vcf.vcf.gz",
+        "/tmp/run/gridss/assembly_bam.bam",
+    ]
+
+
+def test_gridss_rejects_empty_bams_reference_threads_and_mismatched_labels() -> None:
+    node_class = _node_class("gridss")
+
+    assert (
+        node_class.VALIDATE_INPUTS({"bams": [], "reference": "GRCh38.fa", "threads": 4})
+        == "At least one BAM is required"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({"bams": "sample.bam", "reference": "", "threads": 4})
+        == "Input 'reference' must not be empty"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({"bams": "sample.bam", "reference": "GRCh38.fa", "threads": 0})
+        == "Input 'threads' must be at least 1"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "bams": ["tumor.bam", "normal.bam"],
+            "reference": "GRCh38.fa",
+            "threads": 4,
+            "labels": "tumor",
+        })
+        == "Number of GRIDSS labels must match number of BAM inputs"
+    )
+
+
+def test_gridss_environment_metadata_is_available() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["gridss"] == "gridss"
+    assert PACKAGE_MIN_VERSIONS["gridss"] == ">=2.13.2"
+    assert workflow_to_packages({"nodes": [{"id": "gridss", "type": "gridss"}]}, registry) == ["gridss"]
+
+
 def test_melt_mobile_elements_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
