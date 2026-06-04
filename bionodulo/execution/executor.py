@@ -522,7 +522,13 @@ class WorkflowExecutor:
                         emit=emit,
                     )
                 else:
-                    result = await self._execute_node(ctx, node, resolved_inputs)
+                    result = await self._execute_node_with_retry(
+                        ctx=ctx,
+                        node=node,
+                        inputs=resolved_inputs,
+                        upstream_nodes={edge_source(edge) for edge in edge_map.get(node_id, [])},
+                        emit=emit,
+                    )
                 outputs = result.get("outputs", {})
                 inactive_outputs = self._inactive_output_ports(
                     result,
@@ -535,6 +541,7 @@ class WorkflowExecutor:
                     "status": "completed",
                     "outputs": outputs,
                     "cache_key": cache_key,
+                    "attempts": result.get("attempts", 1),
                 }
                 node_outputs[node_id] = outputs
 
@@ -575,6 +582,7 @@ class WorkflowExecutor:
                     },
                 )
                 node_results[node_id] = {"status": "failed", "error": msg, "traceback": tb}
+                node_results[node_id]["attempts"] = getattr(exc, "attempts", 1)
                 failed_nodes.add(node_id)
                 if stop_on_error:
                     break
@@ -1108,6 +1116,102 @@ class WorkflowExecutor:
             "Ensure the node is registered in the node registry."
         )
 
+    async def _execute_node_with_retry(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        upstream_nodes: set[str],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Execute a node and apply the nearest applicable retry policy."""
+        policy = self._retry_policy_for_node(ctx.node_id, upstream_nodes, ctx.run_metadata)
+        max_retries = max(0, int(policy.get("max_retries", 0) or 0)) if policy else 0
+        max_attempts = max_retries + 1
+        attempts = 0
+        last_exc: Exception | None = None
+
+        while attempts < max_attempts:
+            attempts += 1
+            try:
+                result = await self._execute_node(ctx, node, inputs)
+                result["attempts"] = attempts
+                return result
+            except Exception as exc:
+                last_exc = exc
+                if attempts >= max_attempts or not self._retry_matches_exception(policy, exc):
+                    setattr(exc, "attempts", attempts)
+                    raise
+                next_attempt = attempts + 1
+                emit(
+                    "node_retry",
+                    {
+                        "run_id": ctx.run_id,
+                        "node_id": ctx.node_id,
+                        "attempt": next_attempt,
+                        "max_attempts": max_attempts,
+                    },
+                )
+                delay = self._retry_delay(policy, attempts)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
+        if last_exc is not None:
+            setattr(last_exc, "attempts", attempts)
+            raise last_exc
+        raise RuntimeError(f"Retry execution failed for {ctx.node_id}")
+
+    def _retry_policy_for_node(
+        self,
+        node_id: str,
+        upstream_nodes: set[str],
+        run_metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        policies = run_metadata.get("retry_policies", [])
+        if not isinstance(policies, list):
+            return None
+        for policy in reversed(policies):
+            if not isinstance(policy, dict):
+                continue
+            policy_node_id = str(policy.get("node_id", ""))
+            if policy_node_id not in upstream_nodes:
+                continue
+            target_nodes = self._coerce_node_id_set(policy.get("target_nodes", []))
+            if target_nodes and node_id not in target_nodes:
+                continue
+            return policy
+        return None
+
+    @staticmethod
+    def _retry_matches_exception(policy: dict[str, Any] | None, exc: Exception) -> bool:
+        if not policy:
+            return False
+        retry_on = str(policy.get("retry_on", "all") or "all").lower()
+        if retry_on == "all":
+            return True
+        message = str(exc).lower()
+        if retry_on == "timeout":
+            return isinstance(exc, TimeoutError) or "timeout" in message or "timed out" in message
+        if retry_on == "memory":
+            return "memory" in message or "oom" in message
+        if retry_on == "exit_code":
+            return "exit code" in message or "returncode" in message or "returned non-zero" in message
+        return False
+
+    @staticmethod
+    def _retry_delay(policy: dict[str, Any] | None, completed_attempts: int) -> float:
+        if not policy:
+            return 0.0
+        delays = policy.get("delays_seconds")
+        if isinstance(delays, list) and completed_attempts - 1 < len(delays):
+            return max(0.0, float(delays[completed_attempts - 1] or 0.0))
+        delay_seconds = max(0.0, float(policy.get("delay_seconds", 0.0) or 0.0))
+        backoff_multiplier = max(1.0, float(policy.get("backoff_multiplier", 1.0) or 1.0))
+        max_delay = max(0.0, float(policy.get("max_delay", delay_seconds) or delay_seconds))
+        delay = delay_seconds * (backoff_multiplier ** max(0, completed_attempts - 1))
+        return min(delay, max_delay) if max_delay > 0 else delay
+
     def _normalize_result(
         self,
         raw: Any,
@@ -1267,7 +1371,7 @@ class WorkflowExecutor:
                 if not isinstance(p_str, (str, Path)):
                     continue
                 p = Path(p_str)
-                if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
+                if self._path_exists(p) and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
                     previews.append(
                         {
                             "path": str(p),
@@ -1296,7 +1400,7 @@ class WorkflowExecutor:
                     if not isinstance(p_str, (str, Path)):
                         continue
                     p = Path(p_str)
-                    if p.exists():
+                    if self._path_exists(p):
                         artifacts.append(
                             {
                                 "node_id": node_id,
@@ -1307,6 +1411,13 @@ class WorkflowExecutor:
                         }
                     )
         return artifacts
+
+    @staticmethod
+    def _path_exists(path: Path) -> bool:
+        try:
+            return path.exists()
+        except OSError:
+            return False
 
     def _write_metadata(self, run_id: str, metadata: dict[str, Any]) -> None:
         """Write run metadata JSON to the workspace."""

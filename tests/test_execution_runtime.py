@@ -18,6 +18,7 @@ from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.manager.diagnostics import _check_r_packages_env_aware
 from bionodulo.nodes.command_node import _shell_join
+from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.graph import (
     edge_source,
     edge_source_port,
@@ -407,6 +408,233 @@ async def test_workflow_executor_always_run_cache_policy_bypasses_generic_cache(
     assert second["outputs"]["control"]["out"] == "run-2"
     assert second["node_results"]["control"]["status"] == "completed"
     assert second["node_results"]["control"]["cache_key"] is None
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_retries_downstream_node_after_retry_policy(tmp_path: Path) -> None:
+    class RetryPolicyNode:
+        RETURN_NAMES = ("passthrough", "retry_log")
+        EXECUTOR_CACHE_POLICY = "always_run"
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {"input": ("ANY", {})},
+                "optional": {
+                    "max_retries": ("INT", {"default": 1}),
+                    "delay_seconds": ("FLOAT", {"default": 0.0}),
+                    "backoff_multiplier": ("FLOAT", {"default": 1.0}),
+                    "max_delay": ("INT", {"default": 1}),
+                    "retry_on": (["all"], {"default": "all"}),
+                    "only_retry_specific_nodes": ("STRING", {"default": ""}),
+                },
+            }
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            policy = {
+                "node_id": context.node_id,
+                "max_retries": int(kwargs.get("max_retries", 1)),
+                "delay_seconds": float(kwargs.get("delay_seconds", 0.0)),
+                "backoff_multiplier": float(kwargs.get("backoff_multiplier", 1.0)),
+                "max_delay": float(kwargs.get("max_delay", 1.0)),
+                "retry_on": str(kwargs.get("retry_on", "all")),
+                "target_nodes": [
+                    value.strip()
+                    for value in str(kwargs.get("only_retry_specific_nodes", "")).split(",")
+                    if value.strip()
+                ],
+                "delays_seconds": [0.0],
+            }
+            context.run_metadata.setdefault("retry_policies", []).append(policy)
+            return {"outputs": {"passthrough": kwargs["input"], "retry_log": "registered"}}
+
+    class FlakyNode:
+        NODE_ID = "flaky_registered"
+        RETURN_NAMES = ("out",)
+        attempts = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"input": ("ANY", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            type(self).attempts += 1
+            if type(self).attempts == 1:
+                raise RuntimeError("temporary failure")
+            return {"outputs": {"out": f"{kwargs['input']}:attempt-{type(self).attempts}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "retry": RetryPolicyNode,
+                "flaky": FlakyNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "retry",
+                "type": "retry",
+                "outputs": {"passthrough": {}, "retry_log": {}},
+                "params": {"input": "reads", "max_retries": 1, "delay_seconds": 0.0},
+            },
+            {"id": "flaky", "type": "flaky", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "retry", "target_node": "flaky", "source_output": "passthrough", "target_input": "input"},
+        ],
+    }
+    FlakyNode.attempts = 0
+    events: list[tuple[str, dict[str, Any]]] = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("retry-run", workflow, emit=lambda event, payload: events.append((event, payload)))
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["flaky"]["out"] == "reads:attempt-2"
+    assert result["node_results"]["flaky"]["attempts"] == 2
+    assert FlakyNode.attempts == 2
+    assert ("node_retry", {"run_id": "retry-run", "node_id": "flaky", "attempt": 2, "max_attempts": 2}) in events
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_retry_policy_respects_specific_target_nodes(tmp_path: Path) -> None:
+    class RetryPolicyNode:
+        RETURN_NAMES = ("passthrough", "retry_log")
+        EXECUTOR_CACHE_POLICY = "always_run"
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {"input": ("ANY", {})},
+                "optional": {
+                    "max_retries": ("INT", {"default": 2}),
+                    "delay_seconds": ("FLOAT", {"default": 0.0}),
+                    "only_retry_specific_nodes": ("STRING", {"default": "flaky_allowed"}),
+                },
+            }
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            context.run_metadata.setdefault("retry_policies", []).append({
+                "node_id": context.node_id,
+                "max_retries": int(kwargs.get("max_retries", 2)),
+                "delay_seconds": float(kwargs.get("delay_seconds", 0.0)),
+                "backoff_multiplier": 1.0,
+                "max_delay": 1.0,
+                "retry_on": "all",
+                "target_nodes": [
+                    value.strip()
+                    for value in str(kwargs.get("only_retry_specific_nodes", "")).split(",")
+                    if value.strip()
+                ],
+                "delays_seconds": [0.0, 0.0],
+            })
+            return {"outputs": {"passthrough": kwargs["input"], "retry_log": "registered"}}
+
+    class FlakyNode:
+        RETURN_NAMES = ("out",)
+        attempts_by_node: dict[str, int] = {}
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"input": ("ANY", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            attempts = type(self).attempts_by_node.get(context.node_id, 0) + 1
+            type(self).attempts_by_node[context.node_id] = attempts
+            raise RuntimeError(f"{context.node_id} fails on attempt {attempts}")
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "retry": RetryPolicyNode,
+                "flaky": FlakyNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "retry",
+                "type": "retry",
+                "outputs": {"passthrough": {}, "retry_log": {}},
+                "params": {
+                    "input": "reads",
+                    "max_retries": 2,
+                    "delay_seconds": 0.0,
+                    "only_retry_specific_nodes": "flaky_allowed",
+                },
+            },
+            {"id": "flaky_blocked", "type": "flaky", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {
+                "source_node": "retry",
+                "target_node": "flaky_blocked",
+                "source_output": "passthrough",
+                "target_input": "input",
+            },
+        ],
+    }
+    FlakyNode.attempts_by_node = {}
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("retry-target-run", workflow)
+
+    assert result["status"] == "failed"
+    assert FlakyNode.attempts_by_node == {"flaky_blocked": 1}
+    assert result["node_results"]["flaky_blocked"]["attempts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_consumes_registered_retry_node_policy(tmp_path: Path) -> None:
+    class FlakyNode:
+        NODE_ID = "flaky_registered"
+        RETURN_NAMES = ("out",)
+        attempts = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"input": ("ANY", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            type(self).attempts += 1
+            if type(self).attempts == 1:
+                raise RuntimeError("transient CLI failure")
+            return {"outputs": {"out": f"{kwargs['input']}:ok"}}
+
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    registry.register(FlakyNode)
+    workflow = {
+        "nodes": [
+            {
+                "id": "retry",
+                "type": "retry",
+                "outputs": {"passthrough": {}, "retry_log": {}},
+                "params": {
+                    "input": "sample.bam",
+                    "max_retries": 1,
+                    "delay_seconds": 0.0,
+                    "backoff_multiplier": 1.0,
+                    "max_delay": 1,
+                    "retry_on": "all",
+                },
+            },
+            {"id": "flaky", "type": "flaky_registered", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "retry", "target_node": "flaky", "source_output": "passthrough", "target_input": "input"},
+        ],
+    }
+    FlakyNode.attempts = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("registered-retry-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["flaky"]["out"] == "sample.bam:ok"
+    assert result["metadata"]["retry_policies"][0]["executor_retry_supported"] is True
+    assert result["node_results"]["flaky"]["attempts"] == 2
 
 
 def test_execution_request_schemas_accept_frontend_gap_fields() -> None:

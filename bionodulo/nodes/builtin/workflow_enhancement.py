@@ -1494,8 +1494,8 @@ class RetryNode(BaseNode):
             "target_nodes": target_nodes,
             "delays_seconds": self._delays(max_retries, delay_seconds, backoff_multiplier, max_delay),
             "timestamp": time.time(),
-            "executor_retry_supported": False,
-            "note": "Retry policy recorded; executor-level downstream retry consumption is not implemented yet.",
+            "executor_retry_supported": True,
+            "note": "Retry policy recorded; the executor applies it to downstream matching nodes.",
         }
 
         if context is not None and hasattr(context, "run_metadata"):

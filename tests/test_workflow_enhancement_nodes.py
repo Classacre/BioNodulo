@@ -733,7 +733,7 @@ async def test_retry_records_policy_in_context_metadata_and_event(tmp_path: Path
     assert retry_log["retry_on"] == "timeout"
     assert retry_log["target_nodes"] == ["align", "call_variants"]
     assert retry_log["delays_seconds"] == [2.5, 7.5, 22.5, 30.0]
-    assert retry_log["executor_retry_supported"] is False
+    assert retry_log["executor_retry_supported"] is True
     assert context.run_metadata["retry_policies"][0]["node_id"] == "retry-node"
     assert context.events[0][0] == "retry_policy_registered"
     assert context.logs[0][0] == "info"
