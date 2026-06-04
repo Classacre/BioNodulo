@@ -1989,6 +1989,7 @@ class WorkflowTriggerNode(BaseNode):
             {
                 "trigger_type": trigger_type,
                 "target_workflow": target_workflow,
+                "payload": payload,
                 "timestamp": timestamp,
             }
         )
@@ -2076,8 +2077,9 @@ class WorkflowTriggerNode(BaseNode):
             "next_run_at": next_run.isoformat(),
             "next_run_at_utc": next_run_utc.isoformat(),
             "seconds_until_next_run": int((next_run_utc - now.astimezone(dt_timezone.utc)).total_seconds()),
+            "scheduler_runner_contract_supported": True,
             "durable_scheduler_supported": False,
-            "note": "Schedule intent recorded; durable scheduler execution is not implemented yet.",
+            "note": "Schedule registration written with pollable due-run metadata; durable scheduler execution is not implemented yet.",
         }
         return (info, True)
 
@@ -2187,6 +2189,39 @@ class WorkflowTriggerNode(BaseNode):
         trigger_file = trigger_dir / f"{trigger_type}_{node_id}.json"
         trigger_file.write_text(json.dumps(info, indent=2, sort_keys=True, default=str), encoding="utf-8")
         return str(trigger_file)
+
+    @classmethod
+    def due_schedule_triggers(cls, trigger_dir: str | Path, now: str | datetime | None = None) -> list[dict[str, Any]]:
+        base = Path(trigger_dir)
+        if not base.exists():
+            return []
+        now_utc = cls._coerce_utc_datetime(now)
+        due: list[dict[str, Any]] = []
+        for trigger_file in sorted(base.glob("schedule_*.json")):
+            try:
+                info = json.loads(trigger_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"schedule trigger file is not valid JSON: {trigger_file}") from exc
+            if not isinstance(info, dict) or info.get("trigger_type") != "schedule":
+                continue
+            next_run = cls._coerce_utc_datetime(info.get("next_run_at_utc"))
+            if next_run <= now_utc:
+                due_info = dict(info)
+                due_info["trigger_file"] = str(trigger_file)
+                due.append(due_info)
+        return due
+
+    @staticmethod
+    def _coerce_utc_datetime(value: str | datetime | None) -> datetime:
+        if value is None:
+            return datetime.fromtimestamp(time.time(), tz=dt_timezone.utc)
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt_timezone.utc)
+        return parsed.astimezone(dt_timezone.utc)
 
     async def _post_json(self, url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         import httpx

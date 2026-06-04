@@ -1054,11 +1054,13 @@ async def test_workflow_trigger_records_schedule_intent(tmp_path: Path) -> None:
     assert trigger_info["cron_expression"] == "30 2 * * 1"
     assert trigger_info["timezone"] == "Australia/Perth"
     assert trigger_info["target_workflow"] == "weekly-qc"
+    assert trigger_info["scheduler_runner_contract_supported"] is True
     assert trigger_info["durable_scheduler_supported"] is False
-    assert trigger_info["note"].startswith("Schedule intent recorded")
+    assert trigger_info["note"].startswith("Schedule registration written")
     assert schedule_file == tmp_path / "workflow_triggers" / "schedule_trigger-schedule.json"
     assert saved["cron_expression"] == "30 2 * * 1"
     assert saved["target_workflow"] == "weekly-qc"
+    assert saved["payload"] == {}
     assert saved["trigger_type"] == "schedule"
     assert context.events[0][0] == "workflow_trigger"
 
@@ -1097,6 +1099,46 @@ async def test_workflow_trigger_schedule_calculates_next_run_in_timezone(
     }
     assert saved["next_run_at"] == trigger_info["next_run_at"]
     assert saved["next_run_at_utc"] == trigger_info["next_run_at_utc"]
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_schedule_due_resolver_lists_due_registrations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # 2026-06-05T01:45:00Z is Friday 09:45 in Australia/Perth.
+    monkeypatch.setattr("bionodulo.nodes.builtin.workflow_enhancement.time.time", lambda: 1780623900.0)
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-due-run")
+    context.workspace_dir = tmp_path
+
+    trigger_info_json, triggered = await node_class().run(
+        trigger_type="schedule",
+        cron_expression="30 2 * * 1",
+        timezone="Australia/Perth",
+        target_workflow="weekly-qc",
+        payload={"sample": "S1"},
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    trigger_dir = tmp_path / "workflow_triggers"
+    assert triggered is True
+    assert trigger_info["scheduler_runner_contract_supported"] is True
+    assert node_class.due_schedule_triggers(
+        trigger_dir,
+        now="2026-06-07T18:29:59+00:00",
+    ) == []
+    due = node_class.due_schedule_triggers(
+        trigger_dir,
+        now="2026-06-07T18:30:00+00:00",
+    )
+    assert len(due) == 1
+    assert due[0]["trigger_type"] == "schedule"
+    assert due[0]["target_workflow"] == "weekly-qc"
+    assert due[0]["payload"] == {"sample": "S1"}
+    assert due[0]["next_run_at_utc"] == "2026-06-07T18:30:00+00:00"
+    assert Path(due[0]["trigger_file"]) == tmp_path / "workflow_triggers" / "schedule_trigger-due-run.json"
 
 
 @pytest.mark.asyncio
