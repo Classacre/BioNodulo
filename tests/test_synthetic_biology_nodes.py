@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -99,3 +100,180 @@ def test_sbol_design_import_plans_outputs() -> None:
 
 def test_sbol_design_import_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["pysbol3"] == ">=1.1"
+
+
+def test_copasi_simulation_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["copasi_simulation"]
+    assert node_info["display_name"] == "COPASI Simulation"
+    assert node_info["category"] == "synthetic_biology"
+    assert node_info["description"].startswith("Run COPASI batch simulations")
+    assert node_info["output"] == ["TSV", "CPS", "LOG", "JSON"]
+    assert node_info["output_name"] == ["report", "updated_model", "log", "metadata"]
+    assert node_info["required_executables"] == ["CopasiSE"]
+    assert node_info["required_conda_packages"] == []
+    assert node_info["experimental"] is True
+    assert "copasi" in node_info["search_aliases"]
+    assert "CopasiSE" in node_info["search_aliases"]
+    assert "kinetic model" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"model_file"}
+    assert set(inputs["optional"]) == {
+        "copasi_executable",
+        "scheduled_task",
+        "sedml_task",
+        "save_model",
+        "validate_only",
+        "verbose",
+        "max_time",
+        "output_name",
+    }
+
+
+def test_copasi_simulation_renders_batch_command_with_task_override() -> None:
+    node_class = _node_class("copasi_simulation")
+
+    cmd = node_class.render_command({
+        "model_file": "/models/glycolysis.cps",
+        "copasi_executable": "CopasiSE",
+        "scheduled_task": "Time-Course",
+        "sedml_task": "",
+        "save_model": True,
+        "validate_only": False,
+        "verbose": True,
+        "max_time": 600,
+        "output_name": "glycolysis run",
+        "output": "/tmp/run/copasi_simulation",
+    })
+
+    assert cmd == [
+        "CopasiSE",
+        "--nologo",
+        "--verbose",
+        "/models/glycolysis.cps",
+        "-s",
+        "/tmp/run/copasi_simulation/glycolysis_run.updated.cps",
+        "--report-file",
+        "/tmp/run/copasi_simulation/glycolysis_run.report.tsv",
+        "--scheduled-task",
+        "Time-Course",
+        "--maxTime",
+        "600",
+        ">",
+        "/tmp/run/copasi_simulation/glycolysis_run.log",
+        "2>&1",
+        "&&",
+        "python",
+        "-c",
+        node_class.METADATA_SCRIPT,
+        "/tmp/run/copasi_simulation/glycolysis_run.metadata.json",
+        "/models/glycolysis.cps",
+        "/tmp/run/copasi_simulation/glycolysis_run.report.tsv",
+        "/tmp/run/copasi_simulation/glycolysis_run.updated.cps",
+        "/tmp/run/copasi_simulation/glycolysis_run.log",
+        "CopasiSE",
+        "Time-Course",
+        "",
+        "false",
+        "true",
+        "true",
+        "600",
+    ]
+
+
+def test_copasi_simulation_renders_sedml_validation_command_without_save() -> None:
+    node_class = _node_class("copasi_simulation")
+
+    cmd = node_class.render_command({
+        "model_file": "/models/study.omex",
+        "copasi_executable": "/opt/copasi/CopasiSE",
+        "scheduled_task": "",
+        "sedml_task": "repTsk_0_0_0",
+        "save_model": False,
+        "validate_only": True,
+        "verbose": False,
+        "max_time": 0,
+        "output_name": "",
+        "output": "/tmp/run/copasi_simulation",
+    })
+
+    assert cmd == [
+        "/opt/copasi/CopasiSE",
+        "--nologo",
+        "--validate",
+        "/models/study.omex",
+        "--report-file",
+        "/tmp/run/copasi_simulation/study.report.tsv",
+        "--sedmlTask",
+        "repTsk_0_0_0",
+        ">",
+        "/tmp/run/copasi_simulation/study.log",
+        "2>&1",
+        "&&",
+        "python",
+        "-c",
+        node_class.METADATA_SCRIPT,
+        "/tmp/run/copasi_simulation/study.metadata.json",
+        "/models/study.omex",
+        "/tmp/run/copasi_simulation/study.report.tsv",
+        "/tmp/run/copasi_simulation/study.updated.cps",
+        "/tmp/run/copasi_simulation/study.log",
+        "/opt/copasi/CopasiSE",
+        "",
+        "repTsk_0_0_0",
+        "true",
+        "false",
+        "false",
+        "0",
+    ]
+    assert "-s" not in cmd
+    assert "--maxTime" not in cmd
+
+
+def test_copasi_simulation_rejects_conflicting_task_overrides() -> None:
+    node_class = _node_class("copasi_simulation")
+
+    try:
+        node_class.render_command({
+            "model_file": "/models/study.omex",
+            "scheduled_task": "Time-Course",
+            "sedml_task": "repTsk_0_0_0",
+            "output": "/tmp/run/copasi_simulation",
+        })
+    except ValueError as exc:
+        assert "scheduled_task" in str(exc)
+        assert "sedml_task" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for conflicting COPASI task overrides")
+
+
+def test_copasi_simulation_plans_outputs() -> None:
+    node_class = _node_class("copasi_simulation")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"model_file": "/models/glycolysis.cps", "output_name": "glycolysis run"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/copasi_simulation/glycolysis_run.report.tsv",
+        "/tmp/run/copasi_simulation/glycolysis_run.updated.cps",
+        "/tmp/run/copasi_simulation/glycolysis_run.log",
+        "/tmp/run/copasi_simulation/glycolysis_run.metadata.json",
+    ]
+
+
+def test_copasi_simulation_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["CopasiSE"] == ""
+    assert "copasi" not in PACKAGE_MIN_VERSIONS
+    packages = workflow_to_packages({"nodes": [{"id": "copasi", "type": "copasi_simulation"}]}, registry)
+
+    assert packages == []
+    assert "CopasiSE" not in packages

@@ -17,6 +17,7 @@ from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.manager.diagnostics import _check_r_packages_env_aware
+from bionodulo.nodes.command_node import _shell_join
 from bionodulo.workflow.graph import (
     edge_source,
     edge_source_port,
@@ -61,6 +62,12 @@ def test_cache_store_tracks_and_replaces_markers_atomically(tmp_path: Path) -> N
     store.write_marker("abc", outputs={"out": "two"})
     assert store.is_hit("abc")
     assert store.read_marker("abc")["outputs"] == {"out": "two"}
+
+
+def test_shell_join_preserves_file_descriptor_redirects() -> None:
+    command = _shell_join(["tool", "input file.txt", ">", "tool.log", "2>&1"])
+
+    assert command == "tool 'input file.txt' > tool.log 2>&1"
 
 
 def test_cache_clear_preserves_unrelated_files(tmp_path: Path) -> None:

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Shell metacharacters that must NOT be quoted when building a shell command string.
 _SHELL_METACHARS = {">", ">>", "|", "||", "&&", ";", "<", "<<", "$(", "${", "`", "&"}
+_FD_REDIRECT_RE = re.compile(r"^\d*(?:<>|>>|>|<|>&|<&|&>)[^\s]*$")
 
 
 def _shell_join(cmd: list[str]) -> str:
@@ -31,7 +32,7 @@ def _shell_join(cmd: list[str]) -> str:
     """
     parts: list[str] = []
     for token in cmd:
-        if token in _SHELL_METACHARS or token.startswith((">", "<", "|", "&", ";")):
+        if token in _SHELL_METACHARS or token.startswith((">", "<", "|", "&", ";")) or _FD_REDIRECT_RE.match(token):
             parts.append(token)
         else:
             parts.append(shlex.quote(token))
