@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
@@ -13,13 +14,13 @@ interface ExportModalProps {
 
 type ExportFormat = 'png' | 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
 
-const FORMATS: { id: ExportFormat; name: string; ext: string }[] = [
-  { id: 'png', name: 'PNG (workflow embedded)', ext: '.png' },
-  { id: 'json', name: 'BioNodulo JSON', ext: '.json' },
-  { id: 'snakemake', name: 'SnakeMake', ext: '.smk' },
-  { id: 'nextflow', name: 'NextFlow', ext: '.nf' },
-  { id: 'cwl', name: 'CWL', ext: '.cwl' },
-  { id: 'galaxy', name: 'Galaxy (.ga)', ext: '.ga' },
+const FORMATS: { id: ExportFormat; labelKey: string; ext: string }[] = [
+  { id: 'png', labelKey: 'exportModal.formats.png', ext: '.png' },
+  { id: 'json', labelKey: 'exportModal.formats.json', ext: '.json' },
+  { id: 'snakemake', labelKey: 'exportModal.formats.snakemake', ext: '.smk' },
+  { id: 'nextflow', labelKey: 'exportModal.formats.nextflow', ext: '.nf' },
+  { id: 'cwl', labelKey: 'exportModal.formats.cwl', ext: '.cwl' },
+  { id: 'galaxy', labelKey: 'exportModal.formats.galaxy', ext: '.ga' },
 ];
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -34,6 +35,7 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 export default function ExportModal({ workflow, onClose }: ExportModalProps) {
+  const { t } = useTranslation();
   // PNG is now the default because (a) it carries the workflow in a tEXt
   // chunk so it doubles as both share image and importable artifact, and
   // (b) the user can always tick "JSON only" to fall back to a plain .json
@@ -78,7 +80,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
           setContent(data.content || data.workflow || JSON.stringify(workflow, null, 2));
         } catch (err) {
           if (err instanceof ApiError) {
-            setContent(`# ${format} export\n# Backend converter not available (${err.status})\n\n${JSON.stringify(workflow, null, 2)}`);
+            setContent(`# ${t('exportModal.converterFallbackTitle', { format: t(`exportModal.formats.${format}`) })}\n# ${t('exportModal.converterFallbackMessage', { status: err.status })}\n\n${JSON.stringify(workflow, null, 2)}`);
           } else {
             throw err;
           }
@@ -149,11 +151,11 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         className="modal-content"
         role="dialog"
         aria-modal="true"
-        aria-label="Export workflow"
+        aria-label={t('exportModal.title')}
         style={{ width: 720, maxHeight: '80vh' }}
         onClick={event => event.stopPropagation()}
       >
-        <div className="modal-header">Export Workflow</div>
+        <div className="modal-header">{t('exportModal.title')}</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {FORMATS.map(f => (
@@ -163,7 +165,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
                 onClick={() => { setFormat(f.id); resetState(); }}
                 type="button"
               >
-                {f.name}
+                {t(f.labelKey)}
               </button>
             ))}
           </div>
@@ -182,7 +184,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
               }}
             >
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                The PNG carries the full workflow JSON in a tEXt chunk; drag it back into the canvas to restore the graph.
+                {t('exportModal.pngHelp')}
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                 <input
@@ -191,10 +193,10 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
                   onChange={event => setTransparentBg(event.target.checked)}
                   disabled={pngJsonOnly}
                 />
-                Transparent background
+                {t('exportModal.transparentBackground')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                <span style={{ minWidth: 96 }}>Resolution</span>
+                <span style={{ minWidth: 96 }}>{t('exportModal.resolution')}</span>
                 <input
                   type="range"
                   min={0.5}
@@ -215,14 +217,14 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
                   checked={pngJsonOnly}
                   onChange={event => setPngJsonOnly(event.target.checked)}
                 />
-                JSON only (skip PNG wrapper)
+                {t('exportModal.jsonOnly')}
               </label>
             </div>
           )}
 
           {!content && !pngPreview && (
             <button className="btn btn-primary" onClick={generate} disabled={generating}>
-              {generating ? 'Generating...' : format === 'png' && !pngJsonOnly ? 'Render thumbnail' : 'Generate'}
+              {generating ? t('exportModal.generating') : format === 'png' && !pngJsonOnly ? t('exportModal.renderThumbnail') : t('exportModal.generate')}
             </button>
           )}
 
@@ -234,7 +236,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
               <img
                 src={pngPreview}
-                alt="Workflow thumbnail preview"
+                alt={t('exportModal.thumbnailAlt')}
                 style={{
                   width: '100%',
                   maxWidth: 640,
@@ -249,8 +251,8 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
                 }}
               />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" onClick={download}>Download PNG</button>
-                <button className="btn" onClick={generate}>Regenerate</button>
+                <button className="btn btn-primary" onClick={download}>{t('exportModal.downloadPng')}</button>
+                <button className="btn" onClick={generate}>{t('exportModal.regenerate')}</button>
               </div>
             </div>
           )}
@@ -263,15 +265,15 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
                 style={{ width: '100%', minHeight: 300, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', resize: 'vertical' }}
               />
               <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" onClick={download}>Download</button>
-                <button className="btn" onClick={() => navigator.clipboard.writeText(content)}>Copy to Clipboard</button>
-                <button className="btn" onClick={generate}>Regenerate</button>
+                <button className="btn btn-primary" onClick={download}>{t('common.download')}</button>
+                <button className="btn" onClick={() => navigator.clipboard.writeText(content)}>{t('exportModal.copyToClipboard')}</button>
+                <button className="btn" onClick={generate}>{t('exportModal.regenerate')}</button>
               </div>
             </>
           )}
         </div>
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>Close</button>
+          <button className="btn" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>
     </div>

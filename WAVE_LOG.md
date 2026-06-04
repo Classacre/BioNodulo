@@ -405,6 +405,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Workflow doctor modal title, severity summaries, healthy/empty states, diagnostic finding titles/details, jump action, and footer close action now read from `doctor` / `common` i18n keys with Spanish unit coverage.
 - Batch sample-sheet modal title, helper copy, upload/name controls, sheet summary, column mapping controls, preview heading, validation errors, and queue/submitting actions now read from `batchSampleSheet` / `common` i18n keys with Spanish unit coverage.
 - Import modal title, helper text, parse/error alerts, parsing state, and footer actions now read from `importModal` / `common` i18n keys with Spanish unit coverage.
+- Export modal title, format tabs, PNG option copy, generation actions, thumbnail alt text, converter fallback copy, and footer actions now read from `exportModal` / `common` i18n keys with Spanish unit coverage.
 
 ---
 
