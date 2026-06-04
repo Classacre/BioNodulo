@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
 import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
@@ -49,18 +50,19 @@ function buildGroups(
   frequentNodes: NodeMetadata[],
   bookmarkedNodes: NodeMetadata[],
   showHeuristicGroups: boolean,
+  labels: { bookmarks: string; mostUsed: string; recentlyUsed: string },
 ): NodeGroup[] {
   const groups: NodeGroup[] = [];
   // Bookmarks sit at the top regardless of search/category state — they're an
   // explicit user signal and should win over both frequency and recency.
   if (showHeuristicGroups && bookmarkedNodes.length > 0) {
-    groups.push({ label: 'Bookmarks', nodes: bookmarkedNodes, bookmarked: true });
+    groups.push({ label: labels.bookmarks, nodes: bookmarkedNodes, bookmarked: true });
   }
   const bookmarkedIds = new Set(bookmarkedNodes.map(meta => meta.id));
   if (showHeuristicGroups && frequentNodes.length > 0) {
     const filteredFrequent = frequentNodes.filter(meta => !bookmarkedIds.has(meta.id));
     if (filteredFrequent.length > 0) {
-      groups.push({ label: 'Most Used', nodes: filteredFrequent, frequent: true });
+      groups.push({ label: labels.mostUsed, nodes: filteredFrequent, frequent: true });
     }
   }
   if (showHeuristicGroups && recentNodes.length > 0) {
@@ -70,7 +72,7 @@ function buildGroups(
     frequentNodes.forEach(meta => seen.add(meta.id));
     const filteredRecent = recentNodes.filter(meta => !seen.has(meta.id));
     if (filteredRecent.length > 0) {
-      groups.push({ label: 'Recently Used', nodes: filteredRecent, recent: true });
+      groups.push({ label: labels.recentlyUsed, nodes: filteredRecent, recent: true });
     }
   }
 
@@ -118,6 +120,7 @@ function NodeLibraryResult({
   onFocus: (id: string) => void;
   onToggleBookmark: (meta: NodeMetadata) => void;
 }) {
+  const { t } = useTranslation();
   const tools = meta.requires_external_tools || [];
   const subtitle = meta.description || meta.id;
   const [showPreview, setShowPreview] = useState(false);
@@ -154,13 +157,15 @@ function NodeLibraryResult({
       onMouseLeave={cancelShow}
       onFocus={() => onFocus(meta.id)}
       onBlur={cancelShow}
-      title={usageCount ? `Add ${meta.display_name} (used ${usageCount}×)` : `Add ${meta.display_name}`}
+      title={usageCount
+        ? t('nodeLibrary.addNodeUsedTitle', { name: meta.display_name, count: usageCount })
+        : t('nodeLibrary.addNodeTitle', { name: meta.display_name })}
     >
       <span className="node-search-result-main">
         <span className="node-search-result-title">
           {meta.display_name}
           {usageCount !== undefined && usageCount > 0 && (
-            <span className="node-usage-badge" aria-label={`Used ${usageCount} times`}>
+            <span className="node-usage-badge" aria-label={t('nodeLibrary.usedTimes', { count: usageCount })}>
               {usageCount}×
             </span>
           )}
@@ -175,9 +180,11 @@ function NodeLibraryResult({
         className={`node-bookmark-toggle ${bookmarked ? 'is-on' : ''}`}
         role="button"
         tabIndex={-1}
-        aria-label={bookmarked ? `Remove ${meta.display_name} from bookmarks` : `Bookmark ${meta.display_name}`}
+        aria-label={bookmarked
+          ? t('nodeLibrary.removeBookmark', { name: meta.display_name })
+          : t('nodeLibrary.bookmarkNode', { name: meta.display_name })}
         onClick={event => { event.stopPropagation(); onToggleBookmark(meta); }}
-        title={bookmarked ? 'Bookmarked — click to remove' : 'Bookmark this node'}
+        title={bookmarked ? t('nodeLibrary.bookmarkedTitle') : t('nodeLibrary.bookmarkTitle')}
       >
         <Icon name="star" size={12} />
       </span>
@@ -193,7 +200,7 @@ function NodeLibraryResult({
           )}
           {ports.inputs.length > 0 && (
             <div className="node-preview-tooltip-section">
-              <div className="node-preview-tooltip-heading">Inputs</div>
+              <div className="node-preview-tooltip-heading">{t('nodeLibrary.inputs')}</div>
               {ports.inputs.map(port => (
                 <div key={port.name} className="node-preview-tooltip-port">
                   <span className="node-preview-tooltip-port-name">{port.name}</span>
@@ -204,7 +211,7 @@ function NodeLibraryResult({
           )}
           {ports.outputs.length > 0 && (
             <div className="node-preview-tooltip-section">
-              <div className="node-preview-tooltip-heading">Outputs</div>
+              <div className="node-preview-tooltip-heading">{t('nodeLibrary.outputs')}</div>
               {ports.outputs.map(port => (
                 <div key={port.name} className="node-preview-tooltip-port">
                   <span className="node-preview-tooltip-port-name">{port.name}</span>
@@ -215,7 +222,7 @@ function NodeLibraryResult({
           )}
           {tools.length > 0 && (
             <div className="node-preview-tooltip-section">
-              <div className="node-preview-tooltip-heading">Tools</div>
+              <div className="node-preview-tooltip-heading">{t('nodeLibrary.tools')}</div>
               <div className="node-preview-tooltip-tools">{tools.join(', ')}</div>
             </div>
           )}
@@ -226,6 +233,7 @@ function NodeLibraryResult({
 }
 
 export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control', 'Subgraphs']));
   const [blueprints, setBlueprints] = useState<SubgraphBlueprint[]>(() => listBlueprints());
@@ -273,8 +281,19 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
   }, [searchResults, categoryFilters]);
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
-    () => buildGroups(searchedNodes, recentNodes, frequentMetas, bookmarkedMetas, !hasQuery && categoryFilters.size === 0),
-    [hasQuery, recentNodes, frequentMetas, bookmarkedMetas, searchedNodes, categoryFilters],
+    () => buildGroups(
+      searchedNodes,
+      recentNodes,
+      frequentMetas,
+      bookmarkedMetas,
+      !hasQuery && categoryFilters.size === 0,
+      {
+        bookmarks: t('nodeLibrary.bookmarks'),
+        mostUsed: t('nodeLibrary.mostUsed'),
+        recentlyUsed: t('nodeLibrary.recentlyUsed'),
+      },
+    ),
+    [hasQuery, recentNodes, frequentMetas, bookmarkedMetas, searchedNodes, categoryFilters, t],
   );
   const keyboardNodes = useMemo(() => uniqueNodes(groups.flatMap(group => group.nodes)), [groups]);
   const totalNodes = Object.values(objectInfo).length;
@@ -345,8 +364,8 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
   return (
     <div className="rail-panel node-library-panel">
       <div className="rail-panel-header">
-        <span>Node Library</span>
-        <button className="btn btn-icon btn-sm" onClick={onClose} title="Close node library">
+        <span>{t('nodeLibrary.title')}</span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('nodeLibrary.closeTitle')}>
           <Icon name="close" size={14} />
         </button>
       </div>
@@ -354,12 +373,12 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
         <div className="node-search-wrap">
           <input
             className="palette-search node-search-input"
-            placeholder="Search nodes..."
+            placeholder={t('nodeLibrary.searchPlaceholder')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             aria-activedescendant={activeNodeId ? safeNodeDomId('node-library-result', activeNodeId) : undefined}
-            aria-label="Search nodes"
+            aria-label={t('nodeLibrary.searchAria')}
             role="combobox"
             aria-expanded="true"
           />
@@ -369,27 +388,27 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
           <span>
             {loading && totalNodes === 0 ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Spinner size="sm" label="Loading nodes" /> Loading node registry…
+                <Spinner size="sm" label={t('nodeLibrary.loadingNodes')} /> {t('nodeLibrary.loadingRegistry')}
               </span>
             ) : hasQuery
-              ? `${searchedNodes.length} match${searchedNodes.length === 1 ? '' : 'es'}${categoryFilters.size ? ' (filtered)' : ''}`
-              : `${totalNodes} nodes available`}
+              ? `${t('nodeLibrary.matchCount', { count: searchedNodes.length })}${categoryFilters.size ? ` ${t('nodeLibrary.filteredSuffix')}` : ''}`
+              : t('nodeLibrary.nodesAvailable', { count: totalNodes })}
           </span>
           {!hasQuery && recentNodes.length > 0 && (
-            <button className="node-search-clear" type="button" onClick={clearRecentNodes} title="Clear recent nodes">
-              Clear recent
+            <button className="node-search-clear" type="button" onClick={clearRecentNodes} title={t('nodeLibrary.clearRecentNodes')}>
+              {t('nodeLibrary.clearRecent')}
             </button>
           )}
         </div>
         {categoryFilters.size > 0 && (
-          <div className="node-filter-chips" role="group" aria-label="Active category filters">
+          <div className="node-filter-chips" role="group" aria-label={t('nodeLibrary.activeCategoryFilters')}>
             {Array.from(categoryFilters).map(label => (
               <button
                 key={label}
                 type="button"
                 className="node-filter-chip"
                 onClick={() => toggleCategoryFilter(label)}
-                title={`Remove "${label}" filter`}
+                title={t('nodeLibrary.removeFilterTitle', { label })}
               >
                 <span>{label}</span>
                 <Icon name="close" size={10} />
@@ -400,9 +419,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                 type="button"
                 className="node-filter-chip-clear"
                 onClick={clearCategoryFilters}
-                title="Clear all filters"
+                title={t('nodeLibrary.clearAllFilters')}
               >
-                Clear all
+                {t('nodeLibrary.clearAll')}
               </button>
             )}
           </div>
@@ -419,10 +438,12 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                 type="button"
                 className="node-category-toggle"
                 onClick={() => toggle('Subgraphs')}
-                title={expanded.has('Subgraphs') ? 'Collapse Subgraphs' : 'Expand Subgraphs'}
+                title={expanded.has('Subgraphs')
+                  ? t('nodeLibrary.collapseGroup', { label: t('nodeLibrary.subgraphs') })
+                  : t('nodeLibrary.expandGroup', { label: t('nodeLibrary.subgraphs') })}
               >
                 <Icon name={expanded.has('Subgraphs') ? 'chevronDown' : 'chevronRight'} size={12} />
-                <span>Subgraphs</span>
+                <span>{t('nodeLibrary.subgraphs')}</span>
                 <span className="node-category-count">{filteredBlueprints.length}</span>
               </button>
               {expanded.has('Subgraphs') && (
@@ -440,19 +461,23 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                           flex: 1, background: 'transparent', border: 'none', color: 'inherit',
                           cursor: 'pointer', textAlign: 'left', padding: 0,
                         }}
-                        title={`Add ${bp.name}`}
+                        title={t('nodeLibrary.addNodeTitle', { name: bp.name })}
                       >
                         <span className="node-search-result-main">
                           <span className="node-search-result-title">{bp.name}</span>
                           <span className="node-search-result-desc">
-                            {bp.workflow.nodes?.length ?? 0} nodes · {bp.inputPorts.length} in / {bp.outputPorts.length} out
+                            {t('nodeLibrary.blueprintPorts', {
+                              nodes: bp.workflow.nodes?.length ?? 0,
+                              inputs: bp.inputPorts.length,
+                              outputs: bp.outputPorts.length,
+                            })}
                           </span>
                         </span>
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteBlueprint(bp.id)}
-                        title="Delete blueprint"
+                        title={t('nodeLibrary.deleteBlueprint')}
                         style={{
                           background: 'transparent', border: 'none', color: 'var(--muted)',
                           cursor: 'pointer', padding: '0 4px', fontSize: 14,
@@ -479,10 +504,10 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                         type="button"
                         className="node-search-clear"
                         onClick={clearUsageStats}
-                        title="Reset usage frequency"
+                        title={t('nodeLibrary.resetUsageFrequency')}
                         style={{ marginLeft: 'auto' }}
                       >
-                        Reset
+                        {t('nodeLibrary.reset')}
                       </button>
                     )}
                   </div>
@@ -492,7 +517,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                       type="button"
                       className="node-category-toggle"
                       onClick={() => toggle(group.label)}
-                      title={expandedGroup ? `Collapse ${group.label}` : `Expand ${group.label}`}
+                      title={expandedGroup
+                        ? t('nodeLibrary.collapseGroup', { label: group.label })
+                        : t('nodeLibrary.expandGroup', { label: group.label })}
                     >
                       <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
                       <span>{group.label}</span>
@@ -502,7 +529,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                       type="button"
                       className={`node-category-filter ${categoryFilters.has(group.label) ? 'is-active' : ''}`}
                       onClick={(event) => { event.stopPropagation(); toggleCategoryFilter(group.label); }}
-                      title={categoryFilters.has(group.label) ? `Remove filter for ${group.label}` : `Filter to ${group.label}`}
+                      title={categoryFilters.has(group.label)
+                        ? t('nodeLibrary.removeCategoryFilter', { label: group.label })
+                        : t('nodeLibrary.filterTo', { label: group.label })}
                       aria-pressed={categoryFilters.has(group.label)}
                     >
                       <Icon name={categoryFilters.has(group.label) ? 'check' : 'plus'} size={10} />
@@ -531,7 +560,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
           })}
           {keyboardNodes.length === 0 && (
             <div className="node-search-empty">
-              No nodes match "{query}"
+              {t('nodeLibrary.emptyQuery', { query })}
             </div>
           )}
         </div>

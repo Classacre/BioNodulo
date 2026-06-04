@@ -384,6 +384,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - TopBar visible run/queue/status controls now read from i18n keys, with Spanish runtime coverage for validation status, queue count, run/export/AI buttons, run options, batch controls, and queue-mode menu labels.
 - Manager status now has an explicit backend/frontend contract for the read-only custom-node manager surface: `/manager/status` exposes `custom_nodes_dir`, `installed_nodes`, and `total`, and the frontend `ManagerStatus` type matches that route instead of the stale package/environment shape.
 - Workflow-owned `useWorkflow` and `useHistory` now live under `web/src/hooks/workflow/` and export through that category barrel; the workflow message hook imports notifications directly instead of pulling in the full UI barrel during hook-only tests.
+- Node Library panel chrome, search summaries, result actions, bookmark affordances, tooltip headings, subgraph actions, and empty states now read from `nodeLibrary` i18n keys, with Spanish unit and browser coverage for the panel surface.
 
 ---
 
