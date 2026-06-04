@@ -375,6 +375,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Checkpoints now include a JSON-safe snapshot of shared run metadata alongside local checkpoint context when upstream metadata is requested.
 - `cache_control` run-scope cache markers now live under the current run id, so a "run" scoped cache miss in `run-1` does not turn into a hit for `run-2`; explicit custom cache directories and global/user scopes keep their existing shared behavior.
 - Retry policies are now consumed by the executor for downstream matching nodes: the executor retries failed nodes according to the recorded policy, emits `node_retry`, records attempt counts, and respects `only_retry_specific_nodes`.
+- ForEach loop body subgraphs now honor inactive branch outputs, so conditional routing inside loops skips inactive body branches per iteration.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---

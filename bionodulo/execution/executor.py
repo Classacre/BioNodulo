@@ -868,6 +868,8 @@ class WorkflowExecutor:
             local_outputs: dict[str, dict[str, Any]] = {
                 ctx.node_id: {"iteration": iteration_value},
             }
+            local_inactive_outputs: dict[str, set[str]] = {}
+            local_skipped_nodes: set[str] = set()
             loop_signal = "none"
 
             try:
@@ -886,6 +888,27 @@ class WorkflowExecutor:
                             "iteration": visible_iteration,
                         },
                     )
+
+                    inactive_upstream = self._inactive_upstream(
+                        body_node_id,
+                        body_edge_map,
+                        local_skipped_nodes,
+                        local_inactive_outputs,
+                    )
+                    if inactive_upstream is not None:
+                        local_skipped_nodes.add(body_node_id)
+                        emit(
+                            "node_skip",
+                            {
+                                "run_id": ctx.run_id,
+                                "node_id": body_node_id,
+                                "reason": "inactive_branch",
+                                "upstream": inactive_upstream,
+                                "loop_parent": ctx.node_id,
+                                "iteration": visible_iteration,
+                            },
+                        )
+                        continue
 
                     combined_outputs = {**node_outputs, **local_outputs}
                     body_inputs = self._resolve_inputs(
@@ -921,6 +944,13 @@ class WorkflowExecutor:
                     )
                     body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                     outputs = body_result.get("outputs", {})
+                    inactive_outputs = self._inactive_output_ports(
+                        body_result,
+                        outputs,
+                        body_class,
+                    )
+                    if inactive_outputs:
+                        local_inactive_outputs[body_node_id] = inactive_outputs
                     local_outputs[body_node_id] = outputs
                     emit(
                         "node_complete",

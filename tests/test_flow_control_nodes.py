@@ -1318,3 +1318,80 @@ async def test_executor_foreach_break_stops_remaining_iterations(tmp_path: Path)
     assert result["outputs"]["loop"]["results"] == ["processed:S1"]
     assert result["outputs"]["loop"]["count"] == 2
     assert result["outputs"]["loop"]["all_succeeded"] is True
+
+
+@pytest.mark.asyncio
+async def test_executor_foreach_body_honors_inactive_branch_outputs(tmp_path: Path) -> None:
+    foreach_node = _node_class("foreach")
+    if_node = _node_class("if_condition")
+
+    class BranchRecorderNode:
+        NODE_ID = "branch_recorder"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[tuple[str, Any]] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append((context.node_id, value))
+            return {"outputs": {"out": f"{context.node_id}:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "foreach": foreach_node,
+                "if_condition": if_node,
+                "branch_recorder": BranchRecorderNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "foreach",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3"]},
+                    "iteration_mode": {"value": "single"},
+                    "collect_mode": {"value": "list"},
+                },
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            {
+                "id": "route",
+                "type": "if_condition",
+                "inputs": {
+                    "condition_mode": {"value": "string_equal"},
+                    "compare_to": {"value": "S2"},
+                },
+                "outputs": {"true": {}, "false": {}, "condition_result": {}},
+            },
+            {"id": "true_body", "type": "branch_recorder", "outputs": {"out": {}}},
+            {"id": "false_body", "type": "branch_recorder", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "route", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "route", "target_node": "true_body", "source_output": "true", "target_input": "value"},
+            {"source_node": "route", "target_node": "false_body", "source_output": "false", "target_input": "value"},
+            {"source_node": "true_body", "target_node": "loop", "source_output": "out", "target_input": "body_result"},
+            {"source_node": "false_body", "target_node": "loop", "source_output": "out", "target_input": "body_result"},
+        ],
+    }
+    BranchRecorderNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("foreach-branch-routing", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert BranchRecorderNode.calls == [
+        ("false_body", "S1"),
+        ("true_body", "S2"),
+        ("false_body", "S3"),
+    ]
+    assert result["outputs"]["loop"]["results"] == [
+        "false_body:S1",
+        "true_body:S2",
+        "false_body:S3",
+    ]
