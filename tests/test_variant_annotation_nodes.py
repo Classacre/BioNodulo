@@ -1033,3 +1033,117 @@ def test_interproscan_plans_outputs() -> None:
 def test_interproscan_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["interproscan.sh"] == "interproscan"
     assert PACKAGE_MIN_VERSIONS["interproscan"] == ">=5.71"
+
+
+def test_pbsv_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["pbsv"]
+    assert node_info["display_name"] == "PBSV Caller"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("PacBio structural variant caller")
+    assert node_info["output"] == ["VCF", "FILE"]
+    assert node_info["output_name"] == ["sv_vcf", "svsig"]
+    assert node_info["required_executables"] == ["pbsv"]
+    assert node_info["required_conda_packages"] == ["pbsv"]
+    assert "pacbio" in node_info["search_aliases"]
+    assert "hifi sv" in node_info["search_aliases"]
+    assert "structural variant" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "sample_name", "threads"}
+    assert set(inputs["optional"]) == {"tandem_repeats", "ccs"}
+
+
+def test_pbsv_renders_discover_and_call_command() -> None:
+    node_class = _node_class("pbsv")
+
+    cmd = node_class.render_command({
+        "bam": "aligned.bam",
+        "reference": "ref.fa",
+        "sample_name": "HG002",
+        "threads": 8,
+        "tandem_repeats": "repeats.bed",
+        "ccs": True,
+        "output": "/tmp/run/pbsv",
+    })
+
+    assert cmd == [
+        "pbsv",
+        "discover",
+        "aligned.bam",
+        "/tmp/run/pbsv/HG002.svsig.gz",
+        "--tandem-repeats",
+        "repeats.bed",
+        "&&",
+        "pbsv",
+        "call",
+        "--ccs",
+        "-j",
+        "8",
+        "ref.fa",
+        "/tmp/run/pbsv/HG002.svsig.gz",
+        "/tmp/run/pbsv/HG002.pbsv.vcf",
+    ]
+
+
+def test_pbsv_omits_disabled_optional_flags() -> None:
+    node_class = _node_class("pbsv")
+
+    cmd = node_class.render_command({
+        "bam": "aligned.bam",
+        "reference": "ref.fa",
+        "sample_name": "sample",
+        "threads": 2,
+        "tandem_repeats": "",
+        "ccs": False,
+        "output": "/tmp/run/pbsv",
+    })
+
+    assert "--tandem-repeats" not in cmd
+    assert "--ccs" not in cmd
+    assert cmd == [
+        "pbsv",
+        "discover",
+        "aligned.bam",
+        "/tmp/run/pbsv/sample.svsig.gz",
+        "&&",
+        "pbsv",
+        "call",
+        "-j",
+        "2",
+        "ref.fa",
+        "/tmp/run/pbsv/sample.svsig.gz",
+        "/tmp/run/pbsv/sample.pbsv.vcf",
+    ]
+
+
+def test_pbsv_plans_outputs() -> None:
+    node_class = _node_class("pbsv")
+
+    outputs = node_class.PLAN_OUTPUTS({"sample_name": "HG002"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/pbsv/HG002.pbsv.vcf",
+        "/tmp/run/pbsv/HG002.svsig.gz",
+    ]
+
+
+def test_pbsv_rejects_empty_sample_name() -> None:
+    node_class = _node_class("pbsv")
+
+    validation = node_class.VALIDATE_INPUTS({
+        "bam": "aligned.bam",
+        "reference": "ref.fa",
+        "sample_name": "   ",
+        "threads": 4,
+    })
+
+    assert validation == "Input 'sample_name' must not be empty"
+
+
+def test_pbsv_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["pbsv"] == "pbsv"
+    assert PACKAGE_MIN_VERSIONS["pbsv"] == ">=2.10.0"
