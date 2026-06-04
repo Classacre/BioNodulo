@@ -423,6 +423,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Follow-user control titles, followed-user copy, active-user heading/empty state, activity labels, and follow/unfollow actions now read from `collab` i18n keys with Spanish unit coverage.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.
+- Template gallery load/fork/save fallback errors and save-template prompt dialogs now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Version history drawer title, save/close affordances, loading/empty states, auto/manual labels, fallback version names, metadata, relative-time labels, and row actions now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Version history save prompt, restore/delete confirmations, fallback errors, diff-load errors, and diff auto-save fallback names now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Version diff modal title, close affordance, changed counts, empty state, node/edge/group/meta labels, and footer summaries now read from `collab` / `common` i18n keys with Spanish unit coverage.

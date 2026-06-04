@@ -46,11 +46,11 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       setTemplates(data.templates ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load templates');
+      setError(err instanceof Error ? err.message : t('collab.templateGalleryLoadError'));
     } finally {
       setLoading(false);
     }
-  }, [search, activeTag]);
+  }, [search, activeTag, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -77,7 +77,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fork failed');
+      setError(err instanceof Error ? err.message : t('collab.templateGalleryForkError'));
     } finally {
       setForkingId(null);
     }
@@ -85,28 +85,28 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
 
   const handleSaveAsTemplate = async () => {
     if (!currentWorkflowId) {
-      setError('No active workflow to save as a template');
+      setError(t('collab.templateGalleryNoActiveWorkflow'));
       return;
     }
     const title = await promptDialog({
-      title: 'Save template',
-      message: 'Name this shared workflow template.',
-      inputLabel: 'Template title',
-      confirmLabel: 'Next',
+      title: t('collab.templateGallerySavePromptTitle'),
+      message: t('collab.templateGallerySavePromptMessage'),
+      inputLabel: t('collab.templateGallerySavePromptInputLabel'),
+      confirmLabel: t('common.next'),
     });
     if (!title) return;
     const description = await promptDialog({
-      title: 'Template description',
-      message: 'Add a short description for this template.',
-      inputLabel: 'Description',
-      confirmLabel: 'Next',
+      title: t('collab.templateGalleryDescriptionPromptTitle'),
+      message: t('collab.templateGalleryDescriptionPromptMessage'),
+      inputLabel: t('collab.templateGalleryDescriptionPromptInputLabel'),
+      confirmLabel: t('common.next'),
     }) || '';
     const tags = await promptDialog({
-      title: 'Template tags',
-      message: 'Add comma-separated tags.',
-      inputLabel: 'Tags',
-      placeholder: 'rna, alignment, qc',
-      confirmLabel: 'Save Template',
+      title: t('collab.templateGalleryTagsPromptTitle'),
+      message: t('collab.templateGalleryTagsPromptMessage'),
+      inputLabel: t('collab.templateGalleryTagsPromptInputLabel'),
+      placeholder: t('collab.templateGalleryTagsPromptPlaceholder'),
+      confirmLabel: t('collab.templateGallerySavePromptConfirm'),
     }) || '';
     setSavingWorkflowId(currentWorkflowId);
     try {
@@ -119,7 +119,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       });
       fetchTemplates();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save template');
+      setError(err instanceof Error ? err.message : t('collab.templateGallerySaveError'));
     } finally {
       setSavingWorkflowId(null);
     }
