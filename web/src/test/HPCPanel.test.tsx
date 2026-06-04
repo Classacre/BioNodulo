@@ -75,6 +75,14 @@ describe('HPCPanel i18n', () => {
     expect(screen.getByText('Memoria por CPU')).toBeInTheDocument();
     expect(screen.getByText('Modulos (uno por linea)')).toBeInTheDocument();
     expect(screen.getByText('Vista previa del script de trabajo')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('normal, gpu, etc.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('ID de proyecto')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('HH:MM:SS')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('4G')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/bioinfo\/BWA\/0\.7\.17\s+bioinfo\/samtools\/1\.17/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('ruta/al/contenedor.sif')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('--gres=gpu:1')).toBeInTheDocument();
+    expect(screen.getByText(/# Comandos del workflow aqui/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Probar conexion' }));
 

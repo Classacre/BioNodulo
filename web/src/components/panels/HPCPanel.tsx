@@ -75,15 +75,15 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
               <div className="settings-group-title">{t('hpc.jobResources')}</div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.partitionQueue')}</label>
-                <input type="text" className="text-input" value={config.partition || ''} onChange={e => update({ partition: e.target.value })} placeholder="normal, gpu, etc." />
+                <input type="text" className="text-input" value={config.partition || ''} onChange={e => update({ partition: e.target.value })} placeholder={t('hpc.partitionPlaceholder')} />
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.accountProject')}</label>
-                <input type="text" className="text-input" value={config.account || ''} onChange={e => update({ account: e.target.value })} placeholder="project ID" />
+                <input type="text" className="text-input" value={config.account || ''} onChange={e => update({ account: e.target.value })} placeholder={t('hpc.accountPlaceholder')} />
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.walltime')}</label>
-                <input type="text" className="text-input" value={config.walltime || '01:00:00'} onChange={e => update({ walltime: e.target.value })} placeholder="HH:MM:SS" />
+                <input type="text" className="text-input" value={config.walltime || '01:00:00'} onChange={e => update({ walltime: e.target.value })} placeholder={t('hpc.walltimePlaceholder')} />
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.cpusPerTask')}</label>
@@ -91,7 +91,7 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.memoryPerCpu')}</label>
-                <input type="text" className="text-input" style={{ width: 80 }} value={config.mem_per_cpu || '4G'} onChange={e => update({ mem_per_cpu: e.target.value })} placeholder="4G" />
+                <input type="text" className="text-input" style={{ width: 80 }} value={config.mem_per_cpu || '4G'} onChange={e => update({ mem_per_cpu: e.target.value })} placeholder={t('hpc.memoryPlaceholder')} />
               </div>
             </div>
 
@@ -99,15 +99,15 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
               <div className="settings-group-title">{t('hpc.environment')}</div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.modules')}</label>
-                <textarea className="text-input" style={{ minHeight: 60, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} value={(config.modules || []).join('\n')} onChange={e => update({ modules: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })} placeholder="bioinfo/BWA/0.7.17&#10;bioinfo/samtools/1.17" />
+                <textarea className="text-input" style={{ minHeight: 60, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} value={(config.modules || []).join('\n')} onChange={e => update({ modules: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })} placeholder={t('hpc.modulesPlaceholder')} />
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.container')}</label>
-                <input type="text" className="text-input" value={config.container || ''} onChange={e => update({ container: e.target.value })} placeholder="path/to/container.sif" />
+                <input type="text" className="text-input" value={config.container || ''} onChange={e => update({ container: e.target.value })} placeholder={t('hpc.containerPlaceholder')} />
               </div>
               <div className="param-row">
                 <label className="param-label">{t('hpc.extraArgs')}</label>
-                <input type="text" className="text-input" value={config.extra_args || ''} onChange={e => update({ extra_args: e.target.value })} placeholder="--gres=gpu:1" />
+                <input type="text" className="text-input" value={config.extra_args || ''} onChange={e => update({ extra_args: e.target.value })} placeholder={t('hpc.extraArgsPlaceholder')} />
               </div>
             </div>
 
@@ -133,18 +133,18 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
 #SBATCH --mem-per-cpu=${config.mem_per_cpu || '4G'}
 ${(config.modules || []).map(m => `module load ${m}`).join('\n')}
 ${config.container ? `apptainer exec ${config.container} bash -c '` : ''}
-# Workflow commands here
+${t('hpc.workflowCommandsPlaceholder')}
 ${config.container ? `'` : ''}` : config.backend === 'pbs' ? `#!/bin/bash
 #PBS -q ${config.partition || 'normal'}
 #PBS -l walltime=${config.walltime || '01:00:00'}
 #PBS -l select=1:ncpus=${config.cpus_per_task || 4}:mem=${config.mem_per_cpu || '4G'}
 ${(config.modules || []).map(m => `module load ${m}`).join('\n')}
-# Workflow commands here` : `#!/bin/bash
+${t('hpc.workflowCommandsPlaceholder')}` : `#!/bin/bash
 #$ -q ${config.partition || 'normal'}
 #$ -l h_rt=${config.walltime || '01:00:00'}
 #$ -pe smp ${config.cpus_per_task || 4}
 ${(config.modules || []).map(m => `module load ${m}`).join('\n')}
-# Workflow commands here`}
+${t('hpc.workflowCommandsPlaceholder')}`}
               </pre>
             </div>
           </>
