@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import workflow_to_packages
+from bionodulo.nodes.builtin.long_read import MedakaConsensusNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -420,6 +421,106 @@ def test_medaka_consensus_plans_consensus_fasta_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/medaka_consensus/consensus.fasta"]
+
+
+def test_medaka_alias_is_registered_by_builtin_loading() -> None:
+    registry = NodeRegistry.create_isolated()
+
+    registry.load_builtin_nodes()
+
+    alias = registry.get("medaka")
+    assert alias is not None
+    assert issubclass(alias, MedakaConsensusNode)
+
+
+def test_medaka_alias_overrides_only_planner_and_search_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    alias = registry.get("medaka")
+    assert alias is not None
+
+    assert alias.NODE_ID == "medaka"
+    assert alias.DISPLAY_NAME == "Medaka"
+    assert alias.DESCRIPTION == "Polish Oxford Nanopore draft assemblies with Medaka."
+    assert {
+        "medaka",
+        "medaka consensus",
+        "polish",
+        "consensus",
+        "nanopore",
+        "assembly polish",
+    }.issubset(alias.SEARCH_ALIASES)
+
+    assert alias.CATEGORY == MedakaConsensusNode.CATEGORY
+    assert alias.RETURN_TYPES == MedakaConsensusNode.RETURN_TYPES
+    assert alias.RETURN_NAMES == MedakaConsensusNode.RETURN_NAMES
+    assert alias.REQUIRED_EXECUTABLES == MedakaConsensusNode.REQUIRED_EXECUTABLES
+    assert alias.REQUIRED_CONDA_PACKAGES == MedakaConsensusNode.REQUIRED_CONDA_PACKAGES
+    assert alias.DOCUMENTATION_URL == MedakaConsensusNode.DOCUMENTATION_URL
+    assert alias.VERSION == MedakaConsensusNode.VERSION
+    assert alias.SHELL == MedakaConsensusNode.SHELL
+    assert alias.INPUT_TYPES() == MedakaConsensusNode.INPUT_TYPES()
+    assert alias.render_command.__func__ is MedakaConsensusNode.render_command.__func__
+    assert alias.PLAN_OUTPUTS.__func__ is MedakaConsensusNode.PLAN_OUTPUTS.__func__
+
+
+def test_medaka_alias_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["medaka"]
+    assert node_info["display_name"] == "Medaka"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"] == "Polish Oxford Nanopore draft assemblies with Medaka."
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["polished_assembly"]
+    assert node_info["required_executables"] == ["medaka_consensus"]
+    assert node_info["required_conda_packages"] == ["medaka"]
+    assert {
+        "medaka",
+        "medaka consensus",
+        "polish",
+        "consensus",
+        "nanopore",
+        "assembly polish",
+    }.issubset(node_info["search_aliases"])
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reads", "draft", "threads"}
+    assert set(inputs["optional"]) == {"model", "bam"}
+
+
+def test_medaka_alias_renders_polishing_command_and_plans_alias_output_path() -> None:
+    node_class = _node_class("medaka")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "draft": "draft.fasta",
+        "threads": 12,
+        "model": "r1041_e82_400_sup_v5.0.0",
+        "bam": "alignment.bam",
+        "output": "/tmp/run/medaka",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "medaka_consensus",
+        "-i",
+        "reads.fastq.gz",
+        "-d",
+        "draft.fasta",
+        "-o",
+        "/tmp/run/medaka",
+        "-t",
+        "12",
+        "-m",
+        "r1041_e82_400_sup_v5.0.0",
+        "-b",
+        "alignment.bam",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/medaka/consensus.fasta"]
 
 
 def test_dorado_basecaller_is_registered_for_frontend_discovery() -> None:

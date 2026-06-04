@@ -257,6 +257,15 @@ class MedakaConsensusNode(CommandNode):
         }
 
 
+class MedakaNode(MedakaConsensusNode):
+    """Compatibility wrapper for the original Medaka roadmap node ID."""
+
+    NODE_ID = "medaka"
+    DISPLAY_NAME = "Medaka"
+    DESCRIPTION = "Polish Oxford Nanopore draft assemblies with Medaka."
+    SEARCH_ALIASES = ["medaka", "medaka consensus", "polish", "consensus", "nanopore", "assembly polish"]
+
+
 class DoradoBasecallerNode(CommandNode):
     """Basecall Oxford Nanopore POD5 reads with Dorado."""
     NODE_ID = "dorado_basecaller"
