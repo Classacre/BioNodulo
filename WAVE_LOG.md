@@ -416,6 +416,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Share dialog title, offline notice, invite controls, room-link copy/actions, share-list states, role labels, revoke/close actions, and copy-link toasts now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Node comment popover title, close affordance, reply/resolve/post actions, placeholders, fallback errors, and relative-time labels now read from `collab` i18n keys with Spanish unit coverage.
 - Comments panel title, close/filter controls, loading/empty states, comment actions, relative-time labels, reply controls, placeholders, and fallback errors now read from `collab` / `common` i18n keys with Spanish unit coverage.
+- Collaboration badge status text, tooltip labels, offline/link actions, menu navigation, follow-viewport copy, and workflow fallbacks now read from `collab` i18n keys with Spanish unit coverage.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.
 - Version history drawer title, save/close affordances, loading/empty states, auto/manual labels, fallback version names, metadata, relative-time labels, and row actions now read from `collab` / `common` i18n keys with Spanish unit coverage.
