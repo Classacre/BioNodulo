@@ -7,6 +7,7 @@
 //
 // Definition pattern:
 //   const FLAG = registerFlag({ key: 'experimentalReroutes', defaultValue: false, label: '...' });
+//   const FLAG = registerFlag({ key: 'experimentalReroutes', defaultValue: false, label: '...', labelKey: 'settings.featureFlags.flags.experimentalReroutes.label' });
 //
 // Usage in React:
 //   const enabled = useFeatureFlag(FLAG);
@@ -25,6 +26,10 @@ export interface FeatureFlagDef {
   label: string;
   /** Optional description shown beneath the toggle. */
   description?: string;
+  /** Optional i18n key for the Settings UI label; falls back to `label`. */
+  labelKey?: string;
+  /** Optional i18n key for the Settings UI description; falls back to `description`. */
+  descriptionKey?: string;
 }
 
 const STORAGE_PREFIX = 'bionodulo.flag.';

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storage = new Map<string, string>();
@@ -31,7 +31,9 @@ describe('SettingsPanel shell i18n', () => {
 
   afterEach(async () => {
     const { setLanguage } = await import('../i18n');
+    const { dismissAllNotifications } = await import('../state/notifications');
     await setLanguage('en');
+    dismissAllNotifications();
     storage.clear();
     vi.unstubAllGlobals();
     fetchSpy.mockRestore();
@@ -200,5 +202,65 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('0 eventos almacenados (limite 200)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
+  });
+
+  it('shows palette toasts from the active locale', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { setLanguage } = await import('../i18n');
+    const { getNotificationsSnapshot } = await import('../state/notifications');
+
+    await setLanguage('es');
+
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:palette');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const linkClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    try {
+      render(<SettingsPanel onClose={() => undefined} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Exportar paleta' }));
+
+      expect(getNotificationsSnapshot().at(0)?.title).toBe('Paleta exportada');
+
+      const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+      expect(fileInput).not.toBeNull();
+      const invalidPalette = new File(['{}'], 'invalid.palette.json', { type: 'application/json' });
+      fireEvent.change(fileInput!, { target: { files: [invalidPalette] } });
+
+      await waitFor(() => expect(getNotificationsSnapshot().at(0)?.title).toBe('No se pudo importar la paleta'));
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      linkClick.mockRestore();
+    }
+  });
+
+  it('renders feature flags from optional locale keys', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { setLanguage } = await import('../i18n');
+    const { registerFlag } = await import('../state/featureFlags');
+
+    registerFlag({
+      key: 'settingsPanelI18nTestFlag',
+      defaultValue: false,
+      label: 'Fallback feature label',
+      description: 'Fallback feature description',
+      labelKey: 'settings.ai.provider',
+      descriptionKey: 'settings.ai.providerDescription',
+    });
+
+    await setLanguage('es');
+
+    render(<SettingsPanel onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Funciones experimentales' }));
+
+    expect(screen.getByText('Proveedor')).toBeInTheDocument();
+    expect(screen.getByText('Proveedor de API LLM')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar ajustes' }), { target: { value: 'Fallback feature label' } });
+
+    expect(screen.getByText('Proveedor')).toBeInTheDocument();
+    expect(screen.getByText('Proveedor de API LLM')).toBeInTheDocument();
   });
 });

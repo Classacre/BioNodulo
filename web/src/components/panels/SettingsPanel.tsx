@@ -7,6 +7,7 @@ import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
 import Dialog from '../ui/Dialog';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
+import type { FeatureFlagDef } from '../../state/featureFlags';
 import {
   isTelemetryEnabled,
   setTelemetryEnabled,
@@ -109,18 +110,18 @@ export default function SettingsPanel({
     link.download = `${palette.id}.palette.json`;
     link.click();
     URL.revokeObjectURL(link.href);
-    toast.success('Palette exported', { message: link.download });
+    toast.success(t('settings.appearance.paletteExported'), { message: link.download });
   };
 
   const importPalette = async (file: File) => {
     try {
       const palette = JSON.parse(await file.text()) as ThemePalette;
-      if (!palette.id || !palette.name || !palette.light || !palette.dark) throw new Error('Invalid palette file');
+      if (!palette.id || !palette.name || !palette.light || !palette.dark) throw new Error(t('settings.appearance.invalidPaletteFile'));
       addCustomPalette(palette);
       setPalette(palette.id);
-      toast.success('Palette imported', { message: palette.name });
+      toast.success(t('settings.appearance.paletteImported'), { message: palette.name });
     } catch (err) {
-      toast.error('Could not import palette', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(t('settings.appearance.paletteImportFailed'), { message: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -463,6 +464,7 @@ function TelemetryGroup({ active, query, title }: { active: boolean; query: stri
 }
 
 function FeatureFlagsGroup({ active, query, title }: { active: boolean; query: string; title: string }) {
+  const { t } = useTranslation();
   // Subscribe via useFeatureFlag for the first flag (forces re-render) — the
   // hook below handles the rest. We re-read the definitions list every render
   // since registerFlag() is cheap and is the source of truth.
@@ -470,17 +472,41 @@ function FeatureFlagsGroup({ active, query, title }: { active: boolean; query: s
   if (flags.length === 0) return null;
   return (
     <SettingsGroup active={active} query={query} title={title}>
-      {flags.map(flag => (
-        <FeatureFlagRow key={flag.key} query={query} flag={flag} />
-      ))}
+      {flags.map(flag => {
+        const label = flag.labelKey ? t(flag.labelKey, { defaultValue: flag.label }) : flag.label;
+        const desc = flag.descriptionKey ? t(flag.descriptionKey, { defaultValue: flag.description || flag.key }) : (flag.description || flag.key);
+        const keywords = `flag experimental ${flag.key} ${flag.label} ${flag.description || ''}`;
+        return (
+          <FeatureFlagRow
+            desc={desc}
+            flag={flag}
+            key={flag.key}
+            keywords={keywords}
+            label={label}
+            query={query}
+          />
+        );
+      })}
     </SettingsGroup>
   );
 }
 
-function FeatureFlagRow({ query, flag }: { query: string; flag: { key: string; label: string; description?: string } }) {
+function FeatureFlagRow({
+  query,
+  flag,
+  label,
+  desc,
+  keywords,
+}: {
+  query: string;
+  flag: FeatureFlagDef;
+  label: string;
+  desc: string;
+  keywords: string;
+}) {
   const enabled = useFeatureFlag(flag as never);
   return (
-    <SettingRow query={query} label={flag.label} desc={flag.description || flag.key} keywords={`flag experimental ${flag.key}`}>
+    <SettingRow query={query} label={label} desc={desc} keywords={keywords}>
       <div className={`toggle ${enabled ? 'on' : ''}`} onClick={() => setFeatureFlag(flag as never, !enabled)} />
     </SettingRow>
   );

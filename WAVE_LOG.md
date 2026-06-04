@@ -396,6 +396,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings Appearance and Canvas rows now read labels, descriptions, actions, and select options from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings Collaboration, Cache, Execution, and Files rows now read labels, descriptions, status pills, actions, and cache-clear toast copy from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings AI and Telemetry rows now read labels, descriptions, descriptive provider options, telemetry buffer copy, and telemetry toasts from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
+- Settings palette toasts now read from locale keys, and feature flags can opt into localized labels/descriptions with fallback search preserving the original English label/description.
 
 ---
 
