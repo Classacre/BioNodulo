@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { toast } from '../components/ui';
 
@@ -38,6 +39,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
   shareLink = '',
   onCreateRoom,
 }) => {
+  const { t } = useTranslation();
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [shares, setShares] = useState<ShareEntry[]>([]);
@@ -96,11 +98,11 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
     try {
       if (!navigator.clipboard) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(roomLink);
-      toast.success('Collaboration link copied');
+      toast.success(t('collab.linkCopied'));
     } catch {
-      toast.info('Copy the collaboration link from the field');
+      toast.info(t('collab.copyLinkFallback'));
     }
-  }, [roomLink]);
+  }, [roomLink, t]);
 
   if (!isOpen) return null;
 
@@ -123,7 +125,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
         padding: 20,
         boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
       }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Share Workflow</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('collab.shareDialogTitle')}</h3>
 
         {!collabEnabled && (
           <div style={{
@@ -135,14 +137,14 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
             color: 'var(--muted)',
             marginBottom: 12,
           }}>
-            Collaboration is offline. Create a temporary room before sharing this workflow.
+            {t('collab.shareOfflineNotice')}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input
             type="text"
-            placeholder="User ID or email"
+            placeholder={t('collab.userIdOrEmailPlaceholder')}
             value={userId}
             onChange={e => setUserId(e.target.value)}
             disabled={!collabEnabled}
@@ -169,24 +171,24 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
               fontSize: 13,
             }}
           >
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
+            <option value="editor">{t('collab.shareRoleEditor')}</option>
+            <option value="viewer">{t('collab.shareRoleViewer')}</option>
           </select>
           <button className="btn btn-primary btn-sm" onClick={handleShare} disabled={!collabEnabled || !userId.trim()}>
-            Invite
+            {t('collab.invite')}
           </button>
         </div>
 
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
-              Collaboration room link
+              {t('collab.roomLink')}
             </div>
             {inviteToken ? (
-              <button className="btn btn-sm" type="button" onClick={handleCopyLink}>Copy</button>
+              <button className="btn btn-sm" type="button" onClick={handleCopyLink}>{t('common.copy')}</button>
             ) : (
               <button className="btn btn-primary btn-sm" type="button" onClick={handleCreateLink} disabled={!onCreateRoom || creatingLink}>
-                {creatingLink ? 'Creating…' : 'Create link'}
+                {creatingLink ? t('collab.creatingLink') : t('collab.createLink')}
               </button>
             )}
           </div>
@@ -199,22 +201,22 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
             color: 'var(--muted)',
             wordBreak: 'break-all',
           }}>
-            {inviteToken ? roomLink : 'Create a temporary collaboration room to generate a share link.'}
+            {inviteToken ? roomLink : t('collab.createShareLinkHint')}
           </div>
           <div style={{ marginTop: 5, fontSize: 11, color: 'var(--muted)' }}>
             {localShareLink
-              ? 'This local link works only on this machine or LAN. Use a Cloudflare/ngrok tunnel or hosted URL for external collaborators.'
-              : 'Links work while this BioNodulo server is running. Stop the app to invalidate temporary links.'}
+              ? t('collab.localLinkWarning')
+              : t('collab.temporaryLinkHint')}
           </div>
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--muted)' }}>
-          Shared with
+          {t('collab.sharedWith')}
         </div>
         {loading ? (
-          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>Loading…</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('common.loading')}</div>
         ) : shares.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No shares yet</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('collab.noSharesYet')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {shares.map(s => (
@@ -238,11 +240,11 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
                     background: s.role === 'editor' ? '#dbeafe' : '#f3f4f6',
                     color: s.role === 'editor' ? '#2563eb' : '#4b5563',
                   }}>
-                    {s.role}
+                    {s.role === 'editor' ? t('collab.shareRoleEditor') : t('collab.shareRoleViewer')}
                   </span>
                 </div>
                 <button className="btn btn-xs" onClick={() => handleRevoke(s.id)} style={{ color: '#ef4444' }}>
-                  Revoke
+                  {t('collab.revoke')}
                 </button>
               </div>
             ))}
@@ -250,7 +252,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-sm" onClick={onClose}>Close</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>
     </div>

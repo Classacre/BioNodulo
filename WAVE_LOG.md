@@ -413,6 +413,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Node context menu node/canvas actions, shape/preset/subgraph actions, and color-submenu back action now read from `nodeContextMenu` / `common` i18n keys with Spanish unit coverage.
 - Node palette chrome, typed-add headings, search summaries, recent controls, category affordances, fallback category labels, and empty states now read from `nodePalette` i18n keys with Spanish unit coverage.
 - Node editor and node info panel section headings, advanced controls, file-drop placeholders, documentation links, metadata labels, and parameter detail labels now read from `nodeDetails` i18n keys with Spanish unit coverage.
+- Share dialog title, offline notice, invite controls, room-link copy/actions, share-list states, role labels, revoke/close actions, and copy-link toasts now read from `collab` / `common` i18n keys with Spanish unit coverage.
 
 ---
 
