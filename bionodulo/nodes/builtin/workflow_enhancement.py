@@ -996,9 +996,12 @@ class CheckpointNode(BaseNode):
             "timestamp_iso": payload["timestamp_iso"],
             "compressed": compress,
             "size_bytes": checkpoint_path.stat().st_size,
+            "resume_manifest_supported": True,
             "resume_supported": False,
-            "note": "Checkpoint artifact written; executor-level resume is not implemented yet.",
+            "note": "Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.",
         }
+        manifest_path = self._update_checkpoint_manifest(checkpoint_dir, checkpoint_info, context)
+        checkpoint_info["manifest_path"] = str(manifest_path)
 
         _ctx_log(context, "info", f"Checkpoint saved: {checkpoint_path}")
         _ctx_emit(
@@ -1009,6 +1012,7 @@ class CheckpointNode(BaseNode):
                 "node_id": getattr(context, "node_id", self.NODE_ID),
                 "checkpoint_path": str(checkpoint_path),
                 "compressed": compress,
+                "manifest_path": str(manifest_path),
             },
         )
         return (data, str(checkpoint_path), _json_text(checkpoint_info))
@@ -1046,6 +1050,66 @@ class CheckpointNode(BaseNode):
         if isinstance(workflow_metadata, dict) and workflow_metadata:
             metadata["workflow"] = json.loads(json.dumps(workflow_metadata, sort_keys=True, default=str))
         return metadata
+
+    def _update_checkpoint_manifest(self, checkpoint_dir: Path, checkpoint_info: dict[str, Any], context: Any) -> Path:
+        manifest_path = checkpoint_dir / "checkpoint_manifest.json"
+        manifest = self._read_checkpoint_manifest(manifest_path)
+        entry = {
+            "checkpoint_name": checkpoint_info["checkpoint_name"],
+            "checkpoint_path": checkpoint_info["checkpoint_path"],
+            "timestamp": checkpoint_info["timestamp"],
+            "timestamp_iso": checkpoint_info["timestamp_iso"],
+            "compressed": checkpoint_info["compressed"],
+            "size_bytes": checkpoint_info["size_bytes"],
+            "run_id": getattr(context, "run_id", ""),
+            "node_id": getattr(context, "node_id", self.NODE_ID),
+            "node_type": getattr(context, "node_type", ""),
+        }
+        manifest["updated_at"] = checkpoint_info["timestamp"]
+        manifest["updated_at_iso"] = checkpoint_info["timestamp_iso"]
+        manifest.setdefault("checkpoints", {})[entry["checkpoint_path"]] = entry
+        manifest.setdefault("latest_by_name", {})[entry["checkpoint_name"]] = entry
+        manifest.setdefault("latest_by_run_node", {})[self._run_node_key(entry["run_id"], entry["node_id"])] = entry
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True, default=str), encoding="utf-8")
+        return manifest_path
+
+    @staticmethod
+    def _read_checkpoint_manifest(manifest_path: Path) -> dict[str, Any]:
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"checkpoint manifest is not valid JSON: {manifest_path}") from exc
+            if not isinstance(manifest, dict):
+                raise ValueError(f"checkpoint manifest must be a JSON object: {manifest_path}")
+            manifest.setdefault("version", "1.0")
+            manifest.setdefault("checkpoints", {})
+            manifest.setdefault("latest_by_name", {})
+            manifest.setdefault("latest_by_run_node", {})
+            return manifest
+        return {
+            "version": "1.0",
+            "checkpoints": {},
+            "latest_by_name": {},
+            "latest_by_run_node": {},
+        }
+
+    @classmethod
+    def resolve_checkpoint(cls, manifest_path: str | Path, run_id: str = "", node_id: str = "", checkpoint_name: str = "") -> dict[str, Any]:
+        manifest = cls._read_checkpoint_manifest(Path(manifest_path))
+        if run_id or node_id:
+            entry = manifest.get("latest_by_run_node", {}).get(cls._run_node_key(run_id, node_id))
+            if entry:
+                return dict(entry)
+        if checkpoint_name:
+            entry = manifest.get("latest_by_name", {}).get(checkpoint_name)
+            if entry:
+                return dict(entry)
+        return {}
+
+    @staticmethod
+    def _run_node_key(run_id: Any, node_id: Any) -> str:
+        return f"{run_id}:{node_id}"
 
 
 class MemoizeNode(BaseNode):

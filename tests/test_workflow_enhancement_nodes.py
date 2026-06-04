@@ -434,6 +434,47 @@ async def test_checkpoint_writes_uncompressed_snapshot_without_context(tmp_path:
 
 
 @pytest.mark.asyncio
+async def test_checkpoint_updates_manifest_for_resume_resolution(tmp_path: Path) -> None:
+    context = _context(tmp_path, "checkpoint-node")
+    context.workspace_dir = tmp_path
+    context.run_id = "run-42"
+    context.node_type = "variant_annotation"
+    payload = {"records": 12, "outputs": ["annotated.vcf"]}
+
+    passthrough, checkpoint_file, info_json = await _node_class("checkpoint")().run(
+        input=payload,
+        checkpoint_name="after_annotation",
+        include_upstream_metadata=False,
+        compression=False,
+        context=context,
+    )
+
+    info = json.loads(info_json)
+    checkpoint_path = Path(checkpoint_file)
+    manifest_path = tmp_path / "checkpoints" / "checkpoint_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    latest_by_run_node = manifest["latest_by_run_node"]["run-42:checkpoint-node"]
+    assert passthrough == payload
+    assert Path(info["manifest_path"]) == manifest_path
+    assert info["resume_manifest_supported"] is True
+    assert manifest["version"] == "1.0"
+    assert manifest["latest_by_name"]["after_annotation"]["checkpoint_path"] == str(checkpoint_path)
+    assert latest_by_run_node["checkpoint_name"] == "after_annotation"
+    assert latest_by_run_node["checkpoint_path"] == str(checkpoint_path)
+    assert latest_by_run_node["run_id"] == "run-42"
+    assert latest_by_run_node["node_id"] == "checkpoint-node"
+    assert latest_by_run_node["node_type"] == "variant_annotation"
+    assert latest_by_run_node["compressed"] is False
+    assert latest_by_run_node["size_bytes"] == checkpoint_path.stat().st_size
+    resolved = _node_class("checkpoint").resolve_checkpoint(
+        manifest_path=manifest_path,
+        run_id="run-42",
+        node_id="checkpoint-node",
+    )
+    assert resolved == latest_by_run_node
+
+
+@pytest.mark.asyncio
 async def test_memoize_hashes_inputs_and_records_cache_miss(tmp_path: Path) -> None:
     context = _context(tmp_path, "memo-node")
     context.workspace_dir = tmp_path
