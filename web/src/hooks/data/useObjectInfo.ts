@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { InputSpec, ObjectInfo, NodeMetadata } from '../types';
-import { safeValidateObjectInfo } from '../api/validators';
-import { apiGet } from '../api/client';
+import type { InputSpec, ObjectInfo, NodeMetadata } from '../../types';
+import { safeValidateObjectInfo } from '../../api/validators';
+import { apiGet } from '../../api/client';
 
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {

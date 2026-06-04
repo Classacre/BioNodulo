@@ -418,6 +418,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - ForEach executor body runs now inject declared hidden loop runtime inputs (`_loop_state`, `_iteration`) into body nodes while still filtering undeclared internal `_` metadata. `counter_accumulator` can now maintain shared accumulator state across real foreach iterations instead of only in direct node-level calls, with executor coverage for accumulating `["S1", "S2", "S3"]` through the loop body.
 - TypeScript strictness now has a config-contract test that guards `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`, and `verbatimModuleSyntax` in `web/tsconfig.json`, so the strict-flag gap cannot silently regress.
 - Settings hooks now live under `web/src/hooks/settings/` with a category barrel; App, SettingsPanel, WorkflowCanvas, and `useTheme` import from the category instead of the old top-level `useSettings` path. The hooks organization test now guards the settings category alongside workflow/collab.
+- Data hooks now live under `web/src/hooks/data/` with a category barrel; App imports `useObjectInfo` from the category, and the API-migration guard follows the moved path.
 
 ---
 
@@ -432,7 +433,7 @@ Items from the gap analysis that haven't landed yet:
 - #49 Extension/plugin system — large scope.
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
-- #85 Reorganise hooks into category folders — partial: App-owned workflow/collab hooks and shared settings hooks moved; shared UI/data hooks remain top-level.
+- #85 Reorganise hooks into category folders — partial: App-owned workflow/collab hooks plus shared settings/data hooks moved; shared UI hooks remain top-level.
 - #86 Design tokens documented — DONE (CSS custom property reference guarded by palette tests).
 - First-party raw `/api` fetch migration — DONE; the GitHub releases request remains intentionally outside `api/client.ts` because it targets an external host.
 

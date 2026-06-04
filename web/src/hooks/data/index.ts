@@ -1,0 +1,1 @@
+export { useObjectInfo } from './useObjectInfo';

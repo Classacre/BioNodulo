@@ -13,7 +13,7 @@ const migratedFiles = [
   'src/collab/TemplateGallery.tsx',
   'src/collab/UserList.tsx',
   'src/collab/VersionHistory.tsx',
-  'src/hooks/useObjectInfo.ts',
+  'src/hooks/data/useObjectInfo.ts',
   'src/hooks/workflow/useWorkflow.ts',
 ];
 

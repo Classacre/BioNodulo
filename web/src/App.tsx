@@ -35,7 +35,7 @@ import {
   type CommandItem,
 } from './components/ui';
 import { useSettings } from './hooks/settings';
-import { useObjectInfo } from './hooks/useObjectInfo';
+import { useObjectInfo } from './hooks/data';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
