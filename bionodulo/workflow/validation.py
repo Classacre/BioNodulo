@@ -77,8 +77,17 @@ def validate_workflow(
         if not node_type:
             errors.append(f"Node '{node_id}' has no type")
             continue
-        if registry is not None and registry_lookup(node_type) is None:
+        meta = registry_lookup(node_type)
+        if registry is not None and meta is None:
             errors.append(f"Node '{node_id}' uses unregistered type '{node_type}'")
+            continue
+        saved_version = _saved_node_version(node)
+        registry_version = _registry_node_version(meta)
+        if saved_version and registry_version and saved_version != registry_version:
+            warnings.append(
+                f"Node '{node_id}' ({node_type}) was saved with version {saved_version} "
+                f"but registry has {registry_version}"
+            )
 
     # Check 2: Edges reference valid nodes
     for edge in edges:
@@ -172,3 +181,25 @@ def _spec_has_default(spec: Any) -> bool:
         if len(spec) >= 2 and isinstance(spec[1], dict):
             return "default" in spec[1]
     return False
+
+
+def _saved_node_version(node: Any) -> str:
+    """Return the version cached in a workflow node's stored node_info."""
+    node_info: Any = {}
+    if isinstance(node, dict):
+        node_info = node.get("node_info", {})
+    else:
+        node_info = getattr(node, "node_info", {})
+    if not isinstance(node_info, dict):
+        return ""
+    version = node_info.get("version", "")
+    return str(version) if version else ""
+
+
+def _registry_node_version(meta: Any) -> str:
+    """Return the current registry version for a node class or metadata dict."""
+    if isinstance(meta, dict):
+        version = meta.get("version", "")
+    else:
+        version = getattr(meta, "VERSION", "")
+    return str(version) if version else ""
