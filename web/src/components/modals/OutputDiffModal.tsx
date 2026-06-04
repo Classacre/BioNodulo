@@ -5,6 +5,7 @@
 // and artifacts of two run records and flagging the differences.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
 import { apiGet, ApiError } from '../../api/client';
 import { safeValidateRunRecord } from '../../api/validators';
@@ -26,12 +27,12 @@ interface RunSummary {
   artifactCount: number;
 }
 
-function summarise(record: RunRecord | null): RunSummary | null {
+function summarise(record: RunRecord | null, untitled: string): RunSummary | null {
   if (!record) return null;
   return {
     id: record.run_id,
     status: record.status,
-    workflowName: record.workflow_name || 'Untitled',
+    workflowName: record.workflow_name || untitled,
     startTime: record.start_time,
     nodeCount: record.node_statuses?.length ?? 0,
     artifactCount: Object.keys(record.artifacts || {}).length,
@@ -66,6 +67,7 @@ function DiffRow({ label, left, right }: DiffRowProps) {
 }
 
 export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRunId, onClose }: OutputDiffModalProps) {
+  const { t } = useTranslation();
   const eligible = useMemo(
     () => runs.filter(r => r.status === 'completed' || r.status === 'error').slice(0, 30),
     [runs],
@@ -90,7 +92,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
         const result = safeValidateRunRecord(raw);
         if (!result.ok) {
           setLeftRecord(null);
-          setError(`Left run: ${result.error.message}`);
+          setError(t('outputDiff.errors.leftRun', { message: result.error.message }));
           return;
         }
         setLeftRecord(raw as RunRecord);
@@ -98,11 +100,11 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       .catch((err: unknown) => {
         if (cancelled) return;
         setLeftRecord(null);
-        setError(err instanceof ApiError ? `Left run: ${err.statusText}` : String(err));
+        setError(t('outputDiff.errors.leftRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
       })
       .finally(() => { if (!cancelled) setLoadingLeft(false); });
     return () => { cancelled = true; };
-  }, [leftId]);
+  }, [leftId, t]);
 
   useEffect(() => {
     if (!rightId) { setRightRecord(null); return; }
@@ -115,7 +117,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
         const result = safeValidateRunRecord(raw);
         if (!result.ok) {
           setRightRecord(null);
-          setError(`Right run: ${result.error.message}`);
+          setError(t('outputDiff.errors.rightRun', { message: result.error.message }));
           return;
         }
         setRightRecord(raw as RunRecord);
@@ -123,14 +125,14 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       .catch((err: unknown) => {
         if (cancelled) return;
         setRightRecord(null);
-        setError(err instanceof ApiError ? `Right run: ${err.statusText}` : String(err));
+        setError(t('outputDiff.errors.rightRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
       })
       .finally(() => { if (!cancelled) setLoadingRight(false); });
     return () => { cancelled = true; };
-  }, [rightId]);
+  }, [rightId, t]);
 
-  const leftSummary = summarise(leftRecord);
-  const rightSummary = summarise(rightRecord);
+  const leftSummary = summarise(leftRecord, t('common.untitled'));
+  const rightSummary = summarise(rightRecord, t('common.untitled'));
 
   // Collect the union of node ids so we can line up "node X ran here, didn't
   // there" rows even when one side has nodes the other doesn't.
@@ -154,14 +156,29 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
     return String(status.status);
   };
 
+  const summaryMeta = (summary: RunSummary) => {
+    const counts = t('outputDiff.summaryCounts', {
+      nodes: t('outputDiff.nodeCount', { count: summary.nodeCount }),
+      artifacts: t('outputDiff.artifactCount', { count: summary.artifactCount }),
+    });
+    if (!summary.startTime) return counts;
+    return `${counts} ${t('outputDiff.startedAt', { time: new Date(summary.startTime).toLocaleString() })}`;
+  };
+
+  const runOptionLabel = (run: RunRecord) => t('outputDiff.picker.optionLabel', {
+    name: (run.workflow_name || t('common.untitled')).slice(0, 30),
+    status: run.status,
+    runId: run.run_id.slice(0, 8),
+  });
+
   const renderPicker = (label: string, value: string, onChange: (id: string) => void, loading: boolean) => (
     <label className="diff-picker">
-      <span className="diff-picker-label">{label}{loading ? ' (loading…)' : ''}</span>
+      <span className="diff-picker-label">{label}{loading ? t('outputDiff.loadingSuffix') : ''}</span>
       <select className="select-input" value={value} onChange={e => onChange(e.target.value)}>
-        <option value="">— pick a run —</option>
+        <option value="">{t('outputDiff.picker.emptyOption')}</option>
         {eligible.map(r => (
           <option key={r.run_id} value={r.run_id}>
-            {(r.workflow_name || 'Untitled').slice(0, 30)} · {r.status} · {r.run_id.slice(0, 8)}
+            {runOptionLabel(r)}
           </option>
         ))}
       </select>
@@ -170,21 +187,21 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
 
   const footer = (
     <>
-      <button className="btn" type="button" onClick={onClose}>Close</button>
+      <button className="btn" type="button" onClick={onClose}>{t('common.close')}</button>
     </>
   );
 
   return (
     <Dialog
-      title="Compare runs"
+      title={t('outputDiff.title')}
       width={920}
       maxHeight="85vh"
       onClose={onClose}
       footer={footer}
     >
       <div className="output-diff-controls">
-        {renderPicker('Run A', leftId, setLeftId, loadingLeft)}
-        {renderPicker('Run B', rightId, setRightId, loadingRight)}
+        {renderPicker(t('outputDiff.runA'), leftId, setLeftId, loadingLeft)}
+        {renderPicker(t('outputDiff.runB'), rightId, setRightId, loadingRight)}
       </div>
 
       {error && <div className="diff-error">{error}</div>}
@@ -196,11 +213,10 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
               <div className="diff-summary-title">{leftSummary.workflowName}</div>
               <div className={statusChip(leftSummary.status)}>{leftSummary.status}</div>
               <div className="diff-summary-meta">
-                {leftSummary.nodeCount} nodes · {leftSummary.artifactCount} artifacts
-                {leftSummary.startTime && <> · started {new Date(leftSummary.startTime).toLocaleString()}</>}
+                {summaryMeta(leftSummary)}
               </div>
             </>
-          ) : <span className="diff-empty">No run selected</span>}
+          ) : <span className="diff-empty">{t('outputDiff.noRunSelected')}</span>}
         </div>
         <div className="diff-summary-col">
           {rightSummary ? (
@@ -208,17 +224,16 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
               <div className="diff-summary-title">{rightSummary.workflowName}</div>
               <div className={statusChip(rightSummary.status)}>{rightSummary.status}</div>
               <div className="diff-summary-meta">
-                {rightSummary.nodeCount} nodes · {rightSummary.artifactCount} artifacts
-                {rightSummary.startTime && <> · started {new Date(rightSummary.startTime).toLocaleString()}</>}
+                {summaryMeta(rightSummary)}
               </div>
             </>
-          ) : <span className="diff-empty">No run selected</span>}
+          ) : <span className="diff-empty">{t('outputDiff.noRunSelected')}</span>}
         </div>
       </div>
 
       <div className="diff-section">
-        <div className="diff-section-title">Per-node status ({nodeIds.length})</div>
-        {nodeIds.length === 0 ? <div className="diff-empty">No nodes in either run.</div> : (
+        <div className="diff-section-title">{t('outputDiff.perNodeStatus', { count: nodeIds.length })}</div>
+        {nodeIds.length === 0 ? <div className="diff-empty">{t('outputDiff.noNodes')}</div> : (
           <div className="diff-table">
             {nodeIds.map(id => (
               <DiffRow
@@ -233,8 +248,8 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       </div>
 
       <div className="diff-section">
-        <div className="diff-section-title">Artifacts ({artifactPaths.length})</div>
-        {artifactPaths.length === 0 ? <div className="diff-empty">Neither run produced artifacts yet.</div> : (
+        <div className="diff-section-title">{t('outputDiff.artifacts', { count: artifactPaths.length })}</div>
+        {artifactPaths.length === 0 ? <div className="diff-empty">{t('outputDiff.noArtifacts')}</div> : (
           <div className="diff-table">
             {artifactPaths.map(path => (
               <DiffRow
@@ -250,9 +265,9 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
 
       {leftRecord?.error || rightRecord?.error ? (
         <div className="diff-section">
-          <div className="diff-section-title">Errors</div>
+          <div className="diff-section-title">{t('outputDiff.errors.title')}</div>
           <div className="diff-table">
-            <DiffRow label="message" left={leftRecord?.error || ''} right={rightRecord?.error || ''} />
+            <DiffRow label={t('outputDiff.errors.messageLabel')} left={leftRecord?.error || ''} right={rightRecord?.error || ''} />
           </div>
         </div>
       ) : null}
