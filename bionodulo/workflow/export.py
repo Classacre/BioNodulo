@@ -25,6 +25,7 @@ def export_workflow(
 
     Raises:
         ValueError: If the format is not supported.
+        RuntimeError: If the requested converter module is unavailable.
     """
     fmt = fmt.lower()
 
@@ -36,30 +37,30 @@ def export_workflow(
         try:
             from bionodulo.converter.snakemake_converter import export_to_snakemake as snakemake_export
             return snakemake_export(workflow)
-        except ImportError:
-            return _fallback_export(workflow, fmt, name)
+        except ImportError as exc:
+            raise _converter_unavailable(fmt) from exc
 
     if fmt == "nextflow":
         try:
             from bionodulo.converter.nextflow_converter import export_to_nextflow as nextflow_export
             return nextflow_export(workflow)
-        except ImportError:
-            return _fallback_export(workflow, fmt, name)
+        except ImportError as exc:
+            raise _converter_unavailable(fmt) from exc
 
     if fmt == "cwl":
         try:
             import json as _json
             from bionodulo.converter.cwl_converter import export_to_cwl as cwl_export
             return _json.dumps(cwl_export(workflow), indent=2, ensure_ascii=False, default=str)
-        except ImportError:
-            return _fallback_export(workflow, fmt, name)
+        except ImportError as exc:
+            raise _converter_unavailable(fmt) from exc
 
     if fmt == "galaxy":
         try:
             from bionodulo.converter.galaxy_converter import export_to_galaxy as galaxy_export
             return galaxy_export(workflow)
-        except ImportError:
-            return _fallback_export(workflow, fmt, name)
+        except ImportError as exc:
+            raise _converter_unavailable(fmt) from exc
 
     raise ValueError(
         f"Unsupported export format: '{fmt}'. "
@@ -67,47 +68,8 @@ def export_workflow(
     )
 
 
-def _fallback_export(workflow: dict[str, Any], fmt: str, name: str) -> str:
-    """Generate a placeholder export when the converter module is unavailable."""
-    lines: list[str] = [
-        f"# {fmt.upper()} export: {name}",
-        f"# NOTE: {fmt} converter module not installed.",
-        "# Install converter dependencies for full export support.",
-        "",
-        "# Workflow nodes:",
-    ]
-
-    nodes = workflow.get("nodes", {})
-    if isinstance(nodes, dict):
-        for node_id, node in nodes.items():
-            if isinstance(node, dict):
-                node_type = node.get("type", "unknown")
-                node_params = node.get("params", {})
-                lines.append(f"#   {node_id}: {node_type}")
-                for k, v in node_params.items():
-                    lines.append(f"#     param {k} = {v}")
-            else:
-                nt = getattr(node, "type", "unknown")
-                lines.append(f"#   {node_id}: {nt}")
-    elif isinstance(nodes, list):
-        for node in nodes:
-            if isinstance(node, dict):
-                nid = node.get("id", "?")
-                ntype = node.get("type", "unknown")
-                lines.append(f"#   {nid}: {ntype}")
-
-    lines.append("")
-    lines.append("# Edges:")
-    for edge in workflow.get("edges", []):
-        if isinstance(edge, dict):
-            src = edge.get("from_node") or edge.get("source_node", "?")
-            dst = edge.get("to_node") or edge.get("target_node", "?")
-            lines.append(f"#   {src} --> {dst}")
-        else:
-            src = getattr(edge, "source_node", "?")
-            dst = getattr(edge, "target_node", "?")
-            lines.append(f"#   {src} --> {dst}")
-
-    lines.append("")
-    lines.append(f"# End of {name} export")
-    return "\n".join(lines)
+def _converter_unavailable(fmt: str) -> RuntimeError:
+    return RuntimeError(
+        f"Cannot export {fmt} workflow because the converter module is unavailable. "
+        "Install converter dependencies for full export support."
+    )
