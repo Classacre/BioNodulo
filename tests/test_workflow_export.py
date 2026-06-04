@@ -104,6 +104,55 @@ def _normalize_data_workflow() -> dict:
     }
 
 
+def _extract_columns_workflow() -> dict:
+    return {
+        "id": "extract-export-test",
+        "name": "Extract Export Test",
+        "nodes": [
+            {
+                "id": "extract",
+                "type": "extract_columns",
+                "inputs": {"table": {"type": "FILE"}},
+                "widgets": {
+                    "columns": "status,sample",
+                    "rename_map": "status:qc_status",
+                    "delimiter": "tsv",
+                },
+                "outputs": {"extracted_table": {"path": "results/extract/extracted.tsv"}},
+                "meta": {},
+            }
+        ],
+        "edges": [],
+    }
+
+
+def _replace_text_workflow() -> dict:
+    return {
+        "id": "replace-export-test",
+        "name": "Replace Export Test",
+        "nodes": [
+            {
+                "id": "replace",
+                "type": "replace_text",
+                "inputs": {"file": {"type": "FILE"}},
+                "widgets": {
+                    "search": "chr",
+                    "replace": "chrom",
+                    "case_sensitive": False,
+                    "whole_word": True,
+                },
+                "outputs": {"replaced_file": {"path": "results/replace/replaced.txt"}},
+                "meta": {},
+            }
+        ],
+        "edges": [],
+    }
+
+
+def _cwl_runner_command(tool: dict, replacements: dict[str, str]) -> list[str]:
+    return [*tool["baseCommand"], *(replacements.get(argument, argument) for argument in tool["arguments"])]
+
+
 def test_export_workflow_delegates_to_pipeline_converters() -> None:
     snakemake = export_workflow(_workflow("fastqc"), "snakemake", name="qc")
     nextflow = export_workflow(_workflow("fastqc"), "nextflow", name="qc")
@@ -201,6 +250,91 @@ def test_cwl_export_supports_normalize_data_with_builtin_node_runner() -> None:
             "outputBinding": {"glob": "normalized_table_output"},
         }
     }
+
+
+@pytest.mark.parametrize(
+    ("workflow", "node_id", "node_type", "root_input", "output_name"),
+    [
+        (_extract_columns_workflow(), "extract", "extract_columns", "extract_table", "extracted_table"),
+        (_replace_text_workflow(), "replace", "replace_text", "replace_file", "replaced_file"),
+    ],
+)
+def test_cwl_export_supports_additional_data_transform_nodes_with_builtin_runner(
+    workflow: dict,
+    node_id: str,
+    node_type: str,
+    root_input: str,
+    output_name: str,
+) -> None:
+    exported = export_to_cwl(workflow)
+    cwl_workflow = json.loads(exported["workflow.cwl"])
+    tool = json.loads(exported[f"tools/{node_id}.cwl"])
+
+    assert cwl_workflow["inputs"] == {root_input: "File"}
+    assert cwl_workflow["steps"][node_id]["in"] == {root_input.rsplit("_", 1)[1]: root_input}
+    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["arguments"][:6] == [
+        "--node-type",
+        node_type,
+        "--output-dir",
+        ".",
+        "--input",
+        root_input.rsplit("_", 1)[1],
+    ]
+    assert tool["outputs"] == {
+        output_name: {
+            "type": "File",
+            "outputBinding": {"glob": f"{output_name}_output"},
+        }
+    }
+
+
+def test_cwl_exported_extract_columns_command_executes(tmp_path: Path) -> None:
+    exported = export_to_cwl(_extract_columns_workflow())
+    tool = json.loads(exported["tools/extract.cwl"])
+    table = tmp_path / "samples.tsv"
+    with table.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["sample", "depth", "status"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"sample": "S1", "depth": "8", "status": "fail"},
+            {"sample": "S2", "depth": "12", "status": "pass"},
+        ])
+
+    defaults = {name: spec.get("default") for name, spec in tool["inputs"].items()}
+    command = _cwl_runner_command(tool, {
+        "$(inputs.table.path)": str(table),
+        **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
+    })
+    completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    with (tmp_path / "extracted_table_output").open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh, delimiter="\t"))
+    assert list(rows[0]) == ["qc_status", "sample"]
+    assert rows == [
+        {"qc_status": "fail", "sample": "S1"},
+        {"qc_status": "pass", "sample": "S2"},
+    ]
+
+
+def test_cwl_exported_replace_text_command_executes(tmp_path: Path) -> None:
+    exported = export_to_cwl(_replace_text_workflow())
+    tool = json.loads(exported["tools/replace.cwl"])
+    source = tmp_path / "notes.txt"
+    source.write_text("chr1\t100\nchromosome chr2\nCHR and chr\n", encoding="utf-8")
+
+    defaults = {name: spec.get("default") for name, spec in tool["inputs"].items()}
+    command = _cwl_runner_command(tool, {
+        "$(inputs.file.path)": str(source),
+        **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
+    })
+    completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    assert (tmp_path / "replaced_file_output").read_text(encoding="utf-8") == (
+        "chr1\t100\nchromosome chr2\nchrom and chrom\n"
+    )
 
 
 def test_cwl_exported_normalize_data_command_executes(tmp_path: Path) -> None:

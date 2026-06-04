@@ -13,7 +13,7 @@ from typing import Any
 from bionodulo.nodes.registry import NodeRegistry
 
 
-SUPPORTED_NODE_TYPES = {"normalize_data"}
+SUPPORTED_NODE_TYPES = {"extract_columns", "normalize_data", "replace_text"}
 
 
 def main(argv: list[str] | None = None) -> int:
