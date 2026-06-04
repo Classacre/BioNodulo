@@ -528,6 +528,42 @@ async def test_cache_control_records_miss_then_hit_with_explicit_key(tmp_path: P
 
 
 @pytest.mark.asyncio
+async def test_cache_control_run_scope_is_isolated_by_run_id(tmp_path: Path) -> None:
+    first_context = _context(tmp_path, "cache-run-1")
+    first_context.workspace_dir = tmp_path
+    first_context.run_id = "run-1"
+    second_context = _context(tmp_path, "cache-run-2")
+    second_context.workspace_dir = tmp_path
+    second_context.run_id = "run-2"
+    node = _node_class("cache_control")()
+
+    _, first_hit, first_info_json = await node.run(
+        input={"vcf": "variants.vcf"},
+        cache_key="variant-qc",
+        ttl_seconds=3600,
+        cache_scope="run",
+        context=first_context,
+    )
+    _, second_hit, second_info_json = await node.run(
+        input={"vcf": "variants.vcf"},
+        cache_key="variant-qc",
+        ttl_seconds=3600,
+        cache_scope="run",
+        context=second_context,
+    )
+
+    first_info = json.loads(first_info_json)
+    second_info = json.loads(second_info_json)
+    assert first_hit is False
+    assert second_hit is False
+    assert first_info["status"] == "miss"
+    assert second_info["status"] == "miss"
+    assert first_info["cache_key"] == second_info["cache_key"]
+    assert first_info["cache_dir"].endswith("cache/control/run/run-1")
+    assert second_info["cache_dir"].endswith("cache/control/run/run-2")
+
+
+@pytest.mark.asyncio
 async def test_cache_control_force_refresh_and_invalidation_fingerprint(tmp_path: Path) -> None:
     cache_dir = tmp_path / "custom-cache"
     node = _node_class("cache_control")()

@@ -373,6 +373,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Environment resolution now knows `gffread` and `seqtk` package/version metadata, and tests cover frontend discovery metadata, output planning, command rendering, unsupported conversion validation, and cwd handling for command execution.
 - Workflow-control executor integration: node execution contexts now expose the active executor and shared run metadata, and workflow control nodes declare `EXECUTOR_CACHE_POLICY = "always_run"` so their explicit cache/checkpoint/retry/pause semantics are not hidden by the generic executor cache.
 - Checkpoints now include a JSON-safe snapshot of shared run metadata alongside local checkpoint context when upstream metadata is requested.
+- `cache_control` run-scope cache markers now live under the current run id, so a "run" scoped cache miss in `run-1` does not turn into a hit for `run-2`; explicit custom cache directories and global/user scopes keep their existing shared behavior.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---

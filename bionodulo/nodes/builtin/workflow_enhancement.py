@@ -1270,6 +1270,9 @@ class CacheControlNode(BaseNode):
             workspace_dir = getattr(context, "workspace_dir", None) if context is not None else None
             root = Path(workspace_dir) / "cache" if workspace_dir else Path("cache")
             base = root / "control" / cache_scope
+            if cache_scope == "run":
+                run_id = str(getattr(context, "run_id", "") or "unknown_run")
+                base = base / re.sub(r"[^A-Za-z0-9_.-]+", "_", run_id).strip("._")
         base.mkdir(parents=True, exist_ok=True)
         return base
 
