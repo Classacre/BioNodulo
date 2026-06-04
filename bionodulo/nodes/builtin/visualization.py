@@ -27,6 +27,7 @@ COVERAGE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 VCF_STATS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 FOREST_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 TREE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+CIRCOS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -5244,6 +5245,239 @@ def _render_circos_svg(
     path.write_text("\n".join(parts) + "\n", encoding="utf-8")
 
 
+def _circos_degrees(angle: float) -> float:
+    return (math.degrees(angle) + 360.0) % 360.0
+
+
+def _circos_arc_samples(start_angle: float, end_angle: float, *, points: int = 36) -> list[float]:
+    count = max(points, 2)
+    return [
+        start_angle + (end_angle - start_angle) * index / (count - 1)
+        for index in range(count)
+    ]
+
+
+def _circos_interval_payload(
+    chromosome: str,
+    start: int,
+    end: int,
+    label: str,
+    value: float | None = None,
+) -> list[Any]:
+    payload: list[Any] = [chromosome, start, end, label]
+    if value is not None:
+        payload.append(round(value, 10))
+    return payload
+
+
+def _render_circos_html(
+    path: Path,
+    *,
+    chromosomes: list[CircosChromosome],
+    genes: list[CircosInterval],
+    variants: list[CircosVariant],
+    cnvs: list[CircosInterval],
+    title: str,
+    outer_gap: float,
+    layout: PlotLayout,
+) -> None:
+    outer_radius = 100.0
+    gene_radius = 82.0
+    variant_inner_radius = 64.0
+    variant_outer_radius = 76.0
+    cnv_radius = 54.0
+    sectors = _circos_sector_angles(chromosomes, outer_gap=outer_gap)
+    chromosome_map = _chromosome_by_name(chromosomes)
+    colours = ["#2563EB", "#16A34A", "#9333EA", "#EA580C", "#0891B2", "#BE123C"]
+
+    traces: list[dict[str, Any]] = []
+    for index, chromosome in enumerate(chromosomes):
+        start_angle, end_angle = sectors[chromosome.name]
+        angle_values = _circos_arc_samples(start_angle, end_angle)
+        customdata = [
+            _circos_interval_payload(chromosome.name, chromosome.start, chromosome.end, chromosome.name)
+            for _ in angle_values
+        ]
+        traces.append({
+            "type": "scatterpolar",
+            "mode": "lines",
+            "name": "Chromosomes",
+            "theta": [round(_circos_degrees(angle), 4) for angle in angle_values],
+            "r": [outer_radius for _ in angle_values],
+            "customdata": customdata,
+            "line": {
+                "color": colours[index % len(colours)],
+                "width": 18,
+                "shape": "linear",
+            },
+            "hovertemplate": (
+                "%{customdata[0]}<br>"
+                "%{customdata[1]}-%{customdata[2]}<extra>Chromosomes</extra>"
+            ),
+            "showlegend": index == 0,
+        })
+
+    gene_trace_count = 0
+    for gene in genes:
+        chromosome = chromosome_map.get(gene.chromosome)
+        if chromosome is None:
+            continue
+        angle_values = _circos_arc_samples(
+            _circos_angle(chromosome, sectors, gene.start),
+            _circos_angle(chromosome, sectors, gene.end),
+            points=18,
+        )
+        traces.append({
+            "type": "scatterpolar",
+            "mode": "lines",
+            "name": "Genes",
+            "theta": [round(_circos_degrees(angle), 4) for angle in angle_values],
+            "r": [gene_radius for _ in angle_values],
+            "customdata": [
+                _circos_interval_payload(gene.chromosome, gene.start, gene.end, gene.label)
+                for _ in angle_values
+            ],
+            "line": {"color": "#16A34A", "width": 10},
+            "hovertemplate": (
+                "%{customdata[3]}<br>"
+                "%{customdata[0]}:%{customdata[1]}-%{customdata[2]}<extra>Genes</extra>"
+            ),
+            "showlegend": gene_trace_count == 0,
+        })
+        gene_trace_count += 1
+
+    variant_trace_count = 0
+    for variant in variants:
+        chromosome = chromosome_map.get(variant.chromosome)
+        if chromosome is None:
+            continue
+        angle = _circos_degrees(_circos_angle(chromosome, sectors, variant.position))
+        traces.append({
+            "type": "scatterpolar",
+            "mode": "lines+markers",
+            "name": "Variants",
+            "theta": [round(angle, 4), round(angle, 4)],
+            "r": [variant_inner_radius, variant_outer_radius],
+            "customdata": [
+                [variant.chromosome, variant.position, variant.identifier],
+                [variant.chromosome, variant.position, variant.identifier],
+            ],
+            "line": {"color": "#DC2626", "width": 2.4},
+            "marker": {"color": "#DC2626", "size": 4},
+            "hovertemplate": (
+                "%{customdata[2]}<br>"
+                "%{customdata[0]}:%{customdata[1]}<extra>Variants</extra>"
+            ),
+            "showlegend": variant_trace_count == 0,
+        })
+        variant_trace_count += 1
+
+    cnv_trace_count = 0
+    for interval in cnvs:
+        chromosome = chromosome_map.get(interval.chromosome)
+        if chromosome is None:
+            continue
+        value = interval.value or 0.0
+        angle_values = _circos_arc_samples(
+            _circos_angle(chromosome, sectors, interval.start),
+            _circos_angle(chromosome, sectors, interval.end),
+            points=18,
+        )
+        colour = "#DC2626" if value >= 0 else "#2563EB"
+        traces.append({
+            "type": "scatterpolar",
+            "mode": "lines",
+            "name": "CNV",
+            "theta": [round(_circos_degrees(angle), 4) for angle in angle_values],
+            "r": [cnv_radius for _ in angle_values],
+            "customdata": [
+                _circos_interval_payload(
+                    interval.chromosome,
+                    interval.start,
+                    interval.end,
+                    "CNV",
+                    value,
+                )
+                for _ in angle_values
+            ],
+            "line": {"color": colour, "width": 9},
+            "hovertemplate": (
+                "%{customdata[0]}:%{customdata[1]}-%{customdata[2]}<br>"
+                "CNV: %{customdata[4]}<extra>CNV</extra>"
+            ),
+            "showlegend": cnv_trace_count == 0,
+        })
+        cnv_trace_count += 1
+
+    label_annotations = []
+    for chromosome in chromosomes:
+        start_angle, end_angle = sectors[chromosome.name]
+        label_annotations.append({
+            "text": chromosome.name,
+            "showarrow": False,
+            "xref": "paper",
+            "yref": "paper",
+            "x": 0.5 + math.cos((start_angle + end_angle) / 2) * 0.46,
+            "y": 0.5 + math.sin((start_angle + end_angle) / 2) * 0.46,
+            "font": {"size": 11, "color": "#334155"},
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "polar": {
+            "bgcolor": "#F8FAFC",
+            "radialaxis": {"visible": False, "range": [0, 116]},
+            "angularaxis": {
+                "visible": False,
+                "direction": "clockwise",
+                "rotation": 90,
+            },
+        },
+        "annotations": label_annotations,
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": True,
+        "legend": {"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.08},
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "circos_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_circos_png(
     path: Path,
     *,
@@ -7106,7 +7340,7 @@ class CircosPlotNode(BaseNode):
                 "cnv_track": ("FILE", {"default": "", "description": "CNV intervals: chrom, start, end, log2fc"}),
                 "title": ("STRING", {"default": "Circos Plot"}),
                 "outer_gap": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 20.0}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(CIRCOS_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -7117,7 +7351,7 @@ class CircosPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in CIRCOS_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported Circos plot format: {output_format}")
 
         chromosomes = _read_circos_chromosomes(Path(str(kwargs["chromosome_sizes"])))
@@ -7137,6 +7371,17 @@ class CircosPlotNode(BaseNode):
         output_path = out_dir / f"circos_plot.{output_format}"
         if output_format == "svg":
             _render_circos_svg(
+                output_path,
+                chromosomes=chromosomes,
+                genes=genes,
+                variants=variants,
+                cnvs=cnvs,
+                title=title,
+                outer_gap=outer_gap,
+                layout=layout,
+            )
+        elif output_format == "html":
+            _render_circos_html(
                 output_path,
                 chromosomes=chromosomes,
                 genes=genes,

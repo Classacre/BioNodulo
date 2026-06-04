@@ -196,6 +196,8 @@ def test_vcf_stats_chart_is_registered_for_frontend_discovery() -> None:
 def test_circos_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("circos_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -204,6 +206,7 @@ def test_circos_plot_is_registered_for_frontend_discovery() -> None:
     assert info["circos_plot"]["output_name"] == ["circos_image"]
     assert info["circos_plot"]["output"] == ["IMAGE"]
     assert info["circos_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_igv_snapshot_is_registered_for_frontend_discovery() -> None:
@@ -1343,6 +1346,60 @@ async def test_circos_plot_writes_svg_with_tracks_and_preview(tmp_path: Path) ->
     assert 'data-id="rs1"' in svg
     assert 'class="circos-cnv"' in svg
     assert previews == [(str(svg_path), "Circos Plot")]
+
+
+@pytest.mark.asyncio
+async def test_circos_plot_writes_interactive_html_with_tracks_and_preview(tmp_path: Path) -> None:
+    node_class = _node_class("circos_plot")
+    chrom_sizes = tmp_path / "chrom_sizes.tsv"
+    chrom_sizes.write_text("chr1\t0\t1000\nchr2\t0\t800\n", encoding="utf-8")
+    genes = tmp_path / "genes.bed"
+    genes.write_text("chr1\t100\t220\tGENE1\nchr2\t300\t450\tGENE2\n", encoding="utf-8")
+    variants = tmp_path / "variants.vcf"
+    variants.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        "chr1\t150\trs1\tA\tG\t50\tPASS\tDP=12\n"
+        "chr2\t500\trs2\tC\tT\t40\tPASS\tDP=10\n",
+        encoding="utf-8",
+    )
+    cnv = tmp_path / "cnv.tsv"
+    cnv.write_text("chr1\t400\t700\t0.8\nchr2\t100\t260\t-0.6\n", encoding="utf-8")
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        chromosome_sizes=str(chrom_sizes),
+        gene_track=str(genes),
+        variant_track=str(variants),
+        cnv_track=str(cnv),
+        title="Genome Overview",
+        format="html",
+        width=8,
+        height=8,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["circos_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "circos_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Genome Overview" in document
+    assert '"type": "scatterpolar"' in document
+    assert '"Chromosomes"' in document
+    assert '"Genes"' in document
+    assert '"Variants"' in document
+    assert '"CNV"' in document
+    assert '"chr1"' in document
+    assert '"GENE1"' in document
+    assert '"rs1"' in document
+    assert "0.8" in document
+    assert previews == [(str(html_path), "Circos Plot")]
 
 
 @pytest.mark.asyncio
