@@ -14,6 +14,7 @@
 // good enough.
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
 import type { WorkflowNode } from '../../types';
 
@@ -51,6 +52,7 @@ function coerce(input: string, sample: unknown): unknown {
 }
 
 export default function BulkParamModal({ nodes, onApply, onClose }: BulkParamModalProps) {
+  const { t } = useTranslation();
   const shared = useMemo<SharedParam[]>(() => {
     if (nodes.length === 0) return [];
     const keysPerNode = nodes.map(n => new Set(Object.keys(n.params || {})));
@@ -88,35 +90,34 @@ export default function BulkParamModal({ nodes, onApply, onClose }: BulkParamMod
 
   const footer = (
     <>
-      <button className="btn" type="button" onClick={onClose}>Cancel</button>
+      <button className="btn" type="button" onClick={onClose}>{t('common.cancel')}</button>
       <button className="btn btn-primary" type="button" onClick={apply} disabled={touched.size === 0}>
-        Apply to {nodes.length} node{nodes.length === 1 ? '' : 's'}
+        {t('paramBulk.applyToNodes', { count: nodes.length })}
       </button>
     </>
   );
 
   return (
     <Dialog
-      title="Bulk parameter edit"
+      title={t('paramBulk.title')}
       width={620}
       onClose={onClose}
       footer={footer}
       header={
         <span>
-          Editing parameters shared by <strong>{nodes.length}</strong> selected node{nodes.length === 1 ? '' : 's'}.
-          {shared.length === 0 && ' No parameters are common to every selected node.'}
+          {t('paramBulk.headerLead')} <strong>{nodes.length}</strong> {t('paramBulk.selectedNode', { count: nodes.length })}.
+          {shared.length === 0 && <span> {t('paramBulk.noCommonInline')}</span>}
         </span>
       }
     >
       {shared.length === 0 ? (
         <div style={{ color: 'var(--muted)', fontSize: 12, padding: '12px 0' }}>
-          The selected nodes don't share any parameter keys. Pick nodes of the same
-          type (or a compatible subset) to bulk-edit.
+          {t('paramBulk.noCommonBody')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {shared.map(param => {
-            const placeholder = param.varies ? '[varies]' : describeValue(param.values[0]);
+            const placeholder = param.varies ? t('paramBulk.variesPlaceholder') : describeValue(param.values[0]);
             const draft = drafts[param.key] ?? '';
             return (
               <label key={param.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -137,7 +138,7 @@ export default function BulkParamModal({ nodes, onApply, onClose }: BulkParamMod
                       setDrafts(prev => { const next = { ...prev }; delete next[param.key]; return next; });
                       setTouched(prev => { const next = new Set(prev); next.delete(param.key); return next; });
                     }}
-                    title="Don't change this parameter"
+                    title={t('paramBulk.resetFieldTitle')}
                   >×</button>
                 )}
               </label>
