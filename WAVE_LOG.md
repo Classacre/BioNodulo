@@ -478,6 +478,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Scatter Plot now has an interactive HTML output mode alongside PNG/SVG: it emits a Plotly-backed `scatter_plot.html`, preserves the existing `plot_image` output name for compatibility, registers HTML previews through the existing preview pipeline, and keeps static image formats as the default.
 - Line Chart now has a matching interactive HTML output mode: multi-series traces render through Plotly with line style, marker, grid, palette, and axis metadata preserved, while the existing `chart_image` output and PNG/SVG defaults remain compatible.
 - Bar Chart now has an interactive HTML output mode as well: grouped vertical and horizontal bars render through Plotly, preserve value labels and group colors, keep the existing `chart_image` output path, and were browser-checked with Playwright against a generated HTML artifact.
+- Heatmap now supports interactive HTML output through Plotly while preserving clustering, row/column scaling, labels, colour-scale choices, the existing `heatmap_image` output name, and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 
 ---
 

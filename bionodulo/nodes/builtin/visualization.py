@@ -19,6 +19,7 @@ SUPPORTED_IMAGE_FORMATS = ("png", "svg")
 SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+HEATMAP_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -3506,6 +3507,125 @@ def _render_heatmap_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _plotly_heatmap_colorscale(colormap: str) -> str:
+    palette = str(colormap or "RdYlBu_r").strip().lower()
+    if palette in {"viridis"}:
+        return "Viridis"
+    if palette in {"magma"}:
+        return "Magma"
+    if palette in {"blues", "blue"}:
+        return "Blues"
+    if palette in {"redblue", "rdbu", "rdbu_r"}:
+        return "RdBu"
+    if palette in {"rdylbu_r"}:
+        return "RdYlBu"
+    return "RdYlBu"
+
+
+def _render_heatmap_html(
+    path: Path,
+    *,
+    matrix: HeatmapMatrix,
+    layout: PlotLayout,
+    title: str,
+    colormap: str,
+    show_rownames: bool,
+    show_colnames: bool,
+    vmin: float | None,
+    vmax: float | None,
+    cluster_rows: bool,
+    cluster_cols: bool,
+) -> None:
+    row_order, col_order = _heatmap_order(
+        matrix,
+        cluster_rows=cluster_rows,
+        cluster_cols=cluster_cols,
+    )
+    numeric = _heatmap_numeric_values(matrix)
+    low = vmin if vmin is not None else min(numeric)
+    high = vmax if vmax is not None else max(numeric)
+    row_labels = [matrix.row_labels[index] for index in row_order]
+    column_labels = [matrix.column_labels[index] for index in col_order]
+    values = [
+        [matrix.values[row_index][col_index] for col_index in col_order]
+        for row_index in row_order
+    ]
+    hover_text = [
+        [
+            (
+                f"{html.escape(matrix.row_labels[row_index])}<br>"
+                f"{html.escape(matrix.column_labels[col_index])}: "
+                f"{matrix.values[row_index][col_index]:.6g}"
+            )
+            if matrix.values[row_index][col_index] is not None
+            else (
+                f"{html.escape(matrix.row_labels[row_index])}<br>"
+                f"{html.escape(matrix.column_labels[col_index])}: NA"
+            )
+            for col_index in col_order
+        ]
+        for row_index in row_order
+    ]
+    traces = [{
+        "type": "heatmap",
+        "x": column_labels,
+        "y": row_labels,
+        "z": values,
+        "text": hover_text,
+        "hovertemplate": "%{text}<extra></extra>",
+        "colorscale": _plotly_heatmap_colorscale(colormap),
+        "zmin": low,
+        "zmax": high,
+        "colorbar": {"title": "Value"},
+        "xgap": 1,
+        "ygap": 1,
+    }]
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {"showticklabels": show_colnames, "side": "bottom"},
+        "yaxis": {"showticklabels": show_rownames, "autorange": "reversed"},
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "heatmap"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_manhattan_svg(
     path: Path,
     *,
@@ -5404,7 +5524,7 @@ class HeatmapNode(BaseNode):
                 "show_colnames": ("BOOLEAN", {"default": True}),
                 "vmin": ("FLOAT", {"default": 0.0}),
                 "vmax": ("FLOAT", {"default": 0.0}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(HEATMAP_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 8.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -5416,7 +5536,7 @@ class HeatmapNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in HEATMAP_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported heatmap format: {output_format}")
 
         scale = str(kwargs.get("scale", "none") or "none").strip().lower()
@@ -5450,6 +5570,20 @@ class HeatmapNode(BaseNode):
         output_path = out_dir / f"heatmap.{output_format}"
         if output_format == "svg":
             _render_heatmap_svg(
+                output_path,
+                matrix=matrix,
+                layout=layout,
+                title=title,
+                colormap=colormap,
+                show_rownames=show_rownames,
+                show_colnames=show_colnames,
+                vmin=vmin,
+                vmax=vmax,
+                cluster_rows=cluster_rows,
+                cluster_cols=cluster_cols,
+            )
+        elif output_format == "html":
+            _render_heatmap_html(
                 output_path,
                 matrix=matrix,
                 layout=layout,

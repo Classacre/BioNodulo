@@ -94,6 +94,8 @@ def test_line_chart_is_registered_for_frontend_discovery() -> None:
 def test_heatmap_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("heatmap")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -102,6 +104,7 @@ def test_heatmap_is_registered_for_frontend_discovery() -> None:
     assert info["heatmap"]["output_name"] == ["heatmap_image"]
     assert info["heatmap"]["output"] == ["IMAGE"]
     assert info["heatmap"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_manhattan_plot_is_registered_for_frontend_discovery() -> None:
@@ -612,6 +615,53 @@ async def test_heatmap_writes_scaled_svg_and_registers_preview(tmp_path: Path) -
     assert "BRCA1" in svg
     assert "S3" in svg
     assert previews == [(str(svg_path), "Heatmap")]
+
+
+@pytest.mark.asyncio
+async def test_heatmap_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("heatmap")
+    matrix = tmp_path / "expression.tsv"
+    matrix.write_text(
+        "gene\tS1\tS2\tS3\n"
+        "TP53\t10\t15\t30\n"
+        "BRCA1\t25\t20\t5\n"
+        "ACTB\t100\t105\t110\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        matrix=str(matrix),
+        colormap="viridis",
+        cluster_rows=True,
+        cluster_cols=True,
+        scale="row",
+        title="Expression Heatmap",
+        show_rownames=True,
+        show_colnames=True,
+        format="html",
+        width=9,
+        height=7,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["heatmap_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "heatmap.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Expression Heatmap" in document
+    assert '"type": "heatmap"' in document
+    assert '"TP53"' in document
+    assert '"BRCA1"' in document
+    assert '"S1"' in document
+    assert '"colorscale": "Viridis"' in document
+    assert previews == [(str(html_path), "Heatmap")]
 
 
 @pytest.mark.asyncio
