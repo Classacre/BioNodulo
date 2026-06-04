@@ -72,6 +72,7 @@ describe('NodeCommentPopover i18n', () => {
     );
 
     expect(screen.getByText('Comentarios del nodo')).toBeInTheDocument();
+    expect(screen.getByText('ahora')).toBeInTheDocument();
     expect(screen.getByTitle('Cerrar comentarios')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Responder' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Resolver/ })).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../components/ui/Icon';
 import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
@@ -19,14 +20,6 @@ interface NodeCommentPopoverProps {
 
 const API_BASE = 'api/collab';
 
-function timeAgo(timestamp: string): string {
-  const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
-
 export default function NodeCommentPopover({
   workflowId,
   nodeId,
@@ -38,6 +31,7 @@ export default function NodeCommentPopover({
   onChanged,
   onClose,
 }: NodeCommentPopoverProps) {
+  const { t } = useTranslation();
   const roots = useMemo(
     () => comments.filter(comment => comment.node_id === nodeId && !comment.parent_id),
     [comments, nodeId],
@@ -46,6 +40,14 @@ export default function NodeCommentPopover({
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const timeAgo = (timestamp: string): string => {
+    const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+    if (seconds < 60) return t('collab.timeJustNow');
+    if (seconds < 3600) return t('collab.timeMinutesAgo', { count: Math.floor(seconds / 60) });
+    if (seconds < 86400) return t('collab.timeHoursAgo', { count: Math.floor(seconds / 3600) });
+    return t('collab.timeDaysAgo', { count: Math.floor(seconds / 86400) });
+  };
 
   const post = async (text: string, parentId: string | null) => {
     if (!text.trim()) return;
@@ -61,7 +63,7 @@ export default function NodeCommentPopover({
       setError(null);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not post comment');
+      setError(err instanceof Error ? err.message : t('collab.couldNotPostComment'));
     }
   };
 
@@ -71,7 +73,7 @@ export default function NodeCommentPopover({
       setError(null);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not resolve comment');
+      setError(err instanceof Error ? err.message : t('collab.couldNotResolveComment'));
     }
   };
 
@@ -98,8 +100,8 @@ export default function NodeCommentPopover({
       color: 'var(--text)',
     }} onMouseDown={event => event.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 10px', borderBottom: '1px solid var(--border)' }}>
-        <strong style={{ fontSize: 12 }}>{compose && roots.length === 0 ? 'Comment on node' : 'Node comments'}</strong>
-        <button className="btn btn-icon btn-xs" onClick={onClose} title="Close comments"><Icon name="close" size={12} /></button>
+        <strong style={{ fontSize: 12 }}>{compose && roots.length === 0 ? t('collab.nodeCommentTitle') : t('collab.nodeCommentsTitle')}</strong>
+        <button className="btn btn-icon btn-xs" onClick={onClose} title={t('collab.closeComments')}><Icon name="close" size={12} /></button>
       </div>
       {error ? <div style={{ color: 'var(--danger)', fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)' }}>{error}</div> : null}
       {roots.length > 0 ? (
@@ -119,8 +121,8 @@ export default function NodeCommentPopover({
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
-                <button className="btn btn-xs" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>Reply</button>
-                {!comment.resolved ? <button className="btn btn-xs" onClick={() => void resolve(comment.id)}><Icon name="check" size={11} /> Resolve</button> : null}
+                <button className="btn btn-xs" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{t('collab.reply')}</button>
+                {!comment.resolved ? <button className="btn btn-xs" onClick={() => void resolve(comment.id)}><Icon name="check" size={11} /> {t('collab.resolveComment')}</button> : null}
               </div>
               {replyTo === comment.id ? (
                 <div style={{ display: 'grid', gap: 5, marginTop: 7 }}>
@@ -129,10 +131,10 @@ export default function NodeCommentPopover({
                     value={reply}
                     onChange={event => setReply(event.target.value)}
                     onKeyDown={event => submitOnEnter(event, () => void post(reply, comment.id))}
-                    placeholder="Reply..."
+                    placeholder={t('collab.replyPlaceholder')}
                     style={{ minHeight: 50, resize: 'vertical', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--surface)', color: 'var(--text)', padding: 6, fontSize: 12 }}
                   />
-                  <button className="btn btn-xs" onClick={() => void post(reply, comment.id)} disabled={!reply.trim()}>Send reply</button>
+                  <button className="btn btn-xs" onClick={() => void post(reply, comment.id)} disabled={!reply.trim()}>{t('collab.sendReply')}</button>
                 </div>
               ) : null}
             </div>
@@ -146,10 +148,10 @@ export default function NodeCommentPopover({
             value={content}
             onChange={event => setContent(event.target.value)}
             onKeyDown={event => submitOnEnter(event, () => void post(content, null))}
-            placeholder={`${currentUser.name}, add a node comment...`}
+            placeholder={t('collab.nodeCommentPlaceholder', { name: currentUser.name })}
             style={{ minHeight: 58, resize: 'vertical', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--surface-2)', color: 'var(--text)', padding: 7, fontSize: 12 }}
           />
-          <button className="btn btn-sm" onClick={() => void post(content, null)} disabled={!content.trim()}>Post comment</button>
+          <button className="btn btn-sm" onClick={() => void post(content, null)} disabled={!content.trim()}>{t('collab.postComment')}</button>
         </div>
       ) : null}
     </div>
