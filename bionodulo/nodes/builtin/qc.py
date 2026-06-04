@@ -214,3 +214,17 @@ class QualiMapNode(CommandNode):
         if src.exists():
             src.rename(report)
         return result
+
+
+class QualiMapAliasNode(QualiMapNode):
+    """Planner compatibility alias for QualiMap BAM QC."""
+    NODE_ID = "qualimap"
+    DISPLAY_NAME = "QualiMap"
+    DESCRIPTION = "Run QualiMap BAM quality control for alignment reports."
+    SEARCH_ALIASES = [
+        "qualimap",
+        "bamqc",
+        "bam qc",
+        "alignment qc",
+        "quality report",
+    ]
