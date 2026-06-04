@@ -132,6 +132,8 @@ def test_manhattan_plot_is_registered_for_frontend_discovery() -> None:
 def test_forest_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("forest_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -140,6 +142,7 @@ def test_forest_plot_is_registered_for_frontend_discovery() -> None:
     assert info["forest_plot"]["output_name"] == ["forest_image"]
     assert info["forest_plot"]["output"] == ["IMAGE"]
     assert info["forest_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
@@ -922,6 +925,58 @@ async def test_forest_plot_writes_svg_with_intervals_pooled_row_and_preview(tmp_
     assert 'data-effect="0.39"' in svg
     assert "Pooled" in svg
     assert previews == [(str(svg_path), "Forest Plot")]
+
+
+@pytest.mark.asyncio
+async def test_forest_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("forest_plot")
+    table = tmp_path / "meta_analysis.tsv"
+    table.write_text(
+        "study\tlogFC\tci_lower\tci_upper\tweight\tpooled\n"
+        "GSE12345\t0.42\t0.10\t0.74\t26.5\tfalse\n"
+        "GSE67890\t0.80\t0.28\t1.32\t21.0\tfalse\n"
+        "GSE24680\t-0.12\t-0.50\t0.26\t18.5\tfalse\n"
+        "Pooled\t0.39\t0.15\t0.63\t100\ttrue\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        table=str(table),
+        label_column="study",
+        effect_column="logFC",
+        lower_column="ci_lower",
+        upper_column="ci_upper",
+        weight_column="weight",
+        pooled_column="pooled",
+        title="Meta-Analysis Forest Plot",
+        x_label="Log fold change",
+        format="html",
+        width=9,
+        height=5,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["forest_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "forest_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Meta-Analysis Forest Plot" in document
+    assert "Log fold change" in document
+    assert '"type": "scatter"' in document
+    assert '"mode": "markers"' in document
+    assert '"GSE12345"' in document
+    assert '"Pooled"' in document
+    assert '"array": [0.32, 0.52, 0.38]' in document
+    assert '"arrayminus": [0.32, 0.52, 0.38]' in document
+    assert '"symbol": "diamond"' in document
+    assert previews == [(str(html_path), "Forest Plot")]
 
 
 @pytest.mark.asyncio

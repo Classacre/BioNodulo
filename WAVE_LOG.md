@@ -484,6 +484,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Manhattan Plot now supports interactive HTML output through Plotly: genome-offset GWAS points render with chromosome ticks, genome-wide/suggestive threshold annotations, top-SNP labels, the existing `manhattan_image` output name, and PNG/SVG defaults preserved. The generated HTML artifact was browser-checked with Playwright.
 - Coverage Plot now supports interactive HTML output through Plotly: coverage intervals render as width-aware bars with structured region/depth hover data, the existing `coverage_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
 - VCF Stats Chart now supports interactive HTML output through Plotly: variant-type, quality-distribution, Ti/Tv, and chromosome-count panels render as an interactive dashboard while preserving the `stats_image` plus `stats_json` outputs. The generated HTML artifact was browser-checked with Playwright.
+- Forest Plot now supports interactive HTML output through Plotly: study estimates render with confidence intervals, pooled rows use diamond markers, weights are kept in hover data, and the existing `forest_image` output name plus PNG/SVG defaults remain compatible. The generated HTML artifact was browser-checked with Playwright.
 
 ---
 

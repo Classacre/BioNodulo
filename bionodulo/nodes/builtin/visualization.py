@@ -25,6 +25,7 @@ HEATMAP_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 MANHATTAN_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 COVERAGE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 VCF_STATS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+FOREST_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -5760,6 +5761,171 @@ if (window.Plotly) {{
     path.write_text(document, encoding="utf-8")
 
 
+def _forest_error_array(rows: list[ForestPlotRow], *, side: str) -> list[float]:
+    if side == "upper":
+        return [round(max(row.upper - row.effect, 0.0), 10) for row in rows]
+    return [round(max(row.effect - row.lower, 0.0), 10) for row in rows]
+
+
+def _forest_customdata(rows: list[ForestPlotRow]) -> list[list[Any]]:
+    return [
+        [
+            row.label,
+            round(row.effect, 10),
+            round(row.lower, 10),
+            round(row.upper, 10),
+            "n/a" if row.weight is None else round(row.weight, 10),
+        ]
+        for row in rows
+    ]
+
+
+def _render_forest_html(
+    path: Path,
+    *,
+    rows: list[ForestPlotRow],
+    bounds: tuple[float, float],
+    layout: PlotLayout,
+    title: str,
+    x_label: str,
+    reference: float,
+    show_weights: bool,
+) -> None:
+    labels = [row.label for row in rows]
+    study_rows = [row for row in rows if not row.pooled]
+    pooled_rows = [row for row in rows if row.pooled]
+    has_weights = any(row.weight is not None for row in rows)
+    weight_line = "<br>weight: %{customdata[4]}%" if show_weights and has_weights else ""
+    hovertemplate = (
+        "<b>%{customdata[0]}</b><br>"
+        "effect: %{customdata[1]}<br>"
+        "CI: [%{customdata[2]}, %{customdata[3]}]"
+        f"{weight_line}<extra></extra>"
+    )
+
+    traces: list[dict[str, Any]] = []
+    if study_rows:
+        traces.append({
+            "type": "scatter",
+            "mode": "markers",
+            "name": "Study",
+            "x": [round(row.effect, 10) for row in study_rows],
+            "y": [row.label for row in study_rows],
+            "customdata": _forest_customdata(study_rows),
+            "hovertemplate": hovertemplate,
+            "error_x": {
+                "type": "data",
+                "symmetric": False,
+                "array": _forest_error_array(study_rows, side="upper"),
+                "arrayminus": _forest_error_array(study_rows, side="lower"),
+                "color": "#334155",
+                "thickness": 1.6,
+                "width": 6,
+            },
+            "marker": {
+                "color": "#2563EB",
+                "size": [round(_forest_marker_radius(row) * 2.0, 2) for row in study_rows],
+                "opacity": 0.88,
+                "line": {"color": "#ffffff", "width": 1},
+            },
+        })
+    if pooled_rows:
+        traces.append({
+            "type": "scatter",
+            "mode": "markers",
+            "name": "Pooled",
+            "x": [round(row.effect, 10) for row in pooled_rows],
+            "y": [row.label for row in pooled_rows],
+            "customdata": _forest_customdata(pooled_rows),
+            "hovertemplate": hovertemplate,
+            "error_x": {
+                "type": "data",
+                "symmetric": False,
+                "array": _forest_error_array(pooled_rows, side="upper"),
+                "arrayminus": _forest_error_array(pooled_rows, side="lower"),
+                "color": "#0F172A",
+                "thickness": 2.2,
+                "width": 7,
+            },
+            "marker": {
+                "color": "#0F172A",
+                "symbol": "diamond",
+                "size": [round(_forest_marker_radius(row) * 2.4, 2) for row in pooled_rows],
+                "opacity": 0.95,
+                "line": {"color": "#ffffff", "width": 1},
+            },
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": x_label,
+            "range": [bounds[0], bounds[1]],
+            "zeroline": False,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "yaxis": {
+            "title": "",
+            "categoryorder": "array",
+            "categoryarray": labels,
+            "autorange": "reversed",
+            "automargin": True,
+        },
+        "shapes": [{
+            "type": "line",
+            "xref": "x",
+            "yref": "paper",
+            "x0": reference,
+            "x1": reference,
+            "y0": 0,
+            "y1": 1,
+            "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+        }],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": bool(study_rows and pooled_rows),
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "forest_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _forest_marker_radius(row: ForestPlotRow) -> float:
     if row.pooled:
         return 7.0
@@ -5988,7 +6154,7 @@ class ForestPlotNode(BaseNode):
                 "x_label": ("STRING", {"default": "Effect size"}),
                 "reference": ("FLOAT", {"default": 0.0}),
                 "show_weights": ("BOOLEAN", {"default": True}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(FOREST_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -6000,7 +6166,7 @@ class ForestPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in FOREST_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported forest plot format: {output_format}")
 
         label_column = str(kwargs.get("study_column", "") or "").strip()
@@ -6047,6 +6213,17 @@ class ForestPlotNode(BaseNode):
         output_path = out_dir / f"forest_plot.{output_format}"
         if output_format == "svg":
             _render_forest_svg(
+                output_path,
+                rows=rows,
+                bounds=bounds,
+                layout=layout,
+                title=str(kwargs.get("title", "Forest Plot") or "Forest Plot"),
+                x_label=str(kwargs.get("x_label", "Effect size") or "Effect size"),
+                reference=reference,
+                show_weights=bool(kwargs.get("show_weights", True)),
+            )
+        elif output_format == "html":
+            _render_forest_html(
                 output_path,
                 rows=rows,
                 bounds=bounds,
