@@ -354,4 +354,47 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Creating a Custom Node');
     expect(source).not.toContain('Node Registration');
   });
+
+  it('renders hpc-integration article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Integracion HPC' }));
+
+    expect(screen.getByRole('heading', { name: 'Integracion HPC' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Planificadores soportados' })).toBeInTheDocument();
+    expect(screen.getByText(/clusters de High Performance Computing/)).toBeInTheDocument();
+    expect(screen.getByText('sbatch, squeue, scancel')).toBeInTheDocument();
+    expect(screen.getByText('module load')).toBeInTheDocument();
+    expect(screen.queryByText('HPC Integration')).not.toBeInTheDocument();
+  });
+
+  it('searches hpc-integration article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'planificadores soportados' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Integracion HPC')).toBeInTheDocument();
+  });
+
+  it('keeps hpc-integration wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.hpcIntegration');
+    expect(source).not.toContain('BioNodulo can submit workflows');
+    expect(source).not.toContain('Supported Schedulers');
+    expect(source).not.toContain('Environment Modules');
+  });
 });

@@ -1215,6 +1215,33 @@ class MyToolNode(CommandNode):
 <h4>Node Info & Documentation</h4>
 <p>Set <code>DESCRIPTION</code> for a short summary. Set <code>DOCUMENTATION_URL</code> to link to external docs. Users can view full node info by right-clicking a node and selecting <strong>Node Info</strong>.</p>
 `,
+      hpcIntegration: `
+<h3>HPC Integration</h3>
+<p>BioNodulo can submit workflows to High Performance Computing clusters via job schedulers.</p>
+
+<h4>Supported Schedulers</h4>
+<table>
+<tr><th>Scheduler</th><th>Commands</th><th>Status</th></tr>
+<tr><td>SLURM</td><td>sbatch, squeue, scancel</td><td>Fully supported</td></tr>
+<tr><td>PBS/Torque</td><td>qsub, qstat, qdel</td><td>Fully supported</td></tr>
+<tr><td>SGE</td><td>qsub, qstat, qdel</td><td>Fully supported</td></tr>
+</table>
+
+<h4>Configuration</h4>
+<ol>
+<li>Enable HPC in Settings > HPC or click the HPC toggle in the top bar</li>
+<li>Select your scheduler backend</li>
+<li>Set partition/account if required</li>
+<li>Configure modules to load before execution</li>
+<li>Configure walltime, CPUs per task, and memory</li>
+</ol>
+
+<h4>Running on HPC</h4>
+<p>When HPC mode is enabled, clicking Run will generate a batch job script and submit it to the scheduler. Monitor job status in the HPC panel.</p>
+
+<h4>Environment Modules</h4>
+<p>Specify modules to load, for example <code>bioinfo/BWA/0.7.17</code>, in the HPC settings. These are loaded via <code>module load</code> before your workflow runs.</p>
+`,
     },
     sections: {
       gettingStarted: 'Getting started',

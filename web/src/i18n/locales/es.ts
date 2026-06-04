@@ -1216,6 +1216,33 @@ class MyToolNode(CommandNode):
 <h4>Info y documentacion del nodo</h4>
 <p>Define <code>DESCRIPTION</code> para un resumen corto. Define <code>DOCUMENTATION_URL</code> para enlazar documentacion externa. Los usuarios pueden ver la informacion completa del nodo haciendo clic derecho en un nodo y seleccionando <strong>Info del nodo</strong>.</p>
 `,
+      hpcIntegration: `
+<h3>Integracion HPC</h3>
+<p>BioNodulo puede enviar workflows a clusters de High Performance Computing mediante planificadores de jobs.</p>
+
+<h4>Planificadores soportados</h4>
+<table>
+<tr><th>Planificador</th><th>Comandos</th><th>Estado</th></tr>
+<tr><td>SLURM</td><td>sbatch, squeue, scancel</td><td>Totalmente soportado</td></tr>
+<tr><td>PBS/Torque</td><td>qsub, qstat, qdel</td><td>Totalmente soportado</td></tr>
+<tr><td>SGE</td><td>qsub, qstat, qdel</td><td>Totalmente soportado</td></tr>
+</table>
+
+<h4>Configuracion</h4>
+<ol>
+<li>Habilita HPC en Settings > HPC o haz clic en el interruptor HPC de la barra superior</li>
+<li>Selecciona el backend del planificador</li>
+<li>Define particion/cuenta si es necesario</li>
+<li>Configura los modulos que se cargaran antes de la ejecucion</li>
+<li>Configura walltime, CPUs por tarea y memoria</li>
+</ol>
+
+<h4>Ejecucion en HPC</h4>
+<p>Cuando el modo HPC esta habilitado, hacer clic en Run generara un script de job por lotes y lo enviara al planificador. Monitorea el estado del job en el panel HPC.</p>
+
+<h4>Modulos de entorno</h4>
+<p>Especifica modulos para cargar, por ejemplo <code>bioinfo/BWA/0.7.17</code>, en la configuracion HPC. Se cargan mediante <code>module load</code> antes de ejecutar el workflow.</p>
+`,
     },
     sections: {
       gettingStarted: 'Primeros pasos',
