@@ -13,8 +13,10 @@ import platform
 import re
 import sys
 import time
+from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from bionodulo.nodes.base import BaseNode
 
@@ -1761,6 +1763,13 @@ class WorkflowTriggerNode(BaseNode):
     RETURN_NAMES = ("trigger_info", "triggered")
     REQUIRES_EXTERNAL_TOOLS = False
     SUPPORTED_TRIGGER_TYPES = {"webhook", "schedule", "file_watch"}
+    CRON_FIELD_SPECS = {
+        "minute": (0, 59),
+        "hour": (0, 23),
+        "day_of_month": (1, 31),
+        "month": (1, 12),
+        "day_of_week": (0, 7),
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -1887,14 +1896,105 @@ class WorkflowTriggerNode(BaseNode):
         )
 
     def _record_schedule(self, context: Any, cron_expression: str, timezone: str) -> tuple[dict[str, Any], bool]:
+        cron_fields, allowed = self._parse_cron_expression(cron_expression)
+        try:
+            zone = ZoneInfo(timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Unsupported timezone: {timezone}") from exc
+
+        now = datetime.fromtimestamp(time.time(), tz=zone)
+        next_run = self._next_cron_run(now, allowed)
+        next_run_utc = next_run.astimezone(dt_timezone.utc)
         info = {
             "status": "registered",
             "cron_expression": cron_expression,
+            "cron_fields": cron_fields,
             "timezone": timezone,
+            "next_run_at": next_run.isoformat(),
+            "next_run_at_utc": next_run_utc.isoformat(),
+            "seconds_until_next_run": int((next_run_utc - now.astimezone(dt_timezone.utc)).total_seconds()),
             "durable_scheduler_supported": False,
             "note": "Schedule intent recorded; durable scheduler execution is not implemented yet.",
         }
         return (info, True)
+
+    def _parse_cron_expression(self, cron_expression: str) -> tuple[dict[str, str], dict[str, set[int]]]:
+        fields = cron_expression.split()
+        if len(fields) != 5:
+            raise ValueError("cron_expression must have exactly 5 fields")
+        names = ["minute", "hour", "day_of_month", "month", "day_of_week"]
+        cron_fields = dict(zip(names, fields, strict=True))
+        allowed = {
+            name: self._parse_cron_field(name, cron_fields[name], *self.CRON_FIELD_SPECS[name])
+            for name in names
+        }
+        if 7 in allowed["day_of_week"]:
+            allowed["day_of_week"].add(0)
+            allowed["day_of_week"].discard(7)
+        return cron_fields, allowed
+
+    def _parse_cron_field(self, name: str, value: str, minimum: int, maximum: int) -> set[int]:
+        allowed: set[int] = set()
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                raise ValueError(f"Invalid {name} field: {value}")
+            step = 1
+            base = part
+            if "/" in part:
+                base, step_text = part.split("/", 1)
+                if not step_text.isdigit() or int(step_text) <= 0:
+                    raise ValueError(f"Invalid {name} field: {value}")
+                step = int(step_text)
+            if base == "*":
+                start, end = minimum, maximum
+            elif "-" in base:
+                start_text, end_text = base.split("-", 1)
+                if not start_text.isdigit() or not end_text.isdigit():
+                    raise ValueError(f"Invalid {name} field: {value}")
+                start, end = int(start_text), int(end_text)
+                if start > end:
+                    raise ValueError(f"Invalid {name} field: {value}")
+            else:
+                if not base.isdigit():
+                    raise ValueError(f"Invalid {name} field: {value}")
+                start = end = int(base)
+            if start < minimum or end > maximum:
+                raise ValueError(f"Invalid {name} field: {value}")
+            allowed.update(range(start, end + 1, step))
+        return allowed
+
+    def _next_cron_run(self, now: datetime, allowed: dict[str, set[int]]) -> datetime:
+        candidate = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
+        deadline = candidate + timedelta(days=366 * 5)
+        while candidate <= deadline:
+            cron_weekday = (candidate.weekday() + 1) % 7
+            if (
+                candidate.minute in allowed["minute"]
+                and candidate.hour in allowed["hour"]
+                and candidate.month in allowed["month"]
+                and self._cron_day_matches(candidate.day, cron_weekday, allowed)
+            ):
+                return candidate
+            candidate += timedelta(minutes=1)
+        raise ValueError("cron_expression did not produce a next run within 5 years")
+
+    def _cron_day_matches(self, day_of_month: int, day_of_week: int, allowed: dict[str, set[int]]) -> bool:
+        all_days = set(range(1, 32))
+        all_weekdays = set(range(0, 7))
+        dom_allowed = allowed["day_of_month"]
+        dow_allowed = allowed["day_of_week"]
+        dom_is_wildcard = dom_allowed == all_days
+        dow_is_wildcard = dow_allowed == all_weekdays
+        dom_matches = day_of_month in dom_allowed
+        dow_matches = day_of_week in dow_allowed
+        if dom_is_wildcard and dow_is_wildcard:
+            return True
+        if dom_is_wildcard:
+            return dow_matches
+        if dow_is_wildcard:
+            return dom_matches
+        return dom_matches or dow_matches
 
     def _record_file_watch(self, context: Any, watch_path: str, watch_event: str) -> tuple[dict[str, Any], bool]:
         path = Path(watch_path) if watch_path else None

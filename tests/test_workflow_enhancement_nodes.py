@@ -957,6 +957,66 @@ async def test_workflow_trigger_records_schedule_intent(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_workflow_trigger_schedule_calculates_next_run_in_timezone(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # 2026-06-05T01:45:00Z is Friday 09:45 in Australia/Perth.
+    monkeypatch.setattr("bionodulo.nodes.builtin.workflow_enhancement.time.time", lambda: 1780623900.0)
+    context = _context(tmp_path, "trigger-next-run")
+    context.workspace_dir = tmp_path
+
+    trigger_info_json, triggered = await _node_class("workflow_trigger")().run(
+        trigger_type="schedule",
+        cron_expression="30 2 * * 1",
+        timezone="Australia/Perth",
+        target_workflow="weekly-qc",
+        context=context,
+    )
+
+    trigger_info = json.loads(trigger_info_json)
+    schedule_file = Path(trigger_info["schedule_file"])
+    saved = json.loads(schedule_file.read_text(encoding="utf-8"))
+    assert triggered is True
+    assert trigger_info["next_run_at"] == "2026-06-08T02:30:00+08:00"
+    assert trigger_info["next_run_at_utc"] == "2026-06-07T18:30:00+00:00"
+    assert trigger_info["seconds_until_next_run"] == 233100
+    assert trigger_info["cron_fields"] == {
+        "minute": "30",
+        "hour": "2",
+        "day_of_month": "*",
+        "month": "*",
+        "day_of_week": "1",
+    }
+    assert saved["next_run_at"] == trigger_info["next_run_at"]
+    assert saved["next_run_at_utc"] == trigger_info["next_run_at_utc"]
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_schedule_rejects_invalid_cron_and_timezone() -> None:
+    with pytest.raises(ValueError, match="cron_expression must have exactly 5 fields"):
+        await _node_class("workflow_trigger")().run(
+            trigger_type="schedule",
+            cron_expression="0 2 * *",
+            timezone="UTC",
+        )
+
+    with pytest.raises(ValueError, match="Unsupported timezone"):
+        await _node_class("workflow_trigger")().run(
+            trigger_type="schedule",
+            cron_expression="0 2 * * *",
+            timezone="Mars/Olympus",
+        )
+
+    with pytest.raises(ValueError, match="Invalid minute field"):
+        await _node_class("workflow_trigger")().run(
+            trigger_type="schedule",
+            cron_expression="99 2 * * *",
+            timezone="UTC",
+        )
+
+
+@pytest.mark.asyncio
 async def test_workflow_trigger_records_file_watch_intent(tmp_path: Path) -> None:
     watch_dir = tmp_path / "inbox"
     watch_dir.mkdir()
