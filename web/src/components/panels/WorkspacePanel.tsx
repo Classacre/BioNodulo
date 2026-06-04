@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
 import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
@@ -17,6 +18,7 @@ interface WorkspacePanelProps {
 }
 
 export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkflow }: WorkspacePanelProps) {
+  const { t } = useTranslation();
   const [path, setPath] = useState('/');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,9 +76,9 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     } catch (err) {
       if (err instanceof ApiError) {
         const detail = (err.body as { detail?: string } | null)?.detail;
-        setRootError(detail || 'Failed to change workspace');
+        setRootError(detail || t('workspace.changeFailed'));
       } else {
-        setRootError('Network error');
+        setRootError(t('workspace.networkError'));
       }
     }
     setRootLoading(false);
@@ -140,7 +142,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
       const text = await apiGetText(`/workspace/file?path=${encodeURIComponent(file.path)}`);
       setPreviewContent(text);
     } catch (err) {
-      setPreviewContent(err instanceof ApiError ? `Error loading file: ${err.status}` : 'Network error');
+      setPreviewContent(err instanceof ApiError ? t('workspace.fileLoadError', { status: err.status }) : t('workspace.networkError'));
     }
     setPreviewLoading(false);
   };
@@ -167,34 +169,40 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     return parts.length === 0 ? '/' : '/' + parts.join('/');
   };
 
+  const fileTitle = (file: FileEntry) => {
+    if (file.type === 'directory') return t('workspace.directoryOpenTitle');
+    if (isWorkflowFile(file.name)) return t('workspace.workflowFileTitle');
+    return t('workspace.inputFileTitle');
+  };
+
   return (
     <div className="rail-panel">
       <div className="rail-panel-header">
-        <span>Workspace</span>
-        <button className="btn btn-icon btn-sm" onClick={onClose}>✕</button>
+        <span>{t('workspace.title')}</span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')} aria-label={t('common.close')}>✕</button>
       </div>
 
       <div className="rail-panel-body">
         {/* Root controls */}
         <div className="workspace-root-controls">
-          <div className="workspace-root-label">Workspace Root</div>
+          <div className="workspace-root-label">{t('workspace.rootLabel')}</div>
           <div className="workspace-root-row">
             <input
               type="text"
               className="text-input workspace-root-input"
               value={rootInput}
               onChange={e => setRootInput(e.target.value)}
-              placeholder="/path/to/workspace"
+              placeholder={t('workspace.rootPlaceholder')}
               onKeyDown={e => { if (e.key === 'Enter') handleSetRoot(); }}
             />
-            <button className="btn btn-sm" onClick={handleSetRoot} disabled={rootLoading} title="Set workspace root">
-              {rootLoading ? '...' : 'Set'}
+            <button className="btn btn-sm" onClick={handleSetRoot} disabled={rootLoading} title={t('workspace.setRootTitle')}>
+              {rootLoading ? '...' : t('workspace.setRoot')}
             </button>
-            <button className="btn btn-sm" onClick={handleDefaultRoot} title="Reload current root">
-              Default
+            <button className="btn btn-sm" onClick={handleDefaultRoot} title={t('workspace.defaultRootTitle')}>
+              {t('workspace.defaultRoot')}
             </button>
             {onOpenSettings && (
-              <button className="btn btn-icon btn-sm" onClick={onOpenSettings} title="Open settings">
+              <button className="btn btn-icon btn-sm" onClick={onOpenSettings} title={t('workspace.openSettings')}>
                 <Icon name="settings" size={14} />
               </button>
             )}
@@ -210,24 +218,24 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
             <span
               className="workspace-breadcrumb-parent"
               onClick={() => { const pp = parentPath(path); if (pp !== null) loadFiles(pp); }}
-              title="Go up"
+              title={t('workspace.goUp')}
             >
               <Icon name="arrow-up" size={12} /> ..
             </span>
           )}
           <span className="workspace-breadcrumb-path">{path === '.' ? '/' : path}</span>
           {selected.size > 0 && (
-            <span className="workspace-selection-count">{selected.size} selected</span>
+            <span className="workspace-selection-count">{t('workspace.selectedCount', { count: selected.size })}</span>
           )}
         </div>
 
         {/* File list */}
         {loading ? (
-          <div className="workspace-loading">Loading...</div>
+          <div className="workspace-loading">{t('common.loading')}</div>
         ) : (
           <div className="workspace-file-list" ref={fileListRef}>
             {files.length === 0 && (
-              <div className="workspace-empty">No files in this directory</div>
+              <div className="workspace-empty">{t('workspace.emptyDirectory')}</div>
             )}
             {files.map(file => {
               const isSelected = selected.has(file.path);
@@ -239,7 +247,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                   onDoubleClick={() => handleDoubleClick(file)}
                   draggable={file.type === 'file'}
                   onDragStart={(e) => handleDragStart(e, file)}
-                  title={file.type === 'directory' ? 'Double-click to open' : isWorkflowFile(file.name) ? 'Double-click to preview, drag to canvas to import' : 'Double-click to preview, drag to canvas to add as input'}
+                  title={fileTitle(file)}
                 >
                   <input
                     type="checkbox"
@@ -269,7 +277,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
             <div className="modal-header">{previewFile}</div>
             <div className="modal-body">
               {previewLoading ? (
-                <div>Loading...</div>
+                <div>{t('common.loading')}</div>
               ) : (
                 <textarea
                   readOnly
@@ -288,15 +296,15 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                       onImportWorkflow(wf);
                       setPreviewFile(null);
                     } catch {
-                      await alertDialog('Invalid workflow JSON');
+                      await alertDialog(t('workspace.invalidWorkflowJson'));
                     }
                   }}
                 >
-                  Load as Workflow
+                  {t('workspace.loadAsWorkflow')}
                 </button>
               )}
-              <button className="btn" onClick={() => navigator.clipboard.writeText(previewContent)}>Copy</button>
-              <button className="btn" onClick={() => setPreviewFile(null)}>Close</button>
+              <button className="btn" onClick={() => navigator.clipboard.writeText(previewContent)}>{t('common.copy')}</button>
+              <button className="btn" onClick={() => setPreviewFile(null)}>{t('common.close')}</button>
             </div>
           </div>
         </div>
