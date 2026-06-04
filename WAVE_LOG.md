@@ -399,6 +399,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings palette toasts now read from locale keys, and feature flags can opt into localized labels/descriptions with fallback search preserving the original English label/description.
 - Bottom console tabs, empty states, queue/history run controls, status chips, report actions, and preview affordances now read from `console` i18n keys with Spanish unit coverage.
 - App-level console queue/history confirmations, fallback run names, retry labels, and toast/error feedback now read from `console.actions` i18n keys with Spanish unit coverage.
+- Help wiki panel chrome, search headings/no-results copy, page navigation labels, node-source hints, and generated node documentation labels now read from `helpWiki` i18n keys with Spanish unit coverage; embedded static article HTML remains deferred.
 
 ---
 

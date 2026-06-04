@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import Icon from '../ui/Icon';
 import type { NodeMetadata, ObjectInfo } from '../../types';
 
@@ -20,11 +22,13 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function renderNodeHelp(node: HelpNode): string {
+function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const meta = node.meta;
   const title = node.title || meta?.display_name || node.type;
-  const description = meta?.description?.trim() || '<em>No description provided by the node author.</em>';
-  const category = meta?.category || 'Uncategorised';
+  const description = meta?.description?.trim()
+    ? escapeHtml(meta.description.trim())
+    : `<em>${escapeHtml(t('helpWiki.nodeDocs.noDescription'))}</em>`;
+  const category = meta?.category || t('helpWiki.nodeDocs.uncategorised');
   const tools = meta?.requires_external_tools || [];
   const required = meta?.input_types?.required || {};
   const optional = meta?.input_types?.optional || {};
@@ -35,7 +39,7 @@ function renderNodeHelp(node: HelpNode): string {
     <tr>
       <td><code>${escapeHtml(name)}</code></td>
       <td><span class="help-port-type">${escapeHtml(String(spec.type || 'STRING'))}</span></td>
-      <td>${spec.tooltip || spec.description ? escapeHtml(String(spec.tooltip || spec.description)) : ''}${spec.default !== undefined ? ` <span class="help-port-default">default: ${escapeHtml(String(spec.default))}</span>` : ''}</td>
+      <td>${spec.tooltip || spec.description ? escapeHtml(String(spec.tooltip || spec.description)) : ''}${spec.default !== undefined ? ` <span class="help-port-default">${escapeHtml(t('helpWiki.nodeDocs.defaultValue', { value: String(spec.default) }))}</span>` : ''}</td>
     </tr>`;
 
   const inputRows = [
@@ -54,14 +58,14 @@ function renderNodeHelp(node: HelpNode): string {
       <h3>${escapeHtml(title)}</h3>
       <div class="help-node-meta">
         <span class="help-meta-pill">${escapeHtml(category)}</span>
-        ${meta?.experimental ? '<span class="help-meta-pill help-meta-exp">experimental</span>' : ''}
+        ${meta?.experimental ? `<span class="help-meta-pill help-meta-exp">${escapeHtml(t('helpWiki.nodeDocs.experimental'))}</span>` : ''}
         ${meta?.version ? `<span class="help-meta-pill">v${escapeHtml(meta.version)}</span>` : ''}
       </div>
       <p>${description}</p>
-      ${tools.length > 0 ? `<p><strong>Requires:</strong> ${tools.map(t => `<code>${escapeHtml(t)}</code>`).join(', ')}</p>` : ''}
-      ${inputRows ? `<h4>Inputs</h4><table class="help-port-table"><thead><tr><th>Name</th><th>Type</th><th>Notes</th></tr></thead><tbody>${inputRows}</tbody></table>` : ''}
-      ${outputRows ? `<h4>Outputs</h4><table class="help-port-table"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>${outputRows}</tbody></table>` : ''}
-      <p class="help-node-hint">Tip: select another node on the canvas to view its docs here.</p>
+      ${tools.length > 0 ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.requires'))}</strong> ${tools.map(tool => `<code>${escapeHtml(tool)}</code>`).join(', ')}</p>` : ''}
+      ${inputRows ? `<h4>${escapeHtml(t('helpWiki.nodeDocs.inputs'))}</h4><table class="help-port-table"><thead><tr><th>${escapeHtml(t('helpWiki.nodeDocs.name'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.type'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.notes'))}</th></tr></thead><tbody>${inputRows}</tbody></table>` : ''}
+      ${outputRows ? `<h4>${escapeHtml(t('helpWiki.nodeDocs.outputs'))}</h4><table class="help-port-table"><thead><tr><th>${escapeHtml(t('helpWiki.nodeDocs.name'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.type'))}</th></tr></thead><tbody>${outputRows}</tbody></table>` : ''}
+      <p class="help-node-hint">${escapeHtml(t('helpWiki.nodeDocs.hint'))}</p>
     </div>
   `;
 }
@@ -77,15 +81,15 @@ function nodeFromMeta(meta: NodeMetadata): HelpNode {
 
 type WikiPage = 'getting-started' | 'nodes-reference' | 'templates-guide' | 'custom-nodes' | 'hpc-integration' | 'workflow-converters' | 'keyboard-shortcuts' | 'canvas-features';
 
-const PAGES: { id: WikiPage; title: string }[] = [
-  { id: 'getting-started', title: 'Getting Started' },
-  { id: 'canvas-features', title: 'Canvas & Nodes' },
-  { id: 'nodes-reference', title: 'Node Reference' },
-  { id: 'templates-guide', title: 'Templates Guide' },
-  { id: 'custom-nodes', title: 'Custom Nodes' },
-  { id: 'hpc-integration', title: 'HPC Integration' },
-  { id: 'workflow-converters', title: 'Workflow Converters' },
-  { id: 'keyboard-shortcuts', title: 'Keyboard Shortcuts' },
+const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
+  { id: 'getting-started', titleKey: 'helpWiki.pages.gettingStarted', fallbackTitle: 'Getting Started' },
+  { id: 'canvas-features', titleKey: 'helpWiki.pages.canvasFeatures', fallbackTitle: 'Canvas & Nodes' },
+  { id: 'nodes-reference', titleKey: 'helpWiki.pages.nodesReference', fallbackTitle: 'Node Reference' },
+  { id: 'templates-guide', titleKey: 'helpWiki.pages.templatesGuide', fallbackTitle: 'Templates Guide' },
+  { id: 'custom-nodes', titleKey: 'helpWiki.pages.customNodes', fallbackTitle: 'Custom Nodes' },
+  { id: 'hpc-integration', titleKey: 'helpWiki.pages.hpcIntegration', fallbackTitle: 'HPC Integration' },
+  { id: 'workflow-converters', titleKey: 'helpWiki.pages.workflowConverters', fallbackTitle: 'Workflow Converters' },
+  { id: 'keyboard-shortcuts', titleKey: 'helpWiki.pages.keyboardShortcuts', fallbackTitle: 'Keyboard Shortcuts' },
 ];
 
 const CONTENT: Record<WikiPage, string> = {
@@ -422,7 +426,12 @@ function nodeSearchSnippet(meta: NodeMetadata, query: string): string {
     : source.slice(0, 120);
 }
 
+function pageTitle(page: (typeof PAGES)[number], t: TFunction): string {
+  return t(page.titleKey, { defaultValue: page.fallbackTitle });
+}
+
 export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: HelpWikiPanelProps) {
+  const { t } = useTranslation();
   const [page, setPage] = useState<WikiPage>('getting-started');
   const [query, setQuery] = useState('');
   const [searchedNode, setSearchedNode] = useState<HelpNode | null>(null);
@@ -432,22 +441,23 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
   const [overridePage, setOverridePage] = useState(false);
   const activeNode = searchedNode || selectedNode || null;
   const showNodeHelp = !!activeNode && !query.trim() && !overridePage;
-  const nodeHelpHtml = useMemo(() => (activeNode ? renderNodeHelp(activeNode) : ''), [activeNode]);
+  const nodeHelpHtml = useMemo(() => (activeNode ? renderNodeHelp(activeNode, t) : ''), [activeNode, t]);
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return PAGES.filter(p => {
+      const title = pageTitle(p, t);
       const text = (CONTENT[p.id] || '').toLowerCase();
-      return p.title.toLowerCase().includes(q) || text.includes(q);
+      return title.toLowerCase().includes(q) || p.fallbackTitle.toLowerCase().includes(q) || text.includes(q);
     }).map(p => {
       const content = CONTENT[p.id];
       const plain = stripHtml(content);
       const idx = plain.toLowerCase().indexOf(q);
       const snippet = idx >= 0 ? plain.slice(Math.max(0, idx - 40), idx + 120) : plain.slice(0, 100);
-      return { ...p, snippet: snippet + (snippet.length < plain.length ? '…' : '') };
+      return { ...p, title: pageTitle(p, t), snippet: snippet + (snippet.length < plain.length ? '…' : '') };
     });
-  }, [query]);
+  }, [query, t]);
 
   // Search across registered node metadata so the help search field doubles
   // as a node lookup — typing a tool name surfaces both the wiki section and
@@ -470,14 +480,14 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
   return (
     <div className="rail-panel">
       <div className="rail-panel-header">
-        <span>Help / Wiki</span>
-        <button className="btn btn-icon btn-sm" onClick={onClose}><Icon name="close" size={14} /></button>
+        <span>{t('helpWiki.title')}</span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')} aria-label={t('common.close')}><Icon name="close" size={14} /></button>
       </div>
       <div className="rail-panel-body">
         <div className="wiki-search" style={{ position: 'relative', marginBottom: 8 }}>
           <input
             className="palette-search"
-            placeholder="Search help..."
+            placeholder={t('helpWiki.searchPlaceholder')}
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -486,6 +496,8 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
               className="btn btn-icon btn-sm"
               style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none' }}
               onClick={() => setQuery('')}
+              title={t('common.clear')}
+              aria-label={t('common.clear')}
             >
               <Icon name="close" size={12} />
             </button>
@@ -496,12 +508,12 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
           <div className="wiki-search-results">
             {searchResults.length === 0 && nodeSearchResults.length === 0 ? (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-                No results for "{query}"
+                {t('helpWiki.search.noResults', { query })}
               </div>
             ) : (
               <>
                 {searchResults.length > 0 && (
-                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '4px 0' }}>Wiki pages</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '4px 0' }}>{t('helpWiki.search.wikiPages')}</div>
                 )}
                 {searchResults.map(r => (
                   <div
@@ -515,7 +527,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
                   </div>
                 ))}
                 {nodeSearchResults.length > 0 && (
-                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0 4px' }}>Nodes</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '8px 0 4px' }}>{t('helpWiki.search.nodes')}</div>
                 )}
                 {nodeSearchResults.map(hit => (
                   <button
@@ -530,7 +542,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
                     }}
                   >
                     <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.meta.display_name, query) }} />
-                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{hit.meta.category || 'Other'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{hit.meta.category || t('helpWiki.nodeDocs.otherCategory')}</div>
                     {hit.snippet && (
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.snippet, query) }} />
                     )}
@@ -546,11 +558,11 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
                 <button
                   className={`wiki-nav-btn ${showNodeHelp ? 'active' : ''}`}
                   onClick={() => setOverridePage(false)}
-                  title={`Show docs for ${activeNode.title || activeNode.type}`}
+                  title={t('helpWiki.nodeTab.showDocsFor', { name: activeNode.title || activeNode.type })}
                 >
                   <Icon name="nodes" size={12} /> {activeNode.title || activeNode.type}
                 </button>
-                <span className="wiki-node-tab-hint">{searchedNode ? 'from search' : 'selected on canvas'}</span>
+                <span className="wiki-node-tab-hint">{searchedNode ? t('helpWiki.nodeTab.fromSearch') : t('helpWiki.nodeTab.selectedOnCanvas')}</span>
               </div>
             )}
             <div className="wiki-nav">
@@ -560,7 +572,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
                   className={`wiki-nav-btn ${page === p.id && !showNodeHelp ? 'active' : ''}`}
                   onClick={() => { setPage(p.id); setOverridePage(true); }}
                 >
-                  {p.title}
+                  {pageTitle(p, t)}
                 </button>
               ))}
             </div>
