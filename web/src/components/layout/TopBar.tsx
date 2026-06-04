@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { useKeybindings } from '../../hooks/useKeybindings';
 import { batchCountAtom, isRunningAtom } from '../../state/runAtoms';
@@ -44,10 +45,10 @@ function BrandMark() {
   );
 }
 
-const QUEUE_MODE_LABELS: Record<QueueMode, string> = {
-  manual: 'Manual',
-  change: 'On change',
-  instant: 'Instant',
+const QUEUE_MODE_KEYS: Record<QueueMode, string> = {
+  manual: 'topbar.queueModeManual',
+  change: 'topbar.queueModeChange',
+  instant: 'topbar.queueModeInstant',
 };
 
 export default function TopBar({
@@ -61,10 +62,12 @@ export default function TopBar({
   const setShowExport = useSetAtom(showExportAtom);
   const setShowAI = useSetAtom(showAIAtom);
   const setShowBatchSheet = useSetAtom(showBatchSheetAtom);
+  const { t } = useTranslation();
   const { getBinding } = useKeybindings();
   const runShortcut = getBinding('workflow.run');
   const exportShortcut = getBinding('workflow.export');
   const aiShortcut = getBinding('ai.open');
+  const queueModeLabel = t(QUEUE_MODE_KEYS[queueMode]);
 
   // Split-button menu next to Run: queue mode radios + sheet action.
   const [runMenuOpen, setRunMenuOpen] = useState(false);
@@ -92,9 +95,9 @@ export default function TopBar({
     'hpc-badge hpc-off';
 
   const hpcLabel =
-    hpcStatus === 'on' ? 'HPC ON' :
-    hpcStatus === 'error' ? 'HPC ERROR' :
-    'HPC OFF';
+    hpcStatus === 'on' ? t('topbar.hpcOn') :
+    hpcStatus === 'error' ? t('topbar.hpcError') :
+    t('topbar.hpcOff');
 
   const clampedCount = Math.max(1, Math.min(99, batchCount));
   const updateBatchCount = (count: number) => {
@@ -111,15 +114,15 @@ export default function TopBar({
 
       <div className="validation-badge" style={{ visibility: validationErrors.length ? 'visible' : 'hidden' }}>
         {validationValid
-          ? <span className="ok"><Icon name="circle" size={12} /> Valid</span>
-          : <span className="err"><Icon name="circle" size={12} /> {validationErrors.length} issues</span>
+          ? <span className="ok"><Icon name="circle" size={12} /> {t('topbar.validationValid')}</span>
+          : <span className="err"><Icon name="circle" size={12} /> {t('topbar.validationIssues', { count: validationErrors.length })}</span>
         }
       </div>
 
       <div className="topbar-spacer" />
 
       {hpcEnabled && (
-        <span className={hpcBadgeClass} title={`HPC ${hpcStatus.toUpperCase()}`}>
+        <span className={hpcBadgeClass} title={hpcLabel}>
           <Icon name="server" size={14} /> {hpcLabel}
         </span>
       )}
@@ -127,9 +130,9 @@ export default function TopBar({
       {collabControls}
 
       <div className="run-cluster">
-        <button className="btn btn-sm" onClick={onToggleQueue} title="Show queue">
+        <button className="btn btn-sm" onClick={onToggleQueue} title={t('topbar.showQueue')}>
           {queueCount > 0 && <span className="pulse-dot" />}
-          Queue: {queueCount}
+          {t('topbar.queueCount', { count: queueCount })}
         </button>
 
         {/* Split-button: primary Run on the left, chevron dropdown on the
@@ -142,10 +145,12 @@ export default function TopBar({
             className="btn btn-primary btn-sm run-split-main"
             onClick={onRun}
             disabled={isRunning}
-            title={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
-            aria-label={withShortcut(isRunning ? 'Running' : 'Run workflow', runShortcut)}
+            title={withShortcut(isRunning ? t('topbar.running') : t('topbar.runWorkflow'), runShortcut)}
+            aria-label={withShortcut(isRunning ? t('topbar.running') : t('topbar.runWorkflow'), runShortcut)}
           >
-            {isRunning ? <><Icon name="stop" size={14} /> Running...</> : <><Icon name="play" size={14} /> Run</>}
+            {isRunning
+              ? <><Icon name="stop" size={14} /> {t('topbar.runningEllipsis')}</>
+              : <><Icon name="play" size={14} /> {t('topbar.run')}</>}
           </button>
           <button
             type="button"
@@ -153,45 +158,45 @@ export default function TopBar({
             onClick={() => setRunMenuOpen(open => !open)}
             aria-haspopup="menu"
             aria-expanded={runMenuOpen}
-            aria-label="Run options"
-            title={`Run options — batch ${clampedCount}, ${QUEUE_MODE_LABELS[queueMode]}`}
+            aria-label={t('topbar.runOptions')}
+            title={t('topbar.runOptionsTitle', { count: clampedCount, mode: queueModeLabel })}
           >
             <Icon name="chevronDown" size={12} />
           </button>
 
           {runMenuOpen && (
             <div className="run-split-menu" role="menu">
-              <div className="run-split-menu-header">Batch count</div>
+              <div className="run-split-menu-header">{t('topbar.batchCount')}</div>
               <div className="run-split-menu-batch">
                 <button
                   type="button"
                   className="run-split-menu-batch-btn"
-                  aria-label="Decrease batch count"
-                  title="Decrease batch count"
+                  aria-label={t('topbar.decreaseBatchCount')}
+                  title={t('topbar.decreaseBatchCount')}
                   disabled={clampedCount <= 1 || isRunning}
                   onClick={() => updateBatchCount(clampedCount - 1)}
                 >
                   <Icon name="minus" size={12} />
                 </button>
-                <span className="run-split-menu-batch-value" aria-label="Batch count">
+                <span className="run-split-menu-batch-value" aria-label={t('topbar.batchCount')}>
                   {clampedCount}
                 </span>
                 <button
                   type="button"
                   className="run-split-menu-batch-btn"
-                  aria-label="Increase batch count"
-                  title="Increase batch count"
+                  aria-label={t('topbar.increaseBatchCount')}
+                  title={t('topbar.increaseBatchCount')}
                   disabled={clampedCount >= 99 || isRunning}
                   onClick={() => updateBatchCount(clampedCount + 1)}
                 >
                   <Icon name="plus" size={12} />
                 </button>
                 <span className="run-split-menu-batch-suffix">
-                  run{clampedCount === 1 ? '' : 's'}
+                  {t('topbar.batchRuns', { count: clampedCount })}
                 </span>
               </div>
               <div className="run-split-menu-divider" />
-              <div className="run-split-menu-header">Queue mode</div>
+              <div className="run-split-menu-header">{t('topbar.queueMode')}</div>
               {(['manual', 'change', 'instant'] as QueueMode[]).map(mode => (
                 <button
                   key={mode}
@@ -205,7 +210,7 @@ export default function TopBar({
                   }}
                 >
                   <span className="run-split-menu-radio">{queueMode === mode ? '●' : '○'}</span>
-                  {QUEUE_MODE_LABELS[mode]}
+                  {t(QUEUE_MODE_KEYS[mode])}
                 </button>
               ))}
               <div className="run-split-menu-divider" />
@@ -219,7 +224,7 @@ export default function TopBar({
                 }}
                 disabled={isRunning}
               >
-                <Icon name="template" size={12} /> Batch from sheet…
+                <Icon name="template" size={12} /> {t('topbar.batchFromSheet')}
               </button>
             </div>
           )}
@@ -231,16 +236,16 @@ export default function TopBar({
         <button
           className="btn btn-sm"
           onClick={() => setShowExport(true)}
-          title={withShortcut('Export workflow', exportShortcut)}
-          aria-label={withShortcut('Export workflow', exportShortcut)}
+          title={withShortcut(t('topbar.exportWorkflow'), exportShortcut)}
+          aria-label={withShortcut(t('topbar.exportWorkflow'), exportShortcut)}
         >
           <Icon name="import" size={14} />
         </button>
         <button
           className="btn btn-ai btn-sm"
           onClick={() => setShowAI(true)}
-          title={withShortcut('AI Assistant', aiShortcut)}
-          aria-label={withShortcut('Open AI assistant', aiShortcut)}
+          title={withShortcut(t('topbar.aiAssistant'), aiShortcut)}
+          aria-label={withShortcut(t('topbar.openAiAssistant'), aiShortcut)}
         >
           <Icon name="wand" size={14} />
         </button>

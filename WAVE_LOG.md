@@ -381,6 +381,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - App-owned workflow hooks now live under `web/src/hooks/workflow/` with a category barrel for auto-save, queue-mode, and workflow WebSocket message effects; shared UI/settings hooks remain in the top-level hook folder.
 - App-owned collaboration hooks now live under `web/src/hooks/collab/` with a category barrel for auth initialization and REST polling effects.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
+- TopBar visible run/queue/status controls now read from i18n keys, with Spanish runtime coverage for validation status, queue count, run/export/AI buttons, run options, batch controls, and queue-mode menu labels.
 
 ---
 
