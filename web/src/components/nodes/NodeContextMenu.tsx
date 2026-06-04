@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const PRESET_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
@@ -16,6 +17,7 @@ interface NodeContextMenuProps {
 }
 
 export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: NodeContextMenuProps) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [showColors, setShowColors] = useState(false);
 
@@ -31,7 +33,7 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
     return (
       <div ref={ref} className="context-menu" style={{ left: x, top: y }}>
         <div className="context-menu-body">
-          <div className="context-menu-item" onClick={() => setShowColors(false)}>← Back</div>
+          <div className="context-menu-item" onClick={() => setShowColors(false)}>{t('nodeContextMenu.back')}</div>
           <div className="context-menu-sep" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4, padding: '4px 8px' }}>
             {PRESET_COLORS.map(c => (
@@ -48,39 +50,39 @@ export default function NodeContextMenu({ x, y, nodeId, onAction, onClose }: Nod
   }
 
   const items = nodeId ? [
-    { label: 'Edit Properties', action: 'edit' },
-    { label: 'Rename', action: 'rename' },
-    { label: 'Node Info', action: 'info' },
-    { label: 'Add Comment', action: 'comment' },
-    { label: 'Duplicate', action: 'duplicate' },
+    { label: t('nodeContextMenu.editProperties'), action: 'edit' },
+    { label: t('common.rename'), action: 'rename' },
+    { label: t('nodeContextMenu.nodeInfo'), action: 'info' },
+    { label: t('nodeContextMenu.addComment'), action: 'comment' },
+    { label: t('common.duplicate'), action: 'duplicate' },
     null,
-    { label: 'Mute Node', action: 'mute' },
-    { label: 'Bypass Node', action: 'bypass' },
-    { label: 'Pin / Lock Node', action: 'pin' },
-    { label: 'Collapse/Expand', action: 'collapse' },
+    { label: t('nodeContextMenu.muteNode'), action: 'mute' },
+    { label: t('nodeContextMenu.bypassNode'), action: 'bypass' },
+    { label: t('nodeContextMenu.pinLockNode'), action: 'pin' },
+    { label: t('nodeContextMenu.collapseExpand'), action: 'collapse' },
     null,
-    { label: 'Set as Output', action: 'output' },
-    { label: 'Set Color', action: 'color', handler: () => setShowColors(true) },
-    { label: 'Round Shape', action: 'shape:round' },
-    { label: 'Box Shape', action: 'shape:box' },
-    { label: 'Card Shape', action: 'shape:card' },
+    { label: t('nodeContextMenu.setAsOutput'), action: 'output' },
+    { label: t('nodeContextMenu.setColor'), action: 'color', handler: () => setShowColors(true) },
+    { label: t('nodeContextMenu.roundShape'), action: 'shape:round' },
+    { label: t('nodeContextMenu.boxShape'), action: 'shape:box' },
+    { label: t('nodeContextMenu.cardShape'), action: 'shape:card' },
     null,
-    { label: 'Group Selected', action: 'group' },
-    { label: 'Create Subgraph', action: 'subgraph' },
-    { label: 'Save Subgraph to Library', action: 'saveSubgraphBlueprint' },
-    { label: 'Promote Widgets to Parent', action: 'promoteWidgets' },
-    { label: 'Save Params as Preset…', action: 'savePreset' },
-    { label: 'Apply Preset…', action: 'applyPreset' },
-    { label: 'Execute Selected', action: 'executeSelected' },
+    { label: t('nodeContextMenu.groupSelected'), action: 'group' },
+    { label: t('nodeContextMenu.createSubgraph'), action: 'subgraph' },
+    { label: t('nodeContextMenu.saveSubgraphToLibrary'), action: 'saveSubgraphBlueprint' },
+    { label: t('nodeContextMenu.promoteWidgetsToParent'), action: 'promoteWidgets' },
+    { label: t('nodeContextMenu.saveParamsAsPreset'), action: 'savePreset' },
+    { label: t('nodeContextMenu.applyPreset'), action: 'applyPreset' },
+    { label: t('nodeContextMenu.executeSelected'), action: 'executeSelected' },
     null,
-    { label: 'Delete', action: 'delete' },
+    { label: t('common.delete'), action: 'delete' },
   ] : [
-    { label: 'Add Node', action: 'add' },
-    { label: 'Add Group', action: 'addGroup' },
+    { label: t('nodeContextMenu.addNode'), action: 'add' },
+    { label: t('nodeContextMenu.addGroup'), action: 'addGroup' },
     null,
-    { label: 'Select All', action: 'selectAll' },
+    { label: t('common.selectAll'), action: 'selectAll' },
     null,
-    { label: 'Paste', action: 'paste' },
+    { label: t('common.paste'), action: 'paste' },
   ];
 
   return (
