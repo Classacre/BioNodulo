@@ -479,6 +479,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Line Chart now has a matching interactive HTML output mode: multi-series traces render through Plotly with line style, marker, grid, palette, and axis metadata preserved, while the existing `chart_image` output and PNG/SVG defaults remain compatible.
 - Bar Chart now has an interactive HTML output mode as well: grouped vertical and horizontal bars render through Plotly, preserve value labels and group colors, keep the existing `chart_image` output path, and were browser-checked with Playwright against a generated HTML artifact.
 - Heatmap now supports interactive HTML output through Plotly while preserving clustering, row/column scaling, labels, colour-scale choices, the existing `heatmap_image` output name, and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
+- Volcano Plot now supports interactive HTML output through Plotly: Up/Down/NS points render as separate traces, threshold lines and top-gene labels are preserved, the existing `volcano_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
 
 ---
 

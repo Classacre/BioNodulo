@@ -20,6 +20,8 @@ def _node_class(node_id: str) -> type:
 def test_volcano_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("volcano_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -28,6 +30,7 @@ def test_volcano_plot_is_registered_for_frontend_discovery() -> None:
     assert info["volcano_plot"]["output_name"] == ["volcano_image"]
     assert info["volcano_plot"]["output"] == ["IMAGE"]
     assert info["volcano_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_ma_plot_is_registered_for_frontend_discovery() -> None:
@@ -242,6 +245,54 @@ async def test_volcano_plot_writes_svg_and_registers_preview(tmp_path: Path) -> 
     assert "TP53" in svg
     assert "BRCA1" in svg
     assert previews == [(str(svg_path), "Volcano Plot")]
+
+
+@pytest.mark.asyncio
+async def test_volcano_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("volcano_plot")
+    table = tmp_path / "deseq2_results.tsv"
+    table.write_text(
+        "gene\tlog2FoldChange\tpadj\n"
+        "TP53\t2.5\t0.0001\n"
+        "BRCA1\t-2.0\t0.001\n"
+        "ACTB\t0.1\t0.8\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        results_table=str(table),
+        logfc_column="log2FoldChange",
+        pvalue_column="padj",
+        gene_column="gene",
+        logfc_threshold=1.0,
+        pvalue_threshold=0.05,
+        title="Treatment vs Control",
+        label_top_n=2,
+        format="html",
+        width=8,
+        height=6,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["volcano_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "volcano_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Treatment vs Control" in document
+    assert '"type": "scatter"' in document
+    assert '"name": "Up"' in document
+    assert '"name": "Down"' in document
+    assert '"name": "NS"' in document
+    assert '"TP53"' in document
+    assert '"BRCA1"' in document
+    assert previews == [(str(html_path), "Volcano Plot")]
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from bionodulo.nodes.base import BaseNode
 
 
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
+VOLCANO_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
@@ -2504,6 +2505,155 @@ def _render_png(
         _draw_circle(pixels, layout.width, layout.height, x, y, 4, rgb_colours[point.regulation])
 
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _render_volcano_html(
+    path: Path,
+    *,
+    points: list[VolcanoPoint],
+    bounds: PlotBounds,
+    layout: PlotLayout,
+    logfc_threshold: float,
+    title: str,
+    label_top_n: int,
+    colours: dict[str, str],
+) -> None:
+    traces = []
+    for label in ("Up", "Down", "NS"):
+        group = [point for point in points if point.regulation == label]
+        traces.append({
+            "type": "scatter",
+            "mode": "markers",
+            "name": label,
+            "x": [point.logfc for point in group],
+            "y": [point.neg_log_p for point in group],
+            "text": [
+                (
+                    f"{html.escape(point.gene)}<br>"
+                    f"log2 fold change: {point.logfc:.6g}<br>"
+                    f"p-value: {point.pvalue:.6g}"
+                )
+                for point in group
+            ],
+            "hovertemplate": "%{text}<extra></extra>",
+            "marker": {
+                "color": colours[label],
+                "size": 9,
+                "opacity": 0.82,
+                "line": {"color": "#ffffff", "width": 0.8},
+            },
+        })
+
+    labels = [
+        point
+        for point in sorted(points, key=lambda item: item.neg_log_p, reverse=True)
+        if point.regulation != "NS" and point.gene
+    ][: max(label_top_n, 0)]
+    if labels:
+        traces.append({
+            "type": "scatter",
+            "mode": "text",
+            "name": "Labels",
+            "showlegend": False,
+            "x": [point.logfc for point in labels],
+            "y": [point.neg_log_p for point in labels],
+            "text": [point.gene for point in labels],
+            "textposition": "top right",
+            "hoverinfo": "skip",
+            "textfont": {"color": "#111827", "size": 11},
+        })
+
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": "log2 fold change",
+            "range": [bounds.x_min, bounds.x_max],
+            "zeroline": True,
+            "zerolinecolor": "#CBD5E1",
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "yaxis": {
+            "title": "-log10(p-value)",
+            "range": [0, bounds.y_max],
+            "zeroline": False,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "shapes": [
+            {
+                "type": "line",
+                "xref": "x",
+                "yref": "paper",
+                "x0": -logfc_threshold,
+                "x1": -logfc_threshold,
+                "y0": 0,
+                "y1": 1,
+                "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+            },
+            {
+                "type": "line",
+                "xref": "x",
+                "yref": "paper",
+                "x0": logfc_threshold,
+                "x1": logfc_threshold,
+                "y0": 0,
+                "y1": 1,
+                "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+            },
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": bounds.threshold_y,
+                "y1": bounds.threshold_y,
+                "line": {"color": "#64748B", "width": 1, "dash": "dash"},
+            },
+        ],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": True,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "volcano_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
 
 
 def _render_ma_svg(
@@ -6301,7 +6451,7 @@ class VolcanoPlotNode(BaseNode):
                 "up_color": ("STRING", {"default": DEFAULT_UP_COLOR}),
                 "down_color": ("STRING", {"default": DEFAULT_DOWN_COLOR}),
                 "ns_color": ("STRING", {"default": DEFAULT_NS_COLOR}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(VOLCANO_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 8.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
                 "dpi": ("INT", {"default": DEFAULT_DPI, "min": 30, "max": 600}),
@@ -6313,7 +6463,7 @@ class VolcanoPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in VOLCANO_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported volcano plot format: {output_format}")
 
         logfc_column = str(kwargs.get("logfc_column", "log2FoldChange") or "log2FoldChange").strip()
@@ -6360,6 +6510,8 @@ class VolcanoPlotNode(BaseNode):
 
         out_dir = _node_output_dir(self, context)
         output_path = out_dir / f"volcano_plot.{output_format}"
+        title = str(kwargs.get("title", "Volcano Plot") or "Volcano Plot")
+        label_top_n = _coerce_int(kwargs.get("label_top_n", 10), 10)
         if output_format == "svg":
             _render_svg(
                 output_path,
@@ -6367,8 +6519,19 @@ class VolcanoPlotNode(BaseNode):
                 bounds=bounds,
                 layout=layout,
                 logfc_threshold=logfc_threshold,
-                title=str(kwargs.get("title", "Volcano Plot") or "Volcano Plot"),
-                label_top_n=_coerce_int(kwargs.get("label_top_n", 10), 10),
+                title=title,
+                label_top_n=label_top_n,
+                colours=colours,
+            )
+        elif output_format == "html":
+            _render_volcano_html(
+                output_path,
+                points=points,
+                bounds=bounds,
+                layout=layout,
+                logfc_threshold=logfc_threshold,
+                title=title,
+                label_top_n=label_top_n,
                 colours=colours,
             )
         else:
