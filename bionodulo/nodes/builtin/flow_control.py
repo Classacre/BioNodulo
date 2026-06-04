@@ -314,6 +314,7 @@ class TryCatchNode(BaseNode):
     RETURN_NAMES = ("try", "catch", "output", "succeeded", "error_info", "retry_count")
     REQUIRES_EXTERNAL_TOOLS = False
     ROUTES_FLOW = True
+    EXECUTES_TRY_CATCH_BRANCHES = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

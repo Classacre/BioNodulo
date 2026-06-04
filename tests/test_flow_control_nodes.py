@@ -377,6 +377,347 @@ async def test_try_catch_catch_phase_returns_catch_result() -> None:
 
 
 @pytest.mark.asyncio
+async def test_executor_try_catch_continues_with_try_branch_result(tmp_path: Path) -> None:
+    try_catch_node = _node_class("try_catch")
+
+    class RiskyNode:
+        NODE_ID = "risky"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"try:{value}"}}
+
+    class RecoveryNode:
+        NODE_ID = "recovery"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"catch:{value}"}}
+
+    class DownstreamNode:
+        NODE_ID = "downstream"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "try_catch": try_catch_node,
+                "risky": RiskyNode,
+                "recovery": RecoveryNode,
+                "downstream": DownstreamNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "guard",
+                "type": "try_catch",
+                "inputs": {
+                    "try_input": {"value": "sample.bam"},
+                    "max_retries": {"value": 0},
+                    "retry_delay": {"value": 0},
+                },
+                "outputs": {"try": {}, "catch": {}, "output": {}, "succeeded": {}, "error_info": {}, "retry_count": {}},
+            },
+            {"id": "risky", "type": "risky", "outputs": {"out": {}}},
+            {"id": "recovery", "type": "recovery", "outputs": {"out": {}}},
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "guard", "target_node": "risky", "source_output": "try", "target_input": "value"},
+            {"source_node": "risky", "target_node": "guard", "source_output": "out", "target_input": "_try_result"},
+            {"source_node": "guard", "target_node": "recovery", "source_output": "catch", "target_input": "value"},
+            {"source_node": "recovery", "target_node": "guard", "source_output": "out", "target_input": "_catch_result"},
+            {"source_node": "guard", "target_node": "downstream", "source_output": "output", "target_input": "value"},
+        ],
+    }
+    RiskyNode.calls = []
+    RecoveryNode.calls = []
+    DownstreamNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("try-catch-success", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert RiskyNode.calls == ["sample.bam"]
+    assert RecoveryNode.calls == []
+    assert DownstreamNode.calls == ["try:sample.bam"]
+    assert result["outputs"]["guard"]["output"] == "try:sample.bam"
+    assert result["outputs"]["guard"]["succeeded"] is True
+
+
+@pytest.mark.asyncio
+async def test_executor_try_catch_runs_catch_branch_after_try_failure(tmp_path: Path) -> None:
+    try_catch_node = _node_class("try_catch")
+
+    class RiskyNode:
+        NODE_ID = "risky"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            raise RuntimeError("tool_error: GATK failed")
+
+    class RecoveryNode:
+        NODE_ID = "recovery"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"recovered:{value['input']}:{value['error']}"}}
+
+    class DownstreamNode:
+        NODE_ID = "downstream"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "try_catch": try_catch_node,
+                "risky": RiskyNode,
+                "recovery": RecoveryNode,
+                "downstream": DownstreamNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "guard",
+                "type": "try_catch",
+                "inputs": {
+                    "try_input": {"value": "sample.bam"},
+                    "max_retries": {"value": 0},
+                    "retry_delay": {"value": 0},
+                    "catch_errors": {"value": "tool_error"},
+                },
+                "outputs": {"try": {}, "catch": {}, "output": {}, "succeeded": {}, "error_info": {}, "retry_count": {}},
+            },
+            {"id": "risky", "type": "risky", "outputs": {"out": {}}},
+            {"id": "recovery", "type": "recovery", "outputs": {"out": {}}},
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "guard", "target_node": "risky", "source_output": "try", "target_input": "value"},
+            {"source_node": "risky", "target_node": "guard", "source_output": "out", "target_input": "_try_result"},
+            {"source_node": "guard", "target_node": "recovery", "source_output": "catch", "target_input": "value"},
+            {"source_node": "recovery", "target_node": "guard", "source_output": "out", "target_input": "_catch_result"},
+            {"source_node": "guard", "target_node": "downstream", "source_output": "output", "target_input": "value"},
+        ],
+    }
+    RiskyNode.calls = []
+    RecoveryNode.calls = []
+    DownstreamNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("try-catch-failure", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert RiskyNode.calls == ["sample.bam"]
+    assert RecoveryNode.calls == [{"input": "sample.bam", "error": "tool_error: GATK failed"}]
+    assert DownstreamNode.calls == ["recovered:sample.bam:tool_error: GATK failed"]
+    assert result["outputs"]["guard"]["output"] == "recovered:sample.bam:tool_error: GATK failed"
+    assert result["outputs"]["guard"]["succeeded"] is False
+    assert result["outputs"]["guard"]["error_info"] == "tool_error: GATK failed"
+
+
+@pytest.mark.asyncio
+async def test_executor_try_catch_retries_try_branch_before_catch(tmp_path: Path) -> None:
+    try_catch_node = _node_class("try_catch")
+
+    class FlakyNode:
+        NODE_ID = "flaky"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            if len(self.calls) == 1:
+                raise RuntimeError("tool_error: transient failure")
+            return {"outputs": {"out": f"try:{value}:attempt-{len(self.calls)}"}}
+
+    class RecoveryNode:
+        NODE_ID = "recovery"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": f"catch:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "try_catch": try_catch_node,
+                "flaky": FlakyNode,
+                "recovery": RecoveryNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "guard",
+                "type": "try_catch",
+                "inputs": {
+                    "try_input": {"value": "sample.bam"},
+                    "max_retries": {"value": 1},
+                    "retry_delay": {"value": 0},
+                    "catch_errors": {"value": "tool_error"},
+                },
+                "outputs": {"try": {}, "catch": {}, "output": {}, "succeeded": {}, "error_info": {}, "retry_count": {}},
+            },
+            {"id": "flaky", "type": "flaky", "outputs": {"out": {}}},
+            {"id": "recovery", "type": "recovery", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "guard", "target_node": "flaky", "source_output": "try", "target_input": "value"},
+            {"source_node": "flaky", "target_node": "guard", "source_output": "out", "target_input": "_try_result"},
+            {"source_node": "guard", "target_node": "recovery", "source_output": "catch", "target_input": "value"},
+            {"source_node": "recovery", "target_node": "guard", "source_output": "out", "target_input": "_catch_result"},
+        ],
+    }
+    FlakyNode.calls = []
+    RecoveryNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("try-catch-retry", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert FlakyNode.calls == ["sample.bam", "sample.bam"]
+    assert RecoveryNode.calls == []
+    assert result["outputs"]["guard"]["output"] == "try:sample.bam:attempt-2"
+    assert result["outputs"]["guard"]["succeeded"] is True
+    assert result["outputs"]["guard"]["retry_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_executor_try_catch_branch_can_use_outer_upstream_outputs(tmp_path: Path) -> None:
+    try_catch_node = _node_class("try_catch")
+
+    class ConstantNode:
+        NODE_ID = "constant"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            return {"outputs": {"out": value}}
+
+    class CombineNode:
+        NODE_ID = "combine"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[tuple[Any, Any]] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {"value": ("ANY", {}), "reference": ("ANY", {})},
+                "optional": {},
+                "hidden": {},
+            }
+
+        async def run(self, context: Any, value: Any, reference: Any) -> dict[str, Any]:
+            self.calls.append((value, reference))
+            return {"outputs": {"out": f"{value}:{reference}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "constant": ConstantNode,
+                "try_catch": try_catch_node,
+                "combine": CombineNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "reference", "type": "constant", "inputs": {"value": {"value": "hg38"}}, "outputs": {"out": {}}},
+            {
+                "id": "guard",
+                "type": "try_catch",
+                "inputs": {
+                    "try_input": {"value": "sample.bam"},
+                    "retry_delay": {"value": 0},
+                },
+                "outputs": {"try": {}, "catch": {}, "output": {}, "succeeded": {}, "error_info": {}, "retry_count": {}},
+            },
+            {"id": "combine", "type": "combine", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "guard", "target_node": "combine", "source_output": "try", "target_input": "value"},
+            {"source_node": "reference", "target_node": "combine", "source_output": "out", "target_input": "reference"},
+            {"source_node": "combine", "target_node": "guard", "source_output": "out", "target_input": "_try_result"},
+        ],
+    }
+    CombineNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("try-catch-outer-upstream", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert CombineNode.calls == [("sample.bam", "hg38")]
+    assert result["outputs"]["guard"]["output"] == "sample.bam:hg38"
+
+
+@pytest.mark.asyncio
 async def test_gate_passes_value_when_condition_succeeds(tmp_path: Path) -> None:
     node = _node_class("gate")()
     marker = tmp_path / "reads.fastq.gz"

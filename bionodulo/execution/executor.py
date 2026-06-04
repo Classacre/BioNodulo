@@ -21,7 +21,7 @@ import logging
 import re
 import traceback
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -268,11 +268,19 @@ class WorkflowExecutor:
 
         all_nodes = nodes
         loop_bodies = self._loop_bodies(all_nodes, edges)
+        try_catch_regions = self._try_catch_regions(all_nodes, edges)
         loop_body_node_ids = {body_node for body in loop_bodies.values() for body_node in body}
+        try_catch_body_node_ids = {
+            body_node
+            for branches in try_catch_regions.values()
+            for body in branches.values()
+            for body_node in body
+        }
+        internal_node_ids = loop_body_node_ids | try_catch_body_node_ids
         nodes = {
             node_id: node
             for node_id, node in all_nodes.items()
-            if node_id not in loop_body_node_ids
+            if node_id not in internal_node_ids
         }
         outer_edges = [
             edge
@@ -421,6 +429,7 @@ class WorkflowExecutor:
                 _node_class = self.registry.get(str(node.get("type", "unknown")))
             resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
             executes_loop_body = self._executes_loop_body(_node_class)
+            executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
 
             # ---- Build upstream cache key map ----
             upstream_keys: dict[str, str | None] = {}
@@ -436,6 +445,7 @@ class WorkflowExecutor:
                 force
                 or node_id in force_nodes
                 or executes_loop_body
+                or executes_try_catch_branches
                 or self._executor_cache_policy(_node_class) == "always_run"
             )
             if not forced_node:
@@ -528,6 +538,19 @@ class WorkflowExecutor:
                         all_nodes=all_nodes,
                         edges=edges,
                         body_node_ids=loop_bodies.get(node_id, set()),
+                        node_outputs=node_outputs,
+                        options=options,
+                        workflow=workflow,
+                        emit=emit,
+                    )
+                elif executes_try_catch_branches:
+                    result = await self._execute_try_catch_node(
+                        ctx=ctx,
+                        node=node,
+                        inputs=resolved_inputs,
+                        all_nodes=all_nodes,
+                        edges=edges,
+                        branch_node_ids=try_catch_regions.get(node_id, {"try": set(), "catch": set()}),
                         node_outputs=node_outputs,
                         options=options,
                         workflow=workflow,
@@ -687,6 +710,10 @@ class WorkflowExecutor:
     def _executes_loop_body(node_class: Any) -> bool:
         return bool(getattr(node_class, "EXECUTES_LOOP_BODY", False))
 
+    @staticmethod
+    def _executes_try_catch_branches(node_class: Any) -> bool:
+        return bool(getattr(node_class, "EXECUTES_TRY_CATCH_BRANCHES", False))
+
     def _node_class_for(self, node: dict[str, Any]) -> Any:
         node_class = node.get("_node_class")
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
@@ -775,6 +802,78 @@ class WorkflowExecutor:
                 required.add(upstream)
                 queue.append(upstream)
         return required
+
+    def _try_catch_regions(
+        self,
+        nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> dict[str, dict[str, set[str]]]:
+        regions: dict[str, dict[str, set[str]]] = {}
+        for node_id, node in nodes.items():
+            if not self._executes_try_catch_branches(self._node_class_for(node)):
+                continue
+            regions[node_id] = {
+                "try": self._find_try_catch_branch(node_id, "try", "_try_result", edges, nodes),
+                "catch": self._find_try_catch_branch(node_id, "catch", "_catch_result", edges, nodes),
+            }
+        return regions
+
+    def _find_try_catch_branch(
+        self,
+        control_node_id: str,
+        branch_port: str,
+        return_port: str,
+        edges: list[dict[str, Any]],
+        nodes: dict[str, dict[str, Any]],
+    ) -> set[str]:
+        reachable: set[str] = set()
+        queue: deque[str] = deque()
+        for edge in edges:
+            if edge_source(edge) != control_node_id or edge_source_port(edge) != branch_port:
+                continue
+            target = edge_target(edge)
+            if target in nodes and target != control_node_id:
+                reachable.add(target)
+                queue.append(target)
+
+        while queue:
+            current = queue.popleft()
+            for edge in edges:
+                if edge_source(edge) != current:
+                    continue
+                next_node = edge_target(edge)
+                if next_node == control_node_id or next_node not in nodes or next_node in reachable:
+                    continue
+                reachable.add(next_node)
+                queue.append(next_node)
+
+        return_sources = {
+            edge_source(edge)
+            for edge in edges
+            if edge_target(edge) == control_node_id
+            and edge_target_port(edge) == return_port
+            and edge_source(edge) in reachable
+        }
+        if not return_sources:
+            return reachable
+
+        reverse_edges: dict[str, list[str]] = {node_id: [] for node_id in reachable}
+        for edge in edges:
+            source = edge_source(edge)
+            target = edge_target(edge)
+            if source in reachable and target in reachable:
+                reverse_edges.setdefault(target, []).append(source)
+
+        branch: set[str] = set(return_sources)
+        queue = deque(return_sources)
+        while queue:
+            current = queue.popleft()
+            for upstream in reverse_edges.get(current, []):
+                if upstream in branch:
+                    continue
+                branch.add(upstream)
+                queue.append(upstream)
+        return branch
 
     # Types that indicate a file or directory path parameter
     _FILE_TYPES: set[str] = {
@@ -1142,6 +1241,313 @@ class WorkflowExecutor:
             collected[-1].update(value)
             return
         collected.append(value)
+
+    async def _execute_try_catch_node(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        all_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+        branch_node_ids: dict[str, set[str]],
+        node_outputs: dict[str, dict[str, Any]],
+        options: dict[str, Any],
+        workflow: dict[str, Any],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Execute a Try/Catch control node and its internal branch subgraphs."""
+        initial = await self._execute_node(ctx, node, inputs)
+        try_value = initial.get("outputs", {}).get("try")
+        retry_count = 0
+
+        while True:
+            try:
+                try_result = await self._execute_try_catch_branch(
+                    ctx=ctx,
+                    control_node=node,
+                    branch_name="try",
+                    branch_value=try_value,
+                    return_port="_try_result",
+                    body_node_ids=branch_node_ids.get("try", set()),
+                    all_nodes=all_nodes,
+                    edges=edges,
+                    node_outputs=node_outputs,
+                    options=options,
+                    workflow=workflow,
+                    emit=emit,
+                    branch_run_id=f"try-{retry_count + 1}",
+                )
+                phase = await self._execute_try_catch_phase(
+                    ctx,
+                    node,
+                    inputs,
+                    phase="try_result",
+                    try_result=try_result,
+                    try_error="",
+                    retry_count=retry_count,
+                )
+                return phase
+            except Exception as exc:
+                try_error = str(exc)
+                phase = await self._execute_try_catch_phase(
+                    ctx,
+                    node,
+                    inputs,
+                    phase="try_result",
+                    try_result=None,
+                    try_error=try_error,
+                    retry_count=retry_count,
+                )
+                flow_phase = phase.get("flow_control", {}).get("phase")
+                outputs = phase.get("outputs", {})
+
+                if flow_phase == "retrying":
+                    retry_count = int(outputs.get("retry_count", retry_count + 1) or 0)
+                    try_value = outputs.get("try")
+                    continue
+
+                if flow_phase == "catching":
+                    catch_result = await self._execute_try_catch_branch(
+                        ctx=ctx,
+                        control_node=node,
+                        branch_name="catch",
+                        branch_value=outputs.get("catch"),
+                        return_port="_catch_result",
+                        body_node_ids=branch_node_ids.get("catch", set()),
+                        all_nodes=all_nodes,
+                        edges=edges,
+                        node_outputs=node_outputs,
+                        options=options,
+                        workflow=workflow,
+                        emit=emit,
+                        branch_run_id="catch",
+                    )
+                    return await self._execute_try_catch_phase(
+                        ctx,
+                        node,
+                        inputs,
+                        phase="catch_result",
+                        try_result=None,
+                        try_error=str(outputs.get("error_info", try_error) or try_error),
+                        catch_result=catch_result,
+                        retry_count=int(outputs.get("retry_count", retry_count) or 0),
+                    )
+
+                raise RuntimeError(str(outputs.get("error_info", try_error) or try_error))
+
+    async def _execute_try_catch_phase(
+        self,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        *,
+        phase: str,
+        try_result: Any = None,
+        try_error: str = "",
+        catch_result: Any = None,
+        retry_count: int = 0,
+    ) -> dict[str, Any]:
+        params = {
+            **ctx.params,
+            "_phase": phase,
+            "_try_result": try_result,
+            "_try_error": try_error,
+            "_catch_result": catch_result,
+            "_retry_count": retry_count,
+        }
+        return await self._execute_node(replace(ctx, params=params), node, inputs)
+
+    async def _execute_try_catch_branch(
+        self,
+        *,
+        ctx: ExecutionContext,
+        control_node: dict[str, Any],
+        branch_name: str,
+        branch_value: Any,
+        return_port: str,
+        body_node_ids: set[str],
+        all_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+        node_outputs: dict[str, dict[str, Any]],
+        options: dict[str, Any],
+        workflow: dict[str, Any],
+        emit: Callable[[str, dict[str, Any]], None],
+        branch_run_id: str,
+    ) -> Any:
+        if not body_node_ids:
+            return branch_value
+
+        body_nodes = {node_id: all_nodes[node_id] for node_id in body_node_ids if node_id in all_nodes}
+        body_edge_map = self._try_catch_branch_edge_map(ctx.node_id, branch_name, body_node_ids, edges)
+        body_order = self._try_catch_branch_order(body_nodes, edges)
+        local_outputs: dict[str, dict[str, Any]] = {
+            ctx.node_id: {branch_name: branch_value},
+        }
+        local_inactive_outputs: dict[str, set[str]] = {}
+        local_skipped_nodes: set[str] = set()
+
+        for body_node_id in body_order:
+            body_node = body_nodes[body_node_id]
+            body_type = str(body_node.get("type", "unknown"))
+            body_class = self._node_class_for(body_node)
+            emit(
+                "node_start",
+                {
+                    "run_id": ctx.run_id,
+                    "node_id": body_node_id,
+                    "node_type": body_type,
+                    "try_catch_parent": ctx.node_id,
+                    "branch": branch_name,
+                },
+            )
+
+            inactive_upstream = self._inactive_upstream(
+                body_node_id,
+                body_edge_map,
+                local_skipped_nodes,
+                local_inactive_outputs,
+            )
+            if inactive_upstream is not None:
+                local_skipped_nodes.add(body_node_id)
+                emit(
+                    "node_skip",
+                    {
+                        "run_id": ctx.run_id,
+                        "node_id": body_node_id,
+                        "reason": "inactive_branch",
+                        "upstream": inactive_upstream,
+                        "try_catch_parent": ctx.node_id,
+                        "branch": branch_name,
+                    },
+                )
+                continue
+
+            combined_outputs = {**node_outputs, **local_outputs}
+            body_inputs = self._resolve_inputs(
+                body_node_id,
+                body_node,
+                body_edge_map,
+                combined_outputs,
+                ctx.run_metadata.get("workflow_parameters", {}),
+            )
+            body_params = self._with_defaults(
+                body_node,
+                body_inputs,
+                body_class,
+                ctx.run_metadata.get("workflow_parameters", {}),
+            )
+            body_dir = (
+                self.workspace_dir
+                / "runs"
+                / ctx.run_id
+                / ctx.node_id
+                / "try_catch"
+                / branch_run_id
+                / body_node_id
+            )
+            body_dir.mkdir(parents=True, exist_ok=True)
+            body_ctx = ExecutionContext(
+                run_id=ctx.run_id,
+                node_id=body_node_id,
+                node_type=body_type,
+                node_dir=body_dir,
+                workspace_dir=self.workspace_dir,
+                params=body_params,
+                api_secrets=options.get("api_secrets", {}),
+                emit=emit,
+                cancel_event=ctx.cancel_event,
+                env_prefix=self._env_prefix_for_node(body_node, workflow),
+                run_metadata=ctx.run_metadata,
+                executor=ctx.executor or self,
+            )
+            body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+            outputs = body_result.get("outputs", {})
+            inactive_outputs = self._inactive_output_ports(
+                body_result,
+                outputs,
+                body_class,
+            )
+            if inactive_outputs:
+                local_inactive_outputs[body_node_id] = inactive_outputs
+            local_outputs[body_node_id] = outputs
+            emit(
+                "node_complete",
+                {
+                    "run_id": ctx.run_id,
+                    "node_id": body_node_id,
+                    "outputs": outputs,
+                    "try_catch_parent": ctx.node_id,
+                    "branch": branch_name,
+                },
+            )
+
+        return self._try_catch_branch_result(ctx.node_id, return_port, edges, local_outputs, body_order)
+
+    def _try_catch_branch_edge_map(
+        self,
+        control_node_id: str,
+        branch_port: str,
+        body_node_ids: set[str],
+        edges: list[dict[str, Any]],
+    ) -> dict[str, list[dict[str, Any]]]:
+        edge_map: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in body_node_ids}
+        for edge in edges:
+            target = edge_target(edge)
+            if target not in body_node_ids:
+                continue
+            source = edge_source(edge)
+            if source == control_node_id:
+                if edge_source_port(edge) == branch_port:
+                    edge_map[target].append(edge)
+                continue
+            edge_map[target].append(edge)
+        return edge_map
+
+    def _try_catch_branch_order(
+        self,
+        body_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> list[str]:
+        upstream_of: dict[str, list[str]] = {node_id: [] for node_id in body_nodes}
+        downstream_of: dict[str, list[str]] = {node_id: [] for node_id in body_nodes}
+        for edge in edges:
+            source = edge_source(edge)
+            target = edge_target(edge)
+            if source in body_nodes and target in body_nodes:
+                upstream_of[target].append(source)
+                downstream_of[source].append(target)
+        return self._topological_sort(body_nodes, upstream_of, downstream_of)
+
+    def _try_catch_branch_result(
+        self,
+        control_node_id: str,
+        return_port: str,
+        edges: list[dict[str, Any]],
+        local_outputs: dict[str, dict[str, Any]],
+        body_order: list[str],
+    ) -> Any:
+        values: list[Any] = []
+        for edge in edges:
+            if edge_target(edge) != control_node_id or edge_target_port(edge) != return_port:
+                continue
+            source = edge_source(edge)
+            source_port = edge_source_port(edge)
+            outputs = local_outputs.get(source, {})
+            if source_port in outputs:
+                values.append(outputs[source_port])
+            elif "default" in outputs:
+                values.append(outputs["default"])
+        if len(values) == 1:
+            return values[0]
+        if values:
+            return values
+        if not body_order:
+            return None
+        outputs = local_outputs.get(body_order[-1], {})
+        if len(outputs) == 1:
+            return next(iter(outputs.values()))
+        return outputs
 
     async def _execute_node(
         self,
