@@ -217,6 +217,14 @@ const en = {
     user: 'User',
     guestUser: 'Guest',
   },
+  workflowTabs: {
+    newWorkflowTab: 'New workflow tab',
+    scrollLeft: 'Scroll tabs left',
+    scrollRight: 'Scroll tabs right',
+    rename: 'Rename',
+    closeTabsLeft: 'Close tabs to left',
+    closeTabsRight: 'Close tabs to right',
+  },
   panels: {
     nodeLibrary: 'Node library',
     nodes: 'Nodes',

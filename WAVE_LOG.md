@@ -391,6 +391,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Inspector panel is restored as a built-in rail/App panel, and its chrome plus empty-state text now read from `inspector` i18n keys with Spanish unit coverage.
 - HPC panel configuration labels, enabled/test-connection status messages, and script preview chrome now read from `hpc` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Environment panel manager chrome, loading/empty states, row menus, package counts/actions, confirmation copy, and local fallback status messages now read from `environment` / `common` / `errors` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
+- Workflow tab-strip default names, dirty-state affordance, new-tab action, scroll controls, and context-menu labels now read from `workflowTabs` / `topbar` / `common` / `dialogs` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 
 ---
 

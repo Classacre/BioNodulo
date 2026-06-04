@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 
 interface WorkflowTabsProps {
@@ -15,6 +16,7 @@ interface WorkflowTabsProps {
 }
 
 export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, onRename, onDuplicate, onReorder, dirtyIndices }: WorkflowTabsProps) {
+  const { t } = useTranslation();
   const [menu, setMenu] = useState<{ x: number; y: number; index: number } | null>(null);
   const [renaming, setRenaming] = useState<{ index: number; name: string } | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -109,14 +111,16 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
     setDragOverIndex(null);
   };
 
+  const displayName = (name: string) => (!name || name === 'Untitled' ? t('common.untitled') : name);
+
   return (
     <div className="workflow-tabs" ref={stripRef}>
       {overflow.left && (
         <button
           className="wf-tab wf-tab-scroll"
           onClick={() => scrollBy(-160)}
-          title="Scroll tabs left"
-          aria-label="Scroll tabs left"
+          title={t('workflowTabs.scrollLeft')}
+          aria-label={t('workflowTabs.scrollLeft')}
           style={{ position: 'sticky', left: 0, zIndex: 2, padding: '0 6px' }}
         >
           <Icon name="chevronLeft" size={14} />
@@ -149,15 +153,15 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
               onClick={e => e.stopPropagation()}
             />
           ) : (
-            <span onDoubleClick={() => setRenaming({ index: i, name: name || 'Untitled' })}>
+            <span onDoubleClick={() => setRenaming({ index: i, name: displayName(name) })}>
               {dirtyIndices?.has(i) && (
                 <span
                   className="wf-tab-dirty"
-                  aria-label="unsaved changes"
-                  title="Unsaved changes"
+                  aria-label={t('dialogs.unsavedChangesTitle')}
+                  title={t('dialogs.unsavedChangesTitle')}
                 />
               )}
-              {name || 'Untitled'}
+              {displayName(name)}
             </span>
           )}
           {tabs.length > 1 && (
@@ -167,15 +171,15 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
           )}
         </button>
       ))}
-      <button className="wf-tab" onClick={onAdd} title="New workflow" aria-label="New workflow tab">
+      <button className="wf-tab" onClick={onAdd} title={t('topbar.newWorkflow')} aria-label={t('workflowTabs.newWorkflowTab')}>
         <Icon name="plus" size={14} />
       </button>
       {overflow.right && (
         <button
           className="wf-tab wf-tab-scroll"
           onClick={() => scrollBy(160)}
-          title="Scroll tabs right"
-          aria-label="Scroll tabs right"
+          title={t('workflowTabs.scrollRight')}
+          aria-label={t('workflowTabs.scrollRight')}
           style={{ position: 'sticky', right: 0, zIndex: 2, padding: '0 6px' }}
         >
           <Icon name="chevronRight" size={14} />
@@ -185,13 +189,13 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
       {menu && (
         <div className="tab-context-menu context-menu" style={{ left: menu.x, top: menu.y, position: 'fixed', zIndex: 300 }}>
           <div className="context-menu-body">
-            <div className="context-menu-item" onClick={() => { setRenaming({ index: menu.index, name: tabs[menu.index] || 'Untitled' }); setMenu(null); }}>Rename</div>
-            {onDuplicate && <div className="context-menu-item" onClick={() => { onDuplicate(menu.index); setMenu(null); }}>Duplicate</div>}
+            <div className="context-menu-item" onClick={() => { setRenaming({ index: menu.index, name: displayName(tabs[menu.index] || '') }); setMenu(null); }}>{t('workflowTabs.rename')}</div>
+            {onDuplicate && <div className="context-menu-item" onClick={() => { onDuplicate(menu.index); setMenu(null); }}>{t('common.duplicate')}</div>}
             <div className="context-menu-sep" />
-            <div className="context-menu-item" onClick={() => { onClose(menu.index); setMenu(null); }}>Close Tab</div>
-            <div className="context-menu-item" onClick={() => { tabs.forEach((_, i) => { if (i < menu.index) onClose(i); }); setMenu(null); }}>Close Tabs to Left</div>
-            <div className="context-menu-item" onClick={() => { for (let i = tabs.length - 1; i > menu.index; i--) onClose(i); setMenu(null); }}>Close Tabs to Right</div>
-            <div className="context-menu-item" onClick={() => { tabs.forEach((_, i) => { if (i !== menu.index) onClose(i > menu.index ? i - 1 : i); }); setMenu(null); }}>Close Other Tabs</div>
+            <div className="context-menu-item" onClick={() => { onClose(menu.index); setMenu(null); }}>{t('topbar.closeTab')}</div>
+            <div className="context-menu-item" onClick={() => { tabs.forEach((_, i) => { if (i < menu.index) onClose(i); }); setMenu(null); }}>{t('workflowTabs.closeTabsLeft')}</div>
+            <div className="context-menu-item" onClick={() => { for (let i = tabs.length - 1; i > menu.index; i--) onClose(i); setMenu(null); }}>{t('workflowTabs.closeTabsRight')}</div>
+            <div className="context-menu-item" onClick={() => { tabs.forEach((_, i) => { if (i !== menu.index) onClose(i > menu.index ? i - 1 : i); }); setMenu(null); }}>{t('topbar.closeOtherTabs')}</div>
           </div>
         </div>
       )}

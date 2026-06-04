@@ -110,7 +110,7 @@ const es = {
     promptTitle: 'Ingrese detalles',
     promptPlaceholder: 'Escriba un valor',
     unsavedChangesTitle: 'Cambios sin guardar',
-    unsavedChangesBody: 'You have unsaved changes. Discard or keep editing?',
+    unsavedChangesBody: 'Tienes cambios sin guardar. Descartarlos o seguir editando?',
     unsavedChangesDiscard: 'Descartar cambios',
     unsavedChangesKeep: 'Seguir editando',
   },
@@ -216,6 +216,14 @@ const es = {
     profile: 'Perfil',
     user: 'Usuario',
     guestUser: 'Invitado',
+  },
+  workflowTabs: {
+    newWorkflowTab: 'Nueva pestana de workflow',
+    scrollLeft: 'Desplazar pestanas a la izquierda',
+    scrollRight: 'Desplazar pestanas a la derecha',
+    rename: 'Renombrar',
+    closeTabsLeft: 'Cerrar pestanas a la izquierda',
+    closeTabsRight: 'Cerrar pestanas a la derecha',
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',
