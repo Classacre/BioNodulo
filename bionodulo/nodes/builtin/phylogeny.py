@@ -811,6 +811,77 @@ class ModelTestNGNode(CommandNode):
         return [node_out / "best_model.txt", node_out / "model_stats.json"]
 
 
+class ASTRALNode(CommandNode):
+    """Species tree inference from discordant gene trees with ASTRAL."""
+
+    NODE_ID = "astral"
+    DISPLAY_NAME = "ASTRAL Species Tree"
+    CATEGORY = "phylogeny"
+    DESCRIPTION = "Species tree inference from discordant gene trees via coalescent quartet summarization."
+    SEARCH_ALIASES = ["astral", "species tree", "coalescent", "gene tree", "quartet", "ils", "phylogenomics"]
+    RETURN_TYPES = ("NEWICK", "FILE")
+    RETURN_NAMES = ("species_tree", "astral_log")
+    REQUIRED_EXECUTABLES = ["astral"]
+    REQUIRED_CONDA_PACKAGES = ["astral-tree"]
+    DOCUMENTATION_URL = "https://github.com/smirarab/ASTRAL"
+    VERSION = "5.7.8"
+    SHELL = True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gene_trees": ("FILE", {"description": "Gene trees, one Newick tree per line"}),
+            },
+            "optional": {
+                "multi_individuals": ("FILE", {"description": "Multi-individual mapping file for ASTRAL -a"}),
+                "boot_trees": ("FILE", {"description": "Bootstrap gene trees for local posterior support"}),
+                "num_reps": ("INT", {"default": 100, "min": 10, "description": "Number of bootstrap replicates"}),
+                "exact": ("BOOLEAN", {"default": False, "description": "Use exact search mode"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not str(inputs.get("gene_trees", "")).strip():
+            return "Required input 'gene_trees' must be a nonempty file path"
+        num_reps = inputs.get("num_reps")
+        if num_reps is not None and num_reps < 10:
+            return "Input 'num_reps' must be at least 10"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = str(inputs.get("output", "."))
+        cmd = [
+            "astral",
+            "-i",
+            str(inputs.get("gene_trees", "")),
+            "-o",
+            f"{out_dir}/species_tree.nwk",
+        ]
+        if inputs.get("multi_individuals"):
+            cmd.extend(["-a", str(inputs["multi_individuals"])])
+        if inputs.get("boot_trees"):
+            cmd.extend(["-b", str(inputs["boot_trees"]), "-r", str(inputs.get("num_reps", 100))])
+        if inputs.get("exact"):
+            cmd.append("-x")
+        cmd.extend([">", f"{out_dir}/astral_log.log", "2>&1"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "species_tree.nwk", node_out / "astral_log.log"]
+
+
 class EBIClustalOmegaNode(BaseNode):
     """Run Clustal Omega through the EMBL-EBI Job Dispatcher service."""
 

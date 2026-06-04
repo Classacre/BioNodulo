@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -361,6 +362,112 @@ def test_modeltest_ng_omits_empty_optional_flags_and_plans_outputs() -> None:
 def test_modeltest_ng_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["modeltest-ng"] == "modeltest-ng"
     assert PACKAGE_MIN_VERSIONS["modeltest-ng"] == ">=0.1.7"
+
+
+def test_astral_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["astral"]
+    assert node_info["display_name"] == "ASTRAL Species Tree"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Species tree inference")
+    assert node_info["output"] == ["NEWICK", "FILE"]
+    assert node_info["output_name"] == ["species_tree", "astral_log"]
+    assert node_info["required_executables"] == ["astral"]
+    assert node_info["required_conda_packages"] == ["astral-tree"]
+    assert "species tree" in node_info["search_aliases"]
+    assert "gene tree" in node_info["search_aliases"]
+    assert "coalescent" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"gene_trees"}
+    assert set(inputs["optional"]) == {"multi_individuals", "boot_trees", "num_reps", "exact"}
+    assert inputs["optional"]["num_reps"][1]["min"] == 10
+
+
+def test_astral_renders_species_tree_command_with_optional_flags() -> None:
+    node_class = _node_class("astral")
+
+    cmd = node_class.render_command({
+        "gene_trees": "gene_trees.nwk",
+        "multi_individuals": "individuals.tsv",
+        "boot_trees": "bootstrap_gene_trees.nwk",
+        "num_reps": 250,
+        "exact": True,
+        "output": "/tmp/run/astral",
+    })
+
+    assert node_class.SHELL is True
+    assert cmd == [
+        "astral",
+        "-i",
+        "gene_trees.nwk",
+        "-o",
+        "/tmp/run/astral/species_tree.nwk",
+        "-a",
+        "individuals.tsv",
+        "-b",
+        "bootstrap_gene_trees.nwk",
+        "-r",
+        "250",
+        "-x",
+        ">",
+        "/tmp/run/astral/astral_log.log",
+        "2>&1",
+    ]
+
+
+def test_astral_omits_empty_optional_flags_and_plans_outputs() -> None:
+    node_class = _node_class("astral")
+
+    cmd = node_class.render_command({
+        "gene_trees": "gene_trees.nwk",
+        "multi_individuals": "",
+        "boot_trees": "",
+        "num_reps": 100,
+        "exact": False,
+        "output": "/tmp/run/astral",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert "-a" not in cmd
+    assert "-b" not in cmd
+    assert "-r" not in cmd
+    assert "-x" not in cmd
+    assert cmd == [
+        "astral",
+        "-i",
+        "gene_trees.nwk",
+        "-o",
+        "/tmp/run/astral/species_tree.nwk",
+        ">",
+        "/tmp/run/astral/astral_log.log",
+        "2>&1",
+    ]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/astral/species_tree.nwk",
+        "/tmp/run/astral/astral_log.log",
+    ]
+
+
+def test_astral_validates_required_gene_trees_and_bootstrap_replicates() -> None:
+    node_class = _node_class("astral")
+
+    assert "gene_trees" in str(node_class.VALIDATE_INPUTS({"gene_trees": ""}))
+    assert "num_reps" in str(node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 9}))
+    assert node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 10}) is True
+    assert node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 100}) is True
+
+
+def test_astral_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["astral"] == "astral-tree"
+    assert PACKAGE_MIN_VERSIONS["astral-tree"] == ">=5.7.8"
+    assert workflow_to_packages({"nodes": [{"id": "species", "type": "astral"}]}, registry) == ["astral-tree"]
 
 
 def test_ebi_clustal_omega_is_registered_for_frontend_discovery() -> None:
