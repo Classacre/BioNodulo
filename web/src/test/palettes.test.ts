@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
+  ALL_PALETTE_TOKENS,
   completePalette,
   BUILT_IN_PALETTES,
   getResolvedPaletteMode,
@@ -50,5 +53,20 @@ describe('palettes.getResolvedPaletteMode', () => {
     document.documentElement.setAttribute('data-theme', 'dark');
     expect(getResolvedPaletteMode()).toBe('dark');
     document.documentElement.removeAttribute('data-theme');
+  });
+});
+
+describe('design token documentation', () => {
+  it('documents every CSS token and built-in canvas pattern', () => {
+    const docs = readFileSync(resolve(process.cwd(), '..', 'docs/DESIGN_TOKENS.md'), 'utf8');
+
+    for (const token of ALL_PALETTE_TOKENS) {
+      expect(docs, `missing --${token}`).toContain(`--${token}`);
+    }
+
+    for (const palette of BUILT_IN_PALETTES) {
+      const expectedRow = `| ${palette.name} (\`${palette.id}\`) | \`${palette.canvasPattern ?? 'none'}\` |`;
+      expect(docs, `missing pattern row for ${palette.id}`).toContain(expectedRow);
+    }
   });
 });

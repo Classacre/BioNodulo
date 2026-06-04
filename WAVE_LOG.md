@@ -414,6 +414,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Node palette chrome, typed-add headings, search summaries, recent controls, category affordances, fallback category labels, and empty states now read from `nodePalette` i18n keys with Spanish unit coverage.
 - Node editor and node info panel section headings, advanced controls, file-drop placeholders, documentation links, metadata labels, and parameter detail labels now read from `nodeDetails` i18n keys with Spanish unit coverage.
 - Share dialog title, offline notice, invite controls, room-link copy/actions, share-list states, role labels, revoke/close actions, and copy-link toasts now read from `collab` / `common` i18n keys with Spanish unit coverage.
+- Design token documentation now covers the complete 66-token palette contract from `ALL_PALETTE_TOKENS`, derived-token behavior, semantic token groups, current built-in canvas pattern mappings, and custom palette authoring guidance. The palette test suite now guards `docs/DESIGN_TOKENS.md` against missing CSS custom properties or stale built-in pattern rows.
 
 ---
 
@@ -429,7 +430,7 @@ Items from the gap analysis that haven't landed yet:
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
 - #85 Reorganise hooks into category folders — partial: App-owned workflow/collab hooks moved; shared UI/settings/data hooks remain top-level.
-- #86 Design tokens documented (CSS custom property reference).
+- #86 Design tokens documented — DONE (CSS custom property reference guarded by palette tests).
 - First-party raw `/api` fetch migration — DONE; the GitHub releases request remains intentionally outside `api/client.ts` because it targets an external host.
 
 ---
