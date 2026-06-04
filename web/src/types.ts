@@ -140,10 +140,15 @@ export interface LogEntry {
 
 export interface ManagerStatus {
   custom_nodes_dir: string;
-  installed_packages: string[];
-  installed_node_modules: string[];
-  environment_info: Record<string, unknown>;
-  diagnostics?: Record<string, unknown>;
+  installed_nodes: ManagerInstalledNode[];
+  total: number;
+}
+
+export interface ManagerInstalledNode {
+  name: string;
+  version: string;
+  category: string;
+  builtin: boolean;
 }
 
 export interface EnvironmentSpec {
