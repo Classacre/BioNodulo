@@ -1460,40 +1460,40 @@ export default function App() {
   const handleSaveSnippet = useCallback(async () => {
     const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
     if (selectedIds.length === 0) {
-      toast.info('Select at least one node to save as a snippet');
+      toast.info(t('snippets.selectAtLeastOne'));
       return;
     }
     const idSet = new Set(selectedIds);
     const snippetNodes = activeWorkflow.nodes.filter(n => idSet.has(n.id));
     const snippetEdges = activeWorkflow.edges.filter(e => idSet.has(e.from.node) && idSet.has(e.to.node));
     const defaultName = snippetNodes.length === 1
-      ? `${snippetNodes[0].ui?.title || snippetNodes[0].type} snippet`
-      : `${snippetNodes.length}-node snippet`;
+      ? t('snippets.singleDefaultName', { name: snippetNodes[0].ui?.title || snippetNodes[0].type })
+      : t('snippets.multiDefaultName', { count: snippetNodes.length });
     const name = await promptDialog({
-      title: 'Save selection as snippet',
-      message: 'The selected nodes and the edges between them will be saved locally for reuse.',
-      inputLabel: 'Snippet name',
+      title: t('snippets.savePromptTitle'),
+      message: t('snippets.savePromptMessage'),
+      inputLabel: t('snippets.savePromptInputLabel'),
       defaultValue: defaultName,
     });
     if (!name) return;
     const { saveWorkflowSnippet } = await import('./state/workflowSnippets');
     saveWorkflowSnippet({ name, nodes: snippetNodes, edges: snippetEdges });
-    toast.success('Snippet saved', { message: `${snippetNodes.length} nodes` });
-  }, [activeWorkflow]);
+    toast.success(t('snippets.savedTitle'), { message: t('snippets.savedMessage', { count: snippetNodes.length }) });
+  }, [activeWorkflow, t]);
 
   const handleInsertSnippet = useCallback(async () => {
     const { listWorkflowSnippets, instantiateSnippet } = await import('./state/workflowSnippets');
     const snippets = listWorkflowSnippets();
     if (snippets.length === 0) {
-      toast.info('No snippets yet — select nodes and run "Save selection as snippet"');
+      toast.info(t('snippets.emptyLibrary'));
       return;
     }
     // Quick "pick one" via prompt — full chooser modal is a future polish item.
     const labels = snippets.map((s, i) => `${i + 1}. ${s.name} (${s.nodes.length}n)`).join('\n');
     const choice = await promptDialog({
-      title: 'Insert snippet',
-      message: `Pick a snippet by number:\n${labels}`,
-      inputLabel: 'Number',
+      title: t('snippets.insertPromptTitle'),
+      message: t('snippets.insertPromptMessage', { labels }),
+      inputLabel: t('snippets.insertPromptInputLabel'),
       defaultValue: '1',
     });
     const index = Math.max(1, Math.min(snippets.length, parseInt(choice || '1', 10))) - 1;
@@ -1510,8 +1510,8 @@ export default function App() {
       edges: [...activeWorkflow.edges, ...newEdges],
     };
     updateWorkflow(activeIndex, next);
-    toast.success('Snippet inserted', { message: `${snippet.name}` });
-  }, [activeWorkflow, activeIndex, updateWorkflow]);
+    toast.success(t('snippets.insertedTitle'), { message: `${snippet.name}` });
+  }, [activeWorkflow, activeIndex, t, updateWorkflow]);
 
   const handleCreateSubgraph = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
@@ -1961,15 +1961,15 @@ export default function App() {
       },
       {
         id: 'workflow.saveSnippet',
-        label: 'Save selection as snippet',
-        description: 'Capture selected nodes + their interconnections to the snippet library',
+        label: t('snippets.savePromptTitle'),
+        description: t('snippets.saveCommandDescription'),
         group: 'Workflow',
         onSelect: () => handleSaveSnippet(),
       },
       {
         id: 'workflow.insertSnippet',
-        label: 'Insert snippet…',
-        description: 'Pick from saved snippets and stamp at canvas centre',
+        label: t('snippets.insertCommandLabel'),
+        description: t('snippets.insertCommandDescription'),
         group: 'Workflow',
         onSelect: () => handleInsertSnippet(),
       },
