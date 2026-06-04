@@ -1236,6 +1236,135 @@ async def test_workflow_trigger_file_watch_polling_detects_created_files(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_workflow_trigger_file_watch_polling_detects_modified_files(tmp_path: Path) -> None:
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    existing_file = watch_dir / "existing.fastq"
+    existing_file.write_text("@old\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-watch-modify")
+    context.workspace_dir = tmp_path
+
+    await node_class().run(
+        trigger_type="file_watch",
+        watch_path=str(watch_dir),
+        watch_event="modify",
+        target_workflow="auto-import",
+        context=context,
+    )
+
+    assert node_class.due_file_watch_triggers(tmp_path / "workflow_triggers") == []
+    existing_file.write_text("@old\nACGA\n+\n!!!!\n", encoding="utf-8")
+
+    due = node_class.due_file_watch_triggers(tmp_path / "workflow_triggers")
+    assert len(due) == 1
+    assert due[0]["events"] == [
+        {
+            "event": "modify",
+            "path": str(existing_file),
+            "relative_path": "existing.fastq",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_file_watch_polling_detects_deleted_files(tmp_path: Path) -> None:
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    removed_file = watch_dir / "removed.fastq"
+    removed_file.write_text("@old\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-watch-delete")
+    context.workspace_dir = tmp_path
+
+    await node_class().run(
+        trigger_type="file_watch",
+        watch_path=str(watch_dir),
+        watch_event="delete",
+        target_workflow="auto-import",
+        context=context,
+    )
+
+    assert node_class.due_file_watch_triggers(tmp_path / "workflow_triggers") == []
+    removed_file.unlink()
+
+    due = node_class.due_file_watch_triggers(tmp_path / "workflow_triggers")
+    assert len(due) == 1
+    assert due[0]["events"] == [
+        {
+            "event": "delete",
+            "path": str(removed_file),
+            "relative_path": "removed.fastq",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_file_watch_polling_detects_moved_files(tmp_path: Path) -> None:
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    original_file = watch_dir / "original.fastq"
+    moved_file = watch_dir / "renamed.fastq"
+    original_file.write_text("@old\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-watch-move")
+    context.workspace_dir = tmp_path
+
+    await node_class().run(
+        trigger_type="file_watch",
+        watch_path=str(watch_dir),
+        watch_event="move",
+        target_workflow="auto-import",
+        context=context,
+    )
+
+    assert node_class.due_file_watch_triggers(tmp_path / "workflow_triggers") == []
+    original_file.rename(moved_file)
+
+    due = node_class.due_file_watch_triggers(tmp_path / "workflow_triggers")
+    assert len(due) == 1
+    assert due[0]["events"] == [
+        {
+            "event": "move",
+            "path": str(moved_file),
+            "relative_path": "renamed.fastq",
+            "previous_path": str(original_file),
+            "previous_relative_path": "original.fastq",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_workflow_trigger_file_watch_polling_detects_deleted_watched_file(tmp_path: Path) -> None:
+    watched_file = tmp_path / "single.fastq"
+    watched_file.write_text("@old\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("workflow_trigger")
+    context = _context(tmp_path, "trigger-watch-file-delete")
+    context.workspace_dir = tmp_path
+
+    await node_class().run(
+        trigger_type="file_watch",
+        watch_path=str(watched_file),
+        watch_event="delete",
+        target_workflow="auto-import",
+        context=context,
+    )
+
+    assert node_class.due_file_watch_triggers(tmp_path / "workflow_triggers") == []
+    watched_file.unlink()
+
+    due = node_class.due_file_watch_triggers(tmp_path / "workflow_triggers")
+    assert len(due) == 1
+    assert due[0]["events"] == [
+        {
+            "event": "delete",
+            "path": str(watched_file),
+            "relative_path": "single.fastq",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_workflow_trigger_rejects_invalid_configuration() -> None:
     with pytest.raises(ValueError, match="Unsupported trigger_type"):
         await _node_class("workflow_trigger")().run(trigger_type="email")
@@ -1245,6 +1374,13 @@ async def test_workflow_trigger_rejects_invalid_configuration() -> None:
             trigger_type="webhook",
             webhook_url="https://hooks.example.test/run",
             payload="{not-json",
+        )
+
+    with pytest.raises(ValueError, match="Unsupported watch_event"):
+        await _node_class("workflow_trigger")().run(
+            trigger_type="file_watch",
+            watch_path=str(Path.cwd()),
+            watch_event="chmod",
         )
 
 

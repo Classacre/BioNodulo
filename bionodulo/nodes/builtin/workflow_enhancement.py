@@ -1926,6 +1926,7 @@ class WorkflowTriggerNode(BaseNode):
     RETURN_NAMES = ("trigger_info", "triggered")
     REQUIRES_EXTERNAL_TOOLS = False
     SUPPORTED_TRIGGER_TYPES = {"webhook", "schedule", "file_watch"}
+    SUPPORTED_WATCH_EVENTS = {"create", "modify", "delete", "move"}
     CRON_FIELD_SPECS = {
         "minute": (0, 59),
         "hour": (0, 23),
@@ -2162,6 +2163,9 @@ class WorkflowTriggerNode(BaseNode):
         return dom_matches or dow_matches
 
     def _record_file_watch(self, context: Any, watch_path: str, watch_event: str) -> tuple[dict[str, Any], bool]:
+        watch_event = watch_event.lower()
+        if watch_event not in self.SUPPORTED_WATCH_EVENTS:
+            raise ValueError(f"Unsupported watch_event: {watch_event}")
         path = Path(watch_path) if watch_path else None
         exists = bool(path and path.exists())
         info = {
@@ -2237,13 +2241,13 @@ class WorkflowTriggerNode(BaseNode):
     @classmethod
     def _file_watch_events(cls, info: dict[str, Any]) -> list[dict[str, str]]:
         path = Path(str(info.get("watch_path", "") or ""))
-        if not path.exists():
-            return []
         watch_event = str(info.get("watch_event", "create") or "create")
+        if not path.exists() and watch_event != "delete":
+            return []
         baseline = info.get("baseline_snapshot", {})
         if not isinstance(baseline, dict):
             baseline = {}
-        current = cls._file_watch_snapshot(path)
+        current = cls._file_watch_snapshot(path) if path.exists() else {}
         events: list[dict[str, str]] = []
         if watch_event == "create":
             for relative_path in sorted(set(current) - set(baseline)):
@@ -2254,7 +2258,56 @@ class WorkflowTriggerNode(BaseNode):
                         "relative_path": relative_path,
                     }
                 )
+        elif watch_event == "modify":
+            for relative_path in sorted(set(current) & set(baseline)):
+                if cls._file_watch_signature(current[relative_path]) != cls._file_watch_signature(baseline[relative_path]):
+                    events.append(
+                        {
+                            "event": "modify",
+                            "path": current[relative_path]["path"],
+                            "relative_path": relative_path,
+                        }
+                    )
+        elif watch_event == "delete":
+            for relative_path in sorted(set(baseline) - set(current)):
+                events.append(
+                    {
+                        "event": "delete",
+                        "path": baseline[relative_path]["path"],
+                        "relative_path": relative_path,
+                    }
+                )
+        elif watch_event == "move":
+            created_paths = sorted(set(current) - set(baseline))
+            deleted_paths = sorted(set(baseline) - set(current))
+            unmatched_created = list(created_paths)
+            for deleted_path in deleted_paths:
+                deleted_signature = cls._file_watch_signature(baseline[deleted_path])
+                match = next(
+                    (
+                        created_path
+                        for created_path in unmatched_created
+                        if cls._file_watch_signature(current[created_path]) == deleted_signature
+                    ),
+                    None,
+                )
+                if match is None:
+                    continue
+                unmatched_created.remove(match)
+                events.append(
+                    {
+                        "event": "move",
+                        "path": current[match]["path"],
+                        "relative_path": match,
+                        "previous_path": baseline[deleted_path]["path"],
+                        "previous_relative_path": deleted_path,
+                    }
+                )
         return events
+
+    @staticmethod
+    def _file_watch_signature(entry: dict[str, Any]) -> tuple[Any, Any]:
+        return (entry.get("size_bytes"), entry.get("mtime_ns"))
 
     @staticmethod
     def _file_watch_snapshot(path: Path) -> dict[str, dict[str, Any]]:
