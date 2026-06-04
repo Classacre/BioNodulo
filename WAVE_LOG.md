@@ -440,6 +440,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Getting-started resources tab link titles and descriptions now read from `gettingStarted.resources` i18n keys with Spanish render coverage and a static wiring guard.
 - Getting-started quick-start guidance and AI-assistant tip now read from `gettingStarted` i18n keys with Spanish render coverage and a static wiring guard.
 - Getting-started recent-workflow controls, row metadata, and release-status chrome now read from `gettingStarted` i18n keys with Spanish render coverage and a static wiring guard.
+- AI workflow assistant drawer title, default session/greeting, and session-menu chrome now read from `aiWorkflow` / `common` i18n keys with Spanish render coverage and a static wiring guard.
 - Live collaboration authorization and WebSocket fallback errors now read from `collab` i18n keys with Spanish unit coverage and a `useCollab` static wiring guard.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.

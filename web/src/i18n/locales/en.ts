@@ -322,6 +322,19 @@ const en = {
     },
     hideOnStartup: 'Hide on startup',
   },
+  aiWorkflow: {
+    title: 'AI Workflow Assistant',
+    defaultSessionName: 'New Chat',
+    greeting: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?',
+    sessions: {
+      openTitle: 'Sessions',
+      menuTitle: 'Chat Sessions',
+      newSession: 'New',
+      messageCount: '{{count}} message',
+      messageCount_plural: '{{count}} messages',
+      messageCount_other: '{{count}} messages',
+    },
+  },
   panels: {
     nodeLibrary: 'Node library',
     nodes: 'Nodes',

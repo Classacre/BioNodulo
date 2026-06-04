@@ -1,0 +1,110 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { Workflow } from '../types';
+
+const storage = new Map<string, string>();
+const localStorageStub: Storage = {
+  get length() {
+    return storage.size;
+  },
+  clear: () => storage.clear(),
+  getItem: (key: string) => storage.get(key) ?? null,
+  key: (index: number) => Array.from(storage.keys())[index] ?? null,
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
+  setItem: (key: string, value: string) => {
+    storage.set(key, String(value));
+  },
+};
+
+function workflow(partial: Partial<Workflow> = {}): Workflow {
+  return {
+    version: '2.0',
+    app: 'BioNodulo',
+    name: partial.name ?? 'Test workflow',
+    description: partial.description ?? '',
+    nodes: partial.nodes ?? [],
+    edges: partial.edges ?? [],
+    groups: partial.groups ?? [],
+    outputs: partial.outputs ?? {},
+    environment: partial.environment,
+    dependencies: partial.dependencies,
+  };
+}
+
+describe('AIWorkflowModal i18n', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders shell and session chrome from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Asistente de workflows con IA')).toBeInTheDocument();
+    expect(screen.getByText('Hola! Puedo ayudarte a crear workflows de bioinformatica. En que tipo de analisis estas trabajando?')).toBeInTheDocument();
+    expect(screen.getByTitle('Sesiones')).toBeInTheDocument();
+    expect(screen.getByTitle('Cerrar')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Sesiones'));
+
+    expect(screen.getByText('Sesiones de chat')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nuevo/ })).toBeInTheDocument();
+    expect(screen.getByText('Nuevo chat')).toBeInTheDocument();
+    expect(screen.getByText('1 mensaje')).toBeInTheDocument();
+    expect(screen.getByTitle('Cambiar nombre')).toBeInTheDocument();
+    expect(screen.getByTitle('Eliminar')).toBeInTheDocument();
+  });
+
+  it('keeps AI workflow shell copy behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
+
+    [
+      'aiWorkflow.title',
+      'aiWorkflow.defaultSessionName',
+      'aiWorkflow.greeting',
+      'aiWorkflow.sessions.openTitle',
+      'aiWorkflow.sessions.menuTitle',
+      'aiWorkflow.sessions.newSession',
+      'aiWorkflow.sessions.messageCount',
+      'common.close',
+      'common.rename',
+      'common.delete',
+    ].forEach(key => expect(source).toContain(key));
+
+    [
+      'AI Workflow Assistant',
+      "title=\"Sessions\"",
+      'Chat Sessions',
+      'New Chat',
+      '> New<',
+      'Hello! I can help you build bioinformatics workflows.',
+      '${s.turns.length} msgs',
+      'title="Close"',
+      'title="Rename"',
+      'title="Delete"',
+    ].forEach(text => expect(source).not.toContain(text));
+  });
+});

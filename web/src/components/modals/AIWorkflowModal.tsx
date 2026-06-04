@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
 import { apiPost, ApiError } from '../../api/client';
@@ -69,14 +70,14 @@ function makeId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function createSession(name = 'New Chat'): ChatSession {
+function createSession(name: string, greeting: string): ChatSession {
   return {
     id: makeId(),
     name,
     turns: [
       {
         role: 'assistant',
-        content: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?',
+        content: greeting,
       },
     ],
     createdAt: Date.now(),
@@ -84,9 +85,10 @@ function createSession(name = 'New Chat'): ChatSession {
 }
 
 export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
+  const { t } = useTranslation();
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = loadSessions();
-    return saved.length > 0 ? saved : [createSession()];
+    return saved.length > 0 ? saved : [createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'))];
   });
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || '');
   const [showMenu, setShowMenu] = useState(false);
@@ -125,11 +127,11 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   }, [showMenu]);
 
   const createNewSession = useCallback(() => {
-    const s = createSession();
+    const s = createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'));
     setSessions(prev => [s, ...prev]);
     setActiveSessionId(s.id);
     setShowMenu(false);
-  }, []);
+  }, [t]);
 
   const switchSession = useCallback((id: string) => {
     setActiveSessionId(id);
@@ -140,17 +142,17 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     e.stopPropagation();
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
-      if (next.length === 0) next.push(createSession());
+      if (next.length === 0) next.push(createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting')));
       return next;
     });
     setActiveSessionId(prev => {
       if (prev === id) {
         const remaining = sessions.filter(s => s.id !== id);
-        return remaining[0]?.id || createSession().id;
+        return remaining[0]?.id || createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting')).id;
       }
       return prev;
     });
-  }, [sessions]);
+  }, [sessions, t]);
 
   const startRename = useCallback((s: ChatSession, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -400,13 +402,13 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           <button
             className="btn btn-icon btn-sm"
             onClick={() => setShowMenu(!showMenu)}
-            title="Sessions"
+            title={t('aiWorkflow.sessions.openTitle')}
           >
             <Icon name="menu" size={16} />
           </button>
-          <Icon name="wand" size={16} /> AI Workflow Assistant
+          <Icon name="wand" size={16} /> {t('aiWorkflow.title')}
         </span>
-        <button className="btn btn-icon btn-sm" onClick={onClose} title="Close">
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')}>
           <Icon name="close" size={14} />
         </button>
       </div>
@@ -415,9 +417,9 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       {showMenu && (
         <div className="ai-session-menu" ref={menuRef}>
           <div className="ai-session-menu-header">
-            <strong>Chat Sessions</strong>
+            <strong>{t('aiWorkflow.sessions.menuTitle')}</strong>
             <button className="btn btn-primary btn-sm" onClick={createNewSession}>
-              <Icon name="plus" size={12} /> New
+              <Icon name="plus" size={12} /> {t('aiWorkflow.sessions.newSession')}
             </button>
           </div>
           <div className="ai-session-list">
@@ -443,21 +445,21 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                 ) : (
                   <>
                     <span className="ai-session-name">{s.name}</span>
-                    <span className="ai-session-meta">{s.turns.length} msgs</span>
+                    <span className="ai-session-meta">{t('aiWorkflow.sessions.messageCount', { count: s.turns.length })}</span>
                   </>
                 )}
                 {renamingId !== s.id && (
                   <div className="ai-session-actions">
                     <button
                       className="btn btn-icon btn-xs"
-                      title="Rename"
+                      title={t('common.rename')}
                       onClick={e => startRename(s, e)}
                     >
                       <Icon name="edit" size={10} />
                     </button>
                     <button
                       className="btn btn-icon btn-xs"
-                      title="Delete"
+                      title={t('common.delete')}
                       onClick={e => deleteSession(s.id, e)}
                     >
                       <Icon name="trash" size={10} />
