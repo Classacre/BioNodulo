@@ -108,6 +108,13 @@ const EMPTY_STRING_ARRAY: string[] = [];
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
 const CENTER_MENU_TABS = new Set<OpenPanelTab>(['settings', 'templates']);
 const isCenterMenuTab = (tab: OpenPanelTab): boolean => CENTER_MENU_TABS.has(tab);
+type AppHistorySnapshot = {
+  nodes: WorkflowNode[];
+  edges: Workflow['edges'];
+  groups: Workflow['groups'];
+  parameters: Workflow['parameters'];
+  viewport?: { x: number; y: number; scale: number };
+};
 
 function workflowNameSignature(workflows: Workflow[]): string {
   return JSON.stringify(workflows.map(workflow => [workflow.id ?? '', workflow.name || 'Untitled']));
@@ -812,7 +819,7 @@ export default function App() {
 
   // History stack for undo/redo
   const canvasRef = useRef<WorkflowCanvasRef>(null);
-  const historyRef = useRef<{ nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups']; viewport?: { x: number; y: number; scale: number } }[]>([]);
+  const historyRef = useRef<AppHistorySnapshot[]>([]);
   const historyIndexRef = useRef(-1);
   const pendingStateRef = useRef<Partial<Workflow>>({});
 
@@ -824,11 +831,12 @@ export default function App() {
   // Structural fingerprint used to deduplicate identical successive snapshots
   // (e.g. when a drag commit reports the same coordinates twice). Deliberately
   // ignores viewport so pan/zoom alone doesn't burn a slot.
-  const snapshotSignature = useCallback((snapshot: { nodes: WorkflowNode[]; edges: Workflow['edges']; groups: Workflow['groups']; viewport?: { x: number; y: number; scale: number } }) => {
+  const snapshotSignature = useCallback((workflow: AppHistorySnapshot) => {
     return JSON.stringify([
-      snapshot.nodes.map(n => [n.id, n.type, n.position, n.params, n.ui]),
-      snapshot.edges.map(e => [e.from.node, e.from.output, e.to.node, e.to.input]),
-      snapshot.groups.map(g => [g.id, g.name, g.position, g.width, g.height, g.color, g.collapsed]),
+      workflow.nodes.map(n => [n.id, n.type, n.position, n.params, n.ui]),
+      workflow.edges.map(e => [e.from.node, e.from.output, e.to.node, e.to.input]),
+      workflow.groups.map(g => [g.id, g.name, g.position, g.width, g.height, g.color, g.collapsed]),
+      workflow.parameters ?? [],
     ]);
   }, []);
 
@@ -841,6 +849,7 @@ export default function App() {
       nodes: wf.nodes,
       edges: wf.edges,
       groups: wf.groups,
+      parameters: wf.parameters,
       viewport: canvasRef.current?.getViewport?.(),
     };
     const tip = historyRef.current[historyIndexRef.current];
@@ -865,7 +874,7 @@ export default function App() {
     if (Object.keys(pendingStateRef.current).length === 0) return;
     const timer = setTimeout(() => pushHistory(), 350);
     return () => clearTimeout(timer);
-  }, [activeWorkflow.nodes, activeWorkflow.edges, activeWorkflow.groups, pushHistory]);
+  }, [activeWorkflow.nodes, activeWorkflow.edges, activeWorkflow.groups, activeWorkflow.parameters, pushHistory]);
 
   // Capture eagerly on mouseup/keyup so a completed drag, widget edit, or
   // key shortcut commits pending state instead of waiting for the debounce.
@@ -894,6 +903,7 @@ export default function App() {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
+      parameters: state.parameters,
     });
     if (state.viewport) canvasRef.current?.setViewport(state.viewport);
   }, [activeIndex, updateWorkflow]);
@@ -911,6 +921,7 @@ export default function App() {
       nodes: state.nodes,
       edges: state.edges,
       groups: state.groups,
+      parameters: state.parameters,
     });
     if (state.viewport) canvasRef.current?.setViewport(state.viewport);
   }, [activeIndex, updateWorkflow]);

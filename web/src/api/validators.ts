@@ -104,20 +104,22 @@ export interface ValidatedWorkflowNode {
   ui?: Record<string, unknown>;
 }
 
+export interface ValidatedWorkflowParameter {
+  name: string;
+  type: string;
+  required?: boolean;
+  default?: unknown;
+  value?: unknown;
+  description?: string;
+}
+
 export interface ValidatedWorkflow {
   id?: string;
   name?: string;
   nodes: ValidatedWorkflowNode[];
   edges: unknown[];
   groups?: unknown[];
-  parameters?: Array<{
-    name: string;
-    type: string;
-    required?: boolean;
-    default?: unknown;
-    value?: unknown;
-    description?: string;
-  }>;
+  parameters?: ValidatedWorkflowParameter[];
 }
 
 export function validateWorkflow(value: unknown, path = 'workflow'): ValidatedWorkflow {
@@ -137,24 +139,7 @@ export function validateWorkflow(value: unknown, path = 'workflow'): ValidatedWo
       ui: isObject(node.ui) ? node.ui : undefined,
     };
   });
-  const parameters = Array.isArray(obj.parameters)
-    ? obj.parameters
-        .map((raw) => {
-          if (!isObject(raw)) return null;
-          const name = typeof raw.name === 'string' ? raw.name : '';
-          const type = typeof raw.type === 'string' ? raw.type : '';
-          if (!name || !type) return null;
-          return {
-            name,
-            type,
-            required: typeof raw.required === 'boolean' ? raw.required : undefined,
-            default: raw.default,
-            value: raw.value,
-            description: typeof raw.description === 'string' ? raw.description : undefined,
-          };
-        })
-        .filter((param): param is NonNullable<typeof param> => param !== null)
-    : undefined;
+  const parameters = validateWorkflowParameters(obj.parameters, `${path}.parameters`);
   return {
     id: optionalString(obj.id, `${path}.id`),
     name: optionalString(obj.name, `${path}.name`),
@@ -163,6 +148,30 @@ export function validateWorkflow(value: unknown, path = 'workflow'): ValidatedWo
     groups: Array.isArray(obj.groups) ? obj.groups : undefined,
     parameters,
   };
+}
+
+function validateWorkflowParameters(value: unknown, path: string): ValidatedWorkflowParameter[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  const rawParameters = requireArray(value, path);
+  const seenNames = new Set<string>();
+  return rawParameters.map((raw, index) => {
+    const paramPath = `${path}[${index}]`;
+    const param = requireObject(raw, paramPath);
+    const name = requireString(param.name, `${paramPath}.name`).trim();
+    if (!name) throw new ApiValidationError(`${paramPath}.name`, 'non-empty string', param.name);
+    if (seenNames.has(name)) throw new ApiValidationError(`${paramPath}.name`, 'unique parameter name', name);
+    seenNames.add(name);
+    const type = requireString(param.type, `${paramPath}.type`).trim();
+    if (!type) throw new ApiValidationError(`${paramPath}.type`, 'non-empty string', param.type);
+    return {
+      name,
+      type,
+      required: typeof param.required === 'boolean' ? param.required : undefined,
+      default: param.default,
+      value: param.value,
+      description: typeof param.description === 'string' ? param.description : undefined,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

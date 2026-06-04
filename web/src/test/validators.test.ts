@@ -172,4 +172,39 @@ describe('safeValidateWorkflow', () => {
       ]);
     }
   });
+
+  it('rejects malformed workflow-level parameter definitions', () => {
+    const result = safeValidateWorkflow({
+      id: 'w1',
+      nodes: [],
+      edges: [],
+      parameters: [
+        { name: '', type: 'STRING' },
+        { name: 'threshold', type: '' },
+        'sample_id',
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.path).toBe('workflow.parameters[0].name');
+    }
+  });
+
+  it('rejects duplicate workflow-level parameter names', () => {
+    const result = safeValidateWorkflow({
+      id: 'w1',
+      nodes: [],
+      edges: [],
+      parameters: [
+        { name: 'sample_id', type: 'STRING' },
+        { name: 'sample_id', type: 'STRING' },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.path).toBe('workflow.parameters[1].name');
+    }
+  });
 });
