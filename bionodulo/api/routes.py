@@ -41,6 +41,7 @@ from bionodulo.api.schemas import (
     ManagerDiagnoseRequest,
     ManagerGitRequest,
     ManagerPackageRequest,
+    PauseRequestResolveRequest,
     QueueReorderRequest,
     RunCreateRequest,
     ValidationRequest,
@@ -67,6 +68,7 @@ from bionodulo.environments.manifest import (
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
 from bionodulo.hpc.base import HPCBackend
+from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.graph import edge_source, edge_target
 from bionodulo.workflow.validation import validate_workflow
@@ -237,6 +239,50 @@ def _require_execute_permission(request: Request, workflow_id: str | None) -> di
 
 def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
+
+
+def _checkpoint_manifest_path(settings: Settings) -> Path:
+    return settings.project_root / "checkpoints" / "checkpoint_manifest.json"
+
+
+def _pause_requests_dir(settings: Settings) -> Path:
+    return settings.project_root / "pause_requests"
+
+
+def _read_checkpoint_manifest_for_api(manifest_path: Path) -> dict[str, Any]:
+    try:
+        return CheckpointNode._read_checkpoint_manifest(manifest_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+def _read_pause_request_file(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"pause request file is not valid JSON: {path}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"pause request file must contain a JSON object: {path}")
+    data.setdefault("pause_file", str(path))
+    return data
+
+
+def _resolve_pause_request_path(settings: Settings, body: PauseRequestResolveRequest) -> Path:
+    pause_dir = _pause_requests_dir(settings).resolve()
+    if body.pause_file:
+        candidate = (settings.project_root / body.pause_file).resolve()
+    elif body.node_id:
+        candidate = (pause_dir / f"{body.node_id}.json").resolve()
+    else:
+        raise HTTPException(status_code=400, detail="node_id or pause_file is required")
+
+    try:
+        candidate.relative_to(pause_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="pause request must be inside the workspace pause_requests directory") from exc
+    if not candidate.exists():
+        raise HTTPException(status_code=404, detail=f"Pause request not found: {candidate.name}")
+    return candidate
 
 
 def _workflow_node_id(node: Any, fallback: str | None = None) -> str:
@@ -440,6 +486,88 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         request.app.state.runs = runs
 
     return {"run_id": run_id, "status": "queued", "name": body.name, "workflow_name": wf_name}
+
+
+# ---------------------------------------------------------------------------
+# Workflow runtime artifacts
+# ---------------------------------------------------------------------------
+
+@router.get("/checkpoints/manifest")
+async def get_checkpoint_manifest(request: Request) -> dict[str, Any]:
+    """Return the persisted checkpoint manifest for the current workspace."""
+    settings = _get_settings(request)
+    manifest_path = _checkpoint_manifest_path(settings)
+    manifest = _read_checkpoint_manifest_for_api(manifest_path)
+    return {
+        "exists": manifest_path.exists(),
+        "manifest_path": str(manifest_path),
+        "manifest": manifest,
+    }
+
+
+@router.get("/checkpoints/resolve")
+async def resolve_checkpoint(
+    request: Request,
+    run_id: str = "",
+    node_id: str = "",
+    checkpoint_name: str = "",
+) -> dict[str, Any]:
+    """Resolve a checkpoint by run/node pair or checkpoint name."""
+    settings = _get_settings(request)
+    manifest_path = _checkpoint_manifest_path(settings)
+    try:
+        checkpoint = CheckpointNode.resolve_checkpoint(
+            manifest_path=manifest_path,
+            run_id=run_id,
+            node_id=node_id,
+            checkpoint_name=checkpoint_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {
+        "found": bool(checkpoint),
+        "manifest_path": str(manifest_path),
+        "checkpoint": checkpoint,
+    }
+
+
+@router.get("/pause_requests")
+async def list_pause_requests(request: Request) -> dict[str, Any]:
+    """List persisted pause/resume review requests for the current workspace."""
+    settings = _get_settings(request)
+    pause_dir = _pause_requests_dir(settings)
+    pause_requests: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    if pause_dir.exists():
+        for path in sorted(pause_dir.glob("*.json")):
+            try:
+                pause_requests.append(_read_pause_request_file(path))
+            except ValueError as exc:
+                errors.append({"pause_file": str(path), "error": str(exc)})
+    return {
+        "pause_requests_dir": str(pause_dir),
+        "pause_requests": pause_requests,
+        "count": len(pause_requests),
+        "errors": errors,
+    }
+
+
+@router.post("/pause_requests/resolve")
+async def resolve_pause_request(request: Request, body: PauseRequestResolveRequest) -> dict[str, Any]:
+    """Persist an approve/reject decision for a workspace pause request."""
+    settings = _get_settings(request)
+    pause_file = _resolve_pause_request_path(settings, body)
+    try:
+        pause_request = PauseResumeNode.resolve_pause_request(
+            pause_file,
+            action=body.action,
+            reviewer=body.reviewer,
+            comment=body.comment,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    pause_request["pause_file"] = str(pause_file)
+    return {"pause_request": pause_request}
 
 
 # ---------------------------------------------------------------------------

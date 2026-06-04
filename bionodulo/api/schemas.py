@@ -52,6 +52,16 @@ class QueueReorderRequest(BaseModel):
     after_run_id: str | None = Field(None, description="Move after this pending run ID")
 
 
+class PauseRequestResolveRequest(BaseModel):
+    """Request body for POST /pause_requests/resolve."""
+
+    action: Literal["approve", "reject"] = Field(..., description="Review decision to persist")
+    node_id: str | None = Field(None, description="Node ID whose pause request should be resolved")
+    pause_file: str | None = Field(None, description="Pause request JSON path relative to workspace")
+    reviewer: str = Field("", description="Reviewer name or identifier")
+    comment: str = Field("", description="Optional review comment")
+
+
 class WorkflowExportRequest(BaseModel):
     """Request body for POST /workflow/export."""
 
