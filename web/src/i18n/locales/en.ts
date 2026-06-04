@@ -367,6 +367,13 @@ const en = {
       copyToCanvas: 'Copy to Canvas',
       previewJson: 'Preview JSON',
     },
+    generation: {
+      thinking: 'Thinking...',
+      stopTitle: 'Stop generating',
+      stop: 'Stop',
+      regenerateTitle: 'Re-run the previous question',
+      regenerate: 'Regenerate',
+    },
   },
   panels: {
     nodeLibrary: 'Node library',

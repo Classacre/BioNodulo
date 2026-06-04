@@ -367,6 +367,13 @@ const es = {
       copyToCanvas: 'Copiar al lienzo',
       previewJson: 'Previsualizar JSON',
     },
+    generation: {
+      thinking: 'Pensando...',
+      stopTitle: 'Detener generacion',
+      stop: 'Detener',
+      regenerateTitle: 'Volver a ejecutar la pregunta anterior',
+      regenerate: 'Regenerar',
+    },
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',

@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Workflow } from '../types';
 
+vi.mock('../api/client', () => {
+  class ApiError extends Error {}
+
+  return {
+    ApiError,
+    apiPost: vi.fn(() => new Promise(() => undefined)),
+  };
+});
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -157,6 +166,59 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByRole('button', { name: 'Previsualizar JSON' })).toBeInTheDocument();
   });
 
+  it('renders sending controls from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      target: { value: 'Ayudame con QC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(await screen.findByText('Pensando...')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Detener generacion')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Detener/ })).toHaveLength(2);
+  });
+
+  it('renders regenerate controls from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    storage.set('bionodulo-ai-sessions', JSON.stringify([{
+      id: 'session-1',
+      name: 'Run help',
+      createdAt: Date.now(),
+      turns: [
+        { role: 'user', content: 'Revisa mi workflow' },
+        { role: 'assistant', content: 'Respuesta previa' },
+      ],
+    }]));
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Regenerar/ })).toHaveAttribute(
+      'title',
+      'Volver a ejecutar la pregunta anterior',
+    );
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -187,6 +249,11 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.steps.applyChanges',
       'aiWorkflow.steps.copyToCanvas',
       'aiWorkflow.steps.previewJson',
+      'aiWorkflow.generation.thinking',
+      'aiWorkflow.generation.stopTitle',
+      'aiWorkflow.generation.stop',
+      'aiWorkflow.generation.regenerateTitle',
+      'aiWorkflow.generation.regenerate',
       'common.close',
       'common.rename',
       'common.delete',
@@ -222,6 +289,11 @@ describe('AIWorkflowModal i18n', () => {
       'Apply Changes',
       'Copy to Canvas',
       'Preview JSON',
+      'Thinking...',
+      'Stop generating',
+      '>Stop<',
+      'Re-run the previous question',
+      '↻ Regenerate',
     ].forEach(text => expect(source).not.toContain(text));
   });
 });

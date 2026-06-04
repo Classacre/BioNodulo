@@ -514,14 +514,14 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
               <div className="ai-msg assistant">
                 <div className="ai-thinking-inline">
                   <span className="ai-spinner" />
-                  Thinking...
+                  {t('aiWorkflow.generation.thinking')}
                   <button
                     className="btn btn-sm btn-ghost"
                     style={{ marginLeft: 12 }}
                     onClick={stop}
-                    title="Stop generating"
+                    title={t('aiWorkflow.generation.stopTitle')}
                   >
-                    <Icon name="close" size={10} /> Stop
+                    <Icon name="close" size={10} /> {t('aiWorkflow.generation.stop')}
                   </button>
                 </div>
               </div>
@@ -554,8 +554,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             quickly retry without retyping the question. */}
         {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
           <div className="ai-quick-prompts">
-            <button className="ai-quick-prompt" onClick={regenerate} title="Re-run the previous question">
-              ↻ Regenerate
+            <button className="ai-quick-prompt" onClick={regenerate} title={t('aiWorkflow.generation.regenerateTitle')}>
+              ↻ {t('aiWorkflow.generation.regenerate')}
             </button>
           </div>
         )}
@@ -598,8 +598,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             disabled={sending}
           />
           {sending ? (
-            <button className="btn btn-secondary" onClick={stop} title="Stop generating">
-              Stop
+            <button className="btn btn-secondary" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
+              {t('aiWorkflow.generation.stop')}
             </button>
           ) : (
             <button className="btn btn-primary" onClick={send}>
