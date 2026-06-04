@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
 import type { CollabRole, LivePresenceUser } from './types';
@@ -26,10 +27,6 @@ function getInitials(name: string): string {
   return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function roleLabel(role: CollabRole): string {
-  return role === 'owner' ? 'Admin' : `${role[0].toUpperCase()}${role.slice(1)}`;
-}
-
 const roleChipColors: Record<CollabRole, string> = {
   owner: '#0f766e',
   editor: '#2563eb',
@@ -47,6 +44,7 @@ const UserList: React.FC<UserListProps> = ({
   onClose,
   embedded = false,
 }) => {
+  const { t } = useTranslation();
   const [shares, setShares] = useState<Record<string, ShareRecord[]>>({});
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +76,7 @@ const UserList: React.FC<UserListProps> = ({
     ]);
     return Object.fromEntries(entries) as Record<string, CollabRole | undefined>;
   }, [currentUserId, shares]);
+  const roleLabel = useCallback((role: CollabRole): string => t(`collab.role.${role}`), [t]);
 
   const mutateRole = async (user: LivePresenceUser, role: Exclude<CollabRole, 'owner'>) => {
     const token = getToken();
@@ -86,7 +85,7 @@ const UserList: React.FC<UserListProps> = ({
     try {
       await apiPost('/api/collab/share', { workflow_id: user.workflow_id, user_id: user.user_id, role });
     } catch {
-      setError(`Could not change ${user.name}'s role.`);
+      setError(t('collab.userListRoleChangeError', { name: user.name }));
       return;
     }
     setMenuFor(null);
@@ -101,7 +100,7 @@ const UserList: React.FC<UserListProps> = ({
     try {
       await apiDelete(`/api/collab/share/${share.id}`);
     } catch {
-      setError(`Could not remove ${user.name}.`);
+      setError(t('collab.userListRemoveError', { name: user.name }));
       return;
     }
     setMenuFor(null);
@@ -136,15 +135,15 @@ const UserList: React.FC<UserListProps> = ({
         borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
-        <strong style={{ fontSize: 13 }}>Active Users</strong>
-        <button className="btn btn-icon btn-xs" onClick={onClose} title="Close">
+        <strong style={{ fontSize: 13 }}>{t('collab.userListActiveUsers')}</strong>
+        <button className="btn btn-icon btn-xs" onClick={onClose} title={t('common.close')}>
           <Icon name="close" size={12} />
         </button>
       </div>
       <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
       {error ? <div style={{ color: 'var(--danger)', fontSize: 11, marginBottom: 8 }}>{error}</div> : null}
       {users.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>No live collaboration sessions</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>{t('collab.userListNoLiveSessions')}</div>
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {users.map(user => {
@@ -171,18 +170,18 @@ const UserList: React.FC<UserListProps> = ({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {user.name}{user.session_id === currentSessionId || (!currentSessionId && user.user_id === currentUserId) ? ' (You)' : ''}
+                    {user.name}{user.session_id === currentSessionId || (!currentSessionId && user.user_id === currentUserId) ? ` ${t('collab.userListYouSuffix')}` : ''}
                   </span>
                   <span style={{ fontSize: 9, padding: '2px 5px', borderRadius: 10, background: `${roleChipColors[workflowRole]}20`, color: roleChipColors[workflowRole], fontWeight: 700 }}>
                     {roleLabel(workflowRole)}
                   </span>
                 </div>
                 <div title={user.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {workflowNames[user.workflow_id] || `Workflow ${user.workflow_id.slice(0, 12)}`}
+                  {workflowNames[user.workflow_id] || t('collab.userListWorkflowFallback', { id: user.workflow_id.slice(0, 12) })}
                 </div>
               </div>
               {canAdmin ? (
-                <button className="btn btn-icon btn-xs" title="Manage access" onClick={() => setMenuFor(menuFor === itemKey ? null : itemKey)}>
+                <button className="btn btn-icon btn-xs" title={t('collab.userListManageAccess')} onClick={() => setMenuFor(menuFor === itemKey ? null : itemKey)}>
                   <Icon name="menu" size={13} />
                 </button>
               ) : null}
@@ -203,11 +202,11 @@ const UserList: React.FC<UserListProps> = ({
                 }}>
                   {(['editor', 'commenter', 'viewer'] as const).map(role => (
                     <button key={role} className="btn btn-xs" onClick={() => void mutateRole(user, role)} style={{ justifyContent: 'flex-start' }}>
-                      Make {roleLabel(role)}
+                      {t('collab.userListMakeRole', { role: roleLabel(role).toLowerCase() })}
                     </button>
                   ))}
                   <button className="btn btn-xs" onClick={() => void kickUser(user)} style={{ justifyContent: 'flex-start', color: 'var(--danger)' }}>
-                    Kick user
+                    {t('collab.userListKickUser')}
                   </button>
                 </div>
               ) : null}
