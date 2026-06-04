@@ -55,6 +55,24 @@ describe('useHistory', () => {
     expect(result.current.canUndo).toBe(false);
   });
 
+  it('tracks workflow parameter changes in the history signature', () => {
+    const { result } = renderHook(() => useHistory(makeWorkflow('a')));
+    const withParameter = {
+      ...makeWorkflow('a'),
+      parameters: [
+        {
+          name: 'sample_id',
+          type: 'STRING',
+          value: 'S1',
+        },
+      ],
+    };
+
+    act(() => result.current.push(withParameter));
+
+    expect(result.current.canUndo).toBe(true);
+  });
+
   it('captures viewport and returns it from undo', () => {
     const { result } = renderHook(() => useHistory(makeWorkflow('a')));
     const b = makeWorkflow('b', [{ id: 'n1', type: 'note' }]);

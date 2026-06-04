@@ -140,4 +140,36 @@ describe('safeValidateWorkflow', () => {
       expect(result.value.nodes[0].position).toEqual([10, 20]);
     }
   });
+
+  it('preserves workflow-level parameter definitions', () => {
+    const result = safeValidateWorkflow({
+      id: 'w1',
+      nodes: [],
+      edges: [],
+      parameters: [
+        {
+          name: 'sample_id',
+          type: 'STRING',
+          required: true,
+          default: 'S1',
+          value: 'S2',
+          description: 'Sample identifier',
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.parameters).toEqual([
+        {
+          name: 'sample_id',
+          type: 'STRING',
+          required: true,
+          default: 'S1',
+          value: 'S2',
+          description: 'Sample identifier',
+        },
+      ]);
+    }
+  });
 });

@@ -58,6 +58,7 @@ def validate_workflow(
         return ValidationResult(valid=False, errors=errors, warnings=warnings)
 
     edges = workflow.get("edges", [])
+    _validate_workflow_parameters(workflow.get("parameters", []), errors)
 
     def registry_lookup(node_type: str) -> Any:
         if registry is None:
@@ -203,3 +204,31 @@ def _registry_node_version(meta: Any) -> str:
     else:
         version = getattr(meta, "VERSION", "")
     return str(version) if version else ""
+
+
+def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> None:
+    """Validate passive workflow-level parameter definitions."""
+    if raw_parameters in (None, {}):
+        return
+    if not isinstance(raw_parameters, list):
+        errors.append("Workflow parameters must be a list")
+        return
+
+    seen: set[str] = set()
+    for index, parameter in enumerate(raw_parameters):
+        if not isinstance(parameter, dict):
+            errors.append(f"Workflow parameter at index {index} must be an object")
+            continue
+        raw_name = parameter.get("name", "")
+        name = raw_name.strip() if isinstance(raw_name, str) else ""
+        if not name:
+            errors.append(f"Workflow parameter at index {index} must have a non-empty name")
+            continue
+        if name in seen:
+            errors.append(f"Workflow parameter '{name}' is defined more than once")
+        seen.add(name)
+
+        raw_type = parameter.get("type", "STRING")
+        param_type = raw_type.strip() if isinstance(raw_type, str) else ""
+        if not param_type:
+            errors.append(f"Workflow parameter '{name}' must have a non-empty type")

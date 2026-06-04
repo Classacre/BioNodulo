@@ -103,6 +103,15 @@ export interface WorkflowGroup {
   selected?: boolean;
 }
 
+export interface WorkflowParameter {
+  name: string;
+  type: string;
+  required?: boolean;
+  default?: unknown;
+  value?: unknown;
+  description?: string;
+}
+
 export interface Workflow {
   id?: string;
   version: string;
@@ -115,6 +124,7 @@ export interface Workflow {
   outputs: Record<string, string>;
   environment?: Record<string, unknown>;
   dependencies?: Record<string, string>;
+  parameters?: WorkflowParameter[];
 }
 
 export interface NodeStatus {

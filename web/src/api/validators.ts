@@ -110,6 +110,14 @@ export interface ValidatedWorkflow {
   nodes: ValidatedWorkflowNode[];
   edges: unknown[];
   groups?: unknown[];
+  parameters?: Array<{
+    name: string;
+    type: string;
+    required?: boolean;
+    default?: unknown;
+    value?: unknown;
+    description?: string;
+  }>;
 }
 
 export function validateWorkflow(value: unknown, path = 'workflow'): ValidatedWorkflow {
@@ -129,12 +137,31 @@ export function validateWorkflow(value: unknown, path = 'workflow'): ValidatedWo
       ui: isObject(node.ui) ? node.ui : undefined,
     };
   });
+  const parameters = Array.isArray(obj.parameters)
+    ? obj.parameters
+        .map((raw) => {
+          if (!isObject(raw)) return null;
+          const name = typeof raw.name === 'string' ? raw.name : '';
+          const type = typeof raw.type === 'string' ? raw.type : '';
+          if (!name || !type) return null;
+          return {
+            name,
+            type,
+            required: typeof raw.required === 'boolean' ? raw.required : undefined,
+            default: raw.default,
+            value: raw.value,
+            description: typeof raw.description === 'string' ? raw.description : undefined,
+          };
+        })
+        .filter((param): param is NonNullable<typeof param> => param !== null)
+    : undefined;
   return {
     id: optionalString(obj.id, `${path}.id`),
     name: optionalString(obj.name, `${path}.name`),
     nodes,
     edges: Array.isArray(obj.edges) ? obj.edges : [],
     groups: Array.isArray(obj.groups) ? obj.groups : undefined,
+    parameters,
   };
 }
 

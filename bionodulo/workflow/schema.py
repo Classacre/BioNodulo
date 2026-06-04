@@ -122,6 +122,22 @@ class WorkflowDependency(BaseModel):
     source: str = Field("conda", description="Installation source (conda, pip, container)")
 
 
+class WorkflowParameter(BaseModel):
+    """Reusable workflow-level parameter definition.
+
+    This is passive metadata for now: workflows can declare shared values and
+    UI can preserve/edit them, but execution does not substitute them into node
+    inputs yet.
+    """
+
+    name: str = Field(..., description="Unique parameter name")
+    type: str = Field("STRING", description="Parameter value type")
+    required: bool = Field(False, description="Whether the parameter must be supplied")
+    default: Any = Field(None, description="Default parameter value")
+    value: Any = Field(None, description="Current parameter value")
+    description: str = Field("", description="Human-readable parameter description")
+
+
 class Workflow(BaseModel):
     """Complete workflow definition.
 
@@ -144,6 +160,10 @@ class Workflow(BaseModel):
     dependencies: list[WorkflowDependency] = Field(
         default_factory=list,
         description="External dependencies",
+    )
+    parameters: list[WorkflowParameter] = Field(
+        default_factory=list,
+        description="Workflow-level parameter definitions",
     )
 
     def get_node(self, node_id: str) -> WorkflowNode | None:

@@ -64,6 +64,7 @@ function defaultSignature(workflow: Workflow): string {
     workflow.nodes.map((n) => [n.id, n.type, n.position, n.params, n.ui]),
     workflow.edges.map((e) => [e.from.node, e.from.output, e.to.node, e.to.input]),
     (workflow.groups ?? []).map((g) => [g.id, g.name, g.position, g.width, g.height, g.color, g.collapsed]),
+    workflow.parameters ?? [],
   ]);
 }
 
