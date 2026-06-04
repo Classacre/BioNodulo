@@ -62,6 +62,8 @@ def test_scatter_plot_is_registered_for_frontend_discovery() -> None:
 def test_bar_chart_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("bar_chart")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -70,6 +72,7 @@ def test_bar_chart_is_registered_for_frontend_discovery() -> None:
     assert info["bar_chart"]["output_name"] == ["chart_image"]
     assert info["bar_chart"]["output"] == ["IMAGE"]
     assert info["bar_chart"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_line_chart_is_registered_for_frontend_discovery() -> None:
@@ -419,6 +422,52 @@ async def test_bar_chart_writes_grouped_svg_and_registers_preview(tmp_path: Path
     assert 'data-group="treated"' in svg
     assert "120" in svg
     assert previews == [(str(svg_path), "Bar Chart")]
+
+
+@pytest.mark.asyncio
+async def test_bar_chart_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("bar_chart")
+    table = tmp_path / "read_counts.tsv"
+    table.write_text(
+        "sample\tread_count\tcondition\n"
+        "S1\t120\tcontrol\n"
+        "S2\t150\tcontrol\n"
+        "S3\t210\ttreated\n"
+        "S4\t240\ttreated\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        table=str(table),
+        x_column="sample",
+        y_column="read_count",
+        group_column="condition",
+        title="Read Counts by Sample",
+        orientation="vertical",
+        format="html",
+        width=10,
+        height=6,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["chart_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "bar_chart.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Read Counts by Sample" in document
+    assert '"type": "bar"' in document
+    assert '"name": "control"' in document
+    assert '"name": "treated"' in document
+    assert '"S1"' in document
+    assert "120" in document
+    assert previews == [(str(html_path), "Bar Chart")]
 
 
 @pytest.mark.asyncio

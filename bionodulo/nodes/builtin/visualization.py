@@ -18,6 +18,7 @@ from bionodulo.nodes.base import BaseNode
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
 SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -4841,6 +4842,102 @@ def _render_bar_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _render_bar_html(
+    path: Path,
+    *,
+    rows: list[BarDatum],
+    bounds: tuple[float, float],
+    layout: PlotLayout,
+    title: str,
+    orientation: str,
+    color: str,
+    show_values: bool,
+) -> None:
+    categories = _bar_categories(rows)
+    groups = _bar_groups(rows)
+    grouped = {(row.category, row.group or "Value"): row.value for row in rows}
+    traces = []
+    for group_index, group in enumerate(groups):
+        values = [grouped.get((category, group), 0.0) for category in categories]
+        trace: dict[str, Any] = {
+            "type": "bar",
+            "name": group,
+            "marker": {"color": _bar_colour(color, group_index), "opacity": 0.86},
+            "text": [f"{value:g}" for value in values] if show_values else [],
+            "textposition": "auto" if show_values else "none",
+            "hovertemplate": (
+                "%{y}: %{x}<extra>" + html.escape(group) + "</extra>"
+                if orientation == "horizontal"
+                else "%{x}: %{y}<extra>" + html.escape(group) + "</extra>"
+            ),
+        }
+        if orientation == "horizontal":
+            trace.update({
+                "orientation": "h",
+                "x": values,
+                "y": categories,
+            })
+        else:
+            trace.update({
+                "x": categories,
+                "y": values,
+            })
+        traces.append(trace)
+
+    low, high = bounds
+    axis_range = [low, high]
+    plot_layout = {
+        "title": {"text": title},
+        "barmode": "group",
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "showlegend": len(groups) > 1,
+    }
+    if orientation == "horizontal":
+        plot_layout["xaxis"] = {"title": "Value", "range": axis_range, "zeroline": True}
+        plot_layout["yaxis"] = {"title": ""}
+    else:
+        plot_layout["xaxis"] = {"title": ""}
+        plot_layout["yaxis"] = {"title": "Value", "range": axis_range, "zeroline": True}
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "bar_chart"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _forest_marker_radius(row: ForestPlotRow) -> float:
     if row.pooled:
         return 7.0
@@ -5960,7 +6057,7 @@ class BarChartNode(BaseNode):
                 "title": ("STRING", {"default": "Bar Chart"}),
                 "orientation": ("STRING", {"default": "vertical", "options": ["vertical", "horizontal"]}),
                 "color": ("STRING", {"default": "steelblue"}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(BAR_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 10.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -5973,7 +6070,7 @@ class BarChartNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in BAR_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported bar chart format: {output_format}")
 
         x_column = str(kwargs.get("x_column", "") or "").strip()
@@ -6008,6 +6105,17 @@ class BarChartNode(BaseNode):
             _render_bar_svg(
                 output_path,
                 rows=rows,
+                layout=layout,
+                title=title,
+                orientation=orientation,
+                color=color,
+                show_values=show_values,
+            )
+        elif output_format == "html":
+            _render_bar_html(
+                output_path,
+                rows=rows,
+                bounds=_bar_value_range(rows),
                 layout=layout,
                 title=title,
                 orientation=orientation,
