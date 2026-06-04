@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkflowTemplate } from './types';
 import type { Workflow } from '../types';
 import Icon from '../components/ui/Icon';
@@ -14,15 +15,16 @@ interface TemplateGalleryProps {
   onFork: (fork: { workflowId: string; workflow?: Workflow }) => void;
 }
 
-function timeAgo(ts: string): string {
+function timeAgo(ts: string, translate: (key: string, options?: Record<string, unknown>) => string): string {
   const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return translate('collab.timeJustNow');
+  if (s < 3600) return translate('collab.timeMinutesAgo', { count: Math.floor(s / 60) });
+  if (s < 86400) return translate('collab.timeHoursAgo', { count: Math.floor(s / 3600) });
+  return translate('collab.timeDaysAgo', { count: Math.floor(s / 86400) });
 }
 
 export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, onFork }: TemplateGalleryProps) {
+  const { t } = useTranslation();
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,12 +136,12 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <strong style={{ fontSize: 14 }}>Template Gallery</strong>
+        <strong style={{ fontSize: 14 }}>{t('collab.templateGalleryTitle')}</strong>
         <div style={{ display: 'flex', gap: 6 }}>
           <button className="btn btn-xs" onClick={handleSaveAsTemplate} disabled={!!savingWorkflowId || !currentWorkflowId} style={{ fontSize: 10 }}>
-            {savingWorkflowId ? 'Saving...' : '+ Save'}
+            {savingWorkflowId ? t('collab.templateGallerySaving') : t('collab.templateGallerySaveAction')}
           </button>
-          <button className="btn btn-icon btn-xs" onClick={onClose} title="Close"><Icon name="close" size={12} /></button>
+          <button className="btn btn-icon btn-xs" onClick={onClose} title={t('collab.templateGalleryCloseTitle')}><Icon name="close" size={12} /></button>
         </div>
       </div>
 
@@ -149,7 +151,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search templates..."
+          placeholder={t('collab.templateGallerySearchPlaceholder')}
           onKeyDown={e => e.key === 'Enter' && fetchTemplates()}
           style={{
             width: '100%', fontSize: 12, padding: '6px 10px', borderRadius: 4,
@@ -166,7 +168,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
             className="btn btn-xs"
             onClick={() => setActiveTag(null)}
             style={{ fontSize: 9, padding: '2px 8px', background: activeTag === null ? 'var(--accent, #3b82f6)' : undefined, color: activeTag === null ? '#fff' : undefined }}
-          >All</button>
+          >{t('collab.templateGalleryAllTags')}</button>
           {allTags.map(tag => (
             <button
               key={tag}
@@ -182,40 +184,40 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
 
       {/* Template grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {loading && templates.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Loading templates...</div>}
-        {templates.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>No templates found.</div>}
+        {loading && templates.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.templateGalleryLoading')}</div>}
+        {templates.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.templateGalleryEmpty')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 10px' }}>
-          {templates.map(t => (
-            <div key={t.id} style={{
+          {templates.map(template => (
+            <div key={template.id} style={{
               padding: 10, borderRadius: 8, border: '1px solid var(--border)',
               background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 4,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <strong style={{ fontSize: 12, fontWeight: 600 }}>{t.title}</strong>
-                <span style={{ fontSize: 9, color: 'var(--muted)' }}>{timeAgo(t.created_at)}</span>
+                <strong style={{ fontSize: 12, fontWeight: 600 }}>{template.title}</strong>
+                <span style={{ fontSize: 9, color: 'var(--muted)' }}>{timeAgo(template.created_at, t)}</span>
               </div>
               <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {t.description}
+                {template.description}
               </p>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {t.tags.split(',').map(tag => { const s = tag.trim(); return s ? (
+                  {template.tags.split(',').map(tag => { const s = tag.trim(); return s ? (
                     <span key={s} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'var(--surface)', color: 'var(--muted)' }}>{s}</span>
                   ) : null; })}
                 </div>
                 <span style={{ fontSize: 10, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                  <Icon name="copy" size={10} /> {t.fork_count}
+                  <Icon name="copy" size={10} /> {template.fork_count}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>by {t.user_id.slice(0, 8)}</span>
+                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t('collab.templateGalleryAuthor', { userId: template.user_id.slice(0, 8) })}</span>
                 <button
                   className="btn btn-sm"
-                  onClick={() => handleFork(t.id)}
-                  disabled={forkingId === t.id}
+                  onClick={() => handleFork(template.id)}
+                  disabled={forkingId === template.id}
                   style={{ fontSize: 10, padding: '3px 12px' }}
                 >
-                  {forkingId === t.id ? 'Forking...' : 'Fork'}
+                  {forkingId === template.id ? t('collab.templateGalleryForking') : t('collab.templateGalleryFork')}
                 </button>
               </div>
             </div>
