@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
@@ -9,6 +10,7 @@ interface NodeEditorProps {
 }
 
 export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorProps) {
+  const { t } = useTranslation();
   const [showAdvanced, setShowAdvanced] = useState(false);
   if (!node) return null;
   const meta = node.meta;
@@ -30,35 +32,35 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
 
         {Object.keys(required).length > 0 && (
           <>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8, letterSpacing: '0.05em' }}>Required</div>
-            {Object.entries(required).map(([key, spec]) => renderParam(key, spec as any, node, onParamChange))}
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8, letterSpacing: '0.05em' }}>{t('nodeDetails.required')}</div>
+            {Object.entries(required).map(([key, spec]) => renderParam(key, spec as any, node, onParamChange, t))}
           </>
         )}
 
         {Object.keys(optional).length > 0 && (
           <>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', margin: '12px 0 8px', letterSpacing: '0.05em' }}>
-              Optional
+              {t('nodeDetails.optional')}
               {hasAdvanced && (
                 <button
                   onClick={() => setShowAdvanced(v => !v)}
                   style={{ marginLeft: 8, fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--muted)', cursor: 'pointer' }}
                 >
-                  {showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
+                  {showAdvanced ? t('nodeDetails.hideAdvanced') : t('nodeDetails.showAdvanced')}
                 </button>
               )}
             </div>
             {Object.entries(optional).map(([key, spec]) => {
               const s = spec as any;
               if (s?.advanced && !showAdvanced) return null;
-              return renderParam(key, s, node, onParamChange);
+              return renderParam(key, s, node, onParamChange, t);
             })}
           </>
         )}
 
         {meta?.requires_external_tools && meta.requires_external_tools.length > 0 && (
           <div style={{ marginTop: 12, padding: 8, borderRadius: 6, background: 'var(--surface-2)', fontSize: 11 }}>
-            <strong style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)' }}>Required Tools</strong>
+            <strong style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)' }}>{t('nodeDetails.requiredTools')}</strong>
             <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
               {meta.requires_external_tools.map(t => (
                 <span key={t} style={{ padding: '2px 6px', borderRadius: 4, background: 'var(--accent-light)', color: 'var(--accent-dark)', fontSize: 10 }}>{t}</span>
@@ -70,7 +72,7 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
         {meta?.documentation_url && (
           <div style={{ marginTop: 8 }}>
             <a href={meta.documentation_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)' }}>
-              Documentation ↗
+              {t('nodeDetails.documentationLink')}
             </a>
           </div>
         )}
@@ -79,7 +81,7 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
   );
 }
 
-function FileDropZone({ value, accept, directory, onChange }: { value: string; accept?: string; directory?: boolean; onChange: (v: string) => void }) {
+function FileDropZone({ value, accept, directory, onChange, placeholder }: { value: string; accept?: string; directory?: boolean; onChange: (v: string) => void; placeholder: string }) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -124,7 +126,7 @@ function FileDropZone({ value, accept, directory, onChange }: { value: string; a
         className="text-input param-input"
         style={{ border: 'none', background: 'transparent', flex: 1, padding: 0 }}
         value={String(value)}
-        placeholder={directory ? 'Drop directory or type path...' : 'Drop file or type path...'}
+        placeholder={placeholder}
         onChange={e => onChange(e.target.value)}
       />
       <span style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>📁</span>
@@ -162,7 +164,7 @@ function renderParam(key: string, spec: {
   type: string; default?: unknown; options?: string[]; min?: number; max?: number; step?: number;
   tooltip?: string; label?: string; advanced?: boolean; multiline?: boolean; display?: string;
   accept?: string; directory?: boolean;
-}, node: GraphNode, onChange: (nodeId: string, key: string, value: unknown) => void) {
+}, node: GraphNode, onChange: (nodeId: string, key: string, value: unknown) => void, t: (key: string) => string) {
   const label = spec.label || key;
   const value = node.params[key] ?? spec.default ?? '';
   const isFileLike = spec.type === 'FILE' || spec.type === 'FASTA' || spec.type === 'FASTQ' || spec.type === 'BAM' || spec.type === 'VCF' || spec.type === 'GFF' || spec.type === 'GTF' || spec.type === 'BED' || spec.type === 'ASSEMBLY' || spec.type === 'CONTIGS' || spec.type === 'INDEX_DIR' || spec.type === 'QC_REPORT_DIR' || spec.type === 'HTML_REPORT' || spec.type === 'KRAKEN_REPORT';
@@ -202,7 +204,7 @@ function renderParam(key: string, spec: {
       />
     );
   } else if (isFileLike || isDirLike) {
-    control = <FileDropZone value={String(value)} accept={spec.accept} directory={isDirLike} onChange={v => onChange(node.id, key, v)} />;
+    control = <FileDropZone value={String(value)} accept={spec.accept} directory={isDirLike} onChange={v => onChange(node.id, key, v)} placeholder={t(isDirLike ? 'nodeDetails.dropDirectoryPlaceholder' : 'nodeDetails.dropFilePlaceholder')} />;
   } else {
     control = (
       <input
@@ -216,7 +218,7 @@ function renderParam(key: string, spec: {
 
   return (
     <div key={key} className="param-row">
-      <label className="param-label" title={spec.tooltip}>{label}{spec.advanced ? <span style={{ fontSize: 9, color: 'var(--warning)', marginLeft: 4 }}>adv</span> : null}</label>
+      <label className="param-label" title={spec.tooltip}>{label}{spec.advanced ? <span style={{ fontSize: 9, color: 'var(--warning)', marginLeft: 4 }}>{t('nodeDetails.advancedBadge')}</span> : null}</label>
       {control}
     </div>
   );

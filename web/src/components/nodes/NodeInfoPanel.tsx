@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 
@@ -7,6 +8,7 @@ interface NodeInfoPanelProps {
 }
 
 export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
+  const { t } = useTranslation();
   if (!node) return null;
   const meta = node.meta;
   const required = meta?.input_types?.required || {};
@@ -49,24 +51,24 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
 
         {/* Inputs */}
         {Object.keys(required).length > 0 && (
-          <InfoSection title="Required Inputs">
+          <InfoSection title={t('nodeDetails.requiredInputs')}>
             {Object.entries(required).map(([key, spec]) => (
-              <ParamRow key={key} name={key} spec={spec as any} />
+              <ParamRow key={key} name={key} spec={spec as any} t={t} />
             ))}
           </InfoSection>
         )}
 
         {Object.keys(optional).length > 0 && (
-          <InfoSection title="Optional Inputs">
+          <InfoSection title={t('nodeDetails.optionalInputs')}>
             {Object.entries(optional).map(([key, spec]) => (
-              <ParamRow key={key} name={key} spec={spec as any} />
+              <ParamRow key={key} name={key} spec={spec as any} t={t} />
             ))}
           </InfoSection>
         )}
 
         {/* Outputs */}
         {meta?.return_types && meta.return_types.length > 0 && (
-          <InfoSection title="Outputs">
+          <InfoSection title={t('nodeDetails.outputs')}>
             {meta.return_types.map((t, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
                 <span style={{ color: 'var(--text)' }}>{meta.return_names?.[i] || t}</span>
@@ -77,22 +79,22 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
         )}
 
         {/* Metadata */}
-        <InfoSection title="Metadata">
-          {meta?.version && <MetaRow label="Version" value={meta.version} />}
+        <InfoSection title={t('nodeDetails.metadata')}>
+          {meta?.version && <MetaRow label={t('nodeDetails.version')} value={meta.version} />}
           {meta?.requires_external_tools && meta.requires_external_tools.length > 0 && (
             <MetaRow
-              label="Requires"
+              label={t('nodeDetails.requires')}
               value={meta.requires_external_tools.join(', ')}
             />
           )}
-          {meta?.environment && <MetaRow label="Environment" value={meta.environment} />}
+          {meta?.environment && <MetaRow label={t('nodeDetails.environment')} value={meta.environment} />}
           {meta?.search_aliases && meta.search_aliases.length > 0 && (
-            <MetaRow label="Aliases" value={meta.search_aliases.join(', ')} />
+            <MetaRow label={t('nodeDetails.aliases')} value={meta.search_aliases.join(', ')} />
           )}
           {meta?.documentation_url && (
             <div style={{ marginTop: 6 }}>
               <a href={meta.documentation_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
-                Open Documentation ↗
+                {t('nodeDetails.openDocumentationLink')}
               </a>
             </div>
           )}
@@ -124,10 +126,10 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ParamRow({ name, spec }: { name: string; spec: {
+function ParamRow({ name, spec, t }: { name: string; spec: {
   type: string; default?: unknown; options?: string[]; min?: number; max?: number;
   tooltip?: string; label?: string; multiline?: boolean; accept?: string;
-} }) {
+}; t: (key: string) => string }) {
   const label = spec.label || name;
   const defaultVal = spec.default !== undefined ? String(spec.default) : '—';
   const options = spec.options ? spec.options.join(', ') : '';
@@ -144,10 +146,10 @@ function ParamRow({ name, spec }: { name: string; spec: {
         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{spec.tooltip}</div>
       )}
       <div style={{ display: 'flex', gap: 12, marginTop: 3, fontSize: 10, color: 'var(--muted)' }}>
-        <span>Default: <code style={{ background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 3 }}>{defaultVal}</code></span>
-        {options && <span>Options: {options}</span>}
-        {spec.min !== undefined && <span>Min: {spec.min}</span>}
-        {spec.max !== undefined && <span>Max: {spec.max}</span>}
+        <span>{t('nodeDetails.defaultLabel')}: <code style={{ background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 3 }}>{defaultVal}</code></span>
+        {options && <span>{t('nodeDetails.optionsLabel')}: {options}</span>}
+        {spec.min !== undefined && <span>{t('nodeDetails.minLabel')}: {spec.min}</span>}
+        {spec.max !== undefined && <span>{t('nodeDetails.maxLabel')}: {spec.max}</span>}
       </div>
     </div>
   );
