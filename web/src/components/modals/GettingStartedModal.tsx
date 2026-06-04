@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { useFocusTrap } from '../../hooks/ui';
 
@@ -15,10 +16,10 @@ type TabId = 'welcome' | 'news' | 'resources';
 // http(s)/ftp URLs into a workspace-scoped cache on first use — templates
 // now reference URLs directly in their node params instead of expecting a
 // pre-populated example data directory.
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'welcome', label: 'Welcome' },
-  { id: 'news', label: "What's New" },
-  { id: 'resources', label: 'Resources' },
+const TABS: { id: TabId; labelKey: string }[] = [
+  { id: 'welcome', labelKey: 'gettingStarted.tabs.welcome' },
+  { id: 'news', labelKey: 'gettingStarted.tabs.news' },
+  { id: 'resources', labelKey: 'gettingStarted.tabs.resources' },
 ];
 
 const CHANGELOG = [
@@ -130,6 +131,7 @@ export default function GettingStartedModal({
   showOnStartup,
   onOpenRecent,
 }: GettingStartedModalProps) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<TabId>('welcome');
   const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
   // Tag filter. Empty string == "All". Set by clicking a tag chip.
@@ -195,25 +197,25 @@ export default function GettingStartedModal({
         className="modal-content getting-started-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Getting started"
+        aria-label={t('gettingStarted.title')}
         onClick={e => e.stopPropagation()}
       >
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 4 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Getting Started</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{t('gettingStarted.title')}</div>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>BioNodulo v2</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--border)' }}>
-          {TABS.map(t => (
+          {TABS.map(tabDef => (
             <button
-              key={t.id}
-              className={`env-type-tab ${tab === t.id ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
+              key={tabDef.id}
+              className={`env-type-tab ${tab === tabDef.id ? 'active' : ''}`}
+              onClick={() => setTab(tabDef.id)}
               style={{ borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
             >
-              {t.label}
+              {t(tabDef.labelKey)}
             </button>
           ))}
         </div>
@@ -222,8 +224,9 @@ export default function GettingStartedModal({
           {tab === 'welcome' && (
             <div>
               <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-                Welcome to <strong>BioNodulo</strong> — a visual workflow builder for bioinformatics.
-                Build, run, and share reproducible pipelines using a node-based canvas.
+                {t('gettingStarted.welcomeIntro')} <strong>BioNodulo</strong> — {t('gettingStarted.welcomeDescription')}
+                {' '}
+                {t('gettingStarted.welcomeBuildShare')}
               </p>
 
               {recents.length > 0 && onOpenRecent && (() => {
@@ -488,9 +491,9 @@ export default function GettingStartedModal({
               onChange={e => onDontShowAgain(e.target.checked)}
               style={{ accentColor: 'var(--accent)' }}
             />
-            Hide on startup
+            {t('gettingStarted.hideOnStartup')}
           </label>
-          <button className="btn btn-primary" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>
     </div>

@@ -253,6 +253,18 @@ const en = {
     vramLabel: 'VRAM',
     tempLabel: 'Temp',
   },
+  gettingStarted: {
+    title: 'Getting Started',
+    tabs: {
+      welcome: 'Welcome',
+      news: "What's New",
+      resources: 'Resources',
+    },
+    welcomeIntro: 'Welcome to',
+    welcomeDescription: 'a visual workflow builder for bioinformatics.',
+    welcomeBuildShare: 'Build, run, and share reproducible pipelines using a node-based canvas.',
+    hideOnStartup: 'Hide on startup',
+  },
   panels: {
     nodeLibrary: 'Node library',
     nodes: 'Nodes',

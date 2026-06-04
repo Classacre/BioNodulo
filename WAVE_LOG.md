@@ -435,6 +435,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Workflow canvas hover-card metadata plus canvas/link context-menu labels now read from `canvas` i18n keys with Spanish coverage and a static wiring guard.
 - Workflow canvas widget-copy hints and node-error popover labels now read from `canvas`/`errors` i18n keys with Spanish coverage and a static wiring guard.
 - Workflow stats overlay labels, fallback category, collapse/expand titles, and compact pill units now read from `workflowStats` i18n keys with Spanish render coverage and a static wiring guard.
+- Getting-started modal shell, tabs, welcome intro, footer checkbox, and close button now read from `gettingStarted`/`common` i18n keys with Spanish render coverage and a static wiring guard.
 - Live collaboration authorization and WebSocket fallback errors now read from `collab` i18n keys with Spanish unit coverage and a `useCollab` static wiring guard.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.

@@ -253,6 +253,18 @@ const es = {
     vramLabel: 'VRAM',
     tempLabel: 'Temp',
   },
+  gettingStarted: {
+    title: 'Primeros pasos',
+    tabs: {
+      welcome: 'Bienvenida',
+      news: 'Novedades',
+      resources: 'Recursos',
+    },
+    welcomeIntro: 'Bienvenido a',
+    welcomeDescription: 'un constructor visual de workflows para bioinformatica.',
+    welcomeBuildShare: 'Crea, ejecuta y comparte pipelines reproducibles usando un lienzo basado en nodos.',
+    hideOnStartup: 'Ocultar al inicio',
+  },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',
     nodes: 'Nodos',
