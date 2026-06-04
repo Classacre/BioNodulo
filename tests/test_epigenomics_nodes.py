@@ -305,6 +305,171 @@ def test_dss_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["bioconductor-dss"] == ">=2.48.0"
 
 
+def test_modkit_dmr_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["modkit_dmr"]
+    assert node_info["display_name"] == "Modkit DMR"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["description"].startswith("Detect differentially methylated regions")
+    assert node_info["output"] == ["BED", "FILE"]
+    assert node_info["output_name"] == ["dmr", "log"]
+    assert node_info["required_executables"] == ["modkit"]
+    assert node_info["required_conda_packages"] == ["modkit"]
+    assert "dmr pair" in node_info["search_aliases"]
+    assert "differential methylation" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"sample_a", "sample_b", "reference", "base", "threads"}
+    assert set(inputs["optional"]) == {"index_a", "index_b", "regions", "segment", "fine_grained", "output_prefix"}
+
+
+def test_modkit_dmr_renders_pair_command_with_region_indexes_and_segment() -> None:
+    node_class = _node_class("modkit_dmr")
+
+    cmd = node_class.render_command({
+        "sample_a": "normal.bed.gz",
+        "index_a": "normal.bed.gz.tbi",
+        "sample_b": "tumor.bed.gz",
+        "index_b": "tumor.bed.gz.tbi",
+        "reference": "grch38.fa",
+        "regions": "cpg_islands.bed",
+        "segment": "segments.bed",
+        "base": "C,A",
+        "threads": 32,
+        "fine_grained": True,
+        "output_prefix": "tumor normal",
+        "output": "/tmp/run/modkit_dmr",
+    })
+
+    assert cmd == [
+        "modkit",
+        "dmr",
+        "pair",
+        "-a",
+        "normal.bed.gz",
+        "--index-a",
+        "normal.bed.gz.tbi",
+        "-b",
+        "tumor.bed.gz",
+        "--index-b",
+        "tumor.bed.gz.tbi",
+        "-o",
+        "/tmp/run/modkit_dmr/tumor_normal.dmr.bed",
+        "--ref",
+        "grch38.fa",
+        "--base",
+        "C",
+        "--base",
+        "A",
+        "--threads",
+        "32",
+        "--log-filepath",
+        "/tmp/run/modkit_dmr/tumor_normal.dmr.log",
+        "-r",
+        "cpg_islands.bed",
+        "--segment",
+        "segments.bed",
+        "--fine-grained",
+    ]
+
+
+def test_modkit_dmr_omits_optional_flags_for_single_base_analysis() -> None:
+    node_class = _node_class("modkit_dmr")
+
+    cmd = node_class.render_command({
+        "sample_a": "control.bed.gz",
+        "sample_b": "case.bed.gz",
+        "reference": "ref.fa",
+        "base": ["C"],
+        "threads": 4,
+        "fine_grained": False,
+        "output": "/tmp/run/modkit_dmr",
+    })
+
+    assert "--index-a" not in cmd
+    assert "--index-b" not in cmd
+    assert "-r" not in cmd
+    assert "--segment" not in cmd
+    assert "--fine-grained" not in cmd
+    assert cmd == [
+        "modkit",
+        "dmr",
+        "pair",
+        "-a",
+        "control.bed.gz",
+        "-b",
+        "case.bed.gz",
+        "-o",
+        "/tmp/run/modkit_dmr/modkit_dmr.dmr.bed",
+        "--ref",
+        "ref.fa",
+        "--base",
+        "C",
+        "--threads",
+        "4",
+        "--log-filepath",
+        "/tmp/run/modkit_dmr/modkit_dmr.dmr.log",
+    ]
+
+
+def test_modkit_dmr_plans_named_outputs() -> None:
+    node_class = _node_class("modkit_dmr")
+
+    outputs = node_class.PLAN_OUTPUTS({"output_prefix": "tumor normal"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/modkit_dmr/tumor_normal.dmr.bed",
+        "/tmp/run/modkit_dmr/tumor_normal.dmr.log",
+    ]
+
+
+def test_modkit_dmr_rejects_empty_required_values_and_invalid_threads() -> None:
+    node_class = _node_class("modkit_dmr")
+
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "sample_a": "",
+            "sample_b": "case.bed.gz",
+            "reference": "ref.fa",
+            "base": "C",
+            "threads": 1,
+        })
+        == "sample_a is required"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "sample_a": "control.bed.gz",
+            "sample_b": "case.bed.gz",
+            "reference": "ref.fa",
+            "base": [],
+            "threads": 1,
+        })
+        == "At least one base is required"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS({
+            "sample_a": "control.bed.gz",
+            "sample_b": "case.bed.gz",
+            "reference": "ref.fa",
+            "base": "C",
+            "threads": 0,
+        })
+        == "threads must be at least 1"
+    )
+
+
+def test_modkit_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["modkit"] == "modkit"
+    assert PACKAGE_MIN_VERSIONS["modkit"] == ">=0.4.3"
+    assert workflow_to_packages({"nodes": [{"id": "dmr", "type": "modkit_dmr"}]}, registry) == ["modkit"]
+
+
 def test_bismark_align_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
