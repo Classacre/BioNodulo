@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useFocusTrap } from '../../hooks/ui';
 
 interface GettingStartedModalProps {
   onClose: () => void;

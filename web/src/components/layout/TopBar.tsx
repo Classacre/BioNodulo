@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
-import { useKeybindings } from '../../hooks/useKeybindings';
+import { useKeybindings } from '../../hooks/ui';
 import { batchCountAtom, isRunningAtom } from '../../state/runAtoms';
 import { showAIAtom, showBatchSheetAtom, showExportAtom } from '../../state/uiAtoms';
 

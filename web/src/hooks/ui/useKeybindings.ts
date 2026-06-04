@@ -9,8 +9,8 @@ import {
   setKeybinding,
   subscribeKeybindings,
   type KeybindingRecord,
-} from '../state/keybindings';
-import { hasOpenOverlay } from '../state/overlays';
+} from '../../state/keybindings';
+import { hasOpenOverlay } from '../../state/overlays';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

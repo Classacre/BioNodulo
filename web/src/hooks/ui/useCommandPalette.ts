@@ -7,7 +7,7 @@ import {
   toggleCommandPalette,
   useCommandPaletteStore,
   type CommandItem,
-} from '../state/commandPalette';
+} from '../../state/commandPalette';
 import { useGlobalShortcut } from './useKeybindings';
 
 export function useCommandPalette() {

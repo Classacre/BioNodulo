@@ -4,7 +4,7 @@ import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useFocusTrap } from '../../hooks/ui';
 import { apiPost, ApiError } from '../../api/client';
 
 interface ExportModalProps {

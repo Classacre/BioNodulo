@@ -3,7 +3,7 @@ import { Tooltip } from '../ui';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { usePanelRegistry } from '../../state/panels';
-import { useKeybindings } from '../../hooks/useKeybindings';
+import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
 
 export type RailTab = 'data' | 'nodes' | 'inspector' | 'templates' | 'environments' | 'help' | 'console' | 'settings' | 'hpc' | string | null;

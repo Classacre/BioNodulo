@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { alertDialog } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useFocusTrap } from '../../hooks/ui';
 import { apiPost, ApiError } from '../../api/client';
 
 interface ImportModalProps {

@@ -419,6 +419,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - TypeScript strictness now has a config-contract test that guards `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`, and `verbatimModuleSyntax` in `web/tsconfig.json`, so the strict-flag gap cannot silently regress.
 - Settings hooks now live under `web/src/hooks/settings/` with a category barrel; App, SettingsPanel, WorkflowCanvas, and `useTheme` import from the category instead of the old top-level `useSettings` path. The hooks organization test now guards the settings category alongside workflow/collab.
 - Data hooks now live under `web/src/hooks/data/` with a category barrel; App imports `useObjectInfo` from the category, and the API-migration guard follows the moved path.
+- Shared UI hooks now live under `web/src/hooks/ui/` with a category barrel; App, layout controls, dialogs, keyboard shortcuts, and modal focus traps import command-palette/keybinding/focus-trap hooks from the category.
 
 ---
 
@@ -433,7 +434,7 @@ Items from the gap analysis that haven't landed yet:
 - #49 Extension/plugin system — large scope.
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
-- #85 Reorganise hooks into category folders — partial: App-owned workflow/collab hooks plus shared settings/data hooks moved; shared UI hooks remain top-level.
+- #85 Reorganise hooks into category folders — DONE for current hook tree (workflow, collab, settings, data, and UI categories).
 - #86 Design tokens documented — DONE (CSS custom property reference guarded by palette tests).
 - First-party raw `/api` fetch migration — DONE; the GitHub releases request remains intentionally outside `api/client.ts` because it targets an external host.
 

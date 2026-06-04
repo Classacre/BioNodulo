@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { Skeleton } from '../ui/Skeleton';
 import type { Workflow, WorkflowNode } from '../../types';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useFocusTrap } from '../../hooks/ui';
 
 export interface SampleSheetRun {
   rowIndex: number;

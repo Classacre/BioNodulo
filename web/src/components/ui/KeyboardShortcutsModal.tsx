@@ -2,9 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
-import { useKeybindings } from '../../hooks/useKeybindings';
+import { useFocusTrap, useKeybindings } from '../../hooks/ui';
 import { eventToKeybinding, type KeybindingCategory, type KeybindingRecord } from '../../state/keybindings';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
 import Icon from './Icon';
 import { useFoundationStyles } from './FoundationStyles';
 
