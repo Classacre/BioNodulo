@@ -57,6 +57,10 @@ def build_node_manifest(
                 entry["display_name"] = getattr(node_class, "DISPLAY_NAME", node_type)
                 entry["category"] = getattr(node_class, "CATEGORY", "")
                 entry["version"] = getattr(node_class, "VERSION", "")
+                if hasattr(node_class, "lifecycle_metadata"):
+                    entry["lifecycle"] = node_class.lifecycle_metadata()
+                if hasattr(node_class, "versioning_metadata"):
+                    entry["versioning"] = node_class.versioning_metadata()
                 entry["git_url"] = getattr(node_class, "GIT_URL", "")
                 entry["git_commit"] = getattr(node_class, "GIT_COMMIT", "")
                 entry["required_executables"] = getattr(
@@ -78,6 +82,8 @@ def build_node_manifest(
                     entry["display_name"] = node_info.get("display_name", node_type)
                     entry["category"] = node_info.get("category", "")
                     entry["version"] = node_info.get("version", "")
+                    entry["lifecycle"] = node_info.get("lifecycle", {})
+                    entry["versioning"] = node_info.get("versioning", {})
                     entry["git_url"] = node_info.get("git_url", "")
                     entry["git_commit"] = node_info.get("git_commit", "")
                     entry["required_executables"] = node_info.get(

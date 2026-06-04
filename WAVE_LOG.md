@@ -471,6 +471,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings hooks now live under `web/src/hooks/settings/` with a category barrel; App, SettingsPanel, WorkflowCanvas, and `useTheme` import from the category instead of the old top-level `useSettings` path. The hooks organization test now guards the settings category alongside workflow/collab.
 - Data hooks now live under `web/src/hooks/data/` with a category barrel; App imports `useObjectInfo` from the category, and the API-migration guard follows the moved path.
 - Shared UI hooks now live under `web/src/hooks/ui/` with a category barrel; App, layout controls, dialogs, keyboard shortcuts, and modal focus traps import command-palette/keybinding/focus-trap hooks from the category.
+- Node versioning now has an explicit lifecycle contract for node authors: `BaseNode` exposes previous versions, deprecation metadata, replacement hints, and migration descriptors; `NodeRegistry.object_info()` and saved node manifests preserve those fields, and the frontend object-info hook keeps them available to UI/plugin consumers.
 
 ---
 

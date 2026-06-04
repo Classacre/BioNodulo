@@ -31,6 +31,11 @@ class BaseNode(abc.ABC):
     REQUIRED_R_PACKAGES: ClassVar[list[str]] = []
     DOCUMENTATION_URL: ClassVar[str] = ""
     VERSION: ClassVar[str] = "1.0.0"
+    PREVIOUS_VERSIONS: ClassVar[list[str]] = []
+    DEPRECATED: ClassVar[bool] = False
+    DEPRECATION_MESSAGE: ClassVar[str] = ""
+    REPLACED_BY: ClassVar[str] = ""
+    MIGRATIONS: ClassVar[list[dict[str, Any]]] = []
     ENVIRONMENT: ClassVar[dict[str, Any]] = {}
     GIT_URL: ClassVar[str] = ""  # Required for custom nodes: source repository
     GIT_COMMIT: ClassVar[str] = ""  # Optional: pinned commit hash
@@ -102,11 +107,55 @@ class BaseNode(abc.ABC):
             "required_r_packages": cls.REQUIRED_R_PACKAGES,
             "documentation_url": cls.DOCUMENTATION_URL,
             "version": cls.VERSION,
+            "deprecated": cls.DEPRECATED,
+            "deprecation_message": cls.DEPRECATION_MESSAGE,
+            "replaced_by": cls.REPLACED_BY,
+            "lifecycle": cls.lifecycle_metadata(),
+            "versioning": cls.versioning_metadata(),
             "environment": cls.ENVIRONMENT,
             "git_url": cls.GIT_URL,
             "git_commit": cls.GIT_COMMIT,
             "input_types": cls.INPUT_TYPES(),
         }
+
+    @classmethod
+    def lifecycle_metadata(cls) -> dict[str, Any]:
+        """Return version lifecycle hints for UI and workflow manifests."""
+        status = "deprecated" if cls.DEPRECATED else "active"
+        return {
+            "status": status,
+            "deprecated": cls.DEPRECATED,
+            "deprecation_message": cls.DEPRECATION_MESSAGE,
+            "replaced_by": cls.REPLACED_BY,
+        }
+
+    @classmethod
+    def versioning_metadata(cls) -> dict[str, Any]:
+        """Return node version compatibility and migration metadata."""
+        return {
+            "current": cls.VERSION,
+            "previous": list(cls.PREVIOUS_VERSIONS),
+            "migrations": [dict(migration) for migration in cls.MIGRATIONS],
+        }
+
+    @classmethod
+    def validate_metadata_contract(cls) -> None:
+        """Validate node-author metadata that downstream tools consume."""
+        if not isinstance(cls.VERSION, str) or not cls.VERSION:
+            raise ValueError(f"{cls.NODE_ID or cls.__name__}.VERSION must be a non-empty string")
+        if not isinstance(cls.PREVIOUS_VERSIONS, list) or not all(
+            isinstance(version, str) and version for version in cls.PREVIOUS_VERSIONS
+        ):
+            raise ValueError(f"{cls.NODE_ID or cls.__name__}.PREVIOUS_VERSIONS must be a list of strings")
+        if not isinstance(cls.MIGRATIONS, list):
+            raise ValueError(f"{cls.NODE_ID or cls.__name__}.MIGRATIONS must be a list")
+        for migration in cls.MIGRATIONS:
+            if not isinstance(migration, dict):
+                raise ValueError(f"{cls.NODE_ID or cls.__name__}.MIGRATIONS entries must be dictionaries")
+            if not isinstance(migration.get("from_version"), str) or not migration["from_version"]:
+                raise ValueError(f"{cls.NODE_ID or cls.__name__}.MIGRATIONS entries require from_version")
+            if not isinstance(migration.get("to_version"), str) or not migration["to_version"]:
+                raise ValueError(f"{cls.NODE_ID or cls.__name__}.MIGRATIONS entries require to_version")
 
     @abc.abstractmethod
     async def run(self, **kwargs: Any) -> Union[tuple[Any, ...], dict[str, Any]]:

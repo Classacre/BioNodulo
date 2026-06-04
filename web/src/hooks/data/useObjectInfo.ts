@@ -38,6 +38,40 @@ function normalizeInputs(input: unknown): NodeMetadata['input_types'] {
   return normalized;
 }
 
+function optionalString(value: unknown): string | undefined {
+  return value ? String(value) : undefined;
+}
+
+function normalizeLifecycle(raw: unknown): NodeMetadata['lifecycle'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  return {
+    status: optionalString(obj.status),
+    deprecated: typeof obj.deprecated === 'boolean' ? obj.deprecated : undefined,
+    deprecation_message: optionalString(obj.deprecation_message),
+    replaced_by: optionalString(obj.replaced_by),
+  };
+}
+
+function normalizeVersioning(raw: unknown): NodeMetadata['versioning'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  return {
+    current: optionalString(obj.current),
+    previous: Array.isArray(obj.previous) ? obj.previous.map(String) : [],
+    migrations: Array.isArray(obj.migrations)
+      ? obj.migrations
+          .filter((migration): migration is Record<string, unknown> => Boolean(migration) && typeof migration === 'object')
+          .map((migration) => ({
+            ...migration,
+            from_version: optionalString(migration.from_version),
+            to_version: optionalString(migration.to_version),
+            description: optionalString(migration.description),
+          }))
+      : [],
+  };
+}
+
 function normalizeObjectInfo(data: unknown): ObjectInfo {
   if (!data || typeof data !== 'object') return {};
   const entries = Object.entries(data as Record<string, Record<string, unknown>>);
@@ -59,6 +93,11 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       visual_only: Boolean(raw.visual_only),
       experimental: Boolean(raw.experimental),
       version: raw.version ? String(raw.version) : undefined,
+      deprecated: Boolean(raw.deprecated),
+      deprecation_message: optionalString(raw.deprecation_message),
+      replaced_by: optionalString(raw.replaced_by),
+      lifecycle: normalizeLifecycle(raw.lifecycle),
+      versioning: normalizeVersioning(raw.versioning),
       function: raw.python_class ? String(raw.python_class) : undefined,
       requires_external_tools: Array.isArray(raw.required_executables)
         ? raw.required_executables.map(String)

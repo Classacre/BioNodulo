@@ -67,6 +67,9 @@ class NodeRegistry:
             raise ValueError(
                 f"Node class {node_class.__name__} missing NODE_ID"
             )
+        validate_metadata_contract = getattr(node_class, "validate_metadata_contract", None)
+        if callable(validate_metadata_contract):
+            validate_metadata_contract()
         if node_id in self._nodes:
             logger.warning("Overwriting registered node: %s", node_id)
         self._nodes[node_id] = node_class
@@ -313,6 +316,11 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "experimental": node_class.EXPERIMENTAL,
         "requires_external_tools": getattr(node_class, "REQUIRES_EXTERNAL_TOOLS", True),
         "version": node_class.VERSION,
+        "deprecated": node_class.DEPRECATED,
+        "deprecation_message": node_class.DEPRECATION_MESSAGE,
+        "replaced_by": node_class.REPLACED_BY,
+        "lifecycle": node_class.lifecycle_metadata(),
+        "versioning": node_class.versioning_metadata(),
         "builtin": node_class.__module__.startswith("bionodulo.nodes.builtin"),
         "python_class": f"{node_class.__module__}.{node_class.__name__}",
         "git_url": node_class.GIT_URL,

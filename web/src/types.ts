@@ -36,6 +36,24 @@ export interface NodeMetadata {
   requires_external_tools?: string[];
   documentation_url?: string;
   version?: string;
+  deprecation_message?: string;
+  replaced_by?: string;
+  lifecycle?: {
+    status?: 'active' | 'deprecated' | string;
+    deprecated?: boolean;
+    deprecation_message?: string;
+    replaced_by?: string;
+  };
+  versioning?: {
+    current?: string;
+    previous: string[];
+    migrations: Array<{
+      from_version?: string;
+      to_version?: string;
+      description?: string;
+      [key: string]: unknown;
+    }>;
+  };
   environment?: string;
   function?: string;
   deprecated?: boolean;
