@@ -307,7 +307,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           setSessions(prev =>
             prev.map(s =>
               s.id === activeSessionId
-                ? { ...s, turns: [...s.turns, { role: 'assistant', content: '_Stopped by user._' }] }
+                ? { ...s, turns: [...s.turns, { role: 'assistant', content: t('aiWorkflow.generation.stopped') }] }
                 : s
             )
           );
@@ -328,7 +328,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     }
     inFlightRef.current = null;
     setSending(false);
-  }, [activeSessionId, turns, workflow]);
+  }, [activeSessionId, turns, workflow, t]);
 
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || sending) return;

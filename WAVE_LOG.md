@@ -446,6 +446,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - AI workflow assistant thinking, stop, and regenerate controls now read from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant apply-success confirmation now reads from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant pasted-canvas-node prompt text now reads from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
+- AI workflow assistant stopped-by-user note now reads from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - Live collaboration authorization and WebSocket fallback errors now read from `collab` i18n keys with Spanish unit coverage and a `useCollab` static wiring guard.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.

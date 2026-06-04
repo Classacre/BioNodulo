@@ -382,6 +382,7 @@ const es = {
       thinking: 'Pensando...',
       stopTitle: 'Detener generacion',
       stop: 'Detener',
+      stopped: 'Generacion detenida por el usuario.',
       regenerateTitle: 'Volver a ejecutar la pregunta anterior',
       regenerate: 'Regenerar',
     },

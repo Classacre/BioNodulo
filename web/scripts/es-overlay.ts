@@ -156,6 +156,7 @@ export const overlay: Record<string, string> = {
   'Thinking...': 'Pensando...',
   'Stop generating': 'Detener generacion',
   'Stop': 'Detener',
+  'Stopped by user.': 'Generacion detenida por el usuario.',
   'Re-run the previous question': 'Volver a ejecutar la pregunta anterior',
   'Regenerate': 'Regenerar',
   'Close tab': 'Cerrar pestana', 'Close other tabs': 'Cerrar otras pestanas',

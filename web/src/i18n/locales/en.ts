@@ -382,6 +382,7 @@ const en = {
       thinking: 'Thinking...',
       stopTitle: 'Stop generating',
       stop: 'Stop',
+      stopped: 'Stopped by user.',
       regenerateTitle: 'Re-run the previous question',
       regenerate: 'Regenerate',
     },

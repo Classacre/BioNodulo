@@ -9,7 +9,19 @@ vi.mock('../api/client', () => {
 
   return {
     ApiError,
-    apiPost: vi.fn(() => new Promise(() => undefined)),
+    apiPost: vi.fn((_path: string, _json?: unknown, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'));
+          return;
+        }
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(new DOMException('Aborted', 'AbortError')),
+          { once: true },
+        );
+      }),
+    ),
   };
 });
 
@@ -197,6 +209,31 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getAllByRole('button', { name: /Detener/ })).toHaveLength(2);
   });
 
+  it('renders stopped assistant note from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      target: { value: 'Ayudame con QC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    const stopButtons = await screen.findAllByRole('button', { name: /Detener/ });
+    fireEvent.click(stopButtons[0]);
+
+    expect(await screen.findByText('Generacion detenida por el usuario.')).toBeInTheDocument();
+  });
+
   it('renders regenerate controls from the active locale', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');
@@ -291,6 +328,7 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.generation.thinking',
       'aiWorkflow.generation.stopTitle',
       'aiWorkflow.generation.stop',
+      'aiWorkflow.generation.stopped',
       'aiWorkflow.generation.regenerateTitle',
       'aiWorkflow.generation.regenerate',
       'common.close',
@@ -335,6 +373,7 @@ describe('AIWorkflowModal i18n', () => {
       'Thinking...',
       'Stop generating',
       '>Stop<',
+      '_Stopped by user._',
       'Re-run the previous question',
       '↻ Regenerate',
     ].forEach(text => expect(source).not.toContain(text));
