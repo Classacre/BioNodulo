@@ -99,7 +99,7 @@ def workflow_to_packages(
                 packages.add(pkg)
 
         for rpkg in r_packages:
-            pkg = R_PACKAGE_TO_CONDA_PACKAGE.get(rpkg, rpkg)
+            pkg = R_PACKAGE_TO_CONDA_PACKAGE.get(rpkg)
             if pkg:
                 packages.add(pkg)
 

@@ -35,6 +35,15 @@ def _r_string_vector(values: list[str]) -> str:
     return "c(" + ", ".join(f'"{value}"' for value in quoted) + ")"
 
 
+def _r_string(value: Any) -> str:
+    text = str(value or "")
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _r_bool(value: Any) -> str:
+    return "TRUE" if bool(value) else "FALSE"
+
+
 class XCMSPeakDetectionNode(CommandNode):
     """Detect chromatographic peaks in LC-MS data with XCMS."""
 
@@ -636,6 +645,205 @@ class MZmineBatchProcessingNode(CommandNode):
                 ),
                 "temp_dir": ("DIRECTORY", {"default": "", "description": "Optional MZmine temporary directory"}),
                 "ignore_parameter_warnings": ("BOOLEAN", {"default": False}),
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class MetaboAnalystStatsNode(CommandNode):
+    """Run basic MetaboAnalystR statistical analysis on a prepared concentration table."""
+
+    NODE_ID = "metaboanalyst_stats"
+    DISPLAY_NAME = "MetaboAnalyst Stats"
+    CATEGORY = "metabolomics"
+    DESCRIPTION = "Run MetaboAnalystR normalization, PCA, and two-class t-test statistics on a prepared table."
+    SEARCH_ALIASES = [
+        "metaboanalyst",
+        "metaboanalystr",
+        "metabolomics",
+        "statistics",
+        "pca",
+        "normalization",
+        "t-test",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "TSV", "TSV", "IMAGE", "FILE", "JSON")
+    RETURN_NAMES = (
+        "normalized_table",
+        "pca_scores",
+        "pca_loadings",
+        "ttest_results",
+        "pca_plot",
+        "metaboanalyst_object",
+        "summary",
+    )
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_CONDA_PACKAGES = ["r-base", "r-jsonlite", "r-readr"]
+    REQUIRED_R_PACKAGES = ["MetaboAnalystR", "jsonlite", "readr"]
+    DOCUMENTATION_URL = "https://github.com/xia-lab/MetaboAnalystR"
+    VERSION = "4.3.0"
+    EXPERIMENTAL = True
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        script_file = out_dir / "metaboanalyst_stats.R"
+        data_table = str(inputs.get("data_table", ""))
+        stem = _safe_output_stem(inputs.get("output_name"), _safe_output_stem(data_table, "metaboanalyst"))
+        normalized_table = out_dir / f"{stem}.normalized.tsv"
+        pca_scores = out_dir / f"{stem}.pca_scores.tsv"
+        pca_loadings = out_dir / f"{stem}.pca_loadings.tsv"
+        ttest_results = out_dir / f"{stem}.ttest.tsv"
+        pca_plot = out_dir / f"{stem}.pca.png"
+        rds_file = out_dir / f"{stem}.metaboanalyst.rds"
+        summary_json = out_dir / f"{stem}.summary.json"
+
+        table_format = str(inputs.get("format", "rowu") or "rowu")
+        label_type = str(inputs.get("label_type", "disc") or "disc")
+        row_norm = str(inputs.get("row_norm", "MedianNorm") or "MedianNorm")
+        trans_norm = str(inputs.get("trans_norm", "LogNorm") or "LogNorm")
+        scale_norm = str(inputs.get("scale_norm", "AutoNorm") or "AutoNorm")
+        run_pca = bool(inputs.get("run_pca", True))
+        run_ttest = bool(inputs.get("run_ttest", True))
+        tt_method = str(inputs.get("tt_method", "welch") or "welch")
+        p_threshold = inputs.get("p_threshold", 0.05)
+        pval_type = str(inputs.get("pval_type", "fdr") or "fdr")
+        paired = bool(inputs.get("paired", False))
+        equal_var = bool(inputs.get("equal_var", False))
+
+        pca_block = (
+            textwrap.dedent(f"""\
+                mSet <- PCA.Anal(mSet)
+                PlotPCA2DScore(mSet, "{stem}.pca", "png", dpi = 150, width = 0, pcx = 1, pcy = 2, reg = 0.95, show = 0)
+                pca_scores <- as.data.frame(mSet$analSet$pca$x)
+                pca_scores <- data.frame(sample = rownames(pca_scores), pca_scores, check.names = FALSE)
+                pca_loadings <- as.data.frame(mSet$analSet$pca$rotation)
+                pca_loadings <- data.frame(feature = rownames(pca_loadings), pca_loadings, check.names = FALSE)
+            """)
+            if run_pca
+            else textwrap.dedent("""\
+                pca_scores <- data.frame()
+                pca_loadings <- data.frame()
+            """)
+        )
+        ttest_block = (
+            textwrap.dedent(f"""\
+                mSet <- Ttests.Anal(mSet, nonpar = FALSE, threshp = {p_threshold}, paired = {_r_bool(paired)}, equal.var = {_r_bool(equal_var)}, pvalType = "{pval_type}", all_results = TRUE, tt.method = "{tt_method}")
+                ttest_results <- as.data.frame(mSet$analSet$tt)
+                if (nrow(ttest_results) > 0) {{
+                    ttest_results <- data.frame(feature = rownames(ttest_results), ttest_results, check.names = FALSE)
+                }}
+            """)
+            if run_ttest
+            else "ttest_results <- data.frame()"
+        )
+
+        script = textwrap.dedent(f"""\
+            if (!requireNamespace("MetaboAnalystR", quietly = TRUE)) stop("Package 'MetaboAnalystR' is required but not installed. Install it from https://github.com/xia-lab/MetaboAnalystR.")
+            if (!requireNamespace("jsonlite", quietly = TRUE)) stop("Package 'jsonlite' is required but not installed.")
+            if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed.")
+            library("MetaboAnalystR")
+            library("jsonlite")
+            library("readr")
+
+            setwd("{out_dir.as_posix()}")
+            data_table <- {_r_string(data_table)}
+            if (!file.exists(data_table)) stop(paste("Input data table not found:", data_table))
+
+            mSet <- InitDataObjects("conc", "stat", paired = {_r_bool(paired)})
+            mSet <- Read.TextData(mSet, {_r_string(data_table)}, format = "{table_format}", lbl.type = "{label_type}")
+            mSet <- SanityCheckData(mSet)
+            mSet <- ReplaceMin(mSet)
+            mSet <- PreparePrenormData(mSet)
+            mSet <- Normalization(mSet, rowNorm = "{row_norm}", transNorm = "{trans_norm}", scaleNorm = "{scale_norm}")
+
+            norm_table <- as.data.frame(mSet$dataSet$norm)
+            norm_table <- data.frame(feature = rownames(norm_table), norm_table, check.names = FALSE)
+            {pca_block}
+            {ttest_block}
+
+            if (file.exists("{stem}.pca_dpi150.png")) {{
+                file.copy("{stem}.pca_dpi150.png", "{pca_plot.as_posix()}", overwrite = TRUE)
+            }} else if (file.exists("{stem}.pca.png")) {{
+                file.copy("{stem}.pca.png", "{pca_plot.as_posix()}", overwrite = TRUE)
+            }}
+
+            write_tsv(norm_table, "{normalized_table.as_posix()}")
+            write_tsv(pca_scores, "{pca_scores.as_posix()}")
+            write_tsv(pca_loadings, "{pca_loadings.as_posix()}")
+            write_tsv(ttest_results, "{ttest_results.as_posix()}")
+            saveRDS(mSet, "{rds_file.as_posix()}")
+
+            summary <- list(
+                data_table = data_table,
+                format = "{table_format}",
+                label_type = "{label_type}",
+                row_norm = "{row_norm}",
+                trans_norm = "{trans_norm}",
+                scale_norm = "{scale_norm}",
+                run_pca = {_r_bool(run_pca)},
+                run_ttest = {_r_bool(run_ttest)},
+                tt_method = "{tt_method}",
+                p_threshold = {p_threshold},
+                pval_type = "{pval_type}",
+                paired = {_r_bool(paired)},
+                equal_var = {_r_bool(equal_var)},
+                normalized_table = "{normalized_table.as_posix()}",
+                pca_scores = "{pca_scores.as_posix()}",
+                pca_loadings = "{pca_loadings.as_posix()}",
+                ttest_results = "{ttest_results.as_posix()}",
+                pca_plot = "{pca_plot.as_posix()}",
+                metaboanalyst_object = "{rds_file.as_posix()}"
+            )
+            write_json(summary, "{summary_json.as_posix()}", pretty = TRUE, auto_unbox = TRUE)
+        """)
+        script_file.write_text(script, encoding="utf-8")
+        return ["Rscript", str(script_file)]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        stem = _safe_output_stem(inputs.get("output_name"), _safe_output_stem(inputs.get("data_table"), "metaboanalyst"))
+        return [
+            node_out / f"{stem}.normalized.tsv",
+            node_out / f"{stem}.pca_scores.tsv",
+            node_out / f"{stem}.pca_loadings.tsv",
+            node_out / f"{stem}.ttest.tsv",
+            node_out / f"{stem}.pca.png",
+            node_out / f"{stem}.metaboanalyst.rds",
+            node_out / f"{stem}.summary.json",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data_table": ("FILE", {"description": "MetaboAnalyst-ready concentration table with class labels"}),
+            },
+            "optional": {
+                "format": ("STRING", {"default": "rowu", "options": ["rowu", "colu", "rowp", "colp"]}),
+                "label_type": ("STRING", {"default": "disc", "options": ["disc", "cont"]}),
+                "row_norm": (
+                    "STRING",
+                    {"default": "MedianNorm", "options": ["MedianNorm", "SumNorm", "QuantileNorm", "CompNorm", "SpecNorm"]},
+                ),
+                "trans_norm": ("STRING", {"default": "LogNorm", "options": ["LogNorm", "CrNorm", "NULL"]}),
+                "scale_norm": (
+                    "STRING",
+                    {"default": "AutoNorm", "options": ["AutoNorm", "ParetoNorm", "MeanCenter", "RangeNorm", "NULL"]},
+                ),
+                "run_pca": ("BOOLEAN", {"default": True}),
+                "run_ttest": ("BOOLEAN", {"default": True}),
+                "tt_method": ("STRING", {"default": "welch", "options": ["welch", "student", "classical", "wilcox", "limma"]}),
+                "p_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0}),
+                "pval_type": ("STRING", {"default": "fdr", "options": ["fdr", "raw"]}),
+                "paired": ("BOOLEAN", {"default": False}),
+                "equal_var": ("BOOLEAN", {"default": False}),
                 "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
             },
             "hidden": {

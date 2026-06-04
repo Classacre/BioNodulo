@@ -7,6 +7,7 @@ from bionodulo.environments.constants import (
     PACKAGE_MIN_VERSIONS,
     R_PACKAGE_TO_CONDA_PACKAGE,
 )
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -687,3 +688,147 @@ def test_mzmine_batch_processing_plans_outputs() -> None:
 def test_mzmine_batch_processing_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["mzmine"] == "mzmine"
     assert PACKAGE_MIN_VERSIONS["mzmine"] == ">=4.7"
+
+
+def test_metaboanalyst_stats_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["metaboanalyst_stats"]
+    assert node_info["display_name"] == "MetaboAnalyst Stats"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Run MetaboAnalystR normalization")
+    assert node_info["output"] == ["TSV", "TSV", "TSV", "TSV", "IMAGE", "FILE", "JSON"]
+    assert node_info["output_name"] == [
+        "normalized_table",
+        "pca_scores",
+        "pca_loadings",
+        "ttest_results",
+        "pca_plot",
+        "metaboanalyst_object",
+        "summary",
+    ]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == ["r-base", "r-jsonlite", "r-readr"]
+    assert node_info["required_r_packages"] == ["MetaboAnalystR", "jsonlite", "readr"]
+    assert node_info["experimental"] is True
+    assert "metaboanalyst" in node_info["search_aliases"]
+    assert "statistics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"data_table"}
+    assert set(inputs["optional"]) == {
+        "format",
+        "label_type",
+        "row_norm",
+        "trans_norm",
+        "scale_norm",
+        "run_pca",
+        "run_ttest",
+        "tt_method",
+        "p_threshold",
+        "pval_type",
+        "paired",
+        "equal_var",
+        "output_name",
+    }
+
+
+def test_metaboanalyst_stats_writes_r_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("metaboanalyst_stats")
+    output_dir = tmp_path / "metaboanalyst_stats"
+
+    cmd = node_class.render_command({
+        "data_table": "/data/metabolites.csv",
+        "format": "colu",
+        "label_type": "disc",
+        "row_norm": "SumNorm",
+        "trans_norm": "LogNorm",
+        "scale_norm": "ParetoNorm",
+        "run_pca": True,
+        "run_ttest": True,
+        "tt_method": "welch",
+        "p_threshold": 0.01,
+        "pval_type": "fdr",
+        "paired": False,
+        "equal_var": False,
+        "output_name": "case control stats",
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "metaboanalyst_stats.R"
+    assert cmd == ["Rscript", str(script_file)]
+    script = script_file.read_text()
+    assert 'library("MetaboAnalystR")' in script
+    assert 'library("jsonlite")' in script
+    assert 'library("readr")' in script
+    assert f'setwd("{output_dir.as_posix()}")' in script
+    assert 'mSet <- InitDataObjects("conc", "stat", paired = FALSE)' in script
+    assert 'mSet <- Read.TextData(mSet, "/data/metabolites.csv", format = "colu", lbl.type = "disc")' in script
+    assert "mSet <- SanityCheckData(mSet)" in script
+    assert "mSet <- ReplaceMin(mSet)" in script
+    assert "mSet <- PreparePrenormData(mSet)" in script
+    assert 'mSet <- Normalization(mSet, rowNorm = "SumNorm", transNorm = "LogNorm", scaleNorm = "ParetoNorm")' in script
+    assert "mSet <- PCA.Anal(mSet)" in script
+    assert 'PlotPCA2DScore(mSet, "case_control_stats.pca", "png", dpi = 150, width = 0, pcx = 1, pcy = 2, reg = 0.95, show = 0)' in script
+    assert 'mSet <- Ttests.Anal(mSet, nonpar = FALSE, threshp = 0.01, paired = FALSE, equal.var = FALSE, pvalType = "fdr", all_results = TRUE, tt.method = "welch")' in script
+    assert f'write_tsv(norm_table, "{output_dir}/case_control_stats.normalized.tsv")' in script
+    assert f'write_tsv(pca_scores, "{output_dir}/case_control_stats.pca_scores.tsv")' in script
+    assert f'write_tsv(pca_loadings, "{output_dir}/case_control_stats.pca_loadings.tsv")' in script
+    assert f'write_tsv(ttest_results, "{output_dir}/case_control_stats.ttest.tsv")' in script
+    assert f'saveRDS(mSet, "{output_dir}/case_control_stats.metaboanalyst.rds")' in script
+    assert f'write_json(summary, "{output_dir}/case_control_stats.summary.json", pretty = TRUE, auto_unbox = TRUE)' in script
+
+
+def test_metaboanalyst_stats_can_skip_pca_and_ttest(tmp_path: Path) -> None:
+    node_class = _node_class("metaboanalyst_stats")
+    output_dir = tmp_path / "metaboanalyst_stats"
+
+    cmd = node_class.render_command({
+        "data_table": "/data/metabolites.csv",
+        "run_pca": False,
+        "run_ttest": False,
+        "output_name": "",
+        "output": str(output_dir),
+    })
+
+    assert cmd == ["Rscript", str(output_dir / "metaboanalyst_stats.R")]
+    script = (output_dir / "metaboanalyst_stats.R").read_text()
+    assert 'mSet <- Read.TextData(mSet, "/data/metabolites.csv", format = "rowu", lbl.type = "disc")' in script
+    assert 'mSet <- Normalization(mSet, rowNorm = "MedianNorm", transNorm = "LogNorm", scaleNorm = "AutoNorm")' in script
+    assert "PCA.Anal" not in script
+    assert "Ttests.Anal" not in script
+    assert f'write_tsv(norm_table, "{output_dir}/metabolites.normalized.tsv")' in script
+    assert f'saveRDS(mSet, "{output_dir}/metabolites.metaboanalyst.rds")' in script
+
+
+def test_metaboanalyst_stats_plans_outputs() -> None:
+    node_class = _node_class("metaboanalyst_stats")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"data_table": "/data/metabolites.csv", "output_name": "case control stats"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/metaboanalyst_stats/case_control_stats.normalized.tsv",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.pca_scores.tsv",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.pca_loadings.tsv",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.ttest.tsv",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.pca.png",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.metaboanalyst.rds",
+        "/tmp/run/metaboanalyst_stats/case_control_stats.summary.json",
+    ]
+
+
+def test_metaboanalyst_stats_environment_metadata_is_declared_without_fake_conda_package() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["Rscript"] == "r-base"
+    assert "MetaboAnalystR" not in R_PACKAGE_TO_CONDA_PACKAGE
+    packages = workflow_to_packages({"nodes": [{"id": "stats", "type": "metaboanalyst_stats"}]}, registry)
+
+    assert "MetaboAnalystR" not in packages
+    assert packages == ["r-base", "r-jsonlite", "r-readr"]
