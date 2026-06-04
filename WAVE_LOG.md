@@ -395,6 +395,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings dialog shell, close affordance, section navigation labels, search placeholder/summary, and section headings now read from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings Appearance and Canvas rows now read labels, descriptions, actions, and select options from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings Collaboration, Cache, Execution, and Files rows now read labels, descriptions, status pills, actions, and cache-clear toast copy from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
+- Settings AI and Telemetry rows now read labels, descriptions, descriptive provider options, telemetry buffer copy, and telemetry toasts from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 
 ---
 

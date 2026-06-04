@@ -166,4 +166,39 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Confirmar eliminacion')).toBeInTheDocument();
     expect(screen.getByText('Pedir confirmacion antes de eliminar archivos')).toBeInTheDocument();
   });
+
+  it('renders AI and Telemetry rows from the active locale', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<SettingsPanel onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Asistente de IA' }));
+
+    expect(screen.getByText('Proveedor')).toBeInTheDocument();
+    expect(screen.getByText('Proveedor de API LLM')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Proxy LiteLLM' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Personalizado compatible con OpenAI' })).toBeInTheDocument();
+    expect(screen.getByText('Modelo')).toBeInTheDocument();
+    expect(screen.getByText('Nombre de modelo o cadena de modelo LiteLLM')).toBeInTheDocument();
+    expect(screen.getByText('URL base')).toBeInTheDocument();
+    expect(screen.getByText('URL base de API para proxy o endpoint personalizado')).toBeInTheDocument();
+    expect(screen.getByText('Clave API')).toBeInTheDocument();
+    expect(screen.getByText('Tu clave API')).toBeInTheDocument();
+    expect(screen.getByText('Temperatura')).toBeInTheDocument();
+    expect(screen.getByText('Temperatura de muestreo')).toBeInTheDocument();
+    expect(screen.getByText('Tokens maximos')).toBeInTheDocument();
+    expect(screen.getByText('Tokens maximos de respuesta')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Telemetria' }));
+
+    expect(screen.getByText('Registrar eventos de diagnostico')).toBeInTheDocument();
+    expect(screen.getByText('Captura un buffer circular local de eventos de UI para depuracion. Nunca sale de tu maquina.')).toBeInTheDocument();
+    expect(screen.getByText('Buffer')).toBeInTheDocument();
+    expect(screen.getByText('0 eventos almacenados (limite 200)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
+  });
 });

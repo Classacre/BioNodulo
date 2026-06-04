@@ -68,8 +68,8 @@ const AI_PROVIDER_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openrouter', label: 'OpenRouter' },
-  { value: 'litellm', label: 'LiteLLM Proxy' },
-  { value: 'custom', label: 'Custom OpenAI-compatible' },
+  { value: 'litellm', labelKey: 'settings.ai.providerOptions.litellm' },
+  { value: 'custom', labelKey: 'settings.ai.providerOptions.custom' },
 ];
 
 function matchesQuery(query: string, ...needles: Array<string | undefined>): boolean {
@@ -386,26 +386,26 @@ export default function SettingsPanel({
 
         {/* LLM */}
         <SettingsGroup active={isSectionVisible('ai')} query={query} title={sectionTitle('ai')}>
-          <SettingRow query={query} label="Provider" desc="LLM API provider" keywords="openai anthropic claude openrouter litellm proxy custom llm ai">
+          <SettingRow query={query} label={st('ai.provider')} desc={st('ai.providerDescription')} keywords="openai anthropic claude openrouter litellm proxy custom llm ai proveedor modelo">
             <select className="select-input" value={String(get('bionodulo.llm.provider'))} onChange={e => set('bionodulo.llm.provider', e.target.value)}>
               {AI_PROVIDER_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>{option.labelKey ? t(option.labelKey) : option.label}</option>
               ))}
             </select>
           </SettingRow>
-          <SettingRow query={query} label="Model" desc="Model name or LiteLLM model string" keywords="model gpt claude gemini groq mistral ollama openrouter litellm">
+          <SettingRow query={query} label={st('ai.model')} desc={st('ai.modelDescription')} keywords="model gpt claude gemini groq mistral ollama openrouter litellm modelo">
             <input type="text" className="text-input" value={String(get('bionodulo.llm.model'))} onChange={e => set('bionodulo.llm.model', e.target.value)} />
           </SettingRow>
-          <SettingRow query={query} label="Base URL" desc="API base URL for proxy or custom endpoint" keywords="endpoint url proxy litellm openai compatible">
+          <SettingRow query={query} label={st('ai.baseUrl')} desc={st('ai.baseUrlDescription')} keywords="endpoint url proxy litellm openai compatible base">
             <input type="text" className="text-input" value={String(get('bionodulo.llm.baseUrl') || '')} onChange={e => set('bionodulo.llm.baseUrl', e.target.value)} placeholder="http://localhost:4000/v1" />
           </SettingRow>
-          <SettingRow query={query} label="API Key" desc="Your API key" keywords="secret token api">
+          <SettingRow query={query} label={st('ai.apiKey')} desc={st('ai.apiKeyDescription')} keywords="secret token api clave">
             <input type="password" className="text-input" value={String(get('bionodulo.llm.apiKey') || '')} onChange={e => set('bionodulo.llm.apiKey', e.target.value)} placeholder="sk-..." />
           </SettingRow>
-          <SettingRow query={query} label="Temperature" desc="Sampling temperature" keywords="temperature creativity">
+          <SettingRow query={query} label={st('ai.temperature')} desc={st('ai.temperatureDescription')} keywords="temperature creativity temperatura">
             <input type="number" className="text-input" style={{ width: 60 }} min={0} max={2} step={0.1} value={Number(get('bionodulo.llm.temperature'))} onChange={e => set('bionodulo.llm.temperature', parseFloat(e.target.value))} />
           </SettingRow>
-          <SettingRow query={query} label="Max Tokens" desc="Maximum response tokens" keywords="max tokens context output limit">
+          <SettingRow query={query} label={st('ai.maxTokens')} desc={st('ai.maxTokensDescription')} keywords="max tokens context output limit maximos">
             <input type="number" className="text-input" style={{ width: 84 }} min={256} max={32768} step={256} value={Number(get('bionodulo.llm.maxTokens') || 4096)} onChange={e => set('bionodulo.llm.maxTokens', parseInt(e.target.value, 10))} />
           </SettingRow>
         </SettingsGroup>
@@ -419,8 +419,11 @@ export default function SettingsPanel({
 }
 
 function TelemetryGroup({ active, query, title }: { active: boolean; query: string; title: string }) {
+  const { t } = useTranslation();
   const [enabled, setEnabled] = useState(() => isTelemetryEnabled());
   const [eventCount, setEventCount] = useState(() => getTelemetryEvents().length);
+  const tt = (key: string, options?: Record<string, unknown>) => t(`settings.telemetryPanel.${key}`, options);
+  const bufferDescriptionKey = eventCount === 1 ? 'bufferDescription' : 'bufferDescriptionPlural';
   useEffect(() => subscribeTelemetry(events => setEventCount(events.length)), []);
 
   const handleToggle = () => {
@@ -432,7 +435,7 @@ function TelemetryGroup({ active, query, title }: { active: boolean; query: stri
   const handleExport = () => {
     const text = exportTelemetryAsText();
     if (!text) {
-      toast.info('No telemetry events recorded yet');
+      toast.info(tt('noEventsToast'));
       return;
     }
     const blob = new Blob([text], { type: 'text/plain' });
@@ -441,18 +444,18 @@ function TelemetryGroup({ active, query, title }: { active: boolean; query: stri
     link.download = `bionodulo-telemetry-${Date.now()}.log`;
     link.click();
     URL.revokeObjectURL(link.href);
-    toast.success('Telemetry exported', { message: link.download });
+    toast.success(tt('exportedToast'), { message: link.download });
   };
 
   return (
     <SettingsGroup active={active} query={query} title={title}>
-      <SettingRow query={query} label="Record diagnostic events" desc="Capture a local ring buffer of UI events for debugging. Never leaves your machine." keywords="telemetry diagnostics analytics debug">
+      <SettingRow query={query} label={tt('recordDiagnosticEvents')} desc={tt('recordDiagnosticEventsDescription')} keywords="telemetry diagnostics analytics debug diagnostico eventos">
         <div className={`toggle ${enabled ? 'on' : ''}`} onClick={handleToggle} />
       </SettingRow>
-      <SettingRow query={query} label="Buffer" desc={`${eventCount} events stored (capped at 200)`} keywords="telemetry buffer">
+      <SettingRow query={query} label={tt('buffer')} desc={tt(bufferDescriptionKey, { count: eventCount, limit: 200 })} keywords="telemetry buffer eventos">
         <div style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className="btn btn-sm" onClick={handleExport} disabled={eventCount === 0}>Export</button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => clearTelemetry()} disabled={eventCount === 0}>Clear</button>
+          <button type="button" className="btn btn-sm" onClick={handleExport} disabled={eventCount === 0}>{t('common.export')}</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => clearTelemetry()} disabled={eventCount === 0}>{t('common.clear')}</button>
         </div>
       </SettingRow>
     </SettingsGroup>
