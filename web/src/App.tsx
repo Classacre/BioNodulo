@@ -51,6 +51,7 @@ import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
+import { makeAppCollabCopy } from './collab/appCollabCopy';
 import { appPath, appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
@@ -222,6 +223,7 @@ export default function App() {
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
   const consoleActionCopy = useMemo(() => makeConsoleActionCopy(t), [t]);
+  const appCollabCopy = useMemo(() => makeAppCollabCopy(t), [t]);
 
   // Authentication state — extracted to useAuth.
   const collabEnabled = getBool('bionodulo.collab.enabled');
@@ -506,23 +508,19 @@ export default function App() {
       try {
         if (!navigator.clipboard) throw new Error('Clipboard unavailable');
         await navigator.clipboard.writeText(url);
-        toast.success('Collaboration link copied', {
-          message: publicBaseUrl
-            ? 'Share it with collaborators while this app is running.'
-            : 'This is a local link. Start a tunnel or use a public host before sharing outside this machine.',
+        toast.success(appCollabCopy.toast.linkCopied, {
+          message: appCollabCopy.createLinkCopiedMessage(Boolean(publicBaseUrl)),
         });
       } catch {
-        toast.success('Collaboration link ready', {
-          message: publicBaseUrl
-            ? 'Open Share workflow to copy it.'
-            : 'Open Share workflow to copy the local link, or start BioNodulo through a public tunnel.',
+        toast.success(appCollabCopy.toast.linkReady, {
+          message: appCollabCopy.createLinkReadyMessage(Boolean(publicBaseUrl)),
         });
       }
       setShowShareDialog(true);
     } catch (err) {
       set('bionodulo.collab.enabled', false);
       setCollabRoomActive(false);
-      toast.error('Could not create collaboration link', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(appCollabCopy.error.createLinkFailed, { message: err instanceof Error ? err.message : String(err) });
       logError('collab.room.create', err);
     }
   }, [
@@ -530,6 +528,7 @@ export default function App() {
     activeWorkflow,
     activeWorkflow.id,
     activeWorkflowId,
+    appCollabCopy,
     authUser,
     collabSessionActive,
     collabPublicBaseUrl,
@@ -543,18 +542,12 @@ export default function App() {
   const handleJoinCollabSession = useCallback(async (target?: CollabLinkTarget) => {
     let joinTarget = target;
     if (!joinTarget) {
-      const value = await promptDialog({
-        title: 'Join Collaboration',
-        message: 'Paste a BioNodulo collaboration link or room ID.',
-        inputLabel: 'Share link',
-        placeholder: `${window.location.origin}${window.location.pathname}?workflow=...&invite=...`,
-        confirmLabel: 'Join',
-      });
+      const value = await promptDialog(appCollabCopy.joinPrompt());
       if (!value) return;
       joinTarget = parseCollabLinkTarget(value) ?? undefined;
     }
     if (!joinTarget) {
-      toast.error('Invalid collaboration link', { message: 'Expected a BioNodulo URL with ?workflow=... or a room ID.' });
+      toast.error(appCollabCopy.error.invalidLinkTitle, { message: appCollabCopy.error.invalidLinkMessage });
       return;
     }
     setRequestedWorkflowId(joinTarget.workflowId);
@@ -573,16 +566,17 @@ export default function App() {
       });
       setCollabInvite(joinTarget.inviteToken ? joinTarget : null);
       setCollabRoomActive(true);
-      toast.success('Joined collaboration', { message: `Connected as ${joined.role}.` });
+      toast.success(appCollabCopy.toast.joined, { message: appCollabCopy.connectedAsRole(joined.role) });
     } catch (err) {
       set('bionodulo.collab.enabled', false);
       setCollabRoomActive(false);
-      toast.error('Could not join collaboration', { message: err instanceof Error ? err.message : String(err) });
+      toast.error(appCollabCopy.error.joinFailed, { message: err instanceof Error ? err.message : String(err) });
       logError('collab.room.join', err);
     }
   }, [
     activeIndex,
     activeWorkflow.id,
+    appCollabCopy,
     authUser,
     requestCollabAuth,
     set,
@@ -608,8 +602,8 @@ export default function App() {
     setRequestedWorkflowId(null);
     setPendingCollabAction(null);
     clearCollabLinkParams();
-    toast.info('Collaboration stopped', { message: 'This browser is back in offline mode.' });
-  }, [set, setCollabRoomActive, setRequestedWorkflowId]);
+    toast.info(appCollabCopy.toast.stopped, { message: appCollabCopy.toast.offlineModeRestored });
+  }, [appCollabCopy, set, setCollabRoomActive, setRequestedWorkflowId]);
 
   const handleCollabAuthClose = useCallback(() => {
     if (pendingCollabAction && !authUser) {
@@ -628,7 +622,7 @@ export default function App() {
     const presence = livePresenceUsers.find(user => user.session_id === sessionId)
       ?? livePresenceUsers.find(user => user.user_id === sessionId);
     if (presence?.workflow_id) {
-      const workflowName = workflowNames[presence.workflow_id] || `Workflow ${presence.workflow_id.slice(0, 12)}`;
+      const workflowName = workflowNames[presence.workflow_id] || appCollabCopy.workflowFallback(presence.workflow_id);
       let snapshotWorkflow: Workflow | null = null;
       try {
         snapshotWorkflow = await fetchCollabSnapshot(presence.workflow_id, workflowName);
@@ -667,7 +661,7 @@ export default function App() {
       }
     }
     setFollowingUserId(presence?.session_id ?? sessionId);
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setActiveIndex, setWorkflow, workflows, workflowNames]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, appCollabCopy, collabActiveUsers, fetchCollabSnapshot, livePresenceUsers, setActiveIndex, setWorkflow, workflows, workflowNames]);
 
   // Host prerequisite status
   const [hostStatus, setHostStatus] = useAtom(hostStatusAtom);
