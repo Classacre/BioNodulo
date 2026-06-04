@@ -37,7 +37,10 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         return;
       }
       try {
-        const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source, format });
+        const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', {
+          source: format,
+          content: source,
+        });
         if (data.workflow) {
           onImport(data.workflow);
           onClose();

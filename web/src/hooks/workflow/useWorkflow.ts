@@ -184,7 +184,7 @@ export function useWorkflow() {
 
   const importWorkflow = useCallback(async (source: string, format: string) => {
     try {
-      const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source, format });
+      const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source: format, content: source });
       return data.workflow ?? null;
     } catch {
       // Try parsing as JSON directly

@@ -2,6 +2,25 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow } from '../types';
 
+const apiMocks = {
+  apiPost: vi.fn(),
+  ApiError: class ApiError extends Error {
+    status: number;
+    statusText: string;
+    body: unknown;
+
+    constructor(message: string, status: number, statusText: string, body: unknown) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.statusText = statusText;
+      this.body = body;
+    }
+  },
+};
+
+vi.mock('../api/client', () => apiMocks);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -34,6 +53,7 @@ function workflowJson(name: string): string {
 describe('ImportModal i18n', () => {
   beforeEach(() => {
     storage.clear();
+    apiMocks.apiPost.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -69,5 +89,38 @@ describe('ImportModal i18n', () => {
 
     expect(onImport).toHaveBeenCalledTimes(1);
     expect(onImport.mock.calls[0][0].name).toBe('Imported workflow');
+  });
+
+  it('posts external workflow imports using the backend request contract', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const onImport = vi.fn<(workflow: Workflow) => void>();
+    const onClose = vi.fn();
+    const snakefile = 'rule fastqc:\n    shell: "fastqc reads.fastq"';
+    const importedWorkflow = {
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'Imported SnakeMake Workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+    } as Workflow;
+    apiMocks.apiPost.mockResolvedValueOnce({ workflow: importedWorkflow });
+
+    render(<ImportModal onImport={onImport} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.change(screen.getByPlaceholderText(/rule example/), {
+      target: { value: snakefile },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+    expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/import', {
+      source: 'snakemake',
+      content: snakefile,
+    });
+    expect(onImport).toHaveBeenCalledWith(importedWorkflow);
   });
 });
