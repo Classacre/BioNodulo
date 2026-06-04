@@ -457,3 +457,12 @@ class DIANNNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class DIANNAliasNode(DIANNNode):
+    """Compatibility alias for the DIA-NN node ID without punctuation."""
+
+    NODE_ID = "diann"
+    DISPLAY_NAME = "DIA-NN"
+    DESCRIPTION = "Analyze DIA proteomics data with DIA-NN."
+    SEARCH_ALIASES = ["diann", "dia-nn", "dia", "data independent acquisition", "proteomics", "quantification"]

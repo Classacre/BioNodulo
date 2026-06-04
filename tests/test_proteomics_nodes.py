@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.nodes.builtin.proteomics import DIANNNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -649,3 +650,97 @@ def test_dia_nn_plans_outputs() -> None:
 def test_dia_nn_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["diann"] == "diann"
     assert PACKAGE_MIN_VERSIONS["diann"] == ">=1.8"
+
+
+def test_diann_alias_is_registered_with_alias_metadata_only() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_class = registry.get("diann")
+    assert node_class is not None
+    assert node_class is not DIANNNode
+    assert issubclass(node_class, DIANNNode)
+    assert {
+        name
+        for name in node_class.__dict__
+        if name.isupper()
+    } == {"NODE_ID", "DISPLAY_NAME", "DESCRIPTION", "SEARCH_ALIASES"}
+    assert "render_command" not in node_class.__dict__
+    assert "PLAN_OUTPUTS" not in node_class.__dict__
+    assert "INPUT_TYPES" not in node_class.__dict__
+
+    node_info = info["diann"]
+    assert node_info["display_name"] == "DIA-NN"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"] == "Analyze DIA proteomics data with DIA-NN."
+    assert node_info["output"] == ["TSV", "JSON"]
+    assert node_info["output_name"] == ["report", "stats"]
+    assert node_info["required_executables"] == ["diann"]
+    assert node_info["required_conda_packages"] == ["diann"]
+    assert set(node_info["search_aliases"]) >= {
+        "diann",
+        "dia-nn",
+        "dia",
+        "data independent acquisition",
+        "proteomics",
+        "quantification",
+    }
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"raw_files", "library", "fasta"}
+    assert set(inputs["optional"]) == {"threads", "qvalue", "mass_accuracy", "use_predictor"}
+
+
+def test_diann_alias_renders_dia_nn_command_behavior() -> None:
+    node_class = _node_class("diann")
+
+    cmd = node_class.render_command({
+        "raw_files": ["run1.mzML", "run2.mzML"],
+        "library": "library.tsv",
+        "fasta": "proteome.fa",
+        "threads": 12,
+        "qvalue": 0.005,
+        "mass_accuracy": 15,
+        "use_predictor": True,
+        "output": "/tmp/run/diann",
+    })
+
+    assert cmd == [
+        "diann",
+        "--lib",
+        "library.tsv",
+        "--fasta",
+        "proteome.fa",
+        "--out",
+        "/tmp/run/diann/report.tsv",
+        "--threads",
+        "12",
+        "--qvalue",
+        "0.005",
+        "--mass-acc",
+        "15",
+        "--predictor",
+        "--f",
+        "run1.mzML",
+        "--f",
+        "run2.mzML",
+        "&&",
+        "python",
+        "-c",
+        "import csv, json, sys; rows=list(csv.DictReader(open(sys.argv[1]), delimiter='\\t')); "
+        "json.dump({'rows': len(rows), 'columns': list(rows[0]) if rows else []}, open(sys.argv[2], 'w'))",
+        "/tmp/run/diann/report.tsv",
+        "/tmp/run/diann/stats.json",
+    ]
+
+
+def test_diann_alias_plans_outputs_under_diann_directory() -> None:
+    node_class = _node_class("diann")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/diann/report.tsv",
+        "/tmp/run/diann/stats.json",
+    ]
