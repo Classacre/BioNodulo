@@ -59,3 +59,33 @@ describe('useWorkflow importWorkflow', () => {
     expect(imported).toBe(importedWorkflow);
   });
 });
+
+describe('useWorkflow exportWorkflow', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+    vi.mocked(apiPost).mockReset();
+  });
+
+  it('rejects failed external workflow exports instead of returning mislabeled JSON', async () => {
+    const workflow = {
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'QC workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+    } as Workflow;
+    vi.mocked(apiPost).mockRejectedValueOnce(new Error('converter unavailable'));
+    const { result } = renderHook(() => useWorkflow());
+
+    await expect(result.current.exportWorkflow(workflow, 'snakemake')).rejects.toThrow('converter unavailable');
+
+    expect(apiPost).toHaveBeenCalledWith('/workflow/export', {
+      workflow,
+      format: 'snakemake',
+    });
+  });
+});

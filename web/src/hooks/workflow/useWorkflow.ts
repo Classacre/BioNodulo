@@ -175,11 +175,7 @@ export function useWorkflow() {
   }, []);
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
-    try {
-      return await apiPost('/workflow/export', { workflow: wf, format });
-    } catch { /* offline */ }
-    // Fallback: export as JSON
-    return { content: JSON.stringify(wf, null, 2), filename: `${wf.name || 'workflow'}.${format === 'json' ? 'json' : format}` };
+    return await apiPost('/workflow/export', { workflow: wf, format });
   }, []);
 
   const importWorkflow = useCallback(async (source: string, format: string) => {

@@ -2,6 +2,25 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow } from '../types';
 
+const apiMocks = {
+  apiPost: vi.fn(),
+  ApiError: class ApiError extends Error {
+    status: number;
+    statusText: string;
+    body: unknown;
+
+    constructor(message: string, status: number, statusText: string, body: unknown) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.statusText = statusText;
+      this.body = body;
+    }
+  },
+};
+
+vi.mock('../api/client', () => apiMocks);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -36,6 +55,7 @@ function workflow(partial: Partial<Workflow> = {}): Workflow {
 describe('ExportModal i18n', () => {
   beforeEach(() => {
     storage.clear();
+    apiMocks.apiPost.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -72,5 +92,26 @@ describe('ExportModal i18n', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Copiar al portapapeles' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Regenerar' })).toBeInTheDocument();
+  });
+
+  it('shows export API errors without generating fallback downloadable content', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    apiMocks.apiPost.mockRejectedValueOnce(
+      new apiMocks.ApiError('HTTP 500 Server Error (/api/workflow/export)', 500, 'Server Error', {
+        detail: 'Converter for snakemake is unavailable',
+      }),
+    );
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('HTTP 500 Server Error (/api/workflow/export)')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy to clipboard' })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue(/"version": "2.0"/)).not.toBeInTheDocument();
   });
 });

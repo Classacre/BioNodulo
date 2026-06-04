@@ -5,7 +5,7 @@ import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
 import { useFocusTrap } from '../../hooks/ui';
-import { apiPost, ApiError } from '../../api/client';
+import { apiPost } from '../../api/client';
 
 interface ExportModalProps {
   workflow: Workflow;
@@ -72,24 +72,17 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         setPngPreview(dataUrl);
         setContent('');
       } else {
-        try {
-          const data = await apiPost<{ content?: string; workflow?: string }>(
-            '/workflow/export',
-            { workflow, format },
-          );
-          setContent(data.content || data.workflow || JSON.stringify(workflow, null, 2));
-        } catch (err) {
-          if (err instanceof ApiError) {
-            setContent(`# ${t('exportModal.converterFallbackTitle', { format: t(`exportModal.formats.${format}`) })}\n# ${t('exportModal.converterFallbackMessage', { status: err.status })}\n\n${JSON.stringify(workflow, null, 2)}`);
-          } else {
-            throw err;
-          }
-        }
+        const data = await apiPost<{ content?: string; workflow?: string }>(
+          '/workflow/export',
+          { workflow, format },
+        );
+        setContent(data.content || data.workflow || '');
         setPngPreview(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setContent(JSON.stringify(workflow, null, 2));
+      setContent('');
+      setPngPreview(null);
     }
     setGenerating(false);
   };
