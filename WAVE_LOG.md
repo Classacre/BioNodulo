@@ -487,6 +487,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Forest Plot now supports interactive HTML output through Plotly: study estimates render with confidence intervals, pooled rows use diamond markers, weights are kept in hover data, and the existing `forest_image` output name plus PNG/SVG defaults remain compatible. The generated HTML artifact was browser-checked with Playwright.
 - Phylogenetic Tree Viewer now supports interactive HTML output through Plotly: Newick branch geometry, tip labels, and bootstrap annotations render interactively while preserving the existing `tree_image` output name and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 - Circos Plot now supports interactive HTML output through Plotly: chromosome sectors plus gene, variant, and CNV tracks render as interactive polar traces while preserving the existing `circos_image` output name and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
+- IGV Snapshot now supports interactive HTML output through Plotly: variant and annotation tracks render against a shared genomic coordinate axis while preserving the existing `snapshot_image` output name and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 
 ---
 

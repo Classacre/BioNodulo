@@ -212,6 +212,8 @@ def test_circos_plot_is_registered_for_frontend_discovery() -> None:
 def test_igv_snapshot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("igv_snapshot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -220,6 +222,7 @@ def test_igv_snapshot_is_registered_for_frontend_discovery() -> None:
     assert info["igv_snapshot"]["output_name"] == ["snapshot_image"]
     assert info["igv_snapshot"]["output"] == ["IMAGE"]
     assert info["igv_snapshot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 @pytest.mark.asyncio
@@ -1449,6 +1452,56 @@ async def test_igv_snapshot_writes_svg_with_variant_and_annotation_tracks(tmp_pa
     assert 'class="igv-gene"' in svg
     assert 'data-gene="GENE1"' in svg
     assert previews == [(str(svg_path), "IGV Snapshot")]
+
+
+@pytest.mark.asyncio
+async def test_igv_snapshot_writes_interactive_html_with_tracks_and_preview(tmp_path: Path) -> None:
+    node_class = _node_class("igv_snapshot")
+    variants = tmp_path / "variants.vcf"
+    variants.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        "chr1\t150\trs1\tA\tG\t50\tPASS\tDP=12\n"
+        "chr1\t350\trs2\tC\tT\t40\tPASS\tDP=10\n",
+        encoding="utf-8",
+    )
+    annotation = tmp_path / "genes.gtf"
+    annotation.write_text(
+        "chr1\tBioNodulo\tgene\t100\t220\t.\t+\t.\tgene_id \"GENE1\";\n"
+        "chr1\tBioNodulo\tgene\t300\t420\t.\t-\t.\tgene_id \"GENE2\";\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        region="chr1:50-500",
+        variant_track=str(variants),
+        annotation_track=str(annotation),
+        title="Region Overview",
+        format="html",
+        width=10,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["snapshot_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "igv_snapshot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Region Overview" in document
+    assert "chr1:50-500" in document
+    assert '"Variants"' in document
+    assert '"Annotations"' in document
+    assert '"rs1"' in document
+    assert '"GENE1"' in document
+    assert '"type": "scatter"' in document
+    assert '"mode": "lines+markers"' in document
+    assert previews == [(str(html_path), "IGV Snapshot")]
 
 
 @pytest.mark.asyncio

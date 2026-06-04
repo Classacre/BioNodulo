@@ -28,6 +28,7 @@ VCF_STATS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 FOREST_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 TREE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 CIRCOS_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+IGV_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -5716,6 +5717,198 @@ def _append_igv_annotations_svg(
         )
 
 
+def _igv_track_domains(track_count: int) -> list[tuple[float, float]]:
+    gap = 0.04
+    usable = 1.0 - gap * max(0, track_count - 1)
+    track_height = usable / max(1, track_count)
+    domains = []
+    for index in range(track_count):
+        top = 1.0 - index * (track_height + gap)
+        domains.append((max(0.0, top - track_height), min(1.0, top)))
+    return domains
+
+
+def _render_igv_html(
+    path: Path,
+    *,
+    region: tuple[str, int, int],
+    coverage: list[CoverageBin],
+    variants: list[IGVVariant],
+    annotations: list[IGVAnnotation],
+    title: str,
+    layout: PlotLayout,
+) -> None:
+    tracks: list[tuple[str, str]] = []
+    if coverage:
+        tracks.append(("coverage", "Coverage"))
+    if variants:
+        tracks.append(("variants", "Variants"))
+    if annotations:
+        tracks.append(("annotations", "Annotations"))
+    chromosome, start, end = region
+    domains = _igv_track_domains(len(tracks))
+    traces: list[dict[str, Any]] = []
+    plot_layout: dict[str, Any] = {
+        "title": {"text": title},
+        "annotations": [{
+            "text": f"{chromosome}:{start}-{end}",
+            "xref": "paper",
+            "yref": "paper",
+            "x": 0.5,
+            "y": 1.08,
+            "showarrow": False,
+            "font": {"size": 12, "color": "#475569"},
+        }],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": False,
+    }
+
+    for index, ((track_key, track_label), domain) in enumerate(zip(tracks, domains), start=1):
+        xaxis_name = "x" if index == 1 else f"x{index}"
+        yaxis_name = "y" if index == 1 else f"y{index}"
+        xaxis_layout_name = "xaxis" if index == 1 else f"xaxis{index}"
+        yaxis_layout_name = "yaxis" if index == 1 else f"yaxis{index}"
+        plot_layout[xaxis_layout_name] = {
+            "title": "Position" if index == len(tracks) else "",
+            "range": [start, end],
+            "domain": [0, 1],
+            "anchor": yaxis_name,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+            "zeroline": False,
+        }
+        plot_layout[yaxis_layout_name] = {
+            "title": track_label,
+            "domain": list(domain),
+            "anchor": xaxis_name,
+            "showgrid": False,
+            "zeroline": False,
+        }
+
+        if track_key == "coverage":
+            max_cov = max([item.coverage for item in coverage] + [1.0])
+            traces.append({
+                "type": "bar",
+                "name": "Coverage",
+                "x": [(item.start + item.end) / 2 for item in coverage],
+                "y": [item.coverage for item in coverage],
+                "width": [max(1, item.end - item.start) for item in coverage],
+                "customdata": [
+                    [item.chromosome, item.start, item.end, item.coverage]
+                    for item in coverage
+                ],
+                "hovertemplate": (
+                    "%{customdata[0]}:%{customdata[1]}-%{customdata[2]}<br>"
+                    "coverage: %{customdata[3]}<extra>Coverage</extra>"
+                ),
+                "marker": {"color": "#475569", "opacity": 0.82},
+                "xaxis": xaxis_name,
+                "yaxis": yaxis_name,
+            })
+            plot_layout[yaxis_layout_name]["range"] = [0, max_cov * 1.12]
+        elif track_key == "variants":
+            traces.append({
+                "type": "scatter",
+                "mode": "lines+markers",
+                "name": "Variants",
+                "x": [position for variant in variants for position in (variant.position, variant.position, None)],
+                "y": [value for _ in variants for value in (0, 1, None)],
+                "customdata": [
+                    data
+                    for variant in variants
+                    for data in (
+                        [variant.chromosome, variant.position, variant.identifier, variant.variant_type],
+                        [variant.chromosome, variant.position, variant.identifier, variant.variant_type],
+                        None,
+                    )
+                ],
+                "hovertemplate": (
+                    "%{customdata[2]}<br>"
+                    "%{customdata[0]}:%{customdata[1]}<br>"
+                    "type: %{customdata[3]}<extra>Variants</extra>"
+                ),
+                "line": {"color": "#DC2626", "width": 2},
+                "marker": {"color": "#DC2626", "size": 6},
+                "xaxis": xaxis_name,
+                "yaxis": yaxis_name,
+            })
+            plot_layout[yaxis_layout_name]["range"] = [0, 1]
+            plot_layout[yaxis_layout_name]["showticklabels"] = False
+        elif track_key == "annotations":
+            for annotation_index, annotation in enumerate(annotations):
+                y_value = annotation_index + 1
+                traces.append({
+                    "type": "scatter",
+                    "mode": "lines+markers",
+                    "name": "Annotations",
+                    "x": [annotation.start, annotation.end],
+                    "y": [y_value, y_value],
+                    "text": [annotation.name, annotation.name],
+                    "customdata": [
+                        [annotation.chromosome, annotation.start, annotation.end, annotation.name, annotation.strand],
+                        [annotation.chromosome, annotation.start, annotation.end, annotation.name, annotation.strand],
+                    ],
+                    "hovertemplate": (
+                        "%{customdata[3]}<br>"
+                        "%{customdata[0]}:%{customdata[1]}-%{customdata[2]}<br>"
+                        "strand: %{customdata[4]}<extra>Annotations</extra>"
+                    ),
+                    "line": {
+                        "color": "#2563EB" if annotation.strand != "-" else "#16A34A",
+                        "width": 12,
+                    },
+                    "marker": {
+                        "color": "#2563EB" if annotation.strand != "-" else "#16A34A",
+                        "size": 5,
+                    },
+                    "xaxis": xaxis_name,
+                    "yaxis": yaxis_name,
+                    "showlegend": annotation_index == 0,
+                })
+            plot_layout[yaxis_layout_name]["range"] = [0, len(annotations) + 1]
+            plot_layout[yaxis_layout_name]["showticklabels"] = False
+
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "igv_snapshot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_igv_png(
     path: Path,
     *,
@@ -7435,7 +7628,7 @@ class IGVSnapshotNode(BaseNode):
                 "title": ("STRING", {"default": "Genome Browser View"}),
                 "track_height": ("INT", {"default": 2, "min": 1, "max": 10}),
                 "window": ("INT", {"default": 50, "min": 1, "max": 100000}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(IGV_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 18.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
             },
@@ -7445,7 +7638,7 @@ class IGVSnapshotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in IGV_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported IGV snapshot format: {output_format}")
 
         region = _parse_region(str(kwargs.get("region", "") or ""))
@@ -7477,6 +7670,16 @@ class IGVSnapshotNode(BaseNode):
         output_path = out_dir / f"igv_snapshot.{output_format}"
         if output_format == "svg":
             _render_igv_svg(
+                output_path,
+                region=region,
+                coverage=coverage,
+                variants=variants,
+                annotations=annotations,
+                title=title,
+                layout=layout,
+            )
+        elif output_format == "html":
+            _render_igv_html(
                 output_path,
                 region=region,
                 coverage=coverage,
