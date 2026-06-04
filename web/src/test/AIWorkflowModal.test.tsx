@@ -129,6 +129,7 @@ describe('AIWorkflowModal i18n', () => {
   it('renders assistant step controls from the active locale', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');
+    const onApplyWorkflow = vi.fn();
 
     await setLanguage('es');
     storage.set('bionodulo-ai-sessions', JSON.stringify([{
@@ -150,7 +151,7 @@ describe('AIWorkflowModal i18n', () => {
       <AIWorkflowModal
         workflow={workflow()}
         onClose={() => undefined}
-        onApplyWorkflow={() => undefined}
+        onApplyWorkflow={onApplyWorkflow}
       />,
     );
 
@@ -161,9 +162,15 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByText('get_workflow_summary resultado')).toBeInTheDocument();
     expect(screen.getByText('Cambios propuestos')).toBeInTheDocument();
     expect(screen.getByText('La IA sugiere modificar el workflow.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Aplicar cambios' })).toBeInTheDocument();
+    const applyButton = screen.getByRole('button', { name: 'Aplicar cambios' });
+    expect(applyButton).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Copiar al lienzo/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previsualizar JSON' })).toBeInTheDocument();
+
+    fireEvent.click(applyButton);
+
+    expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ name: 'Suggested' }));
+    expect(await screen.findByText('Workflow aplicado correctamente. Dime si necesitas algun ajuste.')).toBeInTheDocument();
   });
 
   it('renders sending controls from the active locale', async () => {
@@ -249,6 +256,7 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.steps.applyChanges',
       'aiWorkflow.steps.copyToCanvas',
       'aiWorkflow.steps.previewJson',
+      'aiWorkflow.steps.applySuccess',
       'aiWorkflow.generation.thinking',
       'aiWorkflow.generation.stopTitle',
       'aiWorkflow.generation.stop',
@@ -289,6 +297,7 @@ describe('AIWorkflowModal i18n', () => {
       'Apply Changes',
       'Copy to Canvas',
       'Preview JSON',
+      'Workflow applied successfully! Let me know if you need any adjustments.',
       'Thinking...',
       'Stop generating',
       '>Stop<',

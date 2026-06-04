@@ -366,6 +366,7 @@ const es = {
       applyChanges: 'Aplicar cambios',
       copyToCanvas: 'Copiar al lienzo',
       previewJson: 'Previsualizar JSON',
+      applySuccess: 'Workflow aplicado correctamente. Dime si necesitas algun ajuste.',
     },
     generation: {
       thinking: 'Pensando...',

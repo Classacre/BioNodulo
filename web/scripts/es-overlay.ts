@@ -146,6 +146,7 @@ export const overlay: Record<string, string> = {
   'Apply Changes': 'Aplicar cambios',
   'Copy to Canvas': 'Copiar al lienzo',
   'Preview JSON': 'Previsualizar JSON',
+  'Workflow applied successfully! Let me know if you need any adjustments.': 'Workflow aplicado correctamente. Dime si necesitas algun ajuste.',
   'Thinking...': 'Pensando...',
   'Stop generating': 'Detener generacion',
   'Stop': 'Detener',

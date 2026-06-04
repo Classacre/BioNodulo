@@ -384,14 +384,14 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                 ...s,
                 turns: [
                   ...s.turns,
-                  { role: 'assistant', content: 'Workflow applied successfully! Let me know if you need any adjustments.' },
+                  { role: 'assistant', content: t('aiWorkflow.steps.applySuccess') },
                 ],
               }
             : s
         )
       );
     },
-    [onApplyWorkflow, activeSessionId]
+    [onApplyWorkflow, activeSessionId, t]
   );
 
   return (
