@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port, node_outputs
+from bionodulo.nodes.registry import NodeRegistry
+
+
+_CWL_NODE_RUNNER_TYPES = {"normalize_data"}
 
 
 def export_to_cwl(
@@ -154,6 +158,9 @@ def _node_to_command_line_tool(node_id: str, node: dict[str, Any]) -> dict[str, 
     node_type = node.get("type", "unknown")
     widgets = node.get("widgets", {})
     meta = node.get("meta", {})
+    if node_type in _CWL_NODE_RUNNER_TYPES:
+        return _node_to_builtin_runner_tool(node_id, node)
+
     base_cmd = _cwl_base_command(node_type, widgets)
 
     cwl_inputs: dict[str, Any] = {}
@@ -215,6 +222,96 @@ def _node_to_command_line_tool(node_id: str, node: dict[str, Any]) -> dict[str, 
     return tool
 
 
+def _node_to_builtin_runner_tool(node_id: str, node: dict[str, Any]) -> dict[str, Any]:
+    node_type = node.get("type", "unknown")
+    node_class = _registered_node_class(node_type)
+    widgets = node.get("widgets", {})
+    input_types = node_class.INPUT_TYPES()
+    cwl_inputs: dict[str, Any] = {}
+    arguments = [
+        "--node-type",
+        node_type,
+        "--output-dir",
+        ".",
+    ]
+
+    for input_name, spec in _node_runner_input_specs(input_types):
+        is_file_input = input_name in node.get("inputs", {})
+        cwl_inputs[input_name] = _cwl_node_runner_input(input_name, spec, widgets, is_file_input)
+        arguments.extend([
+            "--input",
+            input_name,
+            f"$(inputs.{input_name}.path)" if is_file_input else f"$(inputs.{input_name})",
+        ])
+
+    cwl_outputs: dict[str, Any] = {}
+    for out_name in node_outputs(node):
+        cwl_outputs[out_name] = {
+            "type": "File",
+            "outputBinding": {"glob": out_name + "_output"},
+        }
+
+    return {
+        "class": "CommandLineTool",
+        "cwlVersion": "v1.2",
+        "id": node_id,
+        "label": node_type + " - " + node_id,
+        "baseCommand": ["python3", "-m", "bionodulo.converter.cwl_node_runner"],
+        "arguments": arguments,
+        "inputs": cwl_inputs,
+        "outputs": cwl_outputs,
+        "requirements": [{"class": "InlineJavascriptRequirement"}],
+    }
+
+
+def _registered_node_class(node_type: str) -> Any:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node_class = registry.get(node_type)
+    if node_class is None:
+        raise ValueError(f"Cannot export unsupported node type '{node_type}' to CWL")
+    return node_class
+
+
+def _node_runner_input_specs(input_types: dict[str, dict[str, Any]]) -> list[tuple[str, Any]]:
+    specs: list[tuple[str, Any]] = []
+    for section in ("required", "optional"):
+        specs.extend((name, spec) for name, spec in input_types.get(section, {}).items())
+    return specs
+
+
+def _cwl_node_runner_input(
+    input_name: str,
+    spec: Any,
+    widgets: dict[str, Any],
+    is_file_input: bool,
+) -> dict[str, Any]:
+    if is_file_input:
+        return {"type": "File"}
+    config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+    type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
+    cwl_input: dict[str, Any] = {"type": _cwl_type(type_name)}
+    if input_name in widgets:
+        cwl_input["default"] = widgets[input_name]
+    elif "default" in config:
+        cwl_input["default"] = config["default"]
+    return cwl_input
+
+
+def _cwl_type(type_name: Any) -> str:
+    if isinstance(type_name, list):
+        return "string"
+    mapping = {
+        "FILE": "File",
+        "DIRECTORY": "Directory",
+        "STRING": "string",
+        "INT": "int",
+        "FLOAT": "float",
+        "BOOLEAN": "boolean",
+    }
+    return mapping.get(str(type_name), "string")
+
+
 def _build_cwl_workflow(
     workflow_id: str,
     nodes: dict[str, dict[str, Any]],
@@ -230,6 +327,9 @@ def _build_cwl_workflow(
             src_port = edge_source_port(edge)
             tgt_port = edge_target_port(edge)
             step_inputs[tgt_port] = str(src) + "/" + src_port
+        for inp_name in node.get("inputs", {}).keys():
+            if inp_name not in step_inputs:
+                step_inputs[inp_name] = node_id + "_" + inp_name
         steps[node_id] = {
             "run": "tools/" + node_id + ".cwl",
             "in": step_inputs,
@@ -237,10 +337,10 @@ def _build_cwl_workflow(
         }
 
     wf_inputs: dict[str, Any] = {}
-    for node_id, inc in incoming.items():
-        if not inc:
-            node = nodes[node_id]
-            for inp_name in node.get("inputs", {}).keys():
+    for node_id, node in nodes.items():
+        connected_inputs = {edge_target_port(edge) for edge in incoming[node_id]}
+        for inp_name in node.get("inputs", {}).keys():
+            if inp_name not in connected_inputs:
                 wf_inputs[node_id + "_" + inp_name] = "File"
 
     wf_outputs: dict[str, Any] = {}

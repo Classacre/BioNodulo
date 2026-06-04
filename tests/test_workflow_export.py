@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import builtins
+import csv
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -77,6 +81,29 @@ def _frontend_node_info_output_workflow() -> dict:
     return workflow
 
 
+def _normalize_data_workflow() -> dict:
+    return {
+        "id": "normalize-export-test",
+        "name": "Normalize Export Test",
+        "nodes": [
+            {
+                "id": "norm",
+                "type": "normalize_data",
+                "inputs": {"table": {"type": "FILE"}},
+                "widgets": {
+                    "method": "min_max",
+                    "id_columns": "gene",
+                    "axis": "columns",
+                    "output_type": "TSV",
+                },
+                "outputs": {"normalized_table": {"path": "results/norm/normalized.tsv"}},
+                "meta": {},
+            }
+        ],
+        "edges": [],
+    }
+
+
 def test_export_workflow_delegates_to_pipeline_converters() -> None:
     snakemake = export_workflow(_workflow("fastqc"), "snakemake", name="qc")
     nextflow = export_workflow(_workflow("fastqc"), "nextflow", name="qc")
@@ -129,6 +156,149 @@ def test_nextflow_export_rejects_unsupported_node_types_instead_of_placeholder_c
 def test_cwl_export_rejects_unsupported_node_types_instead_of_placeholder_commands() -> None:
     with pytest.raises(ValueError, match="Cannot export unsupported node type 'custom_python' to CWL"):
         export_to_cwl(_workflow("custom_python"))
+
+
+def test_cwl_export_supports_normalize_data_with_builtin_node_runner() -> None:
+    exported = export_to_cwl(_normalize_data_workflow())
+    workflow = json.loads(exported["workflow.cwl"])
+    tool = json.loads(exported["tools/norm.cwl"])
+
+    assert workflow["inputs"] == {"norm_table": "File"}
+    assert workflow["steps"]["norm"]["in"] == {"table": "norm_table"}
+    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["arguments"] == [
+        "--node-type",
+        "normalize_data",
+        "--output-dir",
+        ".",
+        "--input",
+        "table",
+        "$(inputs.table.path)",
+        "--input",
+        "method",
+        "$(inputs.method)",
+        "--input",
+        "id_columns",
+        "$(inputs.id_columns)",
+        "--input",
+        "axis",
+        "$(inputs.axis)",
+        "--input",
+        "pseudocount",
+        "$(inputs.pseudocount)",
+        "--input",
+        "min_max_range",
+        "$(inputs.min_max_range)",
+        "--input",
+        "output_type",
+        "$(inputs.output_type)",
+    ]
+    assert tool["inputs"]["method"]["default"] == "min_max"
+    assert tool["inputs"]["pseudocount"]["default"] == 1.0
+    assert tool["outputs"] == {
+        "normalized_table": {
+            "type": "File",
+            "outputBinding": {"glob": "normalized_table_output"},
+        }
+    }
+
+
+def test_cwl_exported_normalize_data_command_executes(tmp_path: Path) -> None:
+    exported = export_to_cwl(_normalize_data_workflow())
+    tool = json.loads(exported["tools/norm.cwl"])
+    table = tmp_path / "counts.tsv"
+    with table.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["gene", "s1", "s2"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"gene": "A", "s1": "10", "s2": "20"},
+            {"gene": "B", "s1": "5", "s2": "5"},
+        ])
+
+    defaults = {name: spec.get("default") for name, spec in tool["inputs"].items()}
+    replacements = {
+        "$(inputs.table.path)": str(table),
+        **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
+    }
+    command = [*tool["baseCommand"], *(replacements.get(argument, argument) for argument in tool["arguments"])]
+    completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    with (tmp_path / "normalized_table_output").open(newline="", encoding="utf-8") as fh:
+        assert list(csv.DictReader(fh, delimiter="\t")) == [
+            {"gene": "A", "s1": "0", "s2": "1"},
+            {"gene": "B", "s1": "0", "s2": "0"},
+        ]
+
+
+def test_cwl_node_runner_executes_normalize_data_node(tmp_path: Path) -> None:
+    table = tmp_path / "counts.tsv"
+    with table.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["gene", "s1", "s2"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"gene": "A", "s1": "10", "s2": "20"},
+            {"gene": "B", "s1": "5", "s2": "5"},
+        ])
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "bionodulo.converter.cwl_node_runner",
+            "--node-type",
+            "normalize_data",
+            "--output-dir",
+            ".",
+            "--input",
+            "table",
+            str(table),
+            "--input",
+            "method",
+            "min_max",
+            "--input",
+            "id_columns",
+            "gene",
+            "--input",
+            "axis",
+            "columns",
+            "--input",
+            "output_type",
+            "TSV",
+        ],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    with (tmp_path / "normalized_table_output").open(newline="", encoding="utf-8") as fh:
+        assert list(csv.DictReader(fh, delimiter="\t")) == [
+            {"gene": "A", "s1": "0", "s2": "1"},
+            {"gene": "B", "s1": "0", "s2": "0"},
+        ]
+
+
+def test_cwl_node_runner_rejects_unmapped_builtin_nodes(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "bionodulo.converter.cwl_node_runner",
+            "--node-type",
+            "fastqc",
+            "--output-dir",
+            ".",
+        ],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "Cannot execute unsupported CWL runner node type: fastqc" in completed.stderr
 
 
 def test_galaxy_export_rejects_unsupported_node_types_instead_of_placeholder_tools() -> None:
