@@ -1,11 +1,22 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { fetchToken, setAuthSession, generateGuestName } from './auth';
+import { fetchToken, setAuthSession, generateGuestName, isAuthTokenError } from './auth';
 
 interface AuthDialogProps {
   isOpen: boolean;
   onLogin: (name: string) => void;
   onClose: () => void;
+}
+
+function authTokenErrorMessage(err: unknown, fallbackKey: string, t: TFunction): string {
+  if (isAuthTokenError(err)) {
+    if (err.code === 'missing_token') {
+      return t('collab.authResponseMissingToken');
+    }
+    return t('collab.authFailedWithStatus', { status: err.status, body: err.body });
+  }
+  return err instanceof Error ? err.message : t(fallbackKey);
 }
 
 const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => {
@@ -31,7 +42,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(displayName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('collab.authJoinError'));
+      setError(authTokenErrorMessage(err, 'collab.authJoinError', t));
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +57,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(guestName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('collab.authGuestJoinError'));
+      setError(authTokenErrorMessage(err, 'collab.authGuestJoinError', t));
     } finally {
       setIsLoading(false);
     }

@@ -104,6 +104,8 @@ export const overlay: Record<string, string> = {
   'Your session is authenticated with a secure token.': 'Tu sesion esta autenticada con un token seguro.',
   'Failed to join': 'No se pudo unir',
   'Failed to join as guest': 'No se pudo unir como invitado',
+  'Auth failed ({{status}}): {{body}}': 'No se pudo autenticar ({{status}}): {{body}}',
+  'Auth response missing token': 'La respuesta de autenticacion no incluyo token',
   'Forbidden': 'Acceso denegado',
   'Unauthorized': 'No autorizado',
   'WebSocket connection error': 'Error de conexion WebSocket',

@@ -1,9 +1,11 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authMocks = vi.hoisted(() => ({
   fetchToken: vi.fn(),
   generateGuestName: vi.fn(() => 'Guest User'),
+  isAuthTokenError: vi.fn((err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err)),
   setAuthSession: vi.fn(),
 }));
 
@@ -31,6 +33,7 @@ describe('AuthDialog i18n', () => {
     vi.stubGlobal('localStorage', localStorageStub);
     authMocks.fetchToken.mockReset();
     authMocks.generateGuestName.mockReturnValue('Guest User');
+    authMocks.isAuthTokenError.mockImplementation((err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err));
     authMocks.setAuthSession.mockReset();
   });
 
@@ -61,5 +64,47 @@ describe('AuthDialog i18n', () => {
     expect(screen.getByRole('button', { name: 'Unirse' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continuar como invitado' })).toBeInTheDocument();
     expect(screen.getByText('Tu sesion esta autenticada con un token seguro.')).toBeInTheDocument();
+  });
+
+  it('renders known auth token failures from the active locale', async () => {
+    const { default: AuthDialog } = await import('../collab/AuthDialog');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+    authMocks.fetchToken.mockRejectedValueOnce({
+      code: 'api_failed',
+      status: 401,
+      body: 'credenciales invalidas',
+    });
+
+    render(
+      <AuthDialog
+        isOpen
+        onLogin={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unirse' }));
+
+    expect(await screen.findByText('No se pudo autenticar (401): credenciales invalidas')).toBeInTheDocument();
+  });
+
+  it('renders missing auth token responses from the active locale', async () => {
+    const { default: AuthDialog } = await import('../collab/AuthDialog');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+    authMocks.fetchToken.mockRejectedValueOnce({ code: 'missing_token' });
+
+    render(
+      <AuthDialog
+        isOpen
+        onLogin={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unirse' }));
+
+    expect(await screen.findByText('La respuesta de autenticacion no incluyo token')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ApiError, apiGet, apiPost } from '../api/client';
-import { clearToken, fetchToken, getAuthUser, initAuth, setAuthSession } from '../collab/auth';
+import { clearToken, fetchToken, getAuthUser, initAuth, isAuthTokenError, setAuthSession } from '../collab/auth';
 
 const apiMocks = vi.hoisted(() => {
   class MockApiError extends Error {
@@ -81,7 +83,34 @@ describe('collab/auth', () => {
   it('rejects token responses missing required fields', async () => {
     vi.mocked(apiPost).mockResolvedValueOnce({ name: 'Mika' });
 
-    await expect(fetchToken('Mika')).rejects.toThrow('Auth response missing token');
+    await expect(fetchToken('Mika')).rejects.toMatchObject({ code: 'missing_token' });
+  });
+
+  it('rejects API token failures with structured auth error context', async () => {
+    vi.mocked(apiPost).mockRejectedValueOnce(new ApiError('unauthorized', 401, 'Unauthorized', 'invalid'));
+
+    await expect(fetchToken('Mika')).rejects.toMatchObject({
+      code: 'api_failed',
+      status: 401,
+      body: 'invalid',
+    });
+  });
+
+  it('detects structured auth token failures', () => {
+    expect(isAuthTokenError({ code: 'missing_token' })).toBe(true);
+    expect(isAuthTokenError({ code: 'api_failed', status: 401 })).toBe(true);
+    expect(isAuthTokenError(new Error('Auth failed'))).toBe(false);
+  });
+
+  it('keeps auth token fallback errors out of low-level English messages', () => {
+    const source = readFileSync(resolve(__dirname, '../collab/auth.ts'), 'utf8');
+
+    [
+      'Auth failed',
+      'Auth response missing token',
+    ].forEach(text => {
+      expect(source).not.toContain(text);
+    });
   });
 
   it('clears invalid stored tokens when auth validation returns an API error', async () => {

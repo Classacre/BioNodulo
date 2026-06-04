@@ -420,6 +420,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Audit log title, export action, summaries, filters, loading/empty states, table headers, pagination labels, and common action/target labels now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Collaboration user list title, close affordance, empty state, role chips, current-user suffix, workflow fallback, access menu, and role-change/remove errors now read from `collab` / `common` i18n keys with Spanish unit coverage.
 - Collaboration auth dialog title, helper copy, display-name controls, join/guest actions, secure-session hint, and fallback errors now read from `collab` i18n keys with Spanish unit coverage.
+- Collaboration token failures now use structured auth errors and render API/missing-token fallback messages from `collab` i18n keys in the auth dialog with Spanish coverage.
 - Follow-user control titles, followed-user copy, active-user heading/empty state, activity labels, and follow/unfollow actions now read from `collab` i18n keys with Spanish unit coverage.
 - App-level collaboration create-link, join-link, leave-session, connected-role, invalid-link, and workflow-fallback copy now reads from `collab` i18n keys with Spanish helper coverage and an App wiring guard.
 - App-level shared-template save unavailable alert, success toast, and fallback error now read from `collab` i18n keys with Spanish helper coverage and an App wiring guard.

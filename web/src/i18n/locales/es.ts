@@ -1102,6 +1102,8 @@ const es = {
     authSecureTokenHint: 'Tu sesion esta autenticada con un token seguro.',
     authJoinError: 'No se pudo unir',
     authGuestJoinError: 'No se pudo unir como invitado',
+    authFailedWithStatus: 'No se pudo autenticar ({{status}}): {{body}}',
+    authResponseMissingToken: 'La respuesta de autenticacion no incluyo token',
     connectionForbidden: 'Acceso denegado',
     connectionUnauthorized: 'No autorizado',
     connectionError: 'Error de conexion WebSocket',

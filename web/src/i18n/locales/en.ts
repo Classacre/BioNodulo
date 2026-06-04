@@ -1102,6 +1102,8 @@ const en = {
     authSecureTokenHint: 'Your session is authenticated with a secure token.',
     authJoinError: 'Failed to join',
     authGuestJoinError: 'Failed to join as guest',
+    authFailedWithStatus: 'Auth failed ({{status}}): {{body}}',
+    authResponseMissingToken: 'Auth response missing token',
     connectionForbidden: 'Forbidden',
     connectionUnauthorized: 'Unauthorized',
     connectionError: 'WebSocket connection error',

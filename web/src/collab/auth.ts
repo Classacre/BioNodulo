@@ -24,6 +24,16 @@ interface AuthMeResponse {
   name?: string;
 }
 
+export type AuthTokenError =
+  | { code: 'api_failed'; status: number; statusText: string; body: string }
+  | { code: 'missing_token' };
+
+export function isAuthTokenError(err: unknown): err is AuthTokenError {
+  if (!err || typeof err !== 'object' || !('code' in err)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === 'api_failed' || code === 'missing_token';
+}
+
 /** Fetch a new JWT token from the auth endpoint */
 export async function fetchToken(name: string): Promise<AuthSession> {
   let data: AuthTokenResponse;
@@ -31,13 +41,13 @@ export async function fetchToken(name: string): Promise<AuthSession> {
     data = await apiPost<AuthTokenResponse>('/auth/token', { name }, { anonymous: true });
   } catch (err) {
     if (err instanceof ApiError) {
-      const body = typeof err.body === 'string' ? err.body : JSON.stringify(err.body ?? 'Unknown error');
-      throw new Error(`Auth failed (${err.status}): ${body}`);
+      const body = typeof err.body === 'string' ? err.body : JSON.stringify(err.body ?? null);
+      throw { code: 'api_failed', status: err.status, statusText: err.statusText, body } satisfies AuthTokenError;
     }
     throw err;
   }
   if (!data.token || !data.user_id) {
-    throw new Error('Auth response missing token');
+    throw { code: 'missing_token' } satisfies AuthTokenError;
   }
   return {
     token: data.token,
