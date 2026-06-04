@@ -246,7 +246,9 @@ def _build_nextflow_script(
         "iqtree": f"iqtree -s {q_in} -pre {q_out}",
     }
 
-    return templates.get(node_type, f"# TODO: implement command for {node_type}\necho \'Running {node_type}\'")
+    if node_type not in templates:
+        raise ValueError(f"Cannot export unsupported node type '{node_type}' to NextFlow")
+    return templates[node_type]
 
 
 def _parse_processes(content: str) -> list[dict[str, Any]]:
