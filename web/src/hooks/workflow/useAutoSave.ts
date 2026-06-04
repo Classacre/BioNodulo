@@ -5,9 +5,9 @@
 // last auto-save timestamp for display in the UI.
 
 import { useEffect, useState, useRef } from 'react';
-import type { Workflow } from '../types';
-import { renderRecentThumbnail } from '../utils/workflowThumbnail';
-import { refreshRecentThumbnail } from '../state/recentWorkflows';
+import type { Workflow } from '../../types';
+import { renderRecentThumbnail } from '../../utils/workflowThumbnail';
+import { refreshRecentThumbnail } from '../../state/recentWorkflows';
 
 const AUTO_SAVE_LAST_KEY = 'bionodulo.autoSave.last';
 

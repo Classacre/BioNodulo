@@ -378,6 +378,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - ForEach loop body subgraphs now honor inactive branch outputs, so conditional routing inside loops skips inactive body branches per iteration.
 - Workflow LLM backend calls now retry transient provider errors and return a normalized `LLMResponse.error` after exhausted attempts; `llm_prompt` includes that provider error in metadata instead of hiding it behind an empty response.
 - API-backed nodes now have shared HTTP primitives for retries, 429 `Retry-After`, optional GET/HEAD caching, and token-bucket rate limiting; `http_request` delegates through the shared client while preserving its existing helper interface.
+- App-owned workflow hooks now live under `web/src/hooks/workflow/` with a category barrel for auto-save, queue-mode, and workflow WebSocket message effects; shared UI/settings hooks remain in the top-level hook folder.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---
@@ -387,8 +388,8 @@ Bundles the remaining outstanding sections from the implementation review into o
 Items from the gap analysis that haven't landed yet:
 
 - #6 UI primitives library (Radix UI) — large scope.
-- #12 i18n string externalisation.
-- #15 ESLint + Prettier setup.
+- #12 i18n string externalisation — partial: infrastructure/dictionaries exist; migrate remaining hard-coded UI strings surface by surface.
+- #15 ESLint + Prettier setup — DONE in Wave O.§5.
 - #19 Strict TS checks (`noUnusedLocals`, `verbatimModuleSyntax`).
 - #49 Extension/plugin system — large scope.
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).

@@ -7,9 +7,9 @@
 // API fetch on queue_finish), so this stays a hook rather than a pure reducer.
 
 import { useEffect } from 'react';
-import { apiGet } from '../api/client';
-import { toast } from '../components/ui';
-import type { LogEntry, RunRecord, NodeStatus } from '../types';
+import { apiGet } from '../../api/client';
+import { toast } from '../../components/ui';
+import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 
 export interface UseWorkflowMessagesArgs {
   onMessage: (handler: (msg: unknown) => void) => () => void;

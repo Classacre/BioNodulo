@@ -9,7 +9,7 @@
 // that drives them.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { WorkflowNode, RunRecord } from '../types';
+import type { WorkflowNode, RunRecord } from '../../types';
 
 export type QueueMode = 'manual' | 'change' | 'instant';
 
