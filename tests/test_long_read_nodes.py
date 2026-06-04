@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -513,6 +515,97 @@ def test_dorado_basecaller_plans_bam_output() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == ["/tmp/run/dorado_basecaller/basecalled_bam.bam"]
+
+
+def test_dorado_correct_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["dorado_correct"]
+    assert node_info["display_name"] == "Dorado Correct"
+    assert node_info["category"] == "long_read"
+    assert node_info["description"].startswith("Correct ONT reads with Dorado HERRO")
+    assert node_info["output"] == ["FASTQ"]
+    assert node_info["output_name"] == ["corrected_reads"]
+    assert node_info["required_executables"] == ["dorado"]
+    assert node_info["required_conda_packages"] == ["dorado"]
+    assert node_info["experimental"] is True
+    assert "herro" in node_info["search_aliases"]
+    assert "read correction" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"reads", "threads"}
+    assert set(inputs["optional"]) == {"device"}
+
+
+def test_dorado_correct_renders_herro_command() -> None:
+    node_class = _node_class("dorado_correct")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq",
+        "threads": 8,
+        "device": "cuda:0",
+        "output": "/tmp/run/dorado_correct",
+    })
+
+    assert cmd == [
+        "dorado",
+        "correct",
+        "-t",
+        "8",
+        "--device",
+        "cuda:0",
+        "reads.fastq",
+        ">",
+        "/tmp/run/dorado_correct/corrected_reads.fastq",
+    ]
+
+
+def test_dorado_correct_omits_empty_optional_flags() -> None:
+    node_class = _node_class("dorado_correct")
+
+    cmd = node_class.render_command({
+        "reads": "reads.fastq.gz",
+        "threads": 4,
+        "device": "",
+        "output": "/tmp/run/dorado_correct",
+    })
+
+    assert "--device" not in cmd
+    assert cmd == [
+        "dorado",
+        "correct",
+        "-t",
+        "4",
+        "reads.fastq.gz",
+        ">",
+        "/tmp/run/dorado_correct/corrected_reads.fastq",
+    ]
+
+
+def test_dorado_correct_plans_corrected_fastq_output() -> None:
+    node_class = _node_class("dorado_correct")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/dorado_correct/corrected_reads.fastq"]
+
+
+def test_dorado_correct_validation_rejects_empty_reads_and_invalid_threads() -> None:
+    node_class = _node_class("dorado_correct")
+
+    assert node_class.VALIDATE_INPUTS({"reads": "", "threads": 4}) == "reads is required."
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "threads": 0}) == "threads must be at least 1."
+
+
+def test_dorado_correct_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["dorado"] == "dorado"
+    assert PACKAGE_MIN_VERSIONS["dorado"] == ">=0.9.6"
+    assert workflow_to_packages({"nodes": [{"id": "correct", "type": "dorado_correct"}]}, registry) == ["dorado"]
 
 
 def test_dorado_demux_is_registered_for_frontend_discovery() -> None:

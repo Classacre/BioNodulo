@@ -318,6 +318,73 @@ class DoradoBasecallerNode(CommandNode):
         }
 
 
+class DoradoCorrectNode(CommandNode):
+    """Correct Oxford Nanopore reads with Dorado HERRO."""
+    NODE_ID = "dorado_correct"
+    DISPLAY_NAME = "Dorado Correct"
+    CATEGORY = "long_read"
+    DESCRIPTION = "Correct ONT reads with Dorado HERRO neural-network read correction."
+    SEARCH_ALIASES = ["dorado", "correct", "herro", "read correction", "nanopore", "ont"]
+    RETURN_TYPES = ("FASTQ",)
+    RETURN_NAMES = ("corrected_reads",)
+    REQUIRED_EXECUTABLES = ["dorado"]
+    REQUIRED_CONDA_PACKAGES = ["dorado"]
+    DOCUMENTATION_URL = "https://software-docs.nanoporetech.com/dorado/latest/secondary/correct/"
+    VERSION = "0.9.6"
+    SHELL = True
+    EXPERIMENTAL = True
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out_dir = Path(output_dir) / cls.NODE_ID
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return [out_dir / "corrected_reads.fastq"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not str(inputs.get("reads", "") or "").strip():
+            return "reads is required."
+        if int(inputs.get("threads", 0) or 0) < 1:
+            return "threads must be at least 1."
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = inputs.get("output", ".")
+        cmd = [
+            "dorado",
+            "correct",
+            "-t",
+            str(inputs.get("threads", 4)),
+        ]
+        if inputs.get("device"):
+            cmd.extend(["--device", str(inputs["device"])])
+        cmd.extend([
+            str(inputs.get("reads", "")),
+            ">",
+            f"{out_dir}/corrected_reads.fastq",
+        ])
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("FASTQ", {"description": "Input ONT reads in FASTQ/FASTQ.GZ format"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "optional": {
+                "device": ("STRING", {"default": "", "description": "Dorado device, e.g. cuda:0, cuda:all, cpu"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class DoradoDemuxNode(CommandNode):
     """Demultiplex Oxford Nanopore reads by barcode with Dorado."""
 
