@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from bionodulo.converter.cwl_converter import export_to_cwl
+from bionodulo.converter.galaxy_converter import export_to_galaxy
 from bionodulo.converter.nextflow_converter import export_to_nextflow
 from bionodulo.converter.snakemake_converter import export_to_snakemake
 from bionodulo.workflow.export import export_workflow
@@ -48,3 +50,13 @@ def test_snakemake_export_rejects_unsupported_node_types_instead_of_placeholder_
 def test_nextflow_export_rejects_unsupported_node_types_instead_of_placeholder_commands() -> None:
     with pytest.raises(ValueError, match="Cannot export unsupported node type 'custom_python' to NextFlow"):
         export_to_nextflow(_workflow("custom_python"))
+
+
+def test_cwl_export_rejects_unsupported_node_types_instead_of_placeholder_commands() -> None:
+    with pytest.raises(ValueError, match="Cannot export unsupported node type 'custom_python' to CWL"):
+        export_to_cwl(_workflow("custom_python"))
+
+
+def test_galaxy_export_rejects_unsupported_node_types_instead_of_placeholder_tools() -> None:
+    with pytest.raises(ValueError, match="Cannot export unsupported node type 'custom_python' to Galaxy"):
+        export_to_galaxy(_workflow("custom_python"))

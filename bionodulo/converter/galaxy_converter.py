@@ -242,7 +242,9 @@ def _node_type_to_galaxy_tool(node_type: str) -> str:
         "kraken2": "toolshed.g2.bx.psu.edu/repos/iuc/kraken2/kraken2/2.1.2+galaxy0",
         "iqtree": "toolshed.g2.bx.psu.edu/repos/iuc/iqtree/iqtree/2.2.2.7+galaxy0",
     }
-    return mapping.get(node_type, "toolshed.g2.bx.psu.edu/repos/devteam/custom_blast/custom_blast/1.0")
+    if node_type not in mapping:
+        raise ValueError(f"Cannot export unsupported node type '{node_type}' to Galaxy")
+    return mapping[node_type]
 
 
 def _galaxy_tool_to_node_type(tool_id: str) -> str:

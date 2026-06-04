@@ -278,7 +278,9 @@ def _cwl_base_command(node_type: str, widgets: dict[str, Any]) -> list[str]:
         "featurecounts": ["featureCounts"],
         "kraken2": ["kraken2"], "iqtree": ["iqtree"],
     }
-    return cmd_map.get(node_type, ["echo", "Unknown tool: " + node_type])
+    if node_type not in cmd_map:
+        raise ValueError(f"Cannot export unsupported node type '{node_type}' to CWL")
+    return cmd_map[node_type]
 
 
 def _cwl_tool_to_node_type(tool_def: dict[str, Any]) -> str:
