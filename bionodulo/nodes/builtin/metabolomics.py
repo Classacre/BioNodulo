@@ -46,8 +46,8 @@ class XCMSPeakDetectionNode(CommandNode):
     RETURN_TYPES = ("TSV", "FILE", "JSON")
     RETURN_NAMES = ("feature_table", "xcms_object", "summary")
     REQUIRED_EXECUTABLES = ["Rscript"]
-    REQUIRED_CONDA_PACKAGES = ["r-base", "bioconductor-xcms", "r-jsonlite", "r-readr"]
-    REQUIRED_R_PACKAGES = ["xcms", "jsonlite", "readr"]
+    REQUIRED_CONDA_PACKAGES = ["r-base", "bioconductor-xcms", "bioconductor-biocparallel", "r-jsonlite", "r-readr"]
+    REQUIRED_R_PACKAGES = ["xcms", "jsonlite", "readr", "BiocParallel"]
     DOCUMENTATION_URL = "https://bioconductor.org/packages/xcms/"
     VERSION = "3.20"
     SHELL = True
@@ -139,6 +139,131 @@ class XCMSPeakDetectionNode(CommandNode):
                 "prefilter_k": ("INT", {"default": 3, "min": 0}),
                 "prefilter_i": ("FLOAT", {"default": 100.0, "min": 0.0}),
                 "noise": ("FLOAT", {"default": 0.0, "min": 0.0}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class XCMSRetentionCorrectionNode(CommandNode):
+    """Correct retention time, align, and fill XCMS chromatographic peaks."""
+
+    NODE_ID = "xcms_retention_correction"
+    DISPLAY_NAME = "XCMS Retention Time Correction"
+    CATEGORY = "metabolomics"
+    DESCRIPTION = "Correct retention time, align grouped peaks, and fill missing LC-MS features with XCMS."
+    SEARCH_ALIASES = ["xcms", "metabolomics", "retention time", "obiwarp", "alignment", "fill peaks"]
+    RETURN_TYPES = ("TSV", "FILE", "JSON")
+    RETURN_NAMES = ("aligned_feature_table", "aligned_xcms_object", "summary")
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_CONDA_PACKAGES = [
+        "r-base",
+        "bioconductor-xcms",
+        "bioconductor-biocparallel",
+        "r-jsonlite",
+        "r-readr",
+    ]
+    REQUIRED_R_PACKAGES = ["xcms", "BiocParallel", "jsonlite", "readr"]
+    DOCUMENTATION_URL = "https://bioconductor.org/packages/xcms/"
+    VERSION = "3.20"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        script_file = out_dir / "xcms_retention_correction.R"
+        xcms_object = str(inputs.get("xcms_object", ""))
+        stem = _safe_output_stem(inputs.get("output_name"), _safe_output_stem(xcms_object, "xcms"))
+        feature_table = out_dir / f"{stem}.aligned_feature_table.tsv"
+        aligned_object = out_dir / f"{stem}.aligned.xcms.rds"
+        summary_json = out_dir / f"{stem}.alignment.summary.json"
+        sample_groups = _split_path_list(inputs.get("sample_groups"))
+        sample_groups_r = _r_string_vector(sample_groups)
+
+        if str(inputs.get("method", "obiwarp") or "obiwarp") != "obiwarp":
+            msg = "XCMS retention correction currently supports only method='obiwarp'."
+            raise ValueError(msg)
+
+        sample_group_block = (
+            f"sample_groups <- {sample_groups_r}\n"
+            '            if (length(sample_groups) != length(fileNames(xdata))) stop("sample_groups length must match the number of samples.")'
+            if sample_groups
+            else "sample_groups <- rep(1L, length(fileNames(xdata)))"
+        )
+
+        script = textwrap.dedent(f"""\
+            if (!requireNamespace("xcms", quietly = TRUE)) stop("Package 'xcms' is required but not installed.")
+            if (!requireNamespace("BiocParallel", quietly = TRUE)) stop("Package 'BiocParallel' is required but not installed.")
+            if (!requireNamespace("jsonlite", quietly = TRUE)) stop("Package 'jsonlite' is required but not installed.")
+            if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed.")
+            library("xcms")
+            library("BiocParallel")
+            library("jsonlite")
+            library("readr")
+
+            xdata <- readRDS("{xcms_object}")
+            {sample_group_block}
+
+            adjust_param <- ObiwarpParam(binSize = {inputs.get("bin_size", 1.0)})
+            xdata <- adjustRtime(xdata, param = adjust_param, BPPARAM = MulticoreParam(workers = {inputs.get("threads", 1)}))
+            group_param <- PeakDensityParam(sampleGroups = sample_groups, bw = {inputs.get("bw", 5.0)}, minFraction = {inputs.get("min_fraction", 0.5)})
+            xdata <- groupChromPeaks(xdata, param = group_param)
+            xdata <- fillChromPeaks(xdata, BPPARAM = MulticoreParam(workers = {inputs.get("threads", 1)}))
+            feature_values <- featureValues(xdata, value = "into")
+            chrom_peaks <- as.data.frame(chromPeaks(xdata))
+
+            feature_table <- data.frame(feature_id = rownames(feature_values), feature_values, check.names = FALSE)
+            write_tsv(feature_table, "{feature_table.as_posix()}")
+            saveRDS(xdata, "{aligned_object.as_posix()}")
+
+            summary <- list(
+                input_xcms_object = "{xcms_object}",
+                sample_count = length(fileNames(xdata)),
+                peak_count = nrow(chrom_peaks),
+                feature_count = nrow(feature_values),
+                method = "obiwarp",
+                bin_size = {inputs.get("bin_size", 1.0)},
+                bw = {inputs.get("bw", 5.0)},
+                min_fraction = {inputs.get("min_fraction", 0.5)},
+                sample_groups = sample_groups,
+                aligned_feature_table = "{feature_table.as_posix()}",
+                aligned_xcms_object = "{aligned_object.as_posix()}"
+            )
+            write_json(summary, "{summary_json.as_posix()}", pretty = TRUE, auto_unbox = TRUE)
+        """)
+        script_file.write_text(script, encoding="utf-8")
+        return ["Rscript", str(script_file)]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        stem = _safe_output_stem(inputs.get("output_name"), _safe_output_stem(inputs.get("xcms_object"), "xcms"))
+        return [
+            node_out / f"{stem}.aligned_feature_table.tsv",
+            node_out / f"{stem}.aligned.xcms.rds",
+            node_out / f"{stem}.alignment.summary.json",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "xcms_object": ("FILE", {"description": "XCMS object RDS from XCMS Peak Detection"}),
+            },
+            "optional": {
+                "method": ("STRING", {"default": "obiwarp", "options": ["obiwarp"]}),
+                "bin_size": ("FLOAT", {"default": 1.0, "min": 0.0, "description": "Obiwarp bin size"}),
+                "bw": ("FLOAT", {"default": 5.0, "min": 0.0, "description": "Peak density bandwidth"}),
+                "min_fraction": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0}),
+                "sample_groups": (
+                    "STRING",
+                    {"default": "", "description": "Optional comma/newline sample group labels matching input samples"},
+                ),
                 "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
                 "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
             },

@@ -30,8 +30,14 @@ def test_xcms_peak_detection_is_registered_for_frontend_discovery() -> None:
     assert node_info["output"] == ["TSV", "FILE", "JSON"]
     assert node_info["output_name"] == ["feature_table", "xcms_object", "summary"]
     assert node_info["required_executables"] == ["Rscript"]
-    assert node_info["required_conda_packages"] == ["r-base", "bioconductor-xcms", "r-jsonlite", "r-readr"]
-    assert node_info["required_r_packages"] == ["xcms", "jsonlite", "readr"]
+    assert node_info["required_conda_packages"] == [
+        "r-base",
+        "bioconductor-xcms",
+        "bioconductor-biocparallel",
+        "r-jsonlite",
+        "r-readr",
+    ]
+    assert node_info["required_r_packages"] == ["xcms", "jsonlite", "readr", "BiocParallel"]
     assert "metabolomics" in node_info["search_aliases"]
     assert "centwave" in node_info["search_aliases"]
     assert "lc-ms" in node_info["search_aliases"]
@@ -128,8 +134,124 @@ def test_xcms_peak_detection_plans_outputs() -> None:
 def test_xcms_peak_detection_environment_metadata_is_declared() -> None:
     assert R_PACKAGE_TO_CONDA_PACKAGE["xcms"] == "bioconductor-xcms"
     assert R_PACKAGE_TO_CONDA_PACKAGE["jsonlite"] == "r-jsonlite"
+    assert R_PACKAGE_TO_CONDA_PACKAGE["BiocParallel"] == "bioconductor-biocparallel"
     assert PACKAGE_MIN_VERSIONS["bioconductor-xcms"] == ">=3.20"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == ">=1.34"
     assert PACKAGE_MIN_VERSIONS["r-jsonlite"] == ">=1.8"
+
+
+def test_xcms_retention_correction_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["xcms_retention_correction"]
+    assert node_info["display_name"] == "XCMS Retention Time Correction"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Correct retention time")
+    assert node_info["output"] == ["TSV", "FILE", "JSON"]
+    assert node_info["output_name"] == ["aligned_feature_table", "aligned_xcms_object", "summary"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == [
+        "r-base",
+        "bioconductor-xcms",
+        "bioconductor-biocparallel",
+        "r-jsonlite",
+        "r-readr",
+    ]
+    assert node_info["required_r_packages"] == ["xcms", "BiocParallel", "jsonlite", "readr"]
+    assert "retention time" in node_info["search_aliases"]
+    assert "obiwarp" in node_info["search_aliases"]
+    assert "alignment" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"xcms_object"}
+    assert set(inputs["optional"]) == {
+        "method",
+        "bin_size",
+        "bw",
+        "min_fraction",
+        "sample_groups",
+        "threads",
+        "output_name",
+    }
+
+
+def test_xcms_retention_correction_writes_r_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("xcms_retention_correction")
+    output_dir = tmp_path / "xcms_retention_correction"
+
+    cmd = node_class.render_command({
+        "xcms_object": "/data/study.xcms.rds",
+        "method": "obiwarp",
+        "bin_size": 0.5,
+        "bw": 4,
+        "min_fraction": 0.75,
+        "sample_groups": "case,control",
+        "threads": 4,
+        "output_name": "aligned study",
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "xcms_retention_correction.R"
+    assert cmd == ["Rscript", str(script_file)]
+    script = script_file.read_text()
+    assert 'library("xcms")' in script
+    assert 'library("BiocParallel")' in script
+    assert 'library("jsonlite")' in script
+    assert 'library("readr")' in script
+    assert 'xdata <- readRDS("/data/study.xcms.rds")' in script
+    assert 'sample_groups <- c("case", "control")' in script
+    assert 'adjust_param <- ObiwarpParam(binSize = 0.5)' in script
+    assert "xdata <- adjustRtime(xdata, param = adjust_param, BPPARAM = MulticoreParam(workers = 4))" in script
+    assert "group_param <- PeakDensityParam(sampleGroups = sample_groups, bw = 4, minFraction = 0.75)" in script
+    assert "xdata <- groupChromPeaks(xdata, param = group_param)" in script
+    assert "groupChromPeaks(xdata, param = group_param, BPPARAM" not in script
+    assert "xdata <- fillChromPeaks(xdata, BPPARAM = MulticoreParam(workers = 4))" in script
+    assert "feature_values <- featureValues(xdata, value = \"into\")" in script
+    assert f'write_tsv(feature_table, "{output_dir}/aligned_study.aligned_feature_table.tsv")' in script
+    assert f'saveRDS(xdata, "{output_dir}/aligned_study.aligned.xcms.rds")' in script
+    assert f'write_json(summary, "{output_dir}/aligned_study.alignment.summary.json", pretty = TRUE, auto_unbox = TRUE)' in script
+
+
+def test_xcms_retention_correction_defaults_to_single_group_and_input_stem(tmp_path: Path) -> None:
+    node_class = _node_class("xcms_retention_correction")
+    output_dir = tmp_path / "xcms_retention_correction"
+
+    cmd = node_class.render_command({
+        "xcms_object": "/data/study.xcms.rds",
+        "output_name": "",
+        "output": str(output_dir),
+    })
+
+    assert cmd == ["Rscript", str(output_dir / "xcms_retention_correction.R")]
+    script = (output_dir / "xcms_retention_correction.R").read_text()
+    assert 'sample_groups <- rep(1L, length(fileNames(xdata)))' in script
+    assert "adjust_param <- ObiwarpParam(binSize = 1.0)" in script
+    assert "group_param <- PeakDensityParam(sampleGroups = sample_groups, bw = 5.0, minFraction = 0.5)" in script
+    assert "MulticoreParam(workers = 1)" in script
+    assert f'write_tsv(feature_table, "{output_dir}/study.aligned_feature_table.tsv")' in script
+    assert f'saveRDS(xdata, "{output_dir}/study.aligned.xcms.rds")' in script
+
+
+def test_xcms_retention_correction_plans_outputs() -> None:
+    node_class = _node_class("xcms_retention_correction")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"xcms_object": "input.xcms.rds", "output_name": "study one"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/xcms_retention_correction/study_one.aligned_feature_table.tsv",
+        "/tmp/run/xcms_retention_correction/study_one.aligned.xcms.rds",
+        "/tmp/run/xcms_retention_correction/study_one.alignment.summary.json",
+    ]
+
+
+def test_xcms_retention_correction_environment_metadata_is_declared() -> None:
+    assert R_PACKAGE_TO_CONDA_PACKAGE["BiocParallel"] == "bioconductor-biocparallel"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == ">=1.34"
 
 
 def test_sirius_formula_id_is_registered_for_frontend_discovery() -> None:
