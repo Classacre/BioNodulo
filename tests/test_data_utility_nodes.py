@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -306,6 +307,173 @@ async def test_format_converter_converts_json_records_to_tsv(tmp_path: Path) -> 
         {"sample": "S1", "depth": "12", "status": ""},
         {"sample": "S2", "depth": "", "status": "pass"},
     ]
+
+
+def test_format_converter_advertises_bio_conversion_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node_info = registry.object_info()["format_converter"]
+
+    assert node_info["category"] == "data_transform"
+    assert node_info["requires_external_tools"] is True
+    assert node_info["required_executables"] == ["samtools", "bcftools", "gffread", "seqtk"]
+    assert node_info["required_conda_packages"] == ["samtools", "bcftools", "gffread", "seqtk"]
+    assert "bam to cram" in node_info["search_aliases"]
+    assert "fastq to fasta" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert inputs["required"]["input_file"][0] == "STRING"
+    assert set(inputs["required"]["output_format"][1]["options"]) == {
+        "csv",
+        "tsv",
+        "json",
+        "SAM",
+        "BAM",
+        "CRAM",
+        "VCF",
+        "VCF_GZ",
+        "BCF",
+        "GFF",
+        "GTF",
+        "FASTQ",
+        "FASTA",
+    }
+    assert set(inputs["optional"]) == {"input_format", "reference", "compression_level", "threads", "output_name"}
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["converted_file"]
+
+
+def test_format_converter_plans_bio_output_extension() -> None:
+    node_class = _node_class("format_converter")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"input_file": "sample.bam", "output_format": "CRAM", "output_name": "archive copy"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == ["/tmp/run/format_converter/archive_copy.cram"]
+
+
+def test_format_converter_renders_samtools_cram_command() -> None:
+    node_class = _node_class("format_converter")
+
+    cmd = node_class.render_command({
+        "input_file": "sample.bam",
+        "output_format": "CRAM",
+        "reference": "GRCh38.fa",
+        "compression_level": 7,
+        "threads": 4,
+        "output": "/tmp/run/format_converter",
+    })
+
+    assert cmd == [
+        "samtools",
+        "view",
+        "-@",
+        "4",
+        "-C",
+        "-l",
+        "7",
+        "-T",
+        "GRCh38.fa",
+        "-o",
+        "/tmp/run/format_converter/sample.to_cram.cram",
+        "sample.bam",
+    ]
+
+
+def test_format_converter_renders_bcftools_bcf_command() -> None:
+    node_class = _node_class("format_converter")
+
+    cmd = node_class.render_command({
+        "input_file": "cohort.vcf.gz",
+        "output_format": "BCF",
+        "threads": 2,
+        "output": "/tmp/run/format_converter",
+    })
+
+    assert cmd == [
+        "bcftools",
+        "view",
+        "--threads",
+        "2",
+        "-Ob",
+        "-o",
+        "/tmp/run/format_converter/cohort.to_bcf.bcf",
+        "cohort.vcf.gz",
+    ]
+
+
+def test_format_converter_renders_gffread_and_seqtk_commands() -> None:
+    node_class = _node_class("format_converter")
+
+    gtf_cmd = node_class.render_command({
+        "input_file": "genes.gff3",
+        "output_format": "GTF",
+        "output": "/tmp/run/format_converter",
+    })
+    fasta_cmd = node_class.render_command({
+        "input_file": "reads.fastq.gz",
+        "output_format": "FASTA",
+        "output": "/tmp/run/format_converter",
+    })
+
+    assert gtf_cmd == [
+        "gffread",
+        "genes.gff3",
+        "-T",
+        "-o",
+        "/tmp/run/format_converter/genes.to_gtf.gtf",
+    ]
+    assert fasta_cmd == [
+        "seqtk",
+        "seq",
+        "-A",
+        "reads.fastq.gz",
+        ">",
+        "/tmp/run/format_converter/reads.to_fasta.fasta",
+    ]
+
+
+def test_format_converter_rejects_unsupported_bio_conversion() -> None:
+    node_class = _node_class("format_converter")
+
+    assert node_class.VALIDATE_INPUTS({
+        "input_file": "reads.fastq.gz",
+        "output_format": "BAM",
+    }) == "Cannot convert FASTQ to BAM with format_converter"
+
+
+def test_format_converter_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["gffread"] == "gffread"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["seqtk"] == "seqtk"
+    assert PACKAGE_MIN_VERSIONS["gffread"] == ">=0.12.7"
+    assert PACKAGE_MIN_VERSIONS["seqtk"] == ">=1.4"
+
+
+@pytest.mark.asyncio
+async def test_format_converter_runs_bio_command_from_base_node_dir(tmp_path: Path) -> None:
+    calls: list[tuple[str | list[str], Path | None]] = []
+
+    class CommandContext(SimpleNamespace):
+        async def run_command(self, cmd: str | list[str], cwd: Path | str | None = None) -> dict[str, Any]:
+            calls.append((cmd, Path(cwd) if cwd is not None else None))
+            return {"returncode": 0, "stderr": ""}
+
+    context = CommandContext(node_dir=tmp_path / "format-run")
+    context.node_dir.mkdir()
+
+    result = await _node_class("format_converter")().run(
+        input_file="reads.fastq.gz",
+        output_format="FASTA",
+        context=context,
+    )
+
+    assert result == (str(context.node_dir / "format_converter" / "reads.to_fasta.fasta"),)
+    assert calls == [(
+        f"seqtk seq -A reads.fastq.gz > {context.node_dir / 'format_converter' / 'reads.to_fasta.fasta'}",
+        context.node_dir,
+    )]
 
 
 def test_transpose_table_is_registered_for_frontend_discovery() -> None:

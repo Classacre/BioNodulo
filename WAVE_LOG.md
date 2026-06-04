@@ -365,6 +365,13 @@ Bundles the remaining outstanding sections from the implementation review into o
 - `InputSpec.description` is typed on the frontend so backend-authored input descriptions from `/api/object_info` are searchable and rendered beside ports.
 - Verification: Vitest coverage for searching node input descriptions and opening node docs, plus a Firefox Playwright smoke using live `objectInfo` (`spectral library` -> DIA-NN -> full docs).
 
+## Current gap closure follow-up — API migration + bio format conversion
+
+- API client migration: `EnvironmentPanel` rename/delete/duplicate/package-remove calls and `useWorkflow` validate/resolve/run/export/import calls now route through `api/client` helpers instead of raw `fetch(appPath(...))`. The migration guard covers both files.
+- Stage 2 data-transform gap audit: the planned data-transform nodes mostly already exist; the concrete high-value gap was `format_converter`, which only handled CSV/TSV/JSON table records.
+- `format_converter` now preserves existing in-process CSV/TSV/JSON conversion while adding bio-format command routing for SAM/BAM/CRAM (`samtools`), VCF/VCF_GZ/BCF (`bcftools`), GFF/GTF (`gffread`), and FASTQ/FASTA (`seqtk`).
+- Environment resolution now knows `gffread` and `seqtk` package/version metadata, and tests cover frontend discovery metadata, output planning, command rendering, unsupported conversion validation, and cwd handling for command execution.
+
 ---
 
 ## Pending / future waves
