@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +30,7 @@ class LLMResponse:
     model: str = ""
     usage: dict[str, Any] = field(default_factory=dict)
     finish_reason: str = ""
+    error: str = ""
     raw_response: Any = None
 
 
@@ -99,6 +101,8 @@ async def call_llm(
     messages: list[dict[str, str]],
     *,
     json_mode: bool = False,
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
 ) -> LLMResponse:
     """Call LiteLLM and normalize the response."""
     if not config.api_key and config.provider not in {"custom", "litellm", "mock"}:
@@ -123,10 +127,28 @@ async def call_llm(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    try:
-        response = await litellm.acompletion(**kwargs)
-    except Exception as exc:
-        raise RuntimeError(f"LLM provider error: {exc}") from exc
+    attempts = max(1, int(max_retries or 1))
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            response = await litellm.acompletion(**kwargs)
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts - 1:
+                return LLMResponse(
+                    content="",
+                    model=config.model,
+                    error=f"LLM provider error after {attempts} attempts: {exc}",
+                )
+            if retry_delay > 0:
+                await asyncio.sleep(float(retry_delay) * (2 ** attempt))
+    else:
+        return LLMResponse(
+            content="",
+            model=config.model,
+            error=f"LLM provider error after {attempts} attempts: {last_error}",
+        )
 
     choices = _obj_get(response, "choices", [])
     if not choices:

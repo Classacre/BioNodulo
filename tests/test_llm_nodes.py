@@ -421,6 +421,28 @@ async def test_llm_prompt_renders_template_and_returns_metadata(monkeypatch: pyt
 
 
 @pytest.mark.asyncio
+async def test_llm_prompt_includes_provider_error_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("llm_prompt")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_call_llm(config: LLMConfig, messages: list[dict[str, str]], *, json_mode: bool = False) -> LLMResponse:
+        return LLMResponse(content="", model=config.model, error="LLM provider error after 2 attempts: timeout")
+
+    monkeypatch.setattr(module, "call_llm", fake_call_llm)
+
+    response, metadata = await node_class().run(
+        prompt="Summarize {{gene}}",
+        variables='{"gene": "TP53"}',
+        provider="mock",
+        model="test-model",
+        api_key="unused",
+    )
+
+    assert response == ""
+    assert metadata["error"] == "LLM provider error after 2 attempts: timeout"
+
+
+@pytest.mark.asyncio
 async def test_llm_decision_parses_allowed_label_and_reports_match(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("llm_decision")
     module = importlib.import_module(node_class.__module__)

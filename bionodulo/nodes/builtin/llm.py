@@ -166,6 +166,8 @@ class LLMPromptNode(BaseNode):
             "json_mode": json_mode,
             "usage": response.usage,
         }
+        if response.error:
+            metadata["error"] = response.error
         parsed = safe_json_parse(response.content)
         if parsed:
             metadata["parsed_json"] = parsed
