@@ -93,34 +93,6 @@ const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
 ];
 
 const CONTENT: Partial<Record<WikiPage, string>> = {
-  'workflow-converters': `
-<h3>Workflow Converters</h3>
-<p>Import and export workflows between BioNodulo and other workflow formats.</p>
-
-<h4>Supported Formats</h4>
-<table>
-<tr><th>Format</th><th>Extension</th><th>Import</th><th>Export</th></tr>
-<tr><td>SnakeMake</td><td>.smk / Snakefile</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>NextFlow</td><td>.nf / main.nf</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>CWL</td><td>.cwl</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>Galaxy</td><td>.ga</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>JSON</td><td>.json</td><td>Yes</td><td>Yes</td></tr>
-</table>
-
-<h4>Exporting</h4>
-<p>Click the Export button in the top bar, select the target format, and download the generated file. For SnakeMake and NextFlow, BioNodulo generates rules/processes for each node with proper input/output connections.</p>
-
-<h4>Importing</h4>
-<p>Click the Import button, paste the workflow code or upload a file, and BioNodulo will convert it to a node graph. Recognized tools are mapped to built-in nodes; unrecognized steps become Generic Command nodes.</p>
-
-<h4>Limitations</h4>
-<ul>
-<li>Complex control flow (loops, conditionals) may be simplified</li>
-<li>Custom scripts may become Generic Command nodes</li>
-<li>Container directives are converted to environment specs</li>
-</ul>
-`,
-
   'keyboard-shortcuts': `
 <h3>Keyboard Shortcuts</h3>
 <table>
@@ -160,6 +132,7 @@ const CONTENT_KEYS: Partial<Record<WikiPage, string>> = {
   'templates-guide': 'helpWiki.content.templatesGuide',
   'custom-nodes': 'helpWiki.content.customNodes',
   'hpc-integration': 'helpWiki.content.hpcIntegration',
+  'workflow-converters': 'helpWiki.content.workflowConverters',
 };
 
 function stripHtml(html: string): string {

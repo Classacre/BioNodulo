@@ -1242,6 +1242,33 @@ class MyToolNode(CommandNode):
 <h4>Environment Modules</h4>
 <p>Specify modules to load, for example <code>bioinfo/BWA/0.7.17</code>, in the HPC settings. These are loaded via <code>module load</code> before your workflow runs.</p>
 `,
+      workflowConverters: `
+<h3>Workflow Converters</h3>
+<p>Import and export workflows between BioNodulo and other workflow formats.</p>
+
+<h4>Supported Formats</h4>
+<table>
+<tr><th>Format</th><th>Extension</th><th>Import</th><th>Export</th></tr>
+<tr><td>SnakeMake</td><td><code>.smk</code> / <code>Snakefile</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td>NextFlow</td><td><code>.nf</code> / <code>main.nf</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td>CWL</td><td><code>.cwl</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Galaxy</td><td><code>.ga</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td>JSON</td><td><code>.json</code></td><td>Yes</td><td>Yes</td></tr>
+</table>
+
+<h4>Exporting</h4>
+<p>Click the Export button in the top bar, select the target format, and download the generated file. For SnakeMake and NextFlow, BioNodulo generates rules/processes for each node with proper input/output connections.</p>
+
+<h4>Importing</h4>
+<p>Click the Import button, paste the workflow code or upload a file, and BioNodulo will convert it to a node graph. Recognized tools are mapped to built-in nodes; unrecognized steps become <code>Generic Command</code> nodes.</p>
+
+<h4>Limitations</h4>
+<ul>
+<li>Complex control flow (loops, conditionals) may be simplified</li>
+<li>Custom scripts may become <code>Generic Command</code> nodes</li>
+<li>Container directives are converted to environment specs</li>
+</ul>
+`,
     },
     sections: {
       gettingStarted: 'Getting started',

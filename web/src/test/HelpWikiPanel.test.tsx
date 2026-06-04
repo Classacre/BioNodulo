@@ -397,4 +397,47 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Supported Schedulers');
     expect(source).not.toContain('Environment Modules');
   });
+
+  it('renders workflow-converters article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conversores de workflow' }));
+
+    expect(screen.getByRole('heading', { name: 'Conversores de workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Formatos soportados' })).toBeInTheDocument();
+    expect(screen.getByText(/Importa y exporta workflows/)).toBeInTheDocument();
+    expect(screen.getByText('Snakefile')).toBeInTheDocument();
+    expect(screen.getAllByText('Generic Command').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Workflow Converters')).not.toBeInTheDocument();
+  });
+
+  it('searches workflow-converters article content from the active locale', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'formatos soportados' },
+    });
+
+    expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
+    expect(screen.getByText('Conversores de workflow')).toBeInTheDocument();
+  });
+
+  it('keeps workflow-converters wiki article content behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    expect(source).toContain('helpWiki.content.workflowConverters');
+    expect(source).not.toContain('Import and export workflows');
+    expect(source).not.toContain('Supported Formats');
+    expect(source).not.toContain('Container directives');
+  });
 });
