@@ -45,11 +45,11 @@ interface ChatSession {
 const STORAGE_KEY = 'bionodulo-ai-sessions';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-const QUICK_PROMPTS: { label: string; prompt: string }[] = [
-  { label: 'Summarize my workflow', prompt: 'Use get_workflow_summary and tell me what my current workflow does in 3-4 sentences.' },
-  { label: 'What went wrong?', prompt: 'Use explain_last_failure and tell me why the most recent run failed and how to fix it.' },
-  { label: 'Find missing QC', prompt: 'Look at my workflow and suggest any quality-control steps I might be missing.' },
-  { label: 'Suggest next step', prompt: 'Based on the current workflow, what is the next analysis step I should add?' },
+const QUICK_PROMPTS: { id: string; labelKey: string; promptKey: string }[] = [
+  { id: 'summary', labelKey: 'aiWorkflow.quickPrompts.summary.label', promptKey: 'aiWorkflow.quickPrompts.summary.prompt' },
+  { id: 'failure', labelKey: 'aiWorkflow.quickPrompts.failure.label', promptKey: 'aiWorkflow.quickPrompts.failure.prompt' },
+  { id: 'missingQc', labelKey: 'aiWorkflow.quickPrompts.missingQc.label', promptKey: 'aiWorkflow.quickPrompts.missingQc.prompt' },
+  { id: 'nextStep', labelKey: 'aiWorkflow.quickPrompts.nextStep.label', promptKey: 'aiWorkflow.quickPrompts.nextStep.prompt' },
 ];
 
 function loadSessions(): ChatSession[] {
@@ -540,12 +540,12 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           <div className="ai-quick-prompts">
             {QUICK_PROMPTS.map(qp => (
               <button
-                key={qp.label}
+                key={qp.id}
                 className="ai-quick-prompt"
-                onClick={() => insertQuickPrompt(qp.prompt)}
-                title={qp.prompt}
+                onClick={() => insertQuickPrompt(t(qp.promptKey))}
+                title={t(qp.promptKey)}
               >
-                {qp.label}
+                {t(qp.labelKey)}
               </button>
             ))}
           </div>
@@ -575,7 +575,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           <button
             className="btn btn-icon btn-sm"
             onClick={() => fileInputRef.current?.click()}
-            title="Attach file"
+            title={t('aiWorkflow.input.attachFileTitle')}
           >
             <Icon name="paperclip" size={14} />
           </button>
@@ -594,7 +594,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
             onPaste={handlePaste}
-            placeholder="Ask about workflows... (Paste images directly)"
+            placeholder={t('aiWorkflow.input.placeholder')}
             disabled={sending}
           />
           {sending ? (
@@ -603,7 +603,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             </button>
           ) : (
             <button className="btn btn-primary" onClick={send}>
-              Send
+              {t('aiWorkflow.input.send')}
             </button>
           )}
         </div>

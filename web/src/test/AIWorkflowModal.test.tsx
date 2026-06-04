@@ -78,6 +78,45 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByTitle('Eliminar')).toBeInTheDocument();
   });
 
+  it('renders quick prompts and input controls from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Resumir mi workflow' })).toHaveAttribute(
+      'title',
+      'Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.',
+    );
+    expect(screen.getByRole('button', { name: 'Que fallo?' })).toHaveAttribute(
+      'title',
+      'Usa explain_last_failure y dime por que fallo la ejecucion mas reciente y como solucionarlo.',
+    );
+    expect(screen.getByRole('button', { name: 'Buscar QC faltante' })).toHaveAttribute(
+      'title',
+      'Revisa mi workflow y sugiere pasos de control de calidad que podrian faltar.',
+    );
+    expect(screen.getByRole('button', { name: 'Sugerir siguiente paso' })).toHaveAttribute(
+      'title',
+      'Segun el workflow actual, que siguiente paso de analisis deberia agregar?',
+    );
+    expect(screen.getByTitle('Adjuntar archivo')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resumir mi workflow' }));
+
+    expect(screen.getByDisplayValue('Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.')).toBeInTheDocument();
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -89,6 +128,17 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.sessions.menuTitle',
       'aiWorkflow.sessions.newSession',
       'aiWorkflow.sessions.messageCount',
+      'aiWorkflow.quickPrompts.summary.label',
+      'aiWorkflow.quickPrompts.summary.prompt',
+      'aiWorkflow.quickPrompts.failure.label',
+      'aiWorkflow.quickPrompts.failure.prompt',
+      'aiWorkflow.quickPrompts.missingQc.label',
+      'aiWorkflow.quickPrompts.missingQc.prompt',
+      'aiWorkflow.quickPrompts.nextStep.label',
+      'aiWorkflow.quickPrompts.nextStep.prompt',
+      'aiWorkflow.input.attachFileTitle',
+      'aiWorkflow.input.placeholder',
+      'aiWorkflow.input.send',
       'common.close',
       'common.rename',
       'common.delete',
@@ -105,6 +155,17 @@ describe('AIWorkflowModal i18n', () => {
       'title="Close"',
       'title="Rename"',
       'title="Delete"',
+      'Summarize my workflow',
+      'Use get_workflow_summary and tell me what my current workflow does in 3-4 sentences.',
+      'What went wrong?',
+      'Use explain_last_failure and tell me why the most recent run failed and how to fix it.',
+      'Find missing QC',
+      'Look at my workflow and suggest any quality-control steps I might be missing.',
+      'Suggest next step',
+      'Based on the current workflow, what is the next analysis step I should add?',
+      'title="Attach file"',
+      'placeholder="Ask about workflows... (Paste images directly)"',
+      '>Send<',
     ].forEach(text => expect(source).not.toContain(text));
   });
 });

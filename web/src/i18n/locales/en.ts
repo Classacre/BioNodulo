@@ -334,6 +334,29 @@ const en = {
       messageCount_plural: '{{count}} messages',
       messageCount_other: '{{count}} messages',
     },
+    quickPrompts: {
+      summary: {
+        label: 'Summarize my workflow',
+        prompt: 'Use get_workflow_summary and tell me what my current workflow does in 3-4 sentences.',
+      },
+      failure: {
+        label: 'What went wrong?',
+        prompt: 'Use explain_last_failure and tell me why the most recent run failed and how to fix it.',
+      },
+      missingQc: {
+        label: 'Find missing QC',
+        prompt: 'Look at my workflow and suggest any quality-control steps I might be missing.',
+      },
+      nextStep: {
+        label: 'Suggest next step',
+        prompt: 'Based on the current workflow, what is the next analysis step I should add?',
+      },
+    },
+    input: {
+      attachFileTitle: 'Attach file',
+      placeholder: 'Ask about workflows... (Paste images directly)',
+      send: 'Send',
+    },
   },
   panels: {
     nodeLibrary: 'Node library',
