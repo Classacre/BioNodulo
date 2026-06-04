@@ -83,6 +83,32 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByText('Abrir el panel Ayuda y Wiki')).toBeInTheDocument();
   });
 
+  it('renders getting-started quick-start guidance from the active locale', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <GettingStartedModal
+        onClose={() => undefined}
+        onDontShowAgain={() => undefined}
+        showOnStartup
+      />,
+    );
+
+    const expectFullText = (text: string) => {
+      expect(screen.getByText((_, node) => node?.textContent === text)).toBeInTheDocument();
+    };
+
+    expect(screen.getByText('Inicio rapido')).toBeInTheDocument();
+    expectFullText('Abre el panel Plantillas (Ctrl+3) para cargar un pipeline integrado.');
+    expect(screen.getByText('Haz doble clic en un nodo para configurar sus parametros.')).toBeInTheDocument();
+    expectFullText('Presiona Ctrl+R para validar y ejecutar tu workflow.');
+    expectFullText('Mira los registros en tiempo real en la Consola (Ctrl+`).');
+    expectFullText('Consejo: usa el Asistente de IA (Ctrl+Shift+A) para generar workflows desde descripciones en lenguaje natural.');
+  });
+
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
@@ -93,6 +119,20 @@ describe('GettingStartedModal i18n', () => {
       'gettingStarted.tabs.resources',
       'gettingStarted.welcomeIntro',
       'gettingStarted.welcomeBuildShare',
+      'gettingStarted.quickStartTitle',
+      'gettingStarted.quickStartTemplatesPrefix',
+      'gettingStarted.quickStartTemplatesPanel',
+      'gettingStarted.quickStartTemplatesShortcutPrefix',
+      'gettingStarted.quickStartTemplatesSuffix',
+      'gettingStarted.quickStartConfigureNode',
+      'gettingStarted.quickStartRunPrefix',
+      'gettingStarted.quickStartRunSuffix',
+      'gettingStarted.quickStartConsolePrefix',
+      'gettingStarted.quickStartConsole',
+      'gettingStarted.quickStartConsoleSuffix',
+      'gettingStarted.aiTipPrefix',
+      'gettingStarted.aiAssistant',
+      'gettingStarted.aiTipSuffix',
       'gettingStarted.resources.wikiTitle',
       'gettingStarted.resources.githubDescription',
       'gettingStarted.resources.issueTitle',
@@ -109,6 +149,12 @@ describe('GettingStartedModal i18n', () => {
       '>Getting Started<',
       'Welcome to <strong>BioNodulo</strong>',
       'Build, run, and share reproducible pipelines using a node-based canvas.',
+      '>Quick Start<',
+      'Open the <strong>Templates</strong> panel',
+      'Double-click a node to configure its parameters.',
+      'Press <kbd>Ctrl+R</kbd> to validate and run your workflow.',
+      'Watch real-time logs in the <strong>Console</strong>',
+      'Tip: Use the <strong>AI Assistant</strong>',
       'Wiki & Documentation',
       'Learn how to build workflows and use nodes',
       'GitHub Repository',

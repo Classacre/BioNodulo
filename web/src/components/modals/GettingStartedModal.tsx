@@ -368,17 +368,21 @@ export default function GettingStartedModal({
               })()}
 
               <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Quick Start</div>
+                <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{t('gettingStarted.quickStartTitle')}</div>
                 <ol style={{ fontSize: 12, lineHeight: 1.7, paddingLeft: 16, color: 'var(--text-2)' }}>
-                  <li>Open the <strong>Templates</strong> panel (<kbd>Ctrl+3</kbd>) to load a built-in pipeline.</li>
-                  <li>Double-click a node to configure its parameters.</li>
-                  <li>Press <kbd>Ctrl+R</kbd> to validate and run your workflow.</li>
-                  <li>Watch real-time logs in the <strong>Console</strong> (<kbd>Ctrl+`</kbd>).</li>
+                  <li>
+                    {t('gettingStarted.quickStartTemplatesPrefix')} <strong>{t('gettingStarted.quickStartTemplatesPanel')}</strong> {t('gettingStarted.quickStartTemplatesShortcutPrefix')}<kbd>Ctrl+3</kbd>) {t('gettingStarted.quickStartTemplatesSuffix')}
+                  </li>
+                  <li>{t('gettingStarted.quickStartConfigureNode')}</li>
+                  <li>{t('gettingStarted.quickStartRunPrefix')} <kbd>Ctrl+R</kbd> {t('gettingStarted.quickStartRunSuffix')}</li>
+                  <li>
+                    {t('gettingStarted.quickStartConsolePrefix')} <strong>{t('gettingStarted.quickStartConsole')}</strong> (<kbd>Ctrl+`</kbd>){t('gettingStarted.quickStartConsoleSuffix')}
+                  </li>
                 </ol>
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                Tip: Use the <strong>AI Assistant</strong> (<kbd>Ctrl+Shift+A</kbd>) to generate workflows from natural language descriptions.
+                {t('gettingStarted.aiTipPrefix')} <strong>{t('gettingStarted.aiAssistant')}</strong> (<kbd>Ctrl+Shift+A</kbd>) {t('gettingStarted.aiTipSuffix')}
               </div>
             </div>
           )}
