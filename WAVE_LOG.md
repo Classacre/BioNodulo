@@ -379,6 +379,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Workflow LLM backend calls now retry transient provider errors and return a normalized `LLMResponse.error` after exhausted attempts; `llm_prompt` includes that provider error in metadata instead of hiding it behind an empty response.
 - API-backed nodes now have shared HTTP primitives for retries, 429 `Retry-After`, optional GET/HEAD caching, and token-bucket rate limiting; `http_request` delegates through the shared client while preserving its existing helper interface.
 - App-owned workflow hooks now live under `web/src/hooks/workflow/` with a category barrel for auto-save, queue-mode, and workflow WebSocket message effects; shared UI/settings hooks remain in the top-level hook folder.
+- App-owned collaboration hooks now live under `web/src/hooks/collab/` with a category barrel for auth initialization and REST polling effects.
 - API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---
@@ -394,7 +395,7 @@ Items from the gap analysis that haven't landed yet:
 - #49 Extension/plugin system — large scope.
 - #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
-- #85 Reorganise hooks into category folders.
+- #85 Reorganise hooks into category folders — partial: App-owned workflow/collab hooks moved; shared UI/settings/data hooks remain top-level.
 - #86 Design tokens documented (CSS custom property reference).
 - First-party raw `/api` fetch migration — DONE; the GitHub releases request remains intentionally outside `api/client.ts` because it targets an external host.
 

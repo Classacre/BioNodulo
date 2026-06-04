@@ -6,10 +6,10 @@
 // flow through the y-doc.
 
 import { useEffect, useCallback } from 'react';
-import { apiGet } from '../api/client';
-import { logError } from '../state/logging';
-import { getToken } from '../collab';
-import type { Comment, LivePresenceUser } from '../collab';
+import { apiGet } from '../../api/client';
+import { logError } from '../../state/logging';
+import { getToken } from '../../collab';
+import type { Comment, LivePresenceUser } from '../../collab';
 
 export interface UseCollabPollingArgs {
   collabEnabled: boolean;

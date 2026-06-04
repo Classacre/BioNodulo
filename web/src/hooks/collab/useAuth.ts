@@ -8,8 +8,8 @@
 
 import { useCallback, useEffect } from 'react';
 import { useAtom } from 'jotai';
-import { initAuth, getAuthUser } from '../collab/auth';
-import { authReadyAtom, authUserAtom, showAuthDialogAtom } from '../state/appAtoms';
+import { initAuth, getAuthUser } from '../../collab/auth';
+import { authReadyAtom, authUserAtom, showAuthDialogAtom } from '../../state/appAtoms';
 
 export interface UseAuthArgs {
   collabEnabled: boolean;
