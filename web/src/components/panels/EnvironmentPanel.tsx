@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { confirmDialog } from '../ui';
 import { ApiError, apiDelete, apiGet, apiPost } from '../../api/client';
@@ -28,8 +29,10 @@ function shortId(id: string) {
   return `${id.slice(0, 3)}...${id.slice(-3)}`;
 }
 
-function apiErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof ApiError)) return 'Network error';
+type MessageTone = 'ok' | 'err';
+
+function apiErrorMessage(err: unknown, fallback: string, networkFallback: string): string {
+  if (!(err instanceof ApiError)) return networkFallback;
   if (err.body && typeof err.body === 'object' && 'detail' in err.body) {
     const detail = (err.body as { detail?: unknown }).detail;
     if (typeof detail === 'string' && detail.trim()) return detail;
@@ -39,9 +42,11 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 }
 
 export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
+  const { t } = useTranslation();
   const [envs, setEnvs] = useState<EnvInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageTone, setMessageTone] = useState<MessageTone>('ok');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -79,10 +84,12 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     }
     try {
       await apiPost(`/manager/environments/${encodeURIComponent(id)}/rename`, { name: renameValue.trim() });
-      setMessage(`Renamed to '${renameValue.trim()}'`);
+      setMessage(t('environment.renamedTo', { name: renameValue.trim() }));
+      setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
-      setMessage(apiErrorMessage(err, 'Rename failed'));
+      setMessage(apiErrorMessage(err, t('environment.renameFailed'), t('errors.network')));
+      setMessageTone('err');
     }
     setRenamingId(null);
   };
@@ -90,18 +97,20 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
   const handleDelete = async (env: EnvInfo) => {
     setMenuOpenId(null);
     const ok = await confirmDialog({
-      title: 'Delete environment?',
-      message: `Delete environment '${env.name}'? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t('environment.deleteTitle'),
+      message: t('environment.deleteMessage', { name: env.name }),
+      confirmLabel: t('common.delete'),
       tone: 'danger',
     });
     if (!ok) return;
     try {
       await apiDelete(`/manager/environments/${encodeURIComponent(env.id)}`);
-      setMessage(`Deleted environment '${env.name}'`);
+      setMessage(t('environment.deletedEnvironment', { name: env.name }));
+      setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
-      setMessage(apiErrorMessage(err, 'Delete failed'));
+      setMessage(apiErrorMessage(err, t('environment.deleteFailed'), t('errors.network')));
+      setMessageTone('err');
     }
   };
 
@@ -109,18 +118,20 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     setMenuOpenId(null);
     try {
       const data = await apiPost<{ message?: string }>(`/manager/environments/${encodeURIComponent(env.id)}/duplicate`);
-      setMessage(data.message || `Duplicated '${env.name}'`);
+      setMessage(data.message || t('environment.duplicatedEnvironment', { name: env.name }));
+      setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
-      setMessage(apiErrorMessage(err, 'Duplicate failed'));
+      setMessage(apiErrorMessage(err, t('environment.duplicateFailed'), t('errors.network')));
+      setMessageTone('err');
     }
   };
 
   const handleRemovePackage = async (env: EnvInfo, pkg: PackageInfo) => {
     const ok = await confirmDialog({
-      title: 'Remove package?',
-      message: `Remove package '${pkg.name}' from environment '${env.name}'?`,
-      confirmLabel: 'Remove',
+      title: t('environment.removePackageTitle'),
+      message: t('environment.removePackageMessage', { packageName: pkg.name, environmentName: env.name }),
+      confirmLabel: t('environment.removePackageConfirm'),
       tone: 'warning',
     });
     if (!ok) return;
@@ -128,10 +139,12 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       const data = await apiPost<{ message?: string }>(
         `/manager/environments/${encodeURIComponent(env.id)}/packages/${encodeURIComponent(pkg.name)}/remove`,
       );
-      setMessage(data.message || `Removed '${pkg.name}'`);
+      setMessage(data.message || t('environment.removedPackage', { name: pkg.name }));
+      setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
-      setMessage(apiErrorMessage(err, 'Remove failed'));
+      setMessage(apiErrorMessage(err, t('environment.removeFailed'), t('errors.network')));
+      setMessageTone('err');
     }
   };
 
@@ -144,12 +157,12 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
   return (
     <div className="rail-panel">
       <div className="rail-panel-header">
-        <span>Environments</span>
-        <button className="btn btn-icon" onClick={onClose}><Icon name="close" size={14} /></button>
+        <span>{t('environment.managerTitle')}</span>
+        <button className="btn btn-icon" onClick={onClose} title={t('common.close')} aria-label={t('common.close')}><Icon name="close" size={14} /></button>
       </div>
 
       {message && (
-        <div className={`env-message ${message.includes('failed') || message.includes('error') ? 'err' : 'ok'}`}>
+        <div className={`env-message ${messageTone}`}>
           {message}
         </div>
       )}
@@ -157,14 +170,14 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       <div className="rail-panel-body" style={{ padding: 0 }}>
         {loading && envs.length === 0 && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-            <Icon name="spinner" size={14} /> Loading environments...
+            <Icon name="spinner" size={14} /> {t('environment.loadingEnvironments')}
           </div>
         )}
 
         {envs.length === 0 && !loading && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-            No environments yet.<br />
-            Run a workflow to create one.
+            {t('environment.emptyTitle')}<br />
+            {t('environment.emptyHint')}
           </div>
         )}
 
@@ -217,7 +230,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
                 className="btn btn-icon btn-sm"
                 style={{ padding: 2, flexShrink: 0 }}
                 onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}
-                title={expandedId === env.id ? 'Collapse packages' : 'Show packages'}
+                title={expandedId === env.id ? t('environment.collapsePackages') : t('environment.showPackages')}
               >
                 <Icon name={expandedId === env.id ? 'chevronDown' : 'chevronRight'} size={12} />
               </button>
@@ -228,7 +241,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
                   className="btn btn-icon btn-sm"
                   style={{ padding: 4 }}
                   onClick={() => setMenuOpenId(menuOpenId === env.id ? null : env.id)}
-                  title="Options"
+                  title={t('common.options')}
                 >
                   <Icon name="menu" size={14} />
                 </button>
@@ -240,21 +253,21 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
                       style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12 }}
                       onClick={() => startRename(env)}
                     >
-                      <Icon name="edit" size={12} /> Rename
+                      <Icon name="edit" size={12} /> {t('environment.renameAction')}
                     </div>
                     <div
                       className="dropdown-item"
                       style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12 }}
                       onClick={() => handleDuplicate(env)}
                     >
-                      <Icon name="copy" size={12} /> Duplicate
+                      <Icon name="copy" size={12} /> {t('common.duplicate')}
                     </div>
                     <div
                       className="dropdown-item"
                       style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 12, color: 'var(--danger)' }}
                       onClick={() => handleDelete(env)}
                     >
-                      <Icon name="trash" size={12} /> Delete
+                      <Icon name="trash" size={12} /> {t('common.delete')}
                     </div>
                   </div>
                 )}
@@ -265,7 +278,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
             {expandedId === env.id && (
               <div style={{ padding: '0 12px 12px 12px' }}>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-                  {env.package_count} package{env.package_count === 1 ? '' : 's'}
+                  {t('environment.packageCount', { count: env.package_count })}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {env.packages.map((pkg) => (
@@ -289,7 +302,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
                         className="btn btn-icon btn-sm btn-ghost"
                         style={{ padding: 0, width: 14, height: 14, color: 'var(--danger)', lineHeight: 1 }}
                         onClick={() => handleRemovePackage(env, pkg)}
-                        title={`Remove ${pkg.name}`}
+                        title={t('environment.removePackageTitleFor', { name: pkg.name })}
                       >
                         <Icon name="close" size={10} />
                       </button>
