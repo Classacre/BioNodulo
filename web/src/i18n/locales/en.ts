@@ -1014,6 +1014,7 @@ const en = {
   },
   outputDiff: {
     title: 'Compare runs',
+    loading: 'Loading run diff',
     runA: 'Run A',
     runB: 'Run B',
     loadingSuffix: ' (loading...)',
@@ -1486,6 +1487,7 @@ const en = {
   },
   doctor: {
     title: 'Workflow doctor',
+    loading: 'Loading doctor',
     healthy: 'Workflow looks healthy',
     noIssues: 'No issues found. Everything looks wired up.',
     countError: '{{count}} error',
@@ -1518,6 +1520,7 @@ const en = {
   },
   paramBulk: {
     title: 'Bulk parameter edit',
+    loading: 'Loading bulk editor',
     summary: 'Editing {{count}} node',
     summary_plural: 'Editing {{count}} nodes',
     headerLead: 'Editing parameters shared by',
@@ -1535,6 +1538,14 @@ const en = {
     revertField: 'Revert field',
     resetFieldTitle: "Don't change this parameter",
     variesPlaceholder: '[varies]',
+    appliedTitle: 'Bulk edit applied',
+    appliedParamCount: '{{count}} param',
+    appliedParamCount_plural: '{{count}} params',
+    appliedParamCount_other: '{{count}} params',
+    appliedNodeCount: '{{count}} node',
+    appliedNodeCount_plural: '{{count}} nodes',
+    appliedNodeCount_other: '{{count}} nodes',
+    appliedMessage: '{{params}} -> {{nodes}}',
   },
   batchSampleSheet: {
     title: 'Batch run from sample sheet',

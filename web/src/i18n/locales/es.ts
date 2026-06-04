@@ -1015,6 +1015,7 @@ const es = {
   },
   outputDiff: {
     title: 'Comparar ejecuciones',
+    loading: 'Cargando comparacion de ejecuciones',
     runA: 'Ejecucion A',
     runB: 'Ejecucion B',
     loadingSuffix: ' (cargando...)',
@@ -1487,6 +1488,7 @@ const es = {
   },
   doctor: {
     title: 'Doctor de workflow',
+    loading: 'Cargando doctor',
     healthy: 'El workflow se ve correcto',
     noIssues: 'No se encontraron incidencias. Todo esta conectado.',
     countError: '{{count}} error',
@@ -1519,6 +1521,7 @@ const es = {
   },
   paramBulk: {
     title: 'Edicion masiva de parametros',
+    loading: 'Cargando editor masivo',
     summary: 'Editando {{count}} nodo',
     summary_plural: 'Editando {{count}} nodos',
     headerLead: 'Editando parametros compartidos por',
@@ -1536,6 +1539,14 @@ const es = {
     revertField: 'Revertir campo',
     resetFieldTitle: 'No cambiar este parametro',
     variesPlaceholder: '[varios]',
+    appliedTitle: 'Edicion masiva aplicada',
+    appliedParamCount: '{{count}} parametro',
+    appliedParamCount_plural: '{{count}} parametros',
+    appliedParamCount_other: '{{count}} parametros',
+    appliedNodeCount: '{{count}} nodo',
+    appliedNodeCount_plural: '{{count}} nodos',
+    appliedNodeCount_other: '{{count}} nodos',
+    appliedMessage: '{{params}} -> {{nodes}}',
   },
   batchSampleSheet: {
     title: 'Lote desde hoja de muestras',

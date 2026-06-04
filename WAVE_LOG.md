@@ -430,6 +430,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - App-level workflow duplicate, close-unsaved, import, URL-load, and recent-command fallbacks now read from `workflowTabs`, `workflowImport`, and `commandPalette` i18n keys with Spanish unit coverage and an App wiring guard.
 - Comment pins and selection toolbox action tooltips now read from `collab` and `canvas` i18n keys with Spanish component coverage and static wiring guards.
 - Group context menu labels, color submenu back action, and rename prompt copy now read from `canvas` i18n keys with Spanish component coverage and a static wiring guard.
+- Modal shell lazy-loading labels and bulk-parameter success toasts now read from `outputDiff`, `doctor`, and `paramBulk` i18n keys with Spanish unit coverage and a static wiring guard.
 - Live collaboration authorization and WebSocket fallback errors now read from `collab` i18n keys with Spanish unit coverage and a `useCollab` static wiring guard.
 - Canvas zoom/fit/minimap/link/auto-arrange controls now read from `canvas` i18n keys with Spanish unit coverage.
 - Template gallery drawer title, save/close/search/tag chrome, loading/empty states, author/time labels, and fork actions now read from `collab` i18n keys with Spanish unit coverage.

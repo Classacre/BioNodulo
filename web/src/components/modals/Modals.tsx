@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import ExportModal from './ExportModal';
 import ImportModal from './ImportModal';
 import AIWorkflowModal from './AIWorkflowModal';
@@ -73,6 +74,7 @@ export interface ModalWorkflowContext {
 }
 
 export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
+  const { t } = useTranslation();
   const [showExport, setShowExport] = useAtom(showExportAtom);
   const [showImport, setShowImport] = useAtom(showImportAtom);
   const [showOutputDiff, setShowOutputDiff] = useAtom(showOutputDiffAtom);
@@ -177,12 +179,12 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
       {showExport && <ExportModal workflow={activeWorkflow} onClose={() => setShowExport(false)} />}
       {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />}
       {showOutputDiff && (
-        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading run diff" /></div>}>
+        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label={t('outputDiff.loading')} /></div>}>
           <OutputDiffModal runs={runs} onClose={() => setShowOutputDiff(false)} />
         </Suspense>
       )}
       {showDoctor && (
-        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading doctor" /></div>}>
+        <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label={t('doctor.loading')} /></div>}>
           <WorkflowDoctorModal
             workflow={activeWorkflow}
             objectInfo={objectInfo}
@@ -195,7 +197,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
         const selectedNodes = activeWorkflow.nodes.filter(n => selectedIds.includes(n.id));
         return (
-          <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label="Loading bulk editor" /></div>}>
+          <Suspense fallback={<div className="modal-overlay"><Spinner size="lg" label={t('paramBulk.loading')} /></div>}>
             <BulkParamModal
               nodes={selectedNodes}
               onClose={() => setShowBulkParam(false)}
@@ -212,7 +214,12 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
                   return { ...n, params: nextParams };
                 });
                 updateWorkflow(activeIndex, { ...activeWorkflow, nodes: nextNodes });
-                toast.success('Bulk edit applied', { message: `${changes.length} param${changes.length === 1 ? '' : 's'} → ${selectedNodes.length} node${selectedNodes.length === 1 ? '' : 's'}` });
+                toast.success(t('paramBulk.appliedTitle'), {
+                  message: t('paramBulk.appliedMessage', {
+                    params: t('paramBulk.appliedParamCount', { count: changes.length }),
+                    nodes: t('paramBulk.appliedNodeCount', { count: selectedNodes.length }),
+                  }),
+                });
               }}
             />
           </Suspense>
