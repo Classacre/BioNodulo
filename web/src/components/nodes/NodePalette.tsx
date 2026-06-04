@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
-import { groupNodesByCategory } from '../../utils';
 import { useNodeSearch, useRecentNodes } from '../../utils/nodeSearch';
 import Icon from '../ui/Icon';
 
@@ -53,13 +53,29 @@ function uniqueNodes(nodes: NodeMetadata[]): NodeMetadata[] {
   });
 }
 
-function buildGroups(searchResults: NodeMetadata[], recentNodes: NodeMetadata[], showRecent: boolean): NodePaletteGroup[] {
+function buildGroups(
+  searchResults: NodeMetadata[],
+  recentNodes: NodeMetadata[],
+  showRecent: boolean,
+  labels: { recentlyUsed: string; otherCategory: string },
+): NodePaletteGroup[] {
   const groups: NodePaletteGroup[] = [];
+  const recentNodeIds = showRecent ? new Set(recentNodes.map(node => node.id)) : new Set<string>();
   if (showRecent && recentNodes.length > 0) {
-    groups.push({ label: 'Recently Used', nodes: recentNodes, recent: true });
+    groups.push({ label: labels.recentlyUsed, nodes: recentNodes, recent: true });
   }
-  for (const [label, nodes] of Object.entries(groupNodesByCategory(searchResults))) {
-    groups.push({ label, nodes });
+  const categoryGroups = new Map<string, { label: string; nodes: NodeMetadata[] }>();
+  for (const meta of searchResults) {
+    if (recentNodeIds.has(meta.id)) continue;
+    const key = meta.category || '__other';
+    const label = meta.category || labels.otherCategory;
+    const group = categoryGroups.get(key) || { label, nodes: [] };
+    group.nodes.push(meta);
+    categoryGroups.set(key, group);
+  }
+  for (const group of categoryGroups.values()) {
+    group.nodes.sort((a, b) => a.display_name.localeCompare(b.display_name));
+    groups.push(group);
   }
   return groups;
 }
@@ -70,12 +86,16 @@ function NodePaletteResult({
   recent,
   onChoose,
   onFocus,
+  otherCategory,
+  addTitle,
 }: {
   meta: NodeMetadata;
   active: boolean;
   recent?: boolean;
   onChoose: (meta: NodeMetadata) => void;
   onFocus: (id: string) => void;
+  otherCategory: string;
+  addTitle: string;
 }) {
   return (
     <button
@@ -84,12 +104,12 @@ function NodePaletteResult({
       className={`node-search-result palette-node-result ${active ? 'is-active' : ''} ${recent ? 'is-recent' : ''}`}
       onClick={() => onChoose(meta)}
       onMouseEnter={() => onFocus(meta.id)}
-      title={`Add ${meta.display_name}`}
+      title={addTitle}
     >
       <span className="node-search-result-main">
         <span className="node-search-result-title">{meta.display_name}</span>
         {meta.description && <span className="node-search-result-desc">{meta.description}</span>}
-        <span className="node-search-result-meta">{meta.category || 'Other'}</span>
+        <span className="node-search-result-meta">{meta.category || otherCategory}</span>
       </span>
       <span className="node-search-result-action" aria-hidden="true">
         <Icon name="plus" size={12} />
@@ -99,6 +119,7 @@ function NodePaletteResult({
 }
 
 export default function NodePalette({ objectInfo, onSelect, onClose, style, requireInputType, requireOutputType }: NodePaletteProps) {
+  const { t } = useTranslation();
   const filteredObjectInfo = useMemo(() => {
     if (!requireInputType && !requireOutputType) return objectInfo;
     const out: ObjectInfo = {};
@@ -116,9 +137,13 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
   const { recentNodes, rememberNode, clearRecentNodes } = useRecentNodes(filteredObjectInfo);
   const searchedNodes = useMemo(() => searchResults.map(result => result.meta), [searchResults]);
   const hasQuery = query.trim().length > 0;
+  const otherCategory = t('nodePalette.otherCategory');
   const groups = useMemo(
-    () => buildGroups(searchedNodes, recentNodes, !hasQuery),
-    [hasQuery, recentNodes, searchedNodes],
+    () => buildGroups(searchedNodes, recentNodes, !hasQuery, {
+      recentlyUsed: t('nodePalette.recentlyUsed'),
+      otherCategory,
+    }),
+    [hasQuery, recentNodes, searchedNodes, otherCategory, t],
   );
   const keyboardNodes = useMemo(() => uniqueNodes(groups.flatMap(group => group.nodes)), [groups]);
 
@@ -187,20 +212,26 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
   return (
     <div className="context-menu node-palette-menu" style={{ ...style, width: 320, maxHeight: 520 }}>
       <div className="context-menu-header">
-        <span>{requireInputType ? `Add node with ${requireInputType} input` : requireOutputType ? `Add node with ${requireOutputType} output` : 'Add Node'}</span>
-        <button className="btn btn-icon btn-sm" onClick={onClose} title="Close node palette"><Icon name="close" size={14} /></button>
+        <span>
+          {requireInputType
+            ? t('nodePalette.addNodeWithInput', { type: requireInputType })
+            : requireOutputType
+              ? t('nodePalette.addNodeWithOutput', { type: requireOutputType })
+              : t('nodePalette.addNode')}
+        </span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('nodePalette.closeTitle')}><Icon name="close" size={14} /></button>
       </div>
       <div className="node-palette-body">
         <div className="node-search-wrap">
           <input
             className="palette-search node-search-input"
-            placeholder="Search nodes..."
+            placeholder={t('nodePalette.searchPlaceholder')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
             aria-activedescendant={activeNodeId ? safeNodeDomId('node-palette-result', activeNodeId) : undefined}
-            aria-label="Search nodes"
+            aria-label={t('nodePalette.searchAria')}
             role="combobox"
             aria-expanded="true"
           />
@@ -211,12 +242,12 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
         <div className="node-search-summary">
           <span>
             {hasQuery
-              ? `${searchResults.length} fuzzy matches`
-              : `${Object.values(filteredObjectInfo).length} nodes${(requireInputType || requireOutputType) ? ' (filtered)' : ''}`}
+              ? t('nodePalette.fuzzyMatchCount', { count: searchResults.length })
+              : `${t('nodePalette.nodeCount', { count: Object.values(filteredObjectInfo).length })}${(requireInputType || requireOutputType) ? ` ${t('nodePalette.filteredSuffix')}` : ''}`}
           </span>
           {!hasQuery && recentNodes.length > 0 && (
-            <button className="node-search-clear" type="button" onClick={clearRecentNodes} title="Clear recent nodes">
-              Clear recent
+            <button className="node-search-clear" type="button" onClick={clearRecentNodes} title={t('nodePalette.clearRecentNodes')}>
+              {t('nodePalette.clearRecent')}
             </button>
           )}
         </div>
@@ -235,7 +266,9 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
                     type="button"
                     className="node-category-toggle"
                     onClick={() => toggleCategory(group.label)}
-                    title={expandedGroup ? `Collapse ${group.label}` : `Expand ${group.label}`}
+                    title={expandedGroup
+                      ? t('nodePalette.collapseGroup', { label: group.label })
+                      : t('nodePalette.expandGroup', { label: group.label })}
                   >
                     <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
                     <span>{group.label}</span>
@@ -252,6 +285,8 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
                         recent={group.recent}
                         onChoose={chooseNode}
                         onFocus={setActiveNodeId}
+                        otherCategory={otherCategory}
+                        addTitle={t('nodePalette.addNodeTitle', { name: meta.display_name })}
                       />
                     ))}
                   </div>
@@ -261,7 +296,7 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
           })}
           {keyboardNodes.length === 0 && (
             <div className="node-search-empty">
-              No nodes match "{query}"
+              {t('nodePalette.emptyQuery', { query })}
             </div>
           )}
         </div>
