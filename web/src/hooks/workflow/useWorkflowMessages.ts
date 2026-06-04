@@ -7,6 +7,7 @@
 // API fetch on queue_finish), so this stays a hook rather than a pure reducer.
 
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/client';
 import { toast } from '../../state/notifications';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
@@ -32,6 +33,8 @@ export function useWorkflowMessages({
   recordNodeStart,
   clearNodeRunProgress,
 }: UseWorkflowMessagesArgs): void {
+  const { t } = useTranslation();
+
   useEffect(() => {
     const unsub = onMessage((msg: unknown) => {
       const data = msg as Record<string, unknown>;
@@ -247,9 +250,12 @@ export function useWorkflowMessages({
         // toast so the user notices the failure without scanning the console.
         if (finalStatus === 'error') {
           const failedRun = runs.find(r => r.run_id === finishedRunId);
-          const wfName = failedRun?.workflow_name || 'Workflow';
-          toast.error('Run failed', {
-            message: `${wfName} — see the console for details.`,
+          const wfName = failedRun?.workflow_name || t('console.actions.workflowFallback');
+          toast.error(t('console.actions.runFailedTitle'), {
+            message: t('console.actions.runFailedMessage', {
+              name: wfName,
+              detail: t('console.actions.consoleDetailsFallback'),
+            }),
           });
         }
         // Fetch full run details to populate previews/artifacts
@@ -294,12 +300,14 @@ export function useWorkflowMessages({
         // (early validation failures, executor crashes). Always toast.
         const erroredRunId = String(payload.run_id);
         const erroredRun = runs.find(r => r.run_id === erroredRunId);
-        const wfName = erroredRun?.workflow_name || 'Workflow';
+        const wfName = erroredRun?.workflow_name || t('console.actions.workflowFallback');
         const errMsg =
           typeof payload.error === 'string' && payload.error
             ? payload.error.split('\n')[0].slice(0, 160)
-            : 'see the console for details';
-        toast.error('Run failed', { message: `${wfName} — ${errMsg}` });
+            : t('console.actions.consoleDetailsFallback');
+        toast.error(t('console.actions.runFailedTitle'), {
+          message: t('console.actions.runFailedMessage', { name: wfName, detail: errMsg }),
+        });
         // Same defense as queue_finish: promote any stuck `running` nodes to
         // `error` so the canvas reflects the failure visually.
         setRuns(prev =>
@@ -332,5 +340,6 @@ export function useWorkflowMessages({
     updateNodeRunStatus,
     recordNodeStart,
     clearNodeRunProgress,
+    t,
   ]);
 }
