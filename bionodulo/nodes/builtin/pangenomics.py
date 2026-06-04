@@ -14,6 +14,16 @@ def _split_path_list(value: Any) -> list[str]:
     return [item for item in re.split(r"[\s,]+", str(value or "")) if item]
 
 
+def _safe_output_stem(value: Any, fallback: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        text = fallback
+    stem = Path(text).stem
+    stem = re.sub(r"\.(gz|bz2|xz|zip)$", "", stem)
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._-")
+    return stem or fallback
+
+
 class VGConstructNode(CommandNode):
     """Construct variation graphs from a reference FASTA and VCF."""
     NODE_ID = "vg_construct"
@@ -917,6 +927,98 @@ class PGGBBuildNode(CommandNode):
                 "segment_length": ("INT", {"default": 5000, "min": 1000}),
                 "min_match_length": ("INT", {"default": 19, "min": 1}),
                 "graph_poas": ("INT", {"default": 2, "min": 1, "max": 8}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class ODGIBuildNode(CommandNode):
+    """Build an ODGI graph from a GFA pangenome graph and export JSON stats."""
+
+    NODE_ID = "odgi_build"
+    DISPLAY_NAME = "odgi Build"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Build an ODGI pangenome graph from GFA input and summarize graph statistics."
+    SEARCH_ALIASES = ["odgi", "odgi build", "gfa to odgi", "pangenome graph", "graph conversion", "stats"]
+    RETURN_TYPES = ("ODGI", "JSON")
+    RETURN_NAMES = ("graph_odgi", "stats")
+    REQUIRED_EXECUTABLES = ["odgi"]
+    REQUIRED_CONDA_PACKAGES = ["odgi"]
+    DOCUMENTATION_URL = "https://odgi.readthedocs.io/"
+    VERSION = "0.9.0"
+    SHELL = True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if int(inputs.get("threads", 0) or 0) < 0:
+            return "odgi Build threads must be zero or greater."
+        return True
+
+    @classmethod
+    def _planned_paths(cls, inputs: dict[str, Any], output_dir: str | Path) -> tuple[Path, Path]:
+        node_out = Path(output_dir)
+        fallback_stem = _safe_output_stem(inputs.get("gfa_graph"), "graph")
+        stem = _safe_output_stem(inputs.get("output_name"), fallback_stem)
+        return node_out / f"{stem}.odgi", node_out / f"{stem}.stats.json"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        graph_odgi, stats = cls._planned_paths(inputs, out_dir)
+        threads = int(inputs.get("threads", 0) or 0)
+
+        cmd = [
+            "odgi",
+            "build",
+            "-g",
+            str(inputs.get("gfa_graph", "")),
+            "-o",
+            str(graph_odgi),
+        ]
+        if threads > 0:
+            cmd.extend(["-t", str(threads)])
+        if inputs.get("compact_ids"):
+            cmd.append("-c")
+        if inputs.get("validate"):
+            cmd.append("-v")
+        cmd.extend([
+            "&&",
+            "odgi",
+            "stats",
+            "-i",
+            str(graph_odgi),
+            "-j",
+            ">",
+            str(stats),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return list(cls._planned_paths(inputs, node_out))
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gfa_graph": ("GFA", {"description": "Input pangenome graph in GFA format"}),
+            },
+            "optional": {
+                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
+                "compact_ids": ("BOOLEAN", {"default": False, "description": "Compact node identifiers while building"}),
+                "validate": ("BOOLEAN", {"default": False, "description": "Ask odgi build to validate input graph consistency"}),
+                "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
             },
             "hidden": {
                 "output": ("STRING", {}),

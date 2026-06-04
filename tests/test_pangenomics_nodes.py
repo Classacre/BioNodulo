@@ -284,6 +284,119 @@ def test_odgi_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["odgi"] == ">=0.9.0"
 
 
+def test_odgi_build_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["odgi_build"]
+    assert node_info["display_name"] == "odgi Build"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Build an ODGI pangenome graph")
+    assert node_info["output"] == ["ODGI", "JSON"]
+    assert node_info["output_name"] == ["graph_odgi", "stats"]
+    assert node_info["required_executables"] == ["odgi"]
+    assert node_info["required_conda_packages"] == ["odgi"]
+    assert "odgi build" in node_info["search_aliases"]
+    assert "gfa to odgi" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"gfa_graph"}
+    assert set(inputs["optional"]) == {"threads", "compact_ids", "validate", "output_name"}
+    assert inputs["required"]["gfa_graph"][0] == "GFA"
+    assert _node_class("odgi_build").INPUT_TYPES()["required"]["gfa_graph"][0] == "GFA"
+
+
+def test_odgi_build_renders_build_and_stats_command() -> None:
+    node_class = _node_class("odgi_build")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "pan.gfa",
+        "threads": 8,
+        "compact_ids": True,
+        "validate": True,
+        "output_name": "study graph",
+        "output": "/tmp/run/odgi_build",
+    })
+
+    assert cmd == [
+        "odgi",
+        "build",
+        "-g",
+        "pan.gfa",
+        "-o",
+        "/tmp/run/odgi_build/study_graph.odgi",
+        "-t",
+        "8",
+        "-c",
+        "-v",
+        "&&",
+        "odgi",
+        "stats",
+        "-i",
+        "/tmp/run/odgi_build/study_graph.odgi",
+        "-j",
+        ">",
+        "/tmp/run/odgi_build/study_graph.stats.json",
+    ]
+
+
+def test_odgi_build_omits_optional_flags_and_uses_input_stem() -> None:
+    node_class = _node_class("odgi_build")
+
+    cmd = node_class.render_command({
+        "gfa_graph": "/data/pan.gfa",
+        "threads": 0,
+        "compact_ids": False,
+        "validate": False,
+        "output_name": "",
+        "output": "/tmp/run/odgi_build",
+    })
+
+    assert "-t" not in cmd
+    assert "-c" not in cmd
+    assert "-v" not in cmd
+    assert cmd == [
+        "odgi",
+        "build",
+        "-g",
+        "/data/pan.gfa",
+        "-o",
+        "/tmp/run/odgi_build/pan.odgi",
+        "&&",
+        "odgi",
+        "stats",
+        "-i",
+        "/tmp/run/odgi_build/pan.odgi",
+        "-j",
+        ">",
+        "/tmp/run/odgi_build/pan.stats.json",
+    ]
+
+
+def test_odgi_build_plans_outputs() -> None:
+    node_class = _node_class("odgi_build")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"gfa_graph": "pan.gfa", "output_name": "study graph"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/odgi_build/study_graph.odgi",
+        "/tmp/run/odgi_build/study_graph.stats.json",
+    ]
+
+
+def test_odgi_build_rejects_negative_threads() -> None:
+    node_class = _node_class("odgi_build")
+
+    assert node_class.VALIDATE_INPUTS({
+        "gfa_graph": "pan.gfa",
+        "threads": -1,
+    }) == "odgi Build threads must be zero or greater."
+
+
 def test_vg_construct_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
