@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AuditEntry } from './types';
 import Icon from '../components/ui/Icon';
 import { apiGet, apiGetBlob } from '../api/client';
@@ -38,6 +39,7 @@ function formatDate(ts: string): string {
 }
 
 export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps) {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,11 +66,11 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       setError(null);
       setPage(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit log');
+      setError(err instanceof Error ? err.message : t('collab.auditLoadError'));
     } finally {
       setLoading(false);
     }
-  }, [workflowId, filterUser, filterAction, filterFrom, filterTo]);
+  }, [workflowId, filterUser, filterAction, filterFrom, filterTo, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,6 +88,16 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
     entries.forEach(e => set.add(e.action));
     return Array.from(set);
   }, [entries]);
+  const actionLabel = useCallback((action: string): string => {
+    const key = `collab.auditAction.${action}`;
+    const translated = t(key);
+    return translated === key ? action : translated;
+  }, [t]);
+  const targetTypeLabel = useCallback((targetType: string): string => {
+    const key = `collab.auditTarget.${targetType}`;
+    const translated = t(key);
+    return translated === key ? targetType : translated;
+  }, [t]);
 
   // Summary stats
   const stats = useMemo(() => {
@@ -118,7 +130,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed');
+      setError(err instanceof Error ? err.message : t('collab.auditExportError'));
     }
   };
 
@@ -133,54 +145,54 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <strong style={{ fontSize: 14 }}>Audit Log</strong>
+        <strong style={{ fontSize: 14 }}>{t('collab.auditLogTitle')}</strong>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-xs" onClick={handleExportCsv} style={{ fontSize: 10 }}>Export CSV</button>
-          <button className="btn btn-icon btn-xs" onClick={onClose} title="Close"><Icon name="close" size={12} /></button>
+          <button className="btn btn-xs" onClick={handleExportCsv} style={{ fontSize: 10 }}>{t('collab.auditExportCsv')}</button>
+          <button className="btn btn-icon btn-xs" onClick={onClose} title={t('common.close')}><Icon name="close" size={12} /></button>
         </div>
       </div>
 
       {/* Summary stats */}
       {stats && (
         <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--muted)' }}>
-          <span>{stats.total} actions</span>
+          <span>{t('collab.auditActionsCount', { count: stats.total })}</span>
           <span>•</span>
-          <span>{stats.uniqueUsers} users</span>
+          <span>{t('collab.auditUsersCount', { count: stats.uniqueUsers })}</span>
           <span>•</span>
-          <span>Top: {stats.mostCommon?.[0]} ({stats.mostCommon?.[1]})</span>
+          <span>{t('collab.auditTopAction', { action: actionLabel(stats.mostCommon?.[0] ?? ''), count: stats.mostCommon?.[1] ?? 0 })}</span>
         </div>
       )}
 
       {/* Filters */}
       <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={{ fontSize: 11, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
-          <option value="">All users</option>
+          <option value="">{t('collab.auditAllUsers')}</option>
           {uniqueUsers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <select value={filterAction} onChange={e => setFilterAction(e.target.value)} style={{ fontSize: 11, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
-          <option value="">All actions</option>
-          {uniqueActions.map(a => <option key={a} value={a}>{a}</option>)}
+          <option value="">{t('collab.auditAllActions')}</option>
+          {uniqueActions.map(a => <option key={a} value={a}>{actionLabel(a)}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 4 }}>
           <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ flex: 1, fontSize: 10, padding: '3px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }} />
           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ flex: 1, fontSize: 10, padding: '3px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }} />
         </div>
-        <button className="btn btn-xs" onClick={fetchAudit} style={{ fontSize: 10 }}>Apply Filters</button>
+        <button className="btn btn-xs" onClick={fetchAudit} style={{ fontSize: 10 }}>{t('collab.auditApplyFilters')}</button>
       </div>
 
       {error && <div style={{ padding: '8px 14px', fontSize: 11, color: '#ef4444', background: '#ef444410' }}>{error}</div>}
 
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && entries.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Loading audit log...</div>}
-        {entries.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>No audit entries found.</div>}
+        {loading && entries.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.auditLoading')}</div>}
+        {entries.length === 0 && !loading && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.auditEmpty')}</div>}
         {/* Table header */}
         {entries.length > 0 && (
           <div style={{ display: 'flex', padding: '6px 14px', fontSize: 10, fontWeight: 600, color: 'var(--muted)', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', position: 'sticky', top: 0 }}>
-            <span style={{ width: 110, flexShrink: 0 }}>Time</span>
-            <span style={{ width: 70, flexShrink: 0 }}>User</span>
-            <span style={{ width: 90, flexShrink: 0 }}>Action</span>
-            <span style={{ flex: 1 }}>Target</span>
+            <span style={{ width: 110, flexShrink: 0 }}>{t('collab.auditColumnTime')}</span>
+            <span style={{ width: 70, flexShrink: 0 }}>{t('collab.auditColumnUser')}</span>
+            <span style={{ width: 90, flexShrink: 0 }}>{t('collab.auditColumnAction')}</span>
+            <span style={{ flex: 1 }}>{t('collab.auditColumnTarget')}</span>
           </div>
         )}
         {paginated.map(entry => (
@@ -192,10 +204,10 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
               color: getActionColor(entry.action), background: `${getActionColor(entry.action)}15`,
               padding: '1px 6px', borderRadius: 4, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-              {entry.action}
+              {actionLabel(entry.action)}
             </span>
             <span style={{ flex: 1, paddingLeft: 8, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {entry.target_type}:{entry.target_id.slice(0, 12)}
+              {targetTypeLabel(entry.target_type)}:{entry.target_id.slice(0, 12)}
             </span>
           </div>
         ))}
@@ -204,9 +216,9 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       {/* Pagination */}
       {entries.length > PAGE_SIZE && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 11 }}>
-          <button className="btn btn-xs" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={{ fontSize: 10 }}>← Prev</button>
+          <button className="btn btn-xs" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={{ fontSize: 10 }}>{t('collab.auditPrevious')}</button>
           <span style={{ color: 'var(--muted)' }}>{page} / {totalPages}</span>
-          <button className="btn btn-xs" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ fontSize: 10 }}>Next →</button>
+          <button className="btn btn-xs" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={{ fontSize: 10 }}>{t('collab.auditNext')}</button>
         </div>
       )}
     </div>
