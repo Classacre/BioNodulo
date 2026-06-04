@@ -9,6 +9,7 @@
 // the backend is offline the system half just disappears (no error noise).
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { apiGet } from '../../api/client';
 
@@ -43,14 +44,14 @@ interface WorkflowStatsOverlayProps {
 
 interface CategoryBucket { label: string; count: number }
 
-function summarise(workflow: Workflow): { nodes: number; edges: number; groups: number; categories: CategoryBucket[] } {
+function summarise(workflow: Workflow, categoryFallback: string): { nodes: number; edges: number; groups: number; categories: CategoryBucket[] } {
   const nodes = workflow.nodes || [];
   const edges = workflow.edges || [];
   const groups = workflow.groups || [];
   const byCategory = new Map<string, number>();
   for (const node of nodes) {
     if (node.type === 'reroute' || node.type === 'note') continue;
-    const label = node.node_info?.category || 'Other';
+    const label = node.node_info?.category || categoryFallback;
     byCategory.set(label, (byCategory.get(label) ?? 0) + 1);
   }
   const categories = Array.from(byCategory.entries())
@@ -90,8 +91,9 @@ function tempColor(c: number, warn: number, danger: number): string {
 }
 
 export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStatsOverlayProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
-  const stats = useMemo(() => summarise(workflow), [workflow]);
+  const stats = useMemo(() => summarise(workflow, t('workflowStats.categoryFallback')), [workflow, t]);
 
   // Live system stats. Polled at 2 s on a single shared interval, regardless
   // of whether the card is collapsed (the pill needs CPU / RAM numbers too).
@@ -130,16 +132,16 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
 
   if (collapsed) {
     const sysSummary = sys
-      ? ` · ${sys.cpu_percent.toFixed(0)}% CPU · ${sys.ram_percent.toFixed(0)}% RAM`
+      ? ` - ${sys.cpu_percent.toFixed(0)}% ${t('workflowStats.cpuLabel')} - ${sys.ram_percent.toFixed(0)}% ${t('workflowStats.ramLabel')}`
       : '';
     return (
       <button
         type="button"
         className="workflow-stats-overlay workflow-stats-pill"
         onClick={() => setCollapsed(false)}
-        title="Expand workflow + system stats"
+        title={t('workflowStats.expandTitle')}
       >
-        {stats.nodes}n · {stats.edges}e{sysSummary}
+        {stats.nodes}{t('workflowStats.compactNodeSuffix')} - {stats.edges}{t('workflowStats.compactEdgeSuffix')}{sysSummary}
       </button>
     );
   }
@@ -150,8 +152,8 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
         type="button"
         className="workflow-stats-collapse"
         onClick={() => setCollapsed(true)}
-        aria-label="Collapse workflow stats"
-        title="Collapse"
+        aria-label={t('workflowStats.collapseAria')}
+        title={t('workflowStats.collapseTitle')}
       >
         −
       </button>
@@ -161,13 +163,13 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
         <>
           <div className="workflow-stats-row">
             <span className="workflow-stats-count">{stats.nodes}</span>
-            <span className="workflow-stats-label">nodes</span>
+            <span className="workflow-stats-label">{t('workflowStats.nodesLabel')}</span>
             <span className="workflow-stats-count">{stats.edges}</span>
-            <span className="workflow-stats-label">edges</span>
+            <span className="workflow-stats-label">{t('workflowStats.edgesLabel')}</span>
             {stats.groups > 0 && (
               <>
                 <span className="workflow-stats-count">{stats.groups}</span>
-                <span className="workflow-stats-label">groups</span>
+                <span className="workflow-stats-label">{t('workflowStats.groupsLabel')}</span>
               </>
             )}
           </div>
@@ -195,16 +197,16 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
             borderTop: stats.nodes > 0 ? '1px solid var(--border)' : undefined,
           }}
         >
-          <Bar value={sys.cpu_percent} color="#3b82f6" label="CPU" />
+          <Bar value={sys.cpu_percent} color="#3b82f6" label={t('workflowStats.cpuLabel')} />
           {sys.cpu_temp_c !== null && sys.cpu_temp_c !== undefined && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10 }}>
-              <span style={{ width: 30, textAlign: 'right', color: 'var(--muted)' }}>Temp</span>
+              <span style={{ width: 30, textAlign: 'right', color: 'var(--muted)' }}>{t('workflowStats.tempLabel')}</span>
               <span style={{ color: tempColor(sys.cpu_temp_c, 65, 80) }}>
                 {sys.cpu_temp_c.toFixed(0)}°C
               </span>
             </div>
           )}
-          <Bar value={sys.ram_percent} color="#8b5cf6" label="RAM" />
+          <Bar value={sys.ram_percent} color="#8b5cf6" label={t('workflowStats.ramLabel')} />
           <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'right' }}>
             {formatBytes(sys.ram_used)} / {formatBytes(sys.ram_total)}
           </div>
@@ -212,11 +214,11 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
           {gpu && (
             <>
               <div style={{ fontWeight: 500, fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{gpu.name}</div>
-              <Bar value={gpu.gpu_utilization} color="#10b981" label="GPU" />
-              <Bar value={(gpu.vram_used / Math.max(1, gpu.vram_total)) * 100} color="#f59e0b" label="VRAM" />
+              <Bar value={gpu.gpu_utilization} color="#10b981" label={t('workflowStats.gpuLabel')} />
+              <Bar value={(gpu.vram_used / Math.max(1, gpu.vram_total)) * 100} color="#f59e0b" label={t('workflowStats.vramLabel')} />
               {gpu.temperature_c !== null && gpu.temperature_c !== undefined && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10 }}>
-                  <span style={{ width: 30, textAlign: 'right', color: 'var(--muted)' }}>Temp</span>
+                  <span style={{ width: 30, textAlign: 'right', color: 'var(--muted)' }}>{t('workflowStats.tempLabel')}</span>
                   <span style={{ color: tempColor(gpu.temperature_c, 70, 80) }}>
                     {gpu.temperature_c.toFixed(0)}°C
                   </span>
