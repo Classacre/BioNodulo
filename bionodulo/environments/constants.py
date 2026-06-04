@@ -123,6 +123,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "tabix": "htslib",
     "Rscript": "r-base",
     "CopasiSE": "",
+    "ibiosim": "",
 }
 
 # Mapping of R packages to conda package names.
