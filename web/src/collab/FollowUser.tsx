@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AwarenessState } from './types';
 import Icon from '../components/ui/Icon';
 
@@ -19,6 +20,7 @@ function getInitials(name: string): string {
  * Smooth viewport animation is triggered externally via the onFollow callback.
  */
 const FollowUser: React.FC<FollowUserProps> = ({ users, followingUserId, onFollow }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +44,7 @@ const FollowUser: React.FC<FollowUserProps> = ({ users, followingUserId, onFollo
         <button
           className="btn btn-sm"
           onClick={() => setOpen(v => !v)}
-          title={`Following ${followedUser.user.name}. Click to unfollow.`}
+          title={t('collab.followingUserTitle', { name: followedUser.user.name })}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             border: `1px solid ${followedUser.user.color}40`,
@@ -54,18 +56,18 @@ const FollowUser: React.FC<FollowUserProps> = ({ users, followingUserId, onFollo
             width: 14, height: 14, borderRadius: '50%', backgroundColor: followedUser.user.color,
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#fff',
           }}>{getInitials(followedUser.user.name)}</span>
-          <span>Following {followedUser.user.name}</span>
+          <span>{t('collab.followingUser', { name: followedUser.user.name })}</span>
           <span onClick={e => { e.stopPropagation(); onFollow(null); }} style={{ cursor: 'pointer', marginLeft: 2, display: 'inline-flex' }}><Icon name="close" size={10} /></span>
         </button>
       ) : (
         <button
           className="btn btn-sm"
           onClick={() => setOpen(v => !v)}
-          title="Follow a user's viewport"
+          title={t('collab.followViewportTitle')}
           style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
         >
           <Icon name="eye" size={12} />
-          <span>Follow</span>
+          <span>{t('collab.follow')}</span>
           {users.length > 0 && (
             <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--accent, #3b82f6)', color: '#fff', padding: '0 5px', borderRadius: 8 }}>
               {users.length}
@@ -84,10 +86,10 @@ const FollowUser: React.FC<FollowUserProps> = ({ users, followingUserId, onFollo
           padding: 8, display: 'flex', flexDirection: 'column', gap: 4,
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', padding: '2px 6px 4px' }}>
-            Active Users
+            {t('collab.userListActiveUsers')}
           </div>
           {users.length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--muted)', padding: '6px' }}>No active users</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', padding: '6px' }}>{t('collab.followNoActiveUsers')}</div>
           )}
           {users.map(u => (
             <div key={u.user.id} style={{
@@ -104,11 +106,11 @@ const FollowUser: React.FC<FollowUserProps> = ({ users, followingUserId, onFollo
                   {u.user.name}
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                  {u.activity === 'active' ? 'Active' : u.activity === 'idle' ? 'Idle' : u.activity === 'dragging' ? 'Dragging' : 'Typing'}
+                  {t(`collab.followActivity.${u.activity}`)}
                 </div>
               </div>
               <button className="btn btn-xs" style={{ fontSize: 9, padding: '2px 8px', flexShrink: 0 }}>
-                {followingUserId === u.user.id ? 'Unfollow' : 'Follow'}
+                {followingUserId === u.user.id ? t('collab.unfollow') : t('collab.follow')}
               </button>
             </div>
           ))}
