@@ -3,6 +3,7 @@ export interface InputSpec {
   default?: unknown;
   options?: string[];
   tooltip?: string;
+  description?: string;
   min?: number;
   max?: number;
   step?: number;

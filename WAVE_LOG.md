@@ -358,6 +358,13 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Zod-lite validators (#51): hand-rolled `validateRunRecord` / `validateWorkflow` / `validateObjectInfo` in `api/validators.ts`; wired into `OutputDiffModal` + `useObjectInfo`. Dependency-free.
 - Reroute selection (#73): marquee switched from "wholly inside" containment to intersection so quick drags catch small nodes, especially reroutes.
 
+## Post-Wave H follow-up — Dynamic help node-doc search
+
+- HelpWikiPanel node search now indexes the same registry-backed docs it can render: aliases, required tools, documentation URL, version, input names/types/tooltips/descriptions/defaults, and output names/types.
+- Node search hits are actionable buttons; clicking one opens the full node documentation in the Help panel, including inputs, outputs, and required executables, even when the node is not selected on the canvas.
+- `InputSpec.description` is typed on the frontend so backend-authored input descriptions from `/api/object_info` are searchable and rendered beside ports.
+- Verification: Vitest coverage for searching node input descriptions and opening node docs, plus a Firefox Playwright smoke using live `objectInfo` (`spectral library` -> DIA-NN -> full docs).
+
 ---
 
 ## Pending / future waves
@@ -369,7 +376,7 @@ Items from the gap analysis that haven't landed yet:
 - #15 ESLint + Prettier setup.
 - #19 Strict TS checks (`noUnusedLocals`, `verbatimModuleSyntax`).
 - #49 Extension/plugin system — large scope.
-- #65 Dynamic help — partial (selected-node docs landed in Wave G); search across node docs still TODO.
+- #65 Dynamic help — DONE (selected-node docs plus full node-doc search/open from Help results).
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
 - #85 Reorganise hooks into category folders.
 - #86 Design tokens documented (CSS custom property reference).
