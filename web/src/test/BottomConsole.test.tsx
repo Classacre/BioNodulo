@@ -1,0 +1,159 @@
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { Provider } from 'jotai';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RunRecord } from '../types';
+
+const storage = new Map<string, string>();
+const localStorageStub: Storage = {
+  get length() {
+    return storage.size;
+  },
+  clear: () => storage.clear(),
+  getItem: (key: string) => storage.get(key) ?? null,
+  key: (index: number) => Array.from(storage.keys())[index] ?? null,
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
+  setItem: (key: string, value: string) => {
+    storage.set(key, String(value));
+  },
+};
+
+function runRecord(partial: Partial<RunRecord> & Pick<RunRecord, 'run_id' | 'status'>): RunRecord {
+  return {
+    workflow_name: '',
+    node_statuses: [],
+    node_outputs: {},
+    execution_plan: [],
+    previews: {},
+    artifacts: {},
+    ...partial,
+  };
+}
+
+describe('BottomConsole i18n', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+  });
+
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders console tabs and empty states from the active locale', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <Provider>
+        <BottomConsole
+          queue={[]}
+          history={[]}
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Registros' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cola (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previsualizaciones' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Informe' })).toBeInTheDocument();
+    expect(screen.getByTitle('Cerrar consola')).toBeInTheDocument();
+    expect(screen.getByText('Todavia no hay registros. Ejecuta un workflow para verlos.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cola (0)' }));
+    expect(screen.getByText('La cola esta vacia.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Historial (0)' }));
+    expect(screen.getByText('Todavia no hay ejecuciones completadas.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previsualizaciones' }));
+    expect(screen.getByText('Todavia no hay previsualizaciones. Ejecuta un workflow que genere graficos o informes HTML.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Informe' }));
+    expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
+  });
+
+  it('renders queue and history controls from the active locale', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    const queueRun = runRecord({
+      run_id: 'queue-run-1',
+      status: 'pending',
+      execution_plan: ['node-a', 'node-b'],
+      node_statuses: [{ node_id: 'node-a', status: 'running' }],
+    });
+    const historyRun = runRecord({
+      run_id: 'history-run-1',
+      status: 'completed',
+      workflow_name: 'Completed workflow',
+      execution_plan: ['node-a'],
+      node_statuses: [{ node_id: 'node-a', status: 'completed' }],
+      end_time: new Date().toISOString(),
+    });
+
+    render(
+      <Provider>
+        <BottomConsole
+          queue={[queueRun]}
+          history={[historyRun]}
+          onClose={() => undefined}
+          onMoveRun={() => undefined}
+          onCancelRun={() => undefined}
+          onRetryRun={() => undefined}
+          onLoadRunWorkflow={() => undefined}
+          onDeleteHistoryEntry={() => undefined}
+          onClearQueue={() => undefined}
+          onClearHistory={() => undefined}
+        />
+      </Provider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cola (1)' }));
+
+    expect(screen.getAllByText('pendiente').length).toBeGreaterThan(0);
+    expect(screen.getByText('Workflow sin titulo')).toBeInTheDocument();
+    expect(screen.getByText('0/2 nodos')).toBeInTheDocument();
+    expect(screen.getByText('1 ejecutando')).toBeInTheDocument();
+    expect(screen.getByText('1 pendiente')).toBeInTheDocument();
+    expect(screen.getByTitle('Mover antes')).toBeInTheDocument();
+    expect(screen.getByTitle('Mover despues')).toBeInTheDocument();
+    expect(screen.getByTitle('Cancelar ejecucion')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limpiar cola' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }));
+
+    expect(screen.getByRole('searchbox', { name: 'Filtrar historial' })).toHaveAttribute('placeholder', 'Filtrar por nombre o ID de ejecucion');
+    expect(screen.getByRole('group', { name: 'Filtrar historial por estado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Todas/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Completadas/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Errores/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Canceladas/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Comparar ejecuciones' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limpiar historial' })).toBeInTheDocument();
+    expect(screen.getByTitle('Cargar este workflow en una pestana nueva')).toBeInTheDocument();
+    expect(screen.getByTitle('Reintentar ejecucion')).toBeInTheDocument();
+    expect(screen.getByTitle('Eliminar esta ejecucion del historial')).toBeInTheDocument();
+    expect(screen.getByText('Hoy')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filtrar historial' }), {
+      target: { value: 'missing' },
+    });
+
+    expect(screen.getByText('Ninguna ejecucion coincide con el filtro actual.')).toBeInTheDocument();
+
+    const filters = screen.getByRole('group', { name: 'Filtrar historial por estado' });
+    fireEvent.click(within(filters).getByRole('button', { name: /Canceladas/ }));
+    expect(screen.getByText('Ninguna ejecucion coincide con el filtro actual.')).toBeInTheDocument();
+  });
+});
