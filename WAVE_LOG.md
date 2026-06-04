@@ -371,6 +371,9 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Stage 2 data-transform gap audit: the planned data-transform nodes mostly already exist; the concrete high-value gap was `format_converter`, which only handled CSV/TSV/JSON table records.
 - `format_converter` now preserves existing in-process CSV/TSV/JSON conversion while adding bio-format command routing for SAM/BAM/CRAM (`samtools`), VCF/VCF_GZ/BCF (`bcftools`), GFF/GTF (`gffread`), and FASTQ/FASTA (`seqtk`).
 - Environment resolution now knows `gffread` and `seqtk` package/version metadata, and tests cover frontend discovery metadata, output planning, command rendering, unsupported conversion validation, and cwd handling for command execution.
+- Workflow-control executor integration: node execution contexts now expose the active executor and shared run metadata, and workflow control nodes declare `EXECUTOR_CACHE_POLICY = "always_run"` so their explicit cache/checkpoint/retry/pause semantics are not hidden by the generic executor cache.
+- Checkpoints now include a JSON-safe snapshot of shared run metadata alongside local checkpoint context when upstream metadata is requested.
+- API client migration: `collab/auth.ts` now uses the central API helpers for `/auth/token` and `/auth/me`; token/user localStorage helpers live in `collab/authStorage.ts` so `api/client.ts` can read bearer tokens without a circular dependency. The migration guard now covers auth, and no first-party raw `/api` fetches remain outside `api/client.ts`.
 
 ---
 
@@ -387,7 +390,7 @@ Items from the gap analysis that haven't landed yet:
 - #66 Telemetry — DONE in Wave G; remote-sink integration deferred.
 - #85 Reorganise hooks into category folders.
 - #86 Design tokens documented (CSS custom property reference).
-- Remaining `fetch('/api/...')` call sites: ~30 files still pre-`api/client.ts`; migrate opportunistically.
+- First-party raw `/api` fetch migration — DONE; the GitHub releases request remains intentionally outside `api/client.ts` because it targets an external host.
 
 ---
 

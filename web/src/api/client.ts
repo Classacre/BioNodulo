@@ -11,7 +11,7 @@
 // no auto-toast. Add those in domain hooks if/when they actually become
 // needed.
 
-import { getToken } from '../collab/auth';
+import { getToken } from '../collab/authStorage';
 import { appPath } from '../utils/appBase';
 
 export interface ApiRequestInit extends Omit<RequestInit, 'body' | 'headers'> {

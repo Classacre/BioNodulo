@@ -7,6 +7,7 @@ const migratedFiles = [
   'src/components/panels/WorkspacePanel.tsx',
   'src/components/panels/EnvironmentPanel.tsx',
   'src/collab/AuditLog.tsx',
+  'src/collab/auth.ts',
   'src/collab/CommentsPanel.tsx',
   'src/collab/NodeCommentPopover.tsx',
   'src/collab/TemplateGallery.tsx',
