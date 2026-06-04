@@ -388,6 +388,64 @@ async def test_workflow_executor_context_exposes_executor_and_shared_run_metadat
 
 
 @pytest.mark.asyncio
+async def test_workflow_executor_fails_nodes_that_return_none(tmp_path: Path) -> None:
+    class NoneReturnNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> None:
+            return None
+
+    class Registry:
+        def get(self, _node_type: str) -> type[NoneReturnNode]:
+            return NoneReturnNode
+
+    workflow = {
+        "nodes": [{"id": "bad", "type": "none_return", "outputs": {"out": {}}}],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("none-return-run", workflow)
+
+    assert result["status"] == "failed"
+    assert result["node_results"]["bad"]["status"] == "failed"
+    assert "did not return outputs" in result["node_results"]["bad"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_fails_nodes_that_return_dict_without_outputs(tmp_path: Path) -> None:
+    class InvalidDictNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            return {"out": "value"}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[InvalidDictNode]:
+            return InvalidDictNode
+
+    workflow = {
+        "nodes": [{"id": "bad", "type": "invalid_dict", "outputs": {"out": {}}}],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("invalid-dict-run", workflow)
+
+    assert result["status"] == "failed"
+    assert result["node_results"]["bad"]["status"] == "failed"
+    assert "must return an 'outputs' mapping" in result["node_results"]["bad"]["error"]
+
+
+@pytest.mark.asyncio
 async def test_workflow_executor_always_run_cache_policy_bypasses_generic_cache(tmp_path: Path) -> None:
     class AlwaysRunNode:
         RETURN_NAMES = ("out",)

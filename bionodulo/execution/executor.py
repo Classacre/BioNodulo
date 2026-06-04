@@ -1271,6 +1271,9 @@ class WorkflowExecutor:
     ) -> dict[str, Any]:
         """Normalize node return value to dict format expected by the executor."""
         if isinstance(raw, dict):
+            outputs = raw.get("outputs")
+            if not isinstance(outputs, dict):
+                raise ValueError("Node result dict must return an 'outputs' mapping")
             return raw
         if isinstance(raw, tuple):
             return_names = getattr(node_class, "RETURN_NAMES", ()) or ()
@@ -1280,7 +1283,7 @@ class WorkflowExecutor:
                 outputs[name] = val
             return {"outputs": outputs}
         if raw is None:
-            return {"outputs": {}}
+            raise ValueError("Node did not return outputs")
         # Single scalar value
         return_names = getattr(node_class, "RETURN_NAMES", ()) or ()
         name = return_names[0] if return_names else "default"
