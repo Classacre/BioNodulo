@@ -66,6 +66,17 @@ def _frontend_connected_workflow() -> dict:
     }
 
 
+def _frontend_node_info_output_workflow() -> dict:
+    workflow = _frontend_connected_workflow()
+    for node in workflow["nodes"]:
+        node.pop("outputs", None)
+        node["node_info"] = {
+            "return_names": ["html"],
+            "return_types": ["FILE"],
+        }
+    return workflow
+
+
 def test_export_workflow_delegates_to_pipeline_converters() -> None:
     snakemake = export_workflow(_workflow("fastqc"), "snakemake", name="qc")
     nextflow = export_workflow(_workflow("fastqc"), "nextflow", name="qc")
@@ -161,3 +172,51 @@ def test_galaxy_export_preserves_frontend_shaped_edges() -> None:
             "output_name": "html",
         }
     }
+
+
+def test_snakemake_export_derives_outputs_from_frontend_node_info() -> None:
+    exported = export_to_snakemake(_frontend_node_info_output_workflow())
+
+    assert '"results/summary/html_output",' in exported
+    assert (
+        'rule summary:\n'
+        '    input:\n'
+        '        "results/qc/html_output",\n'
+        '    output:\n'
+        '        html="results/summary/html_output",'
+    ) in exported
+
+
+def test_nextflow_export_derives_outputs_from_frontend_node_info() -> None:
+    exported = export_to_nextflow(_frontend_node_info_output_workflow())
+
+    assert "process summary {\n" in exported
+    assert '    output:\n        path "html_output"' in exported
+
+
+def test_cwl_export_derives_outputs_from_frontend_node_info() -> None:
+    exported = export_to_cwl(_frontend_node_info_output_workflow())
+    workflow = json.loads(exported["workflow.cwl"])
+    summary_tool = json.loads(exported["tools/summary.cwl"])
+
+    assert workflow["steps"]["summary"]["out"] == ["html"]
+    assert workflow["outputs"]["summary_html"]["outputSource"] == "summary/html"
+    assert summary_tool["outputs"] == {
+        "html": {
+            "type": "File",
+            "outputBinding": {"glob": "html_output"},
+        }
+    }
+
+
+def test_galaxy_export_derives_outputs_from_frontend_node_info() -> None:
+    exported = json.loads(export_to_galaxy(_frontend_node_info_output_workflow()))
+    summary_step = next(step for step in exported["steps"].values() if step["label"] == "summary")
+
+    assert summary_step["outputs"] == [
+        {
+            "name": "html",
+            "type": "data",
+            "output_name": "html",
+        }
+    ]

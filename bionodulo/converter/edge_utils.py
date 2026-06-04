@@ -5,6 +5,26 @@ from __future__ import annotations
 from typing import Any
 
 
+def node_outputs(node: dict[str, Any]) -> dict[str, Any]:
+    outputs = node.get("outputs")
+    if isinstance(outputs, dict) and outputs:
+        return outputs
+
+    node_info = node.get("node_info")
+    if not isinstance(node_info, dict):
+        return {}
+    return_names = node_info.get("return_names")
+    if not isinstance(return_names, list):
+        return {}
+    return {str(name): {} for name in return_names if name}
+
+
+def node_output_path(node_id: str, port: str, spec: Any) -> str:
+    if isinstance(spec, dict) and "path" in spec:
+        return str(spec["path"])
+    return "results/" + node_id + "/" + port + "_output"
+
+
 def edge_source(edge: dict[str, Any]) -> Any:
     source = edge.get("source", edge.get("source_node"))
     if source is None and isinstance(edge.get("from"), dict):

@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port
+from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port, node_outputs
 
 
 def export_to_cwl(
@@ -163,7 +163,7 @@ def _node_to_command_line_tool(node_id: str, node: dict[str, Any]) -> dict[str, 
         }
 
     cwl_outputs: dict[str, Any] = {}
-    for out_name in node.get("outputs", {}).keys():
+    for out_name in node_outputs(node):
         cwl_outputs[out_name] = {
             "type": "File",
             "outputBinding": {"glob": out_name + "_output"},
@@ -232,7 +232,7 @@ def _build_cwl_workflow(
         steps[node_id] = {
             "run": "tools/" + node_id + ".cwl",
             "in": step_inputs,
-            "out": list(node.get("outputs", {}).keys()) or ["default"],
+            "out": list(node_outputs(node).keys()) or ["default"],
         }
 
     wf_inputs: dict[str, Any] = {}
@@ -246,7 +246,7 @@ def _build_cwl_workflow(
     for node_id, out in outgoing.items():
         if not out:
             node = nodes[node_id]
-            for out_name in node.get("outputs", {}).keys():
+            for out_name in node_outputs(node):
                 wf_outputs[node_id + "_" + out_name] = {
                     "type": "File",
                     "outputSource": node_id + "/" + out_name,

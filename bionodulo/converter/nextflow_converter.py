@@ -12,7 +12,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_target
+from bionodulo.converter.edge_utils import edge_source, edge_target, node_outputs
 
 
 def export_to_nextflow(
@@ -81,7 +81,7 @@ def export_to_nextflow(
             lines.extend(input_defs)
 
         output_defs: list[str] = []
-        for port in node.get("outputs", {}):
+        for port in node_outputs(node):
             output_defs.append('        path "' + port + '_output"')
         if output_defs:
             lines.append("    output:")

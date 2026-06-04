@@ -11,7 +11,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target
+from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, node_output_path, node_outputs
 
 
 def export_to_snakemake(
@@ -56,11 +56,8 @@ def export_to_snakemake(
         all_outputs = []
         for nid in target_nodes:
             node = nodes[nid]
-            for port, spec in node.get("outputs", {}).items():
-                if isinstance(spec, dict) and "path" in spec:
-                    all_outputs.append('"' + spec["path"] + '"')
-                else:
-                    all_outputs.append('"results/' + nid + '/' + port + '_output"')
+            for port, spec in node_outputs(node).items():
+                all_outputs.append('"' + node_output_path(nid, port, spec) + '"')
         lines.extend(["rule all:", "    input:"])
         for out in all_outputs:
             lines.append("        " + out + ",")
@@ -80,11 +77,8 @@ def export_to_snakemake(
             src_port = edge_source_port(edge)
             if src in nodes:
                 src_node = nodes[src]
-                src_out = src_node.get("outputs", {}).get(src_port, {})
-                if isinstance(src_out, dict) and "path" in src_out:
-                    input_paths.append('"' + src_out["path"] + '"')
-                else:
-                    input_paths.append('"results/' + src + '/' + src_port + '_output"')
+                src_out = node_outputs(src_node).get(src_port, {})
+                input_paths.append('"' + node_output_path(src, src_port, src_out) + '"')
         if input_paths:
             lines.append("    input:")
             for inp in input_paths:
@@ -92,11 +86,8 @@ def export_to_snakemake(
 
         # Outputs
         output_paths: list[str] = []
-        for port, spec in node.get("outputs", {}).items():
-            if isinstance(spec, dict) and "path" in spec:
-                output_paths.append(port + '="' + spec["path"] + '"')
-            else:
-                output_paths.append(port + '="results/' + node_id + '/' + port + '_output"')
+        for port, spec in node_outputs(node).items():
+            output_paths.append(port + '="' + node_output_path(node_id, port, spec) + '"')
         if output_paths:
             lines.append("    output:")
             for out in output_paths:

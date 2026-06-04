@@ -12,7 +12,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port
+from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port, node_outputs
 
 
 def export_to_galaxy(
@@ -77,7 +77,7 @@ def export_to_galaxy(
             "post_job_actions": {},
         }
 
-        for port in node.get("outputs", {}).keys():
+        for port in node_outputs(node):
             galaxy_step["outputs"].append({
                 "name": port,
                 "type": "data",
