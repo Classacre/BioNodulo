@@ -441,3 +441,181 @@ def test_ibiosim_model_environment_metadata_avoids_fake_conda_package() -> None:
     assert packages == ["python"]
     assert "ibiosim" not in packages
     assert "biosimulators-ibiosim" not in packages
+
+
+def test_cello_circuit_design_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cello_circuit_design"]
+    assert node_info["display_name"] == "Cello Circuit Design"
+    assert node_info["category"] == "synthetic_biology"
+    assert node_info["description"].startswith("Run Cello DNACompiler")
+    assert node_info["output"] == ["DIRECTORY", "TSV", "JSON", "LOG"]
+    assert node_info["output_name"] == ["design_dir", "result_index", "metadata", "log"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == []
+    assert node_info["experimental"] is True
+    assert "cello" in node_info["search_aliases"]
+    assert "verilog" in node_info["search_aliases"]
+    assert "ucf" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"input_netlist", "target_data_file", "options_file", "cello_exec_dir"}
+    assert set(inputs["optional"]) == {
+        "netlist_constraint_file",
+        "java_args",
+        "application",
+        "algo_name",
+        "output_name",
+    }
+
+
+def test_cello_circuit_design_renders_dna_compiler_command() -> None:
+    node_class = _node_class("cello_circuit_design")
+
+    cmd = node_class.render_command({
+        "input_netlist": "/designs/rule30.v",
+        "target_data_file": "/ucf/Eco1C1G1T1.UCF.json",
+        "options_file": "/designs/options.csv",
+        "netlist_constraint_file": "/designs/rule30_constraints.json",
+        "cello_exec_dir": "/opt/Cello-v2/exec",
+        "java_args": "-Xms2G -Xmx5G",
+        "application": "DNACompiler",
+        "algo_name": "",
+        "output_name": "rule30 design",
+        "output": "/tmp/run/cello_circuit_design",
+    })
+
+    assert cmd == [
+        "python",
+        "/opt/Cello-v2/exec/run.py",
+        "-e",
+        "DNACompiler",
+        "-j",
+        "-Xms2G -Xmx5G",
+        "-a",
+        (
+            "-inputNetlist /designs/rule30.v "
+            "-targetDataFile /ucf/Eco1C1G1T1.UCF.json "
+            "-options /designs/options.csv "
+            "-outputDir /tmp/run/cello_circuit_design/rule30_design "
+            "-netlistConstraintFile /designs/rule30_constraints.json"
+        ),
+        ">",
+        "/tmp/run/cello_circuit_design/rule30_design.log",
+        "2>&1",
+        "&&",
+        "python",
+        "-c",
+        node_class.INDEX_SCRIPT,
+        "/tmp/run/cello_circuit_design/rule30_design",
+        "/tmp/run/cello_circuit_design/rule30_design.result_index.tsv",
+        "/tmp/run/cello_circuit_design/rule30_design.metadata.json",
+        "/tmp/run/cello_circuit_design/rule30_design.log",
+        "/designs/rule30.v",
+        "/ucf/Eco1C1G1T1.UCF.json",
+        "/designs/options.csv",
+        "/designs/rule30_constraints.json",
+        "/opt/Cello-v2/exec",
+        "DNACompiler",
+        "",
+        "-Xms2G -Xmx5G",
+    ]
+
+
+def test_cello_circuit_design_renders_export_stage_with_algo_name() -> None:
+    node_class = _node_class("cello_circuit_design")
+
+    cmd = node_class.render_command({
+        "input_netlist": "/designs/placement.json",
+        "target_data_file": "/ucf/Eco1C1G1T0.UCF.json",
+        "options_file": "/designs/options.csv",
+        "netlist_constraint_file": "",
+        "cello_exec_dir": "/opt/Cello-v2/exec/",
+        "java_args": "",
+        "application": "export",
+        "algo_name": "SBOL",
+        "output_name": "",
+        "output": "/tmp/run/cello_circuit_design",
+    })
+
+    assert cmd == [
+        "python",
+        "/opt/Cello-v2/exec/run.py",
+        "-e",
+        "export",
+        "-a",
+        (
+            "-inputNetlist /designs/placement.json "
+            "-targetDataFile /ucf/Eco1C1G1T0.UCF.json "
+            "-options /designs/options.csv "
+            "-outputDir /tmp/run/cello_circuit_design/placement "
+            "-algoName SBOL"
+        ),
+        ">",
+        "/tmp/run/cello_circuit_design/placement.log",
+        "2>&1",
+        "&&",
+        "python",
+        "-c",
+        node_class.INDEX_SCRIPT,
+        "/tmp/run/cello_circuit_design/placement",
+        "/tmp/run/cello_circuit_design/placement.result_index.tsv",
+        "/tmp/run/cello_circuit_design/placement.metadata.json",
+        "/tmp/run/cello_circuit_design/placement.log",
+        "/designs/placement.json",
+        "/ucf/Eco1C1G1T0.UCF.json",
+        "/designs/options.csv",
+        "",
+        "/opt/Cello-v2/exec/",
+        "export",
+        "SBOL",
+        "",
+    ]
+
+
+def test_cello_circuit_design_rejects_unknown_application() -> None:
+    node_class = _node_class("cello_circuit_design")
+
+    try:
+        node_class.render_command({
+            "input_netlist": "/designs/rule30.v",
+            "target_data_file": "/ucf/Eco1C1G1T1.UCF.json",
+            "options_file": "/designs/options.csv",
+            "cello_exec_dir": "/opt/Cello-v2/exec",
+            "application": "place",
+            "output": "/tmp/run/cello_circuit_design",
+        })
+    except ValueError as exc:
+        assert "application" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unsupported Cello application")
+
+
+def test_cello_circuit_design_plans_outputs() -> None:
+    node_class = _node_class("cello_circuit_design")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"input_netlist": "/designs/rule30.v", "output_name": "rule30 design"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cello_circuit_design/rule30_design",
+        "/tmp/run/cello_circuit_design/rule30_design.result_index.tsv",
+        "/tmp/run/cello_circuit_design/rule30_design.metadata.json",
+        "/tmp/run/cello_circuit_design/rule30_design.log",
+    ]
+
+
+def test_cello_circuit_design_environment_metadata_avoids_fake_conda_package() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
+    packages = workflow_to_packages({"nodes": [{"id": "cello", "type": "cello_circuit_design"}]}, registry)
+
+    assert packages == ["python"]
+    assert "cello" not in packages
