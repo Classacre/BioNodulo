@@ -41,11 +41,11 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       setVersions(data.versions ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load versions');
+      setError(err instanceof Error ? err.message : t('collab.versionHistoryLoadError'));
     } finally {
       setLoading(false);
     }
-  }, [workflowId]);
+  }, [workflowId, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,11 +54,11 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
 
   const handleSaveVersion = async () => {
     const name = await promptDialog({
-      title: 'Save version',
-      message: 'Name this workflow version.',
-      inputLabel: 'Version name',
-      placeholder: 'Optional',
-      confirmLabel: 'Save Version',
+      title: t('collab.versionHistorySavePromptTitle'),
+      message: t('collab.versionHistorySavePromptMessage'),
+      inputLabel: t('collab.versionHistorySavePromptInputLabel'),
+      placeholder: t('collab.versionHistorySavePromptPlaceholder'),
+      confirmLabel: t('collab.versionHistorySavePromptConfirm'),
     });
     if (name === null) return;
     setSaving(true);
@@ -66,7 +66,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       await apiPost(`${API_BASE}/workflows/${workflowId}/versions`, { name: name || null });
       fetchVersions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save version');
+      setError(err instanceof Error ? err.message : t('collab.versionHistorySaveError'));
     } finally {
       setSaving(false);
     }
@@ -74,9 +74,9 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
 
   const handleRestore = async (versionId: string) => {
     const ok = await confirmDialog({
-      title: 'Restore version?',
-      message: 'Restore this version? This will create a new branch of the current workflow.',
-      confirmLabel: 'Restore',
+      title: t('collab.versionHistoryRestoreConfirmTitle'),
+      message: t('collab.versionHistoryRestoreConfirmMessage'),
+      confirmLabel: t('collab.versionHistoryRestore'),
       tone: 'warning',
     });
     if (!ok) return;
@@ -85,15 +85,15 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       onRestore(data.snapshot);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restore version');
+      setError(err instanceof Error ? err.message : t('collab.versionHistoryRestoreError'));
     }
   };
 
   const handleDelete = async (versionId: string) => {
     const ok = await confirmDialog({
-      title: 'Delete version?',
-      message: 'Delete this version?',
-      confirmLabel: 'Delete',
+      title: t('collab.versionHistoryDeleteConfirmTitle'),
+      message: t('collab.versionHistoryDeleteConfirmMessage'),
+      confirmLabel: t('common.delete'),
       tone: 'danger',
     });
     if (!ok) return;
@@ -101,7 +101,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       await apiDelete(`${API_BASE}/versions/${versionId}`);
       fetchVersions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete version');
+      setError(err instanceof Error ? err.message : t('collab.versionHistoryDeleteError'));
     }
   };
 
@@ -110,7 +110,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const diff = await apiGet<VersionDiffResult>(`${API_BASE}/versions/${a.id}/diff/${b.id}`);
       setDiffData({ a, b, diff });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load diff');
+      setError(err instanceof Error ? err.message : t('collab.versionHistoryDiffLoadError'));
     }
   };
 
@@ -175,8 +175,8 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       {/* Diff overlay */}
       {diffData && (
         <VersionDiff
-          versionA={{ id: diffData.a.id, name: diffData.a.name || 'Auto-save' }}
-          versionB={{ id: diffData.b.id, name: diffData.b.name || 'Auto-save' }}
+          versionA={{ id: diffData.a.id, name: diffData.a.name || t('collab.versionHistoryAutoSaveFallback') }}
+          versionB={{ id: diffData.b.id, name: diffData.b.name || t('collab.versionHistoryAutoSaveFallback') }}
           diff={diffData.diff}
           isOpen={!!diffData}
           onClose={() => setDiffData(null)}
