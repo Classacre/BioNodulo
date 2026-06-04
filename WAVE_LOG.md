@@ -388,6 +388,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Templates panel dialog chrome, save form, search/sort controls, result summaries, card affordances, counts, and empty/error states now read from `templates` i18n keys, with Spanish unit coverage for the panel surface.
 - Left rail built-in panel labels, button titles, and accessible names now read from `panels` i18n keys, with Spanish unit coverage while preserving the existing tab ids and shortcut suffixes.
 - Workspace panel chrome, root controls, file-list loading/empty states, selection count, file row tooltips, preview actions, and local error strings now read from `workspace` / `common` i18n keys, with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
+- Inspector panel is restored as a built-in rail/App panel, and its chrome plus empty-state text now read from `inspector` i18n keys with Spanish unit coverage.
 
 ---
 

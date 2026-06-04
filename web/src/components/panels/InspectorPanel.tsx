@@ -8,6 +8,7 @@
 // the rest is filled with sensible defaults.
 
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, WorkflowNode } from '../../types';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import NodeEditor from '../nodes/NodeEditor';
@@ -30,19 +31,21 @@ function emptyState(message: string, hint?: ReactNode): ReactNode {
 }
 
 export default function InspectorPanel({ selectedNode, objectInfo, onParamChange, onClose }: InspectorPanelProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="rail-panel inspector-panel">
       <div className="rail-panel-header">
-        <span>Inspector</span>
-        <button className="btn btn-icon btn-sm" onClick={onClose} title="Close inspector">
+        <span>{t('inspector.title')}</span>
+        <button className="btn btn-icon btn-sm" onClick={onClose} title={t('inspector.closeTitle')}>
           <Icon name="close" size={14} />
         </button>
       </div>
       <div className="rail-panel-body" style={{ overflow: 'auto' }}>
         {!selectedNode
           ? emptyState(
-            'No node selected',
-            'Click any node on the canvas to edit its parameters here. Double-click also opens a floating editor.',
+            t('inspector.emptyTitle'),
+            t('inspector.emptyHint'),
           )
           : (() => {
             const meta = objectInfo[selectedNode.type] ?? selectedNode.node_info ?? null;

@@ -697,6 +697,9 @@ const en = {
   },
   inspector: {
     title: 'Inspector',
+    closeTitle: 'Close inspector',
+    emptyTitle: 'No node selected',
+    emptyHint: 'Click any node on the canvas to edit its parameters here. Double-click also opens a floating editor.',
     selectNodeHint: 'Select a node to inspect',
     tabsParams: 'Parameters',
     tabsOutputs: 'Outputs',

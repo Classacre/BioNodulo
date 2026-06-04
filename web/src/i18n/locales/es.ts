@@ -697,6 +697,9 @@ const es = {
   },
   inspector: {
     title: 'Inspector',
+    closeTitle: 'Cerrar inspector',
+    emptyTitle: 'Ningun nodo seleccionado',
+    emptyHint: 'Haz clic en cualquier nodo del lienzo para editar sus parametros aqui. Doble clic tambien abre un editor flotante.',
     selectNodeHint: 'Select a node to inspect',
     tabsParams: 'Parametros',
     tabsOutputs: 'Outputs',

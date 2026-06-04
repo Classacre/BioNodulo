@@ -15,6 +15,7 @@ const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel
 const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
+const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
@@ -2085,6 +2086,12 @@ export default function App() {
         onSelect: () => togglePanel('nodes'),
       },
       {
+        id: 'rail.inspector',
+        label: 'Open inspector',
+        group: 'Panels',
+        onSelect: () => togglePanel('inspector'),
+      },
+      {
         id: 'rail.templates',
         label: 'Open templates',
         group: 'Panels',
@@ -2701,6 +2708,26 @@ export default function App() {
           onAddBlueprint={(bp) => {
             const newNode = instantiateBlueprint(bp, [200 + Math.random() * 40, 200 + Math.random() * 40]);
             handleNodesChange([...activeWorkflow.nodes, newNode]);
+            pushHistory();
+          }}
+          onClose={() => closePanel(tab)}
+        />
+      ));
+    }
+    if (tab === 'inspector') {
+      const selected = selectedNodeId
+        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId) ?? null
+        : null;
+      return wrap('inspector', (
+        <InspectorPanel
+          selectedNode={selected}
+          objectInfo={objectInfo}
+          onParamChange={(nodeId, key, value) => {
+            handleNodesChange(activeWorkflow.nodes.map(node => (
+              node.id === nodeId
+                ? { ...node, params: { ...(node.params || {}), [key]: value } }
+                : node
+            )));
             pushHistory();
           }}
           onClose={() => closePanel(tab)}

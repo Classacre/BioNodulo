@@ -49,6 +49,7 @@ describe('LeftRail i18n', () => {
       'Espacio de trabajo (Ctrl+1)',
     );
     expect(screen.getByRole('button', { name: 'Nodos (Ctrl+2)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inspector' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Plantillas (Ctrl+3)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entorno (Ctrl+4)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'HPC (Ctrl+5)' })).toBeInTheDocument();
@@ -59,5 +60,9 @@ describe('LeftRail i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Plantillas (Ctrl+3)' }));
 
     expect(onChange).toHaveBeenCalledWith('templates');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspector' }));
+
+    expect(onChange).toHaveBeenCalledWith('inspector');
   });
 });
