@@ -2353,8 +2353,9 @@ class PauseResumeNode(BaseNode):
             "reviewers": reviewers,
             "preview": self._preview(data) if show_preview else None,
             "created_at": time.time(),
+            "review_decision_supported": True,
             "engine_pause_supported": False,
-            "note": "Review request recorded; executor-level blocking pause/resume is not implemented yet.",
+            "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
         }
 
         pause_file = self._write_pause_file(context, pause_info)
@@ -2374,6 +2375,7 @@ class PauseResumeNode(BaseNode):
                 "timeout_seconds": timeout_seconds,
                 "reviewers": reviewers,
                 "pause_file": pause_file,
+                "review_decision_supported": True,
                 "engine_pause_supported": False,
             },
         )
@@ -2428,6 +2430,34 @@ class PauseResumeNode(BaseNode):
         pause_file = pause_dir / f"{node_id}.json"
         pause_file.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
         return str(pause_file)
+
+    @staticmethod
+    def resolve_pause_request(pause_file: str | Path, action: str, reviewer: str = "", comment: str = "") -> dict[str, Any]:
+        action = str(action or "").lower().strip()
+        if action not in {"approve", "reject"}:
+            raise ValueError(f"Unsupported pause resolution action: {action}")
+
+        path = Path(pause_file)
+        try:
+            pause_info = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"pause request file is not valid JSON: {path}") from exc
+        if not isinstance(pause_info, dict):
+            raise ValueError(f"pause request file must contain a JSON object: {path}")
+
+        approved = action == "approve"
+        pause_info.update(
+            {
+                "status": "approved" if approved else "rejected",
+                "approved": approved,
+                "resolved_at": time.time(),
+                "resolved_by": str(reviewer or "").strip(),
+                "resolution_comment": str(comment or ""),
+                "review_decision_supported": True,
+            }
+        )
+        path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
+        return dict(pause_info)
 
 
 class SubWorkflowNode(BaseNode):

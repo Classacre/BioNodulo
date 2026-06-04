@@ -1316,6 +1316,42 @@ async def test_pause_resume_timeout_default_actions(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pause_resume_resolver_updates_persisted_review_decision(tmp_path: Path) -> None:
+    context = _context(tmp_path, "pause-review")
+    context.workspace_dir = tmp_path
+    node_class = _node_class("pause_resume")
+
+    _, _, pause_info_json = await node_class().run(
+        input={"variants": 17},
+        message="Approve annotation handoff?",
+        timeout_seconds=0,
+        default_action="wait",
+        reviewers="ana",
+        context=context,
+    )
+
+    pause_info = json.loads(pause_info_json)
+    pause_file = Path(pause_info["pause_file"])
+    resolved = node_class.resolve_pause_request(
+        pause_file,
+        action="approve",
+        reviewer="ana",
+        comment="QC reviewed",
+    )
+    saved = json.loads(pause_file.read_text(encoding="utf-8"))
+    assert pause_info["review_decision_supported"] is True
+    assert resolved["status"] == "approved"
+    assert resolved["approved"] is True
+    assert resolved["resolved_by"] == "ana"
+    assert resolved["resolution_comment"] == "QC reviewed"
+    assert isinstance(resolved["resolved_at"], float)
+    assert saved["status"] == "approved"
+    assert saved["approved"] is True
+    assert saved["resolved_by"] == "ana"
+    assert saved["resolution_comment"] == "QC reviewed"
+
+
+@pytest.mark.asyncio
 async def test_pause_resume_rejects_invalid_default_action() -> None:
     with pytest.raises(ValueError, match="Unsupported default_action"):
         await _node_class("pause_resume")().run(
