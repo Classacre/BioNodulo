@@ -719,6 +719,22 @@ class FuncotateTableNode(CommandNode):
         }
 
 
+class FuncotatorNode(FuncotateTableNode):
+    """Compatibility alias for GATK Funcotator."""
+
+    NODE_ID = "funcotator"
+    DISPLAY_NAME = "Funcotator"
+    DESCRIPTION = "Annotate cancer variants with GATK Funcotator."
+    SEARCH_ALIASES = [
+        "funcotator",
+        "funcotate",
+        "gatk funcotator",
+        "cancer variants",
+        "somatic annotation",
+        "oncotator",
+    ]
+
+
 class BcftoolsAnnotateNode(CommandNode):
     """Annotate VCF records from BED, VCF, or TSV annotation files."""
     NODE_ID = "bcftools_annotate"

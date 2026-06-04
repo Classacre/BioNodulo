@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.nodes.builtin.annotation import FuncotateTableNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -468,6 +469,107 @@ def test_funcotate_table_plans_outputs_by_format() -> None:
     assert [str(path) for path in vcf_outputs] == [
         "/tmp/run/funcotate_table/annotated.vcf",
         "/tmp/run/funcotate_table/summary.tsv",
+    ]
+
+
+def test_funcotator_alias_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_class = registry.get("funcotator")
+    assert node_class is not None
+    assert issubclass(node_class, FuncotateTableNode)
+    assert node_class.render_command.__func__ is FuncotateTableNode.render_command.__func__
+    assert node_class.PLAN_OUTPUTS.__func__ is FuncotateTableNode.PLAN_OUTPUTS.__func__
+    assert node_class.INPUT_TYPES.__func__ is FuncotateTableNode.INPUT_TYPES.__func__
+    assert {name for name in node_class.__dict__ if not name.startswith("_")} == {
+        "NODE_ID",
+        "DISPLAY_NAME",
+        "DESCRIPTION",
+        "SEARCH_ALIASES",
+    }
+
+    node_info = info["funcotator"]
+    assert node_info["display_name"] == "Funcotator"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"] == "Annotate cancer variants with GATK Funcotator."
+    assert node_info["output"] == ["FILE", "FILE"]
+    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["required_executables"] == ["gatk"]
+    assert node_info["required_conda_packages"] == ["gatk4"]
+    assert {
+        "funcotator",
+        "funcotate",
+        "gatk funcotator",
+        "cancer variants",
+        "somatic annotation",
+        "oncotator",
+    }.issubset(node_info["search_aliases"])
+
+
+def test_funcotator_alias_renders_gatk_funcotator_command() -> None:
+    node_class = _node_class("funcotator")
+
+    cmd = node_class.render_command({
+        "vcf": "somatic.vcf.gz",
+        "reference": "GRCh38.fa",
+        "data_sources": "/refs/funcotator",
+        "ref_version": "hg38",
+        "output_format": "MAF",
+        "transcript_selection_mode": "CANONICAL",
+        "annotation_defaults": "Center:BioNodulo,NCBI_Build:GRCh38",
+        "annotation_overrides": "Tumor_Sample_Barcode:TUMOR",
+        "intervals": "targets.interval_list",
+        "output": "/tmp/run/funcotator",
+    })
+
+    assert cmd == [
+        "gatk",
+        "Funcotator",
+        "-R",
+        "GRCh38.fa",
+        "-V",
+        "somatic.vcf.gz",
+        "-O",
+        "/tmp/run/funcotator/annotated.maf",
+        "--output-file-format",
+        "MAF",
+        "--data-sources-path",
+        "/refs/funcotator",
+        "--ref-version",
+        "hg38",
+        "--transcript-selection-mode",
+        "CANONICAL",
+        "--annotation-default",
+        "Center:BioNodulo",
+        "--annotation-default",
+        "NCBI_Build:GRCh38",
+        "--annotation-override",
+        "Tumor_Sample_Barcode:TUMOR",
+        "-L",
+        "targets.interval_list",
+        "&&",
+        "printf",
+        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotator/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
+        ">",
+        "/tmp/run/funcotator/summary.tsv",
+    ]
+
+
+def test_funcotator_alias_plans_outputs_under_funcotator_directory() -> None:
+    node_class = _node_class("funcotator")
+
+    maf_outputs = node_class.PLAN_OUTPUTS({"output_format": "MAF"}, "/tmp/run")
+    vcf_outputs = node_class.PLAN_OUTPUTS({"output_format": "VCF"}, "/tmp/run")
+
+    assert [str(path) for path in maf_outputs] == [
+        "/tmp/run/funcotator/annotated.maf",
+        "/tmp/run/funcotator/summary.tsv",
+    ]
+    assert [str(path) for path in vcf_outputs] == [
+        "/tmp/run/funcotator/annotated.vcf",
+        "/tmp/run/funcotator/summary.tsv",
     ]
 
 
