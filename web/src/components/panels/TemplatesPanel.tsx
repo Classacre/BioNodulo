@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import Fuse from 'fuse.js';
+import { useTranslation } from 'react-i18next';
 import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
 import Dialog from '../ui/Dialog';
@@ -44,13 +45,17 @@ interface RankedTemplate {
   score: number;
 }
 
-const SORT_LABELS: Record<TemplateSortMode, string> = {
-  ranked: 'Best match',
-  name: 'Name',
-  category: 'Category',
-  node_count: 'Node count',
-  recent: 'Updated',
+const SORT_LABEL_KEYS: Record<TemplateSortMode, string> = {
+  ranked: 'templates.sortBestMatch',
+  name: 'templates.sortName',
+  category: 'templates.sortCategory',
+  node_count: 'templates.sortNodeCount',
+  recent: 'templates.sortUpdated',
 };
+
+const ALL_CATEGORY = '__all__';
+const DEFAULT_CUSTOM_CATEGORY = 'Custom';
+const DEFAULT_OTHER_CATEGORY = 'Other';
 
 function normalizeTags(input: string): string[] {
   return input.split(',')
@@ -77,10 +82,12 @@ function scoreTemplate(template: TemplateCardInfo, searchScore: number, index: n
   return Math.max(0, Math.min(1, base + hasDescription + tagDepth + toolDepth + nodeBalance + usageBoost + localUsageBoost - positionalPenalty));
 }
 
-function templateSummary(template: TemplateCardInfo): string {
+function templateSummary(template: TemplateCardInfo, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (template.description.trim()) return template.description;
   const steps = template.preview_steps?.slice(0, 3).join(' -> ');
-  return steps ? `${template.category} workflow: ${steps}` : `${template.category} workflow template`;
+  return steps
+    ? t('templates.workflowStepsSummary', { category: template.category, steps })
+    : t('templates.workflowTemplateSummary', { category: template.category });
 }
 
 function compactStep(step: string): string {
@@ -181,18 +188,19 @@ export default function TemplatesPanel({
   sortMode,
   onSortModeChange,
 }: TemplatesPanelProps) {
+  const { t } = useTranslation();
   const [templates, setTemplates] = useState<TemplateCardInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
-  const [catFilter, setCatFilter] = useState<string>('All');
+  const [catFilter, setCatFilter] = useState<string>(ALL_CATEGORY);
   const [internalSortMode, setInternalSortMode] = useState<TemplateSortMode>('ranked');
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveDraft, setSaveDraft] = useState({
     name: saveTemplateInitialName,
     description: saveTemplateInitialDescription,
-    category: 'Custom',
+    category: DEFAULT_CUSTOM_CATEGORY,
     tags: '',
   });
   const activeSortMode = sortMode || internalSortMode;
@@ -212,7 +220,7 @@ export default function TemplatesPanel({
           id: t.id || t.filename.replace('.json', ''),
           name: t.name || t.filename.replace('.json', '').replace(/_/g, ' '),
           description: t.description || '',
-          category: t.category || 'Other',
+          category: t.category || DEFAULT_OTHER_CATEGORY,
           tags: t.tags || [],
           tools: t.tools || [],
           node_count: t.node_count || 0,
@@ -237,7 +245,7 @@ export default function TemplatesPanel({
   }, []);
 
   const categories = useMemo(
-    () => ['All', ...Array.from(new Set(templates.map(t => t.category))).sort((a, b) => a.localeCompare(b))],
+    () => [ALL_CATEGORY, ...Array.from(new Set(templates.map(t => t.category))).sort((a, b) => a.localeCompare(b))],
     [templates],
   );
 
@@ -267,7 +275,7 @@ export default function TemplatesPanel({
         score: scoreTemplate(template, 0.18, index, localUsageFor(template.id)),
       }));
 
-    const categoryFiltered = base.filter(item => catFilter === 'All' || item.template.category === catFilter);
+    const categoryFiltered = base.filter(item => catFilter === ALL_CATEGORY || item.template.category === catFilter);
     return sortRankedTemplates(categoryFiltered, activeSortMode);
   }, [activeSortMode, catFilter, filter, fuse, templates, localUsageMap]);
 
@@ -280,7 +288,7 @@ export default function TemplatesPanel({
     event.preventDefault();
     const name = saveDraft.name.trim();
     if (!name) {
-      setSaveError('Name is required.');
+      setSaveError(t('templates.nameRequired'));
       return;
     }
     if (!onSaveTemplate) return;
@@ -289,7 +297,7 @@ export default function TemplatesPanel({
     await onSaveTemplate({
       name,
       description: saveDraft.description.trim(),
-      category: saveDraft.category.trim() || 'Custom',
+      category: saveDraft.category.trim() || DEFAULT_CUSTOM_CATEGORY,
       tags: normalizeTags(saveDraft.tags),
     });
     setSaveOpen(false);
@@ -299,7 +307,7 @@ export default function TemplatesPanel({
 
   return (
     <Dialog
-      title="Templates"
+      title={t('templates.title')}
       onClose={onClose}
       width={980}
       maxHeight="86vh"
@@ -312,10 +320,10 @@ export default function TemplatesPanel({
               type="button"
               onClick={() => setSaveOpen(open => !open)}
               disabled={!onSaveTemplate || isSavingTemplate}
-              title={onSaveTemplate ? 'Save workflow as template' : 'Save-template hook is not wired'}
+              title={onSaveTemplate ? t('templates.saveWorkflowAsTemplate') : t('templates.saveTemplateUnavailable')}
             >
               <Icon name="template" size={13} />
-              Save
+              {t('templates.saveAction')}
             </button>
           )}
         </div>
@@ -328,14 +336,14 @@ export default function TemplatesPanel({
               className="text-input"
               value={saveDraft.name}
               onChange={event => setSaveDraft(prev => ({ ...prev, name: event.target.value }))}
-              placeholder="Template name"
+              placeholder={t('templates.templateNamePlaceholder')}
               disabled={isSavingTemplate}
             />
             <textarea
               className="text-input"
               value={saveDraft.description}
               onChange={event => setSaveDraft(prev => ({ ...prev, description: event.target.value }))}
-              placeholder="Description"
+              placeholder={t('templates.descriptionPlaceholder')}
               rows={2}
               disabled={isSavingTemplate}
             />
@@ -344,24 +352,24 @@ export default function TemplatesPanel({
                 className="text-input"
                 value={saveDraft.category}
                 onChange={event => setSaveDraft(prev => ({ ...prev, category: event.target.value }))}
-                placeholder="Category"
+                placeholder={t('templates.categoryPlaceholder')}
                 disabled={isSavingTemplate}
               />
               <input
                 className="text-input"
                 value={saveDraft.tags}
                 onChange={event => setSaveDraft(prev => ({ ...prev, tags: event.target.value }))}
-                placeholder="tags, comma separated"
+                placeholder={t('templates.tagsPlaceholder')}
                 disabled={isSavingTemplate}
               />
             </div>
             {saveError && <div className="template-save-error">{saveError}</div>}
             <div className="template-save-actions">
               <button className="btn btn-sm btn-ghost" type="button" onClick={() => setSaveOpen(false)} disabled={isSavingTemplate}>
-                Cancel
+                {t('templates.cancel')}
               </button>
               <button className="btn btn-sm btn-primary" type="submit" disabled={isSavingTemplate || !onSaveTemplate}>
-                {isSavingTemplate ? 'Saving...' : 'Save Template'}
+                {isSavingTemplate ? t('templates.saving') : t('templates.saveTemplate')}
               </button>
             </div>
           </form>
@@ -371,10 +379,10 @@ export default function TemplatesPanel({
           <div className="node-search-wrap template-search-wrap">
             <input
               className="palette-search node-search-input"
-              placeholder="Search templates..."
+              placeholder={t('templates.searchPlaceholder')}
               value={filter}
               onChange={e => setFilter(e.target.value)}
-              aria-label="Search templates"
+              aria-label={t('templates.searchAria')}
             />
             <span className="node-search-icon"><Icon name="search" size={14} /></span>
           </div>
@@ -382,33 +390,36 @@ export default function TemplatesPanel({
             className="select-input template-sort-select"
             value={activeSortMode}
             onChange={event => setSort(event.target.value as TemplateSortMode)}
-            title="Sort templates"
-            aria-label="Sort templates"
+            title={t('templates.sortAria')}
+            aria-label={t('templates.sortAria')}
           >
-            {(Object.keys(SORT_LABELS) as TemplateSortMode[]).map(mode => (
-              <option key={mode} value={mode}>{SORT_LABELS[mode]}</option>
+            {(Object.keys(SORT_LABEL_KEYS) as TemplateSortMode[]).map(mode => (
+              <option key={mode} value={mode}>{t(SORT_LABEL_KEYS[mode])}</option>
             ))}
           </select>
         </div>
 
         <div className="template-category-tabs">
-          {categories.map(c => (
+          {categories.map(c => {
+            const categoryLabel = c === ALL_CATEGORY ? t('templates.allCategories') : c;
+            return (
             <button
               key={c}
               className={`env-type-tab ${catFilter === c ? 'active' : ''}`}
               onClick={() => setCatFilter(c)}
-              title={`Show ${c} templates`}
+              title={t('templates.showCategoryTemplates', { category: categoryLabel })}
             >
-              {c}
+              {categoryLabel}
             </button>
-          ))}
+            );
+          })}
         </div>
         <div className="template-result-summary">
-          <span>{loading ? 'Loading templates' : `${rankedTemplates.length} of ${templates.length} templates`}</span>
-          {!loading && filter.trim() && <span>Ranked by fuzzy match</span>}
+          <span>{loading ? t('templates.loadingTemplates') : t('templates.resultSummary', { shown: rankedTemplates.length, total: templates.length })}</span>
+          {!loading && filter.trim() && <span>{t('templates.rankedByFuzzyMatch')}</span>}
         </div>
         {loading && <TemplateSkeletons />}
-        {error && <div className="template-error">Error: {error}</div>}
+        {error && <div className="template-error">{t('templates.errorPrefix', { message: error })}</div>}
         {!loading && !error && (
           <div className="template-grid">
             {rankedTemplates.map(({ template, score }, index) => {
@@ -422,18 +433,18 @@ export default function TemplatesPanel({
                   recordTemplateUse(template.id);
                   void Promise.resolve(onLoadTemplate(template)).then(onClose).catch(() => undefined);
                 }}
-                title={`Load ${template.name}`}
+                title={t('templates.loadTemplate', { name: template.name })}
               >
                 <TemplateThumbnail template={template} />
                 <div className="template-card-content">
                   <div className="template-card-header">
                     <h4>{template.name}</h4>
-                    <span className="template-rank-badge" title="Template match rank">
+                    <span className="template-rank-badge" title={t('templates.templateMatchRank')}>
                       {Math.round(score * 100)}
                     </span>
                   </div>
-                  <p>{templateSummary(template)}</p>
-                  <div className="template-steps" aria-label="Workflow preview steps">
+                  <p>{templateSummary(template, t)}</p>
+                  <div className="template-steps" aria-label={t('templates.workflowPreviewSteps')}>
                     {(template.preview_steps?.length ? template.preview_steps : template.tools).slice(0, 4).map(step => (
                       <span key={step}>{compactStep(step)}</span>
                     ))}
@@ -444,10 +455,10 @@ export default function TemplatesPanel({
                   </div>
                   <div className="tags">
                     {template.tags.slice(0, 2).map(tag => <span key={tag} className="template-tag">{tag}</span>)}
-                    <span className="template-tag template-tag-muted">{template.node_count} nodes</span>
+                    <span className="template-tag template-tag-muted">{t('templates.nodeCount', { count: template.node_count })}</span>
                     {localUses > 0 && (
-                      <span className="template-tag template-tag-used" title="You've loaded this template before">
-                        {localUses}× used
+                      <span className="template-tag template-tag-used" title={t('templates.loadedBeforeTitle')}>
+                        {t('templates.usedCount', { count: localUses })}
                       </span>
                     )}
                   </div>
@@ -455,7 +466,7 @@ export default function TemplatesPanel({
               </button>
               );
             })}
-            {rankedTemplates.length === 0 && <div className="template-empty">No templates match your search.</div>}
+            {rankedTemplates.length === 0 && <div className="template-empty">{t('templates.noSearchMatches')}</div>}
           </div>
         )}
       </div>
