@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { Awareness } from 'y-protocols/awareness';
@@ -43,6 +44,8 @@ function newSessionId(): string {
 }
 
 export function useCollab(workflowId: string | null, currentUser: CollabUser): UseCollabReturn {
+  const { t } = useTranslation();
+  const tRef = useRef(t);
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   const [awareness, setAwareness] = useState<Awareness | null>(null);
   const [connected, setConnected] = useState(false);
@@ -62,6 +65,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
   const awarenessResult = useAwareness(doc, awarenessUser, awareness, connected);
   const activeUsers = useMemo(() => awarenessResult.others, [awarenessResult.others]);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -142,13 +149,13 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
         provider.shouldConnect = false;
         provider.disconnect();
         setConnecting(false);
-        setError(event.reason || (event.code === 4403 ? 'Forbidden' : 'Unauthorized'));
+        setError(event.reason || (event.code === 4403 ? tRef.current('collab.connectionForbidden') : tRef.current('collab.connectionUnauthorized')));
       }
     };
 
     const handleError = () => {
       if (providerRef.current !== provider) return;
-      setError('WebSocket connection error');
+      setError(tRef.current('collab.connectionError'));
       setReconnectAttempt(provider.wsUnsuccessfulReconnects);
     };
 
