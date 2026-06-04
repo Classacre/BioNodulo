@@ -22,6 +22,7 @@ SCATTER_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 HEATMAP_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+MANHATTAN_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -4031,6 +4032,187 @@ def _render_manhattan_svg(
     path.write_text("\n".join(parts) + "\n", encoding="utf-8")
 
 
+def _render_manhattan_html(
+    path: Path,
+    *,
+    points: list[ManhattanPoint],
+    bounds: PlotBounds,
+    layout: PlotLayout,
+    significance_threshold: float,
+    suggestive_threshold: float,
+    title: str,
+    chr_colors: str,
+    sig_color: str,
+    point_size: int,
+    label_top_n: int,
+) -> None:
+    plot_points, chromosome_centres, _ = _manhattan_plot_points(points)
+    chromosomes = _manhattan_chromosomes(points)
+    chromosome_index = {chromosome: index for index, chromosome in enumerate(chromosomes)}
+    sig_colour = _normalise_hex_color(sig_color, DEFAULT_UP_COLOR)
+    radius = _clamp(float(point_size), 1.0, 50.0) ** 0.5 + 3.0
+    labels = sorted(points, key=lambda point: point.neg_log_p, reverse=True)[: max(label_top_n, 0)]
+    labelled = {id(point) for point in labels}
+
+    traces = [{
+        "type": "scattergl",
+        "mode": "markers",
+        "name": "Associations",
+        "x": [plot_x for _, plot_x in plot_points],
+        "y": [point.neg_log_p for point, _ in plot_points],
+        "customdata": [[point.snp, point.chromosome, point.position] for point, _ in plot_points],
+        "text": [
+            (
+                f"{html.escape(point.snp)}<br>"
+                f"chr{html.escape(point.chromosome)}:{point.position:g}<br>"
+                f"p-value: {point.pvalue:.6g}"
+            )
+            for point, _ in plot_points
+        ],
+        "hovertemplate": "%{text}<extra></extra>",
+        "marker": {
+            "color": [
+                sig_colour
+                if point.pvalue < significance_threshold
+                else _manhattan_colour(chr_colors, chromosome_index[point.chromosome])
+                for point, _ in plot_points
+            ],
+            "size": radius,
+            "opacity": 0.82,
+            "line": {"color": "#ffffff", "width": 0.4},
+        },
+        "showlegend": False,
+    }]
+
+    if labels:
+        label_positions = {
+            id(point): plot_x
+            for point, plot_x in plot_points
+            if id(point) in labelled
+        }
+        traces.append({
+            "type": "scatter",
+            "mode": "text",
+            "name": "Labels",
+            "showlegend": False,
+            "x": [label_positions[id(point)] for point in labels],
+            "y": [point.neg_log_p for point in labels],
+            "text": [point.snp for point in labels],
+            "textposition": "top right",
+            "hoverinfo": "skip",
+            "textfont": {"color": "#111827", "size": 11},
+        })
+
+    significance_y = -math.log10(significance_threshold)
+    suggestive_y = -math.log10(suggestive_threshold)
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": "Chromosome",
+            "range": [bounds.x_min, bounds.x_max],
+            "tickmode": "array",
+            "tickvals": [chromosome_centres[chromosome] for chromosome in chromosomes],
+            "ticktext": chromosomes,
+            "showgrid": False,
+            "zeroline": False,
+        },
+        "yaxis": {
+            "title": "-log10(p-value)",
+            "range": [0, bounds.y_max],
+            "zeroline": False,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "shapes": [
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": significance_y,
+                "y1": significance_y,
+                "line": {"color": "#DC2626", "width": 1.2, "dash": "dash"},
+            },
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "y",
+                "x0": 0,
+                "x1": 1,
+                "y0": suggestive_y,
+                "y1": suggestive_y,
+                "line": {"color": "#F59E0B", "width": 1, "dash": "dash"},
+            },
+        ],
+        "annotations": [
+            {
+                "text": "Genome-wide",
+                "xref": "paper",
+                "yref": "y",
+                "x": 1,
+                "y": significance_y,
+                "xanchor": "right",
+                "yanchor": "bottom",
+                "showarrow": False,
+                "font": {"color": "#991B1B", "size": 11},
+            },
+            {
+                "text": "Suggestive",
+                "xref": "paper",
+                "yref": "y",
+                "x": 1,
+                "y": suggestive_y,
+                "xanchor": "right",
+                "yanchor": "bottom",
+                "showarrow": False,
+                "font": {"color": "#92400E", "size": 11},
+            },
+        ],
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "hovermode": "closest",
+        "showlegend": False,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "manhattan_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_coverage_svg(
     path: Path,
     *,
@@ -5940,7 +6122,7 @@ class ManhattanPlotNode(BaseNode):
                 "sig_color": ("STRING", {"default": DEFAULT_UP_COLOR}),
                 "point_size": ("INT", {"default": 8, "min": 1, "max": 50}),
                 "label_top_n": ("INT", {"default": 5, "min": 0, "max": 50}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(MANHATTAN_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 16.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 6.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -5952,7 +6134,7 @@ class ManhattanPlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in MANHATTAN_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported Manhattan plot format: {output_format}")
 
         chr_column = str(kwargs.get("chr_column", "CHR") or "CHR").strip()
@@ -5996,6 +6178,20 @@ class ManhattanPlotNode(BaseNode):
         output_path = out_dir / f"manhattan_plot.{output_format}"
         if output_format == "svg":
             _render_manhattan_svg(
+                output_path,
+                points=points,
+                bounds=bounds,
+                layout=layout,
+                significance_threshold=significance_threshold,
+                suggestive_threshold=suggestive_threshold,
+                title=title,
+                chr_colors=chr_colors,
+                sig_color=sig_color,
+                point_size=point_size,
+                label_top_n=label_top_n,
+            )
+        elif output_format == "html":
+            _render_manhattan_html(
                 output_path,
                 points=points,
                 bounds=bounds,

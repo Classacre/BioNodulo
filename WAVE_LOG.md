@@ -481,6 +481,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Heatmap now supports interactive HTML output through Plotly while preserving clustering, row/column scaling, labels, colour-scale choices, the existing `heatmap_image` output name, and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 - Volcano Plot now supports interactive HTML output through Plotly: Up/Down/NS points render as separate traces, threshold lines and top-gene labels are preserved, the existing `volcano_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
 - MA Plot now supports interactive HTML output through Plotly: significant and non-significant genes render as separate traces, fold-change threshold guides and top-gene labels are preserved, the existing `ma_image` output name remains compatible, and the generated HTML artifact was browser-checked with Playwright.
+- Manhattan Plot now supports interactive HTML output through Plotly: genome-offset GWAS points render with chromosome ticks, genome-wide/suggestive threshold annotations, top-SNP labels, the existing `manhattan_image` output name, and PNG/SVG defaults preserved. The generated HTML artifact was browser-checked with Playwright.
 
 ---
 

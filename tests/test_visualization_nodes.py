@@ -116,6 +116,8 @@ def test_heatmap_is_registered_for_frontend_discovery() -> None:
 def test_manhattan_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("manhattan_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -124,6 +126,7 @@ def test_manhattan_plot_is_registered_for_frontend_discovery() -> None:
     assert info["manhattan_plot"]["output_name"] == ["manhattan_image"]
     assert info["manhattan_plot"]["output"] == ["IMAGE"]
     assert info["manhattan_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_forest_plot_is_registered_for_frontend_discovery() -> None:
@@ -813,6 +816,56 @@ async def test_manhattan_plot_writes_svg_with_thresholds_labels_and_preview(tmp_
     assert 'class="suggestive-threshold"' in svg
     assert "rs3" in svg
     assert previews == [(str(svg_path), "Manhattan Plot")]
+
+
+@pytest.mark.asyncio
+async def test_manhattan_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("manhattan_plot")
+    table = tmp_path / "gwas.tsv"
+    table.write_text(
+        "CHR\tBP\tP\tSNP\n"
+        "1\t100\t0.00001\trs1\n"
+        "1\t200\t0.2\trs2\n"
+        "2\t150\t0.000000001\trs3\n"
+        "X\t80\t0.0001\trsX\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        results_table=str(table),
+        chr_column="CHR",
+        pos_column="BP",
+        pvalue_column="P",
+        snp_column="SNP",
+        significance_threshold=5e-8,
+        suggestive_threshold=1e-4,
+        title="GWAS Manhattan",
+        label_top_n=2,
+        format="html",
+        width=12,
+        height=6,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["manhattan_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "manhattan_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "GWAS Manhattan" in document
+    assert '"type": "scattergl"' in document
+    assert '"rs3"' in document
+    assert '"rsX"' in document
+    assert '"ticktext": ["1", "2", "X"]' in document
+    assert '"Genome-wide"' in document
+    assert '"Suggestive"' in document
+    assert previews == [(str(html_path), "Manhattan Plot")]
 
 
 @pytest.mark.asyncio
