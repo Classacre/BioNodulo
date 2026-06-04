@@ -83,6 +83,73 @@ def test_sniffles2_plans_compressed_vcf_output() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/sniffles2/sv_vcf.vcf.gz"]
 
 
+def test_sniffles2_call_is_registered_for_workflow_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["sniffles2_call"]
+    assert node_info["display_name"] == "Sniffles2 Call"
+    assert node_info["category"] == "variant"
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["sniffles"]
+    assert node_info["required_conda_packages"] == ["sniffles"]
+    assert "sniffles2" in node_info["search_aliases"]
+    assert "sv caller" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "threads"}
+    assert set(inputs["optional"]) == {"tandem_repeats", "minsvlen", "minsupport", "phase"}
+
+
+def test_sniffles2_call_renders_workflow_compatible_command() -> None:
+    node_class = _node_class("sniffles2_call")
+
+    cmd = node_class.render_command({
+        "bam": "sample.sorted.bam",
+        "reference": "GRCh38.fa",
+        "threads": 8,
+        "minsvlen": 50,
+        "minsupport": 10,
+        "phase": False,
+        "output": "/tmp/run/sniffles2_call",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "sniffles",
+        "--input",
+        "sample.sorted.bam",
+        "--vcf",
+        "/tmp/run/sniffles2_call/sv_vcf.vcf.gz",
+        "--reference",
+        "GRCh38.fa",
+        "--threads",
+        "8",
+        "--minsvlen",
+        "50",
+        "--minsupport",
+        "10",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/sniffles2_call/sv_vcf.vcf.gz"]
+
+
+def test_sv_workflow_alias_environment_metadata_is_available() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert workflow_to_packages({"nodes": [{"id": "manta", "type": "manta_call"}]}, registry) == ["manta"]
+    assert workflow_to_packages({"nodes": [{"id": "delly", "type": "delly_call"}]}, registry) == [
+        "bcftools",
+        "delly",
+        "htslib",
+    ]
+    assert workflow_to_packages({"nodes": [{"id": "sniffles2", "type": "sniffles2_call"}]}, registry) == [
+        "sniffles"
+    ]
+
+
 def test_sv_stats_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -893,6 +960,69 @@ def test_delly_plans_bcf_output() -> None:
     assert [str(path) for path in outputs] == ["/tmp/run/delly/sv_calls.bcf"]
 
 
+def test_delly_call_is_registered_for_workflow_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["delly_call"]
+    assert node_info["display_name"] == "DELLY Call"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call structural variants with DELLY")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["delly", "bcftools", "tabix"]
+    assert node_info["required_conda_packages"] == ["delly", "bcftools", "htslib"]
+    assert "delly_call" in node_info["search_aliases"]
+    assert "sv caller" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "mode"}
+    assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
+
+
+def test_delly_call_renders_vcf_conversion_pipeline() -> None:
+    node_class = _node_class("delly_call")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "reference": "GRCh38.fa",
+        "mode": "call",
+        "exclude_regions": "exclude.bed",
+        "map_qual": 20,
+        "output": "/tmp/run/delly_call",
+    })
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert cmd == [
+        "delly",
+        "call",
+        "-g",
+        "GRCh38.fa",
+        "-o",
+        "/tmp/run/delly_call/sv_calls.bcf",
+        "-x",
+        "exclude.bed",
+        "-q",
+        "20",
+        "tumor.sorted.bam",
+        "&&",
+        "bcftools",
+        "view",
+        "-Oz",
+        "-o",
+        "/tmp/run/delly_call/sv_vcf.vcf.gz",
+        "/tmp/run/delly_call/sv_calls.bcf",
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        "/tmp/run/delly_call/sv_vcf.vcf.gz",
+    ]
+    assert [str(path) for path in outputs] == ["/tmp/run/delly_call/sv_vcf.vcf.gz"]
+
+
 def test_manta_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -956,4 +1086,78 @@ def test_manta_plans_nested_variant_outputs() -> None:
     assert [str(path) for path in outputs] == [
         "/tmp/run/manta/results/variants/candidateSV.vcf.gz",
         "/tmp/run/manta/results/variants/diploidSV.vcf.gz",
+    ]
+
+
+def test_manta_call_is_registered_for_workflow_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["manta_call"]
+    assert node_info["display_name"] == "Manta Call"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call paired-end structural variants")
+    assert node_info["output"] == ["VCF_GZ"]
+    assert node_info["output_name"] == ["sv_vcf"]
+    assert node_info["required_executables"] == ["configManta.py", "runWorkflow.py"]
+    assert node_info["required_conda_packages"] == ["manta"]
+    assert "manta_call" in node_info["search_aliases"]
+    assert "sv caller" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"bam", "reference", "threads"}
+    assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
+
+
+def test_manta_call_renders_workflow_compatible_command() -> None:
+    node_class = _node_class("manta_call")
+
+    cmd = node_class.render_command({
+        "bam": "tumor.sorted.bam",
+        "reference": "GRCh38.fa",
+        "threads": 16,
+        "normal_bam": "normal.sorted.bam",
+        "exome": True,
+        "rna": False,
+        "output": "/tmp/run/manta_call",
+    })
+
+    assert cmd == [
+        "configManta.py",
+        "--bam",
+        "tumor.sorted.bam",
+        "--referenceFasta",
+        "GRCh38.fa",
+        "--runDir",
+        "/tmp/run/manta_call",
+        "--normalBam",
+        "normal.sorted.bam",
+        "--exome",
+        "&&",
+        "/tmp/run/manta_call/runWorkflow.py",
+        "-m",
+        "local",
+        "-j",
+        "16",
+    ]
+
+
+def test_manta_call_plans_diploid_vcf_by_default() -> None:
+    node_class = _node_class("manta_call")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/manta_call/results/variants/diploidSV.vcf.gz",
+    ]
+
+
+def test_manta_call_plans_somatic_vcf_for_tumor_normal_mode() -> None:
+    node_class = _node_class("manta_call")
+
+    outputs = node_class.PLAN_OUTPUTS({"normal_bam": "normal.sorted.bam"}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/manta_call/results/variants/somaticSV.vcf.gz",
     ]

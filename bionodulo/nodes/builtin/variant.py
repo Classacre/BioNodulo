@@ -140,6 +140,23 @@ class Sniffles2Node(CommandNode):
         }
 
 
+class Sniffles2CallNode(Sniffles2Node):
+    """Workflow-compatible Sniffles2 structural variant caller alias."""
+
+    NODE_ID = "sniffles2_call"
+    DISPLAY_NAME = "Sniffles2 Call"
+    DESCRIPTION = "Call structural variants with Sniffles2 for multi-caller SV workflows."
+    SEARCH_ALIASES = [
+        "sniffles2_call",
+        "sniffles2",
+        "sniffles",
+        "structural variant",
+        "sv caller",
+        "long-read sv",
+        "split-read sv",
+    ]
+
+
 class PBSVNode(CommandNode):
     """Call PacBio HiFi structural variants with pbsv."""
     NODE_ID = "pbsv"
@@ -1089,6 +1106,62 @@ class DellyNode(CommandNode):
         }
 
 
+class DellyCallNode(DellyNode):
+    """Workflow-compatible DELLY caller that emits an indexed VCF."""
+
+    NODE_ID = "delly_call"
+    DISPLAY_NAME = "DELLY Call"
+    DESCRIPTION = "Call structural variants with DELLY and convert BCF output to indexed VCF."
+    SEARCH_ALIASES = ["delly_call", "delly", "structural variant", "sv caller", "somatic sv", "long-read sv"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("sv_vcf",)
+    REQUIRED_EXECUTABLES = ["delly", "bcftools", "tabix"]
+    REQUIRED_CONDA_PACKAGES = ["delly", "bcftools", "htslib"]
+    SHELL = True
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "sv_vcf.vcf.gz"]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(str(inputs.get("output", ".")))
+        bcf = out_dir / "sv_calls.bcf"
+        sv_vcf = out_dir / "sv_vcf.vcf.gz"
+        mode = inputs.get("mode", "call")
+        cmd = [
+            "delly",
+            "lr" if mode == "lr" else "call",
+            "-g",
+            str(inputs.get("reference", "")),
+            "-o",
+            str(bcf),
+        ]
+        if inputs.get("exclude_regions"):
+            cmd.extend(["-x", str(inputs["exclude_regions"])])
+        if inputs.get("map_qual") is not None:
+            cmd.extend(["-q", str(inputs["map_qual"])])
+        cmd.extend([
+            str(inputs.get("bam", "")),
+            "&&",
+            "bcftools",
+            "view",
+            "-Oz",
+            "-o",
+            str(sv_vcf),
+            str(bcf),
+            "&&",
+            "tabix",
+            "-f",
+            "-p",
+            "vcf",
+            str(sv_vcf),
+        ])
+        return cmd
+
+
 class MantaNode(CommandNode):
     """Call paired-end structural variants with Manta."""
     NODE_ID = "manta"
@@ -1169,6 +1242,25 @@ class MantaNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+class MantaCallNode(MantaNode):
+    """Workflow-compatible Manta structural variant caller alias."""
+
+    NODE_ID = "manta_call"
+    DISPLAY_NAME = "Manta Call"
+    DESCRIPTION = "Call paired-end structural variants with Manta for multi-caller SV workflows."
+    SEARCH_ALIASES = ["manta_call", "manta", "structural variant", "sv caller", "illumina sv", "germline sv"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("sv_vcf",)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        variants_dir = node_out / "results" / "variants"
+        variants_dir.mkdir(parents=True, exist_ok=True)
+        vcf_name = "somaticSV.vcf.gz" if inputs.get("normal_bam") else "diploidSV.vcf.gz"
+        return [variants_dir / vcf_name]
 
 
 class CNVkitBatchNode(CommandNode):
