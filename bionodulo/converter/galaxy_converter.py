@@ -285,7 +285,7 @@ def _galaxy_tool_to_node_type(tool_id: str) -> str:
         return "kraken2"
     if "iqtree" in tl:
         return "iqtree"
-    return "command"
+    return "generic_command"
 
 
 def _build_tool_state(widgets: dict[str, Any]) -> dict[str, Any]:

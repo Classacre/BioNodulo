@@ -151,6 +151,8 @@ def import_from_nextflow(
             outputs["output_" + str(i)] = {"path": out}
 
         widgets = dict(proc.get("params", {}))
+        if node_type == "generic_command" and proc.get("script"):
+            widgets["command"] = str(proc["script"]).strip()
 
         node = {
             "id": node_id,
@@ -377,4 +379,4 @@ def _nextflow_process_to_node_type(proc_name: str, script: str) -> str:
     for key, val in mapping.items():
         if key in script.lower():
             return val
-    return "command"
+    return "generic_command"

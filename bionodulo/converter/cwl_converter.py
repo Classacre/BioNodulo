@@ -305,4 +305,4 @@ def _cwl_tool_to_node_type(tool_def: dict[str, Any]) -> str:
     for key, val in mapping.items():
         if key in cmd_str or key in label:
             return val
-    return "command"
+    return "generic_command"

@@ -155,6 +155,8 @@ def import_from_snakemake(
                 outputs["output_" + str(len(outputs))] = {"path": out_spec.strip().strip('"')}
 
         widgets = dict(rule.get("params", {}))
+        if node_type == "generic_command" and rule.get("shell"):
+            widgets["command"] = str(rule["shell"]).strip()
 
         node = {
             "id": node_id,
@@ -324,4 +326,4 @@ def _snakemake_rule_to_node_type(rule_name: str, shell: str) -> str:
     for key, val in mapping.items():
         if key in shell.lower():
             return val
-    return "command"
+    return "generic_command"
