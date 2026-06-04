@@ -1031,12 +1031,16 @@ class CheckpointNode(BaseNode):
     def _context_metadata(context: Any) -> dict[str, Any]:
         params = getattr(context, "params", {})
         public_params = {key: value for key, value in params.items() if not str(key).startswith("_")} if isinstance(params, dict) else {}
-        return {
+        metadata = {
             "run_id": getattr(context, "run_id", ""),
             "node_id": getattr(context, "node_id", ""),
             "node_type": getattr(context, "node_type", ""),
             "params": public_params,
         }
+        workflow_metadata = getattr(context, "run_metadata", None)
+        if isinstance(workflow_metadata, dict) and workflow_metadata:
+            metadata["workflow"] = json.loads(json.dumps(workflow_metadata, sort_keys=True, default=str))
+        return metadata
 
 
 class MemoizeNode(BaseNode):

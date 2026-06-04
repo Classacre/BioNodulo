@@ -374,6 +374,10 @@ async def test_checkpoint_writes_compressed_snapshot_with_context_metadata(tmp_p
     context = _context(tmp_path, "checkpoint-node")
     context.node_type = "fastqc"
     context.params = {"threads": 4, "_secret": "hidden"}
+    context.run_metadata["sample_sheet"] = {
+        "samples": ["S1", "S2"],
+        "source": "metadata-probe",
+    }
     payload = {"report": "fastqc.html", "metrics": {"gc": 51.2}}
 
     passthrough, checkpoint_file, info_json = await _node_class("checkpoint")().run(
@@ -397,6 +401,12 @@ async def test_checkpoint_writes_compressed_snapshot_with_context_metadata(tmp_p
     assert saved["run_metadata"]["run_id"] == "run-1"
     assert saved["run_metadata"]["node_type"] == "fastqc"
     assert saved["run_metadata"]["params"] == {"threads": 4}
+    assert saved["run_metadata"]["workflow"] == {
+        "sample_sheet": {
+            "samples": ["S1", "S2"],
+            "source": "metadata-probe",
+        }
+    }
     assert context.events[0][0] == "checkpoint_saved"
     assert context.logs[0][0] == "info"
 
