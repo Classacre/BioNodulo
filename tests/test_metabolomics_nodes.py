@@ -532,3 +532,158 @@ def test_sirius_formula_id_plans_outputs() -> None:
 def test_sirius_formula_id_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["sirius"] == "sirius"
     assert PACKAGE_MIN_VERSIONS["sirius"] == ">=5.8"
+
+
+def test_mzmine_batch_processing_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["mzmine_batch_processing"]
+    assert node_info["display_name"] == "MZmine Batch Processing"
+    assert node_info["category"] == "metabolomics"
+    assert node_info["description"].startswith("Run an MZmine batch workflow")
+    assert node_info["output"] == ["DIRECTORY", "JSON"]
+    assert node_info["output_name"] == ["results_dir", "metadata"]
+    assert node_info["required_executables"] == ["mzmine"]
+    assert node_info["required_conda_packages"] == ["mzmine"]
+    assert "mzmine" in node_info["search_aliases"]
+    assert "batch" in node_info["search_aliases"]
+    assert "lc-ms" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"batch_file"}
+    assert set(inputs["optional"]) == {
+        "input_files",
+        "user_file",
+        "preferences_file",
+        "threads",
+        "memory_mode",
+        "temp_dir",
+        "ignore_parameter_warnings",
+        "output_name",
+    }
+
+
+def test_mzmine_batch_processing_renders_cli_with_inputs_and_metadata(tmp_path: Path) -> None:
+    node_class = _node_class("mzmine_batch_processing")
+    output_dir = tmp_path / "mzmine_batch_processing"
+    input_list_file = output_dir / "study_one.input_files.txt"
+    results_dir = output_dir / "study_one"
+    metadata_json = output_dir / "study_one.metadata.json"
+
+    cmd = node_class.render_command({
+        "batch_file": "/workflows/lcms.mzbatch",
+        "input_files": ["sample1.mzML", "sample2.mzML"],
+        "user_file": "/users/offline.mzuser",
+        "preferences_file": "/configs/lcms.mzconfig",
+        "threads": 8,
+        "memory_mode": "all",
+        "temp_dir": "/scratch/mzmine",
+        "ignore_parameter_warnings": True,
+        "output_name": "study one",
+        "output": str(output_dir),
+    })
+
+    assert cmd == [
+        "mzmine",
+        "-user",
+        "/users/offline.mzuser",
+        "-batch",
+        "/workflows/lcms.mzbatch",
+        "-input",
+        str(input_list_file),
+        "-output",
+        str(results_dir / "study_one"),
+        "-temp",
+        "/scratch/mzmine",
+        "-pref",
+        "/configs/lcms.mzconfig",
+        "-memory",
+        "all",
+        "-threads",
+        "8",
+        "-ignore-parameter-warnings",
+        "&&",
+        "python",
+        "-c",
+        node_class.METADATA_SCRIPT,
+        str(results_dir),
+        str(metadata_json),
+        "/workflows/lcms.mzbatch",
+        "sample1.mzML\nsample2.mzML",
+        "/users/offline.mzuser",
+        "/configs/lcms.mzconfig",
+        "8",
+        "all",
+        "/scratch/mzmine",
+        "true",
+    ]
+    assert input_list_file.read_text() == "sample1.mzML\nsample2.mzML\n"
+
+
+def test_mzmine_batch_processing_omits_optional_cli_flags_and_uses_batch_stem(tmp_path: Path) -> None:
+    node_class = _node_class("mzmine_batch_processing")
+    output_dir = tmp_path / "mzmine_batch_processing"
+
+    cmd = node_class.render_command({
+        "batch_file": "/workflows/lcms.mzbatch",
+        "input_files": "",
+        "user_file": "",
+        "preferences_file": "",
+        "threads": 1,
+        "memory_mode": "",
+        "temp_dir": "",
+        "ignore_parameter_warnings": False,
+        "output_name": "",
+        "output": str(output_dir),
+    })
+
+    assert cmd == [
+        "mzmine",
+        "-batch",
+        "/workflows/lcms.mzbatch",
+        "-output",
+        str(output_dir / "lcms" / "lcms"),
+        "-threads",
+        "1",
+        "&&",
+        "python",
+        "-c",
+        node_class.METADATA_SCRIPT,
+        str(output_dir / "lcms"),
+        str(output_dir / "lcms.metadata.json"),
+        "/workflows/lcms.mzbatch",
+        "",
+        "",
+        "",
+        "1",
+        "",
+        "",
+        "false",
+    ]
+    assert "-input" not in cmd
+    assert "-user" not in cmd
+    assert "-pref" not in cmd
+    assert "-temp" not in cmd
+    assert "-memory" not in cmd
+    assert "-ignore-parameter-warnings" not in cmd
+
+
+def test_mzmine_batch_processing_plans_outputs() -> None:
+    node_class = _node_class("mzmine_batch_processing")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"batch_file": "/workflows/lcms.mzbatch", "output_name": "study one"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/mzmine_batch_processing/study_one",
+        "/tmp/run/mzmine_batch_processing/study_one.metadata.json",
+    ]
+
+
+def test_mzmine_batch_processing_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["mzmine"] == "mzmine"
+    assert PACKAGE_MIN_VERSIONS["mzmine"] == ">=4.7"
