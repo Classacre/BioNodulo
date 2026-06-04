@@ -286,7 +286,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         }, { signal: abortController.signal });
         const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
           ...s,
-          workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>) : undefined,
+          workflow: s.workflow ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>, workflow) : undefined,
         }));
         const assistantTurn: ChatTurn = {
           role: 'assistant',
@@ -709,13 +709,17 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
   }
 }
 
-function sanitizeWorkflow(raw: Record<string, unknown>): Workflow {
+function stringValueOrFallback(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function sanitizeWorkflow(raw: Record<string, unknown>, fallback?: Workflow): Workflow {
   return {
-    id: typeof raw.id === 'string' ? raw.id : undefined,
-    version: (raw.version as string) || '2.0',
-    app: (raw.app as string) || 'bionodulo',
-    name: (raw.name as string) || 'Untitled',
-    description: (raw.description as string) || '',
+    id: typeof raw.id === 'string' ? raw.id : fallback?.id,
+    version: stringValueOrFallback(raw.version, fallback?.version || '2.0'),
+    app: stringValueOrFallback(raw.app, fallback?.app || 'bionodulo'),
+    name: stringValueOrFallback(raw.name, fallback?.name || 'Untitled'),
+    description: stringValueOrFallback(raw.description, fallback?.description || ''),
     nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
     edges: Array.isArray(raw.edges) ? raw.edges : [],
     groups: Array.isArray(raw.groups) ? raw.groups : [],

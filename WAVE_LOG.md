@@ -448,6 +448,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - AI workflow assistant pasted-canvas-node prompt text now reads from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant stopped-by-user note now reads from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant local fallback responses now read from `aiWorkflow` i18n keys with Spanish render coverage for RNA-Seq, variant-calling, and default branches plus a static wiring guard for all fallback branches.
+- AI workflow proposed changes now preserve the active workflow metadata when the AI response omits workflow-level fields, while still honoring explicit proposed names and metadata.
 - Help/Wiki getting-started article content now reads from `helpWiki` i18n keys with Spanish render and search coverage plus a static wiring guard.
 - Help/Wiki canvas-features article content now reads from `helpWiki` i18n keys with Spanish render and search coverage plus a static wiring guard.
 - Help/Wiki nodes-reference article content now reads from `helpWiki` i18n keys with Spanish render and search coverage plus a static wiring guard.

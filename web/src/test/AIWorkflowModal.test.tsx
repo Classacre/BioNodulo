@@ -44,8 +44,9 @@ const localStorageStub: Storage = {
 
 function workflow(partial: Partial<Workflow> = {}): Workflow {
   return {
-    version: '2.0',
-    app: 'BioNodulo',
+    id: partial.id,
+    version: partial.version ?? '2.0',
+    app: partial.app ?? 'BioNodulo',
     name: partial.name ?? 'Test workflow',
     description: partial.description ?? '',
     nodes: partial.nodes ?? [],
@@ -184,6 +185,101 @@ describe('AIWorkflowModal i18n', () => {
 
     expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ name: 'Suggested' }));
     expect(await screen.findByText('Workflow aplicado correctamente. Dime si necesitas algun ajuste.')).toBeInTheDocument();
+  });
+
+  it('applies current workflow metadata when proposed workflow omits workflow data', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const onApplyWorkflow = vi.fn();
+    const activeWorkflow = workflow({
+      id: 'wf-active',
+      version: '2.5',
+      app: 'BioNodulo',
+      name: 'RNA QC Pipeline',
+      description: 'Current tab description',
+      nodes: [{ id: 'existing-node', type: 'fastqc', x: 0, y: 0 }],
+      edges: [],
+    });
+
+    vi.mocked(apiPost).mockResolvedValueOnce({
+      model: 'test-model',
+      steps: [{
+        type: 'propose_changes',
+        content: '',
+        workflow: {
+          nodes: [{ id: 'new-node', type: 'multiqc', x: 10, y: 10 }],
+          edges: [],
+        },
+      }],
+    });
+
+    render(
+      <AIWorkflowModal
+        workflow={activeWorkflow}
+        onClose={() => undefined}
+        onApplyWorkflow={onApplyWorkflow}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'Add MultiQC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply Changes' }));
+
+    expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'wf-active',
+      version: '2.5',
+      app: 'BioNodulo',
+      name: 'RNA QC Pipeline',
+      description: 'Current tab description',
+      nodes: [expect.objectContaining({ id: 'new-node', type: 'multiqc' })],
+      edges: [],
+    }));
+    expect(onApplyWorkflow).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'Untitled' }));
+  });
+
+  it('keeps explicit proposed workflow metadata from the AI response', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const onApplyWorkflow = vi.fn();
+
+    vi.mocked(apiPost).mockResolvedValueOnce({
+      model: 'test-model',
+      steps: [{
+        type: 'propose_changes',
+        content: '',
+        workflow: {
+          id: 'wf-proposed',
+          version: '3.0',
+          app: 'External Builder',
+          name: 'AI Renamed Workflow',
+          description: 'AI generated metadata',
+          nodes: [],
+          edges: [],
+        },
+      }],
+    });
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow({ id: 'wf-active', name: 'RNA QC Pipeline' })}
+        onClose={() => undefined}
+        onApplyWorkflow={onApplyWorkflow}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'Rename it' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply Changes' }));
+
+    expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'wf-proposed',
+      version: '3.0',
+      app: 'External Builder',
+      name: 'AI Renamed Workflow',
+      description: 'AI generated metadata',
+    }));
   });
 
   it('renders sending controls from the active locale', async () => {
