@@ -108,4 +108,62 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByRole('option', { name: 'Gradiente (resalta incompatibilidad)' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Uniforme' })).toBeInTheDocument();
   });
+
+  it('renders Collaboration, Cache, Execution, and Files rows from the active locale', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <SettingsPanel
+        collabEnabled
+        collabShareLink="http://localhost:5173/?room=demo"
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Colaboracion' }));
+
+    expect(screen.getByText('Modo')).toBeInTheDocument();
+    expect(screen.getByText('BioNodulo inicia sin conexion. Crea o unite a una sala temporal cuando quieras edicion compartida.')).toBeInTheDocument();
+    expect(screen.getByText('Activado')).toBeInTheDocument();
+    expect(screen.getByText('Crear enlace')).toBeInTheDocument();
+    expect(screen.getByText('Iniciar una sala temporal y copiar un enlace para otros usuarios.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear' })).toBeInTheDocument();
+    expect(screen.getByText('Unirse con enlace')).toBeInTheDocument();
+    expect(screen.getByText('Pega un enlace de colaboracion de BioNodulo o ID de sala.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unirse' })).toBeInTheDocument();
+    expect(screen.getByText('Enlace actual')).toBeInTheDocument();
+    expect(screen.getByText('Enlace temporal para este servidor BioNodulo en ejecucion.')).toBeInTheDocument();
+    expect(screen.getByText('Detener colaboracion')).toBeInTheDocument();
+    expect(screen.getByText('Devolver este navegador al modo sin conexion.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Detener' })).toBeInTheDocument();
+    expect(screen.getByText('Cursores de presencia')).toBeInTheDocument();
+    expect(screen.getByText('Mostrar colaboradores en el lienzo')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cache' }));
+
+    expect(screen.getByText('Activar cache')).toBeInTheDocument();
+    expect(screen.getByText('Cachear resultados de nodos de workflow entre ejecuciones')).toBeInTheDocument();
+    expect(screen.getByText('Limpiar cache')).toBeInTheDocument();
+    expect(screen.getByText('Eliminar todos los resultados de ejecucion cacheados')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecucion' }));
+
+    expect(screen.getByText('Tamano de historial de cola')).toBeInTheDocument();
+    expect(screen.getByText('Entradas maximas del historial')).toBeInTheDocument();
+    expect(screen.getByText('Hashing fuerte')).toBeInTheDocument();
+    expect(screen.getByText('Usar claves de cache mas fuertes')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archivos' }));
+
+    expect(screen.getByText('Profundidad del explorador')).toBeInTheDocument();
+    expect(screen.getByText('Limite de anidacion del arbol de archivos')).toBeInTheDocument();
+    expect(screen.getByText('Mostrar archivos ocultos')).toBeInTheDocument();
+    expect(screen.getByText('Mostrar dotfiles')).toBeInTheDocument();
+    expect(screen.getByText('Confirmar eliminacion')).toBeInTheDocument();
+    expect(screen.getByText('Pedir confirmacion antes de eliminar archivos')).toBeInTheDocument();
+  });
 });

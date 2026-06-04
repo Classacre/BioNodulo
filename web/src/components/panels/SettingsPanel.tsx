@@ -129,6 +129,15 @@ export default function SettingsPanel({
   const isSectionVisible = (id: SettingsSectionId) => Boolean(trimmedQuery) || activeSection === id;
   const sectionTitle = (id: SettingsSectionId) => t(SETTINGS_SECTION_TITLE_KEYS[id]);
   const st = (key: string) => t(`settings.${key}`);
+  const collabStatusLabel = collabEnabled
+    ? collabConnected
+      ? st('collaboration.statusLive')
+      : collabConnecting
+        ? st('collaboration.statusConnecting')
+        : st('collaboration.statusEnabled')
+    : hasJoinLink
+      ? st('collaboration.statusLinkReady')
+      : st('collaboration.statusOffline');
 
   // Recount visible rows after each render so the toolbar can show "X matches"
   // and a "no matches" hint when the query rules everything out. We sample the
@@ -294,90 +303,83 @@ export default function SettingsPanel({
 
         {/* Collaboration */}
         <SettingsGroup active={isSectionVisible('collaboration')} query={query} title={sectionTitle('collaboration')}>
-          <SettingRow query={query} label="Mode" desc="BioNodulo starts offline. Create or join a temporary room when you want shared editing." keywords="yjs collab share multi-user offline">
+          <SettingRow query={query} label={st('collaboration.mode')} desc={st('collaboration.modeDescription')} keywords="yjs collab share multi-user offline colaboracion sala enlace sin conexion">
             <span className={`collab-mode-pill ${collabEnabled ? 'online' : 'offline'}`}>
-              {collabEnabled
-                ? collabConnected
-                  ? 'Live'
-                  : collabConnecting
-                    ? 'Connecting'
-                    : 'Enabled'
-                : hasJoinLink
-                  ? 'Link ready'
-                  : 'Offline'}
+              {collabStatusLabel}
             </span>
           </SettingRow>
-          <SettingRow query={query} label="Create Link" desc="Start a temporary room and copy a link for other users." keywords="server create host link invite">
+          <SettingRow query={query} label={st('collaboration.createLink')} desc={st('collaboration.createLinkDescription')} keywords="server create host link invite crear enlace sala invitar">
             <button className="btn btn-primary btn-sm" type="button" onClick={onCreateCollabSession} disabled={!onCreateCollabSession}>
-              Create
+              {t('common.create')}
             </button>
           </SettingRow>
-          <SettingRow query={query} label="Join Link" desc="Paste a BioNodulo collaboration link or room ID." keywords="server join link invite">
+          <SettingRow query={query} label={st('collaboration.joinLink')} desc={st('collaboration.joinLinkDescription')} keywords="server join link invite unirse enlace sala">
             <button className="btn btn-sm" type="button" onClick={onJoinCollabSession} disabled={!onJoinCollabSession}>
-              Join
+              {st('collaboration.joinAction')}
             </button>
           </SettingRow>
           {collabEnabled && collabShareLink && (
-            <SettingRow query={query} label="Current Link" desc="Temporary link for this running BioNodulo server." keywords="server share copy link">
+            <SettingRow query={query} label={st('collaboration.currentLink')} desc={st('collaboration.currentLinkDescription')} keywords="server share copy link enlace actual compartir">
               <div className="collab-settings-link" title={collabShareLink}>{collabShareLink}</div>
             </SettingRow>
           )}
           {collabEnabled && (
-            <SettingRow query={query} label="Stop Collaboration" desc="Return this browser to offline mode." keywords="server stop leave disconnect offline">
+            <SettingRow query={query} label={st('collaboration.stopCollaboration')} desc={st('collaboration.stopCollaborationDescription')} keywords="server stop leave disconnect offline detener salir sin conexion">
               <button className="btn btn-sm" type="button" onClick={onLeaveCollabSession} disabled={!onLeaveCollabSession}>
-                Stop
+                {st('collaboration.stopAction')}
               </button>
             </SettingRow>
           )}
-          <SettingRow query={query} label="Presence Cursors" desc="Show collaborators on the canvas" keywords="cursors awareness yjs">
+          <SettingRow query={query} label={st('collaboration.presenceCursors')} desc={st('collaboration.presenceCursorsDescription')} keywords="cursors awareness yjs cursores presencia colaboradores">
             <div className={`toggle ${getBool('bionodulo.collab.presence') ? 'on' : ''}`} onClick={() => toggle('bionodulo.collab.presence')} />
           </SettingRow>
         </SettingsGroup>
 
         {/* Cache */}
         <SettingsGroup active={isSectionVisible('cache')} query={query} title={sectionTitle('cache')}>
-          <SettingRow query={query} label="Enable Cache" desc="Cache workflow node results between runs" keywords="cache memoize">
+          <SettingRow query={query} label={st('cache.enableCache')} desc={st('cache.enableCacheDescription')} keywords="cache memoize resultados ejecuciones">
             <div className={`toggle ${get('bionodulo.cacheEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.cacheEnabled')} />
           </SettingRow>
-          <SettingRow query={query} label="Clear Cache" desc="Delete all cached execution results" keywords="delete clear purge">
+          <SettingRow query={query} label={st('clearCache')} desc={st('cache.clearCacheDescription')} keywords="delete clear purge limpiar eliminar cache">
             <button
               className="btn btn-secondary"
               style={{ padding: '4px 12px', fontSize: 12 }}
               onClick={async () => {
                 try {
                   const data = await apiPost<{ entries_deleted?: number }>('/cache/clear');
-                  toast.success('Cache cleared', { message: `${data?.entries_deleted || 0} entries deleted` });
+                  const count = data?.entries_deleted || 0;
+                  toast.success(st('cache.clearedTitle'), { message: t('settings.cache.entriesDeleted', { count }) });
                 } catch (err) {
-                  toast.error('Failed to clear cache', {
-                    message: err instanceof ApiError ? undefined : 'Server unreachable',
+                  toast.error(st('cache.clearFailed'), {
+                    message: err instanceof ApiError ? undefined : st('cache.serverUnreachable'),
                   });
                 }
               }}
             >
-              Clear
+              {t('common.clear')}
             </button>
           </SettingRow>
         </SettingsGroup>
 
         {/* Execution */}
         <SettingsGroup active={isSectionVisible('execution')} query={query} title={sectionTitle('execution')}>
-          <SettingRow query={query} label="Queue History Size" desc="Maximum history entries" keywords="queue history">
+          <SettingRow query={query} label={st('execution.queueHistorySize')} desc={st('execution.queueHistorySizeDescription')} keywords="queue history cola historial">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.queueHistorySize'))} onChange={e => set('bionodulo.queueHistorySize', parseInt(e.target.value))} />
           </SettingRow>
-          <SettingRow query={query} label="Strong Hashing" desc="Use stronger cache keys" keywords="hash cache key">
+          <SettingRow query={query} label={st('execution.strongHashing')} desc={st('execution.strongHashingDescription')} keywords="hash cache key claves fuerte">
             <div className={`toggle ${get('bionodulo.strongHashing') ? 'on' : ''}`} onClick={() => toggle('bionodulo.strongHashing')} />
           </SettingRow>
         </SettingsGroup>
 
         {/* Files */}
         <SettingsGroup active={isSectionVisible('files')} query={query} title={sectionTitle('files')}>
-          <SettingRow query={query} label="Explorer Depth" desc="File tree nesting limit" keywords="workspace file tree">
+          <SettingRow query={query} label={st('files.explorerDepth')} desc={st('files.explorerDepthDescription')} keywords="workspace file tree archivos arbol profundidad">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.fileExplorerDepth'))} onChange={e => set('bionodulo.fileExplorerDepth', parseInt(e.target.value))} />
           </SettingRow>
-          <SettingRow query={query} label="Show Hidden Files" desc="Display dotfiles" keywords="dotfiles hidden">
+          <SettingRow query={query} label={st('files.showHiddenFiles')} desc={st('files.showHiddenFilesDescription')} keywords="dotfiles hidden ocultos archivos">
             <div className={`toggle ${get('bionodulo.showHiddenFiles') ? 'on' : ''}`} onClick={() => toggle('bionodulo.showHiddenFiles')} />
           </SettingRow>
-          <SettingRow query={query} label="Confirm Delete" desc="Prompt before file deletion" keywords="confirm delete safety">
+          <SettingRow query={query} label={st('files.confirmDelete')} desc={st('files.confirmDeleteDescription')} keywords="confirm delete safety confirmar eliminar seguridad">
             <div className={`toggle ${get('bionodulo.confirmFileDelete') ? 'on' : ''}`} onClick={() => toggle('bionodulo.confirmFileDelete')} />
           </SettingRow>
         </SettingsGroup>
