@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Workflow, RunRecord, ResolveReport } from '../types';
-import { apiPost, apiRequest } from '../api/client';
+import type { Workflow, RunRecord, ResolveReport } from '../../types';
+import { apiPost, apiRequest } from '../../api/client';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {

@@ -25,7 +25,7 @@
 // viewport restore).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Workflow } from '../types';
+import type { Workflow } from '../../types';
 
 export interface Viewport {
   x: number;

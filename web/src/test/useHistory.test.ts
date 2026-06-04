@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useHistory } from '../hooks/useHistory';
+import { useHistory } from '../hooks/workflow/useHistory';
 import type { Workflow } from '../types';
 
 function makeWorkflow(id: string, nodes: Array<{ id: string; type: string }> = []): Workflow {

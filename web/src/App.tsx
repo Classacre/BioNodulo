@@ -33,13 +33,12 @@ import {
   type CommandItem,
 } from './components/ui';
 import { useSettings } from './hooks/useSettings';
-import { useWorkflow } from './hooks/useWorkflow';
 import { useObjectInfo } from './hooks/useObjectInfo';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
-import { useAutoSave, useQueueMode, useWorkflowMessages } from './hooks/workflow';
+import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import { useAuth, useCollabPolling } from './hooks/collab';
 import { useRegisteredCommands } from './hooks/useCommandPalette';
 import { useGlobalShortcut, useKeybindings } from './hooks/useKeybindings';

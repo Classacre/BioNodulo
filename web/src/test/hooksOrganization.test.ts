@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const workflowHooks = ['useAutoSave.ts', 'useQueueMode.ts', 'useWorkflowMessages.ts'];
+const workflowHooks = [
+  'useAutoSave.ts',
+  'useHistory.ts',
+  'useQueueMode.ts',
+  'useWorkflow.ts',
+  'useWorkflowMessages.ts',
+];
 const collabHooks = ['useAuth.ts', 'useCollabPolling.ts'];
 
 describe('hooks organization', () => {
@@ -15,6 +21,7 @@ describe('hooks organization', () => {
     }
     expect(appSource).toContain("from './hooks/workflow'");
     expect(appSource).not.toContain("from './hooks/useAutoSave'");
+    expect(appSource).not.toContain("from './hooks/useWorkflow'");
     expect(appSource).not.toContain("from './hooks/useQueueMode'");
     expect(appSource).not.toContain("from './hooks/useWorkflowMessages'");
   });

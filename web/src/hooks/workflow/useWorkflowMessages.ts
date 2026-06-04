@@ -8,7 +8,7 @@
 
 import { useEffect } from 'react';
 import { apiGet } from '../../api/client';
-import { toast } from '../../components/ui';
+import { toast } from '../../state/notifications';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 
 export interface UseWorkflowMessagesArgs {

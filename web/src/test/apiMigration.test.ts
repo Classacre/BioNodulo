@@ -14,7 +14,7 @@ const migratedFiles = [
   'src/collab/UserList.tsx',
   'src/collab/VersionHistory.tsx',
   'src/hooks/useObjectInfo.ts',
-  'src/hooks/useWorkflow.ts',
+  'src/hooks/workflow/useWorkflow.ts',
 ];
 
 describe('API client migration', () => {
