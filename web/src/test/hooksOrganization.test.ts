@@ -10,6 +10,7 @@ const workflowHooks = [
   'useWorkflowMessages.ts',
 ];
 const collabHooks = ['useAuth.ts', 'useCollabPolling.ts'];
+const settingsHooks = ['useSettings.ts'];
 
 describe('hooks organization', () => {
   it('keeps App-owned workflow hooks in the workflow hooks category', () => {
@@ -36,5 +37,28 @@ describe('hooks organization', () => {
     expect(appSource).toContain("from './hooks/collab'");
     expect(appSource).not.toContain("from './hooks/useAuth'");
     expect(appSource).not.toContain("from './hooks/useCollabPolling'");
+  });
+
+  it('keeps settings hooks in the settings hooks category', () => {
+    const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/hooks/useTheme.ts'), 'utf8');
+    const settingsPanelSource = readFileSync(
+      resolve(process.cwd(), 'src/components/panels/SettingsPanel.tsx'),
+      'utf8',
+    );
+    const canvasSource = readFileSync(
+      resolve(process.cwd(), 'src/components/canvas/WorkflowCanvas.tsx'),
+      'utf8',
+    );
+
+    for (const hookFile of settingsHooks) {
+      expect(existsSync(resolve(process.cwd(), 'src/hooks/settings', hookFile)), hookFile).toBe(true);
+      expect(existsSync(resolve(process.cwd(), 'src/hooks', hookFile)), hookFile).toBe(false);
+    }
+    expect(appSource).toContain("from './hooks/settings'");
+    expect(appSource).not.toContain("from './hooks/useSettings'");
+    expect(themeSource).toContain("from './settings'");
+    expect(settingsPanelSource).toContain("from '../../hooks/settings'");
+    expect(canvasSource).toContain("from '../../hooks/settings'");
   });
 });

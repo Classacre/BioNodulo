@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiGet } from '../api/client';
+import { apiGet } from '../../api/client';
 
 const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.theme': 'system',

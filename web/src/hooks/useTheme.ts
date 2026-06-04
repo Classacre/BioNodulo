@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSettings } from './useSettings';
+import { useSettings } from './settings';
 
 export function useTheme() {
   const { get, settings } = useSettings();

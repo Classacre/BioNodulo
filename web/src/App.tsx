@@ -34,7 +34,7 @@ import {
   toggleCommandPalette,
   type CommandItem,
 } from './components/ui';
-import { useSettings } from './hooks/useSettings';
+import { useSettings } from './hooks/settings';
 import { useObjectInfo } from './hooks/useObjectInfo';
 import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';

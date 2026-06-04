@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
-import { useSettings } from '../../hooks/useSettings';
+import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
 import { promptDialog, toast } from '../ui';

@@ -1,7 +1,7 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettings } from '../../hooks/useSettings';
+import { useSettings } from '../../hooks/settings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
