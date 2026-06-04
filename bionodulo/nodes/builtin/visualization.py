@@ -23,6 +23,7 @@ LINE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 BAR_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 HEATMAP_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 MANHATTAN_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
+COVERAGE_OUTPUT_FORMATS = SUPPORTED_IMAGE_FORMATS + ("html",)
 DEFAULT_DPI = 120
 DEFAULT_UP_COLOR = "#E74C3C"
 DEFAULT_DOWN_COLOR = "#3498DB"
@@ -4311,6 +4312,98 @@ def _render_coverage_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _render_coverage_html(
+    path: Path,
+    *,
+    bins: list[CoverageBin],
+    bounds: PlotBounds,
+    layout: PlotLayout,
+    title: str,
+    fill_color: str,
+) -> None:
+    colour = _normalise_hex_color(fill_color, "#2563EB")
+    chromosome = bins[0].chromosome
+    traces = [{
+        "type": "bar",
+        "name": "Coverage",
+        "x": [(item.start + item.end) / 2 for item in bins],
+        "y": [item.coverage for item in bins],
+        "width": [max(1, item.end - item.start) for item in bins],
+        "text": [f"{item.chromosome}:{item.start}-{item.end}" for item in bins],
+        "customdata": [
+            [item.chromosome, item.start, item.end, item.coverage]
+            for item in bins
+        ],
+        "hovertemplate": (
+            "%{customdata[0]}:%{customdata[1]}-%{customdata[2]}<br>"
+            "coverage: %{customdata[3]}<extra></extra>"
+        ),
+        "marker": {
+            "color": colour,
+            "opacity": 0.78,
+            "line": {"color": "#ffffff", "width": 0.4},
+        },
+    }]
+    plot_layout = {
+        "title": {"text": title},
+        "xaxis": {
+            "title": f"{chromosome} position",
+            "range": [bounds.x_min, bounds.x_max],
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+            "zeroline": False,
+        },
+        "yaxis": {
+            "title": "Coverage",
+            "range": [0, bounds.y_max],
+            "zeroline": False,
+            "showgrid": True,
+            "gridcolor": "#E2E8F0",
+        },
+        "bargap": 0,
+        "plot_bgcolor": "#F8FAFC",
+        "paper_bgcolor": "#FFFFFF",
+        "font": {"family": "Arial, sans-serif", "color": "#111827"},
+        "margin": {"l": layout.left, "r": layout.right, "t": layout.top, "b": layout.bottom},
+        "showlegend": False,
+    }
+    config = {
+        "displaylogo": False,
+        "responsive": True,
+        "toImageButtonOptions": {"format": "png", "filename": "coverage_plot"},
+    }
+
+    document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html, body {{ margin: 0; min-height: 100%; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }}
+#plot {{ width: 100%; min-height: min(100vh, {layout.height}px); }}
+.plot-fallback {{ padding: 16px; color: #475569; font-size: 13px; }}
+</style>
+</head>
+<body>
+<div id="plot"></div>
+<script>
+const data = {_json_for_script(traces)};
+const layout = {_json_for_script(plot_layout)};
+const config = {_json_for_script(config)};
+if (window.Plotly) {{
+  Plotly.newPlot("plot", data, layout, config);
+}} else {{
+  document.getElementById("plot").innerHTML = '<div class="plot-fallback">Plotly could not be loaded.</div>';
+}}
+</script>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def _render_tree_svg(
     path: Path,
     *,
@@ -6247,7 +6340,7 @@ class CoveragePlotNode(BaseNode):
                 "window_size": ("INT", {"default": 50, "min": 1, "max": 1000000}),
                 "title": ("STRING", {"default": "Coverage Plot"}),
                 "fill_color": ("STRING", {"default": "#2563EB"}),
-                "format": (list(SUPPORTED_IMAGE_FORMATS), {"default": "png"}),
+                "format": (list(COVERAGE_OUTPUT_FORMATS), {"default": "png"}),
                 "width": ("FLOAT", {"default": 12.0, "min": 1.0}),
                 "height": ("FLOAT", {"default": 4.0, "min": 1.0}),
                 "dpi": ("INT", {"default": 150, "min": 30, "max": 600}),
@@ -6258,7 +6351,7 @@ class CoveragePlotNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         output_format = str(kwargs.get("format", "png") or "png").strip().lower()
-        if output_format not in SUPPORTED_IMAGE_FORMATS:
+        if output_format not in COVERAGE_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported coverage plot format: {output_format}")
 
         region = _parse_region(str(kwargs.get("region", "") or ""))
@@ -6282,6 +6375,15 @@ class CoveragePlotNode(BaseNode):
         output_path = out_dir / f"coverage_plot.{output_format}"
         if output_format == "svg":
             _render_coverage_svg(
+                output_path,
+                bins=bins,
+                bounds=bounds,
+                layout=layout,
+                title=title,
+                fill_color=fill_color,
+            )
+        elif output_format == "html":
+            _render_coverage_html(
                 output_path,
                 bins=bins,
                 bounds=bounds,

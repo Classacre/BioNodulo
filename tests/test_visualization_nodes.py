@@ -145,6 +145,8 @@ def test_forest_plot_is_registered_for_frontend_discovery() -> None:
 def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
+    node_class = registry.get("coverage_plot")
+    assert node_class is not None
 
     info = registry.object_info()
 
@@ -153,6 +155,7 @@ def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
     assert info["coverage_plot"]["output_name"] == ["coverage_image"]
     assert info["coverage_plot"]["output"] == ["IMAGE"]
     assert info["coverage_plot"]["output_node"] is True
+    assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
 def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None:
@@ -1001,6 +1004,48 @@ async def test_coverage_plot_writes_svg_from_bedgraph_and_registers_preview(tmp_
     assert 'data-start="100"' in svg
     assert 'data-end="110"' in svg
     assert previews == [(str(svg_path), "Coverage Plot")]
+
+
+@pytest.mark.asyncio
+async def test_coverage_plot_writes_interactive_html_and_registers_preview(tmp_path: Path) -> None:
+    node_class = _node_class("coverage_plot")
+    coverage = tmp_path / "sample.bedgraph"
+    coverage.write_text(
+        "chr1\t100\t110\t5\n"
+        "chr1\t110\t120\t8\n"
+        "chr1\t120\t130\t3\n"
+        "chr2\t100\t110\t20\n",
+        encoding="utf-8",
+    )
+    previews: list[tuple[str, str]] = []
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        register_preview=lambda path, label=None: previews.append((str(path), str(label))),
+    )
+
+    result = await node_class().run(
+        alignment=str(coverage),
+        region="chr1:100-130",
+        window_size=10,
+        title="Coverage chr1",
+        format="html",
+        width=10,
+        height=4,
+        context=context,
+    )
+
+    html_path = Path(result["outputs"]["coverage_image"])
+    document = html_path.read_text(encoding="utf-8")
+
+    assert html_path.name == "coverage_plot.html"
+    assert "<!DOCTYPE html>" in document
+    assert "Plotly.newPlot" in document
+    assert "Coverage chr1" in document
+    assert '"type": "bar"' in document
+    assert '"chr1:100-110"' in document
+    assert '"chr1:110-120"' in document
+    assert '"customdata": [["chr1", 100, 110, 5.0]' in document
+    assert previews == [(str(html_path), "Coverage Plot")]
 
 
 @pytest.mark.asyncio
