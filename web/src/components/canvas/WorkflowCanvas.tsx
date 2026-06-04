@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
+import { useTranslation } from 'react-i18next';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import { useSettings } from '../../hooks/settings';
@@ -570,6 +571,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   onEnterSubgraph,
   onPromoteWidgets,
 }, ref) {
+  const { t } = useTranslation();
   const nodeProgressRecord = useAtomValue(canvasNodeRunProgressAtom);
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -3653,9 +3655,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
 
       {/* Zoom controls */}
       <div className="canvas-controls">
-        <button className="btn btn-icon btn-sm" onClick={() => fitView()} title="Fit view" aria-label="Fit view"><Icon name="maximize" size={14} /></button>
-        <button className="btn btn-icon btn-sm" onClick={() => fitView(true)} title="Fit selection" aria-label="Fit selection"><Icon name="target" size={14} /></button>
-        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1.2)} title="Zoom in" aria-label="Zoom in"><Icon name="plus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => fitView()} title={t('canvas.fitToView')} aria-label={t('canvas.fitToView')}><Icon name="maximize" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => fitView(true)} title={t('canvas.fitSelection')} aria-label={t('canvas.fitSelection')}><Icon name="target" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1.2)} title={t('canvas.zoomIn')} aria-label={t('canvas.zoomIn')}><Icon name="plus" size={14} /></button>
         {editingZoom ? (
           <input
             type="text"
@@ -3683,10 +3685,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             style={{ fontSize: 11, color: 'var(--muted)', minWidth: 40, textAlign: 'center', cursor: 'text', userSelect: 'none' }}
           >{Math.round(scale * 100)}%</span>
         )}
-        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1 / 1.2)} title="Zoom out" aria-label="Zoom out"><Icon name="minus" size={14} /></button>
+        <button className="btn btn-icon btn-sm" onClick={() => animateZoom(1 / 1.2)} title={t('canvas.zoomOut')} aria-label={t('canvas.zoomOut')}><Icon name="minus" size={14} /></button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        <button className={`btn btn-icon btn-sm ${showMinimap ? 'active' : ''}`} onClick={onToggleMinimap} title="Toggle minimap"><Icon name="map" size={14} /></button>
-        <button className={`btn btn-icon btn-sm ${!linksHidden ? 'active' : ''}`} onClick={onToggleLinksHidden} title="Toggle links"><Icon name="link" size={14} /></button>
+        <button className={`btn btn-icon btn-sm ${showMinimap ? 'active' : ''}`} onClick={onToggleMinimap} title={t('canvas.toggleMinimap')}><Icon name="map" size={14} /></button>
+        <button className={`btn btn-icon btn-sm ${!linksHidden ? 'active' : ''}`} onClick={onToggleLinksHidden} title={t('canvas.toggleLinks')}><Icon name="link" size={14} /></button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button className="btn btn-icon btn-sm" onClick={() => {
           const layout = arrangeNodesLayout(graphNodes, edges);
@@ -3700,7 +3702,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           });
           onNodesChange(updatedNodes);
           onPushHistory();
-        }} title="Auto-arrange nodes"><Icon name="layout" size={14} /></button>
+        }} title={t('canvas.autoArrangeNodes')}><Icon name="layout" size={14} /></button>
       </div>
 
       {/* Minimap */}
