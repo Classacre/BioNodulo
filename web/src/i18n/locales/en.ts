@@ -123,6 +123,8 @@ const en = {
     recent: 'Recent',
     suggested: 'Suggested',
     runShortcut: 'Run',
+    openRecentWorkflow: 'Open recent: {{name}}',
+    recentWorkflowFallback: 'recent workflow',
   },
   shortcuts: {
     title: 'Keyboard shortcuts',
@@ -222,8 +224,18 @@ const en = {
     scrollLeft: 'Scroll tabs left',
     scrollRight: 'Scroll tabs right',
     rename: 'Rename',
+    duplicateCurrent: 'Duplicate current workflow tab',
+    duplicateName: '{{name}} (copy)',
+    thisWorkflow: 'this workflow',
+    closeUnsavedTitle: 'Close tab with unsaved changes?',
+    closeUnsavedMessage: '{{name}} has unsaved changes. Close anyway?',
     closeTabsLeft: 'Close tabs to left',
     closeTabsRight: 'Close tabs to right',
+  },
+  workflowImport: {
+    importedFallbackName: 'Imported workflow',
+    loadedFromUrl: 'Loaded workflow from URL',
+    untitledLower: 'untitled',
   },
   panels: {
     nodeLibrary: 'Node library',

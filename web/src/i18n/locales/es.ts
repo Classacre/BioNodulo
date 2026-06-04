@@ -123,6 +123,8 @@ const es = {
     recent: 'Reciente',
     suggested: 'Sugerido',
     runShortcut: 'Ejecutar',
+    openRecentWorkflow: 'Abrir reciente: {{name}}',
+    recentWorkflowFallback: 'workflow reciente',
   },
   shortcuts: {
     title: 'Atajos de teclado',
@@ -222,8 +224,18 @@ const es = {
     scrollLeft: 'Desplazar pestanas a la izquierda',
     scrollRight: 'Desplazar pestanas a la derecha',
     rename: 'Renombrar',
+    duplicateCurrent: 'Duplicar pestana de workflow actual',
+    duplicateName: '{{name}} (copia)',
+    thisWorkflow: 'este workflow',
+    closeUnsavedTitle: 'Cerrar pestana con cambios sin guardar?',
+    closeUnsavedMessage: '{{name}} tiene cambios sin guardar. Cerrar de todos modos?',
     closeTabsLeft: 'Cerrar pestanas a la izquierda',
     closeTabsRight: 'Cerrar pestanas a la derecha',
+  },
+  workflowImport: {
+    importedFallbackName: 'Workflow importado',
+    loadedFromUrl: 'Workflow cargado desde URL',
+    untitledLower: 'sin titulo',
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',

@@ -1874,7 +1874,7 @@ export default function App() {
     }
     rememberRecentWorkflow({
       id: wf.id || activeWorkflowId,
-      name: wf.name || 'Imported workflow',
+      name: wf.name || t('workflowImport.importedFallbackName'),
       source: 'import',
       thumbnailUrl: renderRecentThumbnail(wf),
       nodeCount: wf.nodes?.length ?? 0,
@@ -1884,7 +1884,7 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, t, updateWorkflow]);
 
   // Replay any URL-hash workflow that mount stashed before handleImport
   // existed. Runs once handleImport stabilises.
@@ -1893,8 +1893,8 @@ export default function App() {
     if (!pending) return;
     pendingHashWorkflowRef.current = null;
     handleImport(pending);
-    toast.success('Loaded workflow from URL', { message: pending.name || 'untitled' });
-  }, [handleImport]);
+    toast.success(t('workflowImport.loadedFromUrl'), { message: pending.name || t('workflowImport.untitledLower') });
+  }, [handleImport, t]);
 
   const handleApplyWorkflow = useCallback((wf: Workflow) => {
     const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
@@ -1917,11 +1917,11 @@ export default function App() {
     const dup: Workflow = {
       ...wf,
       id: createWorkflowId(),
-      name: `${wf.name || 'Untitled'} (copy)`,
+      name: t('workflowTabs.duplicateName', { name: wf.name || t('common.untitled') }),
       nodes: wf.nodes.map(n => ({ ...n, id: `${n.type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })),
     };
     addWorkflow(dup);
-  }, [workflows, addWorkflow]);
+  }, [workflows, addWorkflow, t]);
 
   const handleReorderTabs = useCallback((from: number, to: number) => {
     reorderWorkflows(from, to);
@@ -2226,7 +2226,7 @@ export default function App() {
       },
       {
         id: 'workflow.duplicateTab',
-        label: 'Duplicate current workflow tab',
+        label: t('workflowTabs.duplicateCurrent'),
         group: 'Workflow',
         onSelect: () => handleDuplicateTab(activeIndex),
       },
@@ -2308,6 +2308,7 @@ export default function App() {
     handleDuplicateTab,
     handleRun,
     handleToggleQueue,
+    t,
     palettes,
     redo,
     set,
@@ -2321,7 +2322,7 @@ export default function App() {
   useRegisteredCommands('app', appCommands);
 
   // Unified search: surface "Add {Node}" entries for every registered node
-  // type plus "Open recent: {Name}" entries so Ctrl+P doubles as a way to
+  // type plus recent-workflow entries so Ctrl+P doubles as a way to
   // create nodes and reopen workflows without leaving the keyboard. Capped
   // to keep the palette snappy — the regular Node Library + Getting Started
   // panels remain the place for full browsing.
@@ -2360,8 +2361,8 @@ export default function App() {
       for (const entry of recents.slice(0, 12)) {
         items.push({
           id: `recent.${entry.id}`,
-          label: `Open recent: ${entry.name}`,
-          description: entry.filename || 'recent workflow',
+          label: t('commandPalette.openRecentWorkflow', { name: entry.name }),
+          description: entry.filename || t('commandPalette.recentWorkflowFallback'),
           group: 'Workflow',
           onSelect: async () => {
             if (entry.filename) {
@@ -2373,7 +2374,7 @@ export default function App() {
       }
     } catch { /* ignore */ }
     return items;
-  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate]);
+  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate, t]);
   useRegisteredCommands('dynamic', dynamicCommands);
 
   useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
@@ -2806,11 +2807,11 @@ export default function App() {
           // currently don't track dirtiness individually so we close them
           // without confirmation (autosave covers the common case).
           if (index === activeIndex && dirty) {
-            const wfName = workflows[index]?.name || 'this workflow';
+            const wfName = workflows[index]?.name || t('workflowTabs.thisWorkflow');
             const ok = await confirmDialog({
-              title: 'Close tab with unsaved changes?',
-              message: `${wfName} has unsaved changes. Close anyway?`,
-              confirmLabel: 'Close',
+              title: t('workflowTabs.closeUnsavedTitle'),
+              message: t('workflowTabs.closeUnsavedMessage', { name: wfName }),
+              confirmLabel: t('common.close'),
               tone: 'danger',
             });
             if (!ok) return;
