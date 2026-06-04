@@ -860,6 +860,7 @@ class WorkflowExecutor:
         collected: list[Any] = []
         processed_count = 0
         all_succeeded = True
+        loop_state: dict[str, Any] = {}
 
         for iteration_index, batch in enumerate(batches):
             if ctx.cancel_event.is_set():
@@ -918,6 +919,11 @@ class WorkflowExecutor:
                         combined_outputs,
                     )
                     body_params = self._with_defaults(body_node, body_inputs, body_class)
+                    hidden_inputs = self._declared_hidden_inputs(body_class)
+                    if "_loop_state" in hidden_inputs:
+                        body_params["_loop_state"] = loop_state
+                    if "_iteration" in hidden_inputs:
+                        body_params["_iteration"] = iteration_index
                     body_dir = (
                         self.workspace_dir
                         / "runs"
@@ -1132,7 +1138,12 @@ class WorkflowExecutor:
             node_class = self.registry.get(node.get("type", "unknown"))
         if node_class is not None and hasattr(node_class, "run"):
             kwargs = {**inputs, **ctx.params}
-            kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            hidden_inputs = self._declared_hidden_inputs(node_class)
+            kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if not str(k).startswith("_") or k in hidden_inputs
+            }
             kwargs = self._resolve_file_paths(node_class, kwargs)
             node_instance = node_class()
             if asyncio.iscoroutinefunction(node_class.run):
@@ -1145,6 +1156,17 @@ class WorkflowExecutor:
             f"Node class not found for '{node.get('type', 'unknown')}'. "
             "Ensure the node is registered in the node registry."
         )
+
+    @staticmethod
+    def _declared_hidden_inputs(node_class: Any) -> set[str]:
+        if node_class is None or not hasattr(node_class, "INPUT_TYPES"):
+            return set()
+        try:
+            input_types = node_class.INPUT_TYPES()
+        except Exception:
+            return set()
+        hidden = input_types.get("hidden", {})
+        return {str(name) for name in hidden}
 
     async def _execute_node_with_retry(
         self,

@@ -1159,6 +1159,62 @@ async def test_executor_runs_foreach_body_subgraph_for_each_item(tmp_path: Path)
 
 
 @pytest.mark.asyncio
+async def test_executor_foreach_injects_shared_loop_state_and_iteration_for_counter_accumulator(
+    tmp_path: Path,
+) -> None:
+    registry = _loaded_registry()
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "foreach",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3"]},
+                    "iteration_mode": {"value": "single"},
+                    "collect_mode": {"value": "list"},
+                    "max_iterations": {"value": 10},
+                },
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            {
+                "id": "accumulate",
+                "type": "counter_accumulator",
+                "inputs": {
+                    "operation": {"value": "append"},
+                    "accumulator_key": {"value": "samples"},
+                },
+                "outputs": {"value": {}, "count": {}, "accumulator": {}},
+            },
+        ],
+        "edges": [
+            {
+                "source_node": "loop",
+                "target_node": "accumulate",
+                "source_output": "iteration",
+                "target_input": "operand",
+            },
+            {
+                "source_node": "accumulate",
+                "target_node": "loop",
+                "source_output": "value",
+                "target_input": "body_result",
+            },
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("foreach-counter", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["loop"]["results"] == [
+        ["S1"],
+        ["S1", "S2"],
+        ["S1", "S2", "S3"],
+    ]
+    assert result["outputs"]["loop"]["count"] == 3
+
+
+@pytest.mark.asyncio
 async def test_executor_foreach_continue_skips_remaining_body_for_iteration(tmp_path: Path) -> None:
     foreach_node = _node_class("foreach")
     break_continue_node = _node_class("break_continue")
