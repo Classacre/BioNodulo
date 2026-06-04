@@ -357,6 +357,16 @@ const es = {
       placeholder: 'Pregunta sobre workflows... (pega imagenes directamente)',
       send: 'Enviar',
     },
+    steps: {
+      showReasoning: 'Mostrar razonamiento',
+      hideReasoning: 'Ocultar razonamiento',
+      toolResult: '{{name}} resultado',
+      proposedChanges: 'Cambios propuestos',
+      proposalFallbackDescription: 'La IA sugiere modificar el workflow.',
+      applyChanges: 'Aplicar cambios',
+      copyToCanvas: 'Copiar al lienzo',
+      previewJson: 'Previsualizar JSON',
+    },
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',

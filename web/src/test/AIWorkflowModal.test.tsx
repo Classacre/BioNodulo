@@ -117,6 +117,46 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByDisplayValue('Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.')).toBeInTheDocument();
   });
 
+  it('renders assistant step controls from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    storage.set('bionodulo-ai-sessions', JSON.stringify([{
+      id: 'session-1',
+      name: 'Run help',
+      createdAt: Date.now(),
+      turns: [{
+        role: 'assistant',
+        model: 'test-model',
+        steps: [
+          { type: 'thinking', content: 'Reasoning text' },
+          { type: 'tool_result', name: 'get_workflow_summary', content: '', result: { ok: true } },
+          { type: 'propose_changes', content: '', workflow: workflow({ name: 'Suggested' }) },
+        ],
+      }],
+    }]));
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    const reasoningToggle = screen.getByRole('button', { name: /Mostrar razonamiento/ });
+    expect(reasoningToggle).toBeInTheDocument();
+    fireEvent.click(reasoningToggle);
+    expect(screen.getByRole('button', { name: /Ocultar razonamiento/ })).toBeInTheDocument();
+    expect(screen.getByText('get_workflow_summary resultado')).toBeInTheDocument();
+    expect(screen.getByText('Cambios propuestos')).toBeInTheDocument();
+    expect(screen.getByText('La IA sugiere modificar el workflow.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aplicar cambios' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Copiar al lienzo/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previsualizar JSON' })).toBeInTheDocument();
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -139,6 +179,14 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.input.attachFileTitle',
       'aiWorkflow.input.placeholder',
       'aiWorkflow.input.send',
+      'aiWorkflow.steps.showReasoning',
+      'aiWorkflow.steps.hideReasoning',
+      'aiWorkflow.steps.toolResult',
+      'aiWorkflow.steps.proposedChanges',
+      'aiWorkflow.steps.proposalFallbackDescription',
+      'aiWorkflow.steps.applyChanges',
+      'aiWorkflow.steps.copyToCanvas',
+      'aiWorkflow.steps.previewJson',
       'common.close',
       'common.rename',
       'common.delete',
@@ -166,6 +214,14 @@ describe('AIWorkflowModal i18n', () => {
       'title="Attach file"',
       'placeholder="Ask about workflows... (Paste images directly)"',
       '>Send<',
+      'Hide reasoning',
+      'Show reasoning',
+      '${step.name} result',
+      'Proposed changes',
+      'The AI suggests modifying the workflow.',
+      'Apply Changes',
+      'Copy to Canvas',
+      'Preview JSON',
     ].forEach(text => expect(source).not.toContain(text));
   });
 });

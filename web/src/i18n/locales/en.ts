@@ -357,6 +357,16 @@ const en = {
       placeholder: 'Ask about workflows... (Paste images directly)',
       send: 'Send',
     },
+    steps: {
+      showReasoning: 'Show reasoning',
+      hideReasoning: 'Hide reasoning',
+      toolResult: '{{name}} result',
+      proposedChanges: 'Proposed changes',
+      proposalFallbackDescription: 'The AI suggests modifying the workflow.',
+      applyChanges: 'Apply Changes',
+      copyToCanvas: 'Copy to Canvas',
+      previewJson: 'Preview JSON',
+    },
   },
   panels: {
     nodeLibrary: 'Node library',

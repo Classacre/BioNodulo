@@ -613,6 +613,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
 }
 
 function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflow) => void }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   switch (step.type) {
@@ -621,7 +622,7 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
         <div className="ai-step-thinking">
           <button className="ai-step-toggle" onClick={() => setExpanded(!expanded)}>
             <Icon name="lightbulb" size={12} />
-            {expanded ? 'Hide reasoning' : 'Show reasoning'}
+            {expanded ? t('aiWorkflow.steps.hideReasoning') : t('aiWorkflow.steps.showReasoning')}
           </button>
           {expanded && <pre className="ai-step-pre">{step.content}</pre>}
         </div>
@@ -643,7 +644,7 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
         <div className="ai-step-tool-result">
           <div className="ai-step-header">
             <Icon name="check" size={12} />
-            <span className="ai-step-name">{step.name} result</span>
+            <span className="ai-step-name">{t('aiWorkflow.steps.toolResult', { name: step.name })}</span>
           </div>
           <pre className="ai-step-pre">{JSON.stringify(step.result, null, 2)}</pre>
         </div>
@@ -654,13 +655,13 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
         <div className="ai-step-propose">
           <div className="ai-step-propose-header">
             <Icon name="edit" size={14} />
-            <strong>Proposed changes</strong>
+            <strong>{t('aiWorkflow.steps.proposedChanges')}</strong>
           </div>
-          <p className="ai-step-propose-desc">{step.description || 'The AI suggests modifying the workflow.'}</p>
+          <p className="ai-step-propose-desc">{step.description || t('aiWorkflow.steps.proposalFallbackDescription')}</p>
           {step.workflow && (
             <div className="ai-step-propose-actions">
               <button className="btn btn-primary btn-sm" onClick={() => onApply(step.workflow!)}>
-                Apply Changes
+                {t('aiWorkflow.steps.applyChanges')}
               </button>
               <button
                 className="btn btn-sm"
@@ -676,10 +677,10 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
                   } catch { /* ignore */ }
                 }}
               >
-                <Icon name="copy" size={10} /> Copy to Canvas
+                <Icon name="copy" size={10} /> {t('aiWorkflow.steps.copyToCanvas')}
               </button>
               <button className="btn btn-sm" onClick={() => setExpanded(true)}>
-                Preview JSON
+                {t('aiWorkflow.steps.previewJson')}
               </button>
             </div>
           )}
