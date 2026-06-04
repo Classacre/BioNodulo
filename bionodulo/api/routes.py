@@ -416,8 +416,12 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
                 "environment": body.environment,
                 "target_nodes": body.target_nodes,
                 "force_nodes": body.force_nodes,
+                "parameters": body.parameters,
             },
-            options={"target_nodes": body.target_nodes} if body.target_nodes else {},
+            options={
+                **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
+                **({"parameters": body.parameters} if body.parameters else {}),
+            },
             force=body.no_cache,
             force_nodes=set(body.force_nodes),
         )
@@ -431,6 +435,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
             "workflow": body.workflow,
             "target_nodes": body.target_nodes,
             "force_nodes": body.force_nodes,
+            "parameters": body.parameters,
         }
         request.app.state.runs = runs
 

@@ -707,11 +707,197 @@ async def test_workflow_executor_consumes_registered_retry_node_policy(tmp_path:
     assert result["node_results"]["flaky"]["attempts"] == 2
 
 
+@pytest.mark.asyncio
+async def test_workflow_executor_binds_workflow_parameters_into_node_inputs(tmp_path: Path) -> None:
+    class CaptureNode:
+        RETURN_NAMES = ("out", "threads")
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {
+                    "sample": ("STRING", {}),
+                    "threads": ("INT", {}),
+                },
+            }
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            return {"outputs": {"out": kwargs["sample"], "threads": kwargs["threads"]}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[CaptureNode]:
+            return CaptureNode
+
+    workflow = {
+        "parameters": [
+            {"name": "sample_id", "type": "STRING", "required": True, "value": "S2"},
+            {"name": "threads", "type": "INT", "default": 8},
+        ],
+        "nodes": [
+            {
+                "id": "capture",
+                "type": "capture",
+                "inputs": {
+                    "sample": {"value": "sample-{{sample_id}}"},
+                    "threads": {"value": "{{threads}}"},
+                },
+                "outputs": {"out": {}, "threads": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("parameterized-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["capture"] == {"out": "sample-S2", "threads": 8}
+    assert result["metadata"]["workflow_parameters"] == {
+        "sample_id": "S2",
+        "threads": 8,
+    }
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_runtime_parameter_overrides_take_precedence(tmp_path: Path) -> None:
+    class CaptureNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"sample": ("STRING", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            return {"outputs": {"out": kwargs["sample"]}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[CaptureNode]:
+            return CaptureNode
+
+    workflow = {
+        "parameters": [
+            {"name": "sample_id", "type": "STRING", "default": "default-sample", "value": "stored-sample"},
+        ],
+        "nodes": [
+            {
+                "id": "capture",
+                "type": "capture",
+                "params": {"sample": "{{sample_id}}"},
+                "outputs": {"out": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute(
+        "parameter-override-run",
+        workflow,
+        options={"parameters": {"sample_id": "runtime-sample"}},
+    )
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["capture"]["out"] == "runtime-sample"
+    assert result["metadata"]["workflow_parameters"]["sample_id"] == "runtime-sample"
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_leaves_unknown_template_tokens_literal(tmp_path: Path) -> None:
+    class CaptureNode:
+        RETURN_NAMES = ("sample", "template")
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {
+                    "sample": ("STRING", {}),
+                    "template": ("STRING", {}),
+                },
+            }
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            return {"outputs": {"sample": kwargs["sample"], "template": kwargs["template"]}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[CaptureNode]:
+            return CaptureNode
+
+    workflow = {
+        "parameters": [
+            {"name": "sample_id", "type": "STRING", "value": "S1"},
+        ],
+        "nodes": [
+            {
+                "id": "capture",
+                "type": "capture",
+                "params": {
+                    "sample": "{{sample_id}}",
+                    "template": "internal {{tool_specific_token}}",
+                },
+                "outputs": {"sample": {}, "template": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("unknown-template-token-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["capture"] == {
+        "sample": "S1",
+        "template": "internal {{tool_specific_token}}",
+    }
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_fails_when_required_workflow_parameter_is_missing(tmp_path: Path) -> None:
+    class CaptureNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"sample": ("STRING", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            return {"outputs": {"out": kwargs["sample"]}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[CaptureNode]:
+            return CaptureNode
+
+    workflow = {
+        "parameters": [
+            {"name": "sample_id", "type": "STRING", "required": True},
+        ],
+        "nodes": [
+            {
+                "id": "capture",
+                "type": "capture",
+                "params": {"sample": "{{sample_id}}"},
+                "outputs": {"out": {}},
+            }
+        ],
+        "edges": [],
+    }
+    events: list[tuple[str, dict[str, Any]]] = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("missing-parameter-run", workflow, emit=lambda event, payload: events.append((event, payload)))
+
+    assert result["status"] == "failed"
+    assert result["error"] == "Missing required workflow parameter: sample_id"
+    assert events == [
+        ("error", {"run_id": "missing-parameter-run", "message": "Missing required workflow parameter: sample_id"})
+    ]
+
+
 def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
     run_request = RunCreateRequest(
         workflow={"nodes": [], "edges": []},
         force_nodes=["qc"],
         target_nodes=["report"],
+        parameters={"sample_id": "S1"},
     )
     extract_request = WorkflowExtractRequest(
         workflow={"nodes": [{"id": "qc"}], "edges": []},
@@ -721,6 +907,7 @@ def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
 
     assert run_request.force_nodes == ["qc"]
     assert run_request.target_nodes == ["report"]
+    assert run_request.parameters == {"sample_id": "S1"}
     assert extract_request.node_ids == ["qc"]
 
 

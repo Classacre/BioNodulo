@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import traceback
 from collections import deque
 from dataclasses import dataclass, field
@@ -207,6 +208,16 @@ class WorkflowExecutor:
                 pass
             emit = _noop_emit
 
+        try:
+            workflow_parameters = self._resolve_workflow_parameters(
+                workflow.get("parameters", []),
+                options.get("parameters", {}),
+            )
+        except ValueError as exc:
+            msg = str(exc)
+            emit("error", {"run_id": run_id, "message": msg})
+            return {"status": "failed", "run_id": run_id, "error": msg}
+
         _VISUAL_ONLY_TYPES = frozenset({"note"})
         raw_nodes_data = workflow.get("nodes", [])
         if isinstance(raw_nodes_data, dict):
@@ -304,6 +315,7 @@ class WorkflowExecutor:
             "run_id": run_id,
             "forced": force,
             "target_nodes": sorted(target_nodes),
+            "workflow_parameters": workflow_parameters,
             "nodes": {},
         }
 
@@ -387,7 +399,7 @@ class WorkflowExecutor:
             # ---- Resolve inputs from upstream nodes ----
             try:
                 resolved_inputs = self._resolve_inputs(
-                    node_id, node, edge_map, node_outputs
+                    node_id, node, edge_map, node_outputs, workflow_parameters
                 )
             except Exception as exc:
                 msg = f"Input resolution failed for {node_id}: {exc}"
@@ -407,7 +419,7 @@ class WorkflowExecutor:
             _node_class = node.get("_node_class")
             if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
                 _node_class = self.registry.get(str(node.get("type", "unknown")))
-            resolved_params = self._with_defaults(node, resolved_inputs, _node_class)
+            resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
             executes_loop_body = self._executes_loop_body(_node_class)
 
             # ---- Build upstream cache key map ----
@@ -917,8 +929,14 @@ class WorkflowExecutor:
                         body_node,
                         body_edge_map,
                         combined_outputs,
+                        ctx.run_metadata.get("workflow_parameters", {}),
                     )
-                    body_params = self._with_defaults(body_node, body_inputs, body_class)
+                    body_params = self._with_defaults(
+                        body_node,
+                        body_inputs,
+                        body_class,
+                        ctx.run_metadata.get("workflow_parameters", {}),
+                    )
                     hidden_inputs = self._declared_hidden_inputs(body_class)
                     if "_loop_state" in hidden_inputs:
                         body_params["_loop_state"] = loop_state
@@ -1320,22 +1338,24 @@ class WorkflowExecutor:
         node: dict[str, Any],
         edge_map: dict[str, list[dict[str, Any]]],
         node_outputs: dict[str, dict[str, str]],
+        workflow_parameters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Resolve edge connections to actual values from upstream outputs."""
         inputs: dict[str, Any] = {}
         node_def_inputs = node.get("inputs", {})
+        workflow_parameters = workflow_parameters or {}
 
         # Start with literal/default values from node definition
         for inp_name, inp_val in node_def_inputs.items():
             if isinstance(inp_val, dict) and "value" in inp_val:
-                inputs[inp_name] = inp_val["value"]
+                inputs[inp_name] = self._bind_workflow_parameters(inp_val["value"], workflow_parameters)
             else:
-                inputs[inp_name] = inp_val
+                inputs[inp_name] = self._bind_workflow_parameters(inp_val, workflow_parameters)
 
         # Fallback: use params if no inputs defined (frontend/template format)
         if not inputs:
             for pname, pval in node.get("params", {}).items():
-                inputs[pname] = pval
+                inputs[pname] = self._bind_workflow_parameters(pval, workflow_parameters)
 
         # Override with upstream connections
         for edge in edge_map.get(node_id, []):
@@ -1357,16 +1377,18 @@ class WorkflowExecutor:
         node: dict[str, Any],
         inputs: dict[str, Any],
         node_class: Any = None,
+        workflow_parameters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Fill in default parameter values from node definition."""
         params: dict[str, Any] = {}
+        workflow_parameters = workflow_parameters or {}
         # Widget values / parameters
         widgets = node.get("widgets", {})
-        params.update(widgets)
+        params.update(self._bind_workflow_parameters(widgets, workflow_parameters))
         # Fallback: params from frontend/template format
         for pname, pval in node.get("params", {}).items():
             if pname not in params:
-                params[pname] = pval
+                params[pname] = self._bind_workflow_parameters(pval, workflow_parameters)
         # Pull defaults from node class INPUT_TYPES if available
         if node_class is not None and hasattr(node_class, "INPUT_TYPES"):
             try:
@@ -1385,6 +1407,84 @@ class WorkflowExecutor:
         params["_node_type"] = node.get("type", "unknown")
         params["_output_ports"] = list(node.get("outputs", {}).keys()) or ["default"]
         return params
+
+    @staticmethod
+    def _resolve_workflow_parameters(raw_parameters: Any, runtime_values: Any) -> dict[str, Any]:
+        """Resolve workflow parameter definitions plus runtime overrides."""
+        if raw_parameters in (None, {}):
+            raw_parameters = []
+        if runtime_values in (None, ""):
+            runtime_values = {}
+        if not isinstance(raw_parameters, list):
+            raise ValueError("Workflow parameters must be a list")
+        if not isinstance(runtime_values, dict):
+            raise ValueError("Runtime workflow parameters must be an object")
+
+        resolved: dict[str, Any] = {}
+        missing_required: list[str] = []
+        for index, parameter in enumerate(raw_parameters):
+            if hasattr(parameter, "model_dump"):
+                parameter = parameter.model_dump()
+            if not isinstance(parameter, dict):
+                raise ValueError(f"Workflow parameter at index {index} must be an object")
+            name = str(parameter.get("name", "") or "").strip()
+            if not name:
+                raise ValueError(f"Workflow parameter at index {index} must have a non-empty name")
+
+            if name in runtime_values:
+                value = runtime_values[name]
+            elif parameter.get("value") is not None:
+                value = parameter.get("value")
+            elif parameter.get("default") is not None:
+                value = parameter.get("default")
+            else:
+                value = None
+
+            if value is None and bool(parameter.get("required", False)):
+                missing_required.append(name)
+            elif value is not None:
+                resolved[name] = value
+
+        for name, value in runtime_values.items():
+            key = str(name).strip()
+            if key and key not in resolved:
+                resolved[key] = value
+
+        if missing_required:
+            if len(missing_required) == 1:
+                raise ValueError(f"Missing required workflow parameter: {missing_required[0]}")
+            raise ValueError(f"Missing required workflow parameters: {', '.join(missing_required)}")
+        return resolved
+
+    @classmethod
+    def _bind_workflow_parameters(cls, value: Any, parameters: dict[str, Any]) -> Any:
+        """Recursively replace ``{{name}}`` workflow parameter placeholders."""
+        if not parameters:
+            return value
+        if isinstance(value, dict):
+            return {
+                key: cls._bind_workflow_parameters(item, parameters)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._bind_workflow_parameters(item, parameters) for item in value]
+        if not isinstance(value, str):
+            return value
+
+        exact = re.fullmatch(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}", value)
+        if exact:
+            name = exact.group(1)
+            if name not in parameters:
+                return value
+            return parameters[name]
+
+        def replace(match: re.Match[str]) -> str:
+            name = match.group(1)
+            if name not in parameters:
+                return match.group(0)
+            return str(parameters[name])
+
+        return re.sub(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}", replace, value)
 
     def _bypass_outputs(
         self,

@@ -125,9 +125,9 @@ class WorkflowDependency(BaseModel):
 class WorkflowParameter(BaseModel):
     """Reusable workflow-level parameter definition.
 
-    This is passive metadata for now: workflows can declare shared values and
-    UI can preserve/edit them, but execution does not substitute them into node
-    inputs yet.
+    Workflows can declare shared values and reference them in node inputs or
+    params with ``{{name}}`` placeholders. Execution resolves stored values,
+    defaults, and per-run overrides before node inputs are evaluated.
     """
 
     name: str = Field(..., description="Unique parameter name")

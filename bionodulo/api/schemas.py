@@ -37,6 +37,10 @@ class RunCreateRequest(BaseModel):
         default_factory=list,
         description="Node IDs to execute, together with their upstream dependencies",
     )
+    parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Runtime workflow parameter overrides keyed by parameter name",
+    )
 
 
 class QueueReorderRequest(BaseModel):

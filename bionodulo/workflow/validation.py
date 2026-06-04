@@ -207,7 +207,7 @@ def _registry_node_version(meta: Any) -> str:
 
 
 def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> None:
-    """Validate passive workflow-level parameter definitions."""
+    """Validate workflow-level parameter definitions."""
     if raw_parameters in (None, {}):
         return
     if not isinstance(raw_parameters, list):
