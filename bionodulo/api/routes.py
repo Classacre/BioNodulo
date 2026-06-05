@@ -276,6 +276,14 @@ def _read_checkpoint_manifest_for_api(manifest_path: Path) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def _checkpoint_resume_contract() -> dict[str, Any]:
+    return {
+        "resume_manifest_supported": True,
+        "resume_supported": False,
+        "resume_note": "Checkpoint artifact resolution is supported; executor-level resume is not implemented yet.",
+    }
+
+
 def _read_pause_request_file(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -533,6 +541,7 @@ async def get_checkpoint_manifest(request: Request) -> dict[str, Any]:
         "exists": manifest_path.exists(),
         "manifest_path": str(manifest_path),
         "manifest": manifest,
+        **_checkpoint_resume_contract(),
     }
 
 
@@ -559,6 +568,7 @@ async def resolve_checkpoint(
         "found": bool(checkpoint),
         "manifest_path": str(manifest_path),
         "checkpoint": checkpoint,
+        **_checkpoint_resume_contract(),
     }
 
 

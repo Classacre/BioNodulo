@@ -5,6 +5,9 @@ export interface CheckpointManifestResponse {
   exists: boolean;
   manifest_path: string;
   manifest: Record<string, unknown>;
+  resume_manifest_supported?: boolean;
+  resume_supported?: boolean;
+  resume_note?: string;
 }
 
 export interface CheckpointRecord {
@@ -17,6 +20,9 @@ export interface CheckpointRecord {
   timestamp_iso?: string;
   compressed?: boolean;
   size_bytes?: number;
+  resume_manifest_supported?: boolean;
+  resume_supported?: boolean;
+  note?: string;
   [key: string]: unknown;
 }
 
@@ -30,6 +36,9 @@ export interface ResolveCheckpointResponse {
   found: boolean;
   manifest_path: string;
   checkpoint: CheckpointRecord | null;
+  resume_manifest_supported?: boolean;
+  resume_supported?: boolean;
+  resume_note?: string;
 }
 
 export interface PauseRequestRecord {

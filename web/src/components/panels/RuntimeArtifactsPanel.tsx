@@ -19,6 +19,8 @@ interface CheckpointSummary {
   checkpointName?: string;
   runId?: string;
   nodeId?: string;
+  resumeManifestSupported?: boolean;
+  resumeSupported?: boolean;
 }
 
 function valueAsString(value: unknown): string | undefined {
@@ -47,8 +49,27 @@ function summarizeCheckpoints(manifestResponse: CheckpointManifestResponse | nul
       checkpointName: valueAsString(record.checkpoint_name),
       runId: valueAsString(record.run_id),
       nodeId: valueAsString(record.node_id),
+      resumeManifestSupported: typeof record.resume_manifest_supported === 'boolean'
+        ? record.resume_manifest_supported
+        : manifestResponse.resume_manifest_supported,
+      resumeSupported: typeof record.resume_supported === 'boolean'
+        ? record.resume_supported
+        : manifestResponse.resume_supported,
     };
   });
+}
+
+function checkpointResumeBadges(
+  t: (key: string) => string,
+  resumeManifestSupported?: boolean,
+  resumeSupported?: boolean,
+): string[] {
+  if (resumeSupported === true) return [t('runtimeArtifacts.executorResumeAvailable')];
+  if (resumeManifestSupported === true && resumeSupported === false) {
+    return [t('runtimeArtifacts.manifestOnly'), t('runtimeArtifacts.executorResumeUnavailable')];
+  }
+  if (resumeManifestSupported === true) return [t('runtimeArtifacts.manifestOnly')];
+  return [];
 }
 
 function pauseStatus(record: PauseRequestRecord): string {
@@ -142,6 +163,15 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
   };
 
   const resolvedCheckpoint = lastResolvedCheckpoint?.checkpoint;
+  const resolvedResumeBadges = checkpointResumeBadges(
+    t,
+    typeof resolvedCheckpoint?.resume_manifest_supported === 'boolean'
+      ? resolvedCheckpoint.resume_manifest_supported
+      : lastResolvedCheckpoint?.resume_manifest_supported,
+    typeof resolvedCheckpoint?.resume_supported === 'boolean'
+      ? resolvedCheckpoint.resume_supported
+      : lastResolvedCheckpoint?.resume_supported,
+  ).filter(label => label !== t('runtimeArtifacts.manifestOnly'));
 
   return (
     <div className="rail-panel runtime-artifacts-panel">
@@ -177,6 +207,9 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
                 {valueAsString(resolvedCheckpoint.checkpoint_path) && (
                   <div className="runtime-artifact-meta">{resolvedCheckpoint.checkpoint_path}</div>
                 )}
+                {resolvedResumeBadges.map(label => (
+                  <div className="runtime-artifact-meta" key={label}>{label}</div>
+                ))}
               </>
             ) : (
               <div className="runtime-artifact-title">{t('runtimeArtifacts.checkpointNotFound')}</div>
@@ -197,6 +230,9 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
                   <div>
                     <div className="runtime-artifact-title">{checkpoint.name}</div>
                     {checkpoint.nodeId && <div className="runtime-artifact-meta">{checkpoint.nodeId}</div>}
+                    {checkpointResumeBadges(t, checkpoint.resumeManifestSupported, checkpoint.resumeSupported).map(label => (
+                      <div className="runtime-artifact-meta" key={label}>{label}</div>
+                    ))}
                   </div>
                   <div className="runtime-artifact-actions runtime-artifact-actions-inline">
                     <button

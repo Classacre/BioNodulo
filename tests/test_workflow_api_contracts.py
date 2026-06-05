@@ -112,6 +112,63 @@ def test_checkpoint_resolve_endpoint_finds_checkpoint_by_run_node_or_name(
     assert by_name.json()["checkpoint"] == entry
 
 
+def test_checkpoint_runtime_api_reports_manifest_only_resume_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    checkpoint_file = checkpoint_dir / "after_annotation.json"
+    checkpoint_file.write_text('{"data":{"records":12}}', encoding="utf-8")
+    entry = {
+        "checkpoint_name": "after_annotation",
+        "checkpoint_path": str(checkpoint_file),
+        "timestamp": 1.0,
+        "timestamp_iso": "2026-06-05T00:00:00Z",
+        "compressed": False,
+        "size_bytes": checkpoint_file.stat().st_size,
+        "run_id": "run-42",
+        "node_id": "checkpoint-node",
+        "node_type": "variant_annotation",
+        "resume_manifest_supported": True,
+        "resume_supported": False,
+        "note": "Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.",
+    }
+    (checkpoint_dir / "checkpoint_manifest.json").write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "checkpoints": {str(checkpoint_file): entry},
+                "latest_by_name": {"after_annotation": entry},
+                "latest_by_run_node": {"run-42:checkpoint-node": entry},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        manifest_response = client.get("/api/checkpoints/manifest")
+        resolve_response = client.get(
+            "/api/checkpoints/resolve",
+            params={"checkpoint_name": "after_annotation"},
+        )
+
+    assert manifest_response.status_code == 200
+    manifest = manifest_response.json()
+    assert manifest["resume_manifest_supported"] is True
+    assert manifest["resume_supported"] is False
+    assert "executor-level resume" in manifest["resume_note"]
+    assert resolve_response.status_code == 200
+    resolved = resolve_response.json()
+    assert resolved["resume_manifest_supported"] is True
+    assert resolved["resume_supported"] is False
+    assert "executor-level resume" in resolved["resume_note"]
+    assert resolved["checkpoint"]["resume_supported"] is False
+
+
 def test_hpc_submit_forwards_runtime_parameters_to_backend(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

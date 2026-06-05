@@ -228,4 +228,56 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getByText('after_annotation')).toBeInTheDocument();
     expect(screen.getByText('/workspace/checkpoints/after_annotation.json')).toBeInTheDocument();
   });
+
+  it('labels checkpoints as manifest-only when executor resume is unavailable', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: {
+        exists: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        resume_manifest_supported: true,
+        resume_supported: false,
+        resume_note: 'Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.',
+        manifest: {
+          version: '1.0',
+          checkpoints: {
+            '/workspace/checkpoints/after_annotation.json': {
+              checkpoint_name: 'after_annotation',
+              node_id: 'checkpoint-node',
+            },
+          },
+        },
+      },
+      pauseRequests: { pause_requests_dir: '/workspace/pause_requests', count: 0, pause_requests: [], errors: [] },
+      workflowTriggers: { trigger_dir: '/workspace/workflow_triggers', count: 0, triggers: [], errors: [] },
+      triggerEvaluation: null,
+      lastResolvedCheckpoint: {
+        found: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        resume_manifest_supported: true,
+        resume_supported: false,
+        resume_note: 'Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.',
+        checkpoint: {
+          checkpoint_name: 'after_annotation',
+          checkpoint_path: '/workspace/checkpoints/after_annotation.json',
+          node_id: 'checkpoint-node',
+        },
+      },
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('Manifest only')).toBeInTheDocument();
+    expect(screen.getAllByText('Executor resume unavailable')).toHaveLength(2);
+  });
 });

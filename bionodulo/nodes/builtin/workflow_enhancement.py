@@ -1065,6 +1065,9 @@ class CheckpointNode(BaseNode):
             "node_id": getattr(context, "node_id", self.NODE_ID),
             "node_type": getattr(context, "node_type", ""),
         }
+        for key in ("resume_manifest_supported", "resume_supported", "note"):
+            if key in checkpoint_info:
+                entry[key] = checkpoint_info[key]
         manifest["updated_at"] = checkpoint_info["timestamp"]
         manifest["updated_at_iso"] = checkpoint_info["timestamp_iso"]
         manifest.setdefault("checkpoints", {})[entry["checkpoint_path"]] = entry
