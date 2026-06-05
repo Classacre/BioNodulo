@@ -25,6 +25,7 @@ vi.mock('../hooks/workflow/useWorkflowRuntimeArtifacts', () => runtimeMocks);
 
 describe('RuntimeArtifactsPanel', () => {
   const evaluateWorkflowTriggers = vi.fn();
+  const resolveCheckpoint = vi.fn();
   const resolvePauseRequest = vi.fn();
   const refresh = vi.fn();
   const onClose = vi.fn();
@@ -35,6 +36,7 @@ describe('RuntimeArtifactsPanel', () => {
     originalLocalStorage = window.localStorage;
     vi.stubGlobal('localStorage', localStorageStub);
     evaluateWorkflowTriggers.mockReset();
+    resolveCheckpoint.mockReset();
     resolvePauseRequest.mockReset();
     refresh.mockReset();
     onClose.mockReset();
@@ -84,11 +86,13 @@ describe('RuntimeArtifactsPanel', () => {
         due_file_watch_count: 1,
         errors: [],
       },
+      lastResolvedCheckpoint: null,
       lastResolvedPauseRequest: null,
       loading: false,
       error: null,
       refresh,
       evaluateWorkflowTriggers,
+      resolveCheckpoint,
       resolvePauseRequest,
     });
   });
@@ -122,6 +126,9 @@ describe('RuntimeArtifactsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Evaluate triggers' }));
     await waitFor(() => expect(evaluateWorkflowTriggers).toHaveBeenCalledTimes(1));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve after_qc' }));
+    await waitFor(() => expect(resolveCheckpoint).toHaveBeenCalledWith({ checkpoint_name: 'after_qc' }));
+
     fireEvent.click(screen.getByRole('button', { name: 'Approve pause-node' }));
     await waitFor(() => expect(resolvePauseRequest).toHaveBeenCalledWith({
       action: 'approve',
@@ -147,11 +154,13 @@ describe('RuntimeArtifactsPanel', () => {
       pauseRequests: null,
       workflowTriggers: null,
       triggerEvaluation: null,
+      lastResolvedCheckpoint: null,
       lastResolvedPauseRequest: null,
       loading: true,
       error: null,
       refresh,
       evaluateWorkflowTriggers,
+      resolveCheckpoint,
       resolvePauseRequest,
     });
 
@@ -164,11 +173,13 @@ describe('RuntimeArtifactsPanel', () => {
       pauseRequests: null,
       workflowTriggers: null,
       triggerEvaluation: null,
+      lastResolvedCheckpoint: null,
       lastResolvedPauseRequest: null,
       loading: false,
       error: new Error('backend unavailable'),
       refresh,
       evaluateWorkflowTriggers,
+      resolveCheckpoint,
       resolvePauseRequest,
     });
 
@@ -177,5 +188,44 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getByText('backend unavailable')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces the latest resolved checkpoint', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: {
+        exists: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        manifest: { checkpoints: {} },
+      },
+      pauseRequests: { pause_requests_dir: '/workspace/pause_requests', count: 0, pause_requests: [], errors: [] },
+      workflowTriggers: { trigger_dir: '/workspace/workflow_triggers', count: 0, triggers: [], errors: [] },
+      triggerEvaluation: null,
+      lastResolvedCheckpoint: {
+        found: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        checkpoint: {
+          checkpoint_name: 'after_annotation',
+          checkpoint_path: '/workspace/checkpoints/after_annotation.json',
+          node_id: 'checkpoint-node',
+        },
+      },
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('Resolved checkpoint')).toBeInTheDocument();
+    expect(screen.getByText('after_annotation')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/checkpoints/after_annotation.json')).toBeInTheDocument();
   });
 });

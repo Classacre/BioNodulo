@@ -5,9 +5,12 @@ export { useWorkflow } from './useWorkflow';
 export { useWorkflowMessages, type UseWorkflowMessagesArgs } from './useWorkflowMessages';
 export {
   useWorkflowRuntimeArtifacts,
+  type CheckpointRecord,
   type CheckpointManifestResponse,
   type PauseRequestRecord,
   type PauseRequestsResponse,
+  type ResolveCheckpointInput,
+  type ResolveCheckpointResponse,
   type ResolvePauseRequestInput,
   type WorkflowTriggerEvaluationResponse,
   type WorkflowTriggerRecord,

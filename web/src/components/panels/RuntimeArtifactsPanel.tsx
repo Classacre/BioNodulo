@@ -4,6 +4,7 @@ import { useWorkflowRuntimeArtifacts } from '../../hooks/workflow/useWorkflowRun
 import type {
   CheckpointManifestResponse,
   PauseRequestRecord,
+  ResolveCheckpointInput,
   WorkflowTriggerRecord,
 } from '../../hooks/workflow/useWorkflowRuntimeArtifacts';
 import Icon from '../ui/Icon';
@@ -15,6 +16,8 @@ interface RuntimeArtifactsPanelProps {
 interface CheckpointSummary {
   id: string;
   name: string;
+  checkpointName?: string;
+  runId?: string;
   nodeId?: string;
 }
 
@@ -41,6 +44,8 @@ function summarizeCheckpoints(manifestResponse: CheckpointManifestResponse | nul
     return {
       id: key,
       name: basename(name),
+      checkpointName: valueAsString(record.checkpoint_name),
+      runId: valueAsString(record.run_id),
       nodeId: valueAsString(record.node_id),
     };
   });
@@ -64,6 +69,12 @@ function triggerTitle(record: WorkflowTriggerRecord): string {
     || 'trigger';
 }
 
+function checkpointResolveInput(checkpoint: CheckpointSummary): ResolveCheckpointInput {
+  if (checkpoint.checkpointName) return { checkpoint_name: checkpoint.checkpointName };
+  if (checkpoint.runId && checkpoint.nodeId) return { run_id: checkpoint.runId, node_id: checkpoint.nodeId };
+  return { checkpoint_name: checkpoint.name };
+}
+
 export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanelProps) {
   const { t } = useTranslation();
   const {
@@ -71,14 +82,17 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
     pauseRequests,
     workflowTriggers,
     triggerEvaluation,
+    lastResolvedCheckpoint,
     loading,
     error,
     refresh,
     evaluateWorkflowTriggers,
+    resolveCheckpoint,
     resolvePauseRequest,
   } = useWorkflowRuntimeArtifacts();
   const [actionError, setActionError] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [resolvingCheckpointKey, setResolvingCheckpointKey] = useState<string | null>(null);
   const [resolvingPauseKey, setResolvingPauseKey] = useState<string | null>(null);
 
   const checkpoints = useMemo(() => summarizeCheckpoints(checkpointManifest), [checkpointManifest]);
@@ -115,6 +129,20 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
     }
   };
 
+  const handleResolveCheckpoint = async (checkpoint: CheckpointSummary) => {
+    setActionError(null);
+    setResolvingCheckpointKey(checkpoint.id);
+    try {
+      await resolveCheckpoint(checkpointResolveInput(checkpoint));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResolvingCheckpointKey(null);
+    }
+  };
+
+  const resolvedCheckpoint = lastResolvedCheckpoint?.checkpoint;
+
   return (
     <div className="rail-panel runtime-artifacts-panel">
       <div className="rail-panel-header">
@@ -138,6 +166,23 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
         {loading && <div className="runtime-artifacts-state">{t('common.loading')}</div>}
         {error && <div className="runtime-artifacts-error">{error.message}</div>}
         {actionError && <div className="runtime-artifacts-error">{actionError}</div>}
+        {lastResolvedCheckpoint && (
+          <div className="runtime-artifacts-resolution">
+            <div className="runtime-artifact-meta">{t('runtimeArtifacts.resolvedCheckpoint')}</div>
+            {resolvedCheckpoint ? (
+              <>
+                <div className="runtime-artifact-title">
+                  {valueAsString(resolvedCheckpoint.checkpoint_name) || t('runtimeArtifacts.unnamedCheckpoint')}
+                </div>
+                {valueAsString(resolvedCheckpoint.checkpoint_path) && (
+                  <div className="runtime-artifact-meta">{resolvedCheckpoint.checkpoint_path}</div>
+                )}
+              </>
+            ) : (
+              <div className="runtime-artifact-title">{t('runtimeArtifacts.checkpointNotFound')}</div>
+            )}
+          </div>
+        )}
 
         <section className="runtime-artifacts-section" aria-labelledby="runtime-artifacts-checkpoints">
           <div className="runtime-artifacts-section-header">
@@ -152,6 +197,17 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
                   <div>
                     <div className="runtime-artifact-title">{checkpoint.name}</div>
                     {checkpoint.nodeId && <div className="runtime-artifact-meta">{checkpoint.nodeId}</div>}
+                  </div>
+                  <div className="runtime-artifact-actions runtime-artifact-actions-inline">
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => void handleResolveCheckpoint(checkpoint)}
+                      disabled={resolvingCheckpointKey === checkpoint.id}
+                      aria-label={t('runtimeArtifacts.resolveCheckpoint', { name: checkpoint.name })}
+                      type="button"
+                    >
+                      {resolvingCheckpointKey === checkpoint.id ? t('runtimeArtifacts.resolving') : t('runtimeArtifacts.resolve')}
+                    </button>
                   </div>
                 </div>
               ))}

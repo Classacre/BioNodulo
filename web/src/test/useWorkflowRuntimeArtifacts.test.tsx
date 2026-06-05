@@ -92,4 +92,44 @@ describe('useWorkflowRuntimeArtifacts', () => {
     expect(result.current.triggerEvaluation?.due_schedule_count).toBe(1);
     expect(result.current.lastResolvedPauseRequest?.status).toBe('approved');
   });
+
+  it('resolves checkpoints through the runtime artifact APIs', async () => {
+    vi.mocked(apiGet)
+      .mockResolvedValueOnce({
+        exists: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        manifest: {
+          version: '1.0',
+          checkpoints: {
+            '/workspace/checkpoints/after_annotation.json': {
+              checkpoint_name: 'after_annotation',
+              node_id: 'checkpoint-node',
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({ pause_requests_dir: '/workspace/pause_requests', pause_requests: [], count: 0, errors: [] })
+      .mockResolvedValueOnce({ trigger_dir: '/workspace/workflow_triggers', triggers: [], count: 0, errors: [] })
+      .mockResolvedValueOnce({
+        found: true,
+        manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+        checkpoint: {
+          checkpoint_name: 'after_annotation',
+          checkpoint_path: '/workspace/checkpoints/after_annotation.json',
+          run_id: 'run-42',
+          node_id: 'checkpoint-node',
+        },
+      });
+
+    const { result } = renderHook(() => useWorkflowRuntimeArtifacts());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.resolveCheckpoint({ checkpoint_name: 'after_annotation' });
+    });
+
+    expect(apiGet).toHaveBeenLastCalledWith('/checkpoints/resolve?checkpoint_name=after_annotation');
+    expect(result.current.lastResolvedCheckpoint?.checkpoint?.checkpoint_name).toBe('after_annotation');
+  });
 });

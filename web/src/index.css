@@ -953,6 +953,9 @@ body.is-dragging-panel {
 .runtime-artifact-row:last-child {
   border-bottom: 0;
 }
+.runtime-artifact-row > div:not(.runtime-artifact-actions) {
+  min-width: 0;
+}
 .runtime-artifact-row > span,
 .runtime-artifact-main > span {
   flex: 0 0 auto;
@@ -984,6 +987,11 @@ body.is-dragging-panel {
   gap: 6px;
   padding-left: 22px;
 }
+.runtime-artifact-actions-inline {
+  margin-left: auto;
+  padding-left: 0;
+  flex: 0 0 auto;
+}
 .runtime-artifacts-evaluation {
   display: flex;
   flex-direction: column;
@@ -995,10 +1003,16 @@ body.is-dragging-panel {
 }
 .runtime-artifacts-empty,
 .runtime-artifacts-state,
-.runtime-artifacts-error {
+.runtime-artifacts-error,
+.runtime-artifacts-resolution {
   padding: 10px;
   color: var(--muted);
   font-size: 12px;
+}
+.runtime-artifacts-resolution {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
 }
 .runtime-artifacts-error {
   border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, var(--border));

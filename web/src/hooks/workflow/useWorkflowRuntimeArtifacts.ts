@@ -7,6 +7,31 @@ export interface CheckpointManifestResponse {
   manifest: Record<string, unknown>;
 }
 
+export interface CheckpointRecord {
+  checkpoint_name?: string;
+  checkpoint_path?: string;
+  run_id?: string;
+  node_id?: string;
+  node_type?: string;
+  timestamp?: number;
+  timestamp_iso?: string;
+  compressed?: boolean;
+  size_bytes?: number;
+  [key: string]: unknown;
+}
+
+export interface ResolveCheckpointInput {
+  run_id?: string;
+  node_id?: string;
+  checkpoint_name?: string;
+}
+
+export interface ResolveCheckpointResponse {
+  found: boolean;
+  manifest_path: string;
+  checkpoint: CheckpointRecord | null;
+}
+
 export interface PauseRequestRecord {
   pause_file?: string;
   run_id?: string;
@@ -72,6 +97,7 @@ export function useWorkflowRuntimeArtifacts() {
   const [pauseRequests, setPauseRequests] = useState<PauseRequestsResponse | null>(null);
   const [workflowTriggers, setWorkflowTriggers] = useState<WorkflowTriggersResponse | null>(null);
   const [triggerEvaluation, setTriggerEvaluation] = useState<WorkflowTriggerEvaluationResponse | null>(null);
+  const [lastResolvedCheckpoint, setLastResolvedCheckpoint] = useState<ResolveCheckpointResponse | null>(null);
   const [lastResolvedPauseRequest, setLastResolvedPauseRequest] = useState<PauseRequestRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -101,6 +127,17 @@ export function useWorkflowRuntimeArtifacts() {
     return data;
   }, []);
 
+  const resolveCheckpoint = useCallback(async (input: ResolveCheckpointInput) => {
+    const params = new URLSearchParams();
+    if (input.run_id) params.set('run_id', input.run_id);
+    if (input.node_id) params.set('node_id', input.node_id);
+    if (input.checkpoint_name) params.set('checkpoint_name', input.checkpoint_name);
+    const query = params.toString();
+    const data = await apiGet<ResolveCheckpointResponse>(`/checkpoints/resolve${query ? `?${query}` : ''}`);
+    setLastResolvedCheckpoint(data);
+    return data;
+  }, []);
+
   const resolvePauseRequest = useCallback(async (input: ResolvePauseRequestInput) => {
     const data = await apiPost<ResolvePauseRequestResponse>('/pause_requests/resolve', input);
     setLastResolvedPauseRequest(data.pause_request);
@@ -117,11 +154,13 @@ export function useWorkflowRuntimeArtifacts() {
     pauseRequests,
     workflowTriggers,
     triggerEvaluation,
+    lastResolvedCheckpoint,
     lastResolvedPauseRequest,
     loading,
     error,
     refresh,
     evaluateWorkflowTriggers,
+    resolveCheckpoint,
     resolvePauseRequest,
   };
 }
