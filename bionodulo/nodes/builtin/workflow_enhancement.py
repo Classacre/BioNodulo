@@ -2359,7 +2359,7 @@ class PauseResumeNode(BaseNode):
     NODE_ID = "pause_resume"
     DISPLAY_NAME = "Pause / Resume"
     CATEGORY = "workflow"
-    DESCRIPTION = "Human-in-the-loop approval gate. Pause execution, display results for review, resume or abort based on user input."
+    DESCRIPTION = "Human review gate. Record review requests and approval decisions; executor-level blocking pause/resume is not implemented yet."
     SEARCH_ALIASES = ["pause", "human", "approval", "review", "gate", "confirm", "breakpoint"]
     RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
     RETURN_NAMES = ("output", "approved", "pause_info")
@@ -2510,6 +2510,8 @@ class PauseResumeNode(BaseNode):
                 "resolved_by": str(reviewer or "").strip(),
                 "resolution_comment": str(comment or ""),
                 "review_decision_supported": True,
+                "engine_pause_supported": False,
+                "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
             }
         )
         path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")

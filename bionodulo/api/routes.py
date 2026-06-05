@@ -284,6 +284,24 @@ def _checkpoint_resume_contract() -> dict[str, Any]:
     }
 
 
+def _pause_runtime_contract() -> dict[str, Any]:
+    return {
+        "review_decision_supported": True,
+        "engine_pause_supported": False,
+        "pause_note": "Review request decisions are supported; executor-level blocking pause/resume is not implemented yet.",
+    }
+
+
+def _normalize_pause_contract(pause_request: dict[str, Any]) -> dict[str, Any]:
+    pause_request.setdefault("review_decision_supported", True)
+    pause_request.setdefault("engine_pause_supported", False)
+    pause_request.setdefault(
+        "note",
+        "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
+    )
+    return pause_request
+
+
 def _read_pause_request_file(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -292,7 +310,7 @@ def _read_pause_request_file(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"pause request file must contain a JSON object: {path}")
     data.setdefault("pause_file", str(path))
-    return data
+    return _normalize_pause_contract(data)
 
 
 def _read_workflow_trigger_file(path: Path) -> dict[str, Any]:
@@ -590,6 +608,7 @@ async def list_pause_requests(request: Request) -> dict[str, Any]:
         "pause_requests": pause_requests,
         "count": len(pause_requests),
         "errors": errors,
+        **_pause_runtime_contract(),
     }
 
 
@@ -608,6 +627,7 @@ async def resolve_pause_request(request: Request, body: PauseRequestResolveReque
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     pause_request["pause_file"] = str(pause_file)
+    _normalize_pause_contract(pause_request)
     return {"pause_request": pause_request}
 
 

@@ -50,6 +50,9 @@ export interface PauseRequestRecord {
   approved?: boolean;
   resolved_by?: string;
   resolution_comment?: string;
+  review_decision_supported?: boolean;
+  engine_pause_supported?: boolean;
+  note?: string;
   [key: string]: unknown;
 }
 
@@ -58,6 +61,9 @@ export interface PauseRequestsResponse {
   pause_requests: PauseRequestRecord[];
   count: number;
   errors: Array<Record<string, string>>;
+  review_decision_supported?: boolean;
+  engine_pause_supported?: boolean;
+  pause_note?: string;
 }
 
 export interface WorkflowTriggerRecord {

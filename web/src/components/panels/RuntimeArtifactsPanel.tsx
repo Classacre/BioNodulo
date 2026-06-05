@@ -72,6 +72,19 @@ function checkpointResumeBadges(
   return [];
 }
 
+function pauseRuntimeBadges(
+  t: (key: string) => string,
+  reviewDecisionSupported?: boolean,
+  enginePauseSupported?: boolean,
+): string[] {
+  if (enginePauseSupported === true) return [t('runtimeArtifacts.blockingPauseAvailable')];
+  if (reviewDecisionSupported === true && enginePauseSupported === false) {
+    return [t('runtimeArtifacts.reviewOnly'), t('runtimeArtifacts.blockingPauseUnavailable')];
+  }
+  if (reviewDecisionSupported === true) return [t('runtimeArtifacts.reviewOnly')];
+  return [];
+}
+
 function pauseStatus(record: PauseRequestRecord): string {
   if (typeof record.status === 'string' && record.status.trim()) return record.status;
   if (record.approved === true) return 'approved';
@@ -273,6 +286,17 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
                       <div>
                         <div className="runtime-artifact-title">{pauseTitle(request)}</div>
                         <div className="runtime-artifact-meta">{nodeId} · {status}</div>
+                        {pauseRuntimeBadges(
+                          t,
+                          typeof request.review_decision_supported === 'boolean'
+                            ? request.review_decision_supported
+                            : pauseRequests?.review_decision_supported,
+                          typeof request.engine_pause_supported === 'boolean'
+                            ? request.engine_pause_supported
+                            : pauseRequests?.engine_pause_supported,
+                        ).map(label => (
+                          <div className="runtime-artifact-meta" key={label}>{label}</div>
+                        ))}
                       </div>
                     </div>
                     {status === 'waiting' && (

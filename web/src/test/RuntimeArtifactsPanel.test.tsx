@@ -280,4 +280,45 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getByText('Manifest only')).toBeInTheDocument();
     expect(screen.getAllByText('Executor resume unavailable')).toHaveLength(2);
   });
+
+  it('labels pause requests as review-only when blocking pause is unavailable', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
+      pauseRequests: {
+        pause_requests_dir: '/workspace/pause_requests',
+        count: 1,
+        review_decision_supported: true,
+        engine_pause_supported: false,
+        pause_note: 'Review requests are persistent; executor-level blocking pause/resume is not implemented yet.',
+        pause_requests: [
+          {
+            node_id: 'pause-node',
+            status: 'waiting',
+            message: 'Review sample QC',
+            pause_file: '/workspace/pause_requests/pause-node.json',
+          },
+        ],
+        errors: [],
+      },
+      workflowTriggers: { trigger_dir: '/workspace/workflow_triggers', count: 0, triggers: [], errors: [] },
+      triggerEvaluation: null,
+      lastResolvedCheckpoint: null,
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('Review only')).toBeInTheDocument();
+    expect(screen.getByText('Blocking pause unavailable')).toBeInTheDocument();
+  });
 });

@@ -1501,11 +1501,16 @@ async def test_pause_resume_resolver_updates_persisted_review_decision(tmp_path:
     assert pause_info["review_decision_supported"] is True
     assert resolved["status"] == "approved"
     assert resolved["approved"] is True
+    assert resolved["review_decision_supported"] is True
+    assert resolved["engine_pause_supported"] is False
+    assert "executor-level blocking pause/resume" in resolved["note"]
     assert resolved["resolved_by"] == "ana"
     assert resolved["resolution_comment"] == "QC reviewed"
     assert isinstance(resolved["resolved_at"], float)
     assert saved["status"] == "approved"
     assert saved["approved"] is True
+    assert saved["review_decision_supported"] is True
+    assert saved["engine_pause_supported"] is False
     assert saved["resolved_by"] == "ana"
     assert saved["resolution_comment"] == "QC reviewed"
 
