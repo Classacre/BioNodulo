@@ -6,7 +6,7 @@ import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
 
-export type RailTab = 'data' | 'nodes' | 'inspector' | 'templates' | 'environments' | 'help' | 'console' | 'settings' | 'hpc' | string | null;
+export type RailTab = 'data' | 'nodes' | 'inspector' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | string | null;
 
 interface LeftRailProps {
   active: RailTab;
@@ -80,6 +80,7 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
       <RailButton active={active === 'templates'} icon="template" label={t('panels.templates')} shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
       <div className="rail-sep" />
       <RailButton active={active === 'environments'} icon="dna" label={t('panels.environment')} shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
+      <RailButton active={active === 'runtimeArtifacts'} icon="activity" label={t('panels.runtimeArtifacts')} onClick={() => toggle('runtimeArtifacts')} />
       <RailButton active={active === 'hpc'} icon="server" label={t('panels.hpc')} shortcut={getBinding('rail.hpc') ?? undefined} onClick={() => toggle('hpc')} />
       {registered.length > 0 && <div className="rail-sep" />}
       {registered.map(panel => (

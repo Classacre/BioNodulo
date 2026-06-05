@@ -13,6 +13,7 @@ const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
 const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel'));
+const RuntimeArtifactsPanel = lazy(() => import('./components/panels/RuntimeArtifactsPanel'));
 const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
@@ -2128,6 +2129,12 @@ export default function App() {
         onSelect: () => togglePanel('environments'),
       },
       {
+        id: 'rail.runtimeArtifacts',
+        label: 'Open runtime artifacts',
+        group: 'Panels',
+        onSelect: () => togglePanel('runtimeArtifacts'),
+      },
+      {
         id: 'rail.hpc',
         label: 'Open HPC',
         group: 'Panels',
@@ -2692,6 +2699,7 @@ export default function App() {
       ));
     }
     if (tab === 'environments') return wrap('environments', <EnvironmentPanel onClose={() => closePanel(tab)} currentWorkflow={activeWorkflow} />);
+    if (tab === 'runtimeArtifacts') return wrap('runtimeArtifacts', <RuntimeArtifactsPanel onClose={() => closePanel(tab)} />);
     if (tab === 'hpc') {
       return wrap('hpc', (
         <HPCPanel

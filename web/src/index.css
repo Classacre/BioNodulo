@@ -894,6 +894,119 @@ body.is-dragging-panel {
 }
 .rail-panel-body { flex: 1; overflow-y: auto; padding: 12px; }
 
+.runtime-artifacts-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.runtime-artifacts-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.runtime-artifacts-toolbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.runtime-artifacts-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.runtime-artifacts-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.runtime-artifacts-section-header h3 {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.runtime-artifacts-section-header span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.runtime-artifacts-list {
+  display: flex;
+  flex-direction: column;
+}
+.runtime-artifact-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.runtime-artifact-row:last-child {
+  border-bottom: 0;
+}
+.runtime-artifact-row > span,
+.runtime-artifact-main > span {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--muted);
+}
+.runtime-artifact-row-stacked {
+  flex-direction: column;
+}
+.runtime-artifact-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.runtime-artifact-title {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.runtime-artifact-meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.runtime-artifact-actions {
+  display: flex;
+  gap: 6px;
+  padding-left: 22px;
+}
+.runtime-artifacts-evaluation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+.runtime-artifacts-empty,
+.runtime-artifacts-state,
+.runtime-artifacts-error {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.runtime-artifacts-error {
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger, #dc2626) 8%, var(--surface));
+  color: var(--danger, #dc2626);
+}
+
 @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* Canvas */

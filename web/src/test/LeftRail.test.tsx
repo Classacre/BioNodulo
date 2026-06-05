@@ -52,6 +52,7 @@ describe('LeftRail i18n', () => {
     expect(screen.getByRole('button', { name: 'Inspector' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Plantillas (Ctrl+3)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entorno (Ctrl+4)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Artefactos runtime' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'HPC (Ctrl+5)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ayuda y wiki (Ctrl+6)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Consola (Ctrl+7)' })).toBeInTheDocument();
