@@ -371,6 +371,7 @@ export default function App() {
         nodes: remoteWorkflow.nodes,
         edges: remoteWorkflow.edges,
         groups: remoteWorkflow.groups,
+        parameters: remoteWorkflow.parameters,
       });
     } else if (
       suppressLocalSeedForWorkflowRef.current !== activeWorkflowId

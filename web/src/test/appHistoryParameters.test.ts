@@ -56,6 +56,12 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain('parameters: sampleRun.parameters');
   });
 
+  it('applies workflow parameters from collaboration documents', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain('parameters: remoteWorkflow.parameters');
+  });
+
   it('keeps workflow parameter run prompt copy behind i18n keys', async () => {
     const { default: i18n, setLanguage } = await import('../i18n');
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');

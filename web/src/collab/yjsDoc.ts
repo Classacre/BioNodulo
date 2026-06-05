@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup } from '../types';
+import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, WorkflowParameter } from '../types';
 
 export function createWorkflowDoc(workflowId: string): Y.Doc {
   const ydoc = new Y.Doc();
@@ -81,6 +81,27 @@ function deserializeGroup(data: unknown): WorkflowGroup {
   };
 }
 
+function serializeParameters(parameters: WorkflowParameter[] | undefined): Record<string, unknown>[] {
+  return (parameters ?? []).map(parameter => ({ ...parameter }));
+}
+
+function deserializeParameters(data: unknown): WorkflowParameter[] | undefined {
+  if (!Array.isArray(data)) return undefined;
+  return data
+    .filter((parameter): parameter is Record<string, unknown> => (
+      Boolean(parameter) && typeof parameter === 'object' && !Array.isArray(parameter)
+    ))
+    .map(parameter => ({
+      name: String(parameter.name || ''),
+      type: String(parameter.type || 'STRING'),
+      required: typeof parameter.required === 'boolean' ? parameter.required : undefined,
+      default: parameter.default,
+      value: parameter.value,
+      description: typeof parameter.description === 'string' ? parameter.description : undefined,
+    }))
+    .filter(parameter => parameter.name.trim().length > 0);
+}
+
 export function docToWorkflow(doc: Y.Doc): Workflow {
   const meta = doc.getMap('meta');
   const yNodes = doc.getMap('nodes');
@@ -118,6 +139,7 @@ export function docToWorkflow(doc: Y.Doc): Workflow {
     edges,
     groups,
     outputs: {},
+    parameters: deserializeParameters(meta.get('parameters')),
   };
 }
 
@@ -129,6 +151,7 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
     meta.set('id', workflow.id || String(meta.get('id') || workflow.name || 'Untitled'));
     meta.set('version', workflow.version || '2.0');
     meta.set('name', workflow.name || 'Untitled');
+    meta.set('parameters', serializeParameters(workflow.parameters));
     meta.set('lastModified', new Date().toISOString());
 
     const yNodes = ydoc.getMap('nodes');
