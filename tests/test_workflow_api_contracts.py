@@ -252,6 +252,64 @@ def test_hpc_submit_rejects_parameterized_run_when_backend_cannot_accept_paramet
     assert response.json()["detail"] == "HPC backend submit_workflow does not support runtime parameters"
 
 
+def test_run_manifest_uses_persisted_artifacts_when_queue_result_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    artifact_path = tmp_path / "runs" / "run-42" / "writer" / "result.txt"
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_text("persisted artifact\n", encoding="utf-8")
+    persisted_artifacts = [
+        {
+            "node_id": "writer",
+            "node_type": "file_writer",
+            "port": "out",
+            "path": str(artifact_path),
+            "size": artifact_path.stat().st_size,
+        }
+    ]
+    metadata_path = tmp_path / "runs" / "run-42" / "run_metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "run_id": "run-42",
+                "status": "completed",
+                "forced": False,
+                "target_nodes": [],
+                "workflow_parameters": {},
+                "nodes": {
+                    "writer": {
+                        "type": "file_writer",
+                        "status": "completed",
+                        "cache_key": None,
+                    }
+                },
+                "artifacts": persisted_artifacts,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class EmptyQueue:
+        def get_run(self, _run_id: str) -> None:
+            return None
+
+        async def shutdown(self) -> None:
+            return None
+
+    with TestClient(create_app()) as client:
+        client.app.state.run_queue = EmptyQueue()
+        response = client.get("/api/runs/run-42/manifest")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["execution"]["run_id"] == "run-42"
+    assert payload["artifacts"] == persisted_artifacts
+
+
 def test_pause_requests_endpoint_lists_persisted_requests(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

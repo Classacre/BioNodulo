@@ -639,6 +639,7 @@ class WorkflowExecutor:
 
         # Collect all artifacts
         artifacts = self._collect_artifacts(run_id, nodes, node_results)
+        run_metadata["artifacts"] = artifacts
 
         # Write run metadata
         self._write_metadata(run_id, run_metadata)

@@ -955,7 +955,7 @@ async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
 
     workflow: dict[str, Any] = {}
     node_results: dict[str, dict[str, Any]] = {}
-    artifacts: list[dict[str, Any]] = []
+    artifacts = run_metadata.get("artifacts") if isinstance(run_metadata.get("artifacts"), list) else []
 
     queue = _get_queue(request)
     if hasattr(queue, "get_run"):

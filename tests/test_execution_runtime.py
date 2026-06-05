@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -385,6 +386,47 @@ async def test_workflow_executor_context_exposes_executor_and_shared_run_metadat
         "has_executor": True,
         "shared_metadata": result["metadata"],
     }]
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_persists_artifacts_in_run_metadata(tmp_path: Path) -> None:
+    class FileWriterNode:
+        RETURN_TYPES = ("FILE",)
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            output_path = context.node_dir / "result.txt"
+            output_path.write_text("persisted artifact\n", encoding="utf-8")
+            return {"outputs": {"out": str(output_path)}}
+
+    class Registry:
+        def get(self, _node_type: str) -> type[FileWriterNode]:
+            return FileWriterNode
+
+    workflow = {
+        "nodes": [{"id": "writer", "type": "file_writer", "outputs": {"out": {}}}],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("artifact-run", workflow)
+
+    metadata_path = tmp_path / "runs" / "artifact-run" / "run_metadata.json"
+    persisted = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert result["artifacts"] == [
+        {
+            "node_id": "writer",
+            "node_type": "file_writer",
+            "port": "out",
+            "path": str(tmp_path / "runs" / "artifact-run" / "writer" / "result.txt"),
+            "size": len("persisted artifact\n"),
+        }
+    ]
+    assert persisted["artifacts"] == result["artifacts"]
 
 
 @pytest.mark.asyncio
