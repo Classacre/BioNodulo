@@ -193,3 +193,155 @@ def test_pause_request_resolve_endpoint_updates_workspace_request(
     assert payload["pause_request"]["resolution_comment"] == "Variant QC failed"
     assert saved["status"] == "rejected"
     assert saved["approved"] is False
+
+
+def test_workflow_triggers_endpoint_returns_empty_state_for_new_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/workflow_triggers")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["trigger_dir"] == str(tmp_path / "workflow_triggers")
+    assert payload["count"] == 0
+    assert payload["triggers"] == []
+    assert payload["errors"] == []
+
+
+def test_workflow_triggers_endpoint_reports_malformed_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    malformed = trigger_dir / "schedule_broken.json"
+    malformed.write_text("{not-json", encoding="utf-8")
+    valid = trigger_dir / "schedule_weekly.json"
+    valid.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {"sample": "S1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/workflow_triggers")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["triggers"][0]["trigger_file"] == str(valid)
+    assert payload["triggers"][0]["target_workflow"] == "weekly-qc"
+    assert payload["errors"] == [
+        {
+            "trigger_file": str(malformed),
+            "error": f"workflow trigger file is not valid JSON: {malformed}",
+        }
+    ]
+
+
+def test_workflow_trigger_evaluate_endpoint_lists_due_schedule(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    due_file = trigger_dir / "schedule_weekly.json"
+    due_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {"sample": "S1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        not_due = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:29:59+00:00"},
+        )
+        due = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:30:00+00:00"},
+        )
+
+    assert not_due.status_code == 200
+    assert not_due.json()["due_schedule_count"] == 0
+    assert due.status_code == 200
+    payload = due.json()
+    assert payload["due_schedule_count"] == 1
+    assert payload["due_file_watch_count"] == 0
+    assert payload["due_schedule_triggers"][0]["trigger_file"] == str(due_file)
+    assert payload["due_schedule_triggers"][0]["target_workflow"] == "weekly-qc"
+    assert payload["due_schedule_triggers"][0]["payload"] == {"sample": "S1"}
+
+
+def test_workflow_trigger_evaluate_endpoint_lists_file_watch_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    new_file = watch_dir / "new.fastq"
+    new_file.write_text("@new\nTGCA\n+\n!!!!\n", encoding="utf-8")
+    watch_file = trigger_dir / "file_watch_inbox.json"
+    watch_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "file_watch",
+                "status": "registered",
+                "target_workflow": "auto-import",
+                "watch_path": str(watch_dir),
+                "watch_event": "create",
+                "baseline_snapshot": {},
+                "payload": {"project": "P1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post("/api/workflow_triggers/evaluate", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["due_schedule_count"] == 0
+    assert payload["due_file_watch_count"] == 1
+    assert payload["due_file_watch_triggers"][0]["trigger_file"] == str(watch_file)
+    assert payload["due_file_watch_triggers"][0]["target_workflow"] == "auto-import"
+    assert payload["due_file_watch_triggers"][0]["payload"] == {"project": "P1"}
+    assert payload["due_file_watch_triggers"][0]["events"] == [
+        {
+            "event": "create",
+            "path": str(new_file),
+            "relative_path": "new.fastq",
+        }
+    ]

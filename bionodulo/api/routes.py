@@ -49,6 +49,7 @@ from bionodulo.api.schemas import (
     WorkflowEnvironmentRequest,
     WorkflowExportRequest,
     WorkflowExtractRequest,
+    WorkflowTriggerEvaluateRequest,
 )
 from bionodulo.core.config import Settings
 from bionodulo.core.events import EventHub
@@ -68,7 +69,7 @@ from bionodulo.environments.manifest import (
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
 from bionodulo.hpc.base import HPCBackend
-from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode
+from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode, WorkflowTriggerNode
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.workflow.graph import edge_source, edge_target
 from bionodulo.workflow.validation import validate_workflow
@@ -249,6 +250,10 @@ def _pause_requests_dir(settings: Settings) -> Path:
     return settings.project_root / "pause_requests"
 
 
+def _workflow_triggers_dir(settings: Settings) -> Path:
+    return settings.project_root / "workflow_triggers"
+
+
 def _read_checkpoint_manifest_for_api(manifest_path: Path) -> dict[str, Any]:
     try:
         return CheckpointNode._read_checkpoint_manifest(manifest_path)
@@ -264,6 +269,17 @@ def _read_pause_request_file(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"pause request file must contain a JSON object: {path}")
     data.setdefault("pause_file", str(path))
+    return data
+
+
+def _read_workflow_trigger_file(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"workflow trigger file is not valid JSON: {path}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"workflow trigger file must contain a JSON object: {path}")
+    data.setdefault("trigger_file", str(path))
     return data
 
 
@@ -568,6 +584,59 @@ async def resolve_pause_request(request: Request, body: PauseRequestResolveReque
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     pause_request["pause_file"] = str(pause_file)
     return {"pause_request": pause_request}
+
+
+@router.get("/workflow_triggers")
+async def list_workflow_triggers(request: Request) -> dict[str, Any]:
+    """List persisted workflow trigger registrations for the current workspace."""
+    settings = _get_settings(request)
+    trigger_dir = _workflow_triggers_dir(settings)
+    triggers: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    if trigger_dir.exists():
+        for path in sorted(trigger_dir.glob("*.json")):
+            try:
+                triggers.append(_read_workflow_trigger_file(path))
+            except ValueError as exc:
+                errors.append({"trigger_file": str(path), "error": str(exc)})
+    return {
+        "trigger_dir": str(trigger_dir),
+        "triggers": triggers,
+        "count": len(triggers),
+        "errors": errors,
+    }
+
+
+@router.post("/workflow_triggers/evaluate")
+async def evaluate_workflow_triggers(request: Request, body: WorkflowTriggerEvaluateRequest) -> dict[str, Any]:
+    """Evaluate schedule and file-watch trigger registrations without submitting runs."""
+    settings = _get_settings(request)
+    trigger_dir = _workflow_triggers_dir(settings)
+    due_schedule_triggers: list[dict[str, Any]] = []
+    due_file_watch_triggers: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    try:
+        due_schedule_triggers = WorkflowTriggerNode.due_schedule_triggers(
+            trigger_dir,
+            now=body.now,
+        )
+    except ValueError as exc:
+        errors.append({"kind": "schedule", "error": str(exc)})
+    try:
+        due_file_watch_triggers = WorkflowTriggerNode.due_file_watch_triggers(trigger_dir)
+    except ValueError as exc:
+        errors.append({"kind": "file_watch", "error": str(exc)})
+    return {
+        "trigger_dir": str(trigger_dir),
+        "due_schedule_triggers": due_schedule_triggers,
+        "due_schedule_count": len(due_schedule_triggers),
+        "due_file_watch_triggers": due_file_watch_triggers,
+        "due_file_watch_count": len(due_file_watch_triggers),
+        "errors": errors,
+        "scheduler_runner_contract_supported": True,
+        "file_watch_runner_contract_supported": True,
+        "run_submission_supported": False,
+    }
 
 
 # ---------------------------------------------------------------------------

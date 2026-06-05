@@ -62,6 +62,15 @@ class PauseRequestResolveRequest(BaseModel):
     comment: str = Field("", description="Optional review comment")
 
 
+class WorkflowTriggerEvaluateRequest(BaseModel):
+    """Request body for POST /workflow_triggers/evaluate."""
+
+    now: str | None = Field(
+        None,
+        description="Optional ISO timestamp used to evaluate due scheduled triggers",
+    )
+
+
 class WorkflowExportRequest(BaseModel):
     """Request body for POST /workflow/export."""
 
