@@ -6,6 +6,7 @@ References app.state for registry, settings, queue, and event_hub.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -115,6 +116,20 @@ def _schedule_event_emit_threadsafe(
         _schedule_event_emit(event_hub, event_type, payload, source=source)
 
     loop.call_soon_threadsafe(_schedule)
+
+
+def _callable_accepts_keyword(callable_obj: Any, keyword: str) -> bool:
+    """Return whether a callable can receive the named keyword argument."""
+
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return False
+
+    return any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD or name == keyword
+        for name, parameter in signature.parameters.items()
+    )
 
 
 def _derive_category(name: str, description: str, tools: list[str]) -> str:
@@ -1926,15 +1941,26 @@ async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]
     job_id = str(uuid.uuid4())
     try:
         if hasattr(hpc, "submit_workflow"):
-            remote_job_id = await hpc.submit_workflow(
-                workflow=body.workflow,
-                name=body.name,
-                cpus=body.cpus,
-                memory=body.memory,
-                walltime=body.walltime,
-                dependency_jobs=body.dependency_jobs,
-            )
+            submit_workflow = hpc.submit_workflow
+            submit_kwargs = {
+                "workflow": body.workflow,
+                "name": body.name,
+                "cpus": body.cpus,
+                "memory": body.memory,
+                "walltime": body.walltime,
+                "dependency_jobs": body.dependency_jobs,
+            }
+            if body.parameters:
+                if not _callable_accepts_keyword(submit_workflow, "parameters"):
+                    raise HTTPException(
+                        status_code=501,
+                        detail="HPC backend submit_workflow does not support runtime parameters",
+                    )
+                submit_kwargs["parameters"] = body.parameters
+            remote_job_id = await submit_workflow(**submit_kwargs)
             return {"job_id": job_id, "remote_job_id": remote_job_id, "status": "submitted"}
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"HPC submit failed: {exc}") from exc
 

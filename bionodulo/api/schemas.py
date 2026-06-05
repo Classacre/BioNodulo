@@ -223,6 +223,10 @@ class HPCSubmitRequest(BaseModel):
     workflow: dict[str, Any] = Field(..., description="Workflow to submit")
     workflow_id: str | None = Field(None, description="Collaborative workflow UUID, when applicable")
     name: str = Field(..., description="Job name")
+    parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Runtime workflow parameter overrides keyed by parameter name",
+    )
     cpus: int | None = Field(None, description="CPU override")
     memory: str | None = Field(None, description="Memory override")
     walltime: str | None = Field(None, description="Walltime override")

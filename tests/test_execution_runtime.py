@@ -10,7 +10,7 @@ import pytest
 
 from bionodulo.api.app_state import AppState
 from bionodulo.api.routes import _extract_workflow_subgraph
-from bionodulo.api.schemas import RunCreateRequest, WorkflowExtractRequest
+from bionodulo.api.schemas import HPCSubmitRequest, RunCreateRequest, WorkflowExtractRequest
 from bionodulo.execution.arq_executor import ArqWorkflowExecutor, maybe_wrap_with_arq
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.executor import WorkflowExecutor
@@ -899,6 +899,11 @@ def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
         target_nodes=["report"],
         parameters={"sample_id": "S1"},
     )
+    hpc_request = HPCSubmitRequest(
+        workflow={"nodes": [], "edges": []},
+        name="QC job",
+        parameters={"sample_id": "S1"},
+    )
     extract_request = WorkflowExtractRequest(
         workflow={"nodes": [{"id": "qc"}], "edges": []},
         node_ids=["qc"],
@@ -908,6 +913,7 @@ def test_execution_request_schemas_accept_frontend_gap_fields() -> None:
     assert run_request.force_nodes == ["qc"]
     assert run_request.target_nodes == ["report"]
     assert run_request.parameters == {"sample_id": "S1"}
+    assert hpc_request.parameters == {"sample_id": "S1"}
     assert extract_request.node_ids == ["qc"]
 
 

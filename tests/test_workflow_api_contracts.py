@@ -112,6 +112,89 @@ def test_checkpoint_resolve_endpoint_finds_checkpoint_by_run_node_or_name(
     assert by_name.json()["checkpoint"] == entry
 
 
+def test_hpc_submit_forwards_runtime_parameters_to_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    class RecordingHPC:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        async def submit_workflow(self, **kwargs: object) -> str:
+            self.calls.append(kwargs)
+            return "remote-42"
+
+    backend = RecordingHPC()
+    with TestClient(create_app()) as client:
+        client.app.state.hpc_backend = backend
+        response = client.post(
+            "/api/hpc/submit",
+            json={
+                "workflow": {
+                    "id": "wf-1",
+                    "name": "Parameterized",
+                    "nodes": [],
+                    "edges": [],
+                    "parameters": [{"name": "sample_id", "type": "STRING"}],
+                },
+                "workflow_id": "wf-1",
+                "name": "Parameterized",
+                "parameters": {"sample_id": "S1"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["remote_job_id"] == "remote-42"
+    assert backend.calls[0]["parameters"] == {"sample_id": "S1"}
+
+
+def test_hpc_submit_rejects_parameterized_run_when_backend_cannot_accept_parameters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    class FixedSignatureHPC:
+        async def submit_workflow(
+            self,
+            *,
+            workflow: dict[str, object],
+            name: str,
+            cpus: int | None,
+            memory: str | None,
+            walltime: str | None,
+            dependency_jobs: list[str],
+        ) -> str:
+            return "remote-42"
+
+    with TestClient(create_app()) as client:
+        client.app.state.hpc_backend = FixedSignatureHPC()
+        response = client.post(
+            "/api/hpc/submit",
+            json={
+                "workflow": {
+                    "id": "wf-1",
+                    "name": "Parameterized",
+                    "nodes": [],
+                    "edges": [],
+                    "parameters": [{"name": "sample_id", "type": "STRING"}],
+                },
+                "workflow_id": "wf-1",
+                "name": "Parameterized",
+                "parameters": {"sample_id": "S1"},
+            },
+        )
+
+    assert response.status_code == 501
+    assert response.json()["detail"] == "HPC backend submit_workflow does not support runtime parameters"
+
+
 def test_pause_requests_endpoint_lists_persisted_requests(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
