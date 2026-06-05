@@ -13,6 +13,7 @@ from typing import Any
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE as KNOWN_EXECUTABLES
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.python_code import sandbox_prerequisite_status
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +423,11 @@ def host_diagnostics() -> dict[str, Any]:
     }
     if not checks["Rscript"]["available"]:
         missing_optional.append("Rscript")
+
+    checks.update(sandbox_prerequisite_status())
+    for executable in ("bwrap", "newuidmap", "newgidmap"):
+        if not checks[executable]["available"]:
+            missing_required.append(executable)
 
     all_ready = len(missing_required) == 0
 

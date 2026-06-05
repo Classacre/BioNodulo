@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from bionodulo.execution.subprocess_runner import CommandExecutionError
+from bionodulo.nodes.builtin import python_code
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -27,6 +29,73 @@ def _context(tmp_path: Path, name: str) -> SimpleNamespace:
 def _require_bwrap() -> None:
     if shutil.which("bwrap") is None:
         pytest.skip("bubblewrap is required for Python Code node sandbox tests")
+
+
+def test_python_code_reports_sandbox_prerequisite_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = {
+        "bwrap": "/usr/bin/bwrap",
+        "newuidmap": "/usr/bin/newuidmap",
+        "newgidmap": None,
+    }
+
+    monkeypatch.setattr(python_code.shutil, "which", lambda executable: paths[executable])
+
+    assert python_code.sandbox_prerequisite_status() == {
+        "bwrap": {
+            "available": True,
+            "path": "/usr/bin/bwrap",
+            "required": True,
+            "auto_installable": False,
+            "description": "Bubblewrap sandbox executable",
+        },
+        "newuidmap": {
+            "available": True,
+            "path": "/usr/bin/newuidmap",
+            "required": True,
+            "auto_installable": False,
+            "description": "User namespace UID mapping helper for bubblewrap",
+        },
+        "newgidmap": {
+            "available": False,
+            "path": None,
+            "required": True,
+            "auto_installable": False,
+            "description": "User namespace GID mapping helper for bubblewrap",
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_python_code_appends_missing_uidmap_prerequisites_to_sandbox_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    paths = {
+        "bwrap": "/usr/bin/bwrap",
+        "newuidmap": None,
+        "newgidmap": None,
+    }
+    node = _node_class("python_code")()
+
+    async def fail_sandbox(_context, _command, out_dir: Path, _timeout_seconds: int) -> dict[str, object]:
+        stderr_path = out_dir / "stderr.log"
+        stderr_path.write_text("bwrap: setup failed\n", encoding="utf-8")
+        raise CommandExecutionError("bwrap", 1, out_dir / "stdout.log", stderr_path)
+
+    monkeypatch.setattr(python_code.shutil, "which", lambda executable: paths[executable])
+    monkeypatch.setattr(node, "_run_sandbox_command", fail_sandbox)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        await node.run(
+            code='output = {"ok": True}',
+            inputs_json="{}",
+            timeout_seconds=5,
+            context=_context(tmp_path, "uidmap-missing"),
+        )
+
+    message = str(exc_info.value)
+    assert "Python Code failed: bwrap: setup failed" in message
+    assert "missing sandbox prerequisites on PATH: newuidmap, newgidmap" in message
 
 
 @pytest.mark.asyncio

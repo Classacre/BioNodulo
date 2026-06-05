@@ -16,6 +16,11 @@ from bionodulo.nodes.base import BaseNode
 MAX_CODE_BYTES = 64 * 1024
 MIN_TIMEOUT_SECONDS = 1
 MAX_TIMEOUT_SECONDS = 300
+SANDBOX_PREREQUISITES = {
+    "bwrap": "Bubblewrap sandbox executable",
+    "newuidmap": "User namespace UID mapping helper for bubblewrap",
+    "newgidmap": "User namespace GID mapping helper for bubblewrap",
+}
 
 
 RUNNER_SOURCE = r'''
@@ -195,6 +200,29 @@ def _timeout_label(timeout_seconds: int) -> str:
     return f"{timeout_seconds} {unit}"
 
 
+def sandbox_prerequisite_status() -> dict[str, dict[str, Any]]:
+    """Return host availability for Python Code sandbox prerequisites."""
+    results: dict[str, dict[str, Any]] = {}
+    for executable, description in SANDBOX_PREREQUISITES.items():
+        path = shutil.which(executable)
+        results[executable] = {
+            "available": path is not None,
+            "path": path,
+            "required": True,
+            "auto_installable": False,
+            "description": description,
+        }
+    return results
+
+
+def _missing_uidmap_prerequisites() -> list[str]:
+    return [
+        executable
+        for executable in ("newuidmap", "newgidmap")
+        if shutil.which(executable) is None
+    ]
+
+
 def _python_runtime() -> tuple[Path, str, list[Path]]:
     base_executable = Path(getattr(sys, "_base_executable", sys.executable)).resolve()
     python_root = Path(sys.base_prefix).resolve()
@@ -361,6 +389,12 @@ class PythonCodeNode(BaseNode):
             if exc.stderr_path.exists():
                 stderr = exc.stderr_path.read_text(encoding="utf-8", errors="replace").strip()
             message = stderr.splitlines()[-1] if stderr else str(exc)
+            missing_uidmap = _missing_uidmap_prerequisites()
+            if missing_uidmap:
+                message = (
+                    f"{message}; missing sandbox prerequisites on PATH: "
+                    f"{', '.join(missing_uidmap)}"
+                )
             raise RuntimeError(f"Python Code failed: {message}") from exc
 
         if not result_path.exists():
