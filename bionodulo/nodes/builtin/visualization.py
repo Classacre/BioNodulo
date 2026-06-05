@@ -7412,6 +7412,12 @@ class PhylogeneticTreeViewerNode(BaseNode):
         return {"outputs": {"tree_image": str(output_path)}}
 
 
+class PhylogeneticTreeViewerCompatibilityNode(PhylogeneticTreeViewerNode):
+    """Compatibility wrapper for the original roadmap node ID."""
+
+    NODE_ID = "phylogenetic_tree_viewer"
+
+
 class VCFStatsChartNode(BaseNode):
     """Generate VCF statistics charts and JSON summaries."""
 

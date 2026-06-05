@@ -224,6 +224,168 @@ def test_squidpy_qc_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["matplotlib"] == ">=3.8"
 
 
+def test_scanpy_spatial_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["scanpy_spatial"]
+    assert node_info["display_name"] == "Scanpy Spatial"
+    assert node_info["category"] == "spatial_transcriptomics"
+    assert node_info["description"].startswith("Cluster spatial transcriptomics")
+    assert node_info["output"] == ["CSV", "IMAGE"]
+    assert node_info["output_name"] == ["clusters", "umap"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["scanpy", "anndata", "pandas", "matplotlib"]
+    assert "scanpy" in node_info["search_aliases"]
+    assert "spatial transcriptomics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"count_matrix", "coordinates"}
+    assert set(inputs["optional"]) == {
+        "sample_name",
+        "delimiter",
+        "min_cells",
+        "min_genes",
+        "n_hvg",
+        "n_pcs",
+        "resolution",
+    }
+
+
+def test_scanpy_spatial_writes_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("scanpy_spatial")
+    output_dir = tmp_path / "scanpy_spatial"
+
+    cmd = node_class.render_command({
+        "count_matrix": "/data/counts.tsv",
+        "coordinates": "/data/spatial.csv",
+        "sample_name": "sampleA",
+        "delimiter": "tab",
+        "min_cells": 4,
+        "min_genes": 250,
+        "n_hvg": 1200,
+        "n_pcs": 18,
+        "resolution": 0.7,
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "scanpy_spatial_run.py"
+    assert cmd == ["python", str(script_file)]
+    script = script_file.read_text()
+    assert "import scanpy as sc" in script
+    assert "import pandas as pd" in script
+    assert "matplotlib.use('Agg')" in script
+    assert "counts = pd.read_csv('/data/counts.tsv', sep='\\t', index_col=0)" in script
+    assert "coordinates = pd.read_csv('/data/spatial.csv')" in script
+    assert "adata = sc.AnnData(counts.T)" in script
+    assert "sc.pp.filter_cells(adata, min_genes=250)" in script
+    assert "sc.pp.filter_genes(adata, min_cells=4)" in script
+    assert "sc.pp.highly_variable_genes(adata, n_top_genes=1200)" in script
+    assert "sc.pp.pca(adata, n_comps=18)" in script
+    assert "sc.tl.leiden(adata, resolution=0.7)" in script
+    assert f"adata.obs[['sample', 'leiden']].to_csv('{output_dir}/clusters.csv')" in script
+    assert f"plt.savefig('{output_dir}/umap.png', dpi=150)" in script
+
+
+def test_scanpy_spatial_plans_outputs() -> None:
+    node_class = _node_class("scanpy_spatial")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/scanpy_spatial/clusters.csv",
+        "/tmp/run/scanpy_spatial/umap.png",
+    ]
+
+
+def test_scanpy_spatial_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
+    assert PACKAGE_MIN_VERSIONS["scanpy"] == ">=1.10"
+    assert PACKAGE_MIN_VERSIONS["anndata"] == ">=0.10"
+    assert PACKAGE_MIN_VERSIONS["pandas"] == ">=2.2"
+    assert PACKAGE_MIN_VERSIONS["matplotlib"] == ">=3.8"
+
+
+def test_seurat_spatial_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["seurat_spatial"]
+    assert node_info["display_name"] == "Seurat Spatial"
+    assert node_info["category"] == "spatial_transcriptomics"
+    assert node_info["description"].startswith("Cluster spatial transcriptomics")
+    assert node_info["output"] == ["CSV", "CSV", "IMAGE"]
+    assert node_info["output_name"] == ["clusters", "markers", "spatial_plot"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == ["r-base", "r-seurat", "r-ggplot2", "r-patchwork"]
+    assert "seurat" in node_info["search_aliases"]
+    assert "spatial transcriptomics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"count_matrix", "image"}
+    assert set(inputs["optional"]) == {
+        "sample_name",
+        "min_features",
+        "normalization_method",
+        "dims",
+        "resolution",
+    }
+
+
+def test_seurat_spatial_writes_script_and_renders_command(tmp_path: Path) -> None:
+    node_class = _node_class("seurat_spatial")
+    output_dir = tmp_path / "seurat_spatial"
+
+    cmd = node_class.render_command({
+        "count_matrix": "/data/filtered_feature_bc_matrix",
+        "image": "/data/tissue.png",
+        "sample_name": "sampleA",
+        "min_features": 300,
+        "normalization_method": "SCT",
+        "dims": 20,
+        "resolution": 0.9,
+        "output": str(output_dir),
+    })
+
+    script_file = output_dir / "seurat_spatial_run.R"
+    assert cmd == ["Rscript", str(script_file)]
+    script = script_file.read_text()
+    assert "library(Seurat)" in script
+    assert "library(ggplot2)" in script
+    assert "counts <- Read10X(data.dir = '/data/filtered_feature_bc_matrix')" in script
+    assert "object <- CreateSeuratObject(counts = counts, project = 'sampleA', min.features = 300)" in script
+    assert "object <- SCTransform(object, verbose = FALSE)" in script
+    assert "object <- RunPCA(object, verbose = FALSE)" in script
+    assert "object <- FindNeighbors(object, dims = 1:20)" in script
+    assert "object <- FindClusters(object, resolution = 0.9)" in script
+    assert "markers <- FindAllMarkers(object, only.pos = TRUE)" in script
+    assert f"write.csv(cluster_table, '{output_dir}/clusters.csv', row.names = FALSE)" in script
+    assert f"write.csv(markers, '{output_dir}/markers.csv', row.names = FALSE)" in script
+    assert f"ggsave('{output_dir}/spatial_plot.png'" in script
+
+
+def test_seurat_spatial_plans_outputs() -> None:
+    node_class = _node_class("seurat_spatial")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/seurat_spatial/clusters.csv",
+        "/tmp/run/seurat_spatial/markers.csv",
+        "/tmp/run/seurat_spatial/spatial_plot.png",
+    ]
+
+
+def test_seurat_spatial_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["Rscript"] == "r-base"
+    assert PACKAGE_MIN_VERSIONS["r-base"] == ">=4.3.0"
+    assert PACKAGE_MIN_VERSIONS["r-seurat"] == ">=5.0"
+    assert PACKAGE_MIN_VERSIONS["r-ggplot2"] == ">=3.5"
+    assert PACKAGE_MIN_VERSIONS["r-patchwork"] == ">=1.2"
+
+
 def test_cell2location_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()

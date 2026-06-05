@@ -185,6 +185,185 @@ class SquidpyNode(SquidpyQCNode):
     SEARCH_ALIASES = ["squidpy", "spatial", "visium", "quality control", "spatial analysis"]
 
 
+class ScanpySpatialNode(CommandNode):
+    """Cluster spatial transcriptomics count matrices with Scanpy."""
+
+    NODE_ID = "scanpy_spatial"
+    DISPLAY_NAME = "Scanpy Spatial"
+    CATEGORY = "spatial_transcriptomics"
+    DESCRIPTION = "Cluster spatial transcriptomics count matrices and render a UMAP with Scanpy."
+    SEARCH_ALIASES = ["scanpy", "spatial transcriptomics", "spatial clustering", "umap", "leiden"]
+    RETURN_TYPES = ("CSV", "IMAGE")
+    RETURN_NAMES = ("clusters", "umap")
+    REQUIRED_EXECUTABLES = ["python"]
+    REQUIRED_CONDA_PACKAGES = ["scanpy", "anndata", "pandas", "matplotlib"]
+    DOCUMENTATION_URL = "https://scanpy.readthedocs.io/"
+    VERSION = "1.10.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(inputs.get("output", "."))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        delimiter = str(inputs.get("delimiter", "comma") or "comma").strip().lower()
+        sep = "\\t" if delimiter in {"tab", "tsv", "\\t"} else ","
+        sample_name = str(inputs.get("sample_name", "sample") or "sample")
+        script = f"""
+import scanpy as sc
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+counts = pd.read_csv('{inputs.get("count_matrix", "")}', sep='{sep}', index_col=0)
+coordinates = pd.read_csv('{inputs.get("coordinates", "")}')
+adata = sc.AnnData(counts.T)
+adata.obs['sample'] = '{sample_name}'
+
+if 'barcode' in coordinates.columns:
+    coordinates = coordinates.set_index('barcode')
+    adata.obs = adata.obs.join(coordinates, how='left')
+
+sc.pp.filter_cells(adata, min_genes={inputs.get("min_genes", 200)})
+sc.pp.filter_genes(adata, min_cells={inputs.get("min_cells", 3)})
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, n_top_genes={inputs.get("n_hvg", 2000)})
+adata = adata[:, adata.var['highly_variable']]
+sc.pp.scale(adata, max_value=10)
+sc.pp.pca(adata, n_comps={inputs.get("n_pcs", 15)})
+sc.pp.neighbors(adata)
+sc.tl.leiden(adata, resolution={inputs.get("resolution", 0.8)})
+sc.tl.umap(adata)
+
+adata.obs[['sample', 'leiden']].to_csv('{out_dir}/clusters.csv')
+sc.pl.umap(adata, color='leiden', show=False)
+plt.savefig('{out_dir}/umap.png', dpi=150)
+print("Done")
+"""
+        script_file = out_dir / "scanpy_spatial_run.py"
+        script_file.write_text(script)
+        return ["python", str(script_file)]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "clusters.csv", node_out / "umap.png"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "count_matrix": ("FILE", {"description": "Gene-by-cell count matrix as CSV or TSV"}),
+                "coordinates": ("CSV", {"description": "Spatial coordinates keyed by barcode"}),
+            },
+            "optional": {
+                "sample_name": ("STRING", {"default": "sample"}),
+                "delimiter": ("STRING", {"default": "comma", "options": ["comma", "tab"]}),
+                "min_cells": ("INT", {"default": 3, "min": 1}),
+                "min_genes": ("INT", {"default": 200, "min": 0}),
+                "n_hvg": ("INT", {"default": 2000, "min": 100}),
+                "n_pcs": ("INT", {"default": 15, "min": 2, "max": 50}),
+                "resolution": ("FLOAT", {"default": 0.8, "min": 0.1, "max": 2.0, "step": 0.1}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
+class SeuratSpatialNode(CommandNode):
+    """Cluster spatial transcriptomics count matrices with Seurat."""
+
+    NODE_ID = "seurat_spatial"
+    DISPLAY_NAME = "Seurat Spatial"
+    CATEGORY = "spatial_transcriptomics"
+    DESCRIPTION = "Cluster spatial transcriptomics count matrices and export markers with Seurat."
+    SEARCH_ALIASES = ["seurat", "spatial transcriptomics", "visium", "spatial clustering", "markers"]
+    RETURN_TYPES = ("CSV", "CSV", "IMAGE")
+    RETURN_NAMES = ("clusters", "markers", "spatial_plot")
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    REQUIRED_CONDA_PACKAGES = ["r-base", "r-seurat", "r-ggplot2", "r-patchwork"]
+    DOCUMENTATION_URL = "https://satijalab.org/seurat/"
+    VERSION = "5.0.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = Path(inputs.get("output", "."))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        sample_name = str(inputs.get("sample_name", "sample") or "sample")
+        normalization_method = str(inputs.get("normalization_method", "LogNormalize") or "LogNormalize")
+        dims = int(inputs.get("dims", 15) or 15)
+        normalize_line = (
+            "object <- SCTransform(object, verbose = FALSE)"
+            if normalization_method.upper() == "SCT"
+            else "object <- NormalizeData(object)"
+        )
+        script = f"""
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+
+counts <- Read10X(data.dir = '{inputs.get("count_matrix", "")}')
+object <- CreateSeuratObject(counts = counts, project = '{sample_name}', min.features = {inputs.get("min_features", 200)})
+{normalize_line}
+object <- FindVariableFeatures(object)
+object <- ScaleData(object)
+object <- RunPCA(object, verbose = FALSE)
+object <- FindNeighbors(object, dims = 1:{dims})
+object <- FindClusters(object, resolution = {inputs.get("resolution", 0.8)})
+object <- RunUMAP(object, dims = 1:{dims})
+
+cluster_table <- data.frame(
+  barcode = colnames(object),
+  cluster = Idents(object)
+)
+markers <- FindAllMarkers(object, only.pos = TRUE)
+plot <- DimPlot(object, reduction = 'umap', group.by = 'seurat_clusters') +
+  ggtitle('Seurat spatial clusters') +
+  theme_minimal()
+
+write.csv(cluster_table, '{out_dir}/clusters.csv', row.names = FALSE)
+write.csv(markers, '{out_dir}/markers.csv', row.names = FALSE)
+ggsave('{out_dir}/spatial_plot.png', plot = plot, width = 8, height = 6, dpi = 150)
+print("Done")
+"""
+        script_file = out_dir / "seurat_spatial_run.R"
+        script_file.write_text(script)
+        return ["Rscript", str(script_file)]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [
+            node_out / "clusters.csv",
+            node_out / "markers.csv",
+            node_out / "spatial_plot.png",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "count_matrix": ("DIRECTORY", {"description": "10x feature-barcode matrix directory"}),
+                "image": ("FILE", {"description": "Tissue image associated with the spatial sample"}),
+            },
+            "optional": {
+                "sample_name": ("STRING", {"default": "sample"}),
+                "min_features": ("INT", {"default": 200, "min": 0}),
+                "normalization_method": ("STRING", {"default": "LogNormalize", "options": ["LogNormalize", "SCT"]}),
+                "dims": ("INT", {"default": 15, "min": 2, "max": 50}),
+                "resolution": ("FLOAT", {"default": 0.8, "min": 0.1, "max": 2.0, "step": 0.1}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class Cell2locationNode(CommandNode):
     """Deconvolute spatial spots into cell type proportions."""
     NODE_ID = "cell2location"

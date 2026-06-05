@@ -177,6 +177,25 @@ def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None
     assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
 
 
+def test_phylogenetic_tree_viewer_proposal_id_is_registered_as_compatibility_alias() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    canonical_class = registry.get("phylo_tree_viewer")
+    compatibility_class = registry.get("phylogenetic_tree_viewer")
+    assert canonical_class is not None
+    assert compatibility_class is not None
+    assert issubclass(compatibility_class, canonical_class)
+
+    info = registry.object_info()
+
+    assert info["phylogenetic_tree_viewer"]["display_name"] == "Phylogenetic Tree Viewer"
+    assert info["phylogenetic_tree_viewer"]["category"] == "visualization"
+    assert info["phylogenetic_tree_viewer"]["output_name"] == ["tree_image"]
+    assert info["phylogenetic_tree_viewer"]["output"] == ["IMAGE"]
+    assert info["phylogenetic_tree_viewer"]["output_node"] is True
+    assert compatibility_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
+
+
 def test_vcf_stats_chart_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
