@@ -3,13 +3,15 @@ import type { ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { Skeleton } from '../ui/Skeleton';
-import type { Workflow, WorkflowNode } from '../../types';
+import type { Workflow, WorkflowNode, WorkflowParameter } from '../../types';
 import { useFocusTrap } from '../../hooks/ui';
+import { coerceWorkflowParameterInput } from '../../utils/workflowParameters';
 
 export interface SampleSheetRun {
   rowIndex: number;
   name: string;
   workflow: Workflow;
+  parameters?: Record<string, unknown>;
 }
 
 interface BatchSampleSheetModalProps {
@@ -27,6 +29,7 @@ interface ParsedSheet {
 const MAX_PREVIEW_ROWS = 8;
 const SKIP_VALUE = '__skip__';
 const NAME_VALUE = '__name__';
+const WORKFLOW_PARAMETER_PREFIX = '__workflow_parameter__::';
 
 const INPUT_STYLE = {
   padding: '6px 10px',
@@ -95,6 +98,15 @@ function nodeLabel(node: WorkflowNode): string {
   return node.ui?.title || node.node_info?.display_name || node.type;
 }
 
+function workflowParameterMapping(parameter: WorkflowParameter): string {
+  return `${WORKFLOW_PARAMETER_PREFIX}${parameter.name}`;
+}
+
+function workflowParameterName(mapping: string): string | null {
+  if (!mapping.startsWith(WORKFLOW_PARAMETER_PREFIX)) return null;
+  return mapping.slice(WORKFLOW_PARAMETER_PREFIX.length);
+}
+
 export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: BatchSampleSheetModalProps) {
   const { t } = useTranslation();
   const [rawText, setRawText] = useState('');
@@ -120,6 +132,11 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
           if (prev[index] === NAME_VALUE) nameAssigned = true;
           return;
         }
+        const workflowParameter = workflow.parameters?.find(parameter => parameter.name.toLowerCase() === lower);
+        if (workflowParameter) {
+          next[index] = workflowParameterMapping(workflowParameter);
+          return;
+        }
         if (!nameAssigned && (lower === 'sample' || lower === 'name' || lower === 'sample_id' || lower === 'id')) {
           next[index] = NAME_VALUE;
           nameAssigned = true;
@@ -140,10 +157,17 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
       });
       return next;
     });
-  }, [parsed, workflow.nodes]);
+  }, [parsed, workflow.nodes, workflow.parameters]);
 
   const paramOptions = useMemo(() => {
     const options: { value: string; label: string; group: string }[] = [];
+    for (const parameter of workflow.parameters ?? []) {
+      options.push({
+        value: workflowParameterMapping(parameter),
+        label: t('batchSampleSheet.workflowParamOptionLabel', { param: parameter.name }),
+        group: 'workflow',
+      });
+    }
     for (const node of workflow.nodes) {
       const label = nodeLabel(node);
       const params = node.params || {};
@@ -156,7 +180,7 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
       }
     }
     return options;
-  }, [t, workflow.nodes]);
+  }, [t, workflow.nodes, workflow.parameters]);
 
   const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -173,6 +197,7 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
     const runs: SampleSheetRun[] = [];
     parsed.rows.forEach((row, rowIndex) => {
       const overrides = new Map<string, Record<string, unknown>>();
+      const workflowParameterOverrides: Record<string, unknown> = {};
       let rowName = `${namePrefix} ${rowIndex + 1}`;
       parsed.headers.forEach((_, columnIndex) => {
         const mapping = columnMap[columnIndex];
@@ -180,6 +205,16 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
         if (!mapping || mapping === SKIP_VALUE) return;
         if (mapping === NAME_VALUE) {
           if (rawValue.trim().length > 0) rowName = rawValue.trim();
+          return;
+        }
+        const parameterName = workflowParameterName(mapping);
+        if (parameterName) {
+          const parameter = workflow.parameters?.find(candidate => candidate.name === parameterName);
+          if (!parameter) return;
+          const value = coerceWorkflowParameterInput(parameter, rawValue);
+          if (value !== undefined) {
+            workflowParameterOverrides[parameter.name] = value;
+          }
           return;
         }
         const [nodeId, paramKey] = mapping.split('::');
@@ -199,6 +234,7 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
         rowIndex,
         name: rowName,
         workflow: { ...workflow, nodes: nextNodes, name: rowName },
+        parameters: workflowParameterOverrides,
       });
     });
     return runs;

@@ -2079,6 +2079,7 @@ class MyToolNode(CommandNode):
     queueRuns_plural: 'Encolar {{count}} ejecuciones',
     queueRuns_other: 'Encolar {{count}} ejecuciones',
     paramOptionLabel: '{{node}} -> {{param}}',
+    workflowParamOptionLabel: 'Parametro de workflow -> {{param}}',
     errors: {
       emptySheet: 'Pega o sube primero una hoja de muestras CSV/TSV.',
       noRows: 'La hoja de muestras no tiene filas de datos.',

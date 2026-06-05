@@ -43,6 +43,7 @@ function workflow(partial: Partial<Workflow>): Workflow {
     outputs: partial.outputs ?? {},
     environment: partial.environment,
     dependencies: partial.dependencies,
+    parameters: partial.parameters,
   };
 }
 
@@ -112,6 +113,48 @@ describe('BatchSampleSheetModal i18n', () => {
     expect(submittedRuns[0].workflow.name).toBe('ctrl_01');
     expect(submittedRuns[0].workflow.nodes[0].params.fastq_in).toBe('/data/c1.fastq.gz');
     expect(submittedRuns[0].workflow.nodes[0].params.threads).toBe(8);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('maps declared workflow parameter columns to runtime overrides without replacing placeholders', async () => {
+    const { default: BatchSampleSheetModal } = await import('../components/modals/BatchSampleSheetModal');
+    const onClose = vi.fn();
+    const onSubmit = vi.fn<(runs: SampleSheetRun[]) => void>();
+
+    render(
+      <BatchSampleSheetModal
+        workflow={workflow({
+          name: 'Parameter batch',
+          parameters: [
+            { name: 'sample_id', type: 'STRING', required: true },
+          ],
+          nodes: [
+            node({
+              id: 'report',
+              type: 'report_node',
+              params: { sample: '{{sample_id}}', threads: 4 },
+            }),
+          ],
+        })}
+        onClose={onClose}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/sample,fastq_in,threads/), {
+      target: {
+        value: 'sample_id,threads\nS1,8',
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText('1 row, 2 columns (CSV)')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Queue 1 run/ }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const submittedRun = onSubmit.mock.calls[0][0][0];
+    expect(submittedRun.parameters).toEqual({ sample_id: 'S1' });
+    expect(submittedRun.workflow.nodes[0].params.sample).toBe('{{sample_id}}');
+    expect(submittedRun.workflow.nodes[0].params.threads).toBe(8);
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });

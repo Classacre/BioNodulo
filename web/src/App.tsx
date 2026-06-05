@@ -1401,6 +1401,7 @@ export default function App() {
         const result = await submitRun(sampleRun.workflow, {
           no_cache: !cacheEnabled,
           name: sampleRun.name,
+          parameters: sampleRun.parameters,
         });
         addRun({
           run_id: result.run_id,

@@ -50,6 +50,12 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain('if (parameterOverrides === null)');
   });
 
+  it('passes sample-sheet workflow parameter overrides into queued runs', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain('parameters: sampleRun.parameters');
+  });
+
   it('keeps workflow parameter run prompt copy behind i18n keys', async () => {
     const { default: i18n, setLanguage } = await import('../i18n');
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');

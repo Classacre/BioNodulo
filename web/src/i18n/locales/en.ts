@@ -2078,6 +2078,7 @@ class MyToolNode(CommandNode):
     queueRuns_plural: 'Queue {{count}} runs',
     queueRuns_other: 'Queue {{count}} runs',
     paramOptionLabel: '{{node}} -> {{param}}',
+    workflowParamOptionLabel: 'Workflow parameter -> {{param}}',
     errors: {
       emptySheet: 'Paste or upload a CSV/TSV sample sheet first.',
       noRows: 'Sample sheet has no data rows.',
