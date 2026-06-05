@@ -85,6 +85,17 @@ function pauseRuntimeBadges(
   return [];
 }
 
+function triggerRuntimeBadges(t: (key: string) => string, runSubmissionSupported?: boolean): string[] {
+  if (runSubmissionSupported === false) {
+    return [
+      t('runtimeArtifacts.pollableMetadataOnly'),
+      t('runtimeArtifacts.runSubmissionUnavailable'),
+      t('runtimeArtifacts.doesNotSubmitRuns'),
+    ];
+  }
+  return [];
+}
+
 function pauseStatus(record: PauseRequestRecord): string {
   if (typeof record.status === 'string' && record.status.trim()) return record.status;
   if (record.approved === true) return 'approved';
@@ -133,6 +144,15 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
   const pauseRequestList = pauseRequests?.pause_requests ?? [];
   const triggerList = workflowTriggers?.triggers ?? [];
   const waitingPauseRequests = pauseRequestList.filter(request => pauseStatus(request) === 'waiting');
+  const triggerBadges = useMemo(
+    () => triggerRuntimeBadges(
+      t,
+      typeof workflowTriggers?.run_submission_supported === 'boolean'
+        ? workflowTriggers.run_submission_supported
+        : triggerEvaluation?.run_submission_supported,
+    ),
+    [t, triggerEvaluation?.run_submission_supported, workflowTriggers?.run_submission_supported],
+  );
 
   const handleEvaluate = async () => {
     setActionError(null);
@@ -339,6 +359,13 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
             <div className="runtime-artifacts-evaluation">
               <span>{t('runtimeArtifacts.scheduleDueCount', { count: triggerEvaluation.due_schedule_count })}</span>
               <span>{t('runtimeArtifacts.fileWatchDueCount', { count: triggerEvaluation.due_file_watch_count })}</span>
+            </div>
+          )}
+          {triggerBadges.length > 0 && (
+            <div className="runtime-artifacts-evaluation">
+              {triggerBadges.map(label => (
+                <span key={label}>{label}</span>
+              ))}
             </div>
           )}
           {triggerList.length > 0 ? (

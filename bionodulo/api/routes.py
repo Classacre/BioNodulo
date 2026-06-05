@@ -292,6 +292,15 @@ def _pause_runtime_contract() -> dict[str, Any]:
     }
 
 
+def _workflow_trigger_runtime_contract() -> dict[str, Any]:
+    return {
+        "scheduler_runner_contract_supported": True,
+        "file_watch_runner_contract_supported": True,
+        "run_submission_supported": False,
+        "workflow_trigger_note": "Workflow trigger registrations are pollable metadata; evaluation does not submit workflow runs.",
+    }
+
+
 def _normalize_pause_contract(pause_request: dict[str, Any]) -> dict[str, Any]:
     pause_request.setdefault("review_decision_supported", True)
     pause_request.setdefault("engine_pause_supported", False)
@@ -649,6 +658,7 @@ async def list_workflow_triggers(request: Request) -> dict[str, Any]:
         "triggers": triggers,
         "count": len(triggers),
         "errors": errors,
+        **_workflow_trigger_runtime_contract(),
     }
 
 
@@ -678,9 +688,7 @@ async def evaluate_workflow_triggers(request: Request, body: WorkflowTriggerEval
         "due_file_watch_triggers": due_file_watch_triggers,
         "due_file_watch_count": len(due_file_watch_triggers),
         "errors": errors,
-        "scheduler_runner_contract_supported": True,
-        "file_watch_runner_contract_supported": True,
-        "run_submission_supported": False,
+        **_workflow_trigger_runtime_contract(),
     }
 
 

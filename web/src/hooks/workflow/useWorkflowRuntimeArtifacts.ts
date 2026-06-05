@@ -81,6 +81,10 @@ export interface WorkflowTriggersResponse {
   triggers: WorkflowTriggerRecord[];
   count: number;
   errors: Array<Record<string, string>>;
+  scheduler_runner_contract_supported?: boolean;
+  file_watch_runner_contract_supported?: boolean;
+  run_submission_supported?: boolean;
+  workflow_trigger_note?: string;
 }
 
 export interface WorkflowTriggerEvaluationResponse {
@@ -93,6 +97,7 @@ export interface WorkflowTriggerEvaluationResponse {
   scheduler_runner_contract_supported?: boolean;
   file_watch_runner_contract_supported?: boolean;
   run_submission_supported?: boolean;
+  workflow_trigger_note?: string;
 }
 
 export interface ResolvePauseRequestInput {
