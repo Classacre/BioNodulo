@@ -288,19 +288,13 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
     node_input: dict[str, Any] = {"required": {}, "optional": {}, "hidden": {}}
 
     for name, spec in required.items():
-        type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
-        config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        node_input["required"][name] = (_node_type(type_name), config)
+        node_input["required"][name] = _to_frontend_input_spec(spec)
 
     for name, spec in optional.items():
-        type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
-        config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        node_input["optional"][name] = (_node_type(type_name), config)
+        node_input["optional"][name] = _to_frontend_input_spec(spec)
 
     for name, spec in hidden.items():
-        type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
-        config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
-        node_input["hidden"][name] = (_node_type(type_name), config)
+        node_input["hidden"][name] = _to_frontend_input_spec(spec)
 
     return {
         "input": node_input,
@@ -329,6 +323,15 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "required_conda_packages": getattr(node_class, "REQUIRED_CONDA_PACKAGES", []),
         "required_r_packages": getattr(node_class, "REQUIRED_R_PACKAGES", []),
     }
+
+
+def _to_frontend_input_spec(spec: Any) -> tuple[str, dict[str, Any]]:
+    type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
+    raw_config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
+    config = dict(raw_config) if isinstance(raw_config, dict) else {}
+    if isinstance(type_name, (list, tuple)):
+        config.setdefault("options", list(type_name))
+    return (_node_type(type_name), config)
 
 
 def _node_type(bionodulo_type: str | list | tuple) -> str:

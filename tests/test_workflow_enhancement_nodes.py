@@ -69,6 +69,24 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
         assert node_info["required_executables"] == []
 
 
+def test_workflow_trigger_object_info_preserves_enum_choices_for_editor() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    node_info = registry.object_info("workflow_trigger")
+    trigger_type = node_info["input"]["required"]["trigger_type"]
+    watch_event = node_info["input"]["optional"]["watch_event"]
+
+    assert trigger_type == (
+        "STRING",
+        {"default": "webhook", "options": ["webhook", "schedule", "file_watch"]},
+    )
+    assert watch_event == (
+        "STRING",
+        {"default": "create", "options": ["create", "modify", "delete", "move"]},
+    )
+
+
 def test_control_nodes_declare_always_run_executor_cache_policy() -> None:
     for node_id in ("checkpoint", "memoize", "cache_control", "retry", "pause_resume", "sub_workflow"):
         assert getattr(_node_class(node_id), "EXECUTOR_CACHE_POLICY") == "always_run"
