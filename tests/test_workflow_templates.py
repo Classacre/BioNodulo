@@ -276,6 +276,20 @@ def test_rna_seq_template_validates_reads_before_trimming_and_qc() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_rna_seq_template_normalizes_featurecounts_output() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["normalize_counts_001"] == "normalize_data"
+    normalizer = next(node for node in workflow["nodes"] if node["id"] == "normalize_counts_001")
+    assert normalizer["params"]["method"] == "cpm"
+    assert normalizer["params"]["id_columns"] == "Geneid"
+    assert normalizer["params"]["axis"] == "rows"
+    assert normalizer["params"]["output_type"] == "TSV"
+    assert _has_edge(workflow, "counts_001", "counts", "normalize_counts_001", "table")
+    assert workflow["outputs"]["normalized_counts"] == "normalize_counts_001"
+
+
 def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)
