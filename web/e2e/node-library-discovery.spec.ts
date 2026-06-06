@@ -57,6 +57,34 @@ const objectInfo = {
     output: ['JSON'],
     output_name: ['prediction'],
   },
+  colabfold_batch: {
+    name: 'colabfold_batch',
+    display_name: 'ColabFold Batch',
+    category: 'ai',
+    description: 'Predict protein structures from FASTA sequences with ColabFold batch.',
+    search_aliases: ['colabfold', 'mmseqs2', 'protein folding'],
+    input: {
+      required: {
+        fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['prediction_dir'],
+  },
+  esmfold_predict: {
+    name: 'esmfold_predict',
+    display_name: 'ESMFold Predict',
+    category: 'ai',
+    description: 'Predict protein structures from FASTA sequences with ESMFold.',
+    search_aliases: ['esmfold', 'single sequence', 'protein folding'],
+    input: {
+      required: {
+        fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['pdb_dir'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -130,21 +158,23 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('6 nodes available')).toBeVisible();
+  await expect(page.getByText('8 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
     { query: 'flow control', name: 'If Condition', category: 'flow_control' },
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
-    { query: 'protein structure', name: 'AlphaFold DB', category: 'databases' },
+    { query: 'database', name: 'AlphaFold DB', category: 'databases' },
+    { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
+    { query: 'single sequence', name: 'ESMFold Predict', category: 'ai' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];
 
   for (const node of expectedNodes) {
     await search.fill(node.query);
-    await expect(page.getByText('1 match')).toBeVisible();
+    await expect(page.getByText(/\d+ match(?:es)?/)).toBeVisible();
     await expect(page.getByTitle(`Add ${node.name}`)).toBeVisible();
     await expect(page.getByText(node.category).first()).toBeVisible();
   }
