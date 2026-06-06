@@ -316,15 +316,24 @@ def test_phylogenetics_template_validates_input_fasta_before_alignment() -> None
     workflow = _load_template("phylogenetics_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["ncbi_efetch_001"] == "ncbi_efetch"
     assert node_types["validate_fasta_001"] == "data_validator"
+    efetch = next(node for node in workflow["nodes"] if node["id"] == "ncbi_efetch_001")
     validator = next(node for node in workflow["nodes"] if node["id"] == "validate_fasta_001")
+    assert efetch["params"]["database"] == "nuccore"
+    assert efetch["params"]["rettype"] == "fasta"
+    assert efetch["params"]["retmode"] == "text"
+    assert efetch["params"]["id_list"] == "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1"
+    assert efetch["params"]["output_name"] == "16s_sequences.fasta"
     assert validator["params"]["expected_format"] == "fasta"
     assert validator["params"]["min_records"] >= 3
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "seqs_001", "reference", "validate_fasta_001", "input")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "validate_fasta_001", "input")
     assert _has_edge(workflow, "validate_fasta_001", "passthrough", "mafft_001", "input")
+    assert not _has_edge(workflow, "seqs_001", "reference", "validate_fasta_001", "input")
     assert not _has_edge(workflow, "seqs_001", "reference", "mafft_001", "input")
+    assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
     assert workflow["outputs"]["validated_fasta"] == "validate_fasta_001"
 
 

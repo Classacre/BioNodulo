@@ -34,6 +34,24 @@
       }
     },
     {
+      "id": "ncbi_efetch_001",
+      "type": "ncbi_efetch",
+      "position": [
+        80,
+        220
+      ],
+      "params": {
+        "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
+        "database": "nuccore",
+        "rettype": "fasta",
+        "retmode": "text",
+        "output_name": "16s_sequences.fasta"
+      },
+      "ui": {
+        "title": "Fetch NCBI 16S"
+      }
+    },
+    {
       "id": "mafft_001",
       "type": "mafft",
       "position": [
@@ -162,8 +180,8 @@
     {
       "id": "e1",
       "from": {
-        "node": "seqs_001",
-        "output": "reference"
+        "node": "ncbi_efetch_001",
+        "output": "records"
       },
       "to": {
         "node": "validate_fasta_001",
@@ -265,6 +283,7 @@
     "tree_image": "tree_viewer_001",
     "report": "phylo_report_001",
     "alignment": "mafft_001",
+    "fetched_fasta": "ncbi_efetch_001",
     "validated_fasta": "validate_fasta_001",
     "fasta_quality_gate": "gate_fasta_001"
   }
