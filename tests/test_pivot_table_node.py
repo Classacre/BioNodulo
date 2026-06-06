@@ -200,6 +200,48 @@ async def test_pivot_table_agg_sums_duplicate_long_values(tmp_path: Path) -> Non
     ]
 
 
+@pytest.mark.parametrize(
+    ("agg_func", "expected_s1", "expected_s2"),
+    [
+        ("count", "3", "1"),
+        ("min", "2", "5"),
+        ("max", "10", "5"),
+        ("median", "4", "5"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_pivot_table_agg_supports_planned_functions(
+    tmp_path: Path,
+    agg_func: str,
+    expected_s1: str,
+    expected_s2: str,
+) -> None:
+    table = tmp_path / f"replicates_{agg_func}.tsv"
+    _write_table(table, [
+        {"gene": "BRCA1", "sample": "S1", "count": "10"},
+        {"gene": "BRCA1", "sample": "S1", "count": "2"},
+        {"gene": "BRCA1", "sample": "S1", "count": "4"},
+        {"gene": "BRCA1", "sample": "S2", "count": "5"},
+    ])
+
+    result = await _node_class("pivot_table")().run(
+        table=str(table),
+        operation="pivot_table_agg",
+        index_column="gene",
+        names_from="sample",
+        values_from="count",
+        agg_func=agg_func,
+        fill_value="0",
+        output_type="TSV",
+        context=_context(tmp_path, f"pivot-agg-{agg_func}"),
+    )
+
+    rows = _read_table(result[0])
+    assert rows == [
+        {"gene": "BRCA1", "S1": expected_s1, "S2": expected_s2},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_reshape_table_long_direction_melts_wide_tsv(tmp_path: Path) -> None:
     table = tmp_path / "counts.tsv"

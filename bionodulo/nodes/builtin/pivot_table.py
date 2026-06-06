@@ -49,7 +49,7 @@ class PivotTableNode(BaseNode):
                 "variable_name": ("STRING", {"default": "variable"}),
                 "var_name": ("STRING", {"default": "", "description": "Name of the long-format variable column"}),
                 "value_name": ("STRING", {"default": "value"}),
-                "agg_func": ("STRING", {"default": "sum", "options": ["sum", "mean"]}),
+                "agg_func": ("STRING", {"default": "sum", "options": ["sum", "mean", "count", "min", "max", "median", "std"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "output_type": ("STRING", {"default": "TSV", "options": ["TSV", "CSV"]}),
             },
@@ -239,6 +239,29 @@ class PivotTableNode(BaseNode):
             result = sum(values)
         elif agg_func == "mean":
             result = sum(values) / len(values) if values else 0.0
+        elif agg_func == "count":
+            result = float(len(values))
+        elif agg_func == "min":
+            result = min(values) if values else 0.0
+        elif agg_func == "max":
+            result = max(values) if values else 0.0
+        elif agg_func == "median":
+            if not values:
+                result = 0.0
+            else:
+                sorted_values = sorted(values)
+                midpoint = len(sorted_values) // 2
+                if len(sorted_values) % 2:
+                    result = sorted_values[midpoint]
+                else:
+                    result = (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2
+        elif agg_func == "std":
+            if len(values) < 2:
+                result = 0.0
+            else:
+                mean = sum(values) / len(values)
+                variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+                result = variance ** 0.5
         else:
             raise ValueError(f"Unsupported agg_func: {agg_func}")
         if result.is_integer():
