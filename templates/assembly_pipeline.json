@@ -311,7 +311,7 @@
       "params": {
         "title": "Assembly Annotation Report",
         "text_sections": "# Summary\nAssembly validation, QUAST quality assessment, and Prokka annotation for the genome assembly workflow.",
-        "section_names": "Contig lengths,Contig statistics,Prokka annotation"
+        "section_names": "Contig lengths,Contig statistics,QUAST report,Prokka annotation"
       },
       "ui": {
         "title": "Assembly report"
@@ -549,6 +549,17 @@
       "to": {
         "node": "html_preview_001",
         "input": "file"
+      }
+    },
+    {
+      "id": "e9a",
+      "from": {
+        "node": "validate_quast_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "assembly_report_001",
+        "input": "tables"
       }
     },
     {

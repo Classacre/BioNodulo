@@ -43,12 +43,14 @@ def test_assembly_template_validates_prokka_gff_before_final_report_preview() ->
 
     report = _node_by_id(workflow, "assembly_report_001")
     assert report["params"]["title"] == "Assembly Annotation Report"
-    assert report["params"]["section_names"] == "Contig lengths,Contig statistics,Prokka annotation"
+    assert report["params"]["section_names"] == "Contig lengths,Contig statistics,QUAST report,Prokka annotation"
 
     assert _has_edge(workflow, "prokka_001", "gff", "validate_prokka_001", "input")
     assert _has_edge(workflow, "validate_prokka_001", "passthrough", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "validate_quast_001", "passthrough", "assembly_report_001", "tables")
     assert _has_edge(workflow, "assembly_report_001", "html_report", "assembly_report_preview_001", "file")
     assert not _has_edge(workflow, "prokka_001", "gff", "assembly_report_001", "tables")
+    assert not _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
 
     assert workflow["outputs"]["validated_prokka_annotation"] == "validate_prokka_001"
     assert workflow["outputs"]["assembly_report"] == "assembly_report_001"
