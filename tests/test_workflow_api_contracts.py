@@ -1042,3 +1042,45 @@ def test_workflow_trigger_evaluate_endpoint_lists_file_watch_events(
             "relative_path": "new.fastq",
         }
     ]
+
+
+def test_workflow_trigger_evaluate_advances_file_watch_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    watch_dir = tmp_path / "inbox"
+    watch_dir.mkdir()
+    new_file = watch_dir / "new.fastq"
+    new_file.write_text("@new\nTGCA\n+\n!!!!\n", encoding="utf-8")
+    watch_file = trigger_dir / "file_watch_inbox.json"
+    watch_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "file_watch",
+                "status": "registered",
+                "target_workflow": "auto-import",
+                "watch_path": str(watch_dir),
+                "watch_event": "create",
+                "baseline_snapshot": {},
+                "payload": {"project": "P1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        first_response = client.post("/api/workflow_triggers/evaluate", json={})
+        second_response = client.post("/api/workflow_triggers/evaluate", json={})
+
+    assert first_response.status_code == 200
+    assert first_response.json()["due_file_watch_count"] == 1
+    assert second_response.status_code == 200
+    assert second_response.json()["due_file_watch_count"] == 0
+
+    saved = json.loads(watch_file.read_text(encoding="utf-8"))
+    assert "new.fastq" in saved["baseline_snapshot"]

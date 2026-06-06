@@ -35,6 +35,15 @@ class WorkflowTriggerRunner:
         due_file_watch_triggers = WorkflowTriggerNode.due_file_watch_triggers(self.trigger_dir)
         submitted_runs: list[dict[str, Any]] = []
         errors: list[dict[str, str]] = []
+        for trigger in due_file_watch_triggers:
+            try:
+                self._advance_file_watch_baseline(trigger)
+            except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
+                errors.append({
+                    "kind": "file_watch_baseline",
+                    "trigger_file": str(trigger.get("trigger_file", "")),
+                    "error": str(exc),
+                })
         if submit_runs:
             for trigger in [*due_schedule_triggers, *due_file_watch_triggers]:
                 try:
@@ -56,6 +65,17 @@ class WorkflowTriggerRunner:
             "submitted_run_count": sum(1 for item in submitted_runs if item.get("status") == "submitted"),
             "errors": errors,
         }
+
+    @staticmethod
+    def _advance_file_watch_baseline(trigger: dict[str, Any]) -> None:
+        trigger_file = str(trigger.get("trigger_file", ""))
+        if not trigger_file:
+            return
+        path = Path(str(trigger.get("watch_path", "") or ""))
+        persisted = _read_workflow_trigger_file(Path(trigger_file))
+        persisted["baseline_snapshot"] = WorkflowTriggerNode._file_watch_snapshot(path) if path.exists() else {}
+        persisted["baseline_updated_at"] = datetime.now(timezone.utc).isoformat()
+        Path(trigger_file).write_text(json.dumps(persisted, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
     async def submit_due_trigger(self, trigger: dict[str, Any]) -> dict[str, Any]:
         """Submit one due trigger to the queue, idempotent for the same due marker."""
