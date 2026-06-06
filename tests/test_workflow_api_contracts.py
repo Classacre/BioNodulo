@@ -909,7 +909,7 @@ def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_reque
     assert saved["submitted_run_ids"] == [queue.submit_calls[0]["run_id"]]
 
 
-def test_workflow_trigger_submission_redacts_secret_metadata_and_options(
+def test_workflow_trigger_submission_redacts_secret_metadata_but_preserves_raw_queue_options(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -958,9 +958,9 @@ def test_workflow_trigger_submission_redacts_secret_metadata_and_options(
     assert response.status_code == 200
     payload = response.json()
     assert queue.submit_calls
-    assert queue.submit_calls[0]["options"] == {"parameters": {"api_key": "***", "sample": "S1"}}
+    assert queue.submit_calls[0]["options"] == {"parameters": {"api_key": "secret-key", "sample": "S1"}}
     assert queue.submit_calls[0]["metadata"]["payload"]["api_key"] == "***"
-    assert "secret-key" not in json.dumps(queue.submit_calls[0], default=str)
+    assert "secret-key" not in json.dumps(queue.submit_calls[0]["metadata"], default=str)
     assert "secret-key" not in json.dumps(payload)
 
 

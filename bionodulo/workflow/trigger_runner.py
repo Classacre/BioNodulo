@@ -96,7 +96,7 @@ class WorkflowTriggerRunner:
         await self.queue.submit(
             workflow=workflow,
             run_id=run_id,
-            options={"parameters": redacted_parameters} if parameters else {},
+            options={"parameters": parameters} if parameters else {},
             metadata=metadata,
         )
 
