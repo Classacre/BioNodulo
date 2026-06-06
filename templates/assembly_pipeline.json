@@ -145,6 +145,22 @@
       }
     },
     {
+      "id": "gate_assembly_001",
+      "type": "gate",
+      "position": [
+        1340,
+        80
+      ],
+      "params": {
+        "condition_mode": "file_exists",
+        "on_fail": "halt",
+        "error_message": "assembly validation failed before quality assessment and annotation"
+      },
+      "ui": {
+        "title": "Gate Assembly"
+      }
+    },
+    {
       "id": "prokka_001",
       "type": "prokka",
       "position": [
@@ -266,18 +282,29 @@
         "output": "passthrough"
       },
       "to": {
-        "node": "prokka_001",
-        "input": "assembly"
+        "node": "gate_assembly_001",
+        "input": "value"
       }
     },
     {
       "id": "e6",
       "from": {
-        "node": "validate_assembly_001",
-        "output": "passthrough"
+        "node": "gate_assembly_001",
+        "output": "output"
       },
       "to": {
         "node": "quast_001",
+        "input": "assembly"
+      }
+    },
+    {
+      "id": "e6a",
+      "from": {
+        "node": "gate_assembly_001",
+        "output": "output"
+      },
+      "to": {
+        "node": "prokka_001",
         "input": "assembly"
       }
     },
@@ -330,6 +357,7 @@
   "outputs": {
     "assembly": "spades_001",
     "validated_assembly": "validate_assembly_001",
+    "assembly_quality_gate": "gate_assembly_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001",
     "validated_quast_report": "validate_quast_001",

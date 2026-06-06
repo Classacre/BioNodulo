@@ -657,9 +657,27 @@ def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
     assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
-    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "quast_001", "assembly")
-    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "prokka_001", "assembly")
+    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "gate_assembly_001", "value")
+    assert not _has_edge(workflow, "spades_001", "assembly", "quast_001", "assembly")
+    assert not _has_edge(workflow, "spades_001", "assembly", "prokka_001", "assembly")
     assert workflow["outputs"]["validated_assembly"] == "validate_assembly_001"
+
+
+def test_assembly_template_gates_validated_assembly_before_quast_and_prokka() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["gate_assembly_001"] == "gate"
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_assembly_001")
+    assert gate["params"]["condition_mode"] == "file_exists"
+    assert gate["params"]["on_fail"] == "halt"
+    assert "assembly validation failed" in gate["params"]["error_message"]
+    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "gate_assembly_001", "value")
+    assert _has_edge(workflow, "gate_assembly_001", "output", "quast_001", "assembly")
+    assert _has_edge(workflow, "gate_assembly_001", "output", "prokka_001", "assembly")
+    assert not _has_edge(workflow, "validate_assembly_001", "passthrough", "quast_001", "assembly")
+    assert not _has_edge(workflow, "validate_assembly_001", "passthrough", "prokka_001", "assembly")
+    assert workflow["outputs"]["assembly_quality_gate"] == "gate_assembly_001"
 
 
 def test_assembly_template_validates_reads_before_trimming() -> None:
