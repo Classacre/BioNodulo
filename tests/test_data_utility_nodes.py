@@ -172,6 +172,33 @@ async def test_extract_columns_reorders_and_renames_columns(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_extract_columns_auto_output_type_preserves_csv_input_format(tmp_path: Path) -> None:
+    table = tmp_path / "samples.csv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ], delimiter=",")
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns="status,sample",
+        rename_map="status:qc_status",
+        delimiter="auto",
+        output_type="AUTO",
+        context=_context(tmp_path, "extract-auto-csv"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "samples.extracted.csv"
+    rows = _read_table(output_path, delimiter=",")
+    assert list(rows[0]) == ["qc_status", "sample"]
+    assert rows == [
+        {"qc_status": "fail", "sample": "S1"},
+        {"qc_status": "pass", "sample": "S2"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_merge_tables_supports_left_join_with_blank_missing_values(tmp_path: Path) -> None:
     table_a = tmp_path / "expression.tsv"
     table_b = tmp_path / "annotation.tsv"
@@ -216,6 +243,19 @@ def test_join_tables_is_registered_for_frontend_discovery() -> None:
     assert set(inputs["required"]) == {"table_a", "table_b", "join_keys"}
     assert set(inputs["optional"]) == {"how", "delimiter", "left_suffix", "right_suffix"}
     assert "advanced join" in node_info["search_aliases"]
+
+
+def test_extract_columns_exposes_output_type_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["extract_columns"]
+    assert node_info["display_name"] == "Extract Columns"
+    assert node_info["output_name"] == ["extracted_table"]
+    output_type = node_info["input"]["optional"]["output_type"]
+    assert output_type[1]["default"] == "AUTO"
+    assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
 
 
 @pytest.mark.asyncio

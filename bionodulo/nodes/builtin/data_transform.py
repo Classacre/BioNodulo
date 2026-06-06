@@ -346,6 +346,7 @@ class ExtractColumnsNode(BaseNode):
             "optional": {
                 "rename_map": ("STRING", {"default": "", "description": "Comma-separated old:new renames"}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
             "hidden": {},
         }
@@ -365,9 +366,21 @@ class ExtractColumnsNode(BaseNode):
             {rename_map.get(name, name): row.get(name, "") for name in selected}
             for row in rows
         ]
-        out_path = _node_output_dir(self, context) / "extracted.tsv"
-        _write_table(out_path, output_fields, output_rows, "	")
+        output_delim, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), table)
+        out_path = _node_output_dir(self, context) / f"{Path(str(table)).stem}.extracted{extension}"
+        _write_table(out_path, output_fields, output_rows, output_delim)
         return (str(out_path),)
+
+    @staticmethod
+    def _output_format(output_type: str, input_path: str | Path) -> tuple[str, str]:
+        normalized = output_type.upper()
+        if normalized == "CSV":
+            return ",", ".csv"
+        if normalized == "TSV":
+            return "\t", ".tsv"
+        if normalized == "AUTO":
+            return (",", ".csv") if Path(str(input_path)).suffix.lower() == ".csv" else ("\t", ".tsv")
+        raise ValueError(f"Unsupported output_type: {output_type}")
 
 
 class MergeTablesNode(BaseNode):
