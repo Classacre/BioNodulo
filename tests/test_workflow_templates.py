@@ -580,6 +580,7 @@ def test_r_visualization_template_combines_plots_into_html_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["viz_report_001"] == "html_report"
+    assert node_types["viz_report_preview_001"] == "html_preview"
     report = next(node for node in workflow["nodes"] if node["id"] == "viz_report_001")
     assert report["params"]["title"] == "R Visualization Report"
     assert "Sequencing depth" in report["params"]["text_sections"]
@@ -589,7 +590,9 @@ def test_r_visualization_template_combines_plots_into_html_report() -> None:
     assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
     assert _has_edge(workflow, "volcano_001", "volcano_image", "viz_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "viz_report_001", "images")
+    assert _has_edge(workflow, "viz_report_001", "html_report", "viz_report_preview_001", "file")
     assert workflow["outputs"]["report"] == "viz_report_001"
+    assert workflow["outputs"]["report_preview"] == "viz_report_preview_001"
 
 
 def test_biopython_template_validates_input_fastas_before_sequence_tools() -> None:

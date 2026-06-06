@@ -314,6 +314,18 @@
       "ui": {
         "title": "Visualization Report"
       }
+    },
+    {
+      "id": "viz_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1880,
+        444
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Visualization Report"
+      }
     }
   ],
   "edges": [
@@ -492,11 +504,23 @@
         "node": "viz_report_001",
         "input": "images"
       }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "viz_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "viz_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "report": "viz_report_001",
+    "report_preview": "viz_report_preview_001",
     "validated_heatmap_data": "validate_heatmap_csv_001",
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001"

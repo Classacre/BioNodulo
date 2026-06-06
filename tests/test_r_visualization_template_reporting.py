@@ -37,3 +37,11 @@ def test_r_visualization_report_includes_de_volcano_and_ma_plots() -> None:
     assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
     assert _has_edge(workflow, "volcano_001", "volcano_image", "viz_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "viz_report_001", "images")
+
+
+def test_r_visualization_template_adds_html_preview_for_unified_report() -> None:
+    workflow = _load_template("r_visualization_pipeline.json")
+
+    assert _node(workflow, "viz_report_preview_001")["type"] == "html_preview"
+    assert _has_edge(workflow, "viz_report_001", "html_report", "viz_report_preview_001", "file")
+    assert workflow["outputs"]["report_preview"] == "viz_report_preview_001"
