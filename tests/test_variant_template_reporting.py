@@ -32,14 +32,20 @@ def test_variant_template_previews_final_variant_report() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["vep_001"] == "vep"
     assert node_types["variant_report_001"] == "html_report"
     assert node_types["variant_report_preview_001"] == "html_preview"
 
     report = _node_by_id(workflow, "variant_report_001")
-    assert report["params"]["section_names"] == "VCF statistics,Coverage plot,Annotated variants"
+    assert report["params"]["section_names"] == (
+        "VCF statistics,Coverage plot,SnpEff prioritized variants,VEP annotated variants"
+    )
 
+    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
     assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "variant_report_001", "images")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
     assert _has_edge(workflow, "variant_report_001", "html_report", "variant_report_preview_001", "file")
+    assert workflow["outputs"]["vep_annotation"] == "vep_001"
     assert workflow["outputs"]["variant_report_preview"] == "variant_report_preview_001"

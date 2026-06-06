@@ -30,6 +30,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
 
     assert node_types["markdup_001"] == "samtools_markdup"
     assert node_types["snpeff_001"] == "snpeff"
+    assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
     assert node_types["variant_report_001"] == "html_report"
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
@@ -40,12 +41,15 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
     assert _has_edge(workflow, "gatk_retry_001", "passthrough", "gatk_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
+    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
+    assert workflow["outputs"]["vep_annotation"] == "vep_001"
 
 
 def test_variant_calling_template_validates_reference_before_alignment_and_calling() -> None:
@@ -143,6 +147,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
 
     assert node_types["markdup_001"] == "samtools_markdup"
     assert node_types["snpeff_001"] == "snpeff"
+    assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
     assert node_types["variant_report_001"] == "html_report"
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
@@ -152,12 +157,15 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert _has_edge(workflow, "markdup_001", "marked_bam", "idx_001", "bam")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
+    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
+    assert workflow["outputs"]["vep_annotation"] == "vep_001"
 
 
 def test_wgs_variant_template_validates_reference_before_alignment_and_calling() -> None:

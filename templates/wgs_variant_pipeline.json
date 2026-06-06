@@ -253,6 +253,23 @@
       }
     },
     {
+      "id": "vep_001",
+      "type": "vep",
+      "position": [
+        2600,
+        220
+      ],
+      "params": {
+        "assembly": "GRCh38",
+        "cache_dir": "~/.vep",
+        "threads": 4,
+        "output_format": "vcf"
+      },
+      "ui": {
+        "title": "VEP annotation"
+      }
+    },
+    {
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
@@ -341,7 +358,7 @@
       "params": {
         "title": "WGS Variant Report",
         "text_sections": "# Summary\nDuplicate marking, FreeBayes calling, filtering, annotation, and VCF statistics for the WGS workflow.",
-        "section_names": "VCF statistics,Coverage plot,Annotated variants"
+        "section_names": "VCF statistics,Coverage plot,SnpEff prioritized variants,VEP annotated variants"
       },
       "ui": {
         "title": "Variant report"
@@ -672,6 +689,17 @@
       }
     },
     {
+      "id": "e14_vep",
+      "from": {
+        "node": "filter_001",
+        "output": "filtered_vcf"
+      },
+      "to": {
+        "node": "vep_001",
+        "input": "vcf"
+      }
+    },
+    {
       "id": "e15",
       "from": {
         "node": "filter_001",
@@ -709,6 +737,17 @@
       "from": {
         "node": "gate_prioritized_vcf_001",
         "output": "output"
+      },
+      "to": {
+        "node": "variant_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e16c",
+      "from": {
+        "node": "vep_001",
+        "output": "annotated_vcf"
       },
       "to": {
         "node": "variant_report_001",
@@ -853,6 +892,7 @@
     "vcf": "prioritize_vcf_001",
     "prioritized_vcf": "prioritize_vcf_001",
     "prioritized_vcf_quality_gate": "gate_prioritized_vcf_001",
+    "vep_annotation": "vep_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",

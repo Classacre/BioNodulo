@@ -32,6 +32,7 @@ def test_wgs_variant_template_previews_final_variant_reports() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["vep_001"] == "vep"
     assert node_types["variant_report_001"] == "html_report"
     assert node_types["variant_report_preview_001"] == "html_preview"
     assert node_types["sv_report_001"] == "html_report"
@@ -39,10 +40,15 @@ def test_wgs_variant_template_previews_final_variant_reports() -> None:
 
     variant_report = _node_by_id(workflow, "variant_report_001")
     sv_report = _node_by_id(workflow, "sv_report_001")
-    assert variant_report["params"]["section_names"] == "VCF statistics,Coverage plot,Annotated variants"
+    assert variant_report["params"]["section_names"] == (
+        "VCF statistics,Coverage plot,SnpEff prioritized variants,VEP annotated variants"
+    )
     assert sv_report["params"]["section_names"] == "Manta SV calls,DELLY SV calls"
 
+    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
     assert _has_edge(workflow, "variant_report_001", "html_report", "variant_report_preview_001", "file")
     assert _has_edge(workflow, "sv_report_001", "html_report", "sv_report_preview_001", "file")
+    assert workflow["outputs"]["vep_annotation"] == "vep_001"
     assert workflow["outputs"]["variant_report_preview"] == "variant_report_preview_001"
     assert workflow["outputs"]["structural_variant_report_preview"] == "sv_report_preview_001"
