@@ -664,12 +664,30 @@ def test_biopython_template_adds_sequence_stats_chart_report() -> None:
     assert chart["params"]["y_column"] == "length"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
-    assert report["params"]["section_names"] == "Sequence length chart,Sequence statistics"
+    assert report["params"]["section_names"] == (
+        "Sequence length chart,Sequence statistics,AI sequence classifications"
+    )
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "seq_length_chart_001", "table")
     assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
     assert workflow["outputs"]["sequence_length_chart"] == "seq_length_chart_001"
     assert workflow["outputs"]["report"] == "sequence_report_001"
+
+
+def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["sequence_classification_001"] == "ai_sequence_classification"
+    classifier = next(node for node in workflow["nodes"] if node["id"] == "sequence_classification_001")
+    assert classifier["params"]["classifier"] == "deeploc"
+    assert classifier["params"]["fallback_backend"] == "deterministic"
+    assert classifier["params"]["confidence_threshold"] == 0.0
+    assert classifier["params"]["top_k"] == 3
+    assert _has_edge(workflow, "validate_coding_001", "passthrough", "sequence_classification_001", "input_fasta")
+    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
+    assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
+    assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 
 
 def test_differential_expression_template_validates_transcriptome_before_indexing() -> None:

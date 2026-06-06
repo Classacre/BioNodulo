@@ -66,9 +66,33 @@ def test_biopython_template_previews_sequence_report() -> None:
     assert node_types["sequence_report_preview_001"] == "html_preview"
 
     report = _node(workflow, "sequence_report_001")
-    assert report["params"]["section_names"] == "Sequence length chart,Sequence statistics"
+    assert report["params"]["section_names"] == (
+        "Sequence length chart,Sequence statistics,AI sequence classifications"
+    )
 
     assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
     assert _has_edge(workflow, "sequence_report_001", "html_report", "sequence_report_preview_001", "file")
     assert workflow["outputs"]["sequence_report_preview"] == "sequence_report_preview_001"
+
+
+def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_sequences() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["sequence_classification_001"] == "ai_sequence_classification"
+
+    classifier = _node(workflow, "sequence_classification_001")
+    report = _node(workflow, "sequence_report_001")
+    assert classifier["params"]["classifier"] == "deeploc"
+    assert classifier["params"]["fallback_backend"] == "deterministic"
+    assert classifier["params"]["confidence_threshold"] == 0.0
+    assert classifier["params"]["top_k"] == 3
+    assert report["params"]["section_names"] == (
+        "Sequence length chart,Sequence statistics,AI sequence classifications"
+    )
+
+    assert _has_edge(workflow, "validate_coding_001", "passthrough", "sequence_classification_001", "input_fasta")
+    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
+    assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
+    assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"

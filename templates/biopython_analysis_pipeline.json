@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython and Biostrings integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
+        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython, Biostrings, and AI sequence classification integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n7. AI Sequence Classification: Classify validated coding sequences with deterministic local fallback.\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
       },
       "ui": {
         "title": "Notes",
@@ -232,6 +232,23 @@
       }
     },
     {
+      "id": "sequence_classification_001",
+      "type": "ai_sequence_classification",
+      "position": [
+        1160,
+        1116
+      ],
+      "params": {
+        "classifier": "deeploc",
+        "confidence_threshold": 0.0,
+        "top_k": 3,
+        "fallback_backend": "deterministic"
+      },
+      "ui": {
+        "title": "AI Sequence Classification"
+      }
+    },
+    {
       "id": "sequence_report_001",
       "type": "html_report",
       "position": [
@@ -240,8 +257,8 @@
       ],
       "params": {
         "title": "Biopython Sequence Report",
-        "text_sections": "# Summary\nSequence metadata, length distribution, and computed statistics from the Biopython analysis workflow.",
-        "section_names": "Sequence length chart,Sequence statistics"
+        "text_sections": "# Summary\nSequence metadata, length distribution, computed statistics, and AI sequence classifications from the Biopython analysis workflow.",
+        "section_names": "Sequence length chart,Sequence statistics,AI sequence classifications"
       },
       "ui": {
         "title": "Sequence Report"
@@ -361,6 +378,17 @@
       }
     },
     {
+      "id": "e7a",
+      "from": {
+        "node": "validate_coding_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "sequence_classification_001",
+        "input": "input_fasta"
+      }
+    },
+    {
       "id": "e8",
       "from": {
         "node": "seq_stats_001",
@@ -405,6 +433,17 @@
       }
     },
     {
+      "id": "e11a",
+      "from": {
+        "node": "sequence_classification_001",
+        "output": "classifications_csv"
+      },
+      "to": {
+        "node": "sequence_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e12",
       "from": {
         "node": "sequence_report_001",
@@ -430,6 +469,8 @@
     "validated_sequences": "validate_sequences_001",
     "validated_coding_sequences": "validate_coding_001",
     "sequence_length_chart": "seq_length_chart_001",
+    "sequence_classifications": "sequence_classification_001",
+    "sequence_classifications_csv": "sequence_classification_001",
     "report": "sequence_report_001",
     "sequence_report_preview": "sequence_report_preview_001"
   }
