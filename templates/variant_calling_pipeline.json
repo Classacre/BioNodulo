@@ -224,6 +224,25 @@
       }
     },
     {
+      "id": "gatk_retry_001",
+      "type": "retry",
+      "position": [
+        1880,
+        220
+      ],
+      "params": {
+        "max_retries": 2,
+        "delay_seconds": 10.0,
+        "backoff_multiplier": 2.0,
+        "max_delay": 180,
+        "retry_on": "all",
+        "only_retry_specific_nodes": "gatk_001"
+      },
+      "ui": {
+        "title": "Retry GATK"
+      }
+    },
+    {
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
@@ -496,6 +515,17 @@
         "output": "marked_bam"
       },
       "to": {
+        "node": "gatk_retry_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e7_retry",
+      "from": {
+        "node": "gatk_retry_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "gatk_001",
         "input": "bam"
       }
@@ -697,6 +727,7 @@
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
+    "gatk_retry_policy": "gatk_retry_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
