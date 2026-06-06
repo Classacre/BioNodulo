@@ -75,7 +75,7 @@ class PauseStateStore:
                 "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is supported.",
             }
         )
-        self.save(pause_info)
+        path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
         return dict(pause_info)
 
     def cancel(self, pause_file: str | Path) -> dict[str, Any]:
@@ -92,6 +92,5 @@ class PauseStateStore:
                 "note": "Review request cancelled while waiting for approval.",
             }
         )
-        self.save(pause_info)
+        path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
         return dict(pause_info)
-
