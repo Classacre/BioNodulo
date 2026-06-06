@@ -70,6 +70,20 @@
       }
     },
     {
+      "id": "peak_annotation_bed_001",
+      "type": "input_file",
+      "position": [
+        80,
+        444
+      ],
+      "params": {
+        "file": "examples/data/chip_seq/genes.bed"
+      },
+      "ui": {
+        "title": "Gene Annotation BED"
+      }
+    },
+    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
@@ -158,6 +172,22 @@
       },
       "ui": {
         "title": "Validate Bowtie2 Index"
+      }
+    },
+    {
+      "id": "validate_peak_annotation_bed_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        444
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Annotation BED"
       }
     },
     {
@@ -311,6 +341,21 @@
       }
     },
     {
+      "id": "peak_annotation_001",
+      "type": "bedtools_closest",
+      "position": [
+        2420,
+        80
+      ],
+      "params": {
+        "distance": true,
+        "mode": "first"
+      },
+      "ui": {
+        "title": "Nearest Peak Annotation"
+      }
+    },
+    {
       "id": "chip_signal_plot_001",
       "type": "coverage_plot",
       "position": [
@@ -392,8 +437,8 @@
       ],
       "params": {
         "title": "ChIP-Seq Report",
-        "text_sections": "# Summary\nChIP-seq alignment, MACS2 peak calling, and QC completed. Validated MACS2 peaks are included as the primary results table.",
-        "section_names": "Validated MACS2 peaks"
+        "text_sections": "# Summary\nChIP-seq alignment, MACS2 peak calling, nearest-feature annotation, and QC completed. Validated MACS2 peaks and nearest peak annotations are included as result tables.",
+        "section_names": "ChIP-seq signal coverage,Validated MACS2 peaks,Nearest peak annotations"
       },
       "ui": {
         "title": "ChIP-seq report"
@@ -465,6 +510,17 @@
       },
       "to": {
         "node": "validate_index_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2a",
+      "from": {
+        "node": "peak_annotation_bed_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_peak_annotation_bed_001",
         "input": "input"
       }
     },
@@ -554,6 +610,28 @@
       "to": {
         "node": "validate_peaks_001",
         "input": "input"
+      }
+    },
+    {
+      "id": "e8a",
+      "from": {
+        "node": "validate_peaks_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "peak_annotation_001",
+        "input": "variants"
+      }
+    },
+    {
+      "id": "e8b",
+      "from": {
+        "node": "validate_peak_annotation_bed_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "peak_annotation_001",
+        "input": "annotations"
       }
     },
     {
@@ -678,6 +756,17 @@
       }
     },
     {
+      "id": "e19_annotation",
+      "from": {
+        "node": "peak_annotation_001",
+        "output": "closest"
+      },
+      "to": {
+        "node": "chip_seq_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e19a",
       "from": {
         "node": "coverage_001",
@@ -715,6 +804,8 @@
   "outputs": {
     "peaks": "macs2_001",
     "validated_peaks": "validate_peaks_001",
+    "validated_peak_annotation_bed": "validate_peak_annotation_bed_001",
+    "peak_annotation": "peak_annotation_001",
     "coverage_track": "coverage_001",
     "chip_signal_plot": "chip_signal_plot_001",
     "report": "chip_seq_report_001",

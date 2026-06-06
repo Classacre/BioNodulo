@@ -1008,6 +1008,38 @@ def test_chip_seq_template_validates_macs2_peak_output() -> None:
     assert workflow["outputs"]["validated_peaks"] == "validate_peaks_001"
 
 
+def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> None:
+    workflow = _load_template("chip_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["peak_annotation_bed_001"] == "input_file"
+    assert node_types["validate_peak_annotation_bed_001"] == "data_validator"
+    assert node_types["peak_annotation_001"] == "bedtools_closest"
+
+    annotation_input = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_bed_001")
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_peak_annotation_bed_001")
+    annotator = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_001")
+    assert annotation_input["params"]["file"].endswith("genes.bed")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert annotator["params"]["distance"] is True
+    assert annotator["params"]["mode"] == "first"
+
+    assert _has_edge(workflow, "peak_annotation_bed_001", "file", "validate_peak_annotation_bed_001", "input")
+    assert _has_edge(workflow, "validate_peaks_001", "passthrough", "peak_annotation_001", "variants")
+    assert _has_edge(
+        workflow,
+        "validate_peak_annotation_bed_001",
+        "passthrough",
+        "peak_annotation_001",
+        "annotations",
+    )
+    assert _has_edge(workflow, "peak_annotation_001", "closest", "chip_seq_report_001", "tables")
+    assert workflow["outputs"]["validated_peak_annotation_bed"] == "validate_peak_annotation_bed_001"
+    assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"
+
+
 def test_chip_seq_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
