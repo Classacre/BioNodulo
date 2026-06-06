@@ -123,32 +123,31 @@ async def _blast_request_text(
 ) -> str:
     clean = _clean_params(params)
     method = method.upper()
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": NCBI_USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                if method == "POST":
-                    response = await client.post(NCBI_BLAST_BASE_URL, data=clean)
-                else:
-                    response = await client.get(NCBI_BLAST_BASE_URL, params=clean)
-            response.raise_for_status()
-            return response.text
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"NCBI BLAST request failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"NCBI BLAST request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"NCBI BLAST request failed: {last_error}")
+    client = APIHttpClient(cache=NCBI_API_CACHE, rate_limiter=NCBI_RATE_LIMITER)
+    request_kwargs: dict[str, Any] = {}
+    if method == "POST":
+        request_kwargs["data"] = clean
+    else:
+        request_kwargs["params"] = clean
+    try:
+        response = await client.request(
+            method,
+            NCBI_BLAST_BASE_URL,
+            **request_kwargs,
+            headers={"User-Agent": NCBI_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+            follow_redirects=True,
+        )
+        return response.text
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"NCBI BLAST request failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"NCBI BLAST request failed: {exc}") from exc
 
 
 def _coerce_ids(value: Any) -> list[str]:

@@ -104,6 +104,78 @@ async def test_ncbi_request_uses_shared_http_client_with_api_key_rate_limit(
 
 
 @pytest.mark.asyncio
+async def test_ncbi_blast_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_blast")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            text = "RID = TESTRID123\n" if method == "POST" else "Status=READY\n"
+            return httpx.Response(200, text=text, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    post_text = await module._blast_request_text(
+        "POST",
+        {"CMD": "Put", "PROGRAM": "blastn", "QUERY": "ACGT", "empty": ""},
+        retries=4,
+        timeout=6.5,
+    )
+    get_text = await module._blast_request_text(
+        "GET",
+        {"CMD": "Get", "RID": "TESTRID123"},
+        retries=2,
+        timeout=7.5,
+    )
+
+    assert post_text == "RID = TESTRID123\n"
+    assert get_text == "Status=READY\n"
+    assert calls == [
+        {
+            "method": "POST",
+            "url": module.NCBI_BLAST_BASE_URL,
+            "cache": module.NCBI_API_CACHE,
+            "rate_limiter": module.NCBI_RATE_LIMITER,
+            "data": {"CMD": "Put", "PROGRAM": "blastn", "QUERY": "ACGT"},
+            "headers": {"User-Agent": module.NCBI_USER_AGENT},
+            "timeout": 6.5,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+        {
+            "method": "GET",
+            "url": module.NCBI_BLAST_BASE_URL,
+            "cache": module.NCBI_API_CACHE,
+            "rate_limiter": module.NCBI_RATE_LIMITER,
+            "params": {"CMD": "Get", "RID": "TESTRID123"},
+            "headers": {"User-Agent": module.NCBI_USER_AGENT},
+            "timeout": 7.5,
+            "retries": 2,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_esearch_returns_ids_count_and_query_translation(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("ncbi_esearch")
     module = importlib.import_module(node_class.__module__)
