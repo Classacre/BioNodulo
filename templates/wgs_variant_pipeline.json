@@ -268,6 +268,23 @@
       }
     },
     {
+      "id": "coverage_plot_001",
+      "type": "coverage_plot",
+      "position": [
+        2600,
+        640
+      ],
+      "params": {
+        "region": "NC_000913.3:1-50000",
+        "window_size": 100,
+        "title": "WGS Coverage",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Coverage Plot"
+      }
+    },
+    {
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
@@ -277,7 +294,7 @@
       "params": {
         "title": "WGS Variant Report",
         "text_sections": "# Summary\nDuplicate marking, FreeBayes calling, filtering, annotation, and VCF statistics for the WGS workflow.",
-        "section_names": "VCF statistics,Annotated variants"
+        "section_names": "VCF statistics,Coverage plot,Annotated variants"
       },
       "ui": {
         "title": "Variant report"
@@ -566,12 +583,35 @@
         "node": "variant_report_001",
         "input": "images"
       }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "coverage_plot_001",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "coverage_plot_001",
+        "output": "coverage_image"
+      },
+      "to": {
+        "node": "variant_report_001",
+        "input": "images"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "vcf": "snpeff_001",
     "variant_stats": "vcf_stats_001",
+    "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
