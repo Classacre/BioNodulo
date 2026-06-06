@@ -364,6 +364,18 @@
       }
     },
     {
+      "id": "variant_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        3320,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Variant Report"
+      }
+    },
+    {
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
@@ -779,6 +791,17 @@
       }
     },
     {
+      "id": "e19b",
+      "from": {
+        "node": "variant_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "variant_report_preview_001",
+        "input": "file"
+      }
+    },
+    {
       "id": "e20",
       "from": {
         "node": "validate_multiqc_001",
@@ -799,6 +822,7 @@
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
+    "variant_report_preview": "variant_report_preview_001",
     "gatk_retry_policy": "gatk_retry_001",
     "manta_sv": "manta_sv_001",
     "delly_sv": "delly_sv_001",
