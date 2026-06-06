@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "FASTQ quality control: runs FastQC on raw reads and aggregates reports with MultiQC.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
+        "text": "FASTQ quality control: trims reads with fastp, runs FastQC, and aggregates reports with MultiQC.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
       },
       "ui": {
         "title": "Notes",
@@ -41,7 +41,7 @@
       "id": "fastqc_001",
       "type": "fastqc",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -52,10 +52,24 @@
       }
     },
     {
+      "id": "fastp_001",
+      "type": "fastp",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "fastp Trim"
+      }
+    },
+    {
       "id": "multiqc_001",
       "type": "multiqc",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -69,7 +83,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {},
@@ -81,7 +95,7 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -97,7 +111,7 @@
       "id": "gate_multiqc_001",
       "type": "gate",
       "position": [
-        1340,
+        1700,
         220
       ],
       "params": {
@@ -116,6 +130,17 @@
       "from": {
         "node": "input_fastq_001",
         "output": "reads"
+      },
+      "to": {
+        "node": "fastp_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e1b",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
       },
       "to": {
         "node": "fastqc_001",
@@ -170,6 +195,7 @@
   "groups": [],
   "outputs": {
     "report": "multiqc_001",
-    "validated_report": "validate_multiqc_001"
+    "validated_report": "validate_multiqc_001",
+    "trimmed_reads": "fastp_001"
   }
 }

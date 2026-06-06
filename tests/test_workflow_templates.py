@@ -89,6 +89,19 @@ def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -
     assert workflow["outputs"]["validated_report"] == "validate_multiqc_001"
 
 
+def test_fastq_qc_template_trims_reads_before_fastqc() -> None:
+    workflow = _load_template("fastq_qc_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["fastp_001"] == "fastp"
+    fastp = next(node for node in workflow["nodes"] if node["id"] == "fastp_001")
+    assert fastp["params"]["threads"] == 4
+    assert _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "fastqc_001", "reads")
+    assert not _has_edge(workflow, "input_fastq_001", "reads", "fastqc_001", "reads")
+    assert workflow["outputs"]["trimmed_reads"] == "fastp_001"
+
+
 def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     workflow = _load_template("phylogenetics_pipeline.json")
     node_types = _node_types(workflow)
