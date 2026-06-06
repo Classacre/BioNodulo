@@ -138,6 +138,56 @@
       }
     },
     {
+      "id": "salmon_quant_columns_001",
+      "type": "extract_columns",
+      "position": [
+        1520,
+        -120
+      ],
+      "params": {
+        "columns": "Name,TPM,NumReads",
+        "rename_to": "target_id,salmon_tpm,salmon_reads",
+        "output_type": "TSV"
+      },
+      "ui": {
+        "title": "Salmon Quant Columns"
+      }
+    },
+    {
+      "id": "kallisto_quant_columns_001",
+      "type": "extract_columns",
+      "position": [
+        1520,
+        560
+      ],
+      "params": {
+        "columns": "target_id,tpm,est_counts",
+        "rename_to": "target_id,kallisto_tpm,kallisto_est_counts",
+        "output_type": "TSV"
+      },
+      "ui": {
+        "title": "Kallisto Quant Columns"
+      }
+    },
+    {
+      "id": "quant_comparison_001",
+      "type": "join_tables",
+      "position": [
+        1880,
+        560
+      ],
+      "params": {
+        "join_keys": "target_id",
+        "how": "outer",
+        "delimiter": "tsv",
+        "left_suffix": "_salmon",
+        "right_suffix": "_kallisto"
+      },
+      "ui": {
+        "title": "Quantifier Comparison"
+      }
+    },
+    {
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
@@ -188,8 +238,8 @@
       ],
       "params": {
         "title": "Transcript Quantification Report",
-        "text_sections": "# Summary\nTranscript quantification outputs from Salmon and Kallisto.",
-        "section_names": "Salmon quantification,Kallisto abundance",
+        "text_sections": "# Summary\nTranscript quantification outputs from Salmon and Kallisto, plus a joined transcript-level comparison table.",
+        "section_names": "Salmon quantification,Kallisto abundance,Quantifier comparison",
         "max_table_rows": 100
       },
       "ui": {
@@ -356,6 +406,61 @@
     {
       "id": "e12",
       "from": {
+        "node": "salmon_quant_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "salmon_quant_columns_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "kallisto_quant_001",
+        "output": "abundance"
+      },
+      "to": {
+        "node": "kallisto_quant_columns_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "salmon_quant_columns_001",
+        "output": "extracted_table"
+      },
+      "to": {
+        "node": "quant_comparison_001",
+        "input": "table_a"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "kallisto_quant_columns_001",
+        "output": "extracted_table"
+      },
+      "to": {
+        "node": "quant_comparison_001",
+        "input": "table_b"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "quant_comparison_001",
+        "output": "joined_table"
+      },
+      "to": {
+        "node": "quant_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
         "node": "quant_report_001",
         "output": "html_report"
       },
@@ -365,7 +470,7 @@
       }
     },
     {
-      "id": "e13",
+      "id": "e18",
       "from": {
         "node": "validate_multiqc_001",
         "output": "passthrough"
@@ -384,6 +489,7 @@
     "validated_transcriptome": "validate_transcriptome_001",
     "report": "mqc_001",
     "validated_multiqc_report": "validate_multiqc_001",
-    "quantification_report": "quant_report_001"
+    "quantification_report": "quant_report_001",
+    "quantifier_comparison": "quant_comparison_001"
   }
 }

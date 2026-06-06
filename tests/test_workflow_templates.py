@@ -825,12 +825,47 @@ def test_differential_expression_template_adds_quantification_html_report() -> N
     assert node_types["quant_report_preview_001"] == "html_preview"
     report = next(node for node in workflow["nodes"] if node["id"] == "quant_report_001")
     assert report["params"]["title"] == "Transcript Quantification Report"
-    assert report["params"]["section_names"] == "Salmon quantification,Kallisto abundance"
+    assert report["params"]["section_names"] == "Salmon quantification,Kallisto abundance,Quantifier comparison"
     assert report["params"]["max_table_rows"] == 100
     assert _has_edge(workflow, "salmon_quant_001", "counts", "quant_report_001", "tables")
     assert _has_edge(workflow, "kallisto_quant_001", "abundance", "quant_report_001", "tables")
+    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "quant_report_001", "tables")
     assert _has_edge(workflow, "quant_report_001", "html_report", "quant_report_preview_001", "file")
     assert workflow["outputs"]["quantification_report"] == "quant_report_001"
+
+
+def test_differential_expression_template_compares_quantifier_outputs() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["salmon_quant_columns_001"] == "extract_columns"
+    assert node_types["kallisto_quant_columns_001"] == "extract_columns"
+    assert node_types["quant_comparison_001"] == "join_tables"
+
+    salmon_columns = next(node for node in workflow["nodes"] if node["id"] == "salmon_quant_columns_001")
+    kallisto_columns = next(node for node in workflow["nodes"] if node["id"] == "kallisto_quant_columns_001")
+    comparison = next(node for node in workflow["nodes"] if node["id"] == "quant_comparison_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "quant_report_001")
+
+    assert salmon_columns["params"]["columns"] == "Name,TPM,NumReads"
+    assert salmon_columns["params"]["rename_to"] == "target_id,salmon_tpm,salmon_reads"
+    assert salmon_columns["params"]["output_type"] == "TSV"
+    assert kallisto_columns["params"]["columns"] == "target_id,tpm,est_counts"
+    assert kallisto_columns["params"]["rename_to"] == "target_id,kallisto_tpm,kallisto_est_counts"
+    assert kallisto_columns["params"]["output_type"] == "TSV"
+    assert comparison["params"]["join_keys"] == "target_id"
+    assert comparison["params"]["how"] == "outer"
+    assert comparison["params"]["delimiter"] == "tsv"
+    assert comparison["params"]["left_suffix"] == "_salmon"
+    assert comparison["params"]["right_suffix"] == "_kallisto"
+    assert "Quantifier comparison" in report["params"]["section_names"]
+
+    assert _has_edge(workflow, "salmon_quant_001", "counts", "salmon_quant_columns_001", "table")
+    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "kallisto_quant_columns_001", "table")
+    assert _has_edge(workflow, "salmon_quant_columns_001", "extracted_table", "quant_comparison_001", "table_a")
+    assert _has_edge(workflow, "kallisto_quant_columns_001", "extracted_table", "quant_comparison_001", "table_b")
+    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "quant_report_001", "tables")
+    assert workflow["outputs"]["quantifier_comparison"] == "quant_comparison_001"
 
 
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
