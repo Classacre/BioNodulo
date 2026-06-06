@@ -274,6 +274,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "kallisto_quant_001",
+        "output": "abundance"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
     }
   ],
   "groups": [],
@@ -281,6 +292,7 @@
     "salmon": "salmon_quant_001",
     "kallisto": "kallisto_quant_001",
     "validated_reads": "validate_reads_001",
-    "validated_transcriptome": "validate_transcriptome_001"
+    "validated_transcriptome": "validate_transcriptome_001",
+    "report": "mqc_001"
   }
 }

@@ -467,6 +467,17 @@ def test_differential_expression_template_validates_reads_before_quantification(
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["mqc_001"] == "multiqc"
+    assert _has_edge(workflow, "salmon_quant_001", "counts", "mqc_001", "reports")
+    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "mqc_001", "reports")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["report"] == "mqc_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
