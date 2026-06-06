@@ -1290,12 +1290,16 @@ def test_metagenomics_template_validates_humann_pathcoverage_before_reporting() 
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
     assert report["params"]["section_names"] == (
-        "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN gene families"
+        "HUMAnN pathway abundance,HUMAnN pathway coverage,"
+        "HUMAnN pathway coverage chart,HUMAnN gene families"
     )
     assert _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
+    assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "humann_pathcoverage_bar_001", "table")
     assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "functional_report_001", "tables")
+    assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "functional_report_001", "images")
     assert not _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
     assert workflow["outputs"]["validated_humann_pathcoverage"] == "validate_humann_pathcoverage_001"
+    assert workflow["outputs"]["functional_pathcoverage_chart"] == "humann_pathcoverage_bar_001"
 
 
 def test_metagenomics_template_validates_multiqc_report_before_preview() -> None:
@@ -1376,10 +1380,13 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
     assert report["params"]["title"] == "Single Cell RNA-Seq Report"
     assert "Cell Ranger" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "Cell Ranger metrics"
+    assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
+    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "metrics_summary_chart_001", "table")
+    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
     assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
     assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+    assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
     assert workflow["outputs"]["report"] == "single_cell_report_001"

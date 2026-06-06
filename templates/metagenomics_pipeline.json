@@ -354,6 +354,24 @@
       }
     },
     {
+      "id": "humann_pathcoverage_bar_001",
+      "type": "bar_chart",
+      "position": [
+        1340,
+        1136
+      ],
+      "params": {
+        "title": "HUMAnN Pathway Coverage",
+        "x_column": "# Pathway",
+        "y_column": "trimmed_reads_Coverage",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Pathway Coverage Chart"
+      }
+    },
+    {
       "id": "functional_report_001",
       "type": "html_report",
       "position": [
@@ -362,8 +380,8 @@
       ],
       "params": {
         "title": "Metagenomics Functional Report",
-        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance, pathway coverage, and gene families.",
-        "section_names": "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN gene families"
+        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance, pathway coverage, a coverage chart, and gene families.",
+        "section_names": "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN pathway coverage chart,HUMAnN gene families"
       },
       "ui": {
         "title": "Functional Report"
@@ -721,6 +739,28 @@
       }
     },
     {
+      "id": "e10c_chart",
+      "from": {
+        "node": "validate_humann_pathcoverage_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "humann_pathcoverage_bar_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e10c_chart_report",
+      "from": {
+        "node": "humann_pathcoverage_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "functional_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e10d",
       "from": {
         "node": "humann_001",
@@ -859,6 +899,7 @@
     "humann_retry_policy": "humann_retry_001",
     "validated_humann_pathways": "validate_humann_pathways_001",
     "validated_humann_pathcoverage": "validate_humann_pathcoverage_001",
+    "functional_pathcoverage_chart": "humann_pathcoverage_bar_001",
     "functional_report": "functional_report_001",
     "functional_report_preview": "functional_report_preview_001",
     "validated_reads": "validate_reads_001",
