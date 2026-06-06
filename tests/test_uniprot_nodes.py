@@ -89,6 +89,16 @@ async def test_uniprot_request_uses_shared_http_client(
     assert isinstance(calls[0]["cache"], module.APICache)
     assert isinstance(calls[0]["rate_limiter"], module.TokenBucketRateLimiter)
 
+    await module._request(
+        "uniprotkb/Q9Y6K9.json",
+        params={"fields": "accession"},
+        retries=5,
+        timeout=7.0,
+    )
+
+    assert calls[1]["cache"] is calls[0]["cache"]
+    assert calls[1]["rate_limiter"] is calls[0]["rate_limiter"]
+
 
 @pytest.mark.asyncio
 async def test_uniprot_retrieve_fetches_json_and_writes_fasta(

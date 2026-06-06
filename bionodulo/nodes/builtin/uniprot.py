@@ -20,6 +20,8 @@ RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
 UNIPROT_CACHE_TTL_S = 300.0
 UNIPROT_RATE_LIMIT_PER_SECOND = 5.0
+_UNIPROT_CACHE = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
+_UNIPROT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
 UNIPROT_SUMMARY_COLUMNS = (
     "accession",
@@ -90,9 +92,7 @@ async def _request(
 ) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{UNIPROT_BASE_URL}/{resource}"
-    cache = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
-    rate_limiter = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
-    client = APIHttpClient(cache=cache, rate_limiter=rate_limiter)
+    client = APIHttpClient(cache=_UNIPROT_CACHE, rate_limiter=_UNIPROT_RATE_LIMITER)
     try:
         return await client.request(
             "GET",
