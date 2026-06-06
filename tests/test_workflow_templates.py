@@ -122,3 +122,23 @@ def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     assert workflow["outputs"]["alignment_qc"] == "qualimap_001"
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["report"] == "qc_dashboard_001"
+
+
+def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
+    workflow = _load_template("deseq2_differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["volcano_001"] == "volcano_plot"
+    assert node_types["ma_plot_001"] == "ma_plot"
+    assert node_types["de_report_001"] == "html_report"
+    volcano = next(node for node in workflow["nodes"] if node["id"] == "volcano_001")
+    ma_plot = next(node for node in workflow["nodes"] if node["id"] == "ma_plot_001")
+    assert volcano["params"]["format"] == "png"
+    assert ma_plot["params"]["format"] == "png"
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "volcano_001", "results_table")
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "ma_plot_001", "results_table")
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
+    assert workflow["outputs"]["volcano_plot"] == "volcano_001"
+    assert workflow["outputs"]["ma_plot"] == "ma_plot_001"
+    assert workflow["outputs"]["report"] == "de_report_001"

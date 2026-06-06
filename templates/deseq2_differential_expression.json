@@ -88,11 +88,62 @@
       }
     },
     {
+      "id": "volcano_001",
+      "type": "volcano_plot",
+      "position": [
+        800,
+        320
+      ],
+      "params": {
+        "title": "DESeq2 Volcano Plot",
+        "format": "png",
+        "logfc_column": "log2FoldChange",
+        "pvalue_column": "padj"
+      },
+      "ui": {
+        "title": "Volcano Plot"
+      }
+    },
+    {
+      "id": "ma_plot_001",
+      "type": "ma_plot",
+      "position": [
+        800,
+        560
+      ],
+      "params": {
+        "title": "DESeq2 MA Plot",
+        "format": "png",
+        "mean_column": "baseMean",
+        "logfc_column": "log2FoldChange",
+        "pvalue_column": "padj"
+      },
+      "ui": {
+        "title": "MA Plot"
+      }
+    },
+    {
+      "id": "de_report_001",
+      "type": "html_report",
+      "position": [
+        1160,
+        320
+      ],
+      "params": {
+        "title": "DESeq2 Differential Expression Report",
+        "text_sections": "# Summary\nDifferential expression results with volcano visualization and result table.",
+        "section_names": "Volcano plot,DESeq2 results"
+      },
+      "ui": {
+        "title": "DE Report"
+      }
+    },
+    {
       "id": "ma_preview_001",
       "type": "image_preview",
       "position": [
-        800,
-        420
+        1160,
+        560
       ],
       "params": {},
       "ui": {
@@ -150,7 +201,51 @@
       "id": "e4",
       "from": {
         "node": "deseq2_001",
-        "output": "ma_plot"
+        "output": "results_csv"
+      },
+      "to": {
+        "node": "volcano_001",
+        "input": "results_table"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "deseq2_001",
+        "output": "results_csv"
+      },
+      "to": {
+        "node": "ma_plot_001",
+        "input": "results_table"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "volcano_001",
+        "output": "volcano_image"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "deseq2_001",
+        "output": "results_csv"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "ma_plot_001",
+        "output": "ma_image"
       },
       "to": {
         "node": "ma_preview_001",
@@ -158,7 +253,7 @@
       }
     },
     {
-      "id": "e5",
+      "id": "e9",
       "from": {
         "node": "heatmap_001",
         "output": "plot_png"
@@ -172,7 +267,9 @@
   "groups": [],
   "outputs": {
     "deseq2_results": "deseq2_001",
-    "ma_plot": "deseq2_001",
-    "heatmap": "heatmap_001"
+    "volcano_plot": "volcano_001",
+    "ma_plot": "ma_plot_001",
+    "heatmap": "heatmap_001",
+    "report": "de_report_001"
   }
 }
