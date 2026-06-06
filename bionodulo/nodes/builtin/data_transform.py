@@ -174,8 +174,10 @@ class FilterRowsNode(BaseNode):
                 "operator": ("STRING", {
                     "default": "equals",
                     "options": [
-                        "equals", "not_equals", "contains", "regex", "greater_than",
-                        "greater_or_equal", "less_than", "less_or_equal", "is_empty", "is_not_empty",
+                        "equals", "not_equals", "==", "!=", "contains", "not_contains",
+                        "startswith", "endswith", "regex", "greater_than", ">",
+                        "greater_or_equal", ">=", "less_than", "<", "less_or_equal", "<=",
+                        "in", "not_in", "is_empty", "is_not_empty", "is_null", "is_not_null",
                     ],
                 }),
                 "value": ("STRING", {"default": "", "description": "Comparison value"}),
@@ -184,6 +186,19 @@ class FilterRowsNode(BaseNode):
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "case_sensitive": ("BOOLEAN", {"default": True}),
                 "invert": ("BOOLEAN", {"default": False}),
+                "logical_op": ("STRING", {"default": "AND", "options": ["AND", "OR"]}),
+                "column_2": ("STRING", {"default": ""}),
+                "operator_2": ("STRING", {
+                    "default": "",
+                    "options": [
+                        "", "equals", "not_equals", "==", "!=", "contains", "not_contains",
+                        "startswith", "endswith", "regex", "greater_than", ">",
+                        "greater_or_equal", ">=", "less_than", "<", "less_or_equal", "<=",
+                        "in", "not_in", "is_empty", "is_not_empty", "is_null", "is_not_null",
+                    ],
+                }),
+                "value_2": ("STRING", {"default": ""}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
             "hidden": {},
         }
@@ -199,23 +214,44 @@ class FilterRowsNode(BaseNode):
 
         operator_name = str(kwargs.get("operator", "equals"))
         expected = str(kwargs.get("value", ""))
+        column_2 = str(kwargs.get("column_2", "") or "")
+        operator_2 = str(kwargs.get("operator_2", "") or "")
+        expected_2 = str(kwargs.get("value_2", ""))
+        logical_op = str(kwargs.get("logical_op", "AND") or "AND").upper()
         case_sensitive = bool(kwargs.get("case_sensitive", True))
         invert = bool(kwargs.get("invert", False))
+        if logical_op not in {"AND", "OR"}:
+            raise ValueError(f"Unsupported logical_op: {logical_op}")
+        if operator_2:
+            if not column_2:
+                raise ValueError("column_2 is required when operator_2 is set")
+            if column_2 not in fieldnames:
+                raise ValueError(f"Column {column_2!r} not found in table")
 
         filtered: list[dict[str, str]] = []
         for row in rows:
             passed = self._matches(row.get(column, ""), operator_name, expected, case_sensitive)
+            if operator_2:
+                second_passed = self._matches(row.get(column_2, ""), operator_2, expected_2, case_sensitive)
+                passed = passed and second_passed if logical_op == "AND" else passed or second_passed
             if invert:
                 passed = not passed
             if passed:
                 filtered.append(row)
 
-        out_path = _node_output_dir(self, context) / "filtered.tsv"
-        _write_table(out_path, fieldnames, filtered, "	")
+        if "output_type" in kwargs:
+            output_delim, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), table)
+            output_name = f"{Path(str(table)).stem}.filtered{extension}"
+        else:
+            output_delim = "\t"
+            output_name = "filtered.tsv"
+        out_path = _node_output_dir(self, context) / output_name
+        _write_table(out_path, fieldnames, filtered, output_delim)
         return (str(out_path),)
 
     @staticmethod
     def _matches(actual: str, operator_name: str, expected: str, case_sensitive: bool) -> bool:
+        operator_name = FilterRowsNode._normalise_operator(operator_name)
         text = str(actual or "")
         compare_to = str(expected or "")
         if not case_sensitive:
@@ -231,13 +267,23 @@ class FilterRowsNode(BaseNode):
             return text_cmp != expected_cmp
         if operator_name == "contains":
             return expected_cmp in text_cmp
+        if operator_name == "not_contains":
+            return expected_cmp not in text_cmp
+        if operator_name == "startswith":
+            return text_cmp.startswith(expected_cmp)
+        if operator_name == "endswith":
+            return text_cmp.endswith(expected_cmp)
         if operator_name == "regex":
             flags = 0 if case_sensitive else re.IGNORECASE
             return re.search(compare_to, text, flags=flags) is not None
-        if operator_name == "is_empty":
+        if operator_name in {"is_empty", "is_null"}:
             return text.strip() == ""
-        if operator_name == "is_not_empty":
+        if operator_name in {"is_not_empty", "is_not_null"}:
             return text.strip() != ""
+        if operator_name in {"in", "not_in"}:
+            values = _split_csv(expected_cmp)
+            matched = text_cmp in values
+            return matched if operator_name == "in" else not matched
 
         comparisons: dict[str, Callable[[float, float], bool]] = {
             "greater_than": operator.gt,
@@ -251,6 +297,31 @@ class FilterRowsNode(BaseNode):
             except ValueError:
                 return False
         raise ValueError(f"Unsupported filter operator: {operator_name}")
+
+    @staticmethod
+    def _normalise_operator(operator_name: str) -> str:
+        aliases = {
+            "==": "equals",
+            "!=": "not_equals",
+            ">": "greater_than",
+            ">=": "greater_or_equal",
+            "<": "less_than",
+            "<=": "less_or_equal",
+            "is_null": "is_empty",
+            "is_not_null": "is_not_empty",
+        }
+        return aliases.get(str(operator_name or "").strip(), str(operator_name or "").strip())
+
+    @staticmethod
+    def _output_format(output_type: str, input_path: str | Path) -> tuple[str, str]:
+        normalized = output_type.upper()
+        if normalized == "CSV":
+            return ",", ".csv"
+        if normalized == "TSV":
+            return "\t", ".tsv"
+        if normalized == "AUTO":
+            return (",", ".csv") if Path(str(input_path)).suffix.lower() == ".csv" else ("\t", ".tsv")
+        raise ValueError(f"Unsupported output_type: {output_type}")
 
 
 class ExtractColumnsNode(BaseNode):

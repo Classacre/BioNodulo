@@ -61,6 +61,93 @@ async def test_filter_rows_filters_numeric_tsv_conditions(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
+async def test_filter_rows_supports_planned_membership_operator_and_csv_output(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+        {"sample": "S3", "depth": "40", "status": "review"},
+    ])
+
+    result = await _node_class("filter_rows")().run(
+        table=str(table),
+        column="status",
+        operator="in",
+        value="pass,review",
+        delimiter="tsv",
+        output_type="CSV",
+        context=_context(tmp_path, "filter-in"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "samples.filtered.csv"
+    rows = _read_table(output_path, delimiter=",")
+    assert [row["sample"] for row in rows] == ["S2", "S3"]
+
+
+@pytest.mark.asyncio
+async def test_filter_rows_supports_not_contains_operator(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "tumor_A", "depth": "40", "status": "pass"},
+        {"sample": "control_A", "depth": "35", "status": "pass"},
+        {"sample": "tumor_B", "depth": "5", "status": "fail"},
+    ])
+
+    result = await _node_class("filter_rows")().run(
+        table=str(table),
+        column="sample",
+        operator="not_contains",
+        value="control",
+        delimiter="tsv",
+        context=_context(tmp_path, "filter-not-contains"),
+    )
+
+    rows = _read_table(result[0])
+    assert [row["sample"] for row in rows] == ["tumor_A", "tumor_B"]
+
+
+@pytest.mark.asyncio
+async def test_filter_rows_combines_two_conditions_with_and_or(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+        {"sample": "S3", "depth": "40", "status": "review"},
+        {"sample": "S4", "depth": "50", "status": "pass"},
+    ])
+    node_class = _node_class("filter_rows")
+
+    and_result = await node_class().run(
+        table=str(table),
+        column="depth",
+        operator=">=",
+        value="10",
+        column_2="status",
+        operator_2="==",
+        value_2="pass",
+        logical_op="AND",
+        delimiter="tsv",
+        context=_context(tmp_path, "filter-and"),
+    )
+    or_result = await node_class().run(
+        table=str(table),
+        column="depth",
+        operator="<",
+        value="10",
+        column_2="status",
+        operator_2="==",
+        value_2="review",
+        logical_op="OR",
+        delimiter="tsv",
+        context=_context(tmp_path, "filter-or"),
+    )
+
+    assert [row["sample"] for row in _read_table(and_result[0])] == ["S2", "S4"]
+    assert [row["sample"] for row in _read_table(or_result[0])] == ["S1", "S3"]
+
+
+@pytest.mark.asyncio
 async def test_extract_columns_reorders_and_renames_columns(tmp_path: Path) -> None:
     table = tmp_path / "samples.tsv"
     _write_table(table, [
