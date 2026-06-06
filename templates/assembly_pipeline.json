@@ -254,6 +254,22 @@
       }
     },
     {
+      "id": "validate_prokka_001",
+      "type": "data_validator",
+      "position": [
+        1700,
+        360
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Prokka GFF"
+      }
+    },
+    {
       "id": "assembly_report_001",
       "type": "html_report",
       "position": [
@@ -267,6 +283,18 @@
       },
       "ui": {
         "title": "Assembly report"
+      }
+    },
+    {
+      "id": "assembly_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        2060,
+        360
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Assembly Report"
       }
     }
   ],
@@ -421,6 +449,17 @@
         "output": "gff"
       },
       "to": {
+        "node": "validate_prokka_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e8a",
+      "from": {
+        "node": "validate_prokka_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "assembly_report_001",
         "input": "tables"
       }
@@ -446,6 +485,17 @@
         "node": "quast_001",
         "input": "reference"
       }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "assembly_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "assembly_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -459,8 +509,11 @@
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001",
     "validated_quast_report": "validate_quast_001",
+    "validated_prokka_annotation": "validate_prokka_001",
     "quast": "quast_001",
     "annotation": "prokka_001",
-    "report": "assembly_report_001"
+    "report": "assembly_report_001",
+    "assembly_report": "assembly_report_001",
+    "assembly_report_preview": "assembly_report_preview_001"
   }
 }
