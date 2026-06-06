@@ -674,6 +674,7 @@ class WorkflowExecutor:
             except Exception as exc:
                 tb = traceback.format_exc()
                 msg = f"Execution failed for {node_id}: {exc}"
+                attempts = getattr(exc, "attempts", 1)
                 emit(
                     "node_error",
                     {
@@ -683,9 +684,21 @@ class WorkflowExecutor:
                         "traceback": tb,
                     },
                 )
+                error_outputs = self._error_outputs(
+                    node=node,
+                    error=exc,
+                    message=msg,
+                    traceback_text=tb,
+                    attempts=attempts,
+                )
                 node_results[node_id] = {"status": "failed", "error": msg, "traceback": tb}
-                node_results[node_id]["attempts"] = getattr(exc, "attempts", 1)
+                node_results[node_id]["attempts"] = attempts
                 failed_nodes.add(node_id)
+                if self._continue_on_fail(node):
+                    node_results[node_id]["continue_on_fail"] = True
+                    node_results[node_id]["outputs"] = error_outputs
+                    node_outputs[node_id] = error_outputs
+                    continue
                 if stop_on_error:
                     break
 
@@ -696,7 +709,12 @@ class WorkflowExecutor:
             }
 
         # ---- Finalize ----
-        final_status = "completed" if not failed_nodes else "failed"
+        blocking_failed_nodes = {
+            node_id
+            for node_id in failed_nodes
+            if not self._continue_on_fail(nodes.get(node_id, {}))
+        }
+        final_status = "completed" if not blocking_failed_nodes else "failed"
         if cancel_event.is_set():
             final_status = "cancelled"
 
@@ -936,6 +954,40 @@ class WorkflowExecutor:
     @staticmethod
     def _allows_inactive_inputs(node_class: Any) -> bool:
         return bool(getattr(node_class, "ALLOW_INACTIVE_INPUTS", False))
+
+    @staticmethod
+    def _continue_on_fail(node: dict[str, Any]) -> bool:
+        meta = node.get("meta", {})
+        if not isinstance(meta, dict):
+            meta = {}
+        return any(
+            bool(container.get(key))
+            for container in (node, meta)
+            for key in ("continueOnFail", "continue_on_fail")
+            if isinstance(container, dict)
+        )
+
+    @staticmethod
+    def _error_outputs(
+        *,
+        node: dict[str, Any],
+        error: Exception,
+        message: str,
+        traceback_text: str,
+        attempts: int,
+    ) -> dict[str, Any]:
+        declared_outputs = node.get("outputs", {})
+        output_ports = list(declared_outputs) if isinstance(declared_outputs, dict) else []
+        values: dict[str, Any] = {
+            "error": message,
+            "error_message": str(error),
+            "error_type": type(error).__name__,
+            "traceback": traceback_text,
+            "attempts": attempts,
+        }
+        if not output_ports:
+            return values
+        return {port: values.get(port, None) for port in output_ports}
 
     @staticmethod
     def _executes_loop_body(node_class: Any) -> bool:

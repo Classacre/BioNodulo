@@ -1069,6 +1069,118 @@ async def test_workflow_executor_fails_nodes_that_return_dict_without_outputs(tm
 
 
 @pytest.mark.asyncio
+async def test_workflow_executor_continue_on_fail_routes_error_outputs(tmp_path: Path) -> None:
+    class FailingNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            raise RuntimeError("tool_error: alignment failed")
+
+    class CaptureNode:
+        calls: list[str] = []
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"message": ("STRING", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            type(self).calls.append(str(kwargs["message"]))
+            return {"outputs": {"out": f"handled:{kwargs['message']}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "failing": FailingNode,
+                "capture": CaptureNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "bad",
+                "type": "failing",
+                "continueOnFail": True,
+                "outputs": {
+                    "out": {},
+                    "error": {},
+                    "error_message": {},
+                    "error_type": {},
+                    "traceback": {},
+                    "attempts": {},
+                },
+            },
+            {"id": "handler", "type": "capture", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {
+                "source_node": "bad",
+                "target_node": "handler",
+                "source_output": "error",
+                "target_input": "message",
+            },
+        ],
+    }
+    CaptureNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("continue-on-fail-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["node_results"]["bad"]["status"] == "failed"
+    assert result["node_results"]["bad"]["continue_on_fail"] is True
+    assert "tool_error: alignment failed" in result["node_results"]["bad"]["error"]
+    assert result["outputs"]["bad"]["error"] == "Execution failed for bad: tool_error: alignment failed"
+    assert result["outputs"]["bad"]["error_message"] == "tool_error: alignment failed"
+    assert result["outputs"]["bad"]["error_type"] == "RuntimeError"
+    assert result["outputs"]["bad"]["attempts"] == 1
+    assert CaptureNode.calls == ["Execution failed for bad: tool_error: alignment failed"]
+    assert result["outputs"]["handler"] == {"out": "handled:Execution failed for bad: tool_error: alignment failed"}
+    assert result["metadata"]["failed_nodes"] == ["bad"]
+    assert result["metadata"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_continue_on_fail_accepts_meta_flag(tmp_path: Path) -> None:
+    class FailingNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            raise ValueError("validation: missing sample")
+
+    class Registry:
+        def get(self, _node_type: str) -> type[FailingNode]:
+            return FailingNode
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "bad",
+                "type": "failing",
+                "meta": {"continue_on_fail": True},
+                "outputs": {"error": {}, "error_message": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("continue-on-fail-meta-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["node_results"]["bad"]["status"] == "failed"
+    assert result["outputs"]["bad"]["error_message"] == "validation: missing sample"
+
+
+@pytest.mark.asyncio
 async def test_workflow_executor_always_run_cache_policy_bypasses_generic_cache(tmp_path: Path) -> None:
     class AlwaysRunNode:
         RETURN_NAMES = ("out",)
