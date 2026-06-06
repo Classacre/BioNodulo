@@ -1,7 +1,6 @@
 """STRING DB REST API integration node."""
 from __future__ import annotations
 
-import asyncio
 import csv
 import json
 import re
@@ -12,6 +11,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 STRING_BASE_URL = "https://string-db.org/api"
@@ -19,6 +19,10 @@ STRING_USER_AGENT = "BioNodulo/2.0 (workflow node; STRING DB API)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+STRING_CACHE_TTL_S = 300.0
+STRING_RATE_LIMIT_PER_SECOND = 3.0
+STRING_API_CACHE = APICache(ttl_seconds=STRING_CACHE_TTL_S)
+STRING_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=STRING_RATE_LIMIT_PER_SECOND, burst=1)
 STRING_QUERY_TYPES = ("network", "interactions", "enrichment", "mapping", "image")
 NETWORK_FLAVORS = ("evidence", "confidence", "actions")
 
@@ -77,28 +81,24 @@ async def _request(
 ) -> httpx.Response:
     endpoint = endpoint.lstrip("/")
     url = f"{STRING_BASE_URL}/{endpoint}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": STRING_USER_AGENT},
-            ) as client:
-                response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"STRING {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"STRING {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"STRING {endpoint} request failed: {last_error}")
+    client = APIHttpClient(cache=STRING_API_CACHE, rate_limiter=STRING_RATE_LIMITER)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            params=params,
+            headers={"User-Agent": STRING_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=STRING_CACHE_TTL_S,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"STRING {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"STRING {endpoint} request failed: {exc}") from exc
 
 
 def _params_for(

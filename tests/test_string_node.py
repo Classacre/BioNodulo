@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -29,6 +30,59 @@ def test_string_db_is_registered_for_frontend_discovery() -> None:
     assert info["string_db"]["category"] == "databases"
     assert info["string_db"]["output_name"] == ["interaction_network", "network_metadata"]
     assert info["string_db"]["output"] == ["TSV", "JSON"]
+
+
+@pytest.mark.asyncio
+async def test_string_db_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("string_db")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    assert isinstance(module.STRING_API_CACHE, module.APICache)
+    assert isinstance(module.STRING_RATE_LIMITER, module.TokenBucketRateLimiter)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            return httpx.Response(200, text="preferredName_A\tpreferredName_B\nTP53\tMDM2\n", request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._request(
+        "tsv/network",
+        params={"identifiers": "TP53\rMDM2", "species": 9606},
+        retries=4,
+        timeout=8.0,
+    )
+
+    assert response.text == "preferredName_A\tpreferredName_B\nTP53\tMDM2\n"
+    assert calls == [
+        {
+            "method": "GET",
+            "url": f"{module.STRING_BASE_URL}/tsv/network",
+            "cache": module.STRING_API_CACHE,
+            "rate_limiter": module.STRING_RATE_LIMITER,
+            "params": {"identifiers": "TP53\rMDM2", "species": 9606},
+            "headers": {"User-Agent": module.STRING_USER_AGENT},
+            "timeout": 8.0,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": module.STRING_CACHE_TTL_S,
+        }
+    ]
 
 
 @pytest.mark.asyncio
