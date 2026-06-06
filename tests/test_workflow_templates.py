@@ -583,10 +583,12 @@ def test_r_visualization_template_combines_plots_into_html_report() -> None:
     report = next(node for node in workflow["nodes"] if node["id"] == "viz_report_001")
     assert report["params"]["title"] == "R Visualization Report"
     assert "Sequencing depth" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "QC plot,Expression plot,Heatmap"
+    assert report["params"]["section_names"] == "QC plot,Expression plot,Heatmap,Volcano plot,MA plot"
     assert _has_edge(workflow, "qc_plot_001", "plot_png", "viz_report_001", "images")
     assert _has_edge(workflow, "expr_plot_001", "plot_png", "viz_report_001", "images")
     assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "viz_report_001", "images")
+    assert _has_edge(workflow, "ma_plot_001", "ma_image", "viz_report_001", "images")
     assert workflow["outputs"]["report"] == "viz_report_001"
 
 

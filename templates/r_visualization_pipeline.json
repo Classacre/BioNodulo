@@ -309,7 +309,7 @@
       "params": {
         "title": "R Visualization Report",
         "text_sections": "# Summary\nSequencing depth, expression scatter, and clustered heatmap visualizations generated with R.",
-        "section_names": "QC plot,Expression plot,Heatmap"
+        "section_names": "QC plot,Expression plot,Heatmap,Volcano plot,MA plot"
       },
       "ui": {
         "title": "Visualization Report"
@@ -465,6 +465,28 @@
       "from": {
         "node": "pheatmap_001",
         "output": "plot_png"
+      },
+      "to": {
+        "node": "viz_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "volcano_001",
+        "output": "volcano_image"
+      },
+      "to": {
+        "node": "viz_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "ma_plot_001",
+        "output": "ma_image"
       },
       "to": {
         "node": "viz_report_001",
