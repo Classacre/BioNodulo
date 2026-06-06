@@ -1,7 +1,6 @@
 """Open Targets Platform integration nodes."""
 from __future__ import annotations
 
-import asyncio
 import csv
 from pathlib import Path
 from typing import Any
@@ -9,6 +8,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 OPENTARGETS_GRAPHQL_URL = "https://api.platform.opentargets.org/api/v4/graphql"
@@ -16,6 +16,10 @@ OPENTARGETS_USER_AGENT = "BioNodulo/2.0 (workflow node; Open Targets Platform)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 60.0
+OPENTARGETS_CACHE_TTL_S = 300.0
+OPENTARGETS_RATE_LIMIT_PER_SECOND = 5.0
+OPENTARGETS_API_CACHE = APICache(ttl_seconds=OPENTARGETS_CACHE_TTL_S)
+OPENTARGETS_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=OPENTARGETS_RATE_LIMIT_PER_SECOND, burst=1)
 
 TARGET_ASSOCIATED_DISEASES_QUERY = """
 query TargetAssociatedDiseases($ensemblId: String!, $size: Int!) {
@@ -106,34 +110,28 @@ async def _graphql_request(
     retries: int = MAX_RETRIES,
     timeout: float = REQUEST_TIMEOUT_S,
 ) -> dict[str, Any]:
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": OPENTARGETS_USER_AGENT},
-            ) as client:
-                response = await client.post(
-                    OPENTARGETS_GRAPHQL_URL,
-                    json={"query": query, "variables": variables},
-                )
-            response.raise_for_status()
-            payload = response.json()
-            if isinstance(payload, dict) and payload.get("errors"):
-                raise RuntimeError(f"Open Targets GraphQL returned errors: {payload['errors']}")
-            return payload if isinstance(payload, dict) else {}
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"Open Targets GraphQL failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"Open Targets GraphQL request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"Open Targets GraphQL request failed: {last_error}")
+    client = APIHttpClient(cache=OPENTARGETS_API_CACHE, rate_limiter=OPENTARGETS_RATE_LIMITER)
+    try:
+        response = await client.request(
+            "POST",
+            OPENTARGETS_GRAPHQL_URL,
+            headers={"User-Agent": OPENTARGETS_USER_AGENT},
+            json={"query": query, "variables": variables},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+        )
+        payload = response.json()
+        if isinstance(payload, dict) and payload.get("errors"):
+            raise RuntimeError(f"Open Targets GraphQL returned errors: {payload['errors']}")
+        return payload if isinstance(payload, dict) else {}
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"Open Targets GraphQL failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Open Targets GraphQL request failed: {exc}") from exc
 
 
 def _clean_id(value: Any) -> str:

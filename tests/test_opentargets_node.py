@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -37,6 +38,55 @@ def test_opentargets_is_registered_for_frontend_discovery() -> None:
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"target", "disease"}
     assert set(inputs["optional"]) == {"query_mode", "max_results", "min_score", "include_evidence"}
+
+
+@pytest.mark.asyncio
+async def test_opentargets_graphql_uses_shared_http_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("opentargets")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, headers=kwargs.get("headers"))
+            return httpx.Response(200, json={"data": {"ok": True}}, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    payload = await module._graphql_request(
+        "query Test { ok }",
+        {"size": 3},
+        retries=4,
+        timeout=12.5,
+    )
+
+    assert payload == {"data": {"ok": True}}
+    assert len(calls) == 1
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["url"] == module.OPENTARGETS_GRAPHQL_URL
+    assert calls[0]["json"] == {"query": "query Test { ok }", "variables": {"size": 3}}
+    assert calls[0]["headers"] == {"User-Agent": module.OPENTARGETS_USER_AGENT}
+    assert calls[0]["timeout"] == 12.5
+    assert calls[0]["retries"] == 4
+    assert calls[0]["retry_delay"] == module.RETRY_DELAY_S
+    assert calls[0]["cache_ttl"] is None
+    assert calls[0]["cache"] is module.OPENTARGETS_API_CACHE
+    assert calls[0]["rate_limiter"] is module.OPENTARGETS_RATE_LIMITER
 
 
 @pytest.mark.asyncio
