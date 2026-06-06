@@ -566,6 +566,20 @@ def test_deseq2_template_extracts_significant_genes() -> None:
     assert workflow["outputs"]["significant_genes"] == "significant_genes_001"
 
 
+def test_deseq2_template_transposes_normalized_counts_for_sample_reporting() -> None:
+    workflow = _load_template("deseq2_differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["normalized_counts_transpose_001"] == "transpose_table"
+    transpose_node = next(node for node in workflow["nodes"] if node["id"] == "normalized_counts_transpose_001")
+    assert transpose_node["params"]["id_column"] == "gene"
+    assert transpose_node["params"]["new_header"] == "sample"
+    assert transpose_node["params"]["output_type"] == "CSV"
+    assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "normalized_counts_transpose_001", "table")
+    assert _has_edge(workflow, "normalized_counts_transpose_001", "transposed_table", "de_report_001", "tables")
+    assert workflow["outputs"]["normalized_counts_transposed"] == "normalized_counts_transpose_001"
+
+
 def test_deseq2_template_validates_count_matrix_and_sample_info_before_analysis() -> None:
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)

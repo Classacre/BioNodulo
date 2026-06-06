@@ -38,16 +38,19 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert node_types["pathway_gene_sets_001"] == "input_file"
     assert node_types["pathway_enrichment_001"] == "intersect_genes"
     assert node_types["string_enrichment_001"] == "string_db"
+    assert node_types["normalized_counts_transpose_001"] == "transpose_table"
 
     report = _node_by_id(workflow, "de_report_001")
     pca_plot = _node_by_id(workflow, "pca_plot_001")
     pathway_gene_sets = _node_by_id(workflow, "pathway_gene_sets_001")
     pathway_enrichment = _node_by_id(workflow, "pathway_enrichment_001")
     string_enrichment = _node_by_id(workflow, "string_enrichment_001")
+    normalized_counts_transpose = _node_by_id(workflow, "normalized_counts_transpose_001")
     assert report["params"]["title"] == "DESeq2 Differential Expression Report"
     assert report["params"]["section_names"] == (
         "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,"
-        "Normalized counts,Significant genes,Pathway overlaps,STRING enrichment"
+        "Normalized counts,Transposed normalized counts,Significant genes,"
+        "Pathway overlaps,STRING enrichment"
     )
     assert pca_plot["params"]["x_column"] == "PC1"
     assert pca_plot["params"]["y_column"] == "PC2"
@@ -62,6 +65,9 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert string_enrichment["params"]["id_column"] == "gene"
     assert string_enrichment["params"]["query_type"] == "enrichment"
     assert string_enrichment["params"]["species"] == 4932
+    assert normalized_counts_transpose["params"]["id_column"] == "gene"
+    assert normalized_counts_transpose["params"]["new_header"] == "sample"
+    assert normalized_counts_transpose["params"]["output_type"] == "CSV"
 
     assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "de_report_001", "images")
@@ -70,6 +76,8 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert _has_edge(workflow, "heatmap_001", "plot_png", "de_report_001", "images")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "de_report_001", "tables")
+    assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "normalized_counts_transpose_001", "table")
+    assert _has_edge(workflow, "normalized_counts_transpose_001", "transposed_table", "de_report_001", "tables")
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "de_report_001", "tables")
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "pathway_enrichment_001", "input_genes")
     assert _has_edge(workflow, "pathway_gene_sets_001", "file", "pathway_enrichment_001", "database")
@@ -83,5 +91,6 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert workflow["outputs"]["pathway_overlaps"] == "pathway_enrichment_001"
     assert workflow["outputs"]["pathway_enrichment"] == "pathway_enrichment_001"
     assert workflow["outputs"]["string_enrichment"] == "string_enrichment_001"
+    assert workflow["outputs"]["normalized_counts_transposed"] == "normalized_counts_transpose_001"
     assert workflow["outputs"]["report"] == "de_report_001"
     assert workflow["outputs"]["report_preview"] == "de_report_preview_001"
