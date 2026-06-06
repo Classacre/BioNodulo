@@ -10,11 +10,13 @@ from __future__ import annotations
 import asyncio
 import copy
 import inspect
+import json
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable
 
 from bionodulo.execution.executor import WorkflowExecutor
@@ -299,9 +301,15 @@ class RunQueue:
             metadata = copy.deepcopy(original.metadata)
             force_nodes = set(original.force_nodes)
             force = original.force
+            status = original.status
 
         metadata["retry_of"] = run_id
         metadata.setdefault("name", f"{run_id} retry")
+        if status is RunStatus.FAILED and not options.get("resume_checkpoint"):
+            resume_checkpoint = self._latest_checkpoint_for_run(run_id)
+            if resume_checkpoint is not None:
+                options["resume_checkpoint"] = resume_checkpoint
+                metadata["resume_checkpoint"] = resume_checkpoint
         rid = new_run_id or f"{run_id}_retry_{uuid.uuid4().hex[:6]}"
         return await self.submit(
             workflow=workflow,
@@ -589,3 +597,28 @@ class RunQueue:
             if req.run_id == run_id:
                 return req
         return None
+
+    def _latest_checkpoint_for_run(self, run_id: str) -> dict[str, Any] | None:
+        workspace_dir = getattr(getattr(self.executor, "executor", self.executor), "workspace_dir", None)
+        if workspace_dir is None:
+            return None
+        manifest_path = Path(workspace_dir) / "checkpoints" / "checkpoint_manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        latest_by_run_node = manifest.get("latest_by_run_node", {})
+        if not isinstance(latest_by_run_node, dict):
+            return None
+        candidates = [
+            entry
+            for key, entry in latest_by_run_node.items()
+            if isinstance(key, str)
+            and key.startswith(f"{run_id}:")
+            and isinstance(entry, dict)
+            and str(entry.get("checkpoint_path", "") or "")
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda entry: float(entry.get("timestamp", 0.0) or 0.0), reverse=True)
+        return dict(candidates[0])

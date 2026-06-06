@@ -384,6 +384,66 @@ async def test_run_queue_retry_uses_stored_workflow_options_and_force_nodes() ->
 
 
 @pytest.mark.asyncio
+async def test_run_queue_retry_resumes_from_latest_checkpoint_after_failure(tmp_path: Path) -> None:
+    class RecordingExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+            self.workspace_dir = tmp_path
+
+        async def execute(self, **kwargs: Any) -> dict[str, Any]:
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                return {"status": "failed", "error": "downstream failed"}
+            return {"status": "completed"}
+
+    checkpoint_file = tmp_path / "checkpoints" / "after_qc.json"
+    checkpoint_file.parent.mkdir(parents=True)
+    checkpoint_file.write_text('{"version":"1.0","data":"qc-passed"}', encoding="utf-8")
+    checkpoint_entry = {
+        "checkpoint_name": "after_qc",
+        "checkpoint_path": str(checkpoint_file),
+        "run_id": "original",
+        "node_id": "checkpoint",
+        "node_type": "checkpoint",
+    }
+    (checkpoint_file.parent / "checkpoint_manifest.json").write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "checkpoints": {str(checkpoint_file): checkpoint_entry},
+                "latest_by_name": {"after_qc": checkpoint_entry},
+                "latest_by_run_node": {"original:checkpoint": checkpoint_entry},
+            }
+        ),
+        encoding="utf-8",
+    )
+    workflow = {
+        "name": "Resume Retry",
+        "nodes": [
+            {"id": "checkpoint", "type": "checkpoint"},
+            {"id": "downstream", "type": "demo"},
+        ],
+        "edges": [
+            {"source_node": "checkpoint", "target_node": "downstream", "source_output": "passthrough", "target_input": "input"},
+        ],
+    }
+    executor = RecordingExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit(workflow, run_id="original", metadata={"name": "Resume Retry"})
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        await queue.retry("original", new_run_id="retry")
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        assert len(executor.calls) == 2
+        assert executor.calls[1]["options"]["resume_checkpoint"] == checkpoint_entry
+    finally:
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_executor_dry_run_preview_plans_command_outputs_and_cache(tmp_path: Path) -> None:
     class PreviewCommandNode(CommandNode):
         NODE_ID = "preview_command"
