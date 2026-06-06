@@ -111,6 +111,22 @@
       }
     },
     {
+      "id": "validate_bracken_001",
+      "type": "data_validator",
+      "position": [
+        1340,
+        80
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Bracken Report"
+      }
+    },
+    {
       "id": "bracken_bar_001",
       "type": "bar_chart",
       "position": [
@@ -288,8 +304,8 @@
         "output": "report"
       },
       "to": {
-        "node": "bracken_bar_001",
-        "input": "table"
+        "node": "validate_bracken_001",
+        "input": "input"
       }
     },
     {
@@ -306,8 +322,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "bracken_001",
-        "output": "report"
+        "node": "validate_bracken_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "taxonomy_report_001",
@@ -368,6 +384,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "validate_bracken_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "bracken_bar_001",
+        "input": "table"
+      }
     }
   ],
   "groups": [],
@@ -375,6 +402,7 @@
     "taxonomy": "bracken_001",
     "taxonomy_chart": "bracken_bar_001",
     "taxonomy_report": "taxonomy_report_001",
+    "validated_bracken_report": "validate_bracken_001",
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001",
     "validated_reads": "validate_reads_001"
