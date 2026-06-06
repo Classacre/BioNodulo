@@ -100,6 +100,21 @@ const objectInfo = {
     output: ['DIRECTORY', 'FASTA'],
     output_name: ['design_dir', 'designed_sequences'],
   },
+  minigraph_cactus: {
+    name: 'minigraph_cactus',
+    display_name: 'Minigraph-Cactus',
+    category: 'pangenomics',
+    description: 'Build pangenome graphs from assemblies using the Cactus Minigraph-Cactus pipeline.',
+    search_aliases: ['minigraph-cactus', 'cactus-pangenome', 'HPRC', 'pangenome construction'],
+    input: {
+      required: {
+        seq_file: { type: 'FILE' },
+        reference: { type: 'STRING' },
+      },
+    },
+    output: ['GBZ', 'VCF_GZ', 'GFA', 'ODGI'],
+    output_name: ['graph_gbz', 'variants_vcf', 'graph_gfa', 'graph_odgi'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -173,7 +188,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('9 nodes available')).toBeVisible();
+  await expect(page.getByText('10 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -184,6 +199,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
     { query: 'single sequence', name: 'ESMFold Predict', category: 'ai' },
     { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
+    { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];

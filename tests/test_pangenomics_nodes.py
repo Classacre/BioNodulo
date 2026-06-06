@@ -21,12 +21,16 @@ def _node_class(node_id: str) -> type:
 def test_pangenome_graph_types_are_file_compatible() -> None:
     assert BioType.GFA.value == "GFA"
     assert BioType.ODGI.value == "ODGI"
+    assert BioType.GBZ.value == "GBZ"
     assert is_compatible("GFA", "FILE")
     assert is_compatible("GFA", "STRING")
     assert is_compatible("ODGI", "FILE")
     assert is_compatible("ODGI", "STRING")
+    assert is_compatible("GBZ", "FILE")
+    assert is_compatible("GBZ", "STRING")
     assert file_extension_for("GFA") == ".gfa"
     assert file_extension_for("ODGI") == ".odgi"
+    assert file_extension_for("GBZ") == ".gbz"
 
 
 def test_embedding_type_is_file_compatible() -> None:
@@ -1971,3 +1975,172 @@ def test_pggb_build_requires_positive_threads() -> None:
 def test_pggb_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["pggb"] == "pggb"
     assert PACKAGE_MIN_VERSIONS["pggb"] == ">=0.7.3"
+
+
+def test_minigraph_cactus_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["minigraph_cactus"]
+    assert node_info["display_name"] == "Minigraph-Cactus"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"].startswith("Build pangenome graphs from assemblies")
+    assert node_info["output"] == ["GBZ", "VCF_GZ", "GFA", "ODGI"]
+    assert node_info["output_name"] == ["graph_gbz", "variants_vcf", "graph_gfa", "graph_odgi"]
+    assert node_info["required_executables"] == ["cactus-pangenome"]
+    assert node_info["required_conda_packages"] == ["cactus"]
+    assert "HPRC" in node_info["search_aliases"]
+    assert "cactus-pangenome" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"seq_file", "reference"}
+    assert set(inputs["optional"]) == {
+        "out_name",
+        "work_dir",
+        "threads",
+        "max_cores",
+        "cons_batch_size",
+        "gbz",
+        "giraffe",
+        "vcf",
+        "gfa",
+        "odgi",
+        "viz",
+        "chrom_vg",
+    }
+    assert inputs["required"]["seq_file"][0] == "FILE"
+    assert inputs["required"]["reference"][0] == "STRING"
+
+
+def test_minigraph_cactus_renders_pangenome_command_with_optional_outputs() -> None:
+    node_class = _node_class("minigraph_cactus")
+
+    cmd = node_class.render_command({
+        "seq_file": "seqFile.txt",
+        "reference": "GRCh38",
+        "out_name": "hprc_pg",
+        "work_dir": "/scratch/cactus",
+        "threads": 48,
+        "max_cores": 12,
+        "cons_batch_size": 4,
+        "gbz": True,
+        "giraffe": True,
+        "vcf": True,
+        "gfa": True,
+        "odgi": True,
+        "viz": True,
+        "chrom_vg": True,
+        "output": "/tmp/run/minigraph_cactus",
+    })
+
+    assert cmd == [
+        "cactus-pangenome",
+        "/scratch/cactus",
+        "seqFile.txt",
+        "--outDir",
+        "/tmp/run/minigraph_cactus",
+        "--outName",
+        "hprc_pg",
+        "--reference",
+        "GRCh38",
+        "--maxCores",
+        "12",
+        "--batchSize",
+        "4",
+        "--gbz",
+        "--giraffe",
+        "--vcf",
+        "--gfa",
+        "--odgi",
+        "--viz",
+        "--chrom-vg",
+    ]
+    assert "--threads" not in cmd
+
+
+def test_minigraph_cactus_defaults_work_dir_and_output_flags() -> None:
+    node_class = _node_class("minigraph_cactus")
+
+    cmd = node_class.render_command({
+        "seq_file": "assemblies.tsv",
+        "reference": "sample_ref",
+        "out_name": "",
+        "work_dir": "",
+        "threads": 16,
+        "max_cores": 0,
+        "cons_batch_size": 0,
+        "gbz": True,
+        "giraffe": False,
+        "vcf": False,
+        "gfa": True,
+        "odgi": False,
+        "viz": False,
+        "chrom_vg": False,
+        "output": "/tmp/run/minigraph_cactus",
+    })
+
+    assert cmd == [
+        "cactus-pangenome",
+        "/tmp/run/minigraph_cactus/work",
+        "assemblies.tsv",
+        "--outDir",
+        "/tmp/run/minigraph_cactus",
+        "--outName",
+        "pangenome",
+        "--reference",
+        "sample_ref",
+        "--maxCores",
+        "16",
+        "--gbz",
+        "--gfa",
+    ]
+    assert "--giraffe" not in cmd
+    assert "--vcf" not in cmd
+    assert "--odgi" not in cmd
+    assert "--viz" not in cmd
+    assert "--chrom-vg" not in cmd
+
+
+def test_minigraph_cactus_plans_requested_outputs() -> None:
+    node_class = _node_class("minigraph_cactus")
+
+    outputs = node_class.PLAN_OUTPUTS({
+        "out_name": "study_pg",
+        "gbz": True,
+        "vcf": True,
+        "gfa": True,
+        "odgi": True,
+    }, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/minigraph_cactus/study_pg.gbz",
+        "/tmp/run/minigraph_cactus/study_pg.vcf.gz",
+        "/tmp/run/minigraph_cactus/study_pg.gfa.gz",
+        "/tmp/run/minigraph_cactus/study_pg.og",
+    ]
+
+
+def test_minigraph_cactus_rejects_missing_output_flags_and_non_positive_threads() -> None:
+    node_class = _node_class("minigraph_cactus")
+
+    assert node_class.VALIDATE_INPUTS({
+        "seq_file": "seqFile.txt",
+        "reference": "GRCh38",
+        "threads": 4,
+        "gbz": False,
+        "vcf": False,
+        "gfa": False,
+        "odgi": False,
+    }) == "Minigraph-Cactus requires at least one graph or variant output flag."
+    assert node_class.VALIDATE_INPUTS({
+        "seq_file": "seqFile.txt",
+        "reference": "GRCh38",
+        "threads": 0,
+        "gbz": True,
+    }) == "Minigraph-Cactus threads must be greater than zero."
+
+
+def test_minigraph_cactus_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["cactus-pangenome"] == "cactus"
+    assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"

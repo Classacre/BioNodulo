@@ -1051,6 +1051,127 @@ class PGGBBuildNode(CommandNode):
         }
 
 
+class MinigraphCactusNode(CommandNode):
+    """Build pangenome graphs from multiple assemblies with Minigraph-Cactus."""
+
+    NODE_ID = "minigraph_cactus"
+    DISPLAY_NAME = "Minigraph-Cactus"
+    CATEGORY = "pangenomics"
+    DESCRIPTION = "Build pangenome graphs from assemblies using the Cactus Minigraph-Cactus pipeline."
+    SEARCH_ALIASES = [
+        "minigraph-cactus",
+        "cactus-pangenome",
+        "HPRC",
+        "pangenome construction",
+        "whole-genome alignment",
+        "giraffe",
+    ]
+    RETURN_TYPES = ("GBZ", "VCF_GZ", "GFA", "ODGI")
+    RETURN_NAMES = ("graph_gbz", "variants_vcf", "graph_gfa", "graph_odgi")
+    REQUIRED_EXECUTABLES = ["cactus-pangenome"]
+    REQUIRED_CONDA_PACKAGES = ["cactus"]
+    DOCUMENTATION_URL = "https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md"
+    VERSION = "2.9.0"
+
+    _OUTPUT_FLAGS = ("gbz", "vcf", "gfa", "odgi")
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if int(inputs.get("threads", 1) or 0) <= 0:
+            return "Minigraph-Cactus threads must be greater than zero."
+        if not any(bool(inputs.get(flag, False)) for flag in cls._OUTPUT_FLAGS):
+            return "Minigraph-Cactus requires at least one graph or variant output flag."
+        return True
+
+    @classmethod
+    def _out_name(cls, inputs: dict[str, Any]) -> str:
+        return _safe_output_stem(inputs.get("out_name"), "pangenome")
+
+    @classmethod
+    def _work_dir(cls, inputs: dict[str, Any], out_dir: Path) -> Path:
+        if inputs.get("work_dir"):
+            return Path(str(inputs["work_dir"]))
+        return out_dir / "work"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        work_dir = cls._work_dir(inputs, out_dir)
+        max_cores = int(inputs.get("max_cores", 0) or 0)
+        if max_cores <= 0:
+            max_cores = int(inputs.get("threads", 1) or 1)
+
+        cmd = [
+            "cactus-pangenome",
+            str(work_dir),
+            str(inputs.get("seq_file", "")),
+            "--outDir",
+            str(out_dir),
+            "--outName",
+            cls._out_name(inputs),
+            "--reference",
+            str(inputs.get("reference", "")),
+            "--maxCores",
+            str(max_cores),
+        ]
+
+        cons_batch_size = int(inputs.get("cons_batch_size", 0) or 0)
+        if cons_batch_size > 0:
+            cmd.extend(["--batchSize", str(cons_batch_size)])
+
+        for flag in ("gbz", "giraffe", "vcf", "gfa", "odgi", "viz"):
+            if inputs.get(flag):
+                cmd.append(f"--{flag}")
+        if inputs.get("chrom_vg"):
+            cmd.append("--chrom-vg")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        out_name = cls._out_name(inputs)
+        return [
+            node_out / f"{out_name}.gbz",
+            node_out / f"{out_name}.vcf.gz",
+            node_out / f"{out_name}.gfa.gz",
+            node_out / f"{out_name}.og",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "seq_file": ("FILE", {"description": "Cactus seqFile listing assembly names and FASTA paths"}),
+                "reference": ("STRING", {"description": "Reference genome name from the seqFile"}),
+            },
+            "optional": {
+                "out_name": ("STRING", {"default": "pangenome", "description": "Output filename prefix"}),
+                "work_dir": ("STRING", {"default": "", "description": "Optional Cactus working directory"}),
+                "threads": ("INT", {"default": 16, "min": 1, "max": 512, "display": "slider"}),
+                "max_cores": ("INT", {"default": 0, "min": 0, "max": 512, "display": "slider"}),
+                "cons_batch_size": ("INT", {"default": 0, "min": 0, "max": 100000}),
+                "gbz": ("BOOLEAN", {"default": True}),
+                "giraffe": ("BOOLEAN", {"default": True}),
+                "vcf": ("BOOLEAN", {"default": True}),
+                "gfa": ("BOOLEAN", {"default": True}),
+                "odgi": ("BOOLEAN", {"default": False}),
+                "viz": ("BOOLEAN", {"default": False}),
+                "chrom_vg": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class ODGIBuildNode(CommandNode):
     """Build an ODGI graph from a GFA pangenome graph and export JSON stats."""
 

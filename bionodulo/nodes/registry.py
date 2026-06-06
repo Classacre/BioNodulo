@@ -375,6 +375,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "SCAFFOLDS",
         "GFA",
         "ODGI",
+        "GBZ",
         "IMAGE",
         "JSON",
         "CSV",

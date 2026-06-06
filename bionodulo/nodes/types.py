@@ -54,6 +54,7 @@ class BioType(str, Enum):
     # Pangenomics
     GFA = "GFA"
     ODGI = "ODGI"
+    GBZ = "GBZ"
 
     # Quantification
     COUNTS = "COUNTS"
@@ -131,6 +132,7 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.SCAFFOLDS: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.ASSEMBLY, BioType.CONTIGS},
     BioType.GFA: {BioType.FILE, BioType.STRING},
     BioType.ODGI: {BioType.FILE, BioType.STRING},
+    BioType.GBZ: {BioType.FILE, BioType.STRING},
     BioType.COUNTS: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
     BioType.TPM_MATRIX: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
     BioType.ABUNDANCE: {BioType.FILE, BioType.STRING, BioType.TSV, BioType.CSV},
@@ -250,6 +252,7 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.SCAFFOLDS: ".fasta",
         BioType.GFA: ".gfa",
         BioType.ODGI: ".odgi",
+        BioType.GBZ: ".gbz",
         BioType.COUNTS: ".counts.tsv",
         BioType.TPM_MATRIX: ".tpm.tsv",
         BioType.ABUNDANCE: ".abundance.tsv",
