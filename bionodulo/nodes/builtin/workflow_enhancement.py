@@ -2354,12 +2354,12 @@ class WorkflowTriggerNode(BaseNode):
 
 
 class PauseResumeNode(BaseNode):
-    """Record a human review gate and pass data through."""
+    """Record a human review gate and optionally block until a decision."""
 
     NODE_ID = "pause_resume"
     DISPLAY_NAME = "Pause / Resume"
     CATEGORY = "workflow"
-    DESCRIPTION = "Human review gate. Record review requests and approval decisions; executor-level blocking pause/resume is not implemented yet."
+    DESCRIPTION = "Human review gate. Record review requests and block execution until approval or rejection."
     SEARCH_ALIASES = ["pause", "human", "approval", "review", "gate", "confirm", "breakpoint"]
     RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
     RETURN_NAMES = ("output", "approved", "pause_info")
@@ -2410,8 +2410,8 @@ class PauseResumeNode(BaseNode):
             "preview": self._preview(data) if show_preview else None,
             "created_at": time.time(),
             "review_decision_supported": True,
-            "engine_pause_supported": False,
-            "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
+            "engine_pause_supported": True,
+            "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is supported.",
         }
 
         pause_file = self._write_pause_file(context, pause_info)
@@ -2432,10 +2432,16 @@ class PauseResumeNode(BaseNode):
                 "reviewers": reviewers,
                 "pause_file": pause_file,
                 "review_decision_supported": True,
-                "engine_pause_supported": False,
+                "engine_pause_supported": True,
             },
         )
+        if status == "waiting" and pause_file:
+            pause_info = await self._wait_for_decision(Path(pause_file), context)
+            status = str(pause_info.get("status", status))
+            approved = bool(pause_info.get("approved", False))
         _ctx_log(context, "info" if approved else "warning", f"Pause / Resume requested: {status}")
+        if not approved:
+            raise RuntimeError(f"Pause request rejected: {pause_info.get('resolution_comment', '')}")
         return (data, approved, _json_text(pause_info))
 
     @staticmethod
@@ -2482,10 +2488,45 @@ class PauseResumeNode(BaseNode):
         base = Path(workspace_dir) if workspace_dir else _node_output_dir(self, context)
         pause_dir = base / "pause_requests"
         pause_dir.mkdir(parents=True, exist_ok=True)
+        run_id = str(getattr(context, "run_id", "") or "").strip()
         node_id = getattr(context, "node_id", self.NODE_ID)
-        pause_file = pause_dir / f"{node_id}.json"
+        pause_file = pause_dir / f"{run_id}__{node_id}.json" if run_id else pause_dir / f"{node_id}.json"
         pause_file.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
         return str(pause_file)
+
+    async def _wait_for_decision(self, pause_file: Path, context: Any) -> dict[str, Any]:
+        cancel_event = getattr(context, "cancel_event", None)
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                cancelled_info = {
+                    "pause_file": str(pause_file),
+                    "status": "cancelled",
+                    "approved": False,
+                    "resolved_at": time.time(),
+                    "review_decision_supported": True,
+                    "engine_pause_supported": True,
+                    "note": "Review request cancelled while waiting for approval.",
+                }
+                try:
+                    existing = json.loads(pause_file.read_text(encoding="utf-8"))
+                    if isinstance(existing, dict):
+                        cancelled_info = {**existing, **cancelled_info}
+                    pause_file.write_text(json.dumps(cancelled_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
+                except (OSError, json.JSONDecodeError):
+                    pass
+                return cancelled_info
+            try:
+                pause_info = json.loads(pause_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                await asyncio.sleep(0.1)
+                continue
+            if not isinstance(pause_info, dict):
+                raise RuntimeError(f"Pause request file must contain a JSON object: {pause_file}")
+            status = str(pause_info.get("status", "") or "").lower()
+            if status in {"approved", "rejected", "cancelled"}:
+                pause_info.setdefault("pause_file", str(pause_file))
+                return pause_info
+            await asyncio.sleep(0.1)
 
     @staticmethod
     def resolve_pause_request(pause_file: str | Path, action: str, reviewer: str = "", comment: str = "") -> dict[str, Any]:
@@ -2510,8 +2551,8 @@ class PauseResumeNode(BaseNode):
                 "resolved_by": str(reviewer or "").strip(),
                 "resolution_comment": str(comment or ""),
                 "review_decision_supported": True,
-                "engine_pause_supported": False,
-                "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
+                "engine_pause_supported": True,
+                "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is supported.",
             }
         )
         path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")

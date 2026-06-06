@@ -544,6 +544,196 @@ async def test_executor_dry_run_marks_checkpoint_resume_without_executing_upstre
 
 
 @pytest.mark.asyncio
+async def test_workflow_executor_blocks_downstream_until_pause_approval(tmp_path: Path) -> None:
+    from bionodulo.nodes.builtin.workflow_enhancement import PauseResumeNode
+
+    class SourceNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> tuple[str]:
+            return ("review-me",)
+
+    class DownstreamNode:
+        RETURN_NAMES = ("out",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **kwargs: Any) -> tuple[str]:
+            self.calls.append(kwargs["input"])
+            return (f"approved:{kwargs['input']}",)
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "source": SourceNode,
+                "pause_resume": PauseResumeNode,
+                "downstream": DownstreamNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "source", "outputs": {"out": {}}},
+            {
+                "id": "pause",
+                "type": "pause_resume",
+                "params": {
+                    "timeout_seconds": 0,
+                    "default_action": "wait",
+                    "message": "Review before downstream.",
+                },
+                "outputs": {"output": {}, "approved": {}, "pause_info": {}},
+            },
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "source", "target_node": "pause", "source_output": "out", "target_input": "input"},
+            {"source_node": "pause", "target_node": "downstream", "source_output": "output", "target_input": "input"},
+        ],
+    }
+    DownstreamNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    task = asyncio.create_task(executor.execute("pause-run", workflow))
+    await asyncio.sleep(0.05)
+
+    pause_file = tmp_path / "pause_requests" / "pause-run__pause.json"
+    assert pause_file.exists()
+    assert DownstreamNode.calls == []
+    assert not task.done()
+
+    PauseResumeNode.resolve_pause_request(pause_file, action="approve", reviewer="ana")
+    result = await asyncio.wait_for(task, timeout=1)
+
+    assert result["status"] == "completed"
+    assert DownstreamNode.calls == ["review-me"]
+    assert result["outputs"]["downstream"] == {"out": "approved:review-me"}
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_fails_when_pause_request_is_rejected(tmp_path: Path) -> None:
+    from bionodulo.nodes.builtin.workflow_enhancement import PauseResumeNode
+
+    class SourceNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> tuple[str]:
+            return ("review-me",)
+
+    class DownstreamNode:
+        RETURN_NAMES = ("out",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **kwargs: Any) -> tuple[str]:
+            self.calls.append(kwargs["input"])
+            return (f"approved:{kwargs['input']}",)
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "source": SourceNode,
+                "pause_resume": PauseResumeNode,
+                "downstream": DownstreamNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "source", "outputs": {"out": {}}},
+            {
+                "id": "pause",
+                "type": "pause_resume",
+                "params": {"timeout_seconds": 0, "default_action": "wait"},
+                "outputs": {"output": {}, "approved": {}, "pause_info": {}},
+            },
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "source", "target_node": "pause", "source_output": "out", "target_input": "input"},
+            {"source_node": "pause", "target_node": "downstream", "source_output": "output", "target_input": "input"},
+        ],
+    }
+    DownstreamNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    task = asyncio.create_task(executor.execute("pause-reject-run", workflow))
+    await asyncio.sleep(0.05)
+
+    pause_file = tmp_path / "pause_requests" / "pause-reject-run__pause.json"
+    PauseResumeNode.resolve_pause_request(pause_file, action="reject", reviewer="ana")
+    result = await asyncio.wait_for(task, timeout=1)
+
+    assert result["status"] == "failed"
+    assert "Pause request rejected" in result["node_results"]["pause"]["error"]
+    assert DownstreamNode.calls == []
+
+
+@pytest.mark.asyncio
+async def test_workflow_executor_cancels_while_pause_request_is_waiting(tmp_path: Path) -> None:
+    from bionodulo.nodes.builtin.workflow_enhancement import PauseResumeNode
+
+    class SourceNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> tuple[str]:
+            return ("review-me",)
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "source": SourceNode,
+                "pause_resume": PauseResumeNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "source", "outputs": {"out": {}}},
+            {
+                "id": "pause",
+                "type": "pause_resume",
+                "params": {"timeout_seconds": 0, "default_action": "wait"},
+                "outputs": {"output": {}, "approved": {}, "pause_info": {}},
+            },
+        ],
+        "edges": [
+            {"source_node": "source", "target_node": "pause", "source_output": "out", "target_input": "input"},
+        ],
+    }
+    cancel_event = asyncio.Event()
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    task = asyncio.create_task(executor.execute("pause-cancel-run", workflow, cancel_event=cancel_event))
+    await asyncio.sleep(0.05)
+
+    assert (tmp_path / "pause_requests" / "pause-cancel-run__pause.json").exists()
+    assert not task.done()
+    cancel_event.set()
+    result = await asyncio.wait_for(task, timeout=1)
+
+    assert result["status"] == "cancelled"
+    saved = json.loads((tmp_path / "pause_requests" / "pause-cancel-run__pause.json").read_text(encoding="utf-8"))
+    assert saved["status"] == "cancelled"
+    assert saved["approved"] is False
+
+
+@pytest.mark.asyncio
 async def test_run_queue_shutdown_closes_executor_cache() -> None:
     class Cache:
         def __init__(self) -> None:

@@ -281,7 +281,7 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getAllByText('Executor resume unavailable')).toHaveLength(2);
   });
 
-  it('labels pause requests as review-only when blocking pause is unavailable', async () => {
+  it('labels pause requests when blocking pause is available', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
@@ -292,14 +292,15 @@ describe('RuntimeArtifactsPanel', () => {
         pause_requests_dir: '/workspace/pause_requests',
         count: 1,
         review_decision_supported: true,
-        engine_pause_supported: false,
-        pause_note: 'Review requests are persistent; executor-level blocking pause/resume is not implemented yet.',
+        engine_pause_supported: true,
+        pause_note: 'Review request decisions and executor-level blocking pause/resume are supported.',
         pause_requests: [
           {
             node_id: 'pause-node',
             status: 'waiting',
             message: 'Review sample QC',
             pause_file: '/workspace/pause_requests/pause-node.json',
+            engine_pause_supported: true,
           },
         ],
         errors: [],
@@ -318,8 +319,7 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Review only')).toBeInTheDocument();
-    expect(screen.getByText('Blocking pause unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Blocking pause available')).toBeInTheDocument();
   });
 
   it('labels workflow triggers as pollable metadata when run submission is unavailable', async () => {

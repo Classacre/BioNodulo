@@ -486,7 +486,7 @@ def test_pause_requests_endpoint_lists_persisted_requests(
     assert payload["pause_requests"][0]["status"] == "waiting"
 
 
-def test_pause_requests_endpoint_reports_review_only_runtime_contract(
+def test_pause_requests_endpoint_reports_blocking_runtime_contract(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -516,12 +516,12 @@ def test_pause_requests_endpoint_reports_review_only_runtime_contract(
     assert response.status_code == 200
     payload = response.json()
     assert payload["review_decision_supported"] is True
-    assert payload["engine_pause_supported"] is False
-    assert "executor-level blocking pause/resume" in payload["pause_note"]
+    assert payload["engine_pause_supported"] is True
+    assert "executor-level blocking pause/resume are supported" in payload["pause_note"]
     assert payload["pause_requests"][0]["pause_file"] == str(pause_file)
     assert payload["pause_requests"][0]["review_decision_supported"] is True
-    assert payload["pause_requests"][0]["engine_pause_supported"] is False
-    assert "executor-level blocking pause/resume" in payload["pause_requests"][0]["note"]
+    assert payload["pause_requests"][0]["engine_pause_supported"] is True
+    assert "executor-level blocking pause/resume is supported" in payload["pause_requests"][0]["note"]
 
 
 def test_pause_request_resolve_endpoint_updates_workspace_request(
@@ -568,10 +568,55 @@ def test_pause_request_resolve_endpoint_updates_workspace_request(
     assert payload["pause_request"]["resolved_by"] == "ana"
     assert payload["pause_request"]["resolution_comment"] == "Variant QC failed"
     assert payload["pause_request"]["review_decision_supported"] is True
-    assert payload["pause_request"]["engine_pause_supported"] is False
-    assert "executor-level blocking pause/resume" in payload["pause_request"]["note"]
+    assert payload["pause_request"]["engine_pause_supported"] is True
+    assert "executor-level blocking pause/resume is supported" in payload["pause_request"]["note"]
     assert saved["status"] == "rejected"
     assert saved["approved"] is False
+
+
+def test_pause_request_resolve_endpoint_updates_request_by_run_and_node(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    pause_dir = tmp_path / "pause_requests"
+    pause_dir.mkdir()
+    pause_file = pause_dir / "run-42__pause-node.json"
+    pause_file.write_text(
+        json.dumps(
+            {
+                "run_id": "run-42",
+                "node_id": "pause-node",
+                "message": "Review before annotation.",
+                "status": "waiting",
+                "approved": True,
+                "created_at": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/pause_requests/resolve",
+            json={
+                "run_id": "run-42",
+                "node_id": "pause-node",
+                "action": "approve",
+                "reviewer": "ana",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    saved = json.loads(pause_file.read_text(encoding="utf-8"))
+    assert payload["pause_request"]["pause_file"] == str(pause_file)
+    assert payload["pause_request"]["status"] == "approved"
+    assert payload["pause_request"]["approved"] is True
+    assert payload["pause_request"]["engine_pause_supported"] is True
+    assert saved["status"] == "approved"
 
 
 def test_workflow_triggers_endpoint_returns_empty_state_for_new_workspace(

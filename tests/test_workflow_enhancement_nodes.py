@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import gzip
 import hashlib
 import json
@@ -1414,32 +1415,106 @@ async def test_pause_resume_records_review_request_and_passes_through_file_previ
     context = _context(tmp_path, "pause-node")
     context.workspace_dir = tmp_path
 
-    output, approved, pause_info_json = await _node_class("pause_resume")().run(
-        input=str(source),
-        message="Review variant calls before annotation.",
-        timeout_seconds=0,
-        default_action="wait",
-        show_preview=True,
-        reviewers="ana, ben",
-        context=context,
+    node_class = _node_class("pause_resume")
+    task = asyncio.create_task(
+        node_class().run(
+            input=str(source),
+            message="Review variant calls before annotation.",
+            timeout_seconds=0,
+            default_action="wait",
+            show_preview=True,
+            reviewers="ana, ben",
+            context=context,
+        )
     )
+    await asyncio.sleep(0.05)
 
-    pause_info = json.loads(pause_info_json)
-    pause_file = Path(pause_info["pause_file"])
+    pause_file = tmp_path / "pause_requests" / "run-1__pause-node.json"
+    assert pause_file.exists()
+    assert not task.done()
     saved = json.loads(pause_file.read_text(encoding="utf-8"))
+    assert saved["status"] == "waiting"
+    assert saved["engine_pause_supported"] is True
+    node_class.resolve_pause_request(pause_file, action="approve", reviewer="ana")
+
+    output, approved, pause_info_json = await asyncio.wait_for(task, timeout=1)
+    pause_info = json.loads(pause_info_json)
     assert output == str(source)
     assert approved is True
-    assert pause_info["status"] == "waiting"
-    assert pause_info["engine_pause_supported"] is False
+    assert pause_info["status"] == "approved"
+    assert pause_info["engine_pause_supported"] is True
     assert pause_info["reviewers"] == ["ana", "ben"]
     assert pause_info["preview"]["kind"] == "file"
     assert pause_info["preview"]["path"] == str(source)
     assert "chr1\t42" in pause_info["preview"]["text"]
-    assert pause_file == tmp_path / "pause_requests" / "pause-node.json"
     assert saved["message"] == "Review variant calls before annotation."
-    assert saved["engine_pause_supported"] is False
     assert context.events[0][0] == "pause_requested"
-    assert context.logs[0] == ("info", "Pause / Resume requested: waiting")
+    assert context.logs[0] == ("info", "Pause / Resume requested: approved")
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_waits_for_approval_before_returning(tmp_path: Path) -> None:
+    context = _context(tmp_path, "pause-node")
+    context.workspace_dir = tmp_path
+    node_class = _node_class("pause_resume")
+
+    task = asyncio.create_task(
+        node_class().run(
+            input={"variants": 17},
+            message="Approve annotation handoff?",
+            timeout_seconds=0,
+            default_action="wait",
+            reviewers="ana",
+            context=context,
+        )
+    )
+    await asyncio.sleep(0.05)
+
+    pause_file = tmp_path / "pause_requests" / "run-1__pause-node.json"
+    assert pause_file.exists()
+    assert not task.done()
+
+    node_class.resolve_pause_request(
+        pause_file,
+        action="approve",
+        reviewer="ana",
+        comment="QC reviewed",
+    )
+    output, approved, pause_info_json = await asyncio.wait_for(task, timeout=1)
+
+    pause_info = json.loads(pause_info_json)
+    assert output == {"variants": 17}
+    assert approved is True
+    assert pause_info["status"] == "approved"
+    assert pause_info["engine_pause_supported"] is True
+    assert pause_info["resolved_by"] == "ana"
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_rejection_fails_waiting_node(tmp_path: Path) -> None:
+    context = _context(tmp_path, "pause-node")
+    context.workspace_dir = tmp_path
+    node_class = _node_class("pause_resume")
+
+    task = asyncio.create_task(
+        node_class().run(
+            input="needs review",
+            timeout_seconds=0,
+            default_action="wait",
+            context=context,
+        )
+    )
+    await asyncio.sleep(0.05)
+
+    pause_file = tmp_path / "pause_requests" / "run-1__pause-node.json"
+    node_class.resolve_pause_request(
+        pause_file,
+        action="reject",
+        reviewer="ana",
+        comment="QC failed",
+    )
+    with pytest.raises(RuntimeError, match="Pause request rejected"):
+        await asyncio.wait_for(task, timeout=1)
 
 
 @pytest.mark.asyncio
@@ -1461,17 +1536,13 @@ async def test_pause_resume_timeout_default_actions(tmp_path: Path) -> None:
     assert pause_info["preview"]["kind"] == "json"
     assert '"qc": "passed"' in pause_info["preview"]["text"]
 
-    _, rejected, rejected_info_json = await _node_class("pause_resume")().run(
-        input="needs review",
-        timeout_seconds=1,
-        default_action="reject",
-        show_preview=False,
-    )
-
-    rejected_info = json.loads(rejected_info_json)
-    assert rejected is False
-    assert rejected_info["status"] == "timeout_rejected"
-    assert rejected_info["preview"] is None
+    with pytest.raises(RuntimeError, match="Pause request rejected"):
+        await _node_class("pause_resume")().run(
+            input="needs review",
+            timeout_seconds=1,
+            default_action="reject",
+            show_preview=False,
+        )
 
 
 @pytest.mark.asyncio
@@ -1480,37 +1551,43 @@ async def test_pause_resume_resolver_updates_persisted_review_decision(tmp_path:
     context.workspace_dir = tmp_path
     node_class = _node_class("pause_resume")
 
-    _, _, pause_info_json = await node_class().run(
-        input={"variants": 17},
-        message="Approve annotation handoff?",
-        timeout_seconds=0,
-        default_action="wait",
-        reviewers="ana",
-        context=context,
+    task = asyncio.create_task(
+        node_class().run(
+            input={"variants": 17},
+            message="Approve annotation handoff?",
+            timeout_seconds=0,
+            default_action="wait",
+            reviewers="ana",
+            context=context,
+        )
     )
+    await asyncio.sleep(0.05)
 
-    pause_info = json.loads(pause_info_json)
-    pause_file = Path(pause_info["pause_file"])
+    pause_file = tmp_path / "pause_requests" / "run-1__pause-review.json"
+    assert pause_file.exists()
     resolved = node_class.resolve_pause_request(
         pause_file,
         action="approve",
         reviewer="ana",
         comment="QC reviewed",
     )
+    _, _, pause_info_json = await asyncio.wait_for(task, timeout=1)
+    pause_info = json.loads(pause_info_json)
     saved = json.loads(pause_file.read_text(encoding="utf-8"))
     assert pause_info["review_decision_supported"] is True
+    assert pause_info["status"] == "approved"
     assert resolved["status"] == "approved"
     assert resolved["approved"] is True
     assert resolved["review_decision_supported"] is True
-    assert resolved["engine_pause_supported"] is False
-    assert "executor-level blocking pause/resume" in resolved["note"]
+    assert resolved["engine_pause_supported"] is True
+    assert "executor-level blocking pause/resume is supported" in resolved["note"]
     assert resolved["resolved_by"] == "ana"
     assert resolved["resolution_comment"] == "QC reviewed"
     assert isinstance(resolved["resolved_at"], float)
     assert saved["status"] == "approved"
     assert saved["approved"] is True
     assert saved["review_decision_supported"] is True
-    assert saved["engine_pause_supported"] is False
+    assert saved["engine_pause_supported"] is True
     assert saved["resolved_by"] == "ana"
     assert saved["resolution_comment"] == "QC reviewed"
 

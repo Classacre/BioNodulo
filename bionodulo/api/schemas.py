@@ -64,6 +64,7 @@ class PauseRequestResolveRequest(BaseModel):
     """Request body for POST /pause_requests/resolve."""
 
     action: Literal["approve", "reject"] = Field(..., description="Review decision to persist")
+    run_id: str | None = Field(None, description="Run ID whose pause request should be resolved")
     node_id: str | None = Field(None, description="Node ID whose pause request should be resolved")
     pause_file: str | None = Field(None, description="Pause request JSON path relative to workspace")
     reviewer: str = Field("", description="Reviewer name or identifier")

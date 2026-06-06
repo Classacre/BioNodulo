@@ -333,8 +333,8 @@ def _resolve_resume_checkpoint(settings: Settings, descriptor: dict[str, Any] | 
 def _pause_runtime_contract() -> dict[str, Any]:
     return {
         "review_decision_supported": True,
-        "engine_pause_supported": False,
-        "pause_note": "Review request decisions are supported; executor-level blocking pause/resume is not implemented yet.",
+        "engine_pause_supported": True,
+        "pause_note": "Review request decisions and executor-level blocking pause/resume are supported.",
     }
 
 
@@ -349,10 +349,10 @@ def _workflow_trigger_runtime_contract() -> dict[str, Any]:
 
 def _normalize_pause_contract(pause_request: dict[str, Any]) -> dict[str, Any]:
     pause_request.setdefault("review_decision_supported", True)
-    pause_request.setdefault("engine_pause_supported", False)
+    pause_request.setdefault("engine_pause_supported", True)
     pause_request.setdefault(
         "note",
-        "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is not implemented yet.",
+        "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is supported.",
     )
     return pause_request
 
@@ -468,15 +468,25 @@ def _resolve_pause_request_path(settings: Settings, body: PauseRequestResolveReq
     pause_dir = _pause_requests_dir(settings).resolve()
     if body.pause_file:
         candidate = (settings.project_root / body.pause_file).resolve()
+    elif body.run_id and body.node_id:
+        candidate = (pause_dir / f"{body.run_id}__{body.node_id}.json").resolve()
     elif body.node_id:
         candidate = (pause_dir / f"{body.node_id}.json").resolve()
     else:
-        raise HTTPException(status_code=400, detail="node_id or pause_file is required")
+        raise HTTPException(status_code=400, detail="run_id and node_id, node_id, or pause_file is required")
 
     try:
         candidate.relative_to(pause_dir)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="pause request must be inside the workspace pause_requests directory") from exc
+    if not candidate.exists() and body.run_id and body.node_id and not body.pause_file:
+        legacy_candidate = (pause_dir / f"{body.node_id}.json").resolve()
+        try:
+            legacy_candidate.relative_to(pause_dir)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="pause request must be inside the workspace pause_requests directory") from exc
+        if legacy_candidate.exists():
+            candidate = legacy_candidate
     if not candidate.exists():
         raise HTTPException(status_code=404, detail=f"Pause request not found: {candidate.name}")
     return candidate

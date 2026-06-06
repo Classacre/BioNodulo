@@ -18,6 +18,9 @@ const checkpointManifest = {
 const pauseRequests = {
   pause_requests_dir: '/workspace/pause_requests',
   count: 1,
+  review_decision_supported: true,
+  engine_pause_supported: true,
+  pause_note: 'Review request decisions and executor-level blocking pause/resume are supported.',
   errors: [],
   pause_requests: [
     {
@@ -25,6 +28,7 @@ const pauseRequests = {
       node_id: 'manual-review',
       message: 'Review QC metrics',
       status: 'waiting',
+      engine_pause_supported: true,
     },
   ],
 };
@@ -127,6 +131,7 @@ test('runtime artifacts panel exposes checkpoints, pause requests, and workflow 
   await expect(page.getByRole('heading', { name: 'Pause requests' })).toBeVisible();
   await expect(page.getByText('Review QC metrics')).toBeVisible();
   await expect(page.getByText('manual-review · waiting')).toBeVisible();
+  await expect(page.getByText('Blocking pause available')).toBeVisible();
 
   await expect(page.getByRole('heading', { name: 'Workflow triggers' })).toBeVisible();
   await expect(page.getByText('Nightly QC workflow')).toBeVisible();
