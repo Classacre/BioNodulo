@@ -34,10 +34,13 @@ def test_phylogenetics_template_embeds_alignment_image_in_final_report() -> None
 
     assert node_types["msa_view_001"] == "bp_msa_view"
     assert node_types["phylo_report_001"] == "html_report"
+    assert node_types["phylo_report_preview_001"] == "html_preview"
 
     report = _node(workflow, "phylo_report_001")
     assert report["params"]["section_names"] == "Phylogenetic tree,Alignment visualization"
 
     assert _has_edge(workflow, "tree_viewer_001", "tree_image", "phylo_report_001", "images")
     assert _has_edge(workflow, "msa_view_001", "alignment_image", "phylo_report_001", "images")
+    assert _has_edge(workflow, "phylo_report_001", "html_report", "phylo_report_preview_001", "file")
     assert not _has_edge(workflow, "mafft_001", "alignment", "phylo_report_001", "tables")
+    assert workflow["outputs"]["report_preview"] == "phylo_report_preview_001"
