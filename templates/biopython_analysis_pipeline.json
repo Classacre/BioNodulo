@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython, Biostrings, and AI sequence classification integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n7. AI Sequence Classification: Classify validated coding sequences with deterministic local fallback.\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
+        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython, Biostrings, AI sequence classification, and generic HTTP API integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n7. AI Sequence Classification: Classify validated coding sequences with deterministic local fallback.\n8. HTTP API Lookup: Demonstrate a cached, rate-limited UniProt REST query.\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
       },
       "ui": {
         "title": "Notes",
@@ -249,6 +249,25 @@
       }
     },
     {
+      "id": "http_gene_lookup_001",
+      "type": "http_request",
+      "position": [
+        80,
+        -240
+      ],
+      "params": {
+        "url": "https://rest.uniprot.org/uniprotkb/search",
+        "method": "GET",
+        "query_params": "{\"query\":\"gene:rpoB AND organism_id:562\",\"fields\":\"accession,id,protein_name,gene_names,organism_name\",\"format\":\"tsv\",\"size\":\"5\"}",
+        "cache_ttl": 3600,
+        "rate_limit_per_second": 1,
+        "output_name": "uniprot_rpob_lookup"
+      },
+      "ui": {
+        "title": "UniProt API Lookup"
+      }
+    },
+    {
       "id": "sequence_report_001",
       "type": "html_report",
       "position": [
@@ -471,6 +490,7 @@
     "sequence_length_chart": "seq_length_chart_001",
     "sequence_classifications": "sequence_classification_001",
     "sequence_classifications_csv": "sequence_classification_001",
+    "api_gene_lookup": "http_gene_lookup_001",
     "report": "sequence_report_001",
     "sequence_report_preview": "sequence_report_preview_001"
   }

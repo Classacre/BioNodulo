@@ -690,6 +690,26 @@ def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences(
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 
 
+def test_biopython_template_demonstrates_generic_http_api_lookup() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["http_gene_lookup_001"] == "http_request"
+    request = next(node for node in workflow["nodes"] if node["id"] == "http_gene_lookup_001")
+    assert request["params"]["url"] == "https://rest.uniprot.org/uniprotkb/search"
+    assert request["params"]["method"] == "GET"
+    assert json.loads(request["params"]["query_params"]) == {
+        "query": "gene:rpoB AND organism_id:562",
+        "fields": "accession,id,protein_name,gene_names,organism_name",
+        "format": "tsv",
+        "size": "5",
+    }
+    assert request["params"]["cache_ttl"] == 3600
+    assert request["params"]["rate_limit_per_second"] == 1
+    assert request["params"]["output_name"] == "uniprot_rpob_lookup"
+    assert workflow["outputs"]["api_gene_lookup"] == "http_gene_lookup_001"
+
+
 def test_differential_expression_template_validates_transcriptome_before_indexing() -> None:
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
