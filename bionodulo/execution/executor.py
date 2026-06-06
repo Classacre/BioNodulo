@@ -62,6 +62,7 @@ class ExecutionContext:
             (e.g. ["pixi", "run", "-e", "qc", "--"]).
         run_metadata: Mutable metadata for the whole workflow run.
         executor: The active workflow executor instance.
+        registry: The active node registry for type resolution.
     """
 
     run_id: str
@@ -76,6 +77,7 @@ class ExecutionContext:
     env_prefix: list[str] = field(default_factory=list)
     run_metadata: dict[str, Any] = field(default_factory=dict)
     executor: Any | None = None
+    registry: Any | None = field(default=None, repr=False)
 
     # Mutable state set during execution
     _previews: list[dict[str, Any]] = field(default_factory=list, repr=False)
@@ -593,6 +595,7 @@ class WorkflowExecutor:
                 env_prefix=env_prefix,
                 run_metadata=run_metadata,
                 executor=self,
+                registry=self.registry,
             )
 
             # ---- Execute the node ----
@@ -1695,6 +1698,7 @@ class WorkflowExecutor:
                         env_prefix=self._env_prefix_for_node(body_node, workflow),
                         run_metadata=ctx.run_metadata,
                         executor=ctx.executor or self,
+                        registry=ctx.registry if ctx.registry is not None else self.registry,
                     )
                     body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                     outputs = body_result.get("outputs", {})
@@ -2092,6 +2096,7 @@ class WorkflowExecutor:
                 env_prefix=self._env_prefix_for_node(body_node, workflow),
                 run_metadata=ctx.run_metadata,
                 executor=ctx.executor or self,
+                registry=ctx.registry if ctx.registry is not None else self.registry,
             )
             body_result = await self._execute_node(body_ctx, body_node, body_inputs)
             outputs = body_result.get("outputs", {})

@@ -199,6 +199,36 @@ async def test_executor_applies_node_param_migrations_before_execution(tmp_path:
     assert workflow["nodes"][0]["params"] == {"old_value": "from-legacy"}
 
 
+@pytest.mark.asyncio
+async def test_workflow_executor_passes_registry_to_node_context(tmp_path: Path) -> None:
+    class RegistryAwareNode:
+        RETURN_NAMES = ("registry_name",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> dict[str, Any]:
+            return {"outputs": {"registry_name": context.registry.name}}
+
+    class Registry:
+        name = "runtime-registry"
+
+        def get(self, node_type: str) -> type[RegistryAwareNode] | None:
+            return {"registry_aware": RegistryAwareNode}.get(node_type)
+
+    workflow = {
+        "nodes": [{"id": "reader", "type": "registry_aware", "outputs": {"registry_name": {}}}],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("registry-context-run", workflow)
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["reader"] == {"registry_name": "runtime-registry"}
+
+
 def test_graph_helpers_support_frontend_and_legacy_edge_shapes() -> None:
     frontend_edge = {
         "from": {"node": "input", "output": "reads"},
