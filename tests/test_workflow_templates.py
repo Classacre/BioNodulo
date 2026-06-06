@@ -564,6 +564,18 @@ def test_differential_expression_template_validates_reads_before_quantification(
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_differential_expression_template_is_labeled_as_transcript_quantification() -> None:
+    workflow = _load_template("differential_expression.json")
+    note = next(node for node in workflow["nodes"] if node["id"] == "note_differential_expression")
+    note_text = note["params"]["text"]
+
+    assert workflow["name"] == "Transcript Quantification"
+    assert "transcript quantification" in workflow["description"].lower()
+    assert "differential expression" not in workflow["description"].lower()
+    assert "Transcript quantification" in note_text
+    assert "DESeq2/edgeR" not in note_text
+
+
 def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc() -> None:
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)

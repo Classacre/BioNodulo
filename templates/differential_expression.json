@@ -1,8 +1,8 @@
 {
   "version": "2.0",
   "app": "bionodulo",
-  "name": "Differential Expression",
-  "description": "Transcript quantification and differential expression analysis",
+  "name": "Transcript Quantification",
+  "description": "Transcript quantification with Salmon and Kallisto",
   "nodes": [
     {
       "id": "note_differential_expression",
@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Differential expression analysis: compares gene expression between conditions using DESeq2/edgeR.\nData: S. cerevisiae RNA-seq reads SRR6357071 (subsampled) from nf-core/test-datasets GSE110004. Transcriptome from Ensembl Saccharomyces_cerevisiae.R64-1-1.cdna.all.\nSources: https://github.com/nf-core/test-datasets | https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/"
+        "text": "Transcript quantification pipeline: indexes a transcriptome and estimates transcript abundance with Salmon and Kallisto.\nData: S. cerevisiae RNA-seq reads SRR6357071 (subsampled) from nf-core/test-datasets GSE110004. Transcriptome from Ensembl Saccharomyces_cerevisiae.R64-1-1.cdna.all.\nSources: https://github.com/nf-core/test-datasets | https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/"
       },
       "ui": {
         "title": "Notes",
