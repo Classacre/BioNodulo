@@ -30,6 +30,7 @@ from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
+from bionodulo.workflow.migrations import apply_workflow_migrations
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +204,8 @@ class WorkflowExecutor:
         options = options or {}
         force_nodes = force_nodes or set()
         cancel_event = cancel_event or asyncio.Event()
+        migration_result = apply_workflow_migrations(workflow, self.registry)
+        workflow = migration_result.workflow
 
         if emit is None:
             def _noop_emit(event: str, data: dict[str, Any]) -> None:
@@ -325,6 +328,10 @@ class WorkflowExecutor:
             "forced": force,
             "target_nodes": sorted(target_nodes),
             "workflow_parameters": workflow_parameters,
+            "workflow_migrations": {
+                "applied": migration_result.applied,
+                "warnings": migration_result.warnings,
+            },
             "nodes": {},
         }
 
@@ -678,6 +685,8 @@ class WorkflowExecutor:
         """Return a no-execute preview of node commands, outputs, cache, and environments."""
         options = options or {}
         force_nodes = force_nodes or set()
+        migration_result = apply_workflow_migrations(workflow, self.registry)
+        workflow = migration_result.workflow
         graph = self._prepare_execution_plan_graph(workflow, options)
         if graph.get("status") == "failed":
             return {"status": "failed", "run_id": run_id, "error": graph["error"]}
@@ -764,6 +773,10 @@ class WorkflowExecutor:
             "workflow_name": workflow.get("name", ""),
             "target_nodes": sorted(graph["target_nodes"]),
             "workflow_parameters": workflow_parameters,
+            "workflow_migrations": {
+                "applied": migration_result.applied,
+                "warnings": migration_result.warnings,
+            },
             "execution_order": execution_order,
             "nodes": plan_nodes,
             "will_execute": False,

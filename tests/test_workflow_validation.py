@@ -17,6 +17,23 @@ class VersionedValidationNode(BaseNode):
         return ("",)
 
 
+class MigratableValidationNode(BaseNode):
+    NODE_ID = "migratable_validation"
+    VERSION = "2.0.0"
+    RETURN_TYPES = ("STRING",)
+    MIGRATIONS = [
+        {
+            "from_version": "1.x",
+            "to_version": "2.0.0",
+            "description": "Rename old_value to value.",
+            "rename_params": {"old_value": "value"},
+        }
+    ]
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        return ("",)
+
+
 def test_validation_warns_when_saved_node_version_differs_from_registry() -> None:
     registry = NodeRegistry.create_isolated()
     registry.register(VersionedValidationNode)
@@ -40,6 +57,31 @@ def test_validation_warns_when_saved_node_version_differs_from_registry() -> Non
     assert result.errors == []
     assert result.warnings == [
         "Node 'n1' (versioned_validation) was saved with version 1.0.0 but registry has 1.1.0"
+    ]
+
+
+def test_validation_warns_when_matching_node_migration_is_available() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.register(MigratableValidationNode)
+    workflow = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "migratable_validation",
+                "params": {"old_value": "legacy"},
+                "node_info": {"version": "1.0.0"},
+            }
+        ],
+        "edges": [],
+    }
+
+    result = validate_workflow(workflow, registry)
+
+    assert result.valid is True
+    assert result.errors == []
+    assert result.warnings == [
+        "Node 'n1' (migratable_validation) was saved with version 1.0.0 but registry has 2.0.0",
+        "Node 'n1' (migratable_validation) has a migration available from 1.x to 2.0.0: Rename old_value to value.",
     ]
 
 

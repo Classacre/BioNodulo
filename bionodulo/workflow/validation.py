@@ -7,6 +7,7 @@ required inputs are connected.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import fnmatch
 from typing import Any
 
 from bionodulo.workflow.graph import edge_source, edge_target, edge_target_port, topological_sort
@@ -89,6 +90,15 @@ def validate_workflow(
                 f"Node '{node_id}' ({node_type}) was saved with version {saved_version} "
                 f"but registry has {registry_version}"
             )
+            migration = _matching_migration(meta, saved_version)
+            if migration:
+                from_version = str(migration.get("from_version", "") or saved_version)
+                to_version = str(migration.get("to_version", "") or registry_version)
+                description = str(migration.get("description", "") or "No description provided.")
+                warnings.append(
+                    f"Node '{node_id}' ({node_type}) has a migration available from "
+                    f"{from_version} to {to_version}: {description}"
+                )
 
     # Check 2: Edges reference valid nodes
     for edge in edges:
@@ -204,6 +214,25 @@ def _registry_node_version(meta: Any) -> str:
     else:
         version = getattr(meta, "VERSION", "")
     return str(version) if version else ""
+
+
+def _matching_migration(meta: Any, saved_version: str) -> dict[str, Any] | None:
+    migrations = meta.get("versioning", {}).get("migrations", []) if isinstance(meta, dict) else getattr(meta, "MIGRATIONS", [])
+    if not isinstance(migrations, list):
+        return None
+    for migration in migrations:
+        if not isinstance(migration, dict):
+            continue
+        from_version = str(migration.get("from_version", "") or "")
+        if not from_version or _version_matches(saved_version, from_version):
+            return migration
+    return None
+
+
+def _version_matches(saved_version: str, pattern: str) -> bool:
+    if pattern.endswith(".x"):
+        return saved_version.startswith(pattern[:-1])
+    return saved_version == pattern or fnmatch.fnmatch(saved_version, pattern)
 
 
 def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> None:
