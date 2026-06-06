@@ -313,6 +313,7 @@ def test_extract_columns_exposes_output_type_for_frontend_discovery() -> None:
     assert output_type[1]["default"] == "AUTO"
     assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
     assert "column_indices" in node_info["input"]["optional"]
+    assert "rename_to" in node_info["input"]["optional"]
 
 
 @pytest.mark.asyncio
@@ -338,6 +339,49 @@ async def test_extract_columns_supports_zero_based_column_indices(tmp_path: Path
         {"status": "fail", "sample": "S1"},
         {"status": "pass", "sample": "S2"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_extract_columns_supports_positional_rename_to(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ])
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns="status,sample",
+        rename_to="qc_status,sample_id",
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "extract-rename-to"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["qc_status", "sample_id"]
+    assert rows == [
+        {"qc_status": "fail", "sample_id": "S1"},
+        {"qc_status": "pass", "sample_id": "S2"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_extract_columns_rejects_rename_to_count_mismatch(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+    ])
+
+    with pytest.raises(ValueError, match="rename_to length"):
+        await _node_class("extract_columns")().run(
+            table=str(table),
+            columns="status,sample",
+            rename_to="qc_status",
+            delimiter="tsv",
+            output_type="TSV",
+            context=_context(tmp_path, "extract-rename-to-mismatch"),
+        )
 
 
 @pytest.mark.asyncio

@@ -361,6 +361,7 @@ class ExtractColumnsNode(BaseNode):
             "optional": {
                 "rename_map": ("STRING", {"default": "", "description": "Comma-separated old:new renames"}),
                 "column_indices": ("STRING", {"default": "", "description": "Comma-separated 0-based column indices"}),
+                "rename_to": ("STRING", {"default": "", "description": "Comma-separated output column names"}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
@@ -381,9 +382,9 @@ class ExtractColumnsNode(BaseNode):
         if missing:
             raise ValueError(f"Column(s) not found: {', '.join(missing)}")
         rename_map = _parse_rename_map(str(kwargs.get("rename_map", "")))
-        output_fields = [rename_map.get(name, name) for name in selected]
+        output_fields = self._output_fields(selected, rename_map, str(kwargs.get("rename_to", "") or ""))
         output_rows = [
-            {rename_map.get(name, name): row.get(name, "") for name in selected}
+            {output_name: row.get(source_name, "") for source_name, output_name in zip(selected, output_fields)}
             for row in rows
         ]
         output_delim, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), table)
@@ -405,6 +406,17 @@ class ExtractColumnsNode(BaseNode):
                 selected.append(fieldnames[index])
             return selected
         return _split_csv(columns)
+
+    @staticmethod
+    def _output_fields(selected: list[str], rename_map: dict[str, str], rename_to: str) -> list[str]:
+        positional_names = _split_csv(rename_to)
+        if positional_names:
+            if len(positional_names) != len(selected):
+                raise ValueError(
+                    f"rename_to length ({len(positional_names)}) must match selected columns ({len(selected)})"
+                )
+            return positional_names
+        return [rename_map.get(name, name) for name in selected]
 
     @staticmethod
     def _output_format(output_type: str, input_path: str | Path) -> tuple[str, str]:
