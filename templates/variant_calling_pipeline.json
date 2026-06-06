@@ -320,6 +320,34 @@
       }
     },
     {
+      "id": "manta_sv_001",
+      "type": "manta_call",
+      "position": [
+        2600,
+        920
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "Manta SV Calling"
+      }
+    },
+    {
+      "id": "delly_sv_001",
+      "type": "delly_call",
+      "position": [
+        2600,
+        1100
+      ],
+      "params": {
+        "mode": "call"
+      },
+      "ui": {
+        "title": "DELLY SV Calling"
+      }
+    },
+    {
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
@@ -707,6 +735,50 @@
       }
     },
     {
+      "id": "e21",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e22",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e23",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e24",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "reference"
+      }
+    },
+    {
       "id": "e20",
       "from": {
         "node": "validate_multiqc_001",
@@ -728,6 +800,8 @@
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
     "gatk_retry_policy": "gatk_retry_001",
+    "manta_sv": "manta_sv_001",
+    "delly_sv": "delly_sv_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
