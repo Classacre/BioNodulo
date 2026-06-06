@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "FASTQ quality control: trims reads with fastp, runs FastQC, and aggregates reports with MultiQC.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
+        "text": "FASTQ quality control: trims reads with fastp, runs FastQC, and aggregates reports with MultiQC.\n\nIncludes a sample sheet input and validator to demonstrate batch metadata capture alongside the single-sample FASTQ path.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
       },
       "ui": {
         "title": "Notes",
@@ -35,6 +35,20 @@
       },
       "ui": {
         "title": "Input FASTQ"
+      }
+    },
+    {
+      "id": "sample_sheet_001",
+      "type": "input_sample_sheet",
+      "position": [
+        80,
+        260
+      ],
+      "params": {
+        "sample_sheet": "templates/data/fastq_qc_sample_sheet.csv"
+      },
+      "ui": {
+        "title": "Sample Sheet"
       }
     },
     {
@@ -80,6 +94,24 @@
       },
       "ui": {
         "title": "Validate FASTQ Reads"
+      }
+    },
+    {
+      "id": "validate_sample_sheet_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        260
+      ],
+      "params": {
+        "expected_format": "csv",
+        "required_fields": "sample,fastq_1,fastq_2",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Sample Sheet"
       }
     },
     {
@@ -193,6 +225,17 @@
       }
     },
     {
+      "id": "e1s",
+      "from": {
+        "node": "sample_sheet_001",
+        "output": "sample_sheet"
+      },
+      "to": {
+        "node": "validate_sample_sheet_001",
+        "input": "input"
+      }
+    },
+    {
       "id": "e1b",
       "from": {
         "node": "fastp_001",
@@ -287,6 +330,8 @@
     "validated_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
     "validated_reads": "validate_reads_001",
+    "sample_sheet": "sample_sheet_001",
+    "validated_sample_sheet": "validate_sample_sheet_001",
     "qc_dashboard": "qc_dashboard_001"
   }
 }

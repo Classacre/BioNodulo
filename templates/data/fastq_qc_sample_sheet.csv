@@ -1,0 +1,2 @@
+sample,fastq_1,fastq_2
+sample1,https://github.com/OpenGene/fastp/raw/master/testdata/R1.fq,https://github.com/OpenGene/fastp/raw/master/testdata/R2.fq
