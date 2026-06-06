@@ -34,6 +34,11 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const optional = meta?.input_types?.optional || {};
   const outputs = meta?.return_types || [];
   const outputNames = meta?.return_names || [];
+  const lifecycleStatus = meta?.lifecycle?.status || (meta?.deprecated ? 'deprecated' : '');
+  const deprecationMessage = meta?.lifecycle?.deprecation_message || meta?.deprecation_message || '';
+  const replacedBy = meta?.lifecycle?.replaced_by || meta?.replaced_by || '';
+  const previousVersions = meta?.versioning?.previous || [];
+  const migrations = meta?.versioning?.migrations || [];
 
   const renderInputRow = (name: string, spec: { type?: string; tooltip?: string; description?: string; default?: unknown }) => `
     <tr>
@@ -52,6 +57,27 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
       <td><code>${escapeHtml(outputNames[idx] || `out_${idx}`)}</code></td>
       <td><span class="help-port-type">${escapeHtml(type)}</span></td>
     </tr>`).join('');
+  const migrationRows = migrations.map(migration => {
+    const fromVersion = migration.from_version || '';
+    const toVersion = migration.to_version || '';
+    const versionRange = [fromVersion, toVersion].filter(Boolean).join(' -> ');
+    return `
+      <li>
+        ${versionRange ? `<code>${escapeHtml(versionRange)}</code> ` : ''}
+        ${escapeHtml(migration.description || t('helpWiki.nodeDocs.noMigrationDescription'))}
+      </li>`;
+  }).join('');
+  const lifecycleHtml = lifecycleStatus || deprecationMessage || replacedBy || previousVersions.length > 0 || migrationRows
+    ? `
+      <div class="help-node-versioning">
+        ${lifecycleStatus ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.lifecycleStatus'))}</strong> <span class="help-meta-pill">${escapeHtml(lifecycleStatus)}</span></p>` : ''}
+        ${deprecationMessage ? `<p>${escapeHtml(deprecationMessage)}</p>` : ''}
+        ${replacedBy ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.replacement'))}</strong> <code>${escapeHtml(replacedBy)}</code></p>` : ''}
+        ${previousVersions.length > 0 ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.previousVersions'))}</strong> ${escapeHtml(previousVersions.join(', '))}</p>` : ''}
+        ${migrationRows ? `<h4>${escapeHtml(t('helpWiki.nodeDocs.migrations'))}</h4><ul>${migrationRows}</ul>` : ''}
+      </div>
+    `
+    : '';
 
   return `
     <div class="help-node-doc">
@@ -62,6 +88,7 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
         ${meta?.version ? `<span class="help-meta-pill">v${escapeHtml(meta.version)}</span>` : ''}
       </div>
       <p>${description}</p>
+      ${lifecycleHtml}
       ${tools.length > 0 ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.requires'))}</strong> ${tools.map(tool => `<code>${escapeHtml(tool)}</code>`).join(', ')}</p>` : ''}
       ${inputRows ? `<h4>${escapeHtml(t('helpWiki.nodeDocs.inputs'))}</h4><table class="help-port-table"><thead><tr><th>${escapeHtml(t('helpWiki.nodeDocs.name'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.type'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.notes'))}</th></tr></thead><tbody>${inputRows}</tbody></table>` : ''}
       ${outputRows ? `<h4>${escapeHtml(t('helpWiki.nodeDocs.outputs'))}</h4><table class="help-port-table"><thead><tr><th>${escapeHtml(t('helpWiki.nodeDocs.name'))}</th><th>${escapeHtml(t('helpWiki.nodeDocs.type'))}</th></tr></thead><tbody>${outputRows}</tbody></table>` : ''}
@@ -135,6 +162,18 @@ function nodeSearchText(meta: NodeMetadata): string {
     meta.category,
     meta.documentation_url,
     meta.version,
+    meta.deprecation_message,
+    meta.replaced_by,
+    meta.lifecycle?.status,
+    meta.lifecycle?.deprecation_message,
+    meta.lifecycle?.replaced_by,
+    meta.versioning?.current,
+    ...(meta.versioning?.previous || []),
+    ...(meta.versioning?.migrations || []).flatMap(migration => [
+      migration.from_version,
+      migration.to_version,
+      migration.description,
+    ]),
     ...(meta.search_aliases || []),
     ...(meta.requires_external_tools || []),
     ...(meta.return_types || []),
@@ -148,6 +187,18 @@ function nodeSearchSnippet(meta: NodeMetadata, query: string): string {
   const q = query.trim().toLowerCase();
   const candidates = [
     meta.description,
+    meta.deprecation_message,
+    meta.replaced_by,
+    meta.lifecycle?.status,
+    meta.lifecycle?.deprecation_message,
+    meta.lifecycle?.replaced_by,
+    meta.versioning?.current,
+    ...(meta.versioning?.previous || []),
+    ...(meta.versioning?.migrations || []).flatMap(migration => [
+      migration.description,
+      migration.from_version,
+      migration.to_version,
+    ]),
     ...(meta.search_aliases || []),
     ...(meta.requires_external_tools || []),
     ...(meta.return_names || []),

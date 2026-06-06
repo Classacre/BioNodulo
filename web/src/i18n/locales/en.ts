@@ -1092,6 +1092,11 @@ const en = {
       name: 'Name',
       type: 'Type',
       notes: 'Notes',
+      lifecycleStatus: 'Lifecycle:',
+      replacement: 'Replacement:',
+      previousVersions: 'Previous versions:',
+      migrations: 'Migrations',
+      noMigrationDescription: 'No migration description provided.',
       hint: 'Tip: select another node on the canvas to view its docs here.',
     },
     content: {

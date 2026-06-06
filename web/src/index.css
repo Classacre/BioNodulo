@@ -1463,6 +1463,9 @@ input[type="range"]::-moz-range-thumb {
 .wiki-node-tab-hint { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .help-node-doc h3 { margin-top: 0; }
 .help-node-meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+.help-node-versioning { margin: 10px 0; padding: 8px 10px; border-left: 3px solid var(--warning); background: color-mix(in srgb, var(--warning) 8%, transparent); }
+.help-node-versioning p { margin: 4px 0; }
+.help-node-versioning ul { margin: 4px 0 0 18px; padding: 0; }
 .help-meta-pill { font-size: 10px; padding: 2px 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .help-meta-pill.help-meta-exp { color: #f97316; border-color: rgba(249,115,22,0.4); background: rgba(249,115,22,0.1); }
 .help-port-table { font-family: 'JetBrains Mono', monospace; }

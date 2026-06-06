@@ -43,6 +43,36 @@ const objectInfo: ObjectInfo = {
     documentation_url: 'https://github.com/vdemichev/DiaNN',
     version: '1.8',
   },
+  legacy_filter: {
+    id: 'legacy_filter',
+    display_name: 'Legacy Variant Filter',
+    category: 'variant',
+    description: 'Old variant filtering node retained for compatibility.',
+    input_types: { required: {}, optional: {} },
+    return_types: ['VCF'],
+    return_names: ['filtered_vcf'],
+    version: '2.1.0',
+    deprecated: true,
+    deprecation_message: 'Use modern_variant_filter for new workflows.',
+    replaced_by: 'modern_variant_filter',
+    lifecycle: {
+      status: 'deprecated',
+      deprecated: true,
+      deprecation_message: 'Use modern_variant_filter for new workflows.',
+      replaced_by: 'modern_variant_filter',
+    },
+    versioning: {
+      current: '2.1.0',
+      previous: ['1.0.0', '2.0.0'],
+      migrations: [
+        {
+          from_version: '1.x',
+          to_version: '2.1.0',
+          description: 'Rename threshold to min_quality before execution.',
+        },
+      ],
+    },
+  },
 };
 
 describe('HelpWikiPanel node documentation search', () => {
@@ -90,6 +120,32 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('raw_files')).toBeInTheDocument();
     expect(screen.getByText('report')).toBeInTheDocument();
     expect(screen.getByText(/Requires:/)).toBeInTheDocument();
+  });
+
+  it('surfaces lifecycle and migration metadata in node docs and search', async () => {
+    await import('../i18n');
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Search help...'), {
+      target: { value: 'min_quality' },
+    });
+
+    expect(screen.getByText('Nodes')).toBeInTheDocument();
+    expect(screen.getByText('Legacy Variant Filter')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Legacy Variant Filter/i })).toHaveTextContent('Rename threshold to min_quality');
+
+    fireEvent.click(screen.getByRole('button', { name: /Legacy Variant Filter/i }));
+
+    expect(screen.getByRole('heading', { name: 'Legacy Variant Filter' })).toBeInTheDocument();
+    expect(screen.getByText('deprecated')).toBeInTheDocument();
+    expect(screen.getByText('Use modern_variant_filter for new workflows.')).toBeInTheDocument();
+    expect(screen.getByText(/Replacement:/)).toBeInTheDocument();
+    expect(screen.getByText('modern_variant_filter')).toBeInTheDocument();
+    expect(screen.getByText(/Previous versions:/)).toBeInTheDocument();
+    expect(screen.getByText('1.0.0, 2.0.0')).toBeInTheDocument();
+    expect(screen.getByText('Rename threshold to min_quality before execution.')).toBeInTheDocument();
   });
 
   it('renders panel chrome, page navigation, search labels, and node docs from the active locale', async () => {

@@ -1093,6 +1093,11 @@ const es = {
       name: 'Nombre',
       type: 'Tipo',
       notes: 'Notas',
+      lifecycleStatus: 'Ciclo de vida:',
+      replacement: 'Reemplazo:',
+      previousVersions: 'Versiones anteriores:',
+      migrations: 'Migraciones',
+      noMigrationDescription: 'No se proporciono descripcion de migracion.',
       hint: 'Consejo: selecciona otro nodo en el lienzo para ver su documentacion aqui.',
     },
     content: {
