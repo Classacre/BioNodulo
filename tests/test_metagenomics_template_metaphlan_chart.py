@@ -35,14 +35,19 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert node_types["metaphlan_001"] == "metaphlan"
     assert node_types["metaphlan_bar_001"] == "bar_chart"
     assert node_types["taxonomy_report_001"] == "html_report"
+    assert node_types["taxonomy_report_preview_001"] == "html_preview"
 
     chart = _node_by_id(workflow, "metaphlan_bar_001")
+    report = _node_by_id(workflow, "taxonomy_report_001")
     assert chart["params"]["title"] == "MetaPhlAn Relative Abundance"
     assert chart["params"]["x_column"] == "clade_name"
     assert chart["params"]["y_column"] == "relative_abundance"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
+    assert report["params"]["section_names"] == "Taxonomy chart,Bracken report"
 
     assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
     assert _has_edge(workflow, "metaphlan_bar_001", "chart_image", "taxonomy_report_001", "images")
+    assert _has_edge(workflow, "taxonomy_report_001", "html_report", "taxonomy_report_preview_001", "file")
     assert workflow["outputs"]["metaphlan_chart"] == "metaphlan_bar_001"
+    assert workflow["outputs"]["taxonomy_report_preview"] == "taxonomy_report_preview_001"

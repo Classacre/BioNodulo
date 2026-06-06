@@ -212,6 +212,18 @@
       }
     },
     {
+      "id": "taxonomy_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        2240,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Taxonomy Report"
+      }
+    },
+    {
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
@@ -485,6 +497,17 @@
       }
     },
     {
+      "id": "e8b",
+      "from": {
+        "node": "taxonomy_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "taxonomy_report_preview_001",
+        "input": "file"
+      }
+    },
+    {
       "id": "e9",
       "from": {
         "node": "gate_trimmed_reads_001",
@@ -634,6 +657,7 @@
     "taxonomy_chart": "bracken_bar_001",
     "metaphlan_chart": "metaphlan_bar_001",
     "taxonomy_report": "taxonomy_report_001",
+    "taxonomy_report_preview": "taxonomy_report_preview_001",
     "validated_bracken_report": "validate_bracken_001",
     "validated_db": "validate_db_001",
     "kraken2_retry_policy": "kraken2_retry_001",
