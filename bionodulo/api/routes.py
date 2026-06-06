@@ -72,7 +72,7 @@ from bionodulo.environments.manifest import (
 from bionodulo.manager.diagnostics import host_diagnostics
 from bionodulo.manager.example_data import download_example_data
 from bionodulo.hpc.base import HPCBackend
-from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode, WorkflowTriggerNode
+from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode
 from bionodulo.manager.resolver import _resolve_workflow_async
 from bionodulo.manager.custom_nodes import list_installed_packages, registry_entries
 from bionodulo.workflow.graph import edge_source, edge_target
@@ -2106,11 +2106,7 @@ async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"HPC submit failed: {exc}") from exc
 
-    return {
-        "job_id": job_id,
-        "status": "submitted",
-        "note": "HPC backend submit_workflow not implemented",
-    }
+    raise HTTPException(status_code=501, detail="HPC backend submit_workflow is not implemented")
 
 
 @router.get("/hpc/jobs/{job_id}")

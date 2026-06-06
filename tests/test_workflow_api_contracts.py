@@ -353,6 +353,38 @@ def test_hpc_submit_rejects_parameterized_run_when_backend_cannot_accept_paramet
     assert response.json()["detail"] == "HPC backend submit_workflow does not support runtime parameters"
 
 
+def test_hpc_submit_rejects_backend_without_submit_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    class JobOnlyHPC:
+        async def submit_job(self, script: str) -> str:
+            return f"job-{script}"
+
+    with TestClient(create_app()) as client:
+        client.app.state.hpc_backend = JobOnlyHPC()
+        response = client.post(
+            "/api/hpc/submit",
+            json={
+                "workflow": {
+                    "id": "wf-1",
+                    "name": "Workflow Submit",
+                    "nodes": [],
+                    "edges": [],
+                },
+                "workflow_id": "wf-1",
+                "name": "Workflow Submit",
+            },
+        )
+
+    assert response.status_code == 501
+    assert response.json()["detail"] == "HPC backend submit_workflow is not implemented"
+
+
 def test_run_create_dry_run_returns_preview_without_queue_submission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
