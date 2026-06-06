@@ -106,6 +106,24 @@ def test_wgs_variant_template_validates_reference_before_alignment_and_calling()
     assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
 
 
+def test_wgs_variant_template_validates_reads_before_trimming_and_qc() -> None:
+    workflow = _load_template("wgs_variant_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reads_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
+    assert validator["params"]["expected_format"] == "fastq"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
+    assert _has_edge(workflow, "validate_reads_001", "passthrough", "qc_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+
+
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
