@@ -392,6 +392,24 @@ def test_differential_expression_template_validates_transcriptome_before_indexin
     assert workflow["outputs"]["validated_transcriptome"] == "validate_transcriptome_001"
 
 
+def test_differential_expression_template_validates_reads_before_quantification() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reads_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
+    assert validator["params"]["expected_format"] == "fastq"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "validate_reads_001", "passthrough", "salmon_quant_001", "reads")
+    assert _has_edge(workflow, "validate_reads_001", "passthrough", "kallisto_quant_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "salmon_quant_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "kallisto_quant_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
