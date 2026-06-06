@@ -957,6 +957,7 @@ export default function App() {
   const setShowBatchSheet = useSetAtom(showBatchSheetAtom);
   const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
   const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
+  const [dryRunPreview, setDryRunPreview] = useState(false);
 
   const isRunning = useAtomValue(isRunningAtom);
   const batchCount = useAtomValue(batchCountAtom);
@@ -1358,12 +1359,42 @@ export default function App() {
         setIsRunning(false);
         return;
       }
-      const count = Math.max(1, Math.min(99, batchCount));
+      const count = dryRunPreview ? 1 : Math.max(1, Math.min(99, batchCount));
       for (let index = 0; index < count; index += 1) {
         const batchName = count > 1
           ? `${activeWorkflow.name || 'Untitled'} (${index + 1}/${count})`
           : activeWorkflow.name || 'Untitled';
-        const result = await submitRun(activeWorkflow, { no_cache: !cacheEnabled, name: batchName, parameters: parameterOverrides });
+        const result = await submitRun(activeWorkflow, {
+          no_cache: !cacheEnabled,
+          name: batchName,
+          parameters: parameterOverrides,
+          dry_run: dryRunPreview,
+        });
+        if (dryRunPreview || result.status === 'dry_run') {
+          const preview = result as RunRecord & {
+            execution_order?: string[];
+            nodes?: Record<string, unknown>;
+            resume_checkpoint?: unknown;
+          };
+          const executionOrder = Array.isArray(preview.execution_order)
+            ? preview.execution_order
+            : (Array.isArray(preview.execution_plan) ? preview.execution_plan : []);
+          addLog({
+            run_id: result.run_id,
+            node_id: 'engine',
+            level: 'info',
+            message: `Dry run preview: ${executionOrder.length} node${executionOrder.length === 1 ? '' : 's'} planned`,
+            detail: JSON.stringify({
+              execution_order: executionOrder,
+              nodes: preview.nodes ?? {},
+              resume_checkpoint: preview.resume_checkpoint ?? null,
+            }, null, 2),
+            timestamp: new Date().toISOString(),
+          });
+          setConsoleVisible(true);
+          setRailTab('console');
+          continue;
+        }
         addRun({
           run_id: result.run_id,
           status: 'pending',
@@ -1376,7 +1407,11 @@ export default function App() {
           start_time: new Date().toISOString(),
         });
       }
-      toast.success(count > 1 ? `${count} runs queued` : 'Run queued');
+      if (dryRunPreview) {
+        toast.info('Dry run preview generated', { message: 'Open the console to inspect the execution plan.' });
+      } else {
+        toast.success(count > 1 ? `${count} runs queued` : 'Run queued');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       addLog({
@@ -1391,7 +1426,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, setRailTab, t]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, setConsoleVisible, setRailTab, t]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -2816,6 +2851,8 @@ export default function App() {
         onQueueModeChange={setQueueMode}
         queueCount={queueCount}
         onToggleQueue={handleToggleQueue}
+        dryRunPreview={dryRunPreview}
+        onDryRunPreviewChange={setDryRunPreview}
         collabControls={(
           <CollabBadge
             enabled={collabEnabled}

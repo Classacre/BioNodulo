@@ -139,7 +139,7 @@ export interface NodeStatus {
 
 export interface RunRecord {
   run_id: string;
-  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled' | 'dry_run';
   workflow_name: string;
   node_statuses: NodeStatus[];
   node_outputs: Record<string, Record<string, string>>;

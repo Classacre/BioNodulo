@@ -50,6 +50,19 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain('if (parameterOverrides === null)');
   });
 
+  it('wires dry-run preview mode into App run submission without queueing a run record', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain('const [dryRunPreview, setDryRunPreview] = useState(false);');
+    expect(appSource).toContain('dry_run: dryRunPreview');
+    expect(appSource).toContain("if (dryRunPreview || result.status === 'dry_run')");
+    expect(appSource).toContain("level: 'info'");
+    expect(appSource).toContain('message: `Dry run preview: ${executionOrder.length} node');
+    expect(appSource).toContain('continue;');
+    expect(appSource).toContain('dryRunPreview={dryRunPreview}');
+    expect(appSource).toContain('onDryRunPreviewChange={setDryRunPreview}');
+  });
+
   it('passes sample-sheet workflow parameter overrides into queued runs', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
