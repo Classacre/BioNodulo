@@ -203,6 +203,24 @@
       }
     },
     {
+      "id": "metrics_summary_chart_001",
+      "type": "bar_chart",
+      "position": [
+        800,
+        620
+      ],
+      "params": {
+        "title": "Cell Ranger Metrics Summary",
+        "x_column": "Metric Name",
+        "y_column": "Metric Value",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Metrics Summary Chart"
+      }
+    },
+    {
       "id": "single_cell_report_001",
       "type": "html_report",
       "position": [
@@ -211,8 +229,8 @@
       ],
       "params": {
         "title": "Single Cell RNA-Seq Report",
-        "text_sections": "# Cell Ranger Summary\nCell Ranger processed the tinygex 10x Genomics FASTQ directory against the configured reference transcriptome. The validated web summary remains available as the detailed run report, and the validated metrics summary is included below.",
-        "section_names": "Cell Ranger metrics",
+        "text_sections": "# Cell Ranger Summary\nCell Ranger processed the tinygex 10x Genomics FASTQ directory against the configured reference transcriptome. The validated web summary remains available as the detailed run report, with the metrics summary included as both a chart and table below.",
+        "section_names": "Cell Ranger metrics chart,Cell Ranger metrics",
         "max_table_rows": 100
       },
       "ui": {
@@ -311,6 +329,28 @@
       }
     },
     {
+      "id": "e3e",
+      "from": {
+        "node": "validate_metrics_summary_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "metrics_summary_chart_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e3f",
+      "from": {
+        "node": "metrics_summary_chart_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "single_cell_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e4",
       "from": {
         "node": "validate_fastq_dir_001",
@@ -374,6 +414,7 @@
     "validated_reference_dir": "validate_reference_dir_001",
     "validated_web_summary": "validate_web_summary_001",
     "validated_metrics_summary": "validate_metrics_summary_001",
+    "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
     "report": "single_cell_report_001",

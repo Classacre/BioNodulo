@@ -58,16 +58,28 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
     node_types = _node_types(workflow)
 
     assert node_types["validate_metrics_summary_001"] == "data_validator"
+    assert node_types["metrics_summary_chart_001"] == "bar_chart"
     validator = _node(workflow, "validate_metrics_summary_001")
+    chart = _node(workflow, "metrics_summary_chart_001")
     report = _node(workflow, "single_cell_report_001")
 
     assert validator["params"]["expected_format"] == "csv"
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
-    assert report["params"]["section_names"] == "Cell Ranger metrics"
+    assert chart["params"] == {
+        "title": "Cell Ranger Metrics Summary",
+        "x_column": "Metric Name",
+        "y_column": "Metric Value",
+        "orientation": "horizontal",
+        "format": "png",
+    }
+    assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
 
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
+    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "metrics_summary_chart_001", "table")
+    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
     assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
     assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
     assert workflow["outputs"]["validated_metrics_summary"] == "validate_metrics_summary_001"
+    assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
     assert workflow["outputs"]["metrics_report"] == "single_cell_report_001"
