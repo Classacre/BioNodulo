@@ -85,6 +85,21 @@ const objectInfo = {
     output: ['DIRECTORY'],
     output_name: ['pdb_dir'],
   },
+  proteinmpnn_design: {
+    name: 'proteinmpnn_design',
+    display_name: 'ProteinMPNN Design',
+    category: 'ai',
+    description: 'Design protein sequences from a backbone PDB using ProteinMPNN.',
+    search_aliases: ['proteinmpnn', 'inverse folding', 'protein design'],
+    input: {
+      required: {
+        script_path: { type: 'FILE' },
+        pdb_path: { type: 'FILE' },
+      },
+    },
+    output: ['DIRECTORY', 'FASTA'],
+    output_name: ['design_dir', 'designed_sequences'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -158,7 +173,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('8 nodes available')).toBeVisible();
+  await expect(page.getByText('9 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -168,6 +183,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
     { query: 'single sequence', name: 'ESMFold Predict', category: 'ai' },
+    { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];
