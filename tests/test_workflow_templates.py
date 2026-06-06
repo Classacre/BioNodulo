@@ -377,6 +377,21 @@ def test_rna_seq_template_validates_reads_before_trimming_and_qc() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_rna_seq_template_gates_trimmed_reads_before_alignment() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["gate_trimmed_reads_001"] == "gate"
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_trimmed_reads_001")
+    assert gate["params"]["condition_mode"] == "is_not_empty"
+    assert gate["params"]["on_fail"] == "halt"
+    assert "trimmed reads" in gate["params"]["error_message"]
+    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "gate_trimmed_reads_001", "value")
+    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "hisat2_001", "reads")
+    assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "hisat2_001", "reads")
+    assert workflow["outputs"]["trimmed_reads_quality_gate"] == "gate_trimmed_reads_001"
+
+
 def test_rna_seq_template_validates_annotation_before_counts_and_alignment_qc() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
