@@ -273,6 +273,22 @@
       }
     },
     {
+      "id": "validate_metaphlan_profile_001",
+      "type": "data_validator",
+      "position": [
+        980,
+        528
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MetaPhlAn Profile"
+      }
+    },
+    {
       "id": "humann_001",
       "type": "humann",
       "position": [
@@ -596,6 +612,17 @@
         "output": "profile"
       },
       "to": {
+        "node": "validate_metaphlan_profile_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e9a_validated",
+      "from": {
+        "node": "validate_metaphlan_profile_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "metaphlan_bar_001",
         "input": "table"
       }
@@ -786,6 +813,7 @@
     "taxonomy_report": "taxonomy_report_001",
     "taxonomy_report_preview": "taxonomy_report_preview_001",
     "validated_bracken_report": "validate_bracken_001",
+    "validated_metaphlan_profile": "validate_metaphlan_profile_001",
     "validated_db": "validate_db_001",
     "kraken2_retry_policy": "kraken2_retry_001",
     "metaphlan": "metaphlan_001",
