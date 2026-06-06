@@ -116,10 +116,16 @@ class IfConditionNode(BaseNode):
                     "numeric_less",
                     "numeric_greater_equal",
                     "numeric_less_equal",
+                    "numeric_not_equal",
                     "string_equal",
+                    "string_not_equal",
                     "string_contains",
+                    "string_not_contains",
+                    "string_startswith",
+                    "string_endswith",
                     "regex_match",
                     "file_exists",
+                    "is_empty",
                     "not_empty",
                 ], {"default": "boolean", "description": "Condition evaluation mode"}),
                 "compare_to": ("STRING", {"default": "", "description": "Comparison value"}),
@@ -159,6 +165,12 @@ class IfConditionNode(BaseNode):
             return _bool_value(value)
         if mode == "file_exists":
             return bool(value) and Path(str(value)).exists()
+        if mode == "is_empty":
+            if value is None:
+                return True
+            if isinstance(value, (list, tuple, dict, set)):
+                return len(value) == 0
+            return str(value).strip() == ""
         if mode == "not_empty":
             if value is None:
                 return False
@@ -182,6 +194,8 @@ class IfConditionNode(BaseNode):
                 return left >= right
             if mode == "numeric_less_equal":
                 return left <= right
+            if mode == "numeric_not_equal":
+                return left != right
             return False
 
         left_text = str(value)
@@ -193,8 +207,16 @@ class IfConditionNode(BaseNode):
             flags = re.IGNORECASE
         if mode == "string_equal":
             return left_text == right_text
+        if mode == "string_not_equal":
+            return left_text != right_text
         if mode == "string_contains":
             return right_text in left_text
+        if mode == "string_not_contains":
+            return right_text not in left_text
+        if mode == "string_startswith":
+            return left_text.startswith(right_text)
+        if mode == "string_endswith":
+            return left_text.endswith(right_text)
         if mode == "regex_match":
             return re.search(str(compare_to), str(value), flags=flags) is not None
         return False

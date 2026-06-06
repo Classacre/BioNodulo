@@ -116,6 +116,23 @@ async def test_if_condition_routes_value_to_selected_branch() -> None:
 
 
 @pytest.mark.asyncio
+async def test_if_condition_supports_additional_comparison_modes() -> None:
+    node = _node_class("if_condition")()
+
+    numeric = await node.run(value="12", condition_mode="numeric_not_equal", compare_to="10")
+    string = await node.run(value="tumor_RNA.fastq.gz", condition_mode="string_startswith", compare_to="tumor")
+    suffix = await node.run(value="tumor_RNA.fastq.gz", condition_mode="string_endswith", compare_to=".fastq.gz")
+    not_equal = await node.run(value="mouse", condition_mode="string_not_equal", compare_to="human")
+    empty = await node.run(value="", condition_mode="is_empty", compare_to="")
+
+    assert numeric["outputs"]["condition_result"] is True
+    assert string["outputs"]["condition_result"] is True
+    assert suffix["outputs"]["condition_result"] is True
+    assert not_equal["outputs"]["condition_result"] is True
+    assert empty["outputs"]["condition_result"] is True
+
+
+@pytest.mark.asyncio
 async def test_switch_routes_passthrough_to_matching_case() -> None:
     node = _node_class("switch")()
 
