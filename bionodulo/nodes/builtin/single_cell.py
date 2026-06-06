@@ -18,8 +18,14 @@ class CellRangerCountNode(CommandNode):
     CATEGORY = "single_cell"
     DESCRIPTION = "Align 10x Genomics scRNA-seq reads and generate feature-barcode matrix"
     SEARCH_ALIASES = ["cellranger", "10x", "scrna", "count", "single cell"]
-    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE", "CSV")
-    RETURN_NAMES = ("output_dir", "web_summary", "metrics_summary")
+    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE", "CSV", "DIRECTORY", "FILE")
+    RETURN_NAMES = (
+        "output_dir",
+        "web_summary",
+        "metrics_summary",
+        "filtered_feature_bc_matrix",
+        "filtered_feature_bc_matrix_h5",
+    )
     REQUIRED_EXECUTABLES = ["cellranger"]
     DOCUMENTATION_URL = "https://www.10xgenomics.com/support/software/cell-ranger"
     VERSION = "9.0.1"
@@ -32,7 +38,13 @@ class CellRangerCountNode(CommandNode):
         od = Path(output_dir) / cls.NODE_ID
         run_id = str(inputs.get("run_id", "cellranger_count"))
         outs = od / run_id / "outs"
-        return [od / run_id, outs / "web_summary.html", outs / "metrics_summary.csv"]
+        return [
+            od / run_id,
+            outs / "web_summary.html",
+            outs / "metrics_summary.csv",
+            outs / "filtered_feature_bc_matrix",
+            outs / "filtered_feature_bc_matrix.h5",
+        ]
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
