@@ -24,6 +24,10 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+def _node(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+    return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
 def test_single_cell_template_retries_only_cellranger_count_after_fastq_validation() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
@@ -47,3 +51,23 @@ def test_single_cell_template_retries_only_cellranger_count_after_fastq_validati
     assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
     assert not _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
     assert workflow["outputs"]["cellranger_retry_policy"] == "cr_count_retry_001"
+
+
+def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_report() -> None:
+    workflow = _load_template("single_cell_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_metrics_summary_001"] == "data_validator"
+    validator = _node(workflow, "validate_metrics_summary_001")
+    report = _node(workflow, "single_cell_report_001")
+
+    assert validator["params"]["expected_format"] == "csv"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert report["params"]["section_names"] == "Cell Ranger metrics"
+
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
+    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
+    assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
+    assert workflow["outputs"]["validated_metrics_summary"] == "validate_metrics_summary_001"
+    assert workflow["outputs"]["metrics_report"] == "single_cell_report_001"

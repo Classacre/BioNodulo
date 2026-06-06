@@ -1176,9 +1176,10 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
     assert report["params"]["title"] == "Single Cell RNA-Seq Report"
     assert "Cell Ranger" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "Cell Ranger web summary"
+    assert report["params"]["section_names"] == "Cell Ranger metrics"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
+    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
     assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["report"] == "single_cell_report_001"
