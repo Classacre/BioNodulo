@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +133,74 @@ async def test_switch_routes_passthrough_to_matching_case() -> None:
         "default": None,
     }
     assert result["inactive_outputs"] == ["output_1", "output_3", "output_4", "default"]
+
+
+@pytest.mark.asyncio
+async def test_switch_json_rules_route_regex_match() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="sample_RNA_001.fastq.gz",
+        passthrough_data="reads.fastq.gz",
+        rules=json.dumps([
+            {"branch_index": 1, "match_type": "regex", "pattern": "RNA_\\d+"},
+        ]),
+        fallback="drop",
+    )
+
+    assert result["outputs"] == {
+        "output_1": None,
+        "output_2": "reads.fastq.gz",
+        "output_3": None,
+        "output_4": None,
+        "default": None,
+    }
+    assert result["inactive_outputs"] == ["output_1", "output_3", "output_4", "default"]
+
+
+@pytest.mark.asyncio
+async def test_switch_numeric_range_and_fallback_error() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="42",
+        passthrough_data={"sample": "S1"},
+        rules=json.dumps([
+            {"branch_index": 0, "match_type": "numeric_range", "min": 0, "max": 20},
+            {"branch_index": 2, "match_type": "numeric_range", "min": 21, "max": 50},
+        ]),
+        fallback="error",
+    )
+
+    assert result["outputs"]["output_3"] == {"sample": "S1"}
+    assert set(result["inactive_outputs"]) == {"output_1", "output_2", "output_4", "default"}
+
+    with pytest.raises(ValueError, match="Switch value did not match any rule"):
+        await node.run(
+            value="unmatched",
+            rules=json.dumps([{"branch_index": 0, "match_type": "exact", "pattern": "matched"}]),
+            fallback="error",
+        )
+
+
+@pytest.mark.asyncio
+async def test_switch_all_match_marks_multiple_outputs_active() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="tumor_RNA",
+        passthrough_data="sample.tsv",
+        rules=json.dumps([
+            {"branch_index": 0, "match_type": "contains", "pattern": "tumor"},
+            {"branch_index": 2, "match_type": "regex", "pattern": "RNA$"},
+        ]),
+        match_mode="all",
+        fallback="drop",
+    )
+
+    assert result["outputs"]["output_1"] == "sample.tsv"
+    assert result["outputs"]["output_3"] == "sample.tsv"
+    assert result["inactive_outputs"] == ["output_2", "output_4", "default"]
 
 
 @pytest.mark.asyncio
@@ -1394,6 +1463,72 @@ async def test_executor_skips_inactive_switch_outputs(tmp_path: Path) -> None:
     assert result["node_results"]["dna_branch"]["status"] == "skipped"
     assert result["node_results"]["default_branch"]["status"] == "skipped"
     assert result["outputs"]["rna_branch"] == {"out": "sample-42"}
+
+
+@pytest.mark.asyncio
+async def test_executor_skips_inactive_switch_rule_outputs(tmp_path: Path) -> None:
+    switch_node = _node_class("switch")
+
+    class RecordingNode:
+        NODE_ID = "record"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"switch": switch_node, "record": RecordingNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "route",
+                "type": "switch",
+                "inputs": {
+                    "value": {"value": "tumor_RNA"},
+                    "rules": {
+                        "value": json.dumps([
+                            {"branch_index": 0, "match_type": "contains", "pattern": "tumor"},
+                            {"branch_index": 2, "match_type": "regex", "pattern": "RNA$"},
+                        ])
+                    },
+                    "match_mode": {"value": "all"},
+                    "fallback": {"value": "drop"},
+                    "passthrough_data": {"value": "sample.tsv"},
+                },
+                "outputs": {"output_1": {}, "output_2": {}, "output_3": {}, "output_4": {}, "default": {}},
+            },
+            {"id": "tumor_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "normal_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "rna_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "default_branch", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "route", "target_node": "tumor_branch", "source_output": "output_1", "target_input": "value"},
+            {"source_node": "route", "target_node": "normal_branch", "source_output": "output_2", "target_input": "value"},
+            {"source_node": "route", "target_node": "rna_branch", "source_output": "output_3", "target_input": "value"},
+            {"source_node": "route", "target_node": "default_branch", "source_output": "default", "target_input": "value"},
+        ],
+    }
+    RecordingNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("switch-rule-branches", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert RecordingNode.calls == ["tumor_branch", "rna_branch"]
+    assert result["node_results"]["normal_branch"]["status"] == "skipped"
+    assert result["node_results"]["default_branch"]["status"] == "skipped"
+    assert result["outputs"]["tumor_branch"] == {"out": "sample.tsv"}
+    assert result["outputs"]["rna_branch"] == {"out": "sample.tsv"}
 
 
 @pytest.mark.asyncio

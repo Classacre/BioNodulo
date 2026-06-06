@@ -227,6 +227,14 @@ class SwitchNode(BaseNode):
             "optional": {
                 "passthrough_data": ("ANY", {"description": "Data to emit on the matched output; defaults to value"}),
                 "case_sensitive": ("BOOLEAN", {"default": True}),
+                "rules": ("STRING", {
+                    "default": "[]",
+                    "multiline": True,
+                    "description": "Optional JSON rules with branch_index, match_type, and pattern/min/max fields",
+                }),
+                "fallback": ("STRING", {"default": "last", "options": ["drop", "last", "error"]}),
+                "match_mode": ("STRING", {"default": "first", "options": ["first", "all"]}),
+                "auto_numeric": ("BOOLEAN", {"default": True}),
             },
             "hidden": {},
         }
@@ -234,9 +242,27 @@ class SwitchNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         kwargs.pop("context", None)
         value = kwargs.get("value")
-        cases = _split_cases(str(kwargs.get("cases", "")))[:4]
         passthrough = kwargs.get("passthrough_data", value)
         case_sensitive = bool(kwargs.get("case_sensitive", True))
+        rules = self._parse_rules(kwargs.get("rules", "[]"))
+
+        if rules:
+            selected_names = self._selected_rule_outputs(
+                value=value,
+                rules=rules,
+                case_sensitive=case_sensitive,
+                match_mode=str(kwargs.get("match_mode", "first") or "first"),
+                fallback=str(kwargs.get("fallback", "last") or "last"),
+            )
+            outputs = {name: None for name in self.RETURN_NAMES}
+            for name in selected_names:
+                outputs[name] = passthrough
+            return {
+                "outputs": outputs,
+                "inactive_outputs": [name for name in self.RETURN_NAMES if name not in selected_names],
+            }
+
+        cases = _split_cases(str(kwargs.get("cases", "")))[:4]
 
         matched_index: int | None = None
         value_text = str(value)
@@ -254,6 +280,93 @@ class SwitchNode(BaseNode):
             "outputs": outputs,
             "inactive_outputs": [name for name in self.RETURN_NAMES if name != selected_name],
         }
+
+    @staticmethod
+    def _parse_rules(raw_rules: Any) -> list[dict[str, Any]]:
+        if raw_rules in (None, ""):
+            return []
+        if isinstance(raw_rules, str):
+            try:
+                parsed = json.loads(raw_rules)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Switch rules must be valid JSON: {exc}") from exc
+        else:
+            parsed = raw_rules
+        if not isinstance(parsed, list):
+            raise ValueError("Switch rules must be a JSON array")
+        if not all(isinstance(rule, dict) for rule in parsed):
+            raise ValueError("Switch rules must contain JSON objects")
+        return [dict(rule) for rule in parsed]
+
+    @classmethod
+    def _selected_rule_outputs(
+        cls,
+        *,
+        value: Any,
+        rules: list[dict[str, Any]],
+        case_sensitive: bool,
+        match_mode: str,
+        fallback: str,
+    ) -> list[str]:
+        match_mode = match_mode.lower()
+        fallback = fallback.lower()
+        if match_mode not in {"first", "all"}:
+            raise ValueError(f"Unsupported switch match_mode: {match_mode}")
+        if fallback not in {"drop", "last", "error"}:
+            raise ValueError(f"Unsupported switch fallback: {fallback}")
+
+        selected: list[str] = []
+        for index, rule in enumerate(rules):
+            branch_index = int(rule.get("branch_index", -1))
+            if not 0 <= branch_index < 4:
+                raise ValueError(f"Switch rule {index} branch_index must be between 0 and 3")
+            if cls._rule_matches(value, rule, case_sensitive):
+                output_name = cls.RETURN_NAMES[branch_index]
+                if output_name not in selected:
+                    selected.append(output_name)
+                if match_mode == "first":
+                    break
+
+        if selected:
+            return selected
+        if fallback == "drop":
+            return []
+        if fallback == "error":
+            raise ValueError(f"Switch value did not match any rule: {value}")
+        return [cls.RETURN_NAMES[3]]
+
+    @staticmethod
+    def _rule_matches(value: Any, rule: dict[str, Any], case_sensitive: bool) -> bool:
+        match_type = str(rule.get("match_type", "exact") or "exact").lower()
+        pattern = rule.get("pattern", "")
+        value_text = str(value)
+        pattern_text = str(pattern)
+        compare_value = value_text if case_sensitive else value_text.lower()
+        compare_pattern = pattern_text if case_sensitive else pattern_text.lower()
+
+        if match_type in {"exact", "equals", "string_equal"}:
+            return compare_value == compare_pattern
+        if match_type == "contains":
+            return compare_pattern in compare_value
+        if match_type == "regex":
+            flags = 0 if case_sensitive else re.IGNORECASE
+            return re.search(pattern_text, value_text, flags=flags) is not None
+        if match_type in {"numeric_range", "range"}:
+            try:
+                numeric_value = _as_float(value)
+                lower = rule.get("min", None)
+                upper = rule.get("max", None)
+                if lower not in (None, "") and numeric_value < _as_float(lower):
+                    return False
+                if upper not in (None, "") and numeric_value > _as_float(upper):
+                    return False
+                return True
+            except ValueError:
+                return False
+        if match_type in {"file_extension", "extension"}:
+            suffixes = "".join(Path(value_text).suffixes)
+            return suffixes == pattern_text or value_text.endswith(pattern_text)
+        raise ValueError(f"Unsupported switch match_type: {match_type}")
 
 
 class ForEachNode(BaseNode):
