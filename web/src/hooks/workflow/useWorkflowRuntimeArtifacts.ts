@@ -76,6 +76,16 @@ export interface WorkflowTriggerRecord {
   [key: string]: unknown;
 }
 
+export interface SubmittedWorkflowTriggerRun {
+  trigger_file?: string;
+  status?: string;
+  run_id?: string;
+  target_workflow?: string;
+  reason?: string;
+  due_at?: string;
+  [key: string]: unknown;
+}
+
 export interface WorkflowTriggersResponse {
   trigger_dir: string;
   triggers: WorkflowTriggerRecord[];
@@ -83,6 +93,8 @@ export interface WorkflowTriggersResponse {
   errors: Array<Record<string, string>>;
   scheduler_runner_contract_supported?: boolean;
   file_watch_runner_contract_supported?: boolean;
+  durable_scheduler_supported?: boolean;
+  polling_file_watcher_supported?: boolean;
   run_submission_supported?: boolean;
   workflow_trigger_note?: string;
 }
@@ -93,11 +105,19 @@ export interface WorkflowTriggerEvaluationResponse {
   due_schedule_count: number;
   due_file_watch_triggers: WorkflowTriggerRecord[];
   due_file_watch_count: number;
+  submitted_runs: SubmittedWorkflowTriggerRun[];
+  submitted_run_count: number;
   errors: Array<Record<string, string>>;
   scheduler_runner_contract_supported?: boolean;
   file_watch_runner_contract_supported?: boolean;
+  durable_scheduler_supported?: boolean;
+  polling_file_watcher_supported?: boolean;
   run_submission_supported?: boolean;
   workflow_trigger_note?: string;
+}
+
+export interface WorkflowTriggerEvaluationOptions {
+  submitRuns?: boolean;
 }
 
 export interface ResolvePauseRequestInput {
@@ -141,8 +161,11 @@ export function useWorkflowRuntimeArtifacts() {
     }
   }, []);
 
-  const evaluateWorkflowTriggers = useCallback(async (now?: string) => {
-    const data = await apiPost<WorkflowTriggerEvaluationResponse>('/workflow_triggers/evaluate', now ? { now } : {});
+  const evaluateWorkflowTriggers = useCallback(async (now?: string, options?: WorkflowTriggerEvaluationOptions) => {
+    const body: Record<string, unknown> = {};
+    if (now) body.now = now;
+    if (options?.submitRuns) body.submit_runs = true;
+    const data = await apiPost<WorkflowTriggerEvaluationResponse>('/workflow_triggers/evaluate', body);
     setTriggerEvaluation(data);
     return data;
   }, []);

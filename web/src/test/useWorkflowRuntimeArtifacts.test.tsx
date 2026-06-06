@@ -60,6 +60,8 @@ describe('useWorkflowRuntimeArtifacts', () => {
         due_schedule_count: 1,
         due_file_watch_triggers: [],
         due_file_watch_count: 0,
+        submitted_runs: [],
+        submitted_run_count: 0,
         errors: [],
       })
       .mockResolvedValueOnce({
@@ -91,6 +93,37 @@ describe('useWorkflowRuntimeArtifacts', () => {
     });
     expect(result.current.triggerEvaluation?.due_schedule_count).toBe(1);
     expect(result.current.lastResolvedPauseRequest?.status).toBe('approved');
+  });
+
+  it('submits due triggers when requested', async () => {
+    vi.mocked(apiGet)
+      .mockResolvedValueOnce({ exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} })
+      .mockResolvedValueOnce({ pause_requests_dir: '/workspace/pause_requests', pause_requests: [], count: 0, errors: [] })
+      .mockResolvedValueOnce({ trigger_dir: '/workspace/workflow_triggers', triggers: [], count: 0, errors: [] });
+    vi.mocked(apiPost).mockResolvedValueOnce({
+      due_schedule_triggers: [{ target_workflow: 'weekly-qc' }],
+      due_schedule_count: 1,
+      due_file_watch_triggers: [],
+      due_file_watch_count: 0,
+      submitted_runs: [{ status: 'submitted', run_id: 'weekly-qc-run', target_workflow: 'weekly-qc' }],
+      submitted_run_count: 1,
+      errors: [],
+    });
+
+    const { result } = renderHook(() => useWorkflowRuntimeArtifacts());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.evaluateWorkflowTriggers('2026-06-07T18:30:00+00:00', { submitRuns: true });
+    });
+
+    expect(apiPost).toHaveBeenCalledWith('/workflow_triggers/evaluate', {
+      now: '2026-06-07T18:30:00+00:00',
+      submit_runs: true,
+    });
+    expect(result.current.triggerEvaluation?.submitted_run_count).toBe(1);
+    expect(result.current.triggerEvaluation?.submitted_runs[0].run_id).toBe('weekly-qc-run');
   });
 
   it('resolves checkpoints through the runtime artifact APIs', async () => {

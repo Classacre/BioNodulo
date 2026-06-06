@@ -84,6 +84,8 @@ describe('RuntimeArtifactsPanel', () => {
         due_schedule_count: 1,
         due_file_watch_triggers: [{ trigger_type: 'file_watch', target_workflow: 'import-watch' }],
         due_file_watch_count: 1,
+        submitted_runs: [],
+        submitted_run_count: 0,
         errors: [],
       },
       lastResolvedCheckpoint: null,
@@ -356,5 +358,58 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getByText('Pollable metadata only')).toBeInTheDocument();
     expect(screen.getByText('Run submission unavailable')).toBeInTheDocument();
     expect(screen.getByText('Does not submit workflow runs')).toBeInTheDocument();
+  });
+
+  it('submits due workflow triggers and renders submission results', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
+      pauseRequests: { pause_requests_dir: '/workspace/pause_requests', count: 0, pause_requests: [], errors: [] },
+      workflowTriggers: {
+        trigger_dir: '/workspace/workflow_triggers',
+        count: 1,
+        scheduler_runner_contract_supported: true,
+        durable_scheduler_supported: true,
+        file_watch_runner_contract_supported: true,
+        polling_file_watcher_supported: true,
+        run_submission_supported: false,
+        workflow_trigger_note: 'Workflow trigger registrations are pollable metadata; durable evaluation can submit embedded workflows.',
+        triggers: [{ trigger_type: 'schedule', target_workflow: 'weekly-qc', status: 'registered' }],
+        errors: [],
+      },
+      triggerEvaluation: {
+        due_schedule_triggers: [{ trigger_type: 'schedule', target_workflow: 'weekly-qc' }],
+        due_schedule_count: 1,
+        due_file_watch_triggers: [],
+        due_file_watch_count: 0,
+        submitted_runs: [
+          { status: 'submitted', run_id: 'weekly-qc-run', target_workflow: 'weekly-qc' },
+          { status: 'skipped', reason: 'already_submitted', target_workflow: 'weekly-qc' },
+        ],
+        submitted_run_count: 1,
+        errors: [],
+        run_submission_supported: true,
+      },
+      lastResolvedCheckpoint: null,
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('1 workflow run submitted')).toBeInTheDocument();
+    expect(screen.getByText('weekly-qc-run')).toBeInTheDocument();
+    expect(screen.getByText('already_submitted')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit due triggers' }));
+    await waitFor(() => expect(evaluateWorkflowTriggers).toHaveBeenCalledWith(undefined, { submitRuns: true }));
   });
 });

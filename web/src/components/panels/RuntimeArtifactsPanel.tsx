@@ -5,6 +5,7 @@ import type {
   CheckpointManifestResponse,
   PauseRequestRecord,
   ResolveCheckpointInput,
+  SubmittedWorkflowTriggerRun,
   WorkflowTriggerRecord,
 } from '../../hooks/workflow/useWorkflowRuntimeArtifacts';
 import Icon from '../ui/Icon';
@@ -85,14 +86,22 @@ function pauseRuntimeBadges(
   return [];
 }
 
-function triggerRuntimeBadges(t: (key: string) => string, runSubmissionSupported?: boolean): string[] {
-  if (runSubmissionSupported === false) {
+function triggerRuntimeBadges(
+  t: (key: string) => string,
+  runSubmissionSupported?: boolean,
+  durableSchedulerSupported?: boolean,
+  pollingFileWatcherSupported?: boolean,
+): string[] {
+  const durableEvaluationSupported = durableSchedulerSupported === true || pollingFileWatcherSupported === true;
+  if (runSubmissionSupported === true) return [t('runtimeArtifacts.durableTriggerEvaluationAvailable')];
+  if (runSubmissionSupported === false && !durableEvaluationSupported) {
     return [
       t('runtimeArtifacts.pollableMetadataOnly'),
       t('runtimeArtifacts.runSubmissionUnavailable'),
       t('runtimeArtifacts.doesNotSubmitRuns'),
     ];
   }
+  if (durableEvaluationSupported) return [t('runtimeArtifacts.durableTriggerEvaluationAvailable')];
   return [];
 }
 
@@ -112,6 +121,22 @@ function triggerTitle(record: WorkflowTriggerRecord): string {
     || valueAsString(record.trigger_type)
     || valueAsString(record.trigger_file)
     || 'trigger';
+}
+
+function submittedRunTitle(record: SubmittedWorkflowTriggerRun): string {
+  return valueAsString(record.run_id)
+    || valueAsString(record.target_workflow)
+    || valueAsString(record.trigger_file)
+    || valueAsString(record.status)
+    || 'workflow trigger run';
+}
+
+function submittedRunMeta(record: SubmittedWorkflowTriggerRun): string {
+  return [
+    valueAsString(record.target_workflow),
+    valueAsString(record.status),
+    valueAsString(record.due_at),
+  ].filter(Boolean).join(' · ');
 }
 
 function checkpointResolveInput(checkpoint: CheckpointSummary): ResolveCheckpointInput {
@@ -137,12 +162,14 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
   } = useWorkflowRuntimeArtifacts();
   const [actionError, setActionError] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [submittingTriggers, setSubmittingTriggers] = useState(false);
   const [resolvingCheckpointKey, setResolvingCheckpointKey] = useState<string | null>(null);
   const [resolvingPauseKey, setResolvingPauseKey] = useState<string | null>(null);
 
   const checkpoints = useMemo(() => summarizeCheckpoints(checkpointManifest), [checkpointManifest]);
   const pauseRequestList = pauseRequests?.pause_requests ?? [];
   const triggerList = workflowTriggers?.triggers ?? [];
+  const submittedRuns = triggerEvaluation?.submitted_runs ?? [];
   const waitingPauseRequests = pauseRequestList.filter(request => pauseStatus(request) === 'waiting');
   const triggerBadges = useMemo(
     () => triggerRuntimeBadges(
@@ -150,8 +177,22 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
       typeof workflowTriggers?.run_submission_supported === 'boolean'
         ? workflowTriggers.run_submission_supported
         : triggerEvaluation?.run_submission_supported,
+      typeof workflowTriggers?.durable_scheduler_supported === 'boolean'
+        ? workflowTriggers.durable_scheduler_supported
+        : triggerEvaluation?.durable_scheduler_supported,
+      typeof workflowTriggers?.polling_file_watcher_supported === 'boolean'
+        ? workflowTriggers.polling_file_watcher_supported
+        : triggerEvaluation?.polling_file_watcher_supported,
     ),
-    [t, triggerEvaluation?.run_submission_supported, workflowTriggers?.run_submission_supported],
+    [
+      t,
+      triggerEvaluation?.durable_scheduler_supported,
+      triggerEvaluation?.polling_file_watcher_supported,
+      triggerEvaluation?.run_submission_supported,
+      workflowTriggers?.durable_scheduler_supported,
+      workflowTriggers?.polling_file_watcher_supported,
+      workflowTriggers?.run_submission_supported,
+    ],
   );
 
   const handleEvaluate = async () => {
@@ -163,6 +204,18 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setEvaluating(false);
+    }
+  };
+
+  const handleSubmitDueTriggers = async () => {
+    setActionError(null);
+    setSubmittingTriggers(true);
+    try {
+      await evaluateWorkflowTriggers(undefined, { submitRuns: true });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmittingTriggers(false);
     }
   };
 
@@ -223,6 +276,10 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
           <button className="btn btn-sm btn-primary" onClick={() => void handleEvaluate()} disabled={evaluating} type="button">
             <Icon name={evaluating ? 'spinner' : 'activity'} size={14} />
             {evaluating ? t('runtimeArtifacts.evaluating') : t('runtimeArtifacts.evaluateTriggers')}
+          </button>
+          <button className="btn btn-sm" onClick={() => void handleSubmitDueTriggers()} disabled={submittingTriggers} type="button">
+            <Icon name={submittingTriggers ? 'spinner' : 'play'} size={14} />
+            {submittingTriggers ? t('runtimeArtifacts.submittingTriggers') : t('runtimeArtifacts.submitDueTriggers')}
           </button>
         </div>
 
@@ -359,6 +416,28 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
             <div className="runtime-artifacts-evaluation">
               <span>{t('runtimeArtifacts.scheduleDueCount', { count: triggerEvaluation.due_schedule_count })}</span>
               <span>{t('runtimeArtifacts.fileWatchDueCount', { count: triggerEvaluation.due_file_watch_count })}</span>
+              <span>{t('runtimeArtifacts.submittedRunCount', { count: triggerEvaluation.submitted_run_count })}</span>
+            </div>
+          )}
+          {submittedRuns.length > 0 && (
+            <div className="runtime-artifacts-list">
+              {submittedRuns.map((run, index) => {
+                const key = valueAsString(run.run_id)
+                  || valueAsString(run.trigger_file)
+                  || `${submittedRunTitle(run)}-${index}`;
+                const meta = submittedRunMeta(run);
+                const reason = valueAsString(run.reason);
+                return (
+                  <div className="runtime-artifact-row" key={key}>
+                    <Icon name={run.status === 'submitted' ? 'check' : 'clock'} size={14} />
+                    <div>
+                      <div className="runtime-artifact-title">{submittedRunTitle(run)}</div>
+                      {meta && <div className="runtime-artifact-meta">{meta}</div>}
+                      {reason && <div className="runtime-artifact-meta">{reason}</div>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {triggerBadges.length > 0 && (
