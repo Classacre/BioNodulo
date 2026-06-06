@@ -66,6 +66,22 @@
       }
     },
     {
+      "id": "gate_fasta_001",
+      "type": "gate",
+      "position": [
+        620,
+        220
+      ],
+      "params": {
+        "condition_mode": "boolean_is_true",
+        "on_fail": "halt",
+        "error_message": "FASTA validation failed before phylogenetic alignment"
+      },
+      "ui": {
+        "title": "Gate Valid FASTA"
+      }
+    },
+    {
       "id": "iqtree_001",
       "type": "iqtree",
       "position": [
@@ -166,6 +182,17 @@
       }
     },
     {
+      "id": "e1c",
+      "from": {
+        "node": "validate_fasta_001",
+        "output": "passed"
+      },
+      "to": {
+        "node": "gate_fasta_001",
+        "input": "value"
+      }
+    },
+    {
       "id": "e2",
       "from": {
         "node": "mafft_001",
@@ -238,6 +265,7 @@
     "tree_image": "tree_viewer_001",
     "report": "phylo_report_001",
     "alignment": "mafft_001",
-    "validated_fasta": "validate_fasta_001"
+    "validated_fasta": "validate_fasta_001",
+    "fasta_quality_gate": "gate_fasta_001"
   }
 }

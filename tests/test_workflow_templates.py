@@ -296,6 +296,19 @@ def test_phylogenetics_template_validates_input_fasta_before_alignment() -> None
     assert workflow["outputs"]["validated_fasta"] == "validate_fasta_001"
 
 
+def test_phylogenetics_template_gates_validated_fasta_before_alignment() -> None:
+    workflow = _load_template("phylogenetics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["gate_fasta_001"] == "gate"
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_fasta_001")
+    assert gate["params"]["condition_mode"] == "boolean_is_true"
+    assert gate["params"]["on_fail"] == "halt"
+    assert "FASTA validation failed" in gate["params"]["error_message"]
+    assert _has_edge(workflow, "validate_fasta_001", "passed", "gate_fasta_001", "value")
+    assert workflow["outputs"]["fasta_quality_gate"] == "gate_fasta_001"
+
+
 def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
