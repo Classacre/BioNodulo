@@ -114,12 +114,28 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        800,
+        980,
         80
       ],
       "params": {},
       "ui": {
         "title": "View web_summary"
+      }
+    },
+    {
+      "id": "gate_web_summary_001",
+      "type": "gate",
+      "position": [
+        800,
+        80
+      ],
+      "params": {
+        "condition_mode": "file_exists",
+        "on_fail": "halt",
+        "error_message": "Cell Ranger web_summary validation failed before preview"
+      },
+      "ui": {
+        "title": "Gate web_summary"
       }
     },
     {
@@ -222,6 +238,17 @@
         "output": "passthrough"
       },
       "to": {
+        "node": "gate_web_summary_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e3b",
+      "from": {
+        "node": "gate_web_summary_001",
+        "output": "output"
+      },
+      "to": {
         "node": "html_preview_001",
         "input": "file"
       }
@@ -277,6 +304,7 @@
     "validated_fastq_dir": "validate_fastq_dir_001",
     "validated_reference_dir": "validate_reference_dir_001",
     "validated_web_summary": "validate_web_summary_001",
+    "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
     "report": "single_cell_report_001"
   }

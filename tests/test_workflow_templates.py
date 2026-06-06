@@ -1080,14 +1080,22 @@ def test_single_cell_template_validates_cellranger_web_summary_before_preview() 
     node_types = _node_types(workflow)
 
     assert node_types["validate_web_summary_001"] == "data_validator"
+    assert node_types["gate_web_summary_001"] == "gate"
     validator = next(node for node in workflow["nodes"] if node["id"] == "validate_web_summary_001")
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_web_summary_001")
     assert validator["params"]["expected_format"] == "text"
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
+    assert gate["params"]["condition_mode"] == "file_exists"
+    assert gate["params"]["on_fail"] == "halt"
+    assert "web_summary" in gate["params"]["error_message"]
     assert _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
-    assert _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
+    assert _has_edge(workflow, "validate_web_summary_001", "passthrough", "gate_web_summary_001", "value")
+    assert _has_edge(workflow, "gate_web_summary_001", "output", "html_preview_001", "file")
     assert not _has_edge(workflow, "cr_count_001", "web_summary", "html_preview_001", "file")
+    assert not _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
     assert workflow["outputs"]["validated_web_summary"] == "validate_web_summary_001"
+    assert workflow["outputs"]["web_summary_quality_gate"] == "gate_web_summary_001"
 
 
 def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
