@@ -1598,6 +1598,20 @@ class WorkflowExecutor:
         emit: Callable[[str, dict[str, Any]], None],
     ) -> dict[str, Any]:
         """Execute a ForEach-style node by re-running its body subgraph."""
+        if self._is_while_loop_node(node):
+            return await self._execute_while_loop_node(
+                ctx=ctx,
+                node=node,
+                inputs=inputs,
+                all_nodes=all_nodes,
+                edges=edges,
+                body_node_ids=body_node_ids,
+                node_outputs=node_outputs,
+                options=options,
+                workflow=workflow,
+                emit=emit,
+            )
+
         if not body_node_ids:
             return await self._execute_node(ctx, node, inputs)
 
@@ -1776,6 +1790,175 @@ class WorkflowExecutor:
             "inactive_outputs": ["iteration"],
         }
 
+    async def _execute_while_loop_node(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        all_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+        body_node_ids: set[str],
+        node_outputs: dict[str, dict[str, Any]],
+        options: dict[str, Any],
+        workflow: dict[str, Any],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Execute a WhileLoop node by re-running its body until complete."""
+        if not body_node_ids:
+            return await self._execute_node(ctx, node, inputs)
+
+        body_nodes = {node_id: all_nodes[node_id] for node_id in body_node_ids if node_id in all_nodes}
+        body_edge_map = self._loop_body_edge_map(ctx.node_id, body_node_ids, edges)
+        body_order = self._loop_body_order(body_nodes, edges)
+        current_value = inputs.get("value")
+        loop_result = await self._execute_node(ctx, node, inputs)
+        flow_control = loop_result.get("flow_control", {})
+        loop_state = dict(flow_control.get("loop_state", {})) if isinstance(flow_control, dict) else {}
+
+        while isinstance(flow_control, dict) and not bool(flow_control.get("is_complete", True)):
+            visible_iteration = int(loop_state.get("iteration", 0) or 0) + 1
+            if ctx.cancel_event.is_set():
+                raise RuntimeError(f"Loop {ctx.node_id} cancelled")
+
+            local_outputs: dict[str, dict[str, Any]] = {
+                ctx.node_id: {"iteration": current_value},
+            }
+            local_inactive_outputs: dict[str, set[str]] = {}
+            local_skipped_nodes: set[str] = set()
+
+            for body_node_id in body_order:
+                body_node = body_nodes[body_node_id]
+                body_type = str(body_node.get("type", "unknown"))
+                body_class = self._node_class_for(body_node)
+                emit(
+                    "node_start",
+                    {
+                        "run_id": ctx.run_id,
+                        "node_id": body_node_id,
+                        "node_type": body_type,
+                        "loop_parent": ctx.node_id,
+                        "iteration": visible_iteration,
+                    },
+                )
+
+                inactive_upstream = self._inactive_upstream(
+                    body_node_id,
+                    body_edge_map,
+                    local_skipped_nodes,
+                    local_inactive_outputs,
+                    body_class,
+                )
+                if inactive_upstream is not None:
+                    local_skipped_nodes.add(body_node_id)
+                    emit(
+                        "node_skip",
+                        {
+                            "run_id": ctx.run_id,
+                            "node_id": body_node_id,
+                            "reason": "inactive_branch",
+                            "upstream": inactive_upstream,
+                            "loop_parent": ctx.node_id,
+                            "iteration": visible_iteration,
+                        },
+                    )
+                    continue
+
+                combined_outputs = {**node_outputs, **local_outputs}
+                body_inputs = self._resolve_inputs(
+                    body_node_id,
+                    body_node,
+                    body_edge_map,
+                    combined_outputs,
+                    ctx.run_metadata.get("workflow_parameters", {}),
+                )
+                body_params = self._with_defaults(
+                    body_node,
+                    body_inputs,
+                    body_class,
+                    ctx.run_metadata.get("workflow_parameters", {}),
+                )
+                hidden_inputs = self._declared_hidden_inputs(body_class)
+                if "_loop_state" in hidden_inputs:
+                    body_params["_loop_state"] = loop_state
+                if "_iteration" in hidden_inputs:
+                    body_params["_iteration"] = visible_iteration - 1
+                body_dir = (
+                    self.workspace_dir
+                    / "runs"
+                    / ctx.run_id
+                    / ctx.node_id
+                    / "iterations"
+                    / f"{visible_iteration:04d}"
+                    / body_node_id
+                )
+                body_dir.mkdir(parents=True, exist_ok=True)
+                body_ctx = ExecutionContext(
+                    run_id=ctx.run_id,
+                    node_id=body_node_id,
+                    node_type=body_type,
+                    node_dir=body_dir,
+                    workspace_dir=self.workspace_dir,
+                    params=body_params,
+                    api_secrets=self._api_secrets_for_options(options),
+                    emit=emit,
+                    cancel_event=ctx.cancel_event,
+                    env_prefix=self._env_prefix_for_node(body_node, workflow),
+                    run_metadata=ctx.run_metadata,
+                    executor=ctx.executor or self,
+                    registry=ctx.registry if ctx.registry is not None else self.registry,
+                )
+                body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+                outputs = body_result.get("outputs", {})
+                inactive_outputs = self._inactive_output_ports(body_result, outputs, body_class)
+                if inactive_outputs:
+                    local_inactive_outputs[body_node_id] = inactive_outputs
+                local_outputs[body_node_id] = outputs
+                emit(
+                    "node_complete",
+                    {
+                        "run_id": ctx.run_id,
+                        "node_id": body_node_id,
+                        "outputs": outputs,
+                        "loop_parent": ctx.node_id,
+                        "iteration": visible_iteration,
+                    },
+                )
+
+            body_result_value = self._loop_body_result(ctx.node_id, edges, local_outputs, body_order)
+            current_value = self._loop_feedback_value(
+                ctx.node_id,
+                "value",
+                edges,
+                local_outputs,
+                fallback=body_result_value,
+            )
+            loop_inputs = {
+                **inputs,
+                "value": current_value,
+                "_loop_state": loop_state,
+                "_is_loop_iteration": True,
+                "_body_result": self._loop_feedback_value(
+                    ctx.node_id,
+                    "_body_result",
+                    edges,
+                    local_outputs,
+                    fallback=body_result_value,
+                ),
+            }
+            loop_ctx = replace(ctx, params={**ctx.params, **loop_inputs})
+            loop_result = await self._execute_node(loop_ctx, node, loop_inputs)
+            flow_control = loop_result.get("flow_control", {})
+            loop_state = dict(flow_control.get("loop_state", {})) if isinstance(flow_control, dict) else loop_state
+
+        return loop_result
+
+    @staticmethod
+    def _is_while_loop_node(node: dict[str, Any]) -> bool:
+        node_class = node.get("_node_class")
+        node_id = str(getattr(node_class, "NODE_ID", "") or node.get("type", ""))
+        return node_id == "while_loop" or node_id.endswith("/while_loop")
+
     @staticmethod
     def _loop_control_signal(result: dict[str, Any]) -> str:
         flow_control = result.get("flow_control")
@@ -1859,7 +2042,7 @@ class WorkflowExecutor:
     ) -> Any:
         values: list[Any] = []
         for edge in edges:
-            if edge_target(edge) != loop_node_id or edge_target_port(edge) != "body_result":
+            if edge_target(edge) != loop_node_id or edge_target_port(edge) not in {"body_result", "_body_result"}:
                 continue
             source = edge_source(edge)
             source_port = edge_source_port(edge)
@@ -1878,6 +2061,31 @@ class WorkflowExecutor:
         if len(outputs) == 1:
             return next(iter(outputs.values()))
         return outputs
+
+    def _loop_feedback_value(
+        self,
+        loop_node_id: str,
+        target_input: str,
+        edges: list[dict[str, Any]],
+        local_outputs: dict[str, dict[str, Any]],
+        fallback: Any = None,
+    ) -> Any:
+        values: list[Any] = []
+        for edge in edges:
+            if edge_target(edge) != loop_node_id or edge_target_port(edge) != target_input:
+                continue
+            source = edge_source(edge)
+            source_port = edge_source_port(edge)
+            outputs = local_outputs.get(source, {})
+            if source_port in outputs:
+                values.append(outputs[source_port])
+            elif "default" in outputs:
+                values.append(outputs["default"])
+        if len(values) == 1:
+            return values[0]
+        if values:
+            return values
+        return fallback
 
     def _append_loop_result(self, collected: list[Any], value: Any, collect_mode: str) -> None:
         if collect_mode == "concat" and isinstance(value, (list, tuple)):

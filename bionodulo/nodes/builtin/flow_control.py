@@ -1459,6 +1459,7 @@ class WhileLoopNode(BaseNode):
     RETURN_NAMES = ("results", "iterations", "converged")
     REQUIRES_EXTERNAL_TOOLS = False
     ROUTES_FLOW = True
+    EXECUTES_LOOP_BODY = True
 
     _CONDITION_MODES = [
         "file_exists",

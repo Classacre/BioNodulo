@@ -1370,6 +1370,61 @@ async def test_while_loop_stops_at_max_iterations_without_convergence() -> None:
 
 
 @pytest.mark.asyncio
+async def test_executor_runs_while_loop_body_until_condition_is_false(tmp_path: Path) -> None:
+    while_node = _node_class("while_loop")
+
+    class IncrementNode:
+        NODE_ID = "increment"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return {"outputs": {"out": type(self).calls}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"while_loop": while_node, "increment": IncrementNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "while_loop",
+                "inputs": {
+                    "condition_mode": {"value": "numeric_less"},
+                    "value": {"value": 0},
+                    "compare_to": {"value": "3"},
+                    "max_iterations": {"value": 5},
+                },
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            {"id": "step", "type": "increment", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "step", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "step", "target_node": "loop", "source_output": "out", "target_input": "value"},
+            {"source_node": "step", "target_node": "loop", "source_output": "out", "target_input": "_body_result"},
+        ],
+    }
+    IncrementNode.calls = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("while-loop-body", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert IncrementNode.calls == 3
+    assert result["outputs"]["loop"]["results"] == [1, 2, 3]
+    assert result["outputs"]["loop"]["iterations"] == 3
+    assert result["outputs"]["loop"]["converged"] is True
+
+
+@pytest.mark.asyncio
 async def test_executor_skips_inactive_if_branch_and_descendants(tmp_path: Path) -> None:
     if_node = _node_class("if_condition")
 
