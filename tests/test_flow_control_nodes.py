@@ -333,6 +333,24 @@ async def test_switch_numeric_range_and_fallback_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_switch_json_rules_numeric_range_accepts_documented_pattern() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="42",
+        passthrough_data={"sample": "S1"},
+        rules=json.dumps([
+            {"branch_index": 0, "match_type": "numeric_range", "pattern": "0,20"},
+            {"branch_index": 2, "match_type": "numeric_range", "pattern": "21,50"},
+        ]),
+        fallback="error",
+    )
+
+    assert result["outputs"]["output_3"] == {"sample": "S1"}
+    assert set(result["inactive_outputs"]) == {"output_1", "output_2", "output_4", "default"}
+
+
+@pytest.mark.asyncio
 async def test_switch_all_match_marks_multiple_outputs_active() -> None:
     node = _node_class("switch")()
 

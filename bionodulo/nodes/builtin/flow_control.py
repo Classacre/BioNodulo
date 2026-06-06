@@ -457,6 +457,10 @@ class SwitchNode(BaseNode):
                 numeric_value = _as_float(value)
                 lower = rule.get("min", None)
                 upper = rule.get("max", None)
+                if lower in (None, "") and upper in (None, "") and pattern_text:
+                    bounds = [part.strip() for part in pattern_text.split(",", 1)]
+                    lower = bounds[0]
+                    upper = bounds[1] if len(bounds) > 1 else None
                 if lower not in (None, "") and numeric_value < _as_float(lower):
                     return False
                 if upper not in (None, "") and numeric_value > _as_float(upper):
