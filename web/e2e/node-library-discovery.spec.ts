@@ -115,6 +115,22 @@ const objectInfo = {
     output: ['GBZ', 'VCF_GZ', 'GFA', 'ODGI'],
     output_name: ['graph_gbz', 'variants_vcf', 'graph_gfa', 'graph_odgi'],
   },
+  clair3: {
+    name: 'clair3',
+    display_name: 'Clair3',
+    category: 'variant',
+    description: 'Call small variants from long-read BAM files with Clair3 deep-learning models.',
+    search_aliases: ['clair3', 'nanopore', 'deep learning', 'long-read variant caller'],
+    input: {
+      required: {
+        bam: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+        model_path: { type: 'DIRECTORY' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['vcf'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -188,7 +204,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('10 nodes available')).toBeVisible();
+  await expect(page.getByText('11 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -200,6 +216,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'single sequence', name: 'ESMFold Predict', category: 'ai' },
     { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
     { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
+    { query: 'nanopore', name: 'Clair3', category: 'variant' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];
