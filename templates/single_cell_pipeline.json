@@ -121,6 +121,64 @@
       "ui": {
         "title": "View web_summary"
       }
+    },
+    {
+      "id": "qc_dashboard_001",
+      "type": "qc_dashboard",
+      "position": [
+        800,
+        260
+      ],
+      "params": {
+        "run_name": "Single Cell QC",
+        "title": "Single Cell QC Dashboard",
+        "custom_metrics": "{\"Sample\": \"tinygex\", \"Expected Cells\": \"100\", \"Assay\": \"10x Genomics single-cell RNA-seq\"}",
+        "theme": "light"
+      },
+      "ui": {
+        "title": "QC Dashboard"
+      }
+    },
+    {
+      "id": "qc_dashboard_preview_001",
+      "type": "html_preview",
+      "position": [
+        980,
+        260
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QC Dashboard"
+      }
+    },
+    {
+      "id": "single_cell_report_001",
+      "type": "html_report",
+      "position": [
+        800,
+        440
+      ],
+      "params": {
+        "title": "Single Cell RNA-Seq Report",
+        "text_sections": "# Cell Ranger Summary\nCell Ranger processed the tinygex 10x Genomics FASTQ directory against the configured reference transcriptome. The validated web summary remains available as the detailed run report.",
+        "section_names": "Cell Ranger web summary",
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Single Cell Report"
+      }
+    },
+    {
+      "id": "single_cell_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        980,
+        440
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Single Cell Report"
+      }
     }
   ],
   "edges": [
@@ -189,6 +247,28 @@
         "node": "cr_count_001",
         "input": "transcriptome"
       }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "qc_dashboard_001",
+        "output": "qc_dashboard"
+      },
+      "to": {
+        "node": "qc_dashboard_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "single_cell_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "single_cell_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -196,6 +276,8 @@
     "counts": "cr_count_001",
     "validated_fastq_dir": "validate_fastq_dir_001",
     "validated_reference_dir": "validate_reference_dir_001",
-    "validated_web_summary": "validate_web_summary_001"
+    "validated_web_summary": "validate_web_summary_001",
+    "qc_dashboard": "qc_dashboard_001",
+    "report": "single_cell_report_001"
   }
 }

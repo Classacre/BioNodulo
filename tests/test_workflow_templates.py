@@ -1088,3 +1088,26 @@ def test_single_cell_template_validates_cellranger_web_summary_before_preview() 
     assert _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
     assert not _has_edge(workflow, "cr_count_001", "web_summary", "html_preview_001", "file")
     assert workflow["outputs"]["validated_web_summary"] == "validate_web_summary_001"
+
+
+def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
+    workflow = _load_template("single_cell_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["qc_dashboard_001"] == "qc_dashboard"
+    assert node_types["qc_dashboard_preview_001"] == "html_preview"
+    assert node_types["single_cell_report_001"] == "html_report"
+    assert node_types["single_cell_report_preview_001"] == "html_preview"
+
+    dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "single_cell_report_001")
+    assert dashboard["params"]["run_name"] == "Single Cell QC"
+    assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
+    assert report["params"]["title"] == "Single Cell RNA-Seq Report"
+    assert "Cell Ranger" in report["params"]["text_sections"]
+    assert report["params"]["section_names"] == "Cell Ranger web summary"
+
+    assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
+    assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
+    assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+    assert workflow["outputs"]["report"] == "single_cell_report_001"
