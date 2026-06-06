@@ -68,3 +68,24 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     assert workflow["outputs"]["validated_humann_pathways"] == "validate_humann_pathways_001"
     assert workflow["outputs"]["functional_report"] == "functional_report_001"
     assert workflow["outputs"]["functional_report_preview"] == "functional_report_preview_001"
+
+
+def test_metagenomics_template_adds_bracken_abundance_heatmap_to_taxonomy_report() -> None:
+    workflow = _load_template("metagenomics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["bracken_heatmap_001"] == "heatmap"
+    heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "taxonomy_report_001")
+
+    assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
+    assert heatmap["params"]["scale"] == "column"
+    assert heatmap["params"]["format"] == "png"
+    assert report["params"]["section_names"] == (
+        "Bracken taxonomy chart,MetaPhlAn relative abundance,"
+        "Bracken abundance heatmap,Bracken report"
+    )
+
+    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "taxonomy_report_001", "images")
+    assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"

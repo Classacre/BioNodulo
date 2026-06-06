@@ -196,6 +196,22 @@
       }
     },
     {
+      "id": "bracken_heatmap_001",
+      "type": "heatmap",
+      "position": [
+        1700,
+        260
+      ],
+      "params": {
+        "title": "Bracken Abundance Heatmap",
+        "scale": "column",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Abundance Heatmap"
+      }
+    },
+    {
       "id": "taxonomy_report_001",
       "type": "html_report",
       "position": [
@@ -204,8 +220,8 @@
       ],
       "params": {
         "title": "Metagenomics Taxonomy Report",
-        "text_sections": "# Summary\nBracken taxonomic abundance report with a composition chart.",
-        "section_names": "Taxonomy chart,Bracken report"
+        "text_sections": "# Summary\nBracken taxonomic abundance report with composition and abundance heatmap visualizations, plus MetaPhlAn relative abundance.",
+        "section_names": "Bracken taxonomy chart,MetaPhlAn relative abundance,Bracken abundance heatmap,Bracken report"
       },
       "ui": {
         "title": "Taxonomy Report"
@@ -530,6 +546,17 @@
       }
     },
     {
+      "id": "e7a",
+      "from": {
+        "node": "bracken_heatmap_001",
+        "output": "heatmap_image"
+      },
+      "to": {
+        "node": "taxonomy_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e8",
       "from": {
         "node": "validate_bracken_001",
@@ -695,6 +722,17 @@
       }
     },
     {
+      "id": "e14a",
+      "from": {
+        "node": "validate_bracken_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "bracken_heatmap_001",
+        "input": "matrix"
+      }
+    },
+    {
       "id": "e15",
       "from": {
         "node": "validate_multiqc_001",
@@ -743,6 +781,7 @@
   "outputs": {
     "taxonomy": "bracken_001",
     "taxonomy_chart": "bracken_bar_001",
+    "taxonomy_heatmap": "bracken_heatmap_001",
     "metaphlan_chart": "metaphlan_bar_001",
     "taxonomy_report": "taxonomy_report_001",
     "taxonomy_report_preview": "taxonomy_report_preview_001",

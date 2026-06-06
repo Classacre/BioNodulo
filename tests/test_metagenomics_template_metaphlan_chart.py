@@ -44,7 +44,10 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert chart["params"]["y_column"] == "relative_abundance"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
-    assert report["params"]["section_names"] == "Taxonomy chart,Bracken report"
+    assert report["params"]["section_names"] == (
+        "Bracken taxonomy chart,MetaPhlAn relative abundance,"
+        "Bracken abundance heatmap,Bracken report"
+    )
 
     assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
     assert _has_edge(workflow, "metaphlan_bar_001", "chart_image", "taxonomy_report_001", "images")

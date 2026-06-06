@@ -1020,16 +1020,24 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["bracken_bar_001"] == "bar_chart"
+    assert node_types["bracken_heatmap_001"] == "heatmap"
     assert node_types["taxonomy_report_001"] == "html_report"
     chart = next(node for node in workflow["nodes"] if node["id"] == "bracken_bar_001")
+    heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
     assert chart["params"]["x_column"] == "name"
     assert chart["params"]["y_column"] == "fraction_total_reads"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
+    assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
+    assert heatmap["params"]["scale"] == "column"
+    assert heatmap["params"]["format"] == "png"
     assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_heatmap_001", "matrix")
     assert _has_edge(workflow, "bracken_bar_001", "chart_image", "taxonomy_report_001", "images")
+    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "taxonomy_report_001", "images")
     assert _has_edge(workflow, "validate_bracken_001", "passthrough", "taxonomy_report_001", "tables")
     assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
+    assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
     assert workflow["outputs"]["taxonomy_report"] == "taxonomy_report_001"
 
 
@@ -1100,8 +1108,10 @@ def test_metagenomics_template_validates_bracken_report_before_visualization() -
     assert validator["params"]["fail_on_error"] is True
     assert _has_edge(workflow, "bracken_001", "report", "validate_bracken_001", "input")
     assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_heatmap_001", "matrix")
     assert _has_edge(workflow, "validate_bracken_001", "passthrough", "taxonomy_report_001", "tables")
     assert not _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
+    assert not _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
     assert not _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
     assert workflow["outputs"]["validated_bracken_report"] == "validate_bracken_001"
 
