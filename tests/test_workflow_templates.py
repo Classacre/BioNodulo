@@ -83,6 +83,20 @@ def test_variant_calling_template_validates_reads_before_alignment_and_qc() -> N
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
+    workflow = _load_template("variant_calling_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["coverage_plot_001"] == "coverage_plot"
+    coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_plot_001")
+    assert coverage["params"]["region"] == "Wildtype:1-50000"
+    assert coverage["params"]["window_size"] == 100
+    assert coverage["params"]["format"] == "png"
+    assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
+    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "variant_report_001", "images")
+    assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
+
+
 def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotation_report() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
