@@ -590,10 +590,15 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["ncbi_efetch_001"] == "ncbi_efetch"
     assert node_types["validate_sequences_001"] == "data_validator"
     assert node_types["validate_coding_001"] == "data_validator"
+    efetch = next(node for node in workflow["nodes"] if node["id"] == "ncbi_efetch_001")
     sequences_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_sequences_001")
     coding_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_coding_001")
+    assert efetch["params"]["database"] == "nuccore"
+    assert efetch["params"]["rettype"] == "fasta"
+    assert efetch["params"]["retmode"] == "text"
     assert sequences_validator["params"]["expected_format"] == "fasta"
     assert sequences_validator["params"]["min_records"] >= 2
     assert sequences_validator["params"]["min_size_bytes"] > 0
@@ -602,7 +607,7 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     assert coding_validator["params"]["min_records"] >= 1
     assert coding_validator["params"]["min_size_bytes"] > 0
     assert coding_validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "validate_sequences_001", "input")
     assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seqio_read_001", "input_file")
     assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seq_stats_001", "input_file")
     assert _has_edge(workflow, "validate_sequences_001", "passthrough", "blast_001", "query")
@@ -610,12 +615,14 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     assert _has_edge(workflow, "coding_001", "reference", "validate_coding_001", "input")
     assert _has_edge(workflow, "validate_coding_001", "passthrough", "translate_001", "input_file")
     assert _has_edge(workflow, "validate_coding_001", "passthrough", "biostrings_001", "input_fasta")
+    assert not _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
     assert not _has_edge(workflow, "seqs_001", "reference", "seqio_read_001", "input_file")
     assert not _has_edge(workflow, "seqs_001", "reference", "seq_stats_001", "input_file")
     assert not _has_edge(workflow, "seqs_001", "reference", "blast_001", "query")
     assert not _has_edge(workflow, "seqs_001", "reference", "blast_001", "subject")
     assert not _has_edge(workflow, "coding_001", "reference", "translate_001", "input_file")
     assert not _has_edge(workflow, "coding_001", "reference", "biostrings_001", "input_fasta")
+    assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
     assert workflow["outputs"]["validated_sequences"] == "validate_sequences_001"
     assert workflow["outputs"]["validated_coding_sequences"] == "validate_coding_001"
 

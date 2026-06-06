@@ -31,7 +31,25 @@
         "reference": "examples/data/phylogenetics/16s_sequences.fasta"
       },
       "ui": {
-        "title": "Input FASTA"
+        "title": "Example Local FASTA"
+      }
+    },
+    {
+      "id": "ncbi_efetch_001",
+      "type": "ncbi_efetch",
+      "position": [
+        80,
+        -80
+      ],
+      "params": {
+        "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
+        "database": "nuccore",
+        "rettype": "fasta",
+        "retmode": "text",
+        "output_name": "16s_sequences.fasta"
+      },
+      "ui": {
+        "title": "Fetch NCBI 16S"
       }
     },
     {
@@ -234,8 +252,8 @@
     {
       "id": "e1",
       "from": {
-        "node": "seqs_001",
-        "output": "reference"
+        "node": "ncbi_efetch_001",
+        "output": "records"
       },
       "to": {
         "node": "validate_sequences_001",
@@ -385,6 +403,7 @@
     "orf_table": "biostrings_001",
     "revcomp": "biostrings_001",
     "six_frame": "biostrings_001",
+    "fetched_fasta": "ncbi_efetch_001",
     "validated_sequences": "validate_sequences_001",
     "validated_coding_sequences": "validate_coding_001",
     "sequence_length_chart": "seq_length_chart_001",
