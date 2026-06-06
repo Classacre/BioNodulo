@@ -158,3 +158,21 @@ def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -
     assert _has_edge(workflow, "validate_assembly_001", "passthrough", "quast_001", "assembly")
     assert _has_edge(workflow, "validate_assembly_001", "passthrough", "prokka_001", "assembly")
     assert workflow["outputs"]["validated_assembly"] == "validate_assembly_001"
+
+
+def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
+    workflow = _load_template("metagenomics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["bracken_bar_001"] == "bar_chart"
+    assert node_types["taxonomy_report_001"] == "html_report"
+    chart = next(node for node in workflow["nodes"] if node["id"] == "bracken_bar_001")
+    assert chart["params"]["x_column"] == "name"
+    assert chart["params"]["y_column"] == "fraction_total_reads"
+    assert chart["params"]["orientation"] == "horizontal"
+    assert chart["params"]["format"] == "png"
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "bracken_bar_001", "chart_image", "taxonomy_report_001", "images")
+    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
+    assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
+    assert workflow["outputs"]["taxonomy_report"] == "taxonomy_report_001"

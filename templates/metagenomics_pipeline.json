@@ -94,6 +94,40 @@
       }
     },
     {
+      "id": "bracken_bar_001",
+      "type": "bar_chart",
+      "position": [
+        1520,
+        80
+      ],
+      "params": {
+        "title": "Bracken Taxonomic Composition",
+        "x_column": "name",
+        "y_column": "fraction_total_reads",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Taxonomy Chart"
+      }
+    },
+    {
+      "id": "taxonomy_report_001",
+      "type": "html_report",
+      "position": [
+        1880,
+        80
+      ],
+      "params": {
+        "title": "Metagenomics Taxonomy Report",
+        "text_sections": "# Summary\nBracken taxonomic abundance report with a composition chart.",
+        "section_names": "Taxonomy chart,Bracken report"
+      },
+      "ui": {
+        "title": "Taxonomy Report"
+      }
+    },
+    {
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
@@ -222,6 +256,39 @@
     {
       "id": "e6",
       "from": {
+        "node": "bracken_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "bracken_bar_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "bracken_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "taxonomy_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "bracken_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "taxonomy_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
         "node": "fastp_001",
         "output": "trimmed_reads"
       },
@@ -231,7 +298,7 @@
       }
     },
     {
-      "id": "e7",
+      "id": "e10",
       "from": {
         "node": "fastp_001",
         "output": "trimmed_reads"
@@ -242,7 +309,7 @@
       }
     },
     {
-      "id": "e8",
+      "id": "e11",
       "from": {
         "node": "reads_001",
         "output": "reads"
@@ -253,7 +320,7 @@
       }
     },
     {
-      "id": "e9",
+      "id": "e12",
       "from": {
         "node": "qc_001",
         "output": "report_dir"
@@ -264,7 +331,7 @@
       }
     },
     {
-      "id": "e10",
+      "id": "e13",
       "from": {
         "node": "mqc_001",
         "output": "report"
@@ -278,6 +345,8 @@
   "groups": [],
   "outputs": {
     "taxonomy": "bracken_001",
+    "taxonomy_chart": "bracken_bar_001",
+    "taxonomy_report": "taxonomy_report_001",
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001"
   }
