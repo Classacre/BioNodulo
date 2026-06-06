@@ -365,6 +365,34 @@
       "ui": {
         "title": "Validate MultiQC Report"
       }
+    },
+    {
+      "id": "chip_seq_report_001",
+      "type": "html_report",
+      "position": [
+        2600,
+        80
+      ],
+      "params": {
+        "title": "ChIP-Seq Report",
+        "text_sections": "# Summary\nChIP-seq alignment, MACS2 peak calling, and QC completed. Validated MACS2 peaks are included as the primary results table.",
+        "section_names": "Validated MACS2 peaks"
+      },
+      "ui": {
+        "title": "ChIP-seq report"
+      }
+    },
+    {
+      "id": "chip_seq_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        2780,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View ChIP-seq Report"
+      }
     }
   ],
   "edges": [
@@ -620,6 +648,28 @@
         "node": "macs2_001",
         "input": "control"
       }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "validate_peaks_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "chip_seq_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "chip_seq_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "chip_seq_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -627,7 +677,8 @@
     "peaks": "macs2_001",
     "validated_peaks": "validate_peaks_001",
     "coverage_track": "coverage_001",
-    "report": "mqc_001",
+    "report": "chip_seq_report_001",
+    "chip_seq_report": "chip_seq_report_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
