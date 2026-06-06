@@ -19,11 +19,16 @@ import httpx
 from Bio import Phylo
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 from bionodulo.nodes.command_node import CommandNode
 
 
 EBI_CLUSTALO_BASE_URL = "https://www.ebi.ac.uk/Tools/services/rest/clustalo"
 EBI_CLUSTALO_USER_AGENT = "BioNodulo/2.0 (workflow node; EMBL-EBI Clustal Omega)"
+EBI_CLUSTALO_CACHE_TTL_S = 300.0
+EBI_CLUSTALO_RATE_LIMIT_PER_SECOND = 1.0
+EBI_CLUSTALO_API_CACHE = APICache(ttl_seconds=EBI_CLUSTALO_CACHE_TTL_S)
+EBI_CLUSTALO_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=EBI_CLUSTALO_RATE_LIMIT_PER_SECOND, burst=1)
 EBI_CLUSTALO_SEQUENCE_TYPES = ("protein", "dna", "rna")
 EBI_CLUSTALO_OUTPUT_FORMATS = ("fa", "clustal", "clustal_num", "msf", "nexus", "phylip", "selex", "stockholm", "vienna")
 EBI_CLUSTALO_MAX_ITERATIONS = 5
@@ -42,6 +47,10 @@ EBI_CLUSTALO_RUNNING_STATUSES = {"PENDING", "RUNNING", "QUEUED"}
 EBI_CLUSTALO_FAILED_STATUSES = {"FAILURE", "ERROR", "NOT_FOUND", "CANCELLED"}
 PHYLOT_BASE_URL = "https://phylot.biobyte.de"
 PHYLOT_USER_AGENT = "BioNodulo/2.0 (workflow node; PhyloT)"
+PHYLOT_CACHE_TTL_S = 300.0
+PHYLOT_RATE_LIMIT_PER_SECOND = 1.0
+PHYLOT_API_CACHE = APICache(ttl_seconds=PHYLOT_CACHE_TTL_S)
+PHYLOT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=PHYLOT_RATE_LIMIT_PER_SECOND, burst=1)
 PHYLOT_OUTPUT_FORMATS = ("newick", "nexus", "phyloxml")
 PHYLOT_FORMAT_EXTENSIONS = {
     "newick": ".nwk",
@@ -133,29 +142,25 @@ async def _phylot_request(
 ) -> httpx.Response:
     endpoint = endpoint.lstrip("/")
     url = f"{PHYLOT_BASE_URL}/{endpoint}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": PHYLOT_USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                response = await client.post(url, data=data)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"PhyloT {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"PhyloT {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"PhyloT {endpoint} request failed: {last_error}")
+    client = APIHttpClient(cache=PHYLOT_API_CACHE, rate_limiter=PHYLOT_RATE_LIMITER)
+    try:
+        return await client.request(
+            "POST",
+            url,
+            data=data,
+            headers={"User-Agent": PHYLOT_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+            follow_redirects=True,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"PhyloT {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"PhyloT {endpoint} request failed: {exc}") from exc
 
 
 async def _ebi_clustalo_post_text(
@@ -189,32 +194,29 @@ async def _ebi_clustalo_request(
 ) -> httpx.Response:
     endpoint = endpoint.lstrip("/")
     url = f"{EBI_CLUSTALO_BASE_URL}/{endpoint}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": EBI_CLUSTALO_USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                if method.upper() == "POST":
-                    response = await client.post(url, data=data)
-                else:
-                    response = await client.get(url)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"EBI Clustal Omega {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"EBI Clustal Omega {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"EBI Clustal Omega {endpoint} request failed: {last_error}")
+    client = APIHttpClient(cache=EBI_CLUSTALO_API_CACHE, rate_limiter=EBI_CLUSTALO_RATE_LIMITER)
+    method = method.upper()
+    request_kwargs: dict[str, Any] = {}
+    if method == "POST":
+        request_kwargs["data"] = data
+    try:
+        return await client.request(
+            method,
+            url,
+            **request_kwargs,
+            headers={"User-Agent": EBI_CLUSTALO_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+            follow_redirects=True,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"EBI Clustal Omega {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"EBI Clustal Omega {endpoint} request failed: {exc}") from exc
 
 
 def _ebi_clustalo_result_types(xml_text: str) -> list[str]:

@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
@@ -504,6 +505,76 @@ def test_ebi_clustal_omega_is_registered_for_frontend_discovery() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ebi_clustalo_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ebi_clustal_omega")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    assert isinstance(module.EBI_CLUSTALO_API_CACHE, module.APICache)
+    assert isinstance(module.EBI_CLUSTALO_RATE_LIMITER, module.TokenBucketRateLimiter)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, headers=kwargs.get("headers"))
+            text = "clustalo-job\n" if method == "POST" else "FINISHED"
+            return httpx.Response(200, text=text, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    post_response = await module._ebi_clustalo_request(
+        "POST",
+        "run",
+        data={"email": "analyst@example.org", "sequence": ">seq1\nMEEP\n"},
+        retries=4,
+        timeout=8.0,
+    )
+    get_response = await module._ebi_clustalo_request("GET", "status/clustalo-job", retries=2, timeout=9.0)
+
+    assert post_response.text == "clustalo-job\n"
+    assert get_response.text == "FINISHED"
+    assert calls == [
+        {
+            "method": "POST",
+            "url": f"{module.EBI_CLUSTALO_BASE_URL}/run",
+            "cache": module.EBI_CLUSTALO_API_CACHE,
+            "rate_limiter": module.EBI_CLUSTALO_RATE_LIMITER,
+            "data": {"email": "analyst@example.org", "sequence": ">seq1\nMEEP\n"},
+            "headers": {"User-Agent": module.EBI_CLUSTALO_USER_AGENT},
+            "timeout": 8.0,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+        {
+            "method": "GET",
+            "url": f"{module.EBI_CLUSTALO_BASE_URL}/status/clustalo-job",
+            "cache": module.EBI_CLUSTALO_API_CACHE,
+            "rate_limiter": module.EBI_CLUSTALO_RATE_LIMITER,
+            "headers": {"User-Agent": module.EBI_CLUSTALO_USER_AGENT},
+            "timeout": 9.0,
+            "retries": 2,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ebi_clustal_omega_submits_polls_and_writes_outputs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -768,6 +839,60 @@ def test_phylot_is_registered_for_frontend_discovery() -> None:
         "gtdb_version",
         "output_name",
     }
+
+
+@pytest.mark.asyncio
+async def test_phylot_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("phylot")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    assert isinstance(module.PHYLOT_API_CACHE, module.APICache)
+    assert isinstance(module.PHYLOT_RATE_LIMITER, module.TokenBucketRateLimiter)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, headers=kwargs.get("headers"))
+            return httpx.Response(200, text="(Homo_sapiens,Mus_musculus);\n", request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._phylot_request(
+        "treeGenerator.cgi",
+        data={"treeElements": "Homo sapiens\nMus musculus", "format": "newick"},
+        retries=4,
+        timeout=8.0,
+    )
+
+    assert response.text == "(Homo_sapiens,Mus_musculus);\n"
+    assert calls == [
+        {
+            "method": "POST",
+            "url": f"{module.PHYLOT_BASE_URL}/treeGenerator.cgi",
+            "cache": module.PHYLOT_API_CACHE,
+            "rate_limiter": module.PHYLOT_RATE_LIMITER,
+            "data": {"treeElements": "Homo sapiens\nMus musculus", "format": "newick"},
+            "headers": {"User-Agent": module.PHYLOT_USER_AGENT},
+            "timeout": 8.0,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        }
+    ]
 
 
 @pytest.mark.asyncio
