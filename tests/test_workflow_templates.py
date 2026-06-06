@@ -142,3 +142,19 @@ def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
     assert workflow["outputs"]["volcano_plot"] == "volcano_001"
     assert workflow["outputs"]["ma_plot"] == "ma_plot_001"
     assert workflow["outputs"]["report"] == "de_report_001"
+
+
+def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_assembly_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_assembly_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
+    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "quast_001", "assembly")
+    assert _has_edge(workflow, "validate_assembly_001", "passthrough", "prokka_001", "assembly")
+    assert workflow["outputs"]["validated_assembly"] == "validate_assembly_001"

@@ -83,7 +83,7 @@
       "id": "quast_001",
       "type": "quast",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -94,10 +94,27 @@
       }
     },
     {
+      "id": "validate_assembly_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Assembly"
+      }
+    },
+    {
       "id": "prokka_001",
       "type": "prokka",
       "position": [
-        1160,
+        1520,
         360
       ],
       "params": {
@@ -111,7 +128,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {},
@@ -150,8 +167,8 @@
         "output": "assembly"
       },
       "to": {
-        "node": "quast_001",
-        "input": "assembly"
+        "node": "validate_assembly_001",
+        "input": "input"
       }
     },
     {
@@ -168,8 +185,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "spades_001",
-        "output": "assembly"
+        "node": "validate_assembly_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "prokka_001",
@@ -178,6 +195,17 @@
     },
     {
       "id": "e6",
+      "from": {
+        "node": "validate_assembly_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "quast_001",
+        "input": "assembly"
+      }
+    },
+    {
+      "id": "e7",
       "from": {
         "node": "quast_001",
         "output": "report"
@@ -191,6 +219,7 @@
   "groups": [],
   "outputs": {
     "assembly": "spades_001",
+    "validated_assembly": "validate_assembly_001",
     "quast": "quast_001",
     "annotation": "prokka_001"
   }
