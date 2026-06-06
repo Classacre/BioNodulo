@@ -476,6 +476,20 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_chip_seq_template_generates_bigwig_coverage_track() -> None:
+    workflow = _load_template("chip_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["coverage_001"] == "deeptools_bamcoverage"
+    coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_001")
+    assert coverage["params"]["threads"] == 4
+    assert coverage["params"]["normalize_using"] == "CPM"
+    assert coverage["params"]["bin_size"] == 10
+    assert coverage["params"]["ignore_duplicates"] is True
+    assert _has_edge(workflow, "sort_001", "sorted_bam", "coverage_001", "bam")
+    assert workflow["outputs"]["coverage_track"] == "coverage_001"
+
+
 def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)

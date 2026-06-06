@@ -139,6 +139,23 @@
       }
     },
     {
+      "id": "coverage_001",
+      "type": "deeptools_bamcoverage",
+      "position": [
+        1880,
+        276
+      ],
+      "params": {
+        "threads": 4,
+        "normalize_using": "CPM",
+        "bin_size": 10,
+        "ignore_duplicates": true
+      },
+      "ui": {
+        "title": "BigWig Coverage"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -247,6 +264,17 @@
       }
     },
     {
+      "id": "e4a",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "coverage_001",
+        "input": "bam"
+      }
+    },
+    {
       "id": "e5",
       "from": {
         "node": "fastp_001",
@@ -294,6 +322,7 @@
   "groups": [],
   "outputs": {
     "peaks": "macs2_001",
+    "coverage_track": "coverage_001",
     "report": "mqc_001",
     "trimmed_reads": "fastp_001",
     "validated_reads": "validate_reads_001"
