@@ -55,7 +55,7 @@
       "id": "hisat2_build_001",
       "type": "hisat2_build",
       "position": [
-        440,
+        800,
         444
       ],
       "params": {
@@ -63,6 +63,23 @@
       },
       "ui": {
         "title": "HISAT2 Build"
+      }
+    },
+    {
+      "id": "validate_reference_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Reference FASTA"
       }
     },
     {
@@ -264,6 +281,17 @@
         "output": "reference"
       },
       "to": {
+        "node": "validate_reference_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3a",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "hisat2_build_001",
         "input": "reference"
       }
@@ -417,6 +445,7 @@
     "counts": "counts_001",
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
-    "report": "qc_dashboard_001"
+    "report": "qc_dashboard_001",
+    "validated_reference": "validate_reference_001"
   }
 }

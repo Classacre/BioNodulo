@@ -153,6 +153,22 @@ def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     assert workflow["outputs"]["report"] == "qc_dashboard_001"
 
 
+def test_rna_seq_template_validates_reference_fasta_before_indexing() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reference_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "validate_reference_001", "passthrough", "hisat2_build_001", "reference")
+    assert not _has_edge(workflow, "ref_001", "reference", "hisat2_build_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+
+
 def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)
