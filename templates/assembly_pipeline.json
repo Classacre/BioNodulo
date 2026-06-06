@@ -152,6 +152,22 @@
       "ui": {
         "title": "View QUAST Report"
       }
+    },
+    {
+      "id": "assembly_report_001",
+      "type": "html_report",
+      "position": [
+        1880,
+        360
+      ],
+      "params": {
+        "title": "Assembly Annotation Report",
+        "text_sections": "# Summary\nAssembly validation, QUAST quality assessment, and Prokka annotation for the genome assembly workflow.",
+        "section_names": "Prokka annotation"
+      },
+      "ui": {
+        "title": "Assembly report"
+      }
     }
   ],
   "edges": [
@@ -242,6 +258,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "prokka_001",
+        "output": "gff"
+      },
+      "to": {
+        "node": "assembly_report_001",
+        "input": "tables"
+      }
     }
   ],
   "groups": [],
@@ -250,6 +277,7 @@
     "validated_assembly": "validate_assembly_001",
     "validated_reads": "validate_reads_001",
     "quast": "quast_001",
-    "annotation": "prokka_001"
+    "annotation": "prokka_001",
+    "report": "assembly_report_001"
   }
 }
