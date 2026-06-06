@@ -103,6 +103,26 @@ async def test_path_operations_manipulate_paths_and_report_existence(tmp_path: P
 
 
 @pytest.mark.asyncio
+async def test_path_operations_support_documented_relative_type_and_rewrite_modes(tmp_path: Path) -> None:
+    sample = tmp_path / "reads" / "sample.fastq.gz"
+    sample.parent.mkdir()
+    sample.write_text("ACGT\n", encoding="utf-8")
+    node = _node_class("path_operations")()
+
+    assert await node.run(operation="relative", path=str(sample), path_b=str(tmp_path)) == ("reads/sample.fastq.gz", True)
+    assert await node.run(operation="is_file", path=str(sample)) == (str(sample), True)
+    assert await node.run(operation="is_dir", path=str(sample.parent)) == (str(sample.parent), True)
+    assert await node.run(operation="with_suffix", path=str(sample), suffix=".bam") == (
+        str(sample.with_suffix(".bam")),
+        False,
+    )
+    assert await node.run(operation="with_name", path=str(sample), name="trimmed.fastq.gz") == (
+        str(sample.with_name("trimmed.fastq.gz")),
+        False,
+    )
+
+
+@pytest.mark.asyncio
 async def test_read_file_returns_content_lines_and_line_count(tmp_path: Path) -> None:
     sample = tmp_path / "notes.txt"
     sample.write_text("alpha\nbeta\n\n", encoding="utf-8")

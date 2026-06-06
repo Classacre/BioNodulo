@@ -293,8 +293,8 @@ class PathOperationsNode(BaseNode):
     NODE_ID = "path_operations"
     DISPLAY_NAME = "Path Operations"
     CATEGORY = "utils"
-    DESCRIPTION = "Path manipulation: basename, dirname, extension, stem, join, exists, absolute"
-    SEARCH_ALIASES = ["path", "filepath", "basename", "dirname", "extension", "join", "absolute"]
+    DESCRIPTION = "Path manipulation: basename, dirname, extension, stem, join, exists, absolute, relative"
+    SEARCH_ALIASES = ["path", "filepath", "basename", "dirname", "extension", "join", "absolute", "relative"]
     RETURN_TYPES = ("STRING", "BOOLEAN")
     RETURN_NAMES = ("result", "exists")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -303,11 +303,29 @@ class PathOperationsNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "operation": (["basename", "dirname", "extension", "stem", "join", "exists", "absolute"], {"default": "basename", "description": "Path operation"}),
+                "operation": (
+                    [
+                        "basename",
+                        "dirname",
+                        "extension",
+                        "stem",
+                        "join",
+                        "exists",
+                        "absolute",
+                        "relative",
+                        "is_file",
+                        "is_dir",
+                        "with_suffix",
+                        "with_name",
+                    ],
+                    {"default": "basename", "description": "Path operation"},
+                ),
                 "path": ("STRING", {"default": "", "description": "File or directory path"}),
             },
             "optional": {
-                "path_b": ("STRING", {"default": "", "description": "Second path component for join"}),
+                "path_b": ("STRING", {"default": "", "description": "Second path component for join or base path for relative"}),
+                "suffix": ("STRING", {"default": "", "description": "Replacement suffix for with_suffix"}),
+                "name": ("STRING", {"default": "", "description": "Replacement filename for with_name"}),
             },
             "hidden": {},
         }
@@ -337,11 +355,35 @@ class PathOperationsNode(BaseNode):
                 raise ValueError("path_b is required for join operation")
             result = str(path / path_b)
             exists = Path(result).exists()
+        elif operation == "relative":
+            path_b = str(kwargs.get("path_b", "") or "")
+            if not path_b:
+                raise ValueError("path_b is required for relative operation")
+            result = str(path.relative_to(Path(path_b)))
+            exists = path.exists()
         elif operation == "exists":
             result = path_text
             exists = path.exists()
+        elif operation == "is_file":
+            result = path_text
+            exists = path.is_file()
+        elif operation == "is_dir":
+            result = path_text
+            exists = path.is_dir()
         elif operation == "absolute":
             result = str(path.resolve())
+            exists = Path(result).exists()
+        elif operation == "with_suffix":
+            suffix = str(kwargs.get("suffix", "") or "")
+            if not suffix:
+                raise ValueError("suffix is required for with_suffix operation")
+            result = str(path.with_suffix(suffix))
+            exists = Path(result).exists()
+        elif operation == "with_name":
+            name = str(kwargs.get("name", "") or "")
+            if not name:
+                raise ValueError("name is required for with_name operation")
+            result = str(path.with_name(Path(name).name))
             exists = Path(result).exists()
         else:
             raise ValueError(f"Unsupported path operation: {operation}")
