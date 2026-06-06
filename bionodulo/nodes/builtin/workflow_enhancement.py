@@ -271,22 +271,43 @@ class DataValidatorNode(BaseNode):
             "warnings": [],
             "errors": [],
         }
-        path = self._materialize_input(data, context)
         passed = True
-        if path is None:
+        if data == []:
             report["errors"].append("No input data provided")
             passed = False
-        else:
-            passed = self._validate_path(path, expected_format, report, min_size, max_size)
-            if passed and checksum_expected:
-                passed = self._verify_checksum(path, checksum_expected, report)
+        elif self._is_path_list(data, expected_format):
+            passed = self._validate_path_list(
+                [Path(str(item)) for item in data],
+                expected_format,
+                report,
+                min_size,
+                max_size,
+                required_fields,
+            )
             if passed and min_records > 0:
-                records = int(report["checks"].get("record_count", report["checks"].get("row_count", report["checks"].get("variant_count", 0))) or 0)
+                records = self._record_count(report)
                 if records < min_records:
                     report["errors"].append(f"Too few records: {records} (min: {min_records})")
                     passed = False
-            if passed and required_fields:
-                passed = self._check_required_fields(path, expected_format, required_fields, report)
+            if passed and checksum_expected:
+                report["errors"].append("Checksum validation is not supported for multiple inputs")
+                passed = False
+        else:
+            path = self._materialize_input(data, context)
+            if path is None:
+                report["errors"].append("No input data provided")
+                passed = False
+            else:
+                passed = self._validate_path(path, expected_format, report, min_size, max_size)
+                if passed and checksum_expected:
+                    passed = self._verify_checksum(path, checksum_expected, report)
+                if passed and min_records > 0:
+                    records = self._record_count(report)
+                    if records < min_records:
+                        report["errors"].append(f"Too few records: {records} (min: {min_records})")
+                        passed = False
+                if passed and required_fields:
+                    passed = self._check_required_fields(path, expected_format, required_fields, report)
 
         report["passed"] = passed
         report["check_count"] = len(report["checks"])
@@ -304,6 +325,21 @@ class DataValidatorNode(BaseNode):
 
         return (data, passed, _json_text(report), report_file)
 
+    @staticmethod
+    def _is_path_list(data: Any, expected_format: str) -> bool:
+        path_formats = {"auto", "fasta", "fastq", "vcf", "bam", "csv", "tsv", "text"}
+        return (
+            expected_format in path_formats
+            and isinstance(data, (list, tuple))
+            and bool(data)
+            and all(isinstance(item, (str, Path)) for item in data)
+        )
+
+    @staticmethod
+    def _record_count(report: dict[str, Any]) -> int:
+        checks = report.get("checks", {})
+        return int(checks.get("record_count", checks.get("row_count", checks.get("variant_count", 0))) or 0)
+
     def _materialize_input(self, data: Any, context: Any) -> Path | None:
         if data is None:
             return None
@@ -317,6 +353,47 @@ class DataValidatorNode(BaseNode):
         else:
             path.write_text(str(data), encoding="utf-8")
         return path
+
+    def _validate_path_list(
+        self,
+        paths: list[Path],
+        expected_format: str,
+        report: dict[str, Any],
+        min_size: int,
+        max_size: int,
+        required_fields: list[str],
+    ) -> bool:
+        file_reports: list[dict[str, Any]] = []
+        passed = True
+        total_size = 0
+        total_records = 0
+
+        for index, path in enumerate(paths, start=1):
+            file_report: dict[str, Any] = {
+                "input": str(path),
+                "checks": {},
+                "warnings": [],
+                "errors": [],
+            }
+            file_passed = self._validate_path(path, expected_format, file_report, min_size, max_size)
+            if file_passed and required_fields:
+                file_passed = self._check_required_fields(path, expected_format, required_fields, file_report)
+
+            if not file_passed:
+                passed = False
+                for error in file_report["errors"]:
+                    report["errors"].append(f"Input {index} ({path}): {error}")
+            report["warnings"].extend(f"Input {index} ({path}): {warning}" for warning in file_report["warnings"])
+
+            total_size += int(file_report["checks"].get("file_size_bytes", 0) or 0)
+            total_records += self._record_count(file_report)
+            file_reports.append(file_report)
+
+        report["checks"]["file_count"] = len(paths)
+        report["checks"]["total_size_bytes"] = total_size
+        report["checks"]["record_count"] = total_records
+        report["checks"]["files"] = file_reports
+        return passed
 
     def _validate_path(
         self,

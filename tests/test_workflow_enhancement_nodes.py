@@ -216,6 +216,31 @@ async def test_data_validator_reports_failures_without_raising_when_configured(t
 
 
 @pytest.mark.asyncio
+async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -> None:
+    read1 = tmp_path / "sample_R1.fastq"
+    read2 = tmp_path / "sample_R2.fastq"
+    read1.write_text("@r1\nACGT\n+\n!!!!\n@r2\nTGCA\n+\n!!!!\n", encoding="utf-8")
+    read2.write_text("@r1\nAAAA\n+\n!!!!\n@r2\nCCCC\n+\n!!!!\n", encoding="utf-8")
+
+    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+        input=[str(read1), str(read2)],
+        expected_format="fastq",
+        min_records=4,
+        fail_on_error=False,
+        context=_context(tmp_path, "validator-list"),
+    )
+
+    parsed = json.loads(report)
+    assert passthrough == [str(read1), str(read2)]
+    assert passed is True
+    assert parsed["checks"]["file_count"] == 2
+    assert parsed["checks"]["record_count"] == 4
+    assert parsed["checks"]["files"][0]["checks"]["record_count"] == 2
+    assert parsed["checks"]["files"][1]["checks"]["record_count"] == 2
+    assert Path(report_file).exists()
+
+
+@pytest.mark.asyncio
 async def test_data_validator_raises_on_failure_by_default(tmp_path: Path) -> None:
     missing = tmp_path / "missing.vcf"
 
