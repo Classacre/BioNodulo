@@ -314,6 +314,7 @@ def test_extract_columns_exposes_output_type_for_frontend_discovery() -> None:
     assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
     assert "column_indices" in node_info["input"]["optional"]
     assert "rename_to" in node_info["input"]["optional"]
+    assert "drop_mode" in node_info["input"]["optional"]
 
 
 @pytest.mark.asyncio
@@ -382,6 +383,31 @@ async def test_extract_columns_rejects_rename_to_count_mismatch(tmp_path: Path) 
             output_type="TSV",
             context=_context(tmp_path, "extract-rename-to-mismatch"),
         )
+
+
+@pytest.mark.asyncio
+async def test_extract_columns_drop_mode_removes_selected_columns(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ])
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns="depth",
+        drop_mode=True,
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "extract-drop-mode"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["sample", "status"]
+    assert rows == [
+        {"sample": "S1", "status": "fail"},
+        {"sample": "S2", "status": "pass"},
+    ]
 
 
 @pytest.mark.asyncio

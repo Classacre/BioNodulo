@@ -362,6 +362,7 @@ class ExtractColumnsNode(BaseNode):
                 "rename_map": ("STRING", {"default": "", "description": "Comma-separated old:new renames"}),
                 "column_indices": ("STRING", {"default": "", "description": "Comma-separated 0-based column indices"}),
                 "rename_to": ("STRING", {"default": "", "description": "Comma-separated output column names"}),
+                "drop_mode": ("BOOLEAN", {"default": False, "description": "Drop selected columns instead of keeping them"}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
@@ -381,6 +382,8 @@ class ExtractColumnsNode(BaseNode):
         missing = [name for name in selected if name not in fieldnames]
         if missing:
             raise ValueError(f"Column(s) not found: {', '.join(missing)}")
+        if kwargs.get("drop_mode", False):
+            selected = [name for name in fieldnames if name not in set(selected)]
         rename_map = _parse_rename_map(str(kwargs.get("rename_map", "")))
         output_fields = self._output_fields(selected, rename_map, str(kwargs.get("rename_to", "") or ""))
         output_rows = [
