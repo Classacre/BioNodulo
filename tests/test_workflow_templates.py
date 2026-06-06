@@ -87,3 +87,19 @@ def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -
     assert _has_edge(workflow, "validate_multiqc_001", "passed", "gate_multiqc_001", "value")
     assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
     assert workflow["outputs"]["validated_report"] == "validate_multiqc_001"
+
+
+def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
+    workflow = _load_template("phylogenetics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["tree_viewer_001"] == "phylo_tree_viewer"
+    assert node_types["phylo_report_001"] == "html_report"
+    tree_viewer = next(node for node in workflow["nodes"] if node["id"] == "tree_viewer_001")
+    assert tree_viewer["params"]["format"] == "png"
+    assert tree_viewer["params"]["layout"] == "rectangular"
+    assert _has_edge(workflow, "iqtree_001", "tree", "tree_viewer_001", "tree_file")
+    assert _has_edge(workflow, "tree_viewer_001", "tree_image", "phylo_report_001", "images")
+    assert _has_edge(workflow, "mafft_001", "alignment", "phylo_report_001", "tables")
+    assert workflow["outputs"]["tree_image"] == "tree_viewer_001"
+    assert workflow["outputs"]["report"] == "phylo_report_001"

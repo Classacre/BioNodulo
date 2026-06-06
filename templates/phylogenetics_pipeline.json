@@ -89,6 +89,40 @@
       "ui": {
         "title": "View Alignment"
       }
+    },
+    {
+      "id": "tree_viewer_001",
+      "type": "phylo_tree_viewer",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "layout": "rectangular",
+        "show_bootstrap": true,
+        "bootstrap_threshold": 70,
+        "title": "16S Phylogenetic Tree",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Render Tree"
+      }
+    },
+    {
+      "id": "phylo_report_001",
+      "type": "html_report",
+      "position": [
+        1520,
+        80
+      ],
+      "params": {
+        "title": "Phylogenetics Report",
+        "text_sections": "# Summary\nMultiple sequence alignment and IQ-TREE phylogeny with rendered tree output.",
+        "section_names": "Phylogenetic tree,Alignment"
+      },
+      "ui": {
+        "title": "Phylogenetics Report"
+      }
     }
   ],
   "edges": [
@@ -135,11 +169,46 @@
         "node": "image_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "iqtree_001",
+        "output": "tree"
+      },
+      "to": {
+        "node": "tree_viewer_001",
+        "input": "tree_file"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "tree_viewer_001",
+        "output": "tree_image"
+      },
+      "to": {
+        "node": "phylo_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "mafft_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "phylo_report_001",
+        "input": "tables"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "tree": "iqtree_001",
+    "tree_image": "tree_viewer_001",
+    "report": "phylo_report_001",
     "alignment": "mafft_001"
   }
 }
