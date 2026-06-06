@@ -55,7 +55,7 @@
       "id": "salmon_idx_001",
       "type": "salmon_index",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {},
@@ -64,10 +64,27 @@
       }
     },
     {
+      "id": "validate_transcriptome_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Transcriptome"
+      }
+    },
+    {
       "id": "salmon_quant_001",
       "type": "salmon_quant",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -81,7 +98,7 @@
       "id": "kallisto_idx_001",
       "type": "kallisto_index",
       "position": [
-        440,
+        800,
         318
       ],
       "params": {},
@@ -93,7 +110,7 @@
       "id": "kallisto_quant_001",
       "type": "kallisto_quant",
       "position": [
-        800,
+        1160,
         528
       ],
       "params": {
@@ -107,7 +124,7 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1160,
+        1520,
         300
       ],
       "params": {
@@ -121,7 +138,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1520,
+        1880,
         300
       ],
       "params": {},
@@ -136,6 +153,17 @@
       "from": {
         "node": "tx_001",
         "output": "reference"
+      },
+      "to": {
+        "node": "validate_transcriptome_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1b",
+      "from": {
+        "node": "validate_transcriptome_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "salmon_idx_001",
@@ -167,8 +195,8 @@
     {
       "id": "e4",
       "from": {
-        "node": "tx_001",
-        "output": "reference"
+        "node": "validate_transcriptome_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "kallisto_idx_001",
@@ -223,6 +251,7 @@
   "groups": [],
   "outputs": {
     "salmon": "salmon_quant_001",
-    "kallisto": "kallisto_quant_001"
+    "kallisto": "kallisto_quant_001",
+    "validated_transcriptome": "validate_transcriptome_001"
   }
 }

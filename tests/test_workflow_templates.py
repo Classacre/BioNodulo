@@ -251,6 +251,24 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     assert workflow["outputs"]["validated_coding_sequences"] == "validate_coding_001"
 
 
+def test_differential_expression_template_validates_transcriptome_before_indexing() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_transcriptome_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_transcriptome_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "tx_001", "reference", "validate_transcriptome_001", "input")
+    assert _has_edge(workflow, "validate_transcriptome_001", "passthrough", "salmon_idx_001", "transcripts")
+    assert _has_edge(workflow, "validate_transcriptome_001", "passthrough", "kallisto_idx_001", "transcripts")
+    assert not _has_edge(workflow, "tx_001", "reference", "salmon_idx_001", "transcripts")
+    assert not _has_edge(workflow, "tx_001", "reference", "kallisto_idx_001", "transcripts")
+    assert workflow["outputs"]["validated_transcriptome"] == "validate_transcriptome_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
