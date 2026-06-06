@@ -37,6 +37,40 @@ def test_workflow_import_rejects_unavailable_converter_instead_of_placeholder_re
     assert "Converter for snakemake is unavailable" in response.json()["detail"]
 
 
+def test_settings_routes_redact_secret_like_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    with TestClient(create_app()) as client:
+        save_response = client.post(
+            "/api/settings",
+            json={
+                "settings": {
+                    "bionodulo.llm.apiKey": "secret-key",
+                    "visible": "sample",
+                    "nested": {"password": "secret-password"},
+                }
+            },
+        )
+        all_response = client.get("/api/settings")
+        single_response = client.get("/api/settings/bionodulo.llm.apiKey")
+
+    assert save_response.status_code == 200
+    assert all_response.status_code == 200
+    payload = all_response.json()
+    assert payload["bionodulo.llm.apiKey"] == "***"
+    assert payload["visible"] == "sample"
+    assert payload["nested"]["password"] == "***"
+    assert "secret-key" not in json.dumps(payload)
+    assert "secret-password" not in json.dumps(payload)
+    assert single_response.status_code == 200
+    assert single_response.json()["bionodulo.llm.apiKey"] == "***"
+
+
 def test_checkpoint_manifest_endpoint_returns_empty_manifest_for_new_workspace(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -684,6 +718,39 @@ def test_workflow_triggers_endpoint_reports_malformed_json(
     ]
 
 
+def test_workflow_triggers_endpoint_redacts_secret_payload_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    trigger_file = trigger_dir / "schedule_secret.json"
+    trigger_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {"api_key": "secret-key", "sample": "S1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/workflow_triggers")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["triggers"][0]["payload"]["api_key"] == "***"
+    assert payload["triggers"][0]["payload"]["sample"] == "S1"
+    assert "secret-key" not in json.dumps(payload)
+
+
 def test_workflow_trigger_evaluate_endpoint_lists_due_schedule(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -731,6 +798,42 @@ def test_workflow_trigger_evaluate_endpoint_lists_due_schedule(
     assert payload["run_submission_supported"] is False
     assert "pollable metadata" in payload["workflow_trigger_note"]
     assert "does not submit" in payload["workflow_trigger_note"]
+
+
+def test_workflow_trigger_evaluate_redacts_secret_payload_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    due_file = trigger_dir / "schedule_secret.json"
+    due_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {"api_key": "secret-key", "sample": "S1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:30:00+00:00"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["due_schedule_triggers"][0]["payload"]["api_key"] == "***"
+    assert payload["due_schedule_triggers"][0]["payload"]["sample"] == "S1"
+    assert "secret-key" not in json.dumps(payload)
 
 
 def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_requested(
@@ -800,6 +903,61 @@ def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_reque
     saved = json.loads(due_file.read_text(encoding="utf-8"))
     assert saved["last_submitted_due_at"] == "2026-06-07T18:30:00+00:00"
     assert saved["submitted_run_ids"] == [queue.submit_calls[0]["run_id"]]
+
+
+def test_workflow_trigger_submission_redacts_secret_metadata_and_options(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    due_file = trigger_dir / "schedule_secret.json"
+    due_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {
+                    "api_key": "secret-key",
+                    "sample": "S1",
+                    "workflow": {"name": "Weekly QC", "nodes": [], "edges": []},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class Queue:
+        def __init__(self) -> None:
+            self.submit_calls: list[dict[str, object]] = []
+
+        async def submit(self, **kwargs: object) -> str:
+            self.submit_calls.append(kwargs)
+            return str(kwargs["run_id"])
+
+        async def shutdown(self) -> None:
+            return None
+
+    with TestClient(create_app()) as client:
+        queue = Queue()
+        client.app.state.run_queue = queue
+        response = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:30:00+00:00", "submit_runs": True},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert queue.submit_calls
+    assert queue.submit_calls[0]["options"] == {"parameters": {"api_key": "***", "sample": "S1"}}
+    assert queue.submit_calls[0]["metadata"]["payload"]["api_key"] == "***"
+    assert "secret-key" not in json.dumps(queue.submit_calls[0], default=str)
+    assert "secret-key" not in json.dumps(payload)
 
 
 def test_workflow_trigger_evaluate_endpoint_lists_file_watch_events(

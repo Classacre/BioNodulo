@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from bionodulo.api.app_state import app_state
 from bionodulo.api.schemas import SettingsSaveRequest, SettingsSetRequest
+from bionodulo.core.credentials import redact_tree
 
 settings_router = APIRouter()
 
@@ -16,7 +17,7 @@ settings_router = APIRouter()
 async def get_all_settings(request: Request) -> dict[str, Any]:
     """Get all user settings."""
     sm = app_state(request).settings_manager
-    return sm.get_all()
+    return redact_tree(sm.get_all())
 
 
 @settings_router.post("/settings")
@@ -34,7 +35,7 @@ async def get_setting(request: Request, setting_id: str) -> Any:
     value = sm.get(setting_id)
     if value is None:
         raise HTTPException(status_code=404, detail=f"Setting '{setting_id}' not found")
-    return {setting_id: value}
+    return {setting_id: redact_tree(value, parent_key=setting_id)}
 
 
 @settings_router.post("/settings/{setting_id}")

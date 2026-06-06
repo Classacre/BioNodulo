@@ -53,6 +53,7 @@ from bionodulo.api.schemas import (
     WorkflowTriggerEvaluateRequest,
 )
 from bionodulo.core.config import Settings
+from bionodulo.core.credentials import redact_tree
 from bionodulo.core.events import EventHub
 from bionodulo.core.paths import ensure_within
 from bionodulo.workflow.export import export_workflow
@@ -427,17 +428,18 @@ async def _submit_due_workflow_trigger(
         for key, value in payload.items()
         if key != "workflow"
     }
+    redacted_parameters = redact_tree(parameters)
     metadata = {
         "trigger_type": trigger.get("trigger_type", ""),
         "target_workflow": trigger.get("target_workflow", ""),
         "trigger_file": trigger_file,
         "due_at": due_marker,
-        "payload": parameters,
+        "payload": redacted_parameters,
     }
     await queue.submit(
         workflow=workflow,
         run_id=run_id,
-        options={"parameters": parameters} if parameters else {},
+        options={"parameters": redacted_parameters} if parameters else {},
         metadata=metadata,
     )
 
@@ -813,7 +815,7 @@ async def list_workflow_triggers(request: Request) -> dict[str, Any]:
     if trigger_dir.exists():
         for path in sorted(trigger_dir.glob("*.json")):
             try:
-                triggers.append(_read_workflow_trigger_file(path))
+                triggers.append(redact_tree(_read_workflow_trigger_file(path)))
             except ValueError as exc:
                 errors.append({"trigger_file": str(path), "error": str(exc)})
     return {
@@ -858,11 +860,11 @@ async def evaluate_workflow_triggers(request: Request, body: WorkflowTriggerEval
                 })
     return {
         "trigger_dir": str(trigger_dir),
-        "due_schedule_triggers": due_schedule_triggers,
+        "due_schedule_triggers": redact_tree(due_schedule_triggers),
         "due_schedule_count": len(due_schedule_triggers),
-        "due_file_watch_triggers": due_file_watch_triggers,
+        "due_file_watch_triggers": redact_tree(due_file_watch_triggers),
         "due_file_watch_count": len(due_file_watch_triggers),
-        "submitted_runs": submitted_runs,
+        "submitted_runs": redact_tree(submitted_runs),
         "submitted_run_count": sum(1 for item in submitted_runs if item.get("status") == "submitted"),
         "errors": errors,
         **{

@@ -16,6 +16,8 @@ from typing import Any
 
 from diskcache import Cache as DiskCache
 
+from bionodulo.core.credentials import redact_tree
+
 
 def _marker_memory_limit() -> int:
     try:
@@ -159,8 +161,8 @@ class CacheStore:
         marker = {
             "cache_key": cache_key,
             "outputs": outputs,
-            "params": params or {},
-            "inputs": inputs or {},
+            "params": redact_tree(params or {}),
+            "inputs": redact_tree(inputs or {}),
             "upstream_keys": upstream_keys or {},
         }
         if inactive_outputs is not None:

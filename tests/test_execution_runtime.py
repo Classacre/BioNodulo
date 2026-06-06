@@ -29,6 +29,27 @@ from bionodulo.workflow.graph import (
 )
 
 
+def test_redact_tree_masks_nested_secret_values() -> None:
+    from bionodulo.core.credentials import REDACTED, redact_tree
+
+    payload = {
+        "api_key": "secret-key",
+        "nested": {
+            "Authorization": "Bearer secret-token",
+            "safe": "visible",
+            "items": [{"password": "secret-password"}, "plain"],
+        },
+    }
+
+    redacted = redact_tree(payload)
+
+    assert redacted["api_key"] == REDACTED
+    assert redacted["nested"]["Authorization"] == REDACTED
+    assert redacted["nested"]["safe"] == "visible"
+    assert redacted["nested"]["items"][0]["password"] == REDACTED
+    assert redacted["nested"]["items"][1] == "plain"
+
+
 @pytest.mark.asyncio
 async def test_run_subprocess_streams_to_log_files(tmp_path: Path) -> None:
     events: list[tuple[str, dict[str, Any]]] = []
@@ -64,6 +85,24 @@ def test_cache_store_tracks_and_replaces_markers_atomically(tmp_path: Path) -> N
     store.write_marker("abc", outputs={"out": "two"})
     assert store.is_hit("abc")
     assert store.read_marker("abc")["outputs"] == {"out": "two"}
+
+
+def test_cache_store_redacts_secret_like_marker_inputs_and_params(tmp_path: Path) -> None:
+    store = CacheStore(tmp_path)
+
+    store.write_marker(
+        "secret-cache",
+        outputs={"out": "result"},
+        params={"api_key": "secret-key", "sample": "S1"},
+        inputs={"headers": {"Authorization": "Bearer secret-token"}},
+    )
+
+    marker = store.read_marker("secret-cache")
+    assert marker["params"]["api_key"] == "***"
+    assert marker["params"]["sample"] == "S1"
+    assert marker["inputs"]["headers"]["Authorization"] == "***"
+    assert "secret-key" not in json.dumps(marker)
+    assert "secret-token" not in json.dumps(marker)
 
 
 def test_shell_join_preserves_file_descriptor_redirects() -> None:
@@ -388,6 +427,87 @@ async def test_executor_dry_run_preview_plans_command_outputs_and_cache(tmp_path
         "result": str(tmp_path / "runs" / "dry-run-1" / "preview" / "preview_command" / "result.out")
     }
     assert not (tmp_path / "runs" / "dry-run-1" / "run_metadata.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_executor_dry_run_redacts_secret_like_inputs_params_and_commands(tmp_path: Path) -> None:
+    class SecretCommandNode(CommandNode):
+        NODE_ID = "secret_command"
+        COMMAND = ["curl", "-H", "Authorization: Bearer {params.api_key}", "{params.url}"]
+        RETURN_TYPES = ("STRING",)
+        RETURN_NAMES = ("result",)
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"secret_command": SecretCommandNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "secret",
+                "type": "secret_command",
+                "params": {
+                    "api_key": "secret-token",
+                    "url": "https://example.test",
+                },
+                "outputs": {"result": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    preview = await executor.dry_run("secret-preview", workflow)
+
+    node_plan = preview["nodes"][0]
+    assert node_plan["params"]["api_key"] == "***"
+    assert node_plan["params"]["url"] == "https://example.test"
+    assert "secret-token" not in json.dumps(node_plan, sort_keys=True)
+    assert "secret-token" not in json.dumps(preview, sort_keys=True)
+
+
+@pytest.mark.asyncio
+async def test_executor_context_merges_settings_api_secrets_with_option_overrides(tmp_path: Path) -> None:
+    class SecretProbeNode:
+        RETURN_NAMES = ("out",)
+        observed: dict[str, str | None] = {}
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> tuple[str]:
+            type(self).observed = {
+                "configured": context.resolve_secret("configured"),
+                "override": context.resolve_secret("override"),
+                "option_only": context.resolve_secret("option_only"),
+            }
+            return ("ok",)
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"secret_probe": SecretProbeNode}.get(node_type)
+
+    settings = SimpleNamespace(api_secrets={"configured": "from-settings", "override": "from-settings"})
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path,
+        cache_dir=tmp_path / "cache",
+        registry=Registry(),
+        settings=settings,
+    )
+
+    result = await executor.execute(
+        "secret-run",
+        {"nodes": [{"id": "probe", "type": "secret_probe", "outputs": {"out": {}}}], "edges": []},
+        options={"api_secrets": {"override": "from-options", "option_only": "from-options"}},
+    )
+
+    assert result["status"] == "completed"
+    assert SecretProbeNode.observed == {
+        "configured": "from-settings",
+        "override": "from-options",
+        "option_only": "from-options",
+    }
 
 
 @pytest.mark.asyncio

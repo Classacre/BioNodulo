@@ -27,6 +27,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
+from bionodulo.core.credentials import merge_api_secrets, redact_tree
 from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to_packages
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import run_subprocess
@@ -170,6 +171,11 @@ class WorkflowExecutor:
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.registry = registry
         self.settings = settings
+
+    def _api_secrets_for_options(self, options: dict[str, Any]) -> dict[str, str]:
+        configured = getattr(self.settings, "api_secrets", {}) if self.settings is not None else {}
+        option_secrets = options.get("api_secrets", {})
+        return merge_api_secrets(configured, option_secrets if isinstance(option_secrets, dict) else {})
 
     # ------------------------------------------------------------------
     # Public API
@@ -581,7 +587,7 @@ class WorkflowExecutor:
                 node_dir=node_dir,
                 workspace_dir=self.workspace_dir,
                 params=resolved_params,
-                api_secrets=options.get("api_secrets", {}),
+                api_secrets=self._api_secrets_for_options(options),
                 emit=emit,
                 cancel_event=cancel_event,
                 env_prefix=env_prefix,
@@ -849,9 +855,9 @@ class WorkflowExecutor:
                     "node_type": node_type,
                     "display_name": getattr(node_class, "DISPLAY_NAME", "") if node_class else "",
                     "category": getattr(node_class, "CATEGORY", "") if node_class else "",
-                    "inputs": self._public_plan_values(resolved_inputs),
-                    "params": self._public_plan_values(resolved_params),
-                    "command": command,
+                    "inputs": self._public_plan_values(redact_tree(resolved_inputs)),
+                    "params": self._public_plan_values(redact_tree(resolved_params)),
+                    "command": self._redact_command(command, resolved_params),
                     "shell": bool(getattr(node_class, "SHELL", False)) if node_class else False,
                     "env_prefix": self._env_prefix_for_node(node, workflow),
                     "required_executables": list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []),
@@ -1150,6 +1156,28 @@ class WorkflowExecutor:
         if getattr(node_class, "SHELL", False) and isinstance(command, list):
             return _shell_join(command)
         return command
+
+    @staticmethod
+    def _redact_command(command: str | list[str] | None, resolved_params: dict[str, Any]) -> str | list[str] | None:
+        if command is None:
+            return None
+        redacted_params = redact_tree(resolved_params)
+        replacements = {
+            str(value): str(redacted_params.get(key))
+            for key, value in resolved_params.items()
+            if redacted_params.get(key) == "***" and isinstance(value, (str, int, float))
+        }
+
+        def _redact_text(text: str) -> str:
+            redacted = text
+            for raw, replacement in replacements.items():
+                if raw:
+                    redacted = redacted.replace(raw, replacement)
+            return redacted
+
+        if isinstance(command, list):
+            return [_redact_text(str(part)) for part in command]
+        return _redact_text(command)
 
     @staticmethod
     def _public_plan_values(value: Any) -> Any:
@@ -1609,7 +1637,7 @@ class WorkflowExecutor:
                         node_dir=body_dir,
                         workspace_dir=self.workspace_dir,
                         params=body_params,
-                        api_secrets=options.get("api_secrets", {}),
+                        api_secrets=self._api_secrets_for_options(options),
                         emit=emit,
                         cancel_event=ctx.cancel_event,
                         env_prefix=self._env_prefix_for_node(body_node, workflow),
@@ -2006,7 +2034,7 @@ class WorkflowExecutor:
                 node_dir=body_dir,
                 workspace_dir=self.workspace_dir,
                 params=body_params,
-                api_secrets=options.get("api_secrets", {}),
+                api_secrets=self._api_secrets_for_options(options),
                 emit=emit,
                 cancel_event=ctx.cancel_event,
                 env_prefix=self._env_prefix_for_node(body_node, workflow),

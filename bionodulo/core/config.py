@@ -292,7 +292,7 @@ class SettingsManager:
                 if isinstance(target, dict) and part in target:
                     target = target[part]
                 else:
-                    return default
+                    return self._settings.get(key, default)
             return target
         return self._settings.get(key, default)
 
