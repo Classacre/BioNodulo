@@ -1,7 +1,6 @@
 """UCSC Genome Browser API integration node."""
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 UCSC_BASE_URL = "https://api.genome.ucsc.edu"
@@ -17,6 +17,10 @@ UCSC_USER_AGENT = "BioNodulo/2.0 (workflow node; UCSC Genome Browser API)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+UCSC_CACHE_TTL_S = 300.0
+UCSC_RATE_LIMIT_PER_SECOND = 3.0
+UCSC_API_CACHE = APICache(ttl_seconds=UCSC_CACHE_TTL_S)
+UCSC_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UCSC_RATE_LIMIT_PER_SECOND, burst=1)
 UCSC_QUERY_TYPES = ("sequence", "genes_in_region", "tracks")
 UCSC_GENOMES = (
     "hg38",
@@ -60,28 +64,25 @@ async def _request(
 ) -> httpx.Response:
     endpoint = endpoint.lstrip("/")
     url = f"{UCSC_BASE_URL}/{endpoint}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": UCSC_USER_AGENT},
-            ) as client:
-                response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"UCSC {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"UCSC {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"UCSC {endpoint} request failed: {last_error}")
+    client = APIHttpClient(cache=UCSC_API_CACHE, rate_limiter=UCSC_RATE_LIMITER)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            params=params,
+            headers={"User-Agent": UCSC_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=UCSC_CACHE_TTL_S,
+            follow_redirects=True,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"UCSC {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"UCSC {endpoint} request failed: {exc}") from exc
 
 
 def _parse_coordinates(value: Any) -> tuple[str, int, int]:

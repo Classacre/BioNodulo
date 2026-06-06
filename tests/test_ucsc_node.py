@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -29,6 +30,60 @@ def test_ucsc_genome_browser_is_registered_for_frontend_discovery() -> None:
     assert info["ucsc_genome_browser"]["category"] == "databases"
     assert info["ucsc_genome_browser"]["output_name"] == ["sequence_fasta", "annotations_json"]
     assert info["ucsc_genome_browser"]["output"] == ["FASTA", "JSON"]
+
+
+@pytest.mark.asyncio
+async def test_ucsc_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ucsc_genome_browser")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    assert isinstance(module.UCSC_API_CACHE, module.APICache)
+    assert isinstance(module.UCSC_RATE_LIMITER, module.TokenBucketRateLimiter)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            return httpx.Response(200, json={"dna": "ACGT"}, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._request(
+        "getData/sequence",
+        {"genome": "hg38", "chrom": "chr1", "start": 1, "end": 5},
+        retries=4,
+        timeout=8.0,
+    )
+
+    assert response.json() == {"dna": "ACGT"}
+    assert calls == [
+        {
+            "method": "GET",
+            "url": f"{module.UCSC_BASE_URL}/getData/sequence",
+            "cache": module.UCSC_API_CACHE,
+            "rate_limiter": module.UCSC_RATE_LIMITER,
+            "params": {"genome": "hg38", "chrom": "chr1", "start": 1, "end": 5},
+            "headers": {"User-Agent": module.UCSC_USER_AGENT},
+            "timeout": 8.0,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": module.UCSC_CACHE_TTL_S,
+            "follow_redirects": True,
+        }
+    ]
 
 
 @pytest.mark.asyncio
