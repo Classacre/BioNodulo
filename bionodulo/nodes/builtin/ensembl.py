@@ -1,7 +1,6 @@
 """Ensembl REST API integration nodes."""
 from __future__ import annotations
 
-import asyncio
 import csv
 import json
 import re
@@ -12,6 +11,7 @@ from urllib.parse import quote
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 ENSEMBL_BASE_URL = "https://rest.ensembl.org"
@@ -20,6 +20,13 @@ ENSEMBL_USER_AGENT = "BioNodulo/2.0 (workflow node; Ensembl REST)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+ENSEMBL_CACHE_TTL_S = 300.0
+ENSEMBL_RATE_LIMIT_PER_SECOND = 5.0
+ENSEMBL_JSON_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": ENSEMBL_USER_AGENT,
+}
 VEP_TABLE_COLUMNS = (
     "input",
     "gene_symbol",
@@ -28,6 +35,8 @@ VEP_TABLE_COLUMNS = (
     "consequence_terms",
     "impact",
 )
+ENSEMBL_API_CACHE = APICache(ttl_seconds=ENSEMBL_CACHE_TTL_S)
+ENSEMBL_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=ENSEMBL_RATE_LIMIT_PER_SECOND, burst=1)
 
 
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
@@ -72,32 +81,24 @@ async def _request(
 ) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{base_url.rstrip('/')}/{resource}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "User-Agent": ENSEMBL_USER_AGENT,
-                },
-            ) as client:
-                response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"Ensembl {resource} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"Ensembl {resource} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"Ensembl {resource} request failed: {last_error}")
+    client = APIHttpClient(cache=ENSEMBL_API_CACHE, rate_limiter=ENSEMBL_RATE_LIMITER)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            params=params,
+            headers=ENSEMBL_JSON_HEADERS,
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=ENSEMBL_CACHE_TTL_S,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"Ensembl {resource} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Ensembl {resource} request failed: {exc}") from exc
 
 
 async def _post(
@@ -111,32 +112,25 @@ async def _post(
 ) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{base_url.rstrip('/')}/{resource}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "User-Agent": ENSEMBL_USER_AGENT,
-                },
-            ) as client:
-                response = await client.post(url, params=params, json=json_body)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"Ensembl {resource} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"Ensembl {resource} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"Ensembl {resource} request failed: {last_error}")
+    client = APIHttpClient(cache=ENSEMBL_API_CACHE, rate_limiter=ENSEMBL_RATE_LIMITER)
+    try:
+        return await client.request(
+            "POST",
+            url,
+            params=params,
+            headers=ENSEMBL_JSON_HEADERS,
+            json=json_body,
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"Ensembl {resource} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Ensembl {resource} request failed: {exc}") from exc
 
 
 def _base_url_for_assembly(assembly: str) -> str:

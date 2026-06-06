@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -31,6 +32,77 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_vep"]["display_name"] == "Ensembl VEP"
     assert info["ensembl_vep"]["category"] == "databases"
     assert info["ensembl_vep"]["output_name"] == ["vep_json", "annotation_table"]
+
+
+@pytest.mark.asyncio
+async def test_ensembl_requests_use_shared_http_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ensembl_gene_lookup")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            return httpx.Response(200, json={"ok": True}, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    get_response = await module._request(
+        "lookup/id/ENSG00000141510",
+        {"expand": 1},
+        base_url=module.ENSEMBL_BASE_URL,
+        retries=4,
+        timeout=8.0,
+    )
+    post_response = await module._post(
+        "vep/homo_sapiens/region",
+        {"variants": ["13 32316461 . A G . . ."]},
+        {"canonical": 1},
+        base_url=module.ENSEMBL_GRCH37_BASE_URL,
+        retries=2,
+        timeout=9.0,
+    )
+
+    assert get_response.json() == {"ok": True}
+    assert post_response.json() == {"ok": True}
+    assert len(calls) == 2
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == f"{module.ENSEMBL_BASE_URL}/lookup/id/ENSG00000141510"
+    assert calls[0]["params"] == {"expand": 1}
+    assert calls[0]["headers"] == module.ENSEMBL_JSON_HEADERS
+    assert calls[0]["timeout"] == 8.0
+    assert calls[0]["retries"] == 4
+    assert calls[0]["retry_delay"] == module.RETRY_DELAY_S
+    assert calls[0]["cache_ttl"] == module.ENSEMBL_CACHE_TTL_S
+    assert calls[0]["cache"] is module.ENSEMBL_API_CACHE
+    assert calls[0]["rate_limiter"] is module.ENSEMBL_RATE_LIMITER
+
+    assert calls[1]["method"] == "POST"
+    assert calls[1]["url"] == f"{module.ENSEMBL_GRCH37_BASE_URL}/vep/homo_sapiens/region"
+    assert calls[1]["params"] == {"canonical": 1}
+    assert calls[1]["json"] == {"variants": ["13 32316461 . A G . . ."]}
+    assert calls[1]["headers"] == module.ENSEMBL_JSON_HEADERS
+    assert calls[1]["timeout"] == 9.0
+    assert calls[1]["retries"] == 2
+    assert calls[1]["retry_delay"] == module.RETRY_DELAY_S
+    assert calls[1]["cache_ttl"] is None
+    assert calls[1]["cache"] is module.ENSEMBL_API_CACHE
+    assert calls[1]["rate_limiter"] is module.ENSEMBL_RATE_LIMITER
 
 
 @pytest.mark.asyncio
