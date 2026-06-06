@@ -1,7 +1,6 @@
 """KEGG REST API integration nodes."""
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 KEGG_BASE_URL = "https://rest.kegg.jp"
@@ -17,6 +17,10 @@ KEGG_USER_AGENT = "BioNodulo/2.0 (workflow node; KEGG REST)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+KEGG_CACHE_TTL_S = 300.0
+KEGG_RATE_LIMIT_PER_SECOND = 3.0
+KEGG_API_CACHE = APICache(ttl_seconds=KEGG_CACHE_TTL_S)
+KEGG_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=KEGG_RATE_LIMIT_PER_SECOND, burst=1)
 QUERY_TYPES = (
     "pathway_info",
     "pathway_genes",
@@ -52,28 +56,23 @@ async def _request_text(
 async def _request(resource: str, *, retries: int, timeout: float) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{KEGG_BASE_URL}/{resource}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": KEGG_USER_AGENT},
-            ) as client:
-                response = await client.get(url)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"KEGG {resource} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"KEGG {resource} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"KEGG {resource} request failed: {last_error}")
+    client = APIHttpClient(cache=KEGG_API_CACHE, rate_limiter=KEGG_RATE_LIMITER)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            headers={"User-Agent": KEGG_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=KEGG_CACHE_TTL_S,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"KEGG {resource} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"KEGG {resource} request failed: {exc}") from exc
 
 
 def _normalise_pathway_id(query: str, organism: str) -> str:
