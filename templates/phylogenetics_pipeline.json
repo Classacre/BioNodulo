@@ -169,7 +169,7 @@
       "params": {
         "title": "Phylogenetics Report",
         "text_sections": "# Summary\nMultiple sequence alignment and IQ-TREE phylogeny with rendered tree output.",
-        "section_names": "Phylogenetic tree,Alignment"
+        "section_names": "Phylogenetic tree,Alignment visualization"
       },
       "ui": {
         "title": "Phylogenetics Report"
@@ -268,12 +268,12 @@
     {
       "id": "e7",
       "from": {
-        "node": "mafft_001",
-        "output": "alignment"
+        "node": "msa_view_001",
+        "output": "alignment_image"
       },
       "to": {
         "node": "phylo_report_001",
-        "input": "tables"
+        "input": "images"
       }
     }
   ],
