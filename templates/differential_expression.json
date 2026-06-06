@@ -164,6 +164,22 @@
       }
     },
     {
+      "id": "validate_multiqc_001",
+      "type": "data_validator",
+      "position": [
+        1700,
+        300
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MultiQC Report"
+      }
+    },
+    {
       "id": "quant_report_001",
       "type": "html_report",
       "position": [
@@ -300,8 +316,8 @@
         "output": "report"
       },
       "to": {
-        "node": "html_preview_001",
-        "input": "file"
+        "node": "validate_multiqc_001",
+        "input": "input"
       }
     },
     {
@@ -347,6 +363,17 @@
         "node": "quant_report_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "validate_multiqc_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -356,6 +383,7 @@
     "validated_reads": "validate_reads_001",
     "validated_transcriptome": "validate_transcriptome_001",
     "report": "mqc_001",
+    "validated_multiqc_report": "validate_multiqc_001",
     "quantification_report": "quant_report_001"
   }
 }

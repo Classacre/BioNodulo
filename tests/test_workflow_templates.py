@@ -554,8 +554,23 @@ def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc
     assert node_types["mqc_001"] == "multiqc"
     assert _has_edge(workflow, "salmon_quant_001", "counts", "mqc_001", "reports")
     assert _has_edge(workflow, "kallisto_quant_001", "abundance", "mqc_001", "reports")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
     assert workflow["outputs"]["report"] == "mqc_001"
+
+
+def test_differential_expression_template_validates_multiqc_report_before_preview() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_multiqc_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
+    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
 
 
 def test_differential_expression_template_adds_quantification_html_report() -> None:
