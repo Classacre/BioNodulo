@@ -2415,20 +2415,17 @@ export default function App() {
 
   // Unified search: surface "Add {Node}" entries for every registered node
   // type plus recent-workflow entries so Ctrl+P doubles as a way to
-  // create nodes and reopen workflows without leaving the keyboard. Capped
-  // to keep the palette snappy — the regular Node Library + Getting Started
-  // panels remain the place for full browsing.
-  const NODE_PALETTE_LIMIT = 40;
+  // create nodes and reopen workflows without leaving the keyboard.
   const dynamicCommands = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [];
-    const metas = Object.values(objectInfo).slice(0, NODE_PALETTE_LIMIT);
+    const metas = Object.values(objectInfo);
     for (const meta of metas) {
       items.push({
         id: `addNode.${meta.id}`,
         label: `Add: ${meta.display_name}`,
         description: meta.description || meta.category,
         group: 'Add Node',
-        keywords: [meta.id, meta.category, ...(meta.requires_external_tools || [])],
+        keywords: [meta.id, meta.category, ...(meta.search_aliases || []), ...(meta.requires_external_tools || [])],
         onSelect: () => {
           const vp = canvasRef.current?.getViewport();
           const world = vp
