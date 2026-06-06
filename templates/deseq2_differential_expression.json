@@ -186,8 +186,8 @@
       ],
       "params": {
         "title": "DESeq2 Differential Expression Report",
-        "text_sections": "# Summary\nDifferential expression results with volcano visualization and result table.",
-        "section_names": "Volcano plot,DESeq2 results"
+        "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, and filtered significant genes.",
+        "section_names": "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Significant genes"
       },
       "ui": {
         "title": "DE Report"
@@ -215,6 +215,18 @@
       "params": {},
       "ui": {
         "title": "View Heatmap"
+      }
+    },
+    {
+      "id": "de_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1880,
+        320
+      ],
+      "params": {},
+      "ui": {
+        "title": "View DE Report"
       }
     }
   ],
@@ -308,6 +320,28 @@
       }
     },
     {
+      "id": "e6a",
+      "from": {
+        "node": "ma_plot_001",
+        "output": "ma_image"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e6b",
+      "from": {
+        "node": "heatmap_001",
+        "output": "plot_png"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e7",
       "from": {
         "node": "deseq2_001",
@@ -361,6 +395,17 @@
         "node": "heatmap_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "de_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "de_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -371,6 +416,7 @@
     "significant_genes": "significant_genes_001",
     "heatmap": "heatmap_001",
     "report": "de_report_001",
+    "report_preview": "de_report_preview_001",
     "validated_counts": "validate_counts_001",
     "validated_sample_info": "validate_samples_001"
   }

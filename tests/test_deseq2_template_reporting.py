@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_template(name: str) -> dict[str, Any]:
+    return json.loads((ROOT / "templates" / name).read_text(encoding="utf-8"))
+
+
+def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
+    return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
+
+
+def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+    return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
+def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
+    return any(
+        edge.get("from") == {"node": source, "output": source_output}
+        and edge.get("to") == {"node": target, "input": target_input}
+        for edge in workflow["edges"]
+    )
+
+
+def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -> None:
+    workflow = _load_template("deseq2_differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["de_report_001"] == "html_report"
+    assert node_types["de_report_preview_001"] == "html_preview"
+
+    report = _node_by_id(workflow, "de_report_001")
+    assert report["params"]["title"] == "DESeq2 Differential Expression Report"
+    assert report["params"]["section_names"] == (
+        "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Significant genes"
+    )
+
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
+    assert _has_edge(workflow, "ma_plot_001", "ma_image", "de_report_001", "images")
+    assert _has_edge(workflow, "heatmap_001", "plot_png", "de_report_001", "images")
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
+    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "de_report_001", "tables")
+    assert _has_edge(workflow, "de_report_001", "html_report", "de_report_preview_001", "file")
+
+    assert workflow["outputs"]["report"] == "de_report_001"
+    assert workflow["outputs"]["report_preview"] == "de_report_preview_001"
