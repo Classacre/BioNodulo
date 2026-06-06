@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -46,6 +47,60 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["sra_fetch"]["required_executables"] == ["prefetch", "fasterq-dump"]
     assert registry.get("sra_fetch").REQUIRES_EXTERNAL_TOOLS is True
     assert issubclass(registry.get("sra_fetch"), registry.get("sra_download"))
+
+
+@pytest.mark.asyncio
+async def test_ncbi_request_uses_shared_http_client_with_api_key_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            return httpx.Response(200, json={"ok": True}, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._request(
+        "esearch.fcgi",
+        {"db": "gene", "term": "TP53", "retmode": "json", "api_key": "secret-key", "empty": ""},
+        retries=4,
+        timeout=6.5,
+    )
+
+    assert response.json() == {"ok": True}
+    assert len(calls) == 1
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == f"{module.NCBI_BASE_URL}/esearch.fcgi"
+    assert calls[0]["params"] == {
+        "db": "gene",
+        "term": "TP53",
+        "retmode": "json",
+        "api_key": "secret-key",
+    }
+    assert calls[0]["headers"] == {"User-Agent": module.NCBI_USER_AGENT}
+    assert calls[0]["timeout"] == 6.5
+    assert calls[0]["retries"] == 4
+    assert calls[0]["retry_delay"] == module.RETRY_DELAY_S
+    assert calls[0]["cache_ttl"] == module.NCBI_CACHE_TTL_S
+    assert calls[0]["cache"] is module.NCBI_API_CACHE
+    assert calls[0]["rate_limiter"] is module.NCBI_API_KEY_RATE_LIMITER
 
 
 @pytest.mark.asyncio

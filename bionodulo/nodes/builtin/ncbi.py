@@ -14,6 +14,7 @@ import httpx
 
 from bionodulo.core.credentials import resolve_secret_value
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -22,6 +23,9 @@ NCBI_USER_AGENT = "BioNodulo/2.0 (workflow node; NCBI E-utilities)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+NCBI_CACHE_TTL_S = 300.0
+NCBI_RATE_LIMIT_PER_SECOND = 3.0
+NCBI_API_KEY_RATE_LIMIT_PER_SECOND = 10.0
 BLAST_PROGRAMS = ("blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast")
 BLAST_DATABASES = ("nt", "nr", "refseq_rna", "refseq_protein", "pdb", "est", "gss", "pat", "env_nr")
 BLAST_OUTPUT_FORMATS = ("JSON2", "XML2", "Text", "CSV", "SAM")
@@ -45,6 +49,9 @@ SRA_FILE_SUFFIXES = {
 }
 
 logger = logging.getLogger(__name__)
+NCBI_API_CACHE = APICache(ttl_seconds=NCBI_CACHE_TTL_S)
+NCBI_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=NCBI_RATE_LIMIT_PER_SECOND, burst=1)
+NCBI_API_KEY_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=NCBI_API_KEY_RATE_LIMIT_PER_SECOND, burst=1)
 
 
 def _resolve_api_key(explicit: Any, context: Any) -> str:
@@ -86,28 +93,25 @@ async def _request(
 ) -> httpx.Response:
     url = f"{NCBI_BASE_URL}/{endpoint}"
     clean = _clean_params(params)
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": NCBI_USER_AGENT},
-            ) as client:
-                response = await client.get(url, params=clean)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"NCBI {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"NCBI {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"NCBI {endpoint} request failed: {last_error}")
+    rate_limiter = NCBI_API_KEY_RATE_LIMITER if clean.get("api_key") else NCBI_RATE_LIMITER
+    client = APIHttpClient(cache=NCBI_API_CACHE, rate_limiter=rate_limiter)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            params=clean,
+            headers={"User-Agent": NCBI_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=NCBI_CACHE_TTL_S,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"NCBI {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"NCBI {endpoint} request failed: {exc}") from exc
 
 
 async def _blast_request_text(
