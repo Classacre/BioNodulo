@@ -24,6 +24,11 @@ interface TopBarProps {
   queueCount: number;
   queueMode?: QueueMode;
   onQueueModeChange?: (mode: QueueMode) => void;
+  dryRunPreview?: boolean;
+  onDryRunPreviewChange?: (enabled: boolean) => void;
+  resumeCheckpointLabel?: string | null;
+  onOpenRuntimeArtifacts?: () => void;
+  onResumeCheckpointClear?: () => void;
   onToggleQueue: () => void;
   /**
    * When defined, rendered to the right of the validation badge — usually the
@@ -55,6 +60,8 @@ export default function TopBar({
   validationValid, validationErrors, onRun, hpcStatus, hpcEnabled = false,
   queueCount,
   queueMode = 'manual', onQueueModeChange,
+  dryRunPreview = false, onDryRunPreviewChange,
+  resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
   onToggleQueue, collabControls,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
@@ -195,6 +202,54 @@ export default function TopBar({
                   {t('topbar.batchRuns', { count: clampedCount })}
                 </span>
               </div>
+              <div className="run-split-menu-divider" />
+              <div className="run-split-menu-header">{t('topbar.preview')}</div>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={dryRunPreview}
+                className={`run-split-menu-item ${dryRunPreview ? 'is-active' : ''}`}
+                onClick={() => onDryRunPreviewChange?.(!dryRunPreview)}
+                disabled={isRunning || !onDryRunPreviewChange}
+              >
+                <span className="run-split-menu-radio">{dryRunPreview ? '●' : '○'}</span>
+                {t('topbar.dryRunPreview')}
+              </button>
+              <div className="run-split-menu-checkpoint">
+                <span className="run-split-menu-checkpoint-label">{t('topbar.resumeCheckpoint')}</span>
+                <span
+                  className="run-split-menu-checkpoint-value"
+                  title={resumeCheckpointLabel ?? t('topbar.noResumeCheckpoint')}
+                >
+                  {resumeCheckpointLabel ?? t('topbar.noResumeCheckpoint')}
+                </span>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="run-split-menu-item"
+                onClick={() => {
+                  onOpenRuntimeArtifacts?.();
+                  setRunMenuOpen(false);
+                }}
+                disabled={isRunning || !onOpenRuntimeArtifacts}
+              >
+                <Icon name="template" size={12} /> {t('topbar.chooseCheckpoint')}
+              </button>
+              {resumeCheckpointLabel && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="run-split-menu-item"
+                  onClick={() => {
+                    onResumeCheckpointClear?.();
+                    setRunMenuOpen(false);
+                  }}
+                  disabled={isRunning || !onResumeCheckpointClear}
+                >
+                  <Icon name="close" size={12} /> {t('topbar.clearResumeCheckpoint')}
+                </button>
+              )}
               <div className="run-split-menu-divider" />
               <div className="run-split-menu-header">{t('topbar.queueMode')}</div>
               {(['manual', 'change', 'instant'] as QueueMode[]).map(mode => (

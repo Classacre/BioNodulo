@@ -158,6 +158,8 @@ export function useWorkflow() {
     force_nodes?: string[];
     target_nodes?: string[];
     parameters?: Record<string, unknown>;
+    dry_run?: boolean;
+    resume_checkpoint?: Record<string, unknown>;
   }) => {
     const r = await apiRequest('/runs', {
       method: 'POST',
@@ -170,6 +172,8 @@ export function useWorkflow() {
         force_nodes: options?.force_nodes || [],
         target_nodes: options?.target_nodes || [],
         parameters: options?.parameters || {},
+        ...(options?.dry_run !== undefined ? { dry_run: options.dry_run } : {}),
+        ...(options?.resume_checkpoint !== undefined ? { resume_checkpoint: options.resume_checkpoint } : {}),
       },
     });
     const data = await r.json();

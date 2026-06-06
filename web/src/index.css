@@ -384,7 +384,7 @@ body {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 180px;
+  min-width: 220px;
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -432,6 +432,24 @@ body {
   width: 12px;
   text-align: center;
   color: var(--accent);
+}
+.run-split-menu-checkpoint {
+  display: grid;
+  gap: 2px;
+  padding: 5px 8px 6px;
+}
+.run-split-menu-checkpoint-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+.run-split-menu-checkpoint-value {
+  max-width: 204px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
 }
 .run-split-menu-divider {
   height: 1px;

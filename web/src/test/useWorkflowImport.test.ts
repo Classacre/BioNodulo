@@ -141,4 +141,67 @@ describe('useWorkflow submitRun', () => {
       }),
     });
   });
+
+  it('posts backend preview options to the run API payload', async () => {
+    const workflow = {
+      id: 'wf-preview',
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'Previewable workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+      parameters: [
+        { name: 'sample_id', type: 'STRING', required: true },
+      ],
+    } as Workflow;
+    const resumeCheckpoint = {
+      run_id: 'run-source',
+      node_outputs: {
+        fastqc: { report: 'fastqc.html' },
+      },
+    };
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify({
+      run_id: 'run-preview',
+      status: 'pending',
+      workflow_name: 'Previewable workflow',
+      node_statuses: [],
+      node_outputs: {},
+      execution_plan: [],
+      previews: {},
+      artifacts: {},
+    })));
+    const { result } = renderHook(() => useWorkflow());
+
+    await act(async () => {
+      await result.current.submitRun(workflow, {
+        name: 'Preview run',
+        environment: 'local',
+        no_cache: false,
+        force_nodes: ['fastqc'],
+        target_nodes: ['multiqc'],
+        parameters: { sample_id: 'S1' },
+        dry_run: true,
+        resume_checkpoint: resumeCheckpoint,
+      });
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/runs', {
+      method: 'POST',
+      json: {
+        workflow,
+        workflow_id: 'wf-preview',
+        name: 'Preview run',
+        no_cache: false,
+        environment: 'local',
+        force_nodes: ['fastqc'],
+        target_nodes: ['multiqc'],
+        parameters: { sample_id: 'S1' },
+        dry_run: true,
+        resume_checkpoint: resumeCheckpoint,
+      },
+    });
+  });
 });
