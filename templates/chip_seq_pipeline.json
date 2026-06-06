@@ -94,6 +94,22 @@
       }
     },
     {
+      "id": "gate_trimmed_reads_001",
+      "type": "gate",
+      "position": [
+        710,
+        80
+      ],
+      "params": {
+        "condition_mode": "is_not_empty",
+        "on_fail": "halt",
+        "error_message": "ChIP-seq trimming produced no trimmed reads"
+      },
+      "ui": {
+        "title": "Gate Trimmed Reads"
+      }
+    },
+    {
       "id": "validate_reads_001",
       "type": "data_validator",
       "position": [
@@ -274,6 +290,17 @@
         "output": "trimmed_reads"
       },
       "to": {
+        "node": "gate_trimmed_reads_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e1c",
+      "from": {
+        "node": "gate_trimmed_reads_001",
+        "output": "output"
+      },
+      "to": {
         "node": "bt2_001",
         "input": "reads"
       }
@@ -325,8 +352,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "fastp_001",
-        "output": "trimmed_reads"
+        "node": "gate_trimmed_reads_001",
+        "output": "output"
       },
       "to": {
         "node": "qc_001",
@@ -408,6 +435,7 @@
     "report": "mqc_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
+    "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_reads": "validate_reads_001",
     "validated_index": "validate_index_001"
   }
