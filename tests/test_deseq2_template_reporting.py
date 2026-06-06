@@ -34,15 +34,23 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
 
     assert node_types["de_report_001"] == "html_report"
     assert node_types["de_report_preview_001"] == "html_preview"
+    assert node_types["pca_plot_001"] == "scatter_plot"
 
     report = _node_by_id(workflow, "de_report_001")
+    pca_plot = _node_by_id(workflow, "pca_plot_001")
     assert report["params"]["title"] == "DESeq2 Differential Expression Report"
     assert report["params"]["section_names"] == (
-        "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes"
+        "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes"
     )
+    assert pca_plot["params"]["x_column"] == "PC1"
+    assert pca_plot["params"]["y_column"] == "PC2"
+    assert pca_plot["params"]["color_column"] == "condition"
+    assert pca_plot["params"]["format"] == "png"
 
     assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "de_report_001", "images")
+    assert _has_edge(workflow, "deseq2_001", "pca_scores_csv", "pca_plot_001", "table")
+    assert _has_edge(workflow, "pca_plot_001", "plot_image", "de_report_001", "images")
     assert _has_edge(workflow, "heatmap_001", "plot_png", "de_report_001", "images")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "de_report_001", "tables")
@@ -50,5 +58,6 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert _has_edge(workflow, "de_report_001", "html_report", "de_report_preview_001", "file")
 
     assert workflow["outputs"]["normalized_counts"] == "deseq2_001"
+    assert workflow["outputs"]["pca_plot"] == "pca_plot_001"
     assert workflow["outputs"]["report"] == "de_report_001"
     assert workflow["outputs"]["report_preview"] == "de_report_preview_001"

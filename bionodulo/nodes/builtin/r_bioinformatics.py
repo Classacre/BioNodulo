@@ -20,8 +20,8 @@ class DESeq2Node(BaseNode):
     REQUIRED_CONDA_PACKAGES = ['r-base', 'bioconductor-deseq2', 'r-ggplot2', 'r-readr', 'r-ashr']
     CATEGORY = "rna_seq"
     DESCRIPTION = "Differential expression analysis using DESeq2 (requires count matrix + sample metadata)"
-    RETURN_TYPES = ("FILE", "FILE", "FILE")
-    RETURN_NAMES = ("results_csv", "ma_plot", "normalized_counts_csv")
+    RETURN_TYPES = ("FILE", "FILE", "FILE", "FILE")
+    RETURN_NAMES = ("results_csv", "ma_plot", "normalized_counts_csv", "pca_scores_csv")
     OUTPUT_NODE = True
     REQUIRES_EXTERNAL_TOOLS = True
     REQUIRED_EXECUTABLES = ["Rscript"]
@@ -59,6 +59,7 @@ class DESeq2Node(BaseNode):
 
         results_csv = out_dir / "deseq2_results.csv"
         norm_counts_csv = out_dir / "normalized_counts.csv"
+        pca_scores_csv = out_dir / "pca_scores.csv"
         ma_plot = out_dir / "MA_plot.png"
 
         script = textwrap.dedent(f"""\
@@ -91,6 +92,18 @@ class DESeq2Node(BaseNode):
             norm_counts <- counts(dds, normalized = TRUE)
             write.csv(as.data.frame(norm_counts), "{norm_counts_csv.as_posix()}")
 
+            # PCA scores for sample clustering plots
+            vst_counts <- varianceStabilizingTransformation(dds, blind = FALSE)
+            pca <- prcomp(t(assay(vst_counts)))
+            percent_var <- round(100 * (pca$sdev^2 / sum(pca$sdev^2)), 2)
+            pca_scores <- as.data.frame(pca$x[, seq_len(min(2, ncol(pca$x))), drop = FALSE])
+            if (!"PC2" %in% colnames(pca_scores)) pca_scores$PC2 <- 0
+            pca_scores <- data.frame(sample = rownames(pca_scores), pca_scores[, c("PC1", "PC2"), drop = FALSE], check.names = FALSE)
+            pca_scores <- cbind(pca_scores, as.data.frame(colData[pca_scores$sample, , drop = FALSE]))
+            pca_scores$PC1_variance <- percent_var[1]
+            pca_scores$PC2_variance <- ifelse(length(percent_var) >= 2, percent_var[2], 0)
+            write.csv(pca_scores, "{pca_scores_csv.as_posix()}", row.names = FALSE)
+
             # MA plot
             res_df <- as.data.frame(res)
             res_df$significant <- ifelse(!is.na(res_df$padj) & res_df$padj < {padj_threshold} & abs(res_df$log2FoldChange) > {lfc_threshold}, "Significant", "Not significant")
@@ -122,7 +135,7 @@ class DESeq2Node(BaseNode):
         if context is not None and hasattr(context, "register_preview"):
             context.register_preview(ma_plot, label="DESeq2 MA Plot")
 
-        return (str(results_csv), str(ma_plot), str(norm_counts_csv))
+        return (str(results_csv), str(ma_plot), str(norm_counts_csv), str(pca_scores_csv))
 
 
 class DESeq2AliasNode(DESeq2Node):
