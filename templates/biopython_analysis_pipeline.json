@@ -246,6 +246,18 @@
       "ui": {
         "title": "Sequence Report"
       }
+    },
+    {
+      "id": "sequence_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1880,
+        318
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Sequence Report"
+      }
     }
   ],
   "edges": [
@@ -391,6 +403,17 @@
         "node": "sequence_report_001",
         "input": "tables"
       }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "sequence_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "sequence_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -407,6 +430,7 @@
     "validated_sequences": "validate_sequences_001",
     "validated_coding_sequences": "validate_coding_001",
     "sequence_length_chart": "seq_length_chart_001",
-    "report": "sequence_report_001"
+    "report": "sequence_report_001",
+    "sequence_report_preview": "sequence_report_preview_001"
   }
 }

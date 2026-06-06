@@ -56,3 +56,19 @@ def test_biopython_template_fetches_ncbi_fasta_before_sequence_analysis() -> Non
     assert not _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
     assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
     assert workflow["outputs"]["validated_sequences"] == "validate_sequences_001"
+
+
+def test_biopython_template_previews_sequence_report() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["sequence_report_001"] == "html_report"
+    assert node_types["sequence_report_preview_001"] == "html_preview"
+
+    report = _node(workflow, "sequence_report_001")
+    assert report["params"]["section_names"] == "Sequence length chart,Sequence statistics"
+
+    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
+    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
+    assert _has_edge(workflow, "sequence_report_001", "html_report", "sequence_report_preview_001", "file")
+    assert workflow["outputs"]["sequence_report_preview"] == "sequence_report_preview_001"
