@@ -194,6 +194,40 @@
       "ui": {
         "title": "View Stats Table"
       }
+    },
+    {
+      "id": "seq_length_chart_001",
+      "type": "bar_chart",
+      "position": [
+        1160,
+        514
+      ],
+      "params": {
+        "title": "Sequence Lengths",
+        "x_column": "id",
+        "y_column": "length",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Sequence Length Chart"
+      }
+    },
+    {
+      "id": "sequence_report_001",
+      "type": "html_report",
+      "position": [
+        1520,
+        318
+      ],
+      "params": {
+        "title": "Biopython Sequence Report",
+        "text_sections": "# Summary\nSequence metadata, length distribution, and computed statistics from the Biopython analysis workflow.",
+        "section_names": "Sequence length chart,Sequence statistics"
+      },
+      "ui": {
+        "title": "Sequence Report"
+      }
     }
   ],
   "edges": [
@@ -306,6 +340,39 @@
         "node": "table_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "seq_stats_001",
+        "output": "stats_tsv"
+      },
+      "to": {
+        "node": "seq_length_chart_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "seq_length_chart_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "sequence_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "seq_stats_001",
+        "output": "stats_tsv"
+      },
+      "to": {
+        "node": "sequence_report_001",
+        "input": "tables"
+      }
     }
   ],
   "groups": [],
@@ -319,6 +386,8 @@
     "revcomp": "biostrings_001",
     "six_frame": "biostrings_001",
     "validated_sequences": "validate_sequences_001",
-    "validated_coding_sequences": "validate_coding_001"
+    "validated_coding_sequences": "validate_coding_001",
+    "sequence_length_chart": "seq_length_chart_001",
+    "report": "sequence_report_001"
   }
 }

@@ -431,6 +431,26 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     assert workflow["outputs"]["validated_coding_sequences"] == "validate_coding_001"
 
 
+def test_biopython_template_adds_sequence_stats_chart_report() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["seq_length_chart_001"] == "bar_chart"
+    assert node_types["sequence_report_001"] == "html_report"
+    chart = next(node for node in workflow["nodes"] if node["id"] == "seq_length_chart_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "sequence_report_001")
+    assert chart["params"]["x_column"] == "id"
+    assert chart["params"]["y_column"] == "length"
+    assert chart["params"]["orientation"] == "horizontal"
+    assert chart["params"]["format"] == "png"
+    assert report["params"]["section_names"] == "Sequence length chart,Sequence statistics"
+    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "seq_length_chart_001", "table")
+    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
+    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
+    assert workflow["outputs"]["sequence_length_chart"] == "seq_length_chart_001"
+    assert workflow["outputs"]["report"] == "sequence_report_001"
+
+
 def test_differential_expression_template_validates_transcriptome_before_indexing() -> None:
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
