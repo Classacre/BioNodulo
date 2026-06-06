@@ -292,6 +292,14 @@ async def test_switch_all_match_marks_multiple_outputs_active() -> None:
 
 
 @pytest.mark.asyncio
+async def test_foreach_rejects_items_beyond_max_iterations_without_body() -> None:
+    node = _node_class("foreach")()
+
+    with pytest.raises(RuntimeError, match="Loop foreach would exceed max_iterations=2"):
+        await node.run(items=["S1", "S2", "S3"], max_iterations=2)
+
+
+@pytest.mark.asyncio
 async def test_sleep_waits_for_requested_seconds_and_passes_value(monkeypatch: pytest.MonkeyPatch) -> None:
     import bionodulo.nodes.builtin.flow_control as module
 

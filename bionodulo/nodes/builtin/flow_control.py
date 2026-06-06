@@ -469,6 +469,12 @@ class ForEachNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         kwargs.pop("context", None)
         items = _coerce_items(kwargs.get("items", []))
+        iteration_mode = str(kwargs.get("iteration_mode", "single") or "single")
+        batch_size = max(1, int(kwargs.get("batch_size", 1) or 1))
+        max_iterations = max(1, int(kwargs.get("max_iterations", 1000) or 1000))
+        iteration_count = len(items) if iteration_mode != "batch" else (len(items) + batch_size - 1) // batch_size
+        if iteration_count > max_iterations:
+            raise RuntimeError(f"Loop {self.NODE_ID} would exceed max_iterations={max_iterations}")
         return {
             "outputs": {
                 "iteration": None,
