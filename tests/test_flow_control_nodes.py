@@ -964,6 +964,55 @@ async def test_executor_fans_in_two_branches_with_merge_node(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
+async def test_executor_runs_merge_fanin_after_inactive_conditional_branch(tmp_path: Path) -> None:
+    if_node = _node_class("if_condition")
+    merge_node = _node_class("merge")
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"if_condition": if_node, "merge": merge_node}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "route",
+                "type": "if_condition",
+                "inputs": {
+                    "value": {"value": "selected-result"},
+                    "condition_mode": {"value": "not_empty"},
+                    "compare_to": {"value": ""},
+                },
+                "outputs": {"true": {}, "false": {}, "condition_result": {}},
+            },
+            {
+                "id": "merge_selected",
+                "type": "merge",
+                "inputs": {
+                    "num_inputs": {"value": 2},
+                    "strategy": {"value": "append"},
+                    "wait_mode": {"value": "any"},
+                },
+                "outputs": {"merged": {}, "received_count": {}},
+            },
+        ],
+        "edges": [
+            {"source_node": "route", "target_node": "merge_selected", "source_output": "true", "target_input": "input_0"},
+            {"source_node": "route", "target_node": "merge_selected", "source_output": "false", "target_input": "input_1"},
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("merge-inactive-branch", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert result["node_results"]["merge_selected"]["status"] == "completed"
+    assert result["outputs"]["merge_selected"] == {
+        "merged": ["selected-result"],
+        "received_count": 1,
+    }
+
+
+@pytest.mark.asyncio
 async def test_delay_wait_zero_delay_passes_value_through() -> None:
     node = _node_class("delay_wait")()
 

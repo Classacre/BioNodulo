@@ -367,6 +367,7 @@ class WorkflowExecutor:
                 edge_map,
                 skipped_nodes,
                 node_inactive_outputs,
+                self._node_class_for(node),
             )
             if inactive_upstream is not None:
                 emit(
@@ -678,8 +679,11 @@ class WorkflowExecutor:
         edge_map: dict[str, list[dict[str, Any]]],
         skipped_nodes: set[str],
         node_inactive_outputs: dict[str, set[str]],
+        node_class: Any = None,
     ) -> dict[str, str] | None:
         """Return the first upstream branch edge that should prevent execution."""
+        if self._allows_inactive_inputs(node_class):
+            return None
         for edge in edge_map.get(node_id, []):
             src = edge_source(edge)
             src_port = edge_source_port(edge)
@@ -706,6 +710,10 @@ class WorkflowExecutor:
     @staticmethod
     def _routes_flow(node_class: Any) -> bool:
         return bool(getattr(node_class, "ROUTES_FLOW", False))
+
+    @staticmethod
+    def _allows_inactive_inputs(node_class: Any) -> bool:
+        return bool(getattr(node_class, "ALLOW_INACTIVE_INPUTS", False))
 
     @staticmethod
     def _executes_loop_body(node_class: Any) -> bool:
@@ -1007,6 +1015,7 @@ class WorkflowExecutor:
                         body_edge_map,
                         local_skipped_nodes,
                         local_inactive_outputs,
+                        body_class,
                     )
                     if inactive_upstream is not None:
                         local_skipped_nodes.add(body_node_id)
@@ -1408,6 +1417,7 @@ class WorkflowExecutor:
                 body_edge_map,
                 local_skipped_nodes,
                 local_inactive_outputs,
+                body_class,
             )
             if inactive_upstream is not None:
                 local_skipped_nodes.add(body_node_id)

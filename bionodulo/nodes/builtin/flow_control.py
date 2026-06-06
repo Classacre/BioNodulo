@@ -623,6 +623,7 @@ class MergeNode(BaseNode):
     RETURN_TYPES = ("ANY", "INT")
     RETURN_NAMES = ("merged", "received_count")
     REQUIRES_EXTERNAL_TOOLS = False
+    ALLOW_INACTIVE_INPUTS = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
