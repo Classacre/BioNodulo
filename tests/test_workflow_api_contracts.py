@@ -671,10 +671,12 @@ def test_workflow_triggers_endpoint_returns_empty_state_for_new_workspace(
     assert payload["triggers"] == []
     assert payload["errors"] == []
     assert payload["scheduler_runner_contract_supported"] is True
+    assert payload["durable_scheduler_supported"] is True
     assert payload["file_watch_runner_contract_supported"] is True
+    assert payload["polling_file_watcher_supported"] is True
     assert payload["run_submission_supported"] is False
     assert "pollable metadata" in payload["workflow_trigger_note"]
-    assert "does not submit" in payload["workflow_trigger_note"]
+    assert "durable evaluation can submit embedded workflows" in payload["workflow_trigger_note"]
 
 
 def test_workflow_triggers_endpoint_reports_malformed_json(
@@ -794,10 +796,12 @@ def test_workflow_trigger_evaluate_endpoint_lists_due_schedule(
     assert payload["due_schedule_triggers"][0]["target_workflow"] == "weekly-qc"
     assert payload["due_schedule_triggers"][0]["payload"] == {"sample": "S1"}
     assert payload["scheduler_runner_contract_supported"] is True
+    assert payload["durable_scheduler_supported"] is True
     assert payload["file_watch_runner_contract_supported"] is True
+    assert payload["polling_file_watcher_supported"] is True
     assert payload["run_submission_supported"] is False
     assert "pollable metadata" in payload["workflow_trigger_note"]
-    assert "does not submit" in payload["workflow_trigger_note"]
+    assert "durable evaluation can submit embedded workflows" in payload["workflow_trigger_note"]
 
 
 def test_workflow_trigger_evaluate_redacts_secret_payload_values(

@@ -2082,8 +2082,8 @@ class WorkflowTriggerNode(BaseNode):
             "next_run_at_utc": next_run_utc.isoformat(),
             "seconds_until_next_run": int((next_run_utc - now.astimezone(dt_timezone.utc)).total_seconds()),
             "scheduler_runner_contract_supported": True,
-            "durable_scheduler_supported": False,
-            "note": "Schedule registration written with pollable due-run metadata; durable scheduler execution is not implemented yet.",
+            "durable_scheduler_supported": True,
+            "note": "Schedule registration written with pollable due-run metadata and durable runner support.",
         }
         return (info, True)
 

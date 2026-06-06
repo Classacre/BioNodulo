@@ -1079,8 +1079,8 @@ async def test_workflow_trigger_records_schedule_intent(tmp_path: Path) -> None:
     assert trigger_info["timezone"] == "Australia/Perth"
     assert trigger_info["target_workflow"] == "weekly-qc"
     assert trigger_info["scheduler_runner_contract_supported"] is True
-    assert trigger_info["durable_scheduler_supported"] is False
-    assert trigger_info["note"].startswith("Schedule registration written")
+    assert trigger_info["durable_scheduler_supported"] is True
+    assert trigger_info["note"].startswith("Schedule registration written with pollable due-run metadata and durable runner support")
     assert schedule_file == tmp_path / "workflow_triggers" / "schedule_trigger-schedule.json"
     assert saved["cron_expression"] == "30 2 * * 1"
     assert saved["target_workflow"] == "weekly-qc"

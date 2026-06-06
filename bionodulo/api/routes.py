@@ -57,6 +57,7 @@ from bionodulo.core.credentials import redact_tree
 from bionodulo.core.events import EventHub
 from bionodulo.core.paths import ensure_within
 from bionodulo.workflow.export import export_workflow
+from bionodulo.workflow.trigger_runner import WorkflowTriggerRunner
 from bionodulo.environments.manifest import (
     delete_env_dir,
     duplicate_env_dir,
@@ -342,9 +343,11 @@ def _pause_runtime_contract() -> dict[str, Any]:
 def _workflow_trigger_runtime_contract() -> dict[str, Any]:
     return {
         "scheduler_runner_contract_supported": True,
+        "durable_scheduler_supported": True,
         "file_watch_runner_contract_supported": True,
+        "polling_file_watcher_supported": True,
         "run_submission_supported": False,
-        "workflow_trigger_note": "Workflow trigger registrations are pollable metadata; evaluation does not submit workflow runs.",
+        "workflow_trigger_note": "Workflow trigger registrations are pollable metadata; durable evaluation can submit embedded workflows.",
     }
 
 
@@ -378,92 +381,6 @@ def _read_workflow_trigger_file(path: Path) -> dict[str, Any]:
         raise ValueError(f"workflow trigger file must contain a JSON object: {path}")
     data.setdefault("trigger_file", str(path))
     return data
-
-
-def _trigger_due_marker(trigger: dict[str, Any]) -> str:
-    if trigger.get("trigger_type") == "schedule":
-        return str(trigger.get("next_run_at_utc", "") or trigger.get("next_run_at", "") or "")
-    events = trigger.get("events", [])
-    return json.dumps(events, sort_keys=True, default=str) if isinstance(events, list) else str(events)
-
-
-def _embedded_trigger_workflow(trigger: dict[str, Any]) -> dict[str, Any] | None:
-    workflow = trigger.get("workflow")
-    if isinstance(workflow, dict):
-        return workflow
-    payload = trigger.get("payload")
-    if isinstance(payload, dict) and isinstance(payload.get("workflow"), dict):
-        return payload["workflow"]
-    return None
-
-
-async def _submit_due_workflow_trigger(
-    request: Request,
-    trigger: dict[str, Any],
-) -> dict[str, Any]:
-    trigger_file = str(trigger.get("trigger_file", ""))
-    due_marker = _trigger_due_marker(trigger)
-    if due_marker and trigger.get("last_submitted_due_at") == due_marker:
-        return {
-            "trigger_file": trigger_file,
-            "status": "skipped",
-            "reason": "already_submitted",
-            "due_at": due_marker,
-        }
-
-    workflow = _embedded_trigger_workflow(trigger)
-    if workflow is None:
-        return {
-            "trigger_file": trigger_file,
-            "status": "skipped",
-            "reason": "missing_embedded_workflow",
-            "due_at": due_marker,
-        }
-
-    queue = _get_queue(request)
-    run_id = _generate_run_id(str(workflow.get("name") or trigger.get("target_workflow") or "triggered_workflow"))
-    payload = trigger.get("payload") if isinstance(trigger.get("payload"), dict) else {}
-    parameters = {
-        key: value
-        for key, value in payload.items()
-        if key != "workflow"
-    }
-    redacted_parameters = redact_tree(parameters)
-    metadata = {
-        "trigger_type": trigger.get("trigger_type", ""),
-        "target_workflow": trigger.get("target_workflow", ""),
-        "trigger_file": trigger_file,
-        "due_at": due_marker,
-        "payload": redacted_parameters,
-    }
-    await queue.submit(
-        workflow=workflow,
-        run_id=run_id,
-        options={"parameters": redacted_parameters} if parameters else {},
-        metadata=metadata,
-    )
-
-    if trigger_file:
-        path = Path(trigger_file)
-        try:
-            persisted = _read_workflow_trigger_file(path)
-            submitted_ids = persisted.get("submitted_run_ids", [])
-            if not isinstance(submitted_ids, list):
-                submitted_ids = []
-            persisted["submitted_run_ids"] = [*submitted_ids, run_id]
-            persisted["last_submitted_due_at"] = due_marker
-            persisted["last_submitted_run_id"] = run_id
-            persisted["last_submitted_at"] = datetime.now(timezone.utc).isoformat()
-            path.write_text(json.dumps(persisted, indent=2, sort_keys=True, default=str), encoding="utf-8")
-        except ValueError:
-            pass
-
-    return {
-        "trigger_file": trigger_file,
-        "status": "submitted",
-        "run_id": run_id,
-        "due_at": due_marker,
-    }
 
 
 def _resolve_pause_request_path(settings: Settings, body: PauseRequestResolveRequest) -> Path:
@@ -832,40 +749,37 @@ async def evaluate_workflow_triggers(request: Request, body: WorkflowTriggerEval
     """Evaluate schedule and file-watch trigger registrations."""
     settings = _get_settings(request)
     trigger_dir = _workflow_triggers_dir(settings)
-    due_schedule_triggers: list[dict[str, Any]] = []
-    due_file_watch_triggers: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     try:
-        due_schedule_triggers = WorkflowTriggerNode.due_schedule_triggers(
-            trigger_dir,
-            now=body.now,
+        runner = WorkflowTriggerRunner(
+            trigger_dir=trigger_dir,
+            queue=_get_queue(request),
+            run_id_factory=lambda workflow, trigger: _generate_run_id(
+                str(workflow.get("name") or trigger.get("target_workflow") or "triggered_workflow")
+            ),
         )
+        evaluation = await runner.evaluate(now=body.now, submit_runs=body.submit_runs)
     except ValueError as exc:
-        errors.append({"kind": "schedule", "error": str(exc)})
-    try:
-        due_file_watch_triggers = WorkflowTriggerNode.due_file_watch_triggers(trigger_dir)
-    except ValueError as exc:
-        errors.append({"kind": "file_watch", "error": str(exc)})
-    submitted_runs: list[dict[str, Any]] = []
-    if body.submit_runs:
-        for trigger in [*due_schedule_triggers, *due_file_watch_triggers]:
-            try:
-                submission = await _submit_due_workflow_trigger(request, trigger)
-                submitted_runs.append(submission)
-            except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
-                errors.append({
-                    "kind": "submission",
-                    "trigger_file": str(trigger.get("trigger_file", "")),
-                    "error": str(exc),
-                })
+        evaluation = {
+            "trigger_dir": str(trigger_dir),
+            "due_schedule_triggers": [],
+            "due_schedule_count": 0,
+            "due_file_watch_triggers": [],
+            "due_file_watch_count": 0,
+            "submitted_runs": [],
+            "submitted_run_count": 0,
+            "errors": [],
+        }
+        errors.append({"kind": "evaluation", "error": str(exc)})
+    errors.extend(evaluation.get("errors", []))
     return {
-        "trigger_dir": str(trigger_dir),
-        "due_schedule_triggers": redact_tree(due_schedule_triggers),
-        "due_schedule_count": len(due_schedule_triggers),
-        "due_file_watch_triggers": redact_tree(due_file_watch_triggers),
-        "due_file_watch_count": len(due_file_watch_triggers),
-        "submitted_runs": redact_tree(submitted_runs),
-        "submitted_run_count": sum(1 for item in submitted_runs if item.get("status") == "submitted"),
+        "trigger_dir": evaluation["trigger_dir"],
+        "due_schedule_triggers": redact_tree(evaluation["due_schedule_triggers"]),
+        "due_schedule_count": evaluation["due_schedule_count"],
+        "due_file_watch_triggers": redact_tree(evaluation["due_file_watch_triggers"]),
+        "due_file_watch_count": evaluation["due_file_watch_count"],
+        "submitted_runs": redact_tree(evaluation["submitted_runs"]),
+        "submitted_run_count": evaluation["submitted_run_count"],
         "errors": errors,
         **{
             **_workflow_trigger_runtime_contract(),
