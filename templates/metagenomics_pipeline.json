@@ -227,6 +227,24 @@
       }
     },
     {
+      "id": "metaphlan_bar_001",
+      "type": "bar_chart",
+      "position": [
+        1160,
+        528
+      ],
+      "params": {
+        "title": "MetaPhlAn Relative Abundance",
+        "x_column": "clade_name",
+        "y_column": "relative_abundance",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "MetaPhlAn Chart"
+      }
+    },
+    {
       "id": "humann_001",
       "type": "humann",
       "position": [
@@ -478,6 +496,28 @@
       }
     },
     {
+      "id": "e9a",
+      "from": {
+        "node": "metaphlan_001",
+        "output": "profile"
+      },
+      "to": {
+        "node": "metaphlan_bar_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e9b",
+      "from": {
+        "node": "metaphlan_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "taxonomy_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e10",
       "from": {
         "node": "gate_trimmed_reads_001",
@@ -592,6 +632,7 @@
   "outputs": {
     "taxonomy": "bracken_001",
     "taxonomy_chart": "bracken_bar_001",
+    "metaphlan_chart": "metaphlan_bar_001",
     "taxonomy_report": "taxonomy_report_001",
     "validated_bracken_report": "validate_bracken_001",
     "validated_db": "validate_db_001",
