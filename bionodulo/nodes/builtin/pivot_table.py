@@ -36,12 +36,18 @@ class PivotTableNode(BaseNode):
             },
             "optional": {
                 "index_column": ("STRING", {"default": "", "description": "Row ID column for pivot operations"}),
+                "index_columns": ("STRING", {"default": "", "description": "Comma-separated row ID columns for pivot operations"}),
                 "names_from": ("STRING", {"default": "", "description": "Column whose values become wide headers"}),
+                "columns_column": ("STRING", {"default": "", "description": "Column whose values become wide headers"}),
                 "values_from": ("STRING", {"default": "", "description": "Column whose values fill pivot cells"}),
+                "values_column": ("STRING", {"default": "", "description": "Column whose values fill pivot cells"}),
                 "fill_value": ("STRING", {"default": ""}),
                 "id_columns": ("STRING", {"default": "", "description": "Comma-separated columns to preserve when melting"}),
+                "id_vars": ("STRING", {"default": "", "description": "Comma-separated columns to preserve when melting"}),
                 "value_columns": ("STRING", {"default": "", "description": "Comma-separated columns to melt"}),
+                "value_vars": ("STRING", {"default": "", "description": "Comma-separated columns to melt"}),
                 "variable_name": ("STRING", {"default": "variable"}),
+                "var_name": ("STRING", {"default": "", "description": "Name of the long-format variable column"}),
                 "value_name": ("STRING", {"default": "value"}),
                 "agg_func": ("STRING", {"default": "sum", "options": ["sum", "mean"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
@@ -62,9 +68,9 @@ class PivotTableNode(BaseNode):
             out_fields, out_rows = self._pivot_wide(
                 fieldnames,
                 rows,
-                str(kwargs.get("index_column", "") or ""),
-                str(kwargs.get("names_from", "") or ""),
-                str(kwargs.get("values_from", "") or ""),
+                self._first_value(kwargs, "index_column", "index_columns"),
+                self._first_value(kwargs, "names_from", "columns_column"),
+                self._first_value(kwargs, "values_from", "values_column"),
                 str(kwargs.get("fill_value", "") or ""),
                 aggregate=False,
             )
@@ -73,9 +79,9 @@ class PivotTableNode(BaseNode):
             out_fields, out_rows = self._melt_long(
                 fieldnames,
                 rows,
-                str(kwargs.get("id_columns", "") or ""),
-                str(kwargs.get("value_columns", "") or ""),
-                str(kwargs.get("variable_name", "variable") or "variable"),
+                self._first_value(kwargs, "id_columns", "id_vars"),
+                self._first_value(kwargs, "value_columns", "value_vars"),
+                self._first_value(kwargs, "variable_name", "var_name", default="variable"),
                 str(kwargs.get("value_name", "value") or "value"),
             )
         elif operation == "pivot_table_agg":
@@ -83,9 +89,9 @@ class PivotTableNode(BaseNode):
             out_fields, out_rows = self._pivot_wide(
                 fieldnames,
                 rows,
-                str(kwargs.get("index_column", "") or ""),
-                str(kwargs.get("names_from", "") or ""),
-                str(kwargs.get("values_from", "") or ""),
+                self._first_value(kwargs, "index_column", "index_columns"),
+                self._first_value(kwargs, "names_from", "columns_column"),
+                self._first_value(kwargs, "values_from", "values_column"),
                 str(kwargs.get("fill_value", "") or ""),
                 aggregate=True,
                 agg_func=str(kwargs.get("agg_func", "sum") or "sum"),
@@ -130,6 +136,14 @@ class PivotTableNode(BaseNode):
         return [item.strip() for item in value.split(",") if item.strip()]
 
     @staticmethod
+    def _first_value(kwargs: dict[str, Any], *names: str, default: str = "") -> str:
+        for name in names:
+            value = str(kwargs.get(name, "") or "").strip()
+            if value:
+                return value
+        return default
+
+    @staticmethod
     def _read_table(path: Path, delimiter: str) -> tuple[list[str], list[dict[str, str]]]:
         with path.open(newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter=delimiter)
@@ -157,16 +171,20 @@ class PivotTableNode(BaseNode):
         aggregate: bool,
         agg_func: str = "sum",
     ) -> tuple[list[str], list[dict[str, Any]]]:
-        self._require_columns(fieldnames, [index_column, names_from, values_from])
+        index_columns = self._split_columns(index_column)
+        self._require_columns(fieldnames, [*index_columns, names_from, values_from])
         wide_columns = list(OrderedDict((row.get(names_from, ""), None) for row in rows if row.get(names_from, "")).keys())
-        grouped: OrderedDict[str, dict[str, Any]] = OrderedDict()
-        aggregate_values: dict[tuple[str, str], list[float]] = defaultdict(list)
+        grouped: OrderedDict[tuple[str, ...], dict[str, Any]] = OrderedDict()
+        aggregate_values: dict[tuple[tuple[str, ...], str], list[float]] = defaultdict(list)
 
         for row in rows:
-            index_value = row.get(index_column, "")
+            index_value = tuple(row.get(column, "") for column in index_columns)
             wide_name = row.get(names_from, "")
             if index_value not in grouped:
-                grouped[index_value] = {index_column: index_value}
+                grouped[index_value] = {
+                    column: row.get(column, "")
+                    for column in index_columns
+                }
             if aggregate:
                 aggregate_values[(index_value, wide_name)].append(self._as_number(row.get(values_from, "")))
             elif wide_name not in grouped[index_value]:
@@ -178,8 +196,8 @@ class PivotTableNode(BaseNode):
 
         output_rows = []
         for row in grouped.values():
-            output_rows.append({column: row.get(column, fill_value) for column in [index_column, *wide_columns]})
-        return [index_column, *wide_columns], output_rows
+            output_rows.append({column: row.get(column, fill_value) for column in [*index_columns, *wide_columns]})
+        return [*index_columns, *wide_columns], output_rows
 
     def _melt_long(
         self,

@@ -113,6 +113,34 @@ async def test_pivot_wide_reshapes_long_tsv_with_fill_value(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_pivot_table_accepts_spec_api_with_multiple_index_columns(tmp_path: Path) -> None:
+    table = tmp_path / "expression.tsv"
+    _write_table(table, [
+        {"gene": "BRCA1", "condition": "case", "sample": "S1", "count": "10"},
+        {"gene": "BRCA1", "condition": "case", "sample": "S2", "count": "12"},
+        {"gene": "BRCA1", "condition": "control", "sample": "S1", "count": "3"},
+    ])
+
+    result = await _node_class("pivot_table")().run(
+        table=str(table),
+        operation="pivot_wide",
+        index_columns="gene,condition",
+        columns_column="sample",
+        values_column="count",
+        fill_value="0",
+        output_type="TSV",
+        context=_context(tmp_path, "pivot-spec-api"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["gene", "condition", "S1", "S2"]
+    assert rows == [
+        {"gene": "BRCA1", "condition": "case", "S1": "10", "S2": "12"},
+        {"gene": "BRCA1", "condition": "control", "S1": "3", "S2": "0"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_melt_long_reshapes_wide_tsv_to_long_rows(tmp_path: Path) -> None:
     table = tmp_path / "counts.tsv"
     _write_table(table, [
