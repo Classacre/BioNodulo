@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.execution.executor import WorkflowExecutor
@@ -1276,6 +1277,41 @@ async def test_delay_wait_timeout_raises_by_default(tmp_path: Path) -> None:
             max_wait=0.02,
             on_timeout="error",
         )
+
+
+@pytest.mark.asyncio
+async def test_delay_wait_poll_url_uses_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = _node_class("delay_wait")()
+    module = __import__(node.__class__.__module__, fromlist=["APIHttpClient"])
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append({"method": method, "url": url, **kwargs})
+            request = httpx.Request(method, url)
+            return httpx.Response(204, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    result = await node.run(
+        mode="poll_url",
+        poll_url="https://example.org/ready",
+        poll_interval=0,
+        max_wait=0.1,
+        value="ready",
+    )
+
+    assert result["outputs"]["value"] == "ready"
+    assert result["outputs"]["condition_met"] is True
+    assert calls == [
+        {
+            "method": "GET",
+            "url": "https://example.org/ready",
+            "timeout": 2.0,
+            "retries": 1,
+            "cache_ttl": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio

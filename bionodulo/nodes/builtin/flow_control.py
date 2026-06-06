@@ -5,13 +5,14 @@ import asyncio
 import json
 import re
 import time
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APIHttpClient
 
 
 def _bool_value(value: Any) -> bool:
@@ -1052,7 +1053,7 @@ class DelayWaitNode(BaseNode):
 
         if mode == "poll_url":
             poll_url = str(kwargs.get("poll_url", "") or "")
-            return await self._poll_until(lambda: self._url_available(poll_url), poll_interval, max_wait)
+            return await self._poll_until_async(lambda: self._url_available(poll_url), poll_interval, max_wait)
 
         raise ValueError(f"Unsupported delay/wait mode: {mode}")
 
@@ -1070,13 +1071,27 @@ class DelayWaitNode(BaseNode):
             await asyncio.sleep(max(0.0, sleep_for))
 
     @staticmethod
-    def _url_available(url: str) -> bool:
+    async def _poll_until_async(predicate: Any, poll_interval: float, max_wait: float) -> bool:
+        started_at = time.monotonic()
+        while True:
+            if await predicate():
+                return True
+            elapsed = time.monotonic() - started_at
+            if max_wait > 0 and elapsed >= max_wait:
+                raise asyncio.TimeoutError()
+            sleep_for = poll_interval
+            if max_wait > 0:
+                sleep_for = min(sleep_for, max(0.0, max_wait - elapsed))
+            await asyncio.sleep(max(0.0, sleep_for))
+
+    @staticmethod
+    async def _url_available(url: str) -> bool:
         if not url:
             return False
         try:
-            with urllib.request.urlopen(url, timeout=2.0) as response:
-                return 200 <= int(response.status) < 400
-        except (OSError, urllib.error.URLError, ValueError):
+            response = await APIHttpClient().request("GET", url, timeout=2.0, retries=1, cache_ttl=None)
+            return 200 <= int(response.status_code) < 400
+        except (httpx.HTTPError, ValueError):
             return False
 
 
