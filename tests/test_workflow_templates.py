@@ -839,7 +839,7 @@ def test_assembly_template_adds_annotation_html_report() -> None:
     assert node_types["assembly_report_001"] == "html_report"
     report = next(node for node in workflow["nodes"] if node["id"] == "assembly_report_001")
     assert report["params"]["title"] == "Assembly Annotation Report"
-    assert report["params"]["section_names"] == "Prokka annotation"
+    assert report["params"]["section_names"] == "Contig lengths,Contig statistics,Prokka annotation"
     assert _has_edge(workflow, "validate_prokka_001", "passthrough", "assembly_report_001", "tables")
     assert workflow["outputs"]["report"] == "assembly_report_001"
 

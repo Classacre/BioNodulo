@@ -226,6 +226,38 @@
       }
     },
     {
+      "id": "assembly_stats_001",
+      "type": "bp_seq_stats",
+      "position": [
+        1520,
+        220
+      ],
+      "params": {
+        "format": "fasta"
+      },
+      "ui": {
+        "title": "Contig Stats"
+      }
+    },
+    {
+      "id": "assembly_stats_chart_001",
+      "type": "bar_chart",
+      "position": [
+        1700,
+        220
+      ],
+      "params": {
+        "x_column": "id",
+        "y_column": "length",
+        "title": "Contig Lengths",
+        "orientation": "horizontal",
+        "format": "png"
+      },
+      "ui": {
+        "title": "Contig Length Chart"
+      }
+    },
+    {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
@@ -279,7 +311,7 @@
       "params": {
         "title": "Assembly Annotation Report",
         "text_sections": "# Summary\nAssembly validation, QUAST quality assessment, and Prokka annotation for the genome assembly workflow.",
-        "section_names": "Prokka annotation"
+        "section_names": "Contig lengths,Contig statistics,Prokka annotation"
       },
       "ui": {
         "title": "Assembly report"
@@ -432,6 +464,28 @@
       }
     },
     {
+      "id": "e6b",
+      "from": {
+        "node": "gate_assembly_001",
+        "output": "output"
+      },
+      "to": {
+        "node": "assembly_stats_001",
+        "input": "input_file"
+      }
+    },
+    {
+      "id": "e6c",
+      "from": {
+        "node": "assembly_stats_001",
+        "output": "stats_tsv"
+      },
+      "to": {
+        "node": "assembly_stats_chart_001",
+        "input": "table"
+      }
+    },
+    {
       "id": "e7",
       "from": {
         "node": "quast_001",
@@ -458,6 +512,28 @@
       "from": {
         "node": "validate_prokka_001",
         "output": "passthrough"
+      },
+      "to": {
+        "node": "assembly_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e8b",
+      "from": {
+        "node": "assembly_stats_chart_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "assembly_report_001",
+        "input": "images"
+      }
+    },
+    {
+      "id": "e8c",
+      "from": {
+        "node": "assembly_stats_001",
+        "output": "stats_tsv"
       },
       "to": {
         "node": "assembly_report_001",
@@ -510,6 +586,8 @@
     "validated_reference": "validate_reference_001",
     "validated_quast_report": "validate_quast_001",
     "validated_prokka_annotation": "validate_prokka_001",
+    "assembly_stats": "assembly_stats_001",
+    "assembly_stats_chart": "assembly_stats_chart_001",
     "quast": "quast_001",
     "annotation": "prokka_001",
     "report": "assembly_report_001",
