@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
@@ -247,3 +248,51 @@ class AlphaFoldNode(AlphaFoldDBNode):
     DISPLAY_NAME = "AlphaFold"
     DESCRIPTION = "Fetch predicted protein structures and metadata from AlphaFold DB."
     SEARCH_ALIASES = ["alphafold", "alphafold db", "structure", "prediction", "protein folding", "mmcif"]
+
+
+class ColabFoldBatchNode(CommandNode):
+    """Predict protein structures with the ColabFold batch CLI."""
+
+    NODE_ID = "colabfold_batch"
+    DISPLAY_NAME = "ColabFold Batch"
+    CATEGORY = "ai"
+    DESCRIPTION = "Predict protein structures from FASTA sequences with ColabFold batch."
+    SEARCH_ALIASES = ["colabfold", "alphafold", "structure", "prediction", "protein folding", "mmseqs2"]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("prediction_dir",)
+    REQUIRED_EXECUTABLES = ["colabfold_batch"]
+    REQUIRED_CONDA_PACKAGES = ["colabfold"]
+    DOCUMENTATION_URL = "https://github.com/sokrypton/ColabFold"
+    VERSION = "1.5.5"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fasta": ("FASTA", {"description": "Input FASTA file with one or more protein sequences"}),
+            },
+            "optional": {
+                "msa_only": ("BOOLEAN", {"default": False, "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        prediction_dir = Path(str(inputs.get("output", "."))) / "predictions"
+        cmd = [
+            "colabfold_batch",
+            str(inputs.get("fasta", "")),
+            str(prediction_dir),
+        ]
+        if inputs.get("msa_only"):
+            cmd.append("--msa-only")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        prediction_dir = Path(output_dir) / cls.NODE_ID / "predictions"
+        prediction_dir.mkdir(parents=True, exist_ok=True)
+        return [prediction_dir]

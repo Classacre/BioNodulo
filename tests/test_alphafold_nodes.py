@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
+from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -33,6 +34,75 @@ def test_alphafold_db_is_registered_for_frontend_discovery() -> None:
     assert info["alphafold"]["category"] == "databases"
     assert info["alphafold"]["output_name"] == ["structure_mmcif", "structure_metadata"]
     assert issubclass(registry.get("alphafold"), registry.get("alphafold_db"))
+
+
+def test_colabfold_batch_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    info = registry.object_info()
+
+    node_info = info["colabfold_batch"]
+    assert node_info["display_name"] == "ColabFold Batch"
+    assert node_info["category"] == "ai"
+    assert node_info["description"].startswith("Predict protein structures")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["prediction_dir"]
+    assert node_info["required_executables"] == ["colabfold_batch"]
+    assert node_info["required_conda_packages"] == ["colabfold"]
+    assert "colabfold" in node_info["search_aliases"]
+    assert "protein folding" in node_info["search_aliases"]
+    assert "mmseqs2" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"fasta"}
+    assert set(inputs["optional"]) == {"msa_only"}
+
+
+def test_colabfold_batch_renders_prediction_command() -> None:
+    node_class = _node_class("colabfold_batch")
+
+    cmd = node_class.render_command({
+        "fasta": "input_sequences.fasta",
+        "msa_only": False,
+        "output": "/tmp/run/colabfold_batch",
+    })
+
+    assert cmd == [
+        "colabfold_batch",
+        "input_sequences.fasta",
+        "/tmp/run/colabfold_batch/predictions",
+    ]
+
+
+def test_colabfold_batch_renders_msa_only_flag() -> None:
+    node_class = _node_class("colabfold_batch")
+
+    cmd = node_class.render_command({
+        "fasta": "input_sequences.fasta",
+        "msa_only": True,
+        "output": "/tmp/run/colabfold_batch",
+    })
+
+    assert cmd == [
+        "colabfold_batch",
+        "input_sequences.fasta",
+        "/tmp/run/colabfold_batch/predictions",
+        "--msa-only",
+    ]
+
+
+def test_colabfold_batch_plans_prediction_directory() -> None:
+    node_class = _node_class("colabfold_batch")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert outputs == [Path("/tmp/run/colabfold_batch/predictions")]
+
+
+def test_colabfold_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["colabfold_batch"] == "colabfold"
+    assert PACKAGE_MIN_VERSIONS["colabfold"] == ">=1.5.5"
 
 
 @pytest.mark.asyncio
