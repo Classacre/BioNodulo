@@ -312,6 +312,32 @@ def test_extract_columns_exposes_output_type_for_frontend_discovery() -> None:
     output_type = node_info["input"]["optional"]["output_type"]
     assert output_type[1]["default"] == "AUTO"
     assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
+    assert "column_indices" in node_info["input"]["optional"]
+
+
+@pytest.mark.asyncio
+async def test_extract_columns_supports_zero_based_column_indices(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ])
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns="",
+        column_indices="2,0",
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "extract-indices"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["status", "sample"]
+    assert rows == [
+        {"status": "fail", "sample": "S1"},
+        {"status": "pass", "sample": "S2"},
+    ]
 
 
 @pytest.mark.asyncio

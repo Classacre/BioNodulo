@@ -360,6 +360,7 @@ class ExtractColumnsNode(BaseNode):
             },
             "optional": {
                 "rename_map": ("STRING", {"default": "", "description": "Comma-separated old:new renames"}),
+                "column_indices": ("STRING", {"default": "", "description": "Comma-separated 0-based column indices"}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
@@ -371,7 +372,11 @@ class ExtractColumnsNode(BaseNode):
         table = kwargs["table"]
         delim = _delimiter(str(kwargs.get("delimiter", "auto")), table)
         fieldnames, rows = _read_table(table, delim)
-        selected = _split_csv(str(kwargs["columns"]))
+        selected = self._selected_columns(
+            fieldnames,
+            str(kwargs.get("columns", "") or ""),
+            str(kwargs.get("column_indices", "") or ""),
+        )
         missing = [name for name in selected if name not in fieldnames]
         if missing:
             raise ValueError(f"Column(s) not found: {', '.join(missing)}")
@@ -385,6 +390,21 @@ class ExtractColumnsNode(BaseNode):
         out_path = _node_output_dir(self, context) / f"{Path(str(table)).stem}.extracted{extension}"
         _write_table(out_path, output_fields, output_rows, output_delim)
         return (str(out_path),)
+
+    @staticmethod
+    def _selected_columns(fieldnames: list[str], columns: str, column_indices: str) -> list[str]:
+        if column_indices.strip():
+            selected: list[str] = []
+            for item in _split_csv(column_indices):
+                try:
+                    index = int(item)
+                except ValueError as exc:
+                    raise ValueError(f"Column index must be an integer: {item}") from exc
+                if index < 0 or index >= len(fieldnames):
+                    raise ValueError(f"Column index out of range: {index}")
+                selected.append(fieldnames[index])
+            return selected
+        return _split_csv(columns)
 
     @staticmethod
     def _output_format(output_type: str, input_path: str | Path) -> tuple[str, str]:
