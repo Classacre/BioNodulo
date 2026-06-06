@@ -73,6 +73,10 @@ class WorkflowTriggerEvaluateRequest(BaseModel):
         None,
         description="Optional ISO timestamp used to evaluate due scheduled triggers",
     )
+    submit_runs: bool = Field(
+        False,
+        description="Submit due trigger workflows to the run queue when trigger records include embedded workflows",
+    )
 
 
 class WorkflowExportRequest(BaseModel):

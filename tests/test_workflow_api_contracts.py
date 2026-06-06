@@ -621,6 +621,75 @@ def test_workflow_trigger_evaluate_endpoint_lists_due_schedule(
     assert "does not submit" in payload["workflow_trigger_note"]
 
 
+def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    trigger_dir = tmp_path / "workflow_triggers"
+    trigger_dir.mkdir()
+    due_file = trigger_dir / "schedule_weekly.json"
+    due_file.write_text(
+        json.dumps(
+            {
+                "trigger_type": "schedule",
+                "status": "registered",
+                "target_workflow": "weekly-qc",
+                "next_run_at_utc": "2026-06-07T18:30:00+00:00",
+                "payload": {"sample": "S1"},
+                "workflow": {"name": "Weekly QC", "nodes": [], "edges": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class Queue:
+        def __init__(self) -> None:
+            self.submit_calls: list[dict[str, object]] = []
+
+        async def submit(self, **kwargs: object) -> str:
+            self.submit_calls.append(kwargs)
+            return str(kwargs["run_id"])
+
+        async def shutdown(self) -> None:
+            return None
+
+    with TestClient(create_app()) as client:
+        queue = Queue()
+        client.app.state.run_queue = queue
+        first = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:30:00+00:00", "submit_runs": True},
+        )
+        second = client.post(
+            "/api/workflow_triggers/evaluate",
+            json={"now": "2026-06-07T18:30:00+00:00", "submit_runs": True},
+        )
+
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["run_submission_supported"] is True
+    assert first_payload["submitted_run_count"] == 1
+    assert first_payload["submitted_runs"][0]["trigger_file"] == str(due_file)
+    assert first_payload["submitted_runs"][0]["status"] == "submitted"
+    assert queue.submit_calls[0]["workflow"] == {"name": "Weekly QC", "nodes": [], "edges": []}
+    assert queue.submit_calls[0]["options"] == {"parameters": {"sample": "S1"}}
+    assert queue.submit_calls[0]["metadata"]["trigger_type"] == "schedule"
+    assert queue.submit_calls[0]["metadata"]["target_workflow"] == "weekly-qc"
+
+    assert second.status_code == 200
+    second_payload = second.json()
+    assert second_payload["submitted_run_count"] == 0
+    assert second_payload["submitted_runs"][0]["status"] == "skipped"
+    assert second_payload["submitted_runs"][0]["reason"] == "already_submitted"
+    assert len(queue.submit_calls) == 1
+    saved = json.loads(due_file.read_text(encoding="utf-8"))
+    assert saved["last_submitted_due_at"] == "2026-06-07T18:30:00+00:00"
+    assert saved["submitted_run_ids"] == [queue.submit_calls[0]["run_id"]]
+
+
 def test_workflow_trigger_evaluate_endpoint_lists_file_watch_events(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
