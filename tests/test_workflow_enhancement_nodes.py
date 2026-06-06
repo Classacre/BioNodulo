@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -37,6 +38,13 @@ def _context(tmp_path: Path, node_id: str = "node") -> SimpleNamespace:
         events=events,
         logs=logs,
     )
+
+
+def _cache_control_values(result: Any) -> tuple[Any, bool, str]:
+    if isinstance(result, dict):
+        outputs = result["outputs"]
+        return outputs["output"], outputs["cache_hit"], outputs["cache_info"]
+    return result
 
 
 def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> None:
@@ -564,21 +572,21 @@ async def test_cache_control_records_miss_then_hit_with_explicit_key(tmp_path: P
     context.workspace_dir = tmp_path
     node = _node_class("cache_control")()
 
-    output, cache_hit, cache_info_json = await node.run(
+    output, cache_hit, cache_info_json = _cache_control_values(await node.run(
         input={"vcf": "variants.vcf"},
         cache_key="variant-qc",
         ttl_seconds=3600,
         cache_scope="run",
         context=context,
-    )
+    ))
     first_info = json.loads(cache_info_json)
-    output2, cache_hit2, cache_info_json2 = await node.run(
+    output2, cache_hit2, cache_info_json2 = _cache_control_values(await node.run(
         input={"vcf": "variants.vcf"},
         cache_key="variant-qc",
         ttl_seconds=3600,
         cache_scope="run",
         context=context,
-    )
+    ))
     second_info = json.loads(cache_info_json2)
 
     assert output == {"vcf": "variants.vcf"}
@@ -588,7 +596,7 @@ async def test_cache_control_records_miss_then_hit_with_explicit_key(tmp_path: P
     assert first_info["status"] == "miss"
     assert second_info["status"] == "hit"
     assert second_info["cache_key"] == first_info["cache_key"]
-    assert second_info["executor_skip_supported"] is False
+    assert second_info["executor_skip_supported"] is True
     assert context.logs[0][1].startswith("Cache Control miss")
     assert context.logs[1][1].startswith("Cache Control hit")
 
@@ -603,20 +611,20 @@ async def test_cache_control_run_scope_is_isolated_by_run_id(tmp_path: Path) -> 
     second_context.run_id = "run-2"
     node = _node_class("cache_control")()
 
-    _, first_hit, first_info_json = await node.run(
+    _, first_hit, first_info_json = _cache_control_values(await node.run(
         input={"vcf": "variants.vcf"},
         cache_key="variant-qc",
         ttl_seconds=3600,
         cache_scope="run",
         context=first_context,
-    )
-    _, second_hit, second_info_json = await node.run(
+    ))
+    _, second_hit, second_info_json = _cache_control_values(await node.run(
         input={"vcf": "variants.vcf"},
         cache_key="variant-qc",
         ttl_seconds=3600,
         cache_scope="run",
         context=second_context,
-    )
+    ))
 
     first_info = json.loads(first_info_json)
     second_info = json.loads(second_info_json)
@@ -634,28 +642,28 @@ async def test_cache_control_force_refresh_and_invalidation_fingerprint(tmp_path
     cache_dir = tmp_path / "custom-cache"
     node = _node_class("cache_control")()
 
-    _, hit1, info1_json = await node.run(
+    _, hit1, info1_json = _cache_control_values(await node.run(
         input="result-a",
         cache_key="align",
         invalidate_on_change="ref=hg38",
         cache_scope="global",
         cache_dir=str(cache_dir),
-    )
-    _, hit2, info2_json = await node.run(
+    ))
+    _, hit2, info2_json = _cache_control_values(await node.run(
         input="result-a",
         cache_key="align",
         invalidate_on_change="ref=hg19",
         cache_scope="global",
         cache_dir=str(cache_dir),
-    )
-    _, hit3, info3_json = await node.run(
+    ))
+    _, hit3, info3_json = _cache_control_values(await node.run(
         input="result-a",
         cache_key="align",
         invalidate_on_change="ref=hg19",
         force_refresh=True,
         cache_scope="global",
         cache_dir=str(cache_dir),
-    )
+    ))
 
     info1 = json.loads(info1_json)
     info2 = json.loads(info2_json)
@@ -675,20 +683,20 @@ async def test_cache_control_ttl_expiry_and_auto_key(tmp_path: Path, monkeypatch
     now = 1_000.0
     monkeypatch.setattr("bionodulo.nodes.builtin.workflow_enhancement.time.time", lambda: now)
 
-    _, first_hit, first_info_json = await node.run(
+    _, first_hit, first_info_json = _cache_control_values(await node.run(
         input={"sample": "S1"},
         cache_key="",
         ttl_seconds=10,
         cache_dir=str(cache_dir),
-    )
+    ))
     first_info = json.loads(first_info_json)
     now = 1_020.0
-    _, second_hit, second_info_json = await node.run(
+    _, second_hit, second_info_json = _cache_control_values(await node.run(
         input={"sample": "S1"},
         cache_key="",
         ttl_seconds=10,
         cache_dir=str(cache_dir),
-    )
+    ))
     second_info = json.loads(second_info_json)
 
     assert first_hit is False
@@ -697,6 +705,70 @@ async def test_cache_control_ttl_expiry_and_auto_key(tmp_path: Path, monkeypatch
     assert first_info["cache_key"] == second_info["cache_key"]
     assert second_info["status"] == "expired"
     assert second_info["age_seconds"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_cache_control_hit_skips_downstream_output_branch(tmp_path: Path) -> None:
+    cache_control_node = _node_class("cache_control")
+
+    class RecordingNode:
+        NODE_ID = "record"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"cache_control": cache_control_node, "record": RecordingNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "cache_gate",
+                "type": "cache_control",
+                "inputs": {
+                    "input": {"value": {"sample": "S1"}},
+                    "cache_key": {"value": "sample-s1"},
+                    "cache_scope": {"value": "global"},
+                    "cache_dir": {"value": str(tmp_path / "control-cache")},
+                },
+                "outputs": {"output": {}, "cache_hit": {}, "cache_info": {}},
+            },
+            {"id": "downstream", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {
+                "source_node": "cache_gate",
+                "source_output": "output",
+                "target_node": "downstream",
+                "target_input": "value",
+            }
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    RecordingNode.calls = []
+    first = await executor.execute("cache-miss", workflow, force=True)
+    assert first["status"] == "completed"
+    assert first["outputs"]["cache_gate"]["cache_hit"] is False
+    assert RecordingNode.calls == ["downstream"]
+
+    RecordingNode.calls = []
+    second = await executor.execute("cache-hit", workflow, force=True)
+
+    assert second["status"] == "completed"
+    assert second["outputs"]["cache_gate"]["cache_hit"] is True
+    assert second["node_results"]["downstream"]["status"] == "skipped"
+    assert second["node_results"]["downstream"]["reason"] == "inactive_branch"
+    assert RecordingNode.calls == []
 
 
 @pytest.mark.asyncio

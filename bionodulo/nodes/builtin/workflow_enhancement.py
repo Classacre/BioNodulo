@@ -1220,6 +1220,7 @@ class CacheControlNode(BaseNode):
     RETURN_TYPES = ("ANY", "BOOLEAN", "JSON")
     RETURN_NAMES = ("output", "cache_hit", "cache_info")
     REQUIRES_EXTERNAL_TOOLS = False
+    ROUTES_FLOW = True
     EXECUTOR_CACHE_POLICY = "always_run"
 
     @classmethod
@@ -1274,14 +1275,21 @@ class CacheControlNode(BaseNode):
                 "invalidate_on_change": invalidate_on_change,
                 "invalidation_fingerprint": invalidation_fingerprint,
                 "age_seconds": age_seconds,
-                "executor_skip_supported": False,
+                "executor_skip_supported": True,
             }
 
             if cache_hit:
                 output = outputs.get("data", data)
                 cache_info.update({"status": "hit", "stored_at": stored_at})
                 _ctx_log(context, "info", f"Cache Control hit: {cache_key}")
-                return (output, True, _json_text(cache_info))
+                return {
+                    "outputs": {
+                        "output": output,
+                        "cache_hit": True,
+                        "cache_info": _json_text(cache_info),
+                    },
+                    "inactive_outputs": ["output"],
+                }
 
             if force_refresh:
                 status = "refresh"
@@ -1307,7 +1315,14 @@ class CacheControlNode(BaseNode):
             )
             cache_info.update({"status": status, "stored_at": now})
             _ctx_log(context, "info", f"Cache Control {status}: {cache_key}")
-            return (data, False, _json_text(cache_info))
+            return {
+                "outputs": {
+                    "output": data,
+                    "cache_hit": False,
+                    "cache_info": _json_text(cache_info),
+                },
+                "inactive_outputs": [],
+            }
         finally:
             cache.close()
 
