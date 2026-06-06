@@ -407,6 +407,7 @@ class MergeTablesNode(BaseNode):
                 "join_type": ("STRING", {"default": "inner", "options": ["inner", "left", "right", "outer"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "right_suffix": ("STRING", {"default": "_right", "advanced": True}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
             "hidden": {},
         }
@@ -461,9 +462,29 @@ class MergeTablesNode(BaseNode):
                     left_stub[join_key] = right.get(join_key, "")
                     output_rows.append(self._combine(left_stub, right, fields_a, right_output_names))
 
-        out_path = _node_output_dir(self, context) / "merged.tsv"
-        _write_table(out_path, output_fields, output_rows, "	")
+        output_delim, extension = self._output_format(
+            str(kwargs.get("output_type", "AUTO") or "AUTO"),
+            table_a,
+            table_b,
+        )
+        out_path = _node_output_dir(self, context) / f"{Path(str(table_a)).stem}.merged{extension}"
+        _write_table(out_path, output_fields, output_rows, output_delim)
         return (str(out_path),)
+
+    @staticmethod
+    def _output_format(output_type: str, table_a: str | Path, table_b: str | Path) -> tuple[str, str]:
+        normalized = output_type.upper()
+        if normalized == "CSV":
+            return ",", ".csv"
+        if normalized == "TSV":
+            return "\t", ".tsv"
+        if normalized == "AUTO":
+            inputs_are_csv = (
+                Path(str(table_a)).suffix.lower() == ".csv"
+                and Path(str(table_b)).suffix.lower() == ".csv"
+            )
+            return (",", ".csv") if inputs_are_csv else ("\t", ".tsv")
+        raise ValueError(f"Unsupported output_type: {output_type}")
 
     @staticmethod
     def _combine(

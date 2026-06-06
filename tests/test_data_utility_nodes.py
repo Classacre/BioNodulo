@@ -227,6 +227,51 @@ async def test_merge_tables_supports_left_join_with_blank_missing_values(tmp_pat
     ]
 
 
+def test_merge_tables_exposes_output_type_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["merge_tables"]
+    assert node_info["display_name"] == "Merge Tables"
+    assert node_info["output_name"] == ["merged_table"]
+    output_type = node_info["input"]["optional"]["output_type"]
+    assert output_type[1]["default"] == "AUTO"
+    assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
+
+
+@pytest.mark.asyncio
+async def test_merge_tables_auto_output_type_preserves_csv_inputs(tmp_path: Path) -> None:
+    table_a = tmp_path / "expression.csv"
+    table_b = tmp_path / "annotation.csv"
+    _write_table(table_a, [
+        {"gene": "g1", "logfc": "2.0"},
+        {"gene": "g2", "logfc": "-1.2"},
+    ], delimiter=",")
+    _write_table(table_b, [
+        {"gene": "g1", "symbol": "ABC1"},
+        {"gene": "g3", "symbol": "XYZ3"},
+    ], delimiter=",")
+
+    result = await _node_class("merge_tables")().run(
+        table_a=str(table_a),
+        table_b=str(table_b),
+        join_key="gene",
+        join_type="left",
+        delimiter="auto",
+        output_type="AUTO",
+        context=_context(tmp_path, "merge-auto-csv"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "expression.merged.csv"
+    rows = _read_table(output_path, delimiter=",")
+    assert rows == [
+        {"gene": "g1", "logfc": "2.0", "symbol": "ABC1"},
+        {"gene": "g2", "logfc": "-1.2", "symbol": ""},
+    ]
+
+
 def test_join_tables_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
