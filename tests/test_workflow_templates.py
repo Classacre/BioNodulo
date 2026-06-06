@@ -306,7 +306,7 @@ def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
     assert dashboard["params"]["run_name"] == "RNA-Seq QC"
     assert _has_edge(workflow, "sort_001", "sorted_bam", "qualimap_001", "bam")
-    assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
+    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "qualimap_001", "feature_file")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "flagstat_001", "bam")
     assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
     assert _has_edge(workflow, "flagstat_001", "stats", "qc_dashboard_001", "alignment_stats")
@@ -362,6 +362,23 @@ def test_rna_seq_template_validates_reads_before_trimming_and_qc() -> None:
     assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+
+
+def test_rna_seq_template_validates_annotation_before_counts_and_alignment_qc() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_annotation_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_annotation_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "annot_001", "annotation", "validate_annotation_001", "input")
+    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "counts_001", "gtf")
+    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "qualimap_001", "feature_file")
+    assert not _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
+    assert not _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
+    assert workflow["outputs"]["validated_annotation"] == "validate_annotation_001"
 
 
 def test_rna_seq_template_normalizes_featurecounts_output() -> None:

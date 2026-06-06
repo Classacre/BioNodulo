@@ -185,6 +185,22 @@
       }
     },
     {
+      "id": "validate_annotation_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        430
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Annotation"
+      }
+    },
+    {
       "id": "normalize_counts_001",
       "type": "normalize_data",
       "position": [
@@ -397,8 +413,8 @@
         "output": "annotation"
       },
       "to": {
-        "node": "counts_001",
-        "input": "gtf"
+        "node": "validate_annotation_001",
+        "input": "input"
       }
     },
     {
@@ -470,8 +486,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "annot_001",
-        "output": "annotation"
+        "node": "validate_annotation_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "qualimap_001",
@@ -521,6 +537,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "validate_annotation_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "counts_001",
+        "input": "gtf"
+      }
     }
   ],
   "groups": [],
@@ -532,6 +559,7 @@
     "report": "qc_dashboard_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
-    "validated_reference": "validate_reference_001"
+    "validated_reference": "validate_reference_001",
+    "validated_annotation": "validate_annotation_001"
   }
 }
