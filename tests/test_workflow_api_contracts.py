@@ -876,7 +876,7 @@ def test_workflow_trigger_evaluate_redacts_secret_payload_values(
     assert "secret-key" not in json.dumps(payload)
 
 
-def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_requested(
+def test_workflow_trigger_evaluate_endpoint_advances_due_schedule_after_submission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -892,6 +892,9 @@ def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_reque
                 "trigger_type": "schedule",
                 "status": "registered",
                 "target_workflow": "weekly-qc",
+                "cron_expression": "30 2 * * 1",
+                "timezone": "Australia/Perth",
+                "next_run_at": "2026-06-08T02:30:00+08:00",
                 "next_run_at_utc": "2026-06-07T18:30:00+00:00",
                 "payload": {"sample": "S1"},
                 "workflow": {"name": "Weekly QC", "nodes": [], "edges": []},
@@ -936,12 +939,15 @@ def test_workflow_trigger_evaluate_endpoint_submits_due_schedule_once_when_reque
 
     assert second.status_code == 200
     second_payload = second.json()
+    assert second_payload["due_schedule_count"] == 0
     assert second_payload["submitted_run_count"] == 0
-    assert second_payload["submitted_runs"][0]["status"] == "skipped"
-    assert second_payload["submitted_runs"][0]["reason"] == "already_submitted"
+    assert second_payload["submitted_runs"] == []
     assert len(queue.submit_calls) == 1
     saved = json.loads(due_file.read_text(encoding="utf-8"))
     assert saved["last_submitted_due_at"] == "2026-06-07T18:30:00+00:00"
+    assert saved["next_run_at"] == "2026-06-15T02:30:00+08:00"
+    assert saved["next_run_at_utc"] == "2026-06-14T18:30:00+00:00"
+    assert saved["last_advanced_at"]
     assert saved["submitted_run_ids"] == [queue.submit_calls[0]["run_id"]]
 
 

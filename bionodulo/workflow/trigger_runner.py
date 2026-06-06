@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from bionodulo.core.credentials import redact_tree
 from bionodulo.nodes.builtin.workflow_enhancement import WorkflowTriggerNode
@@ -39,13 +40,17 @@ class WorkflowTriggerRunner:
         if submit_runs:
             for trigger in due_schedule_triggers:
                 try:
-                    submitted_runs.append(await self.submit_due_trigger(trigger))
+                    submitted = await self.submit_due_trigger(trigger)
+                    submitted_runs.append(submitted)
                 except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
                     errors.append({
                         "kind": "submission",
                         "trigger_file": str(trigger.get("trigger_file", "")),
                         "error": str(exc),
                     })
+                    continue
+                if self._submission_acknowledges_trigger(submitted):
+                    self._advance_schedule_after_submission_with_error_capture(trigger, submitted, errors)
             for trigger in due_file_watch_triggers:
                 try:
                     submitted = await self.submit_due_trigger(trigger)
@@ -138,6 +143,56 @@ class WorkflowTriggerRunner:
                 "trigger_file": str(trigger.get("trigger_file", "")),
                 "error": str(exc),
             })
+
+    @staticmethod
+    def _advance_schedule_after_submission_with_error_capture(
+        trigger: dict[str, Any],
+        submission: dict[str, Any],
+        errors: list[dict[str, str]],
+    ) -> None:
+        try:
+            WorkflowTriggerRunner._advance_schedule_after_submission(trigger, submission)
+        except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
+            errors.append({
+                "kind": "schedule_advance",
+                "trigger_file": str(trigger.get("trigger_file", "")),
+                "error": str(exc),
+            })
+
+    @staticmethod
+    def _advance_schedule_after_submission(trigger: dict[str, Any], submission: dict[str, Any]) -> None:
+        trigger_file = str(trigger.get("trigger_file", ""))
+        if not trigger_file:
+            return
+        due_marker = str(submission.get("due_at") or _trigger_due_marker(trigger))
+        if not due_marker:
+            raise ValueError("schedule trigger is missing next_run_at_utc")
+        persisted = _read_workflow_trigger_file(Path(trigger_file))
+        if persisted.get("trigger_type") != "schedule":
+            return
+
+        cron_expression = str(persisted.get("cron_expression") or trigger.get("cron_expression") or "")
+        timezone_name = str(persisted.get("timezone") or trigger.get("timezone") or "")
+        if not cron_expression:
+            raise ValueError("schedule trigger is missing cron_expression")
+        if not timezone_name:
+            raise ValueError("schedule trigger is missing timezone")
+        try:
+            zone = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Unsupported timezone: {timezone_name}") from exc
+
+        node = WorkflowTriggerNode()
+        cron_fields, allowed = node._parse_cron_expression(cron_expression)
+        submitted_due = WorkflowTriggerNode._coerce_utc_datetime(due_marker).astimezone(zone)
+        next_run = node._next_cron_run(submitted_due, allowed)
+        next_run_utc = next_run.astimezone(timezone.utc)
+        persisted["cron_fields"] = cron_fields
+        persisted["next_run_at"] = next_run.isoformat()
+        persisted["next_run_at_utc"] = next_run_utc.isoformat()
+        persisted["seconds_until_next_run"] = int((next_run_utc - datetime.now(timezone.utc)).total_seconds())
+        persisted["last_advanced_at"] = datetime.now(timezone.utc).isoformat()
+        Path(trigger_file).write_text(json.dumps(persisted, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
     @staticmethod
     def _advance_file_watch_baseline(trigger: dict[str, Any]) -> None:
