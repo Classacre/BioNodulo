@@ -55,7 +55,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        440,
+        620,
         80
       ],
       "params": {
@@ -63,6 +63,23 @@
       },
       "ui": {
         "title": "fastp Trim"
+      }
+    },
+    {
+      "id": "validate_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTQ Reads"
       }
     },
     {
@@ -205,6 +222,17 @@
         "output": "reads"
       },
       "to": {
+        "node": "validate_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1a",
+      "from": {
+        "node": "validate_reads_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "fastp_001",
         "input": "reads"
       }
@@ -311,8 +339,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "reads_001",
-        "output": "reads"
+        "node": "validate_reads_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "qc_001",
@@ -348,6 +376,7 @@
     "taxonomy_chart": "bracken_bar_001",
     "taxonomy_report": "taxonomy_report_001",
     "metaphlan": "metaphlan_001",
-    "pathways": "humann_001"
+    "pathways": "humann_001",
+    "validated_reads": "validate_reads_001"
   }
 }
