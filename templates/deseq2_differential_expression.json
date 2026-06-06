@@ -187,7 +187,7 @@
       "params": {
         "title": "DESeq2 Differential Expression Report",
         "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, and filtered significant genes.",
-        "section_names": "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Significant genes"
+        "section_names": "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes"
       },
       "ui": {
         "title": "DE Report"
@@ -356,6 +356,17 @@
       "id": "e7a",
       "from": {
         "node": "deseq2_001",
+        "output": "normalized_counts_csv"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e7b",
+      "from": {
+        "node": "deseq2_001",
         "output": "results_csv"
       },
       "to": {
@@ -364,7 +375,7 @@
       }
     },
     {
-      "id": "e7b",
+      "id": "e7c",
       "from": {
         "node": "significant_genes_001",
         "output": "filtered_table"
@@ -414,6 +425,7 @@
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001",
     "significant_genes": "significant_genes_001",
+    "normalized_counts": "deseq2_001",
     "heatmap": "heatmap_001",
     "report": "de_report_001",
     "report_preview": "de_report_preview_001",

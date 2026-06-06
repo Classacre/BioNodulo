@@ -38,15 +38,17 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     report = _node_by_id(workflow, "de_report_001")
     assert report["params"]["title"] == "DESeq2 Differential Expression Report"
     assert report["params"]["section_names"] == (
-        "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Significant genes"
+        "Volcano plot,MA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes"
     )
 
     assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "de_report_001", "images")
     assert _has_edge(workflow, "heatmap_001", "plot_png", "de_report_001", "images")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
+    assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "de_report_001", "tables")
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "de_report_001", "tables")
     assert _has_edge(workflow, "de_report_001", "html_report", "de_report_preview_001", "file")
 
+    assert workflow["outputs"]["normalized_counts"] == "deseq2_001"
     assert workflow["outputs"]["report"] == "de_report_001"
     assert workflow["outputs"]["report_preview"] == "de_report_preview_001"
