@@ -72,3 +72,22 @@ def test_rna_seq_template_previews_alignment_qc_dashboard() -> None:
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["qc_dashboard_preview"] == "qc_dashboard_preview_001"
+
+
+def test_rna_seq_template_reports_qualimap_alignment_qc() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["alignment_qc_report_001"] == "html_report"
+    assert node_types["alignment_qc_report_preview_001"] == "html_preview"
+
+    report = _node(workflow, "alignment_qc_report_001")
+    assert report["params"]["title"] == "RNA-Seq Alignment QC Report"
+    assert report["params"]["section_names"] == "QualiMap BAM QC,Flagstat alignment summary"
+    assert report["params"]["max_table_rows"] == 100
+
+    assert _has_edge(workflow, "qualimap_001", "report", "alignment_qc_report_001", "tables")
+    assert _has_edge(workflow, "flagstat_001", "stats", "alignment_qc_report_001", "tables")
+    assert _has_edge(workflow, "alignment_qc_report_001", "html_report", "alignment_qc_report_preview_001", "file")
+    assert workflow["outputs"]["alignment_qc_report"] == "alignment_qc_report_001"
+    assert workflow["outputs"]["alignment_qc_report_preview"] == "alignment_qc_report_preview_001"

@@ -388,6 +388,35 @@
       "ui": {
         "title": "View QC Dashboard"
       }
+    },
+    {
+      "id": "alignment_qc_report_001",
+      "type": "html_report",
+      "position": [
+        2600,
+        500
+      ],
+      "params": {
+        "title": "RNA-Seq Alignment QC Report",
+        "text_sections": "# Summary\nQualiMap BAM QC and samtools flagstat alignment summary for the RNA-seq workflow.",
+        "section_names": "QualiMap BAM QC,Flagstat alignment summary",
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Alignment QC Report"
+      }
+    },
+    {
+      "id": "alignment_qc_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        2960,
+        500
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Alignment QC Report"
+      }
     }
   ],
   "edges": [
@@ -689,7 +718,40 @@
       }
     },
     {
-      "id": "e15",
+      "id": "e15a",
+      "from": {
+        "node": "qualimap_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "alignment_qc_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e15b",
+      "from": {
+        "node": "flagstat_001",
+        "output": "stats"
+      },
+      "to": {
+        "node": "alignment_qc_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e15c",
+      "from": {
+        "node": "alignment_qc_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "alignment_qc_report_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e15d",
       "from": {
         "node": "validate_multiqc_001",
         "output": "passthrough"
@@ -718,6 +780,8 @@
     "counts_heatmap": "counts_heatmap_001",
     "counts_report": "counts_report_001",
     "counts_report_preview": "counts_report_preview_001",
+    "alignment_qc_report": "alignment_qc_report_001",
+    "alignment_qc_report_preview": "alignment_qc_report_preview_001",
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
     "qc_dashboard_preview": "qc_dashboard_preview_001",
