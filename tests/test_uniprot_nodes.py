@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -38,6 +39,55 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_search"]["display_name"] == "UniProt Search"
     assert info["uniprot_search"]["category"] == "databases"
     assert info["uniprot_search"]["output_name"] == ["results_table", "results_data"]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_request_uses_shared_http_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("uniprot_retrieve")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, params=kwargs.get("params"), headers=kwargs.get("headers"))
+            return httpx.Response(200, json={"ok": True}, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    response = await module._request(
+        "uniprotkb/P04637.json",
+        params={"fields": "accession"},
+        retries=5,
+        timeout=7.0,
+    )
+
+    assert response.json() == {"ok": True}
+    assert len(calls) == 1
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == f"{module.UNIPROT_BASE_URL}/uniprotkb/P04637.json"
+    assert calls[0]["params"] == {"fields": "accession"}
+    assert calls[0]["headers"] == {"User-Agent": module.UNIPROT_USER_AGENT}
+    assert calls[0]["timeout"] == 7.0
+    assert calls[0]["retries"] == 5
+    assert calls[0]["retry_delay"] == module.RETRY_DELAY_S
+    assert calls[0]["cache_ttl"] == module.UNIPROT_CACHE_TTL_S
+    assert isinstance(calls[0]["cache"], module.APICache)
+    assert isinstance(calls[0]["rate_limiter"], module.TokenBucketRateLimiter)
 
 
 @pytest.mark.asyncio

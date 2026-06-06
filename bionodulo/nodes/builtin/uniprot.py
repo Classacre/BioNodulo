@@ -1,7 +1,6 @@
 """UniProt REST API integration nodes."""
 from __future__ import annotations
 
-import asyncio
 import csv
 import json
 import re
@@ -11,6 +10,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 UNIPROT_BASE_URL = "https://rest.uniprot.org"
@@ -18,6 +18,8 @@ UNIPROT_USER_AGENT = "BioNodulo/2.0 (workflow node; UniProt REST)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
+UNIPROT_CACHE_TTL_S = 300.0
+UNIPROT_RATE_LIMIT_PER_SECOND = 5.0
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
 UNIPROT_SUMMARY_COLUMNS = (
     "accession",
@@ -88,28 +90,26 @@ async def _request(
 ) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{UNIPROT_BASE_URL}/{resource}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": UNIPROT_USER_AGENT},
-            ) as client:
-                response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"UniProt {resource} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"UniProt {resource} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"UniProt {resource} request failed: {last_error}")
+    cache = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
+    rate_limiter = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
+    client = APIHttpClient(cache=cache, rate_limiter=rate_limiter)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            params=params,
+            headers={"User-Agent": UNIPROT_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=UNIPROT_CACHE_TTL_S,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"UniProt {resource} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"UniProt {resource} request failed: {exc}") from exc
 
 
 def _first_protein_name(payload: dict[str, Any]) -> str:
