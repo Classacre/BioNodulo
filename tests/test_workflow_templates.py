@@ -498,6 +498,22 @@ def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc
     assert workflow["outputs"]["report"] == "mqc_001"
 
 
+def test_differential_expression_template_adds_quantification_html_report() -> None:
+    workflow = _load_template("differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["quant_report_001"] == "html_report"
+    assert node_types["quant_report_preview_001"] == "html_preview"
+    report = next(node for node in workflow["nodes"] if node["id"] == "quant_report_001")
+    assert report["params"]["title"] == "Transcript Quantification Report"
+    assert report["params"]["section_names"] == "Salmon quantification,Kallisto abundance"
+    assert report["params"]["max_table_rows"] == 100
+    assert _has_edge(workflow, "salmon_quant_001", "counts", "quant_report_001", "tables")
+    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "quant_report_001", "tables")
+    assert _has_edge(workflow, "quant_report_001", "html_report", "quant_report_preview_001", "file")
+    assert workflow["outputs"]["quantification_report"] == "quant_report_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)

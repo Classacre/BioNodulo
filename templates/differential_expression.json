@@ -162,6 +162,35 @@
       "ui": {
         "title": "View MultiQC Report"
       }
+    },
+    {
+      "id": "quant_report_001",
+      "type": "html_report",
+      "position": [
+        1880,
+        80
+      ],
+      "params": {
+        "title": "Transcript Quantification Report",
+        "text_sections": "# Summary\nTranscript quantification outputs from Salmon and Kallisto.",
+        "section_names": "Salmon quantification,Kallisto abundance",
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Quantification Report"
+      }
+    },
+    {
+      "id": "quant_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        2240,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Quantification Report"
+      }
     }
   ],
   "edges": [
@@ -285,6 +314,39 @@
         "node": "mqc_001",
         "input": "reports"
       }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "salmon_quant_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "quant_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "kallisto_quant_001",
+        "output": "abundance"
+      },
+      "to": {
+        "node": "quant_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "quant_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "quant_report_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -293,6 +355,7 @@
     "kallisto": "kallisto_quant_001",
     "validated_reads": "validate_reads_001",
     "validated_transcriptome": "validate_transcriptome_001",
-    "report": "mqc_001"
+    "report": "mqc_001",
+    "quantification_report": "quant_report_001"
   }
 }
