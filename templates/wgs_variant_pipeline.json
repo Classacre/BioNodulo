@@ -339,6 +339,22 @@
       "ui": {
         "title": "View MultiQC Report"
       }
+    },
+    {
+      "id": "validate_multiqc_001",
+      "type": "data_validator",
+      "position": [
+        980,
+        528
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MultiQC Report"
+      }
     }
   ],
   "edges": [
@@ -536,8 +552,8 @@
         "output": "report"
       },
       "to": {
-        "node": "html_preview_001",
-        "input": "file"
+        "node": "validate_multiqc_001",
+        "input": "input"
       }
     },
     {
@@ -605,6 +621,17 @@
         "node": "variant_report_001",
         "input": "images"
       }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "validate_multiqc_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -613,6 +640,7 @@
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
+    "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
   }
