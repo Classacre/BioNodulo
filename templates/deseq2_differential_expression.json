@@ -198,6 +198,36 @@
       }
     },
     {
+      "id": "pathway_gene_sets_001",
+      "type": "input_file",
+      "position": [
+        1160,
+        1280
+      ],
+      "params": {
+        "file": "templates/data/deseq2_gene_sets.json"
+      },
+      "ui": {
+        "title": "Example Gene Sets"
+      }
+    },
+    {
+      "id": "pathway_enrichment_001",
+      "type": "intersect_genes",
+      "position": [
+        1520,
+        1040
+      ],
+      "params": {
+        "input_column": "gene",
+        "database_format": "json",
+        "case_sensitive": false
+      },
+      "ui": {
+        "title": "Pathway Overlap"
+      }
+    },
+    {
       "id": "de_report_001",
       "type": "html_report",
       "position": [
@@ -206,8 +236,8 @@
       ],
       "params": {
         "title": "DESeq2 Differential Expression Report",
-        "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, and filtered significant genes.",
-        "section_names": "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes"
+        "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, filtered significant genes, and pathway gene-set overlaps.",
+        "section_names": "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes,Pathway overlaps"
       },
       "ui": {
         "title": "DE Report"
@@ -428,6 +458,39 @@
       }
     },
     {
+      "id": "e7e",
+      "from": {
+        "node": "significant_genes_001",
+        "output": "filtered_table"
+      },
+      "to": {
+        "node": "pathway_enrichment_001",
+        "input": "input_genes"
+      }
+    },
+    {
+      "id": "e7f",
+      "from": {
+        "node": "pathway_gene_sets_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "pathway_enrichment_001",
+        "input": "database"
+      }
+    },
+    {
+      "id": "e7g",
+      "from": {
+        "node": "pathway_enrichment_001",
+        "output": "overlap"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e8",
       "from": {
         "node": "ma_plot_001",
@@ -468,6 +531,8 @@
     "ma_plot": "ma_plot_001",
     "pca_plot": "pca_plot_001",
     "significant_genes": "significant_genes_001",
+    "pathway_overlaps": "pathway_enrichment_001",
+    "pathway_enrichment": "pathway_enrichment_001",
     "normalized_counts": "deseq2_001",
     "heatmap": "heatmap_001",
     "report": "de_report_001",

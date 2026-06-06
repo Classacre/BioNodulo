@@ -1,0 +1,23 @@
+{
+  "Cell cycle": [
+    "gene_01",
+    "gene_02",
+    "gene_03",
+    "gene_04",
+    "gene_05"
+  ],
+  "Stress response": [
+    "gene_06",
+    "gene_07",
+    "gene_08",
+    "gene_09",
+    "gene_10"
+  ],
+  "Metabolism": [
+    "gene_11",
+    "gene_12",
+    "gene_13",
+    "gene_14",
+    "gene_15"
+  ]
+}

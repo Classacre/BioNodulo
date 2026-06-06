@@ -86,11 +86,13 @@ class DESeq2Node(BaseNode):
             res <- lfcShrink(dds, contrast = contrast_parts, res = res, type = "ashr")
 
             # Write results
-            write.csv(as.data.frame(res), "{results_csv.as_posix()}")
+            res_df <- data.frame(gene = rownames(res), as.data.frame(res), check.names = FALSE)
+            write.csv(res_df, "{results_csv.as_posix()}", row.names = FALSE)
 
             # Write normalized counts
             norm_counts <- counts(dds, normalized = TRUE)
-            write.csv(as.data.frame(norm_counts), "{norm_counts_csv.as_posix()}")
+            norm_counts <- data.frame(gene = rownames(norm_counts), as.data.frame(norm_counts), check.names = FALSE)
+            write.csv(norm_counts, "{norm_counts_csv.as_posix()}", row.names = FALSE)
 
             # PCA scores for sample clustering plots
             vst_counts <- varianceStabilizingTransformation(dds, blind = FALSE)
@@ -105,7 +107,6 @@ class DESeq2Node(BaseNode):
             write.csv(pca_scores, "{pca_scores_csv.as_posix()}", row.names = FALSE)
 
             # MA plot
-            res_df <- as.data.frame(res)
             res_df$significant <- ifelse(!is.na(res_df$padj) & res_df$padj < {padj_threshold} & abs(res_df$log2FoldChange) > {lfc_threshold}, "Significant", "Not significant")
             p <- ggplot(res_df, aes(x = baseMean, y = log2FoldChange, color = significant)) +
                 geom_point(alpha = 0.5, size = 1) +

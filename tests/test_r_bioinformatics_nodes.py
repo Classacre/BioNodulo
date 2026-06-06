@@ -63,6 +63,34 @@ def test_deseq2_analysis_plans_pca_scores_output() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deseq2_analysis_writes_named_gene_columns_for_downstream_tables(tmp_path) -> None:
+    async def run_command(cmd, cwd=None):
+        return {"returncode": 0}
+
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        run_command=run_command,
+        register_preview=lambda path, label=None: None,
+    )
+
+    await DESeq2Node().run(
+        count_matrix="counts.csv",
+        sample_info="samples.csv",
+        context=context,
+    )
+
+    script = (tmp_path / "deseq2_analysis" / "deseq2.R").read_text(encoding="utf-8")
+    assert "res_df <- data.frame(gene = rownames(res), as.data.frame(res), check.names = FALSE)" in script
+    assert 'write.csv(res_df, "' in script
+    assert "row.names = FALSE" in script
+    assert (
+        "norm_counts <- data.frame(gene = rownames(norm_counts), "
+        "as.data.frame(norm_counts), check.names = FALSE)"
+    ) in script
+    assert 'write.csv(norm_counts, "' in script
+
+
+@pytest.mark.asyncio
 async def test_deseq2_analysis_writes_pca_scores_script_and_output(tmp_path) -> None:
     commands: list[tuple[list[str], str]] = []
     previews: list[tuple[str, str]] = []
