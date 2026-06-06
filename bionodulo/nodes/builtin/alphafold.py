@@ -1,7 +1,6 @@
 """AlphaFold Protein Structure Database integration nodes."""
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 ALPHAFOLD_BASE_URL = "https://alphafold.ebi.ac.uk/api"
@@ -17,6 +17,10 @@ ALPHAFOLD_USER_AGENT = "BioNodulo/2.0 (workflow node; AlphaFold DB)"
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 60.0
+ALPHAFOLD_CACHE_TTL_S = 300.0
+ALPHAFOLD_RATE_LIMIT_PER_SECOND = 3.0
+ALPHAFOLD_API_CACHE = APICache(ttl_seconds=ALPHAFOLD_CACHE_TTL_S)
+ALPHAFOLD_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=ALPHAFOLD_RATE_LIMIT_PER_SECOND, burst=1)
 STRUCTURE_FORMATS = ("mmcif", "pdb")
 
 
@@ -61,29 +65,24 @@ async def _request_json(
 async def _request(resource: str, *, retries: int, timeout: float) -> httpx.Response:
     resource = resource.lstrip("/")
     url = f"{ALPHAFOLD_BASE_URL}/{resource}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": ALPHAFOLD_USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                response = await client.get(url)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"AlphaFold {resource} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"AlphaFold {resource} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"AlphaFold {resource} request failed: {last_error}")
+    client = APIHttpClient(cache=ALPHAFOLD_API_CACHE, rate_limiter=ALPHAFOLD_RATE_LIMITER)
+    try:
+        return await client.request(
+            "GET",
+            url,
+            headers={"User-Agent": ALPHAFOLD_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=ALPHAFOLD_CACHE_TTL_S,
+            follow_redirects=True,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"AlphaFold {resource} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"AlphaFold {resource} request failed: {exc}") from exc
 
 
 async def _download_file(
@@ -93,28 +92,23 @@ async def _download_file(
     retries: int = MAX_RETRIES,
     timeout: float = REQUEST_TIMEOUT_S,
 ) -> None:
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": ALPHAFOLD_USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                response = await client.get(url)
-            response.raise_for_status()
-            path.write_bytes(response.content)
-            return
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            if exc.response.status_code < 500 or attempt >= retries - 1:
-                raise RuntimeError(f"AlphaFold download failed with HTTP {exc.response.status_code}: {url}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"AlphaFold download failed: {url}: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"AlphaFold download failed: {url}: {last_error}")
+    client = APIHttpClient(cache=ALPHAFOLD_API_CACHE, rate_limiter=ALPHAFOLD_RATE_LIMITER)
+    try:
+        response = await client.request(
+            "GET",
+            url,
+            headers={"User-Agent": ALPHAFOLD_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+            follow_redirects=True,
+        )
+        path.write_bytes(response.content)
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(f"AlphaFold download failed with HTTP {exc.response.status_code}: {url}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"AlphaFold download failed: {url}: {exc}") from exc
 
 
 def _entries_from_payload(payload: Any) -> list[dict[str, Any]]:
