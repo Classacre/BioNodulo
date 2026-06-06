@@ -83,3 +83,12 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
     assert workflow["outputs"]["validated_metrics_summary"] == "validate_metrics_summary_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
     assert workflow["outputs"]["metrics_report"] == "single_cell_report_001"
+
+
+def test_single_cell_template_advertises_cellranger_filtered_matrix_outputs() -> None:
+    workflow = _load_template("single_cell_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["cr_count_001"] == "cellranger_count"
+    assert workflow["outputs"]["filtered_feature_bc_matrix"] == "cr_count_001"
+    assert workflow["outputs"]["filtered_feature_bc_matrix_h5"] == "cr_count_001"

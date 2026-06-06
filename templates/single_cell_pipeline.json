@@ -409,6 +409,8 @@
   "groups": [],
   "outputs": {
     "counts": "cr_count_001",
+    "filtered_feature_bc_matrix": "cr_count_001",
+    "filtered_feature_bc_matrix_h5": "cr_count_001",
     "cellranger_retry_policy": "cr_count_retry_001",
     "validated_fastq_dir": "validate_fastq_dir_001",
     "validated_reference_dir": "validate_reference_dir_001",
