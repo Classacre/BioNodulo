@@ -51,7 +51,7 @@ class PivotTableNode(BaseNode):
                 "value_name": ("STRING", {"default": "value"}),
                 "agg_func": ("STRING", {"default": "sum", "options": ["sum", "mean", "count", "min", "max", "median", "std"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
-                "output_type": ("STRING", {"default": "TSV", "options": ["TSV", "CSV"]}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
             "hidden": {},
         }
@@ -99,7 +99,7 @@ class PivotTableNode(BaseNode):
         else:
             raise ValueError(f"Unsupported pivot operation: {operation}")
 
-        output_delimiter, extension = self._output_format(str(kwargs.get("output_type", "TSV") or "TSV"))
+        output_delimiter, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), input_path)
         out_path = self._output_dir(context) / f"{input_path.stem}.{suffix}{extension}"
         self._write_table(out_path, out_fields, out_rows, output_delimiter)
         return (str(out_path),)
@@ -123,12 +123,14 @@ class PivotTableNode(BaseNode):
         return "\t"
 
     @staticmethod
-    def _output_format(value: str) -> tuple[str, str]:
+    def _output_format(value: str, input_path: Path) -> tuple[str, str]:
         normalized = value.strip().upper()
         if normalized == "CSV":
             return ",", ".csv"
         if normalized == "TSV":
             return "\t", ".tsv"
+        if normalized == "AUTO":
+            return (",", ".csv") if input_path.suffix.lower() == ".csv" else ("\t", ".tsv")
         raise ValueError(f"Unsupported output_type: {value}")
 
     @staticmethod
@@ -293,7 +295,7 @@ class ReshapeTableNode(PivotTableNode):
                 "values_from": ("STRING", {"default": "", "description": "Column whose values fill wide cells"}),
                 "fill_value": ("STRING", {"default": ""}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
-                "output_type": ("STRING", {"default": "TSV", "options": ["TSV", "CSV"]}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
             "hidden": {},
         }
@@ -329,7 +331,7 @@ class ReshapeTableNode(PivotTableNode):
         else:
             raise ValueError(f"Unsupported reshape direction: {direction}")
 
-        output_delimiter, extension = self._output_format(str(kwargs.get("output_type", "TSV") or "TSV"))
+        output_delimiter, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), input_path)
         out_path = self._output_dir(context) / f"{input_path.stem}.{suffix}{extension}"
         self._write_table(out_path, out_fields, out_rows, output_delimiter)
         return (str(out_path),)

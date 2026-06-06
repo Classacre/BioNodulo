@@ -48,6 +48,9 @@ def test_pivot_table_is_registered_for_frontend_discovery() -> None:
     assert info["pivot_table"]["python_class"] == (
         "bionodulo.nodes.builtin.pivot_table.PivotTableNode"
     )
+    output_type = info["pivot_table"]["input"]["optional"]["output_type"]
+    assert output_type[1]["default"] == "AUTO"
+    assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
 
 
 def test_reshape_table_is_registered_for_frontend_discovery() -> None:
@@ -70,6 +73,8 @@ def test_reshape_table_is_registered_for_frontend_discovery() -> None:
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"table", "direction", "id_vars"}
     assert inputs["required"]["direction"][1]["options"] == ["long", "wide"]
+    assert inputs["optional"]["output_type"][1]["default"] == "AUTO"
+    assert inputs["optional"]["output_type"][1]["options"] == ["AUTO", "CSV", "TSV"]
     assert set(inputs["optional"]) == {
         "value_vars",
         "names_to",
@@ -239,6 +244,35 @@ async def test_pivot_table_agg_supports_planned_functions(
     rows = _read_table(result[0])
     assert rows == [
         {"gene": "BRCA1", "S1": expected_s1, "S2": expected_s2},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pivot_table_auto_output_type_preserves_csv_input_format(tmp_path: Path) -> None:
+    table = tmp_path / "expression.csv"
+    _write_table(table, [
+        {"gene": "BRCA1", "sample": "S1", "count": "10"},
+        {"gene": "BRCA1", "sample": "S2", "count": "12"},
+        {"gene": "TP53", "sample": "S1", "count": "3"},
+    ], delimiter=",")
+
+    result = await _node_class("pivot_table")().run(
+        table=str(table),
+        operation="pivot_wide",
+        index_column="gene",
+        names_from="sample",
+        values_from="count",
+        fill_value="0",
+        output_type="AUTO",
+        context=_context(tmp_path, "pivot-auto-csv"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "expression.wide.csv"
+    rows = _read_table(output_path, delimiter=",")
+    assert rows == [
+        {"gene": "BRCA1", "S1": "10", "S2": "12"},
+        {"gene": "TP53", "S1": "3", "S2": "0"},
     ]
 
 
