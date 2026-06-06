@@ -317,6 +317,22 @@
       }
     },
     {
+      "id": "gate_prioritized_vcf_001",
+      "type": "gate",
+      "position": [
+        2960,
+        220
+      ],
+      "params": {
+        "condition_mode": "file_exists",
+        "on_fail": "halt",
+        "error_message": "prioritized VCF was not produced before reporting"
+      },
+      "ui": {
+        "title": "Gate Prioritized VCF"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -612,6 +628,17 @@
         "output": "filtered_vcf"
       },
       "to": {
+        "node": "gate_prioritized_vcf_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e16b",
+      "from": {
+        "node": "gate_prioritized_vcf_001",
+        "output": "output"
+      },
+      "to": {
         "node": "variant_report_001",
         "input": "tables"
       }
@@ -665,6 +692,7 @@
   "outputs": {
     "vcf": "prioritize_vcf_001",
     "prioritized_vcf": "prioritize_vcf_001",
+    "prioritized_vcf_quality_gate": "gate_prioritized_vcf_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
