@@ -414,7 +414,7 @@ async def test_checkpoint_writes_compressed_snapshot_with_context_metadata(tmp_p
     assert checkpoint_path.name == "post_qc.json.gz"
     assert info["checkpoint_name"] == "post_qc"
     assert info["compressed"] is True
-    assert info["resume_supported"] is False
+    assert info["resume_supported"] is True
     assert info["size_bytes"] == checkpoint_path.stat().st_size
     assert saved["data"] == payload
     assert saved["run_metadata"]["run_id"] == "run-1"
@@ -475,10 +475,10 @@ async def test_checkpoint_updates_manifest_for_resume_resolution(tmp_path: Path)
     assert passthrough == payload
     assert Path(info["manifest_path"]) == manifest_path
     assert info["resume_manifest_supported"] is True
-    assert info["resume_supported"] is False
+    assert info["resume_supported"] is True
     assert manifest["version"] == "1.0"
     assert manifest["latest_by_name"]["after_annotation"]["checkpoint_path"] == str(checkpoint_path)
-    assert manifest["latest_by_name"]["after_annotation"]["resume_supported"] is False
+    assert manifest["latest_by_name"]["after_annotation"]["resume_supported"] is True
     assert latest_by_run_node["checkpoint_name"] == "after_annotation"
     assert latest_by_run_node["checkpoint_path"] == str(checkpoint_path)
     assert latest_by_run_node["run_id"] == "run-42"
@@ -486,8 +486,8 @@ async def test_checkpoint_updates_manifest_for_resume_resolution(tmp_path: Path)
     assert latest_by_run_node["node_type"] == "variant_annotation"
     assert latest_by_run_node["compressed"] is False
     assert latest_by_run_node["resume_manifest_supported"] is True
-    assert latest_by_run_node["resume_supported"] is False
-    assert "executor-level resume" in latest_by_run_node["note"]
+    assert latest_by_run_node["resume_supported"] is True
+    assert "downstream executor resume" in latest_by_run_node["note"]
     assert latest_by_run_node["size_bytes"] == checkpoint_path.stat().st_size
     resolved = _node_class("checkpoint").resolve_checkpoint(
         manifest_path=manifest_path,

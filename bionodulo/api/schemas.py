@@ -33,6 +33,10 @@ class RunCreateRequest(BaseModel):
         False,
         description="Resolve the workflow and return command/output/cache previews without submitting execution",
     )
+    resume_checkpoint: dict[str, Any] | None = Field(
+        None,
+        description="Checkpoint descriptor used to resume downstream execution from a checkpoint node",
+    )
     force_nodes: list[str] = Field(
         default_factory=list,
         description="Specific node IDs to force re-execution",

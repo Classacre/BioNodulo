@@ -280,9 +280,54 @@ def _read_checkpoint_manifest_for_api(manifest_path: Path) -> dict[str, Any]:
 def _checkpoint_resume_contract() -> dict[str, Any]:
     return {
         "resume_manifest_supported": True,
-        "resume_supported": False,
-        "resume_note": "Checkpoint artifact resolution is supported; executor-level resume is not implemented yet.",
+        "resume_supported": True,
+        "resume_note": "Checkpoint artifact resolution and downstream executor resume are supported for checkpoint nodes.",
     }
+
+
+def _checkpoint_artifact_path(settings: Settings, checkpoint_path: Any) -> Path:
+    if checkpoint_path is None or str(checkpoint_path).strip() == "":
+        raise HTTPException(status_code=400, detail="resume checkpoint descriptor requires checkpoint_path")
+
+    raw_path = Path(str(checkpoint_path)).expanduser()
+    resolved = raw_path.resolve() if raw_path.is_absolute() else (settings.project_root / raw_path).resolve()
+    try:
+        resolved.relative_to(settings.project_root.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="resume checkpoint path must be within the workspace") from exc
+    return resolved
+
+
+def _resolve_resume_checkpoint(settings: Settings, descriptor: dict[str, Any] | None) -> dict[str, Any] | None:
+    if descriptor is None:
+        return None
+    if not isinstance(descriptor, dict):
+        raise HTTPException(status_code=400, detail="resume_checkpoint must be an object")
+
+    if descriptor.get("checkpoint_path"):
+        checkpoint = dict(descriptor)
+    else:
+        try:
+            checkpoint = CheckpointNode.resolve_checkpoint(
+                manifest_path=_checkpoint_manifest_path(settings),
+                run_id=str(descriptor.get("run_id", "") or ""),
+                node_id=str(descriptor.get("node_id", "") or ""),
+                checkpoint_name=str(descriptor.get("checkpoint_name", "") or ""),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        if not checkpoint:
+            raise HTTPException(status_code=404, detail="resume checkpoint was not found")
+
+    if not str(checkpoint.get("node_id", "") or "").strip():
+        raise HTTPException(status_code=400, detail="resume checkpoint descriptor requires node_id")
+
+    checkpoint_path = _checkpoint_artifact_path(settings, checkpoint.get("checkpoint_path"))
+    if not checkpoint_path.is_file():
+        raise HTTPException(status_code=404, detail="resume checkpoint artifact was not found")
+
+    checkpoint["checkpoint_path"] = str(checkpoint_path)
+    return checkpoint
 
 
 def _pause_runtime_contract() -> dict[str, Any]:
@@ -594,6 +639,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
     """Submit a workflow for execution, or preview it when dry_run is true."""
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     queue = _get_queue(request)
+    settings = _get_settings(request)
 
     wf_name = body.workflow.get("name", body.name or "Untitled")
     run_id = _generate_run_id(str(wf_name))
@@ -601,6 +647,9 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
         **({"parameters": body.parameters} if body.parameters else {}),
     }
+    resume_checkpoint = _resolve_resume_checkpoint(settings, body.resume_checkpoint)
+    if resume_checkpoint:
+        execution_options["resume_checkpoint"] = resume_checkpoint
     if body.dry_run:
         executor = getattr(queue, "executor", None)
         if executor is None or not hasattr(executor, "dry_run"):
@@ -634,6 +683,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
                 "target_nodes": body.target_nodes,
                 "force_nodes": body.force_nodes,
                 "parameters": body.parameters,
+                "resume_checkpoint": resume_checkpoint,
             },
             options=execution_options,
             force=body.no_cache,
@@ -650,6 +700,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
             "target_nodes": body.target_nodes,
             "force_nodes": body.force_nodes,
             "parameters": body.parameters,
+            "resume_checkpoint": resume_checkpoint,
         }
         request.app.state.runs = runs
 

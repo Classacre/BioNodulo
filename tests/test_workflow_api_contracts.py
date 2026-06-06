@@ -112,7 +112,7 @@ def test_checkpoint_resolve_endpoint_finds_checkpoint_by_run_node_or_name(
     assert by_name.json()["checkpoint"] == entry
 
 
-def test_checkpoint_runtime_api_reports_manifest_only_resume_contract(
+def test_checkpoint_runtime_api_reports_downstream_resume_contract(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -134,8 +134,8 @@ def test_checkpoint_runtime_api_reports_manifest_only_resume_contract(
         "node_id": "checkpoint-node",
         "node_type": "variant_annotation",
         "resume_manifest_supported": True,
-        "resume_supported": False,
-        "note": "Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.",
+        "resume_supported": True,
+        "note": "Checkpoint artifact and resume manifest written; downstream executor resume is supported for checkpoint nodes.",
     }
     (checkpoint_dir / "checkpoint_manifest.json").write_text(
         json.dumps(
@@ -159,14 +159,81 @@ def test_checkpoint_runtime_api_reports_manifest_only_resume_contract(
     assert manifest_response.status_code == 200
     manifest = manifest_response.json()
     assert manifest["resume_manifest_supported"] is True
-    assert manifest["resume_supported"] is False
-    assert "executor-level resume" in manifest["resume_note"]
+    assert manifest["resume_supported"] is True
+    assert "downstream executor resume" in manifest["resume_note"]
     assert resolve_response.status_code == 200
     resolved = resolve_response.json()
     assert resolved["resume_manifest_supported"] is True
-    assert resolved["resume_supported"] is False
-    assert "executor-level resume" in resolved["resume_note"]
-    assert resolved["checkpoint"]["resume_supported"] is False
+    assert resolved["resume_supported"] is True
+    assert "downstream executor resume" in resolved["resume_note"]
+    assert resolved["checkpoint"]["resume_supported"] is True
+
+
+def test_run_create_forwards_resolved_resume_checkpoint_to_queue(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    checkpoint_file = checkpoint_dir / "after_annotation.json"
+    checkpoint_file.write_text('{"version":"1.0","data":{"records":12}}', encoding="utf-8")
+    entry = {
+        "checkpoint_name": "after_annotation",
+        "checkpoint_path": str(checkpoint_file),
+        "timestamp": 1.0,
+        "timestamp_iso": "2026-06-05T00:00:00Z",
+        "compressed": False,
+        "size_bytes": checkpoint_file.stat().st_size,
+        "run_id": "run-42",
+        "node_id": "checkpoint-node",
+        "node_type": "checkpoint",
+    }
+    (checkpoint_dir / "checkpoint_manifest.json").write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "checkpoints": {str(checkpoint_file): entry},
+                "latest_by_name": {"after_annotation": entry},
+                "latest_by_run_node": {"run-42:checkpoint-node": entry},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class Queue:
+        def __init__(self) -> None:
+            self.submit_calls: list[dict[str, object]] = []
+
+        async def submit(self, **kwargs: object) -> str:
+            self.submit_calls.append(kwargs)
+            return str(kwargs.get("run_id", "queued"))
+
+        async def shutdown(self) -> None:
+            return None
+
+    with TestClient(create_app()) as client:
+        queue = Queue()
+        client.app.state.run_queue = queue
+        response = client.post(
+            "/api/runs",
+            json={
+                "name": "Resume Workflow",
+                "workflow": {
+                    "name": "Resume Workflow",
+                    "nodes": [{"id": "checkpoint-node", "type": "checkpoint"}],
+                    "edges": [],
+                },
+                "resume_checkpoint": {"checkpoint_name": "after_annotation"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert queue.submit_calls
+    options = queue.submit_calls[0]["options"]
+    assert options["resume_checkpoint"] == entry
 
 
 def test_hpc_submit_forwards_runtime_parameters_to_backend(

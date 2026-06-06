@@ -16,6 +16,7 @@ Executes workflow graphs with support for:
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import logging
 import re
@@ -313,6 +314,31 @@ class WorkflowExecutor:
             emit("error", {"run_id": run_id, "message": f"Cycle detected: {exc}"})
             return {"status": "failed", "error": str(exc)}
 
+        resume_checkpoint = options.get("resume_checkpoint")
+        resume_node_id = ""
+        resume_outputs: dict[str, Any] = {}
+        if resume_checkpoint:
+            try:
+                if not isinstance(resume_checkpoint, dict):
+                    raise ValueError("resume_checkpoint must be an object")
+                resume_node_id = str(resume_checkpoint.get("node_id", "") or "")
+                resume_outputs = self._resume_checkpoint_outputs(resume_checkpoint)
+                resume_graph = self._restrict_graph_for_resume(
+                    resume_node_id=resume_node_id,
+                    nodes=nodes,
+                    outer_edges=outer_edges,
+                )
+            except ValueError as exc:
+                msg = str(exc)
+                emit("error", {"run_id": run_id, "message": msg})
+                return {"status": "failed", "error": msg}
+            nodes = resume_graph["nodes"]
+            outer_edges = resume_graph["outer_edges"]
+            edge_map = resume_graph["edge_map"]
+            upstream_of = resume_graph["upstream_of"]
+            downstream_of = resume_graph["downstream_of"]
+            execution_order = resume_graph["execution_order"]
+
         emit("start", {"run_id": run_id, "total_nodes": len(execution_order)})
 
         # State tracking
@@ -334,6 +360,8 @@ class WorkflowExecutor:
             },
             "nodes": {},
         }
+        if resume_checkpoint:
+            run_metadata["resume_checkpoint"] = resume_checkpoint
 
         stop_on_error = options.get("stop_on_error", True)
 
@@ -349,6 +377,30 @@ class WorkflowExecutor:
             node = nodes[node_id]
             node_type = node.get("type", "unknown")
             node_meta = node.get("meta", {})
+
+            if resume_checkpoint and node_id == resume_node_id:
+                emit(
+                    "node_resume",
+                    {
+                        "run_id": run_id,
+                        "node_id": node_id,
+                        "checkpoint": resume_checkpoint,
+                        "outputs": resume_outputs,
+                    },
+                )
+                node_results[node_id] = {
+                    "status": "resumed",
+                    "outputs": resume_outputs,
+                    "checkpoint": resume_checkpoint,
+                }
+                node_outputs[node_id] = resume_outputs
+                node_cache_keys[node_id] = None
+                run_metadata["nodes"][node_id] = {
+                    "type": node_type,
+                    "status": "resumed",
+                    "cache_key": None,
+                }
+                continue
 
             emit(
                 "node_start",
@@ -696,6 +748,26 @@ class WorkflowExecutor:
         edge_map: dict[str, list[dict[str, Any]]] = graph["edge_map"]
         workflow_parameters: dict[str, Any] = graph["workflow_parameters"]
 
+        resume_checkpoint = options.get("resume_checkpoint")
+        resume_node_id = ""
+        resume_outputs: dict[str, Any] = {}
+        if resume_checkpoint:
+            try:
+                if not isinstance(resume_checkpoint, dict):
+                    raise ValueError("resume_checkpoint must be an object")
+                resume_node_id = str(resume_checkpoint.get("node_id", "") or "")
+                resume_outputs = self._resume_checkpoint_outputs(resume_checkpoint)
+                resume_graph = self._restrict_graph_for_resume(
+                    resume_node_id=resume_node_id,
+                    nodes=nodes,
+                    outer_edges=graph["outer_edges"],
+                )
+            except ValueError as exc:
+                return {"status": "failed", "run_id": run_id, "error": str(exc)}
+            execution_order = resume_graph["execution_order"]
+            nodes = resume_graph["nodes"]
+            edge_map = resume_graph["edge_map"]
+
         node_outputs: dict[str, dict[str, Any]] = {}
         node_cache_keys: dict[str, str | None] = {}
         plan_nodes: list[dict[str, Any]] = []
@@ -704,6 +776,32 @@ class WorkflowExecutor:
             node = nodes[node_id]
             node_type = str(node.get("type", "unknown"))
             node_class = self._node_class_for(node)
+            if resume_checkpoint and node_id == resume_node_id:
+                node_outputs[node_id] = resume_outputs
+                node_cache_keys[node_id] = None
+                plan_nodes.append(
+                    {
+                        "node_id": node_id,
+                        "node_type": node_type,
+                        "display_name": getattr(node_class, "DISPLAY_NAME", "") if node_class else "",
+                        "category": getattr(node_class, "CATEGORY", "") if node_class else "",
+                        "inputs": {},
+                        "params": {},
+                        "command": None,
+                        "shell": False,
+                        "env_prefix": self._env_prefix_for_node(node, workflow),
+                        "required_executables": list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []),
+                        "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
+                        "planned_outputs": resume_outputs,
+                        "cache": {
+                            "key": None,
+                            "hit": False,
+                            "forced": True,
+                        },
+                        "status": "resumed",
+                    }
+                )
+                continue
             resolved_inputs = self._resolve_inputs(
                 node_id,
                 node,
@@ -780,6 +878,7 @@ class WorkflowExecutor:
             "execution_order": execution_order,
             "nodes": plan_nodes,
             "will_execute": False,
+            **({"resume_checkpoint": resume_checkpoint} if resume_checkpoint else {}),
         }
 
     # ------------------------------------------------------------------
@@ -1153,6 +1252,106 @@ class WorkflowExecutor:
                 required.add(upstream)
                 queue.append(upstream)
         return required
+
+    def _downstream_closure(
+        self,
+        start_node: str,
+        nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> set[str]:
+        """Return start node plus all executable downstream dependents."""
+        downstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
+        for edge in edges:
+            src = edge_source(edge)
+            tgt = edge_target(edge)
+            if src in nodes and tgt in nodes:
+                downstream_of[src].append(tgt)
+
+        reachable = {start_node}
+        queue = deque([start_node])
+        while queue:
+            current = queue.popleft()
+            for downstream in downstream_of.get(current, []):
+                if downstream in reachable:
+                    continue
+                reachable.add(downstream)
+                queue.append(downstream)
+        return reachable
+
+    def _restrict_graph_for_resume(
+        self,
+        *,
+        resume_node_id: str,
+        nodes: dict[str, dict[str, Any]],
+        outer_edges: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Build the executable downstream subgraph for checkpoint resume."""
+        if resume_node_id not in nodes:
+            raise ValueError(f"Resume checkpoint node '{resume_node_id}' is not executable in this workflow")
+
+        resume_nodes = self._downstream_closure(resume_node_id, nodes, outer_edges)
+        restricted_nodes = {
+            node_id: node
+            for node_id, node in nodes.items()
+            if node_id in resume_nodes
+        }
+        restricted_edges = [
+            edge
+            for edge in outer_edges
+            if edge_source(edge) in restricted_nodes
+            and edge_target(edge) in restricted_nodes
+            and edge_target(edge) != resume_node_id
+        ]
+
+        upstream_of: dict[str, list[str]] = {nid: [] for nid in restricted_nodes}
+        downstream_of: dict[str, list[str]] = {nid: [] for nid in restricted_nodes}
+        edge_map: dict[str, list[dict[str, Any]]] = {nid: [] for nid in restricted_nodes}
+
+        for edge in restricted_edges:
+            src = edge_source(edge)
+            tgt = edge_target(edge)
+            upstream_of[tgt].append(src)
+            downstream_of[src].append(tgt)
+            edge_map[tgt].append(edge)
+
+        execution_order = self._topological_sort(restricted_nodes, upstream_of, downstream_of)
+        return {
+            "nodes": restricted_nodes,
+            "outer_edges": restricted_edges,
+            "edge_map": edge_map,
+            "upstream_of": upstream_of,
+            "downstream_of": downstream_of,
+            "execution_order": execution_order,
+        }
+
+    def _load_checkpoint_payload(self, checkpoint_entry: dict[str, Any]) -> dict[str, Any]:
+        checkpoint_path = Path(str(checkpoint_entry.get("checkpoint_path", ""))).expanduser()
+        if not checkpoint_path.is_file():
+            raise ValueError(f"Resume checkpoint artifact was not found: {checkpoint_path}")
+
+        try:
+            if checkpoint_path.suffix == ".gz" or bool(checkpoint_entry.get("compressed")):
+                raw_text = gzip.decompress(checkpoint_path.read_bytes()).decode("utf-8")
+            else:
+                raw_text = checkpoint_path.read_text(encoding="utf-8")
+            payload = json.loads(raw_text)
+        except (OSError, gzip.BadGzipFile, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Resume checkpoint artifact is unreadable: {checkpoint_path}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Resume checkpoint artifact must contain a JSON object")
+        if "data" not in payload:
+            raise ValueError("Resume checkpoint artifact is missing data")
+        return payload
+
+    def _resume_checkpoint_outputs(self, checkpoint_entry: dict[str, Any]) -> dict[str, Any]:
+        payload = self._load_checkpoint_payload(checkpoint_entry)
+        normalized_entry = dict(checkpoint_entry)
+        normalized_entry["checkpoint_path"] = str(Path(str(normalized_entry.get("checkpoint_path", ""))).expanduser())
+        return {
+            "passthrough": payload["data"],
+            "checkpoint_file": normalized_entry["checkpoint_path"],
+            "checkpoint_info": json.dumps(normalized_entry, sort_keys=True, default=str),
+        }
 
     def _try_catch_regions(
         self,

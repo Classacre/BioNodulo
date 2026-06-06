@@ -391,6 +391,159 @@ async def test_executor_dry_run_preview_plans_command_outputs_and_cache(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_executor_resumes_downstream_from_checkpoint_artifact(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "checkpoints" / "saved.json"
+    checkpoint_path.parent.mkdir()
+    checkpoint_path.write_text(
+        json.dumps({"version": "1.0", "checkpoint_name": "saved", "data": "restored"}),
+        encoding="utf-8",
+    )
+    checkpoint_entry = {
+        "checkpoint_name": "saved",
+        "checkpoint_path": str(checkpoint_path),
+        "compressed": False,
+        "run_id": "previous",
+        "node_id": "checkpoint",
+        "node_type": "checkpoint",
+    }
+
+    class SourceNode:
+        RETURN_NAMES = ("out",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **_: Any) -> tuple[str]:
+            self.calls.append(context.node_id)
+            return ("fresh",)
+
+    class CheckpointNodeForTest:
+        RETURN_NAMES = ("passthrough", "checkpoint_file", "checkpoint_info")
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **kwargs: Any) -> tuple[Any, str, str]:
+            self.calls.append(context.node_id)
+            return (kwargs.get("input"), "", "{}")
+
+    class DownstreamNode:
+        RETURN_NAMES = ("out",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        def run(self, context, **kwargs: Any) -> tuple[str]:
+            self.calls.append(kwargs["input"])
+            return (f"downstream:{kwargs['input']}",)
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "source": SourceNode,
+                "checkpoint": CheckpointNodeForTest,
+                "downstream": DownstreamNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "source", "outputs": {"out": {}}},
+            {"id": "checkpoint", "type": "checkpoint", "outputs": {"passthrough": {}, "checkpoint_file": {}, "checkpoint_info": {}}},
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "source", "target_node": "checkpoint", "source_output": "out", "target_input": "input"},
+            {"source_node": "checkpoint", "target_node": "downstream", "source_output": "passthrough", "target_input": "input"},
+        ],
+    }
+    SourceNode.calls = []
+    CheckpointNodeForTest.calls = []
+    DownstreamNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute(
+        "resume-run",
+        workflow,
+        options={"resume_checkpoint": checkpoint_entry},
+    )
+
+    assert result["status"] == "completed"
+    assert SourceNode.calls == []
+    assert CheckpointNodeForTest.calls == []
+    assert DownstreamNode.calls == ["restored"]
+    assert result["node_results"]["checkpoint"]["status"] == "resumed"
+    assert result["outputs"]["checkpoint"]["passthrough"] == "restored"
+    assert result["outputs"]["downstream"] == {"out": "downstream:restored"}
+    assert result["metadata"]["resume_checkpoint"]["node_id"] == "checkpoint"
+
+
+@pytest.mark.asyncio
+async def test_executor_dry_run_marks_checkpoint_resume_without_executing_upstream(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "checkpoints" / "saved.json"
+    checkpoint_path.parent.mkdir()
+    checkpoint_path.write_text(
+        json.dumps({"version": "1.0", "checkpoint_name": "saved", "data": "restored"}),
+        encoding="utf-8",
+    )
+
+    class AnyNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+    class CheckpointNodeForTest:
+        RETURN_NAMES = ("passthrough", "checkpoint_file", "checkpoint_info")
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return CheckpointNodeForTest if node_type == "checkpoint" else AnyNode
+
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "source", "outputs": {"out": {}}},
+            {"id": "checkpoint", "type": "checkpoint", "outputs": {"passthrough": {}, "checkpoint_file": {}, "checkpoint_info": {}}},
+            {"id": "downstream", "type": "downstream", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "source", "target_node": "checkpoint", "source_output": "out", "target_input": "input"},
+            {"source_node": "checkpoint", "target_node": "downstream", "source_output": "passthrough", "target_input": "input"},
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    preview = await executor.dry_run(
+        "resume-preview",
+        workflow,
+        options={
+            "resume_checkpoint": {
+                "checkpoint_name": "saved",
+                "checkpoint_path": str(checkpoint_path),
+                "compressed": False,
+                "node_id": "checkpoint",
+            }
+        },
+    )
+
+    assert preview["status"] == "dry_run"
+    assert preview["execution_order"] == ["checkpoint", "downstream"]
+    assert preview["nodes"][0]["status"] == "resumed"
+    assert preview["nodes"][0]["planned_outputs"]["passthrough"] == "restored"
+    assert preview["resume_checkpoint"]["checkpoint_name"] == "saved"
+
+
+@pytest.mark.asyncio
 async def test_run_queue_shutdown_closes_executor_cache() -> None:
     class Cache:
         def __init__(self) -> None:

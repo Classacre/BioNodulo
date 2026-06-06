@@ -997,8 +997,8 @@ class CheckpointNode(BaseNode):
             "compressed": compress,
             "size_bytes": checkpoint_path.stat().st_size,
             "resume_manifest_supported": True,
-            "resume_supported": False,
-            "note": "Checkpoint artifact and resume manifest written; executor-level resume is not implemented yet.",
+            "resume_supported": True,
+            "note": "Checkpoint artifact and resume manifest written; downstream executor resume is supported for checkpoint nodes.",
         }
         manifest_path = self._update_checkpoint_manifest(checkpoint_dir, checkpoint_info, context)
         checkpoint_info["manifest_path"] = str(manifest_path)
