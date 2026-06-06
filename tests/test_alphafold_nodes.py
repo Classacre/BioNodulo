@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -201,6 +202,158 @@ def test_esmfold_predict_plans_pdb_directory() -> None:
 def test_esmfold_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["esm-fold"] == "fair-esm"
     assert PACKAGE_MIN_VERSIONS["fair-esm"] == ">=2.0.0"
+
+
+def test_proteinmpnn_design_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    info = registry.object_info()
+
+    node_info = info["proteinmpnn_design"]
+    assert node_info["display_name"] == "ProteinMPNN Design"
+    assert node_info["category"] == "ai"
+    assert node_info["description"].startswith("Design protein sequences")
+    assert node_info["output"] == ["DIRECTORY", "FASTA"]
+    assert node_info["output_name"] == ["design_dir", "designed_sequences"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["numpy", "torch"]
+    assert node_info["experimental"] is True
+    assert "proteinmpnn" in node_info["search_aliases"]
+    assert "inverse folding" in node_info["search_aliases"]
+    assert "protein design" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"script_path", "pdb_path"}
+    assert set(inputs["optional"]) == {
+        "pdb_path_chains",
+        "num_seq_per_target",
+        "batch_size",
+        "sampling_temp",
+        "model_name",
+        "path_to_model_weights",
+        "ca_only",
+        "use_soluble_model",
+        "seed",
+        "save_score",
+        "save_probs",
+        "score_only",
+    }
+
+
+def test_proteinmpnn_design_renders_basic_command() -> None:
+    node_class = _node_class("proteinmpnn_design")
+
+    cmd = node_class.render_command({
+        "script_path": "/opt/ProteinMPNN/protein_mpnn_run.py",
+        "pdb_path": "input_backbone.pdb",
+        "pdb_path_chains": "",
+        "num_seq_per_target": 3,
+        "batch_size": 2,
+        "sampling_temp": "0.1 0.2",
+        "model_name": "v_48_020",
+        "path_to_model_weights": "",
+        "ca_only": False,
+        "use_soluble_model": False,
+        "seed": 0,
+        "save_score": False,
+        "save_probs": False,
+        "score_only": False,
+        "output": "/tmp/run/proteinmpnn_design",
+    })
+
+    assert cmd == [
+        "python",
+        "/opt/ProteinMPNN/protein_mpnn_run.py",
+        "--pdb_path",
+        "input_backbone.pdb",
+        "--out_folder",
+        "/tmp/run/proteinmpnn_design",
+        "--num_seq_per_target",
+        "3",
+        "--batch_size",
+        "2",
+        "--sampling_temp",
+        "0.1 0.2",
+        "--model_name",
+        "v_48_020",
+    ]
+
+
+def test_proteinmpnn_design_renders_advanced_flags() -> None:
+    node_class = _node_class("proteinmpnn_design")
+
+    cmd = node_class.render_command({
+        "script_path": "/opt/ProteinMPNN/protein_mpnn_run.py",
+        "pdb_path": "ca_backbone.pdb",
+        "pdb_path_chains": "A B",
+        "num_seq_per_target": 1,
+        "batch_size": 1,
+        "sampling_temp": "0.1",
+        "model_name": "v_48_010",
+        "path_to_model_weights": "/models/proteinmpnn",
+        "ca_only": True,
+        "use_soluble_model": True,
+        "seed": 42,
+        "save_score": True,
+        "save_probs": True,
+        "score_only": True,
+        "output": "/tmp/run/proteinmpnn_design",
+    })
+
+    assert cmd == [
+        "python",
+        "/opt/ProteinMPNN/protein_mpnn_run.py",
+        "--pdb_path",
+        "ca_backbone.pdb",
+        "--out_folder",
+        "/tmp/run/proteinmpnn_design",
+        "--num_seq_per_target",
+        "1",
+        "--batch_size",
+        "1",
+        "--sampling_temp",
+        "0.1",
+        "--model_name",
+        "v_48_010",
+        "--pdb_path_chains",
+        "A B",
+        "--path_to_model_weights",
+        "/models/proteinmpnn",
+        "--seed",
+        "42",
+        "--ca_only",
+        "--use_soluble_model",
+        "--save_score",
+        "1",
+        "--save_probs",
+        "1",
+        "--score_only",
+        "1",
+    ]
+
+
+def test_proteinmpnn_design_plans_outputs_from_pdb_stem() -> None:
+    node_class = _node_class("proteinmpnn_design")
+
+    outputs = node_class.PLAN_OUTPUTS({"pdb_path": "/data/input_backbone.pdb"}, "/tmp/run")
+
+    assert outputs == [
+        Path("/tmp/run/proteinmpnn_design"),
+        Path("/tmp/run/proteinmpnn_design/seqs/input_backbone.fa"),
+    ]
+
+
+def test_proteinmpnn_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
+    assert PACKAGE_MIN_VERSIONS["torch"] == ">=2.0"
+    assert workflow_to_packages(
+        {"nodes": [{"id": "design", "type": "proteinmpnn_design"}]},
+        registry,
+    ) == ["numpy", "python", "torch"]
 
 
 @pytest.mark.asyncio

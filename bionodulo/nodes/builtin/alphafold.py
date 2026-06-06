@@ -367,3 +367,98 @@ class ESMFoldPredictNode(CommandNode):
         pdb_dir = Path(output_dir) / cls.NODE_ID / "pdb"
         pdb_dir.mkdir(parents=True, exist_ok=True)
         return [pdb_dir]
+
+
+class ProteinMPNNDesignNode(CommandNode):
+    """Design protein sequences for a backbone with a local ProteinMPNN checkout."""
+
+    NODE_ID = "proteinmpnn_design"
+    DISPLAY_NAME = "ProteinMPNN Design"
+    CATEGORY = "ai"
+    DESCRIPTION = "Design protein sequences from a backbone PDB using ProteinMPNN."
+    SEARCH_ALIASES = [
+        "proteinmpnn",
+        "protein mpnn",
+        "inverse folding",
+        "protein design",
+        "sequence design",
+        "backbone design",
+    ]
+    RETURN_TYPES = ("DIRECTORY", "FASTA")
+    RETURN_NAMES = ("design_dir", "designed_sequences")
+    REQUIRED_EXECUTABLES = ["python"]
+    REQUIRED_CONDA_PACKAGES = ["numpy", "torch"]
+    DOCUMENTATION_URL = "https://github.com/dauparas/ProteinMPNN"
+    VERSION = "1.0.0"
+    EXPERIMENTAL = True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "script_path": ("FILE", {"description": "Path to protein_mpnn_run.py from a ProteinMPNN checkout"}),
+                "pdb_path": ("FILE", {"description": "Input backbone PDB file"}),
+            },
+            "optional": {
+                "pdb_path_chains": ("STRING", {"default": "", "advanced": True}),
+                "num_seq_per_target": ("INT", {"default": 1, "min": 1, "advanced": True}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "advanced": True}),
+                "sampling_temp": ("STRING", {"default": "0.1", "advanced": True}),
+                "model_name": ("STRING", {"default": "v_48_020", "advanced": True}),
+                "path_to_model_weights": ("DIRECTORY", {"default": "", "advanced": True}),
+                "ca_only": ("BOOLEAN", {"default": False, "advanced": True}),
+                "use_soluble_model": ("BOOLEAN", {"default": False, "advanced": True}),
+                "seed": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "save_score": ("BOOLEAN", {"default": False, "advanced": True}),
+                "save_probs": ("BOOLEAN", {"default": False, "advanced": True}),
+                "score_only": ("BOOLEAN", {"default": False, "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "")),
+            "--pdb_path",
+            str(inputs.get("pdb_path", "")),
+            "--out_folder",
+            str(inputs.get("output", ".")),
+            "--num_seq_per_target",
+            str(inputs.get("num_seq_per_target", 1)),
+            "--batch_size",
+            str(inputs.get("batch_size", 1)),
+            "--sampling_temp",
+            str(inputs.get("sampling_temp", "0.1") or "0.1"),
+            "--model_name",
+            str(inputs.get("model_name", "v_48_020") or "v_48_020"),
+        ]
+        if inputs.get("pdb_path_chains"):
+            cmd.extend(["--pdb_path_chains", str(inputs["pdb_path_chains"])])
+        if inputs.get("path_to_model_weights"):
+            cmd.extend(["--path_to_model_weights", str(inputs["path_to_model_weights"])])
+        seed = int(inputs.get("seed", 0) or 0)
+        if seed:
+            cmd.extend(["--seed", str(seed)])
+        if inputs.get("ca_only"):
+            cmd.append("--ca_only")
+        if inputs.get("use_soluble_model"):
+            cmd.append("--use_soluble_model")
+        if inputs.get("save_score"):
+            cmd.extend(["--save_score", "1"])
+        if inputs.get("save_probs"):
+            cmd.extend(["--save_probs", "1"])
+        if inputs.get("score_only"):
+            cmd.extend(["--score_only", "1"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        design_dir = Path(output_dir) / cls.NODE_ID
+        seqs_dir = design_dir / "seqs"
+        seqs_dir.mkdir(parents=True, exist_ok=True)
+        stem = _safe_filename(Path(str(inputs.get("pdb_path", "proteinmpnn"))).stem)
+        return [design_dir, seqs_dir / f"{stem}.fa"]
