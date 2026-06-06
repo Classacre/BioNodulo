@@ -139,6 +139,34 @@
       "ui": {
         "title": "Gate Valid QC"
       }
+    },
+    {
+      "id": "qc_dashboard_001",
+      "type": "qc_dashboard",
+      "position": [
+        1520,
+        300
+      ],
+      "params": {
+        "run_name": "FastQ QC",
+        "title": "FastQ QC Dashboard",
+        "theme": "light"
+      },
+      "ui": {
+        "title": "QC Dashboard"
+      }
+    },
+    {
+      "id": "qc_dashboard_preview_001",
+      "type": "html_preview",
+      "position": [
+        1880,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QC Dashboard"
+      }
     }
   ],
   "edges": [
@@ -218,6 +246,28 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "fastqc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "qc_dashboard_001",
+        "input": "fastqc_dir"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "qc_dashboard_001",
+        "output": "qc_dashboard"
+      },
+      "to": {
+        "node": "qc_dashboard_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -225,6 +275,7 @@
     "report": "multiqc_001",
     "validated_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
-    "validated_reads": "validate_reads_001"
+    "validated_reads": "validate_reads_001",
+    "qc_dashboard": "qc_dashboard_001"
   }
 }

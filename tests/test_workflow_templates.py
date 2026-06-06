@@ -189,6 +189,21 @@ def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -
     assert workflow["outputs"]["validated_report"] == "validate_multiqc_001"
 
 
+def test_fastq_qc_template_adds_qc_dashboard() -> None:
+    workflow = _load_template("fastq_qc_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["qc_dashboard_001"] == "qc_dashboard"
+    assert node_types["qc_dashboard_preview_001"] == "html_preview"
+    dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
+    assert dashboard["params"]["run_name"] == "FastQ QC"
+    assert dashboard["params"]["title"] == "FastQ QC Dashboard"
+    assert dashboard["params"]["theme"] == "light"
+    assert _has_edge(workflow, "fastqc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
+    assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
+    assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+
+
 def test_fastq_qc_template_trims_reads_before_fastqc() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
