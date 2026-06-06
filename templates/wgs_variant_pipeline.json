@@ -92,6 +92,35 @@
       }
     },
     {
+      "id": "collate_001",
+      "type": "samtools_collate",
+      "position": [
+        1340,
+        80
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "samtools collate"
+      }
+    },
+    {
+      "id": "fixmate_001",
+      "type": "samtools_fixmate",
+      "position": [
+        1520,
+        80
+      ],
+      "params": {
+        "threads": 4,
+        "add_markdup_tags": true
+      },
+      "ui": {
+        "title": "samtools fixmate"
+      }
+    },
+    {
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
@@ -117,6 +146,21 @@
       },
       "ui": {
         "title": "samtools sort"
+      }
+    },
+    {
+      "id": "markdup_001",
+      "type": "samtools_markdup",
+      "position": [
+        1700,
+        80
+      ],
+      "params": {
+        "threads": 4,
+        "remove_duplicates": false
+      },
+      "ui": {
+        "title": "samtools markdup"
       }
     },
     {
@@ -157,6 +201,52 @@
       },
       "ui": {
         "title": "bcftools filter"
+      }
+    },
+    {
+      "id": "snpeff_001",
+      "type": "snpeff",
+      "position": [
+        2600,
+        80
+      ],
+      "params": {
+        "genome": "Escherichia_coli_K12",
+        "memory": 4
+      },
+      "ui": {
+        "title": "SnpEff annotation"
+      }
+    },
+    {
+      "id": "vcf_stats_001",
+      "type": "vcf_stats_chart",
+      "position": [
+        2600,
+        360
+      ],
+      "params": {
+        "title": "Filtered WGS Variant Statistics",
+        "format": "png"
+      },
+      "ui": {
+        "title": "VCF statistics"
+      }
+    },
+    {
+      "id": "variant_report_001",
+      "type": "html_report",
+      "position": [
+        2960,
+        80
+      ],
+      "params": {
+        "title": "WGS Variant Report",
+        "text_sections": "# Summary\nDuplicate marking, FreeBayes calling, filtering, annotation, and VCF statistics for the WGS workflow.",
+        "section_names": "VCF statistics,Annotated variants"
+      },
+      "ui": {
+        "title": "Variant report"
       }
     },
     {
@@ -259,11 +349,11 @@
     {
       "id": "e5",
       "from": {
-        "node": "sort_001",
-        "output": "sorted_bam"
+        "node": "fixmate_001",
+        "output": "fixmate_bam"
       },
       "to": {
-        "node": "idx_001",
+        "node": "sort_001",
         "input": "bam"
       }
     },
@@ -274,12 +364,34 @@
         "output": "sorted_bam"
       },
       "to": {
-        "node": "fb_001",
+        "node": "markdup_001",
         "input": "bam"
       }
     },
     {
       "id": "e7",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "idx_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e9",
       "from": {
         "node": "ref_001",
         "output": "reference"
@@ -290,7 +402,7 @@
       }
     },
     {
-      "id": "e8",
+      "id": "e10",
       "from": {
         "node": "fb_001",
         "output": "vcf"
@@ -301,7 +413,7 @@
       }
     },
     {
-      "id": "e9",
+      "id": "e11",
       "from": {
         "node": "reads_001",
         "output": "reads"
@@ -312,7 +424,7 @@
       }
     },
     {
-      "id": "e10",
+      "id": "e12",
       "from": {
         "node": "qc_001",
         "output": "report_dir"
@@ -329,12 +441,23 @@
         "output": "bam"
       },
       "to": {
-        "node": "sort_001",
+        "node": "collate_001",
         "input": "bam"
       }
     },
     {
-      "id": "e11",
+      "id": "e4c",
+      "from": {
+        "node": "collate_001",
+        "output": "name_collated_bam"
+      },
+      "to": {
+        "node": "fixmate_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e13",
       "from": {
         "node": "mqc_001",
         "output": "report"
@@ -343,11 +466,56 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "filter_001",
+        "output": "filtered_vcf"
+      },
+      "to": {
+        "node": "snpeff_001",
+        "input": "vcf"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "filter_001",
+        "output": "filtered_vcf"
+      },
+      "to": {
+        "node": "vcf_stats_001",
+        "input": "vcf"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "snpeff_001",
+        "output": "annotated_vcf"
+      },
+      "to": {
+        "node": "variant_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "vcf_stats_001",
+        "output": "stats_image"
+      },
+      "to": {
+        "node": "variant_report_001",
+        "input": "images"
+      }
     }
   ],
   "groups": [],
   "outputs": {
-    "vcf": "filter_001",
-    "report": "mqc_001"
+    "vcf": "snpeff_001",
+    "variant_stats": "vcf_stats_001",
+    "report": "variant_report_001"
   }
 }
