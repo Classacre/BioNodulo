@@ -32,18 +32,26 @@ def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["counts_heatmap_001"] == "heatmap"
     assert node_types["counts_report_001"] == "html_report"
     assert node_types["counts_report_preview_001"] == "html_preview"
 
+    heatmap = _node(workflow, "counts_heatmap_001")
     report = _node(workflow, "counts_report_001")
+    assert heatmap["params"]["title"] == "Normalized Count Heatmap"
+    assert heatmap["params"]["scale"] == "row"
+    assert heatmap["params"]["format"] == "png"
     assert report["params"]["title"] == "RNA-Seq Counts Report"
-    assert report["params"]["section_names"] == "Raw featureCounts,Normalized CPM counts"
+    assert report["params"]["section_names"] == "Normalized count heatmap,Raw featureCounts,Normalized CPM counts"
     assert report["params"]["max_table_rows"] == 100
 
+    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
+    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "counts_report_001", "images")
     assert _has_edge(workflow, "counts_001", "counts", "counts_report_001", "tables")
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_report_001", "tables")
     assert _has_edge(workflow, "counts_report_001", "html_report", "counts_report_preview_001", "file")
 
+    assert workflow["outputs"]["counts_heatmap"] == "counts_heatmap_001"
     assert workflow["outputs"]["counts_report"] == "counts_report_001"
     assert workflow["outputs"]["counts_report_preview"] == "counts_report_preview_001"
     assert workflow["outputs"]["report"] == "qc_dashboard_001"

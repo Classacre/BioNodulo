@@ -492,13 +492,21 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["normalize_counts_001"] == "normalize_data"
+    assert node_types["counts_heatmap_001"] == "heatmap"
     normalizer = next(node for node in workflow["nodes"] if node["id"] == "normalize_counts_001")
+    heatmap = next(node for node in workflow["nodes"] if node["id"] == "counts_heatmap_001")
     assert normalizer["params"]["method"] == "cpm"
     assert normalizer["params"]["id_columns"] == "Geneid"
     assert normalizer["params"]["axis"] == "rows"
     assert normalizer["params"]["output_type"] == "TSV"
+    assert heatmap["params"]["title"] == "Normalized Count Heatmap"
+    assert heatmap["params"]["scale"] == "row"
+    assert heatmap["params"]["format"] == "png"
     assert _has_edge(workflow, "counts_001", "counts", "normalize_counts_001", "table")
+    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
+    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "counts_report_001", "images")
     assert workflow["outputs"]["normalized_counts"] == "normalize_counts_001"
+    assert workflow["outputs"]["counts_heatmap"] == "counts_heatmap_001"
 
 
 def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
