@@ -7,6 +7,63 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+def test_object_info_api_exposes_advanced_gap_analysis_node_families() -> None:
+    from server import create_app
+
+    expected = {
+        "if_condition": {
+            "display_name": "If Condition",
+            "category": "flow_control",
+            "output_name": ["true", "false", "condition_result"],
+            "alias": "branch",
+        },
+        "filter_rows": {
+            "display_name": "Filter Rows",
+            "category": "data_transform",
+            "output_name": ["filtered_table"],
+            "alias": "table filter",
+        },
+        "http_request": {
+            "display_name": "HTTP Request",
+            "category": "api",
+            "output_name": ["response_body", "metadata"],
+            "alias": "rest",
+        },
+        "alphafold_db": {
+            "display_name": "AlphaFold DB",
+            "category": "databases",
+            "output_name": ["structure_mmcif", "structure_metadata"],
+            "alias": "protein folding",
+        },
+        "llm_prompt": {
+            "display_name": "LLM Prompt",
+            "category": "ai",
+            "output_name": ["response", "metadata"],
+            "alias": "chatgpt",
+        },
+        "workflow_trigger": {
+            "display_name": "Workflow Trigger",
+            "category": "workflow",
+            "output_name": ["trigger_info", "triggered"],
+            "alias": "schedule",
+        },
+    }
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/object_info")
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    for node_id, contract in expected.items():
+        meta = payload[node_id]
+        assert meta["name"] == node_id
+        assert meta["display_name"] == contract["display_name"]
+        assert meta["category"] == contract["category"]
+        assert meta["output_name"] == contract["output_name"]
+        assert contract["alias"] in meta["search_aliases"]
+
+
 def test_workflow_import_rejects_unavailable_converter_instead_of_placeholder_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
