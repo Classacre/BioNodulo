@@ -133,6 +133,29 @@ class IfConditionNode(BaseNode):
             "optional": {
                 "invert": ("BOOLEAN", {"default": False}),
                 "case_sensitive": ("BOOLEAN", {"default": True}),
+                "combinator": ("STRING", {"default": "and", "options": ["and", "or"]}),
+                "condition_mode_2": ([
+                    "none",
+                    "boolean",
+                    "numeric_equal",
+                    "numeric_greater",
+                    "numeric_less",
+                    "numeric_greater_equal",
+                    "numeric_less_equal",
+                    "numeric_not_equal",
+                    "string_equal",
+                    "string_not_equal",
+                    "string_contains",
+                    "string_not_contains",
+                    "string_startswith",
+                    "string_endswith",
+                    "regex_match",
+                    "file_exists",
+                    "is_empty",
+                    "not_empty",
+                ], {"default": "none", "description": "Optional second condition evaluation mode"}),
+                "compare_to_2": ("STRING", {"default": "", "description": "Comparison value for the second condition"}),
+                "output_mode": ("STRING", {"default": "route", "options": ["route", "signal"]}),
             },
             "hidden": {},
         }
@@ -144,16 +167,36 @@ class IfConditionNode(BaseNode):
         compare_to = kwargs.get("compare_to", "")
         case_sensitive = bool(kwargs.get("case_sensitive", True))
         invert = bool(kwargs.get("invert", False))
+        combinator = str(kwargs.get("combinator", "and") or "and").lower()
+        mode_2 = str(kwargs.get("condition_mode_2", "none") or "none")
+        compare_to_2 = kwargs.get("compare_to_2", "")
+        output_mode = str(kwargs.get("output_mode", "route") or "route").lower()
 
         condition_result = self._evaluate(value, mode, compare_to, case_sensitive)
+        if mode_2 != "none":
+            condition_result_2 = self._evaluate(value, mode_2, compare_to_2, case_sensitive)
+            if combinator == "or":
+                condition_result = condition_result or condition_result_2
+            elif combinator == "and":
+                condition_result = condition_result and condition_result_2
+            else:
+                raise ValueError(f"Unsupported if_condition combinator: {combinator}")
         if invert:
             condition_result = not condition_result
+        if output_mode not in {"route", "signal"}:
+            raise ValueError(f"Unsupported if_condition output_mode: {output_mode}")
 
         inactive = ["false"] if condition_result else ["true"]
+        if output_mode == "signal":
+            true_output = condition_result
+            false_output = not condition_result
+        else:
+            true_output = value if condition_result else None
+            false_output = value if not condition_result else None
         return {
             "outputs": {
-                "true": value if condition_result else None,
-                "false": value if not condition_result else None,
+                "true": true_output,
+                "false": false_output,
                 "condition_result": condition_result,
             },
             "inactive_outputs": inactive,

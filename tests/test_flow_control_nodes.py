@@ -96,6 +96,16 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert set(break_continue_inputs["required"]) == {"action"}
     assert set(break_continue_inputs["optional"]) == {"condition", "value", "reason"}
 
+    if_condition_inputs = info["if_condition"]["input"]
+    assert {
+        "combinator",
+        "condition_mode_2",
+        "compare_to_2",
+        "output_mode",
+    }.issubset(if_condition_inputs["optional"])
+    assert if_condition_inputs["optional"]["combinator"][1]["options"] == ["and", "or"]
+    assert if_condition_inputs["optional"]["output_mode"][1]["options"] == ["route", "signal"]
+
 
 @pytest.mark.asyncio
 async def test_if_condition_routes_value_to_selected_branch() -> None:
@@ -130,6 +140,67 @@ async def test_if_condition_supports_additional_comparison_modes() -> None:
     assert suffix["outputs"]["condition_result"] is True
     assert not_equal["outputs"]["condition_result"] is True
     assert empty["outputs"]["condition_result"] is True
+
+
+@pytest.mark.asyncio
+async def test_if_condition_combines_second_condition_with_and() -> None:
+    node = _node_class("if_condition")()
+
+    result = await node.run(
+        value="tumor_RNA.fastq.gz",
+        condition_mode="string_contains",
+        compare_to="tumor",
+        combinator="and",
+        condition_mode_2="string_endswith",
+        compare_to_2=".bam",
+    )
+
+    assert result["outputs"] == {
+        "true": None,
+        "false": "tumor_RNA.fastq.gz",
+        "condition_result": False,
+    }
+    assert result["inactive_outputs"] == ["true"]
+
+
+@pytest.mark.asyncio
+async def test_if_condition_combines_second_condition_with_or() -> None:
+    node = _node_class("if_condition")()
+
+    result = await node.run(
+        value="tumor_RNA.fastq.gz",
+        condition_mode="string_contains",
+        compare_to="control",
+        combinator="or",
+        condition_mode_2="string_endswith",
+        compare_to_2=".fastq.gz",
+    )
+
+    assert result["outputs"] == {
+        "true": "tumor_RNA.fastq.gz",
+        "false": None,
+        "condition_result": True,
+    }
+    assert result["inactive_outputs"] == ["false"]
+
+
+@pytest.mark.asyncio
+async def test_if_condition_signal_output_mode_emits_booleans() -> None:
+    node = _node_class("if_condition")()
+
+    result = await node.run(
+        value="PASS",
+        condition_mode="string_equal",
+        compare_to="PASS",
+        output_mode="signal",
+    )
+
+    assert result["outputs"] == {
+        "true": True,
+        "false": False,
+        "condition_result": True,
+    }
+    assert result["inactive_outputs"] == ["false"]
 
 
 @pytest.mark.asyncio
