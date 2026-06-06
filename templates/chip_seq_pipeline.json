@@ -55,7 +55,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -69,7 +69,7 @@
       "id": "bt2_001",
       "type": "bowtie2_align",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -80,10 +80,24 @@
       }
     },
     {
+      "id": "fastp_001",
+      "type": "fastp",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "fastp Trim"
+      }
+    },
+    {
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -97,7 +111,7 @@
       "id": "macs2_001",
       "type": "macs2_callpeak",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {
@@ -156,6 +170,17 @@
         "output": "reads"
       },
       "to": {
+        "node": "fastp_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e1b",
+      "from": {
+        "node": "fastp_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
         "node": "bt2_001",
         "input": "reads"
       }
@@ -196,8 +221,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "treat_001",
-        "output": "reads"
+        "node": "fastp_001",
+        "output": "trimmed_reads"
       },
       "to": {
         "node": "qc_001",
@@ -241,6 +266,7 @@
   "groups": [],
   "outputs": {
     "peaks": "macs2_001",
-    "report": "mqc_001"
+    "report": "mqc_001",
+    "trimmed_reads": "fastp_001"
   }
 }
