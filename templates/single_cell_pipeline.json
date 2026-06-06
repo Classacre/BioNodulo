@@ -63,6 +63,22 @@
       }
     },
     {
+      "id": "validate_web_summary_001",
+      "type": "data_validator",
+      "position": [
+        620,
+        80
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate web_summary"
+      }
+    },
+    {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
@@ -105,6 +121,17 @@
         "output": "web_summary"
       },
       "to": {
+        "node": "validate_web_summary_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3a",
+      "from": {
+        "node": "validate_web_summary_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "html_preview_001",
         "input": "file"
       }
@@ -112,6 +139,7 @@
   ],
   "groups": [],
   "outputs": {
-    "counts": "cr_count_001"
+    "counts": "cr_count_001",
+    "validated_web_summary": "validate_web_summary_001"
   }
 }

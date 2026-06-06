@@ -553,3 +553,18 @@ def test_metagenomics_template_validates_reads_before_trimming_and_qc() -> None:
     assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+
+
+def test_single_cell_template_validates_cellranger_web_summary_before_preview() -> None:
+    workflow = _load_template("single_cell_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_web_summary_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_web_summary_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
+    assert _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
+    assert not _has_edge(workflow, "cr_count_001", "web_summary", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_web_summary"] == "validate_web_summary_001"
