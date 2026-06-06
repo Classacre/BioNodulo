@@ -408,6 +408,17 @@ class ExtractColumnsNode(BaseNode):
                     raise ValueError(f"Column index out of range: {index}")
                 selected.append(fieldnames[index])
             return selected
+        columns = columns.strip()
+        if columns == "*":
+            return list(fieldnames)
+        if columns.startswith(":"):
+            try:
+                limit = int(columns[1:])
+            except ValueError as exc:
+                raise ValueError(f"Column range must be :N, got {columns!r}") from exc
+            if limit < 0:
+                raise ValueError(f"Column range must be non-negative: {columns!r}")
+            return list(fieldnames[:limit])
         return _split_csv(columns)
 
     @staticmethod

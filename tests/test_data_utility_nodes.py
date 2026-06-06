@@ -411,6 +411,54 @@ async def test_extract_columns_drop_mode_removes_selected_columns(tmp_path: Path
 
 
 @pytest.mark.asyncio
+async def test_extract_columns_star_selects_all_columns(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ])
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns="*",
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "extract-star"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["sample", "depth", "status"]
+    assert rows == [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_extract_columns_colon_prefix_selects_first_n_columns(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "depth": "8", "status": "fail"},
+        {"sample": "S2", "depth": "12", "status": "pass"},
+    ])
+
+    result = await _node_class("extract_columns")().run(
+        table=str(table),
+        columns=":2",
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "extract-first-two"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["sample", "depth"]
+    assert rows == [
+        {"sample": "S1", "depth": "8"},
+        {"sample": "S2", "depth": "12"},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_join_tables_supports_multi_key_outer_join_and_suffixes(tmp_path: Path) -> None:
     table_a = tmp_path / "left.tsv"
     table_b = tmp_path / "right.tsv"
