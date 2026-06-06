@@ -1407,6 +1407,100 @@ async def test_workflow_executor_retries_downstream_node_after_retry_policy(tmp_
 
 
 @pytest.mark.asyncio
+async def test_workflow_executor_retry_policy_applies_to_branch_descendants(tmp_path: Path) -> None:
+    class RetryPolicyNode:
+        RETURN_NAMES = ("passthrough", "retry_log")
+        EXECUTOR_CACHE_POLICY = "always_run"
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {
+                "required": {"input": ("ANY", {})},
+                "optional": {"max_retries": ("INT", {"default": 1}), "delay_seconds": ("FLOAT", {"default": 0.0})},
+            }
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            context.run_metadata.setdefault("retry_policies", []).append({
+                "node_id": context.node_id,
+                "max_retries": int(kwargs.get("max_retries", 1)),
+                "delay_seconds": float(kwargs.get("delay_seconds", 0.0)),
+                "backoff_multiplier": 1.0,
+                "max_delay": 1.0,
+                "retry_on": "all",
+                "target_nodes": [],
+                "delays_seconds": [0.0],
+            })
+            return {"outputs": {"passthrough": kwargs["input"], "retry_log": "registered"}}
+
+    class PrepNode:
+        RETURN_NAMES = ("out",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"input": ("ANY", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            return {"outputs": {"out": f"{kwargs['input']}:prepared"}}
+
+    class FlakyNode:
+        RETURN_NAMES = ("out",)
+        attempts = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"input": ("ANY", {})}}
+
+        def run(self, context, **kwargs: Any) -> dict[str, Any]:
+            type(self).attempts += 1
+            if type(self).attempts == 1:
+                raise RuntimeError("descendant transient failure")
+            return {"outputs": {"out": f"{kwargs['input']}:attempt-{type(self).attempts}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type:
+            return {
+                "retry": RetryPolicyNode,
+                "prep": PrepNode,
+                "flaky": FlakyNode,
+            }[node_type]
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "retry",
+                "type": "retry",
+                "outputs": {"passthrough": {}, "retry_log": {}},
+                "params": {"input": "reads", "max_retries": 1, "delay_seconds": 0.0},
+            },
+            {"id": "prep", "type": "prep", "outputs": {"out": {}}},
+            {"id": "flaky", "type": "flaky", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "retry", "target_node": "prep", "source_output": "passthrough", "target_input": "input"},
+            {"source_node": "prep", "target_node": "flaky", "source_output": "out", "target_input": "input"},
+        ],
+    }
+    FlakyNode.attempts = 0
+    events: list[tuple[str, dict[str, Any]]] = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute(
+        "retry-descendant-run",
+        workflow,
+        emit=lambda event, payload: events.append((event, payload)),
+    )
+
+    assert result["status"] == "completed"
+    assert result["outputs"]["flaky"]["out"] == "reads:prepared:attempt-2"
+    assert result["node_results"]["flaky"]["attempts"] == 2
+    assert FlakyNode.attempts == 2
+    assert (
+        "node_retry",
+        {"run_id": "retry-descendant-run", "node_id": "flaky", "attempt": 2, "max_attempts": 2},
+    ) in events
+
+
+@pytest.mark.asyncio
 async def test_workflow_executor_retry_policy_respects_specific_target_nodes(tmp_path: Path) -> None:
     class RetryPolicyNode:
         RETURN_NAMES = ("passthrough", "retry_log")

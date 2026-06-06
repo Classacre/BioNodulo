@@ -631,7 +631,7 @@ class WorkflowExecutor:
                         ctx=ctx,
                         node=node,
                         inputs=resolved_inputs,
-                        upstream_nodes={edge_source(edge) for edge in edge_map.get(node_id, [])},
+                        upstream_nodes=self._upstream_node_ids(node_id, upstream_of),
                         emit=emit,
                     )
                 outputs = result.get("outputs", {})
@@ -957,6 +957,19 @@ class WorkflowExecutor:
     @staticmethod
     def _allows_inactive_inputs(node_class: Any) -> bool:
         return bool(getattr(node_class, "ALLOW_INACTIVE_INPUTS", False))
+
+    @staticmethod
+    def _upstream_node_ids(node_id: str, upstream_of: dict[str, list[str]]) -> set[str]:
+        """Return all upstream ancestors for a node in the execution graph."""
+        upstream_nodes: set[str] = set()
+        queue: deque[str] = deque(upstream_of.get(node_id, []))
+        while queue:
+            upstream = queue.popleft()
+            if upstream in upstream_nodes:
+                continue
+            upstream_nodes.add(upstream)
+            queue.extend(upstream_of.get(upstream, []))
+        return upstream_nodes
 
     @staticmethod
     def _continue_on_fail(node: dict[str, Any]) -> bool:
