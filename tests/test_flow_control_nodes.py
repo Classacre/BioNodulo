@@ -288,6 +288,26 @@ async def test_switch_json_rules_route_regex_match() -> None:
 
 
 @pytest.mark.asyncio
+async def test_switch_json_rules_route_prefix_suffix_matches() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="sample_RNA_001.fastq.gz",
+        passthrough_data="reads.fastq.gz",
+        rules=json.dumps([
+            {"branch_index": 0, "match_type": "starts_with", "pattern": "sample_RNA"},
+            {"branch_index": 2, "match_type": "ends_with", "pattern": ".fastq.gz"},
+        ]),
+        match_mode="all",
+        fallback="drop",
+    )
+
+    assert result["outputs"]["output_1"] == "reads.fastq.gz"
+    assert result["outputs"]["output_3"] == "reads.fastq.gz"
+    assert result["inactive_outputs"] == ["output_2", "output_4", "default"]
+
+
+@pytest.mark.asyncio
 async def test_switch_numeric_range_and_fallback_error() -> None:
     node = _node_class("switch")()
 

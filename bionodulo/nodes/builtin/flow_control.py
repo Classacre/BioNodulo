@@ -445,6 +445,10 @@ class SwitchNode(BaseNode):
             return compare_value == compare_pattern
         if match_type == "contains":
             return compare_pattern in compare_value
+        if match_type in {"starts_with", "startswith"}:
+            return compare_value.startswith(compare_pattern)
+        if match_type in {"ends_with", "endswith"}:
+            return compare_value.endswith(compare_pattern)
         if match_type == "regex":
             flags = 0 if case_sensitive else re.IGNORECASE
             return re.search(pattern_text, value_text, flags=flags) is not None
