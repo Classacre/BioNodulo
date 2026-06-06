@@ -52,6 +52,7 @@ import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
+import { redactSecrets } from './utils/redaction';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { makeAppFileActionCopy } from './utils/appFileActionCopy';
 import { promptWorkflowRunParameters } from './utils/workflowParameters';
@@ -1390,11 +1391,11 @@ export default function App() {
             node_id: 'engine',
             level: 'info',
             message: `Dry run preview: ${executionOrder.length} node${executionOrder.length === 1 ? '' : 's'} planned`,
-            detail: JSON.stringify({
+            detail: JSON.stringify(redactSecrets({
               execution_order: executionOrder,
               nodes: preview.nodes ?? {},
               resume_checkpoint: preview.resume_checkpoint ?? null,
-            }, null, 2),
+            }), null, 2),
             timestamp: new Date().toISOString(),
           });
           setConsoleVisible(true);
