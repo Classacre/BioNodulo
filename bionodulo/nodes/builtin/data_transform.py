@@ -160,7 +160,22 @@ class FilterRowsNode(BaseNode):
     DISPLAY_NAME = "Filter Rows"
     CATEGORY = "data_transform"
     DESCRIPTION = "Filter CSV/TSV rows using numeric, string, regex, or emptiness conditions."
-    SEARCH_ALIASES = ["filter", "rows", "table", "csv", "tsv", "quality gate"]
+    SEARCH_ALIASES = [
+        "filter",
+        "rows",
+        "table",
+        "csv",
+        "tsv",
+        "quality gate",
+        "subset rows",
+        "select rows",
+        "where",
+        "query",
+        "conditional filter",
+        "table filter",
+        "csv filter",
+        "tsv filter",
+    ]
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("filtered_table",)
     REQUIRES_EXTERNAL_TOOLS = False

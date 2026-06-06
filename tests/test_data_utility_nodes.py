@@ -38,6 +38,17 @@ def _read_table(path: str | Path, delimiter: str = "	") -> list[dict[str, str]]:
         return list(csv.DictReader(fh, delimiter=delimiter))
 
 
+def test_filter_rows_exposes_planned_search_aliases_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    aliases = registry.object_info()["filter_rows"]["search_aliases"]
+
+    assert "subset rows" in aliases
+    assert "where" in aliases
+    assert "query" in aliases
+    assert "conditional filter" in aliases
+
+
 @pytest.mark.asyncio
 async def test_filter_rows_filters_numeric_tsv_conditions(tmp_path: Path) -> None:
     table = tmp_path / "samples.tsv"
