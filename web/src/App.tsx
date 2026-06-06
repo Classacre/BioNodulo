@@ -42,6 +42,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
+import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useAuth, useCollabPolling } from './hooks/collab';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
@@ -958,6 +959,10 @@ export default function App() {
   const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
   const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
   const [dryRunPreview, setDryRunPreview] = useState(false);
+  const [resumeCheckpoint, setResumeCheckpoint] = useState<{
+    label: string;
+    checkpoint: CheckpointRecord;
+  } | null>(null);
 
   const isRunning = useAtomValue(isRunningAtom);
   const batchCount = useAtomValue(batchCountAtom);
@@ -1369,6 +1374,7 @@ export default function App() {
           name: batchName,
           parameters: parameterOverrides,
           dry_run: dryRunPreview,
+          resume_checkpoint: resumeCheckpoint?.checkpoint,
         });
         if (dryRunPreview || result.status === 'dry_run') {
           const preview = result as RunRecord & {
@@ -1426,7 +1432,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, setConsoleVisible, setRailTab, t]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -2736,7 +2742,12 @@ export default function App() {
       ));
     }
     if (tab === 'environments') return wrap('environments', <EnvironmentPanel onClose={() => closePanel(tab)} currentWorkflow={activeWorkflow} />);
-    if (tab === 'runtimeArtifacts') return wrap('runtimeArtifacts', <RuntimeArtifactsPanel onClose={() => closePanel(tab)} />);
+    if (tab === 'runtimeArtifacts') return wrap('runtimeArtifacts', (
+      <RuntimeArtifactsPanel
+        onClose={() => closePanel(tab)}
+        onResumeCheckpointSelect={setResumeCheckpoint}
+      />
+    ));
     if (tab === 'hpc') {
       return wrap('hpc', (
         <HPCPanel
@@ -2853,6 +2864,9 @@ export default function App() {
         onToggleQueue={handleToggleQueue}
         dryRunPreview={dryRunPreview}
         onDryRunPreviewChange={setDryRunPreview}
+        resumeCheckpointLabel={resumeCheckpoint?.label ?? null}
+        onOpenRuntimeArtifacts={() => setRailTab('runtimeArtifacts')}
+        onResumeCheckpointClear={() => setResumeCheckpoint(null)}
         collabControls={(
           <CollabBadge
             enabled={collabEnabled}

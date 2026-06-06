@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useWorkflowRuntimeArtifacts } from '../../hooks/workflow/useWorkflowRuntimeArtifacts';
 import type {
   CheckpointManifestResponse,
+  CheckpointRecord,
   PauseRequestRecord,
   ResolveCheckpointInput,
   SubmittedWorkflowTriggerRun,
@@ -12,6 +13,7 @@ import Icon from '../ui/Icon';
 
 interface RuntimeArtifactsPanelProps {
   onClose: () => void;
+  onResumeCheckpointSelect?: (selection: { label: string; checkpoint: CheckpointRecord }) => void;
 }
 
 interface CheckpointSummary {
@@ -145,7 +147,15 @@ function checkpointResolveInput(checkpoint: CheckpointSummary): ResolveCheckpoin
   return { checkpoint_name: checkpoint.name };
 }
 
-export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanelProps) {
+function resumeCheckpointLabel(checkpoint: CheckpointRecord): string {
+  const name = valueAsString(checkpoint.checkpoint_name)
+    || valueAsString(checkpoint.checkpoint_path)?.split(/[\\/]/).filter(Boolean).pop()
+    || 'checkpoint';
+  const nodeId = valueAsString(checkpoint.node_id);
+  return nodeId ? `${name} / ${nodeId}` : name;
+}
+
+export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelect }: RuntimeArtifactsPanelProps) {
   const { t } = useTranslation();
   const {
     checkpointManifest,
@@ -240,7 +250,13 @@ export default function RuntimeArtifactsPanel({ onClose }: RuntimeArtifactsPanel
     setActionError(null);
     setResolvingCheckpointKey(checkpoint.id);
     try {
-      await resolveCheckpoint(checkpointResolveInput(checkpoint));
+      const resolved = await resolveCheckpoint(checkpointResolveInput(checkpoint));
+      if (resolved.checkpoint && onResumeCheckpointSelect) {
+        onResumeCheckpointSelect({
+          label: resumeCheckpointLabel(resolved.checkpoint),
+          checkpoint: resolved.checkpoint,
+        });
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {

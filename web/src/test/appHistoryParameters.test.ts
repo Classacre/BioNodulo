@@ -63,6 +63,17 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain('onDryRunPreviewChange={setDryRunPreview}');
   });
 
+  it('wires resolved runtime checkpoints into App run resume options', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain('const [resumeCheckpoint, setResumeCheckpoint] = useState<');
+    expect(appSource).toContain('resume_checkpoint: resumeCheckpoint?.checkpoint');
+    expect(appSource).toContain('resumeCheckpointLabel={resumeCheckpoint?.label ?? null}');
+    expect(appSource).toContain("onOpenRuntimeArtifacts={() => setRailTab('runtimeArtifacts')}");
+    expect(appSource).toContain('onResumeCheckpointClear={() => setResumeCheckpoint(null)}');
+    expect(appSource).toContain('onResumeCheckpointSelect={setResumeCheckpoint}');
+  });
+
   it('passes sample-sheet workflow parameter overrides into queued runs', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 

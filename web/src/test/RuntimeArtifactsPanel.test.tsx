@@ -29,6 +29,7 @@ describe('RuntimeArtifactsPanel', () => {
   const resolvePauseRequest = vi.fn();
   const refresh = vi.fn();
   const onClose = vi.fn();
+  const onResumeCheckpointSelect = vi.fn();
   let originalLocalStorage: Storage;
 
   beforeEach(() => {
@@ -40,6 +41,7 @@ describe('RuntimeArtifactsPanel', () => {
     resolvePauseRequest.mockReset();
     refresh.mockReset();
     onClose.mockReset();
+    onResumeCheckpointSelect.mockReset();
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReset();
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: {
@@ -143,6 +145,44 @@ describe('RuntimeArtifactsPanel', () => {
       action: 'reject',
       node_id: 'pause-node',
       pause_file: '/workspace/pause_requests/pause-node.json',
+    }));
+  });
+
+  it('selects a resolved checkpoint for run resume options', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    resolveCheckpoint.mockResolvedValueOnce({
+      found: true,
+      manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+      checkpoint: {
+        checkpoint_name: 'after_qc',
+        checkpoint_path: '/workspace/checkpoints/after_qc.json',
+        run_id: 'run-1',
+        node_id: 'qc-node',
+        node_outputs: { report: 'qc.html' },
+      },
+    });
+
+    render(
+      <RuntimeArtifactsPanel
+        onClose={onClose}
+        onResumeCheckpointSelect={onResumeCheckpointSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve after_qc' }));
+
+    await waitFor(() => expect(onResumeCheckpointSelect).toHaveBeenCalledWith({
+      label: 'after_qc / qc-node',
+      checkpoint: {
+        checkpoint_name: 'after_qc',
+        checkpoint_path: '/workspace/checkpoints/after_qc.json',
+        run_id: 'run-1',
+        node_id: 'qc-node',
+        node_outputs: { report: 'qc.html' },
+      },
     }));
   });
 
