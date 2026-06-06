@@ -64,6 +64,23 @@
       }
     },
     {
+      "id": "validate_reference_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Reference FASTA"
+      }
+    },
+    {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
@@ -320,6 +337,17 @@
         "output": "reference"
       },
       "to": {
+        "node": "validate_reference_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3a",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "bwa_idx_001",
         "input": "reference"
       }
@@ -393,8 +421,8 @@
     {
       "id": "e9",
       "from": {
-        "node": "ref_001",
-        "output": "reference"
+        "node": "validate_reference_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "fb_001",
@@ -516,6 +544,7 @@
   "outputs": {
     "vcf": "snpeff_001",
     "variant_stats": "vcf_stats_001",
-    "report": "variant_report_001"
+    "report": "variant_report_001",
+    "validated_reference": "validate_reference_001"
   }
 }

@@ -88,6 +88,24 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
 
 
+def test_wgs_variant_template_validates_reference_before_alignment_and_calling() -> None:
+    workflow = _load_template("wgs_variant_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reference_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "validate_reference_001", "passthrough", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "validate_reference_001", "passthrough", "fb_001", "reference")
+    assert not _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
+    assert not _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+
+
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
