@@ -118,6 +118,22 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     assert workflow["outputs"]["report"] == "phylo_report_001"
 
 
+def test_phylogenetics_template_validates_input_fasta_before_alignment() -> None:
+    workflow = _load_template("phylogenetics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_fasta_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_fasta_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 3
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "seqs_001", "reference", "validate_fasta_001", "input")
+    assert _has_edge(workflow, "validate_fasta_001", "passthrough", "mafft_001", "input")
+    assert not _has_edge(workflow, "seqs_001", "reference", "mafft_001", "input")
+    assert workflow["outputs"]["validated_fasta"] == "validate_fasta_001"
+
+
 def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)

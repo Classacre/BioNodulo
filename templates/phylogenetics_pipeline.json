@@ -37,7 +37,7 @@
       "id": "mafft_001",
       "type": "mafft",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -49,10 +49,27 @@
       }
     },
     {
+      "id": "validate_fasta_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 3,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTA"
+      }
+    },
+    {
       "id": "iqtree_001",
       "type": "iqtree",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -68,7 +85,7 @@
       "id": "msa_view_001",
       "type": "bp_msa_view",
       "position": [
-        800,
+        1160,
         320
       ],
       "params": {
@@ -82,7 +99,7 @@
       "id": "image_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
+        1520,
         320
       ],
       "params": {},
@@ -94,7 +111,7 @@
       "id": "tree_viewer_001",
       "type": "phylo_tree_viewer",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -112,7 +129,7 @@
       "id": "phylo_report_001",
       "type": "html_report",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {
@@ -131,6 +148,17 @@
       "from": {
         "node": "seqs_001",
         "output": "reference"
+      },
+      "to": {
+        "node": "validate_fasta_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1b",
+      "from": {
+        "node": "validate_fasta_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "mafft_001",
@@ -209,6 +237,7 @@
     "tree": "iqtree_001",
     "tree_image": "tree_viewer_001",
     "report": "phylo_report_001",
-    "alignment": "mafft_001"
+    "alignment": "mafft_001",
+    "validated_fasta": "validate_fasta_001"
   }
 }
