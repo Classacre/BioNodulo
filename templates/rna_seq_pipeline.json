@@ -86,7 +86,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -97,10 +97,27 @@
       }
     },
     {
+      "id": "validate_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTQ Reads"
+      }
+    },
+    {
       "id": "hisat2_001",
       "type": "hisat2_align",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -114,7 +131,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -128,7 +145,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {
@@ -156,7 +173,7 @@
       "id": "counts_001",
       "type": "featurecounts",
       "position": [
-        1880,
+        2240,
         80
       ],
       "params": {
@@ -211,7 +228,7 @@
       "id": "qualimap_001",
       "type": "qualimap",
       "position": [
-        1880,
+        2240,
         320
       ],
       "params": {
@@ -226,7 +243,7 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        1880,
+        2240,
         500
       ],
       "params": {},
@@ -238,7 +255,7 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        2240,
+        2600,
         320
       ],
       "params": {
@@ -257,6 +274,17 @@
       "from": {
         "node": "reads_001",
         "output": "reads"
+      },
+      "to": {
+        "node": "validate_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1a",
+      "from": {
+        "node": "validate_reads_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -343,8 +371,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "reads_001",
-        "output": "reads"
+        "node": "validate_reads_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "qc_001",
@@ -446,6 +474,7 @@
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
     "report": "qc_dashboard_001",
+    "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
   }
 }
