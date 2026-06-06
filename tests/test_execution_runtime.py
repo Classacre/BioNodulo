@@ -117,6 +117,20 @@ def test_cache_store_redacts_secret_like_marker_inputs_and_params(tmp_path: Path
     assert "secret-token" not in json.dumps(marker)
 
 
+def test_cache_store_ttl_markers_expire_from_hits_and_reads(tmp_path: Path) -> None:
+    store = CacheStore(tmp_path)
+
+    store.write_marker_with_ttl("fresh-cache", outputs={"out": "fresh"}, ttl_seconds=3600)
+    assert store.is_hit("fresh-cache")
+    assert store.read_marker("fresh-cache")["outputs"] == {"out": "fresh"}
+    assert "expires_at" in store.read_marker("fresh-cache")
+
+    store.write_marker_with_ttl("expired-cache", outputs={"out": "stale"}, ttl_seconds=-1)
+
+    assert not store.is_hit("expired-cache")
+    assert store.read_marker("expired-cache") is None
+
+
 def test_shell_join_preserves_file_descriptor_redirects() -> None:
     command = _shell_join(["tool", "input file.txt", ">", "tool.log", "2>&1"])
 

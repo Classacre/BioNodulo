@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -113,31 +114,34 @@ class CacheStore:
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def is_hit(self, cache_key: str) -> bool:
-        """Return *True* if a cached result exists for *cache_key*."""
-        if self._is_remembered(cache_key):
-            return True
-        if cache_key in self._metadata:
-            self._remember(cache_key)
-            return True
-        exists = self._marker_path(cache_key).is_file()
-        if exists:
-            self._remember(cache_key)
-        return exists
+        """Return *True* if a non-expired cached result exists for *cache_key*."""
+        return self.read_marker(cache_key) is not None
 
     def read_marker(self, cache_key: str) -> dict[str, Any] | None:
         """Read and return the cached metadata for *cache_key*, or *None*."""
         marker = self._metadata.get(cache_key, default=None)
         if isinstance(marker, dict):
+            if self._is_expired(marker):
+                self._delete_marker(cache_key)
+                return None
             self._remember(cache_key)
             return marker
         path = self._marker_path(cache_key)
         if not path.is_file():
+            self._forget(cache_key)
             return None
         try:
             with open(path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
+                marker = json.load(fh)
         except (json.JSONDecodeError, OSError):
             return None
+        if not isinstance(marker, dict):
+            return None
+        if self._is_expired(marker):
+            self._delete_marker(cache_key)
+            return None
+        self._remember(cache_key)
+        return marker
 
     def write_marker(
         self,
@@ -169,6 +173,54 @@ class CacheStore:
             marker["inactive_outputs"] = inactive_outputs
         self._metadata.set(cache_key, marker)
         self._remember(cache_key)
+
+    def write_marker_with_ttl(
+        self,
+        cache_key: str,
+        outputs: dict[str, Any],
+        params: dict[str, Any] | None = None,
+        inputs: dict[str, Any] | None = None,
+        upstream_keys: dict[str, str | None] | None = None,
+        ttl_seconds: int | float | None = None,
+        inactive_outputs: list[str] | None = None,
+    ) -> None:
+        """Write metadata marker with an optional TTL expiration."""
+        self.write_marker(
+            cache_key,
+            outputs=outputs,
+            params=params,
+            inputs=inputs,
+            upstream_keys=upstream_keys,
+            inactive_outputs=inactive_outputs,
+        )
+        if ttl_seconds is None:
+            return
+        marker = self._metadata.get(cache_key, default=None)
+        if not isinstance(marker, dict):
+            return
+        marker["expires_at"] = time.time() + float(ttl_seconds)
+        self._metadata.set(cache_key, marker)
+        self._remember(cache_key)
+
+    @staticmethod
+    def _is_expired(marker: dict[str, Any]) -> bool:
+        expires_at = marker.get("expires_at")
+        if expires_at is None:
+            return False
+        try:
+            return time.time() >= float(expires_at)
+        except (TypeError, ValueError):
+            return False
+
+    def _delete_marker(self, cache_key: str) -> None:
+        self._metadata.delete(cache_key)
+        path = self._marker_path(cache_key)
+        if path.is_file():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        self._forget(cache_key)
 
     def clear(self) -> int:
         """Remove cache-owned metadata without touching unrelated files."""
