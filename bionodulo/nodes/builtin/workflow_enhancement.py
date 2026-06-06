@@ -240,7 +240,10 @@ class DataValidatorNode(BaseNode):
                 "input": ("ANY", {"description": "File path or data value to validate"}),
             },
             "optional": {
-                "expected_format": (["auto", "fasta", "fastq", "vcf", "bam", "csv", "tsv", "json", "yaml", "text"], {"default": "auto"}),
+                "expected_format": (
+                    ["auto", "fasta", "fastq", "vcf", "bam", "csv", "tsv", "json", "yaml", "text", "directory"],
+                    {"default": "auto"},
+                ),
                 "min_size_bytes": ("INT", {"default": 0, "min": 0}),
                 "max_size_bytes": ("INT", {"default": 0, "min": 0}),
                 "required_fields": ("STRING", {"default": "", "description": "Comma-separated required fields"}),
@@ -327,7 +330,7 @@ class DataValidatorNode(BaseNode):
 
     @staticmethod
     def _is_path_list(data: Any, expected_format: str) -> bool:
-        path_formats = {"auto", "fasta", "fastq", "vcf", "bam", "csv", "tsv", "text"}
+        path_formats = {"auto", "fasta", "fastq", "vcf", "bam", "csv", "tsv", "text", "directory"}
         return (
             expected_format in path_formats
             and isinstance(data, (list, tuple))
@@ -406,6 +409,8 @@ class DataValidatorNode(BaseNode):
         if not path.exists():
             report["errors"].append(f"File not found: {path}")
             return False
+        if expected_format == "directory":
+            return self._validate_directory(path, report, min_size, max_size)
         if not path.is_file():
             report["errors"].append(f"Path is not a file: {path}")
             return False
@@ -457,6 +462,44 @@ class DataValidatorNode(BaseNode):
         if ".yaml" in suffixes or ".yml" in suffixes:
             return "yaml"
         return "text"
+
+    def _validate_directory(
+        self,
+        path: Path,
+        report: dict[str, Any],
+        min_size: int,
+        max_size: int,
+    ) -> bool:
+        if not path.is_dir():
+            report["errors"].append(f"Path is not a directory: {path}")
+            return False
+        file_count = 0
+        directory_count = 0
+        total_size = 0
+        try:
+            for child in path.rglob("*"):
+                if child.is_file():
+                    file_count += 1
+                    total_size += child.stat().st_size
+                elif child.is_dir():
+                    directory_count += 1
+        except OSError as exc:
+            report["errors"].append(f"Directory validation error: {exc}")
+            return False
+
+        report["checks"]["directory_exists"] = True
+        report["checks"]["file_count"] = file_count
+        report["checks"]["directory_count"] = directory_count
+        report["checks"]["total_size_bytes"] = total_size
+        if min_size > 0 and total_size < min_size:
+            report["errors"].append(f"Directory contents too small: {total_size} bytes (min: {min_size})")
+            return False
+        if max_size > 0 and total_size > max_size:
+            report["errors"].append(f"Directory contents too large: {total_size} bytes (max: {max_size})")
+            return False
+        report["checks"]["size_ok"] = True
+        report["checks"]["format_valid"] = True
+        return True
 
     def _validate_fasta(self, path: Path, report: dict[str, Any]) -> bool:
         records = 0

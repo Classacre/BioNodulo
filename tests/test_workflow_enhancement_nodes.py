@@ -241,6 +241,34 @@ async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_data_validator_accepts_existing_directory_and_reports_contents(tmp_path: Path) -> None:
+    source = tmp_path / "kraken2_db"
+    source.mkdir()
+    (source / "hash.k2d").write_bytes(b"hash")
+    (source / "opts.k2d").write_bytes(b"opts")
+    (source / "nested").mkdir()
+    (source / "nested" / "taxo.k2d").write_bytes(b"taxonomy")
+
+    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+        input=str(source),
+        expected_format="directory",
+        min_size_bytes=1,
+        context=_context(tmp_path, "validator-directory"),
+    )
+
+    parsed = json.loads(report)
+    assert passthrough == str(source)
+    assert passed is True
+    assert parsed["passed"] is True
+    assert parsed["checks"]["directory_exists"] is True
+    assert parsed["checks"]["file_count"] == 3
+    assert parsed["checks"]["directory_count"] == 1
+    assert parsed["checks"]["total_size_bytes"] == 16
+    assert parsed["checks"]["size_ok"] is True
+    assert Path(report_file).exists()
+
+
+@pytest.mark.asyncio
 async def test_data_validator_raises_on_failure_by_default(tmp_path: Path) -> None:
     missing = tmp_path / "missing.vcf"
 
