@@ -50,6 +50,38 @@ def _coerce_identifiers(value: Any) -> list[str]:
     return [part for part in re.split(r"[\s,;]+", text) if part]
 
 
+def _dedupe_identifiers(identifiers: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for identifier in identifiers:
+        if identifier not in seen:
+            seen.add(identifier)
+            deduped.append(identifier)
+    return deduped
+
+
+def _read_identifier_table(path: str | Path, column: str) -> list[str]:
+    source = Path(path)
+    column = str(column or "").strip()
+    if not column:
+        raise ValueError("id_column is required when protein_table is provided")
+
+    with source.open(newline="", encoding="utf-8") as fh:
+        sample = fh.read(2048)
+        fh.seek(0)
+        if not sample.strip():
+            dialect = csv.excel_tab
+        else:
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",\t")
+            except csv.Error:
+                dialect = csv.excel_tab if "\t" in sample else csv.excel
+        reader = csv.DictReader(fh, dialect=dialect)
+        if reader.fieldnames is None or column not in reader.fieldnames:
+            raise ValueError(f"Column {column!r} not found in STRING identifier table")
+        return [str(row.get(column, "")).strip() for row in reader if str(row.get(column, "")).strip()]
+
+
 def _string_identifier_param(identifiers: list[str]) -> str:
     return "\r".join(identifiers)
 
@@ -163,6 +195,8 @@ class STRINGDBNode(BaseNode):
                 "required_score": ("INT", {"default": 400, "min": 0, "max": 1000}),
                 "network_flavor": (list(NETWORK_FLAVORS), {"default": "evidence"}),
                 "add_nodes": ("INT", {"default": 0, "min": 0, "max": 50}),
+                "protein_table": ("FILE", {"default": "", "description": "Optional CSV/TSV table containing protein IDs or gene symbols"}),
+                "id_column": ("STRING", {"default": "", "description": "Column to read from protein_table"}),
             },
             "hidden": {},
         }
@@ -170,6 +204,10 @@ class STRINGDBNode(BaseNode):
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
         identifiers = _coerce_identifiers(kwargs.get("protein_ids", ""))
+        protein_table = str(kwargs.get("protein_table", "") or "").strip()
+        if protein_table:
+            identifiers.extend(_read_identifier_table(protein_table, str(kwargs.get("id_column", ""))))
+        identifiers = _dedupe_identifiers(identifiers)
         if not identifiers:
             raise ValueError("STRING DB requires at least one protein ID")
 

@@ -228,6 +228,24 @@
       }
     },
     {
+      "id": "string_enrichment_001",
+      "type": "string_db",
+      "position": [
+        1520,
+        1280
+      ],
+      "params": {
+        "protein_ids": "",
+        "protein_table": "",
+        "id_column": "gene",
+        "species": 4932,
+        "query_type": "enrichment"
+      },
+      "ui": {
+        "title": "STRING Enrichment"
+      }
+    },
+    {
       "id": "de_report_001",
       "type": "html_report",
       "position": [
@@ -237,7 +255,7 @@
       "params": {
         "title": "DESeq2 Differential Expression Report",
         "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, filtered significant genes, and pathway gene-set overlaps.",
-        "section_names": "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes,Pathway overlaps"
+        "section_names": "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Significant genes,Pathway overlaps,STRING enrichment"
       },
       "ui": {
         "title": "DE Report"
@@ -491,6 +509,28 @@
       }
     },
     {
+      "id": "e7h",
+      "from": {
+        "node": "significant_genes_001",
+        "output": "filtered_table"
+      },
+      "to": {
+        "node": "string_enrichment_001",
+        "input": "protein_table"
+      }
+    },
+    {
+      "id": "e7i",
+      "from": {
+        "node": "string_enrichment_001",
+        "output": "interaction_network"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e8",
       "from": {
         "node": "ma_plot_001",
@@ -533,6 +573,7 @@
     "significant_genes": "significant_genes_001",
     "pathway_overlaps": "pathway_enrichment_001",
     "pathway_enrichment": "pathway_enrichment_001",
+    "string_enrichment": "string_enrichment_001",
     "normalized_counts": "deseq2_001",
     "heatmap": "heatmap_001",
     "report": "de_report_001",

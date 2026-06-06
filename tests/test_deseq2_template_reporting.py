@@ -37,15 +37,17 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert node_types["pca_plot_001"] == "scatter_plot"
     assert node_types["pathway_gene_sets_001"] == "input_file"
     assert node_types["pathway_enrichment_001"] == "intersect_genes"
+    assert node_types["string_enrichment_001"] == "string_db"
 
     report = _node_by_id(workflow, "de_report_001")
     pca_plot = _node_by_id(workflow, "pca_plot_001")
     pathway_gene_sets = _node_by_id(workflow, "pathway_gene_sets_001")
     pathway_enrichment = _node_by_id(workflow, "pathway_enrichment_001")
+    string_enrichment = _node_by_id(workflow, "string_enrichment_001")
     assert report["params"]["title"] == "DESeq2 Differential Expression Report"
     assert report["params"]["section_names"] == (
         "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,"
-        "Normalized counts,Significant genes,Pathway overlaps"
+        "Normalized counts,Significant genes,Pathway overlaps,STRING enrichment"
     )
     assert pca_plot["params"]["x_column"] == "PC1"
     assert pca_plot["params"]["y_column"] == "PC2"
@@ -55,6 +57,11 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert pathway_enrichment["params"]["input_column"] == "gene"
     assert pathway_enrichment["params"]["database_format"] == "json"
     assert pathway_enrichment["params"]["case_sensitive"] is False
+    assert string_enrichment["params"]["protein_ids"] == ""
+    assert string_enrichment["params"]["protein_table"] == ""
+    assert string_enrichment["params"]["id_column"] == "gene"
+    assert string_enrichment["params"]["query_type"] == "enrichment"
+    assert string_enrichment["params"]["species"] == 4932
 
     assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
     assert _has_edge(workflow, "ma_plot_001", "ma_image", "de_report_001", "images")
@@ -67,11 +74,14 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "pathway_enrichment_001", "input_genes")
     assert _has_edge(workflow, "pathway_gene_sets_001", "file", "pathway_enrichment_001", "database")
     assert _has_edge(workflow, "pathway_enrichment_001", "overlap", "de_report_001", "tables")
+    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "string_enrichment_001", "protein_table")
+    assert _has_edge(workflow, "string_enrichment_001", "interaction_network", "de_report_001", "tables")
     assert _has_edge(workflow, "de_report_001", "html_report", "de_report_preview_001", "file")
 
     assert workflow["outputs"]["normalized_counts"] == "deseq2_001"
     assert workflow["outputs"]["pca_plot"] == "pca_plot_001"
     assert workflow["outputs"]["pathway_overlaps"] == "pathway_enrichment_001"
     assert workflow["outputs"]["pathway_enrichment"] == "pathway_enrichment_001"
+    assert workflow["outputs"]["string_enrichment"] == "string_enrichment_001"
     assert workflow["outputs"]["report"] == "de_report_001"
     assert workflow["outputs"]["report_preview"] == "de_report_preview_001"

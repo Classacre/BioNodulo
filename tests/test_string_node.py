@@ -30,6 +30,15 @@ def test_string_db_is_registered_for_frontend_discovery() -> None:
     assert info["string_db"]["category"] == "databases"
     assert info["string_db"]["output_name"] == ["interaction_network", "network_metadata"]
     assert info["string_db"]["output"] == ["TSV", "JSON"]
+    assert set(info["string_db"]["input"]["optional"]) == {
+        "species",
+        "query_type",
+        "required_score",
+        "network_flavor",
+        "add_nodes",
+        "protein_table",
+        "id_column",
+    }
 
 
 @pytest.mark.asyncio
@@ -197,11 +206,58 @@ async def test_string_db_enrichment_writes_tsv_and_parsed_rows(
 
 
 @pytest.mark.asyncio
-async def test_string_db_rejects_empty_ids_and_bad_query_type() -> None:
+async def test_string_db_reads_identifiers_from_table_column(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("string_db")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    table = tmp_path / "significant_genes.csv"
+    table.write_text("gene,padj\nTP53,0.001\nMDM2,0.02\nTP53,0.03\n,0.04\n", encoding="utf-8")
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return "category\tterm\tdescription\tfdr\nProcess\tGO:0006915\tapoptotic process\t0.002\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        protein_ids="",
+        protein_table=str(table),
+        id_column="gene",
+        species=9606,
+        query_type="enrichment",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    metadata = json.loads(Path(result["outputs"]["network_metadata"]).read_text(encoding="utf-8"))
+
+    assert metadata["identifiers"] == ["TP53", "MDM2"]
+    assert calls == [
+        {
+            "endpoint": "tsv/enrichment",
+            "params": {
+                "identifiers": "TP53\rMDM2",
+                "species": 9606,
+                "caller_identity": "BioNodulo",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_string_db_rejects_empty_ids_and_bad_query_type(tmp_path: Path) -> None:
     node_class = _node_class("string_db")
 
     with pytest.raises(ValueError, match="requires at least one protein ID"):
         await node_class().run(protein_ids="")
+
+    with pytest.raises(ValueError, match="Column 'missing' not found in STRING identifier table"):
+        table = tmp_path / "string_missing_column.tsv"
+        table.write_text("gene\nTP53\n", encoding="utf-8")
+        await node_class().run(protein_ids="", protein_table=str(table), id_column="missing")
 
     with pytest.raises(ValueError, match="Unsupported STRING query_type"):
         await node_class().run(protein_ids="TP53", query_type="orthologs")
