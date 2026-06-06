@@ -173,6 +173,33 @@ def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
     assert workflow["outputs"]["report"] == "de_report_001"
 
 
+def test_deseq2_template_validates_count_matrix_and_sample_info_before_analysis() -> None:
+    workflow = _load_template("deseq2_differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_counts_001"] == "data_validator"
+    assert node_types["validate_samples_001"] == "data_validator"
+    counts_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_counts_001")
+    samples_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_samples_001")
+    assert counts_validator["params"]["expected_format"] == "csv"
+    assert counts_validator["params"]["min_records"] >= 1
+    assert counts_validator["params"]["min_size_bytes"] > 0
+    assert counts_validator["params"]["fail_on_error"] is True
+    assert samples_validator["params"]["expected_format"] == "csv"
+    assert samples_validator["params"]["min_records"] >= 2
+    assert samples_validator["params"]["required_fields"] == "sample,condition"
+    assert samples_validator["params"]["min_size_bytes"] > 0
+    assert samples_validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "counts_001", "file", "validate_counts_001", "input")
+    assert _has_edge(workflow, "validate_counts_001", "passthrough", "deseq2_001", "count_matrix")
+    assert _has_edge(workflow, "samples_001", "file", "validate_samples_001", "input")
+    assert _has_edge(workflow, "validate_samples_001", "passthrough", "deseq2_001", "sample_info")
+    assert not _has_edge(workflow, "counts_001", "file", "deseq2_001", "count_matrix")
+    assert not _has_edge(workflow, "samples_001", "file", "deseq2_001", "sample_info")
+    assert workflow["outputs"]["validated_counts"] == "validate_counts_001"
+    assert workflow["outputs"]["validated_sample_info"] == "validate_samples_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)

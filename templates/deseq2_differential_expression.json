@@ -48,10 +48,45 @@
       }
     },
     {
+      "id": "validate_counts_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Count Matrix"
+      }
+    },
+    {
+      "id": "validate_samples_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        234
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_records": 2,
+        "min_size_bytes": 1,
+        "required_fields": "sample,condition",
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Sample Info"
+      }
+    },
+    {
       "id": "deseq2_001",
       "type": "deseq2_analysis",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -69,7 +104,7 @@
       "id": "heatmap_001",
       "type": "r_pheatmap",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -91,7 +126,7 @@
       "id": "volcano_001",
       "type": "volcano_plot",
       "position": [
-        800,
+        1160,
         320
       ],
       "params": {
@@ -108,7 +143,7 @@
       "id": "ma_plot_001",
       "type": "ma_plot",
       "position": [
-        800,
+        1160,
         560
       ],
       "params": {
@@ -126,7 +161,7 @@
       "id": "de_report_001",
       "type": "html_report",
       "position": [
-        1160,
+        1520,
         320
       ],
       "params": {
@@ -142,7 +177,7 @@
       "id": "ma_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
+        1520,
         560
       ],
       "params": {},
@@ -154,7 +189,7 @@
       "id": "heatmap_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {},
@@ -171,6 +206,17 @@
         "output": "file"
       },
       "to": {
+        "node": "validate_counts_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1b",
+      "from": {
+        "node": "validate_counts_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "deseq2_001",
         "input": "count_matrix"
       }
@@ -180,6 +226,17 @@
       "from": {
         "node": "samples_001",
         "output": "file"
+      },
+      "to": {
+        "node": "validate_samples_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2b",
+      "from": {
+        "node": "validate_samples_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "deseq2_001",
@@ -270,6 +327,8 @@
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001",
     "heatmap": "heatmap_001",
-    "report": "de_report_001"
+    "report": "de_report_001",
+    "validated_counts": "validate_counts_001",
+    "validated_sample_info": "validate_samples_001"
   }
 }
