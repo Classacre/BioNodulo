@@ -1329,6 +1329,7 @@ async def test_workflow_trigger_records_file_watch_intent(tmp_path: Path) -> Non
     assert trigger_info["path_exists"] is True
     assert trigger_info["path_type"] == "directory"
     assert trigger_info["active_file_watcher_supported"] is False
+    assert trigger_info["durable_trigger_runner_supported"] is True
     assert watch_file == tmp_path / "workflow_triggers" / "file_watch_trigger-watch.json"
     saved = json.loads(watch_file.read_text(encoding="utf-8"))
     assert saved["target_workflow"] == "auto-import"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -35,17 +36,8 @@ class WorkflowTriggerRunner:
         due_file_watch_triggers = WorkflowTriggerNode.due_file_watch_triggers(self.trigger_dir)
         submitted_runs: list[dict[str, Any]] = []
         errors: list[dict[str, str]] = []
-        for trigger in due_file_watch_triggers:
-            try:
-                self._advance_file_watch_baseline(trigger)
-            except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
-                errors.append({
-                    "kind": "file_watch_baseline",
-                    "trigger_file": str(trigger.get("trigger_file", "")),
-                    "error": str(exc),
-                })
         if submit_runs:
-            for trigger in [*due_schedule_triggers, *due_file_watch_triggers]:
+            for trigger in due_schedule_triggers:
                 try:
                     submitted_runs.append(await self.submit_due_trigger(trigger))
                 except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
@@ -54,6 +46,22 @@ class WorkflowTriggerRunner:
                         "trigger_file": str(trigger.get("trigger_file", "")),
                         "error": str(exc),
                     })
+            for trigger in due_file_watch_triggers:
+                try:
+                    submitted = await self.submit_due_trigger(trigger)
+                    submitted_runs.append(submitted)
+                except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
+                    errors.append({
+                        "kind": "submission",
+                        "trigger_file": str(trigger.get("trigger_file", "")),
+                        "error": str(exc),
+                    })
+                    continue
+                if self._submission_acknowledges_trigger(submitted):
+                    self._advance_file_watch_baseline_with_error_capture(trigger, errors)
+        else:
+            for trigger in due_file_watch_triggers:
+                self._advance_file_watch_baseline_with_error_capture(trigger, errors)
 
         return {
             "trigger_dir": str(self.trigger_dir),
@@ -65,6 +73,71 @@ class WorkflowTriggerRunner:
             "submitted_run_count": sum(1 for item in submitted_runs if item.get("status") == "submitted"),
             "errors": errors,
         }
+
+    async def run_polling(
+        self,
+        *,
+        interval_seconds: float = 60.0,
+        submit_runs: bool = True,
+        stop_event: asyncio.Event | None = None,
+        max_iterations: int | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate trigger records repeatedly until stopped."""
+        if max_iterations is not None and max_iterations < 0:
+            raise ValueError("max_iterations must be non-negative")
+        interval = max(0.0, float(interval_seconds))
+        iterations = 0
+        submitted_runs: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        last_evaluation: dict[str, Any] | None = None
+
+        while max_iterations is None or iterations < max_iterations:
+            if stop_event is not None and stop_event.is_set():
+                break
+            last_evaluation = await self.evaluate(submit_runs=submit_runs)
+            iterations += 1
+            submitted_runs.extend(last_evaluation.get("submitted_runs", []))
+            errors.extend(last_evaluation.get("errors", []))
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+            if stop_event is not None and stop_event.is_set():
+                break
+            if stop_event is None:
+                await asyncio.sleep(interval)
+            else:
+                try:
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    pass
+
+        return {
+            "trigger_dir": str(self.trigger_dir),
+            "iterations": iterations,
+            "last_evaluation": last_evaluation,
+            "submitted_runs": submitted_runs,
+            "submitted_run_count": sum(1 for item in submitted_runs if item.get("status") == "submitted"),
+            "errors": errors,
+        }
+
+    @staticmethod
+    def _submission_acknowledges_trigger(submission: dict[str, Any]) -> bool:
+        return submission.get("status") == "submitted" or (
+            submission.get("status") == "skipped" and submission.get("reason") == "already_submitted"
+        )
+
+    def _advance_file_watch_baseline_with_error_capture(
+        self,
+        trigger: dict[str, Any],
+        errors: list[dict[str, str]],
+    ) -> None:
+        try:
+            self._advance_file_watch_baseline(trigger)
+        except Exception as exc:  # noqa: BLE001 - one bad trigger must not abort evaluation
+            errors.append({
+                "kind": "file_watch_baseline",
+                "trigger_file": str(trigger.get("trigger_file", "")),
+                "error": str(exc),
+            })
 
     @staticmethod
     def _advance_file_watch_baseline(trigger: dict[str, Any]) -> None:

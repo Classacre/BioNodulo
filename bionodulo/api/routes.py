@@ -346,8 +346,12 @@ def _workflow_trigger_runtime_contract() -> dict[str, Any]:
         "durable_scheduler_supported": True,
         "file_watch_runner_contract_supported": True,
         "polling_file_watcher_supported": True,
+        "durable_trigger_runner_supported": True,
         "run_submission_supported": False,
-        "workflow_trigger_note": "Workflow trigger registrations are pollable metadata; durable evaluation can submit embedded workflows.",
+        "workflow_trigger_note": (
+            "Workflow trigger registrations are pollable metadata; the durable polling runner can evaluate "
+            "schedule and file-watch triggers and submit embedded workflows."
+        ),
     }
 
 

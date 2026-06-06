@@ -2252,7 +2252,11 @@ class WorkflowTriggerNode(BaseNode):
             "baseline_snapshot": self._file_watch_snapshot(path) if exists and path is not None else {},
             "file_watch_runner_contract_supported": exists,
             "active_file_watcher_supported": False,
-            "note": "File-watch registration written with pollable baseline metadata; active filesystem watcher execution is not implemented yet.",
+            "durable_trigger_runner_supported": exists,
+            "note": (
+                "File-watch registration written with pollable baseline metadata; durable polling runner "
+                "evaluation can submit embedded workflows, while native filesystem watcher execution is not implemented yet."
+            ),
         }
         if not exists:
             info["error"] = f"Watch path does not exist: {watch_path}"
