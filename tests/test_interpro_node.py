@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
@@ -34,6 +35,76 @@ def test_interpro_scan_is_registered_for_frontend_discovery() -> None:
     assert info["interpro"]["output_name"] == ["domain_annotations", "domains_tsv"]
     assert info["interpro"]["output"] == ["JSON", "TSV"]
     assert issubclass(registry.get("interpro"), registry.get("interpro_scan"))
+
+
+@pytest.mark.asyncio
+async def test_interproscan_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("interpro_scan")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    assert isinstance(module.INTERPROSCAN_API_CACHE, module.APICache)
+    assert isinstance(module.INTERPROSCAN_RATE_LIMITER, module.TokenBucketRateLimiter)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            self.cache = cache
+            self.rate_limiter = rate_limiter
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "cache": self.cache,
+                    "rate_limiter": self.rate_limiter,
+                    **kwargs,
+                }
+            )
+            request = httpx.Request(method, url, headers=kwargs.get("headers"))
+            text = "IPRSCAN-JOB-1\n" if method == "POST" else "FINISHED"
+            return httpx.Response(200, text=text, request=request)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+
+    post_response = await module._request(
+        "POST",
+        "run",
+        data={"email": "analyst@example.org", "sequence": "MEEPQSDPSV"},
+        retries=4,
+        timeout=8.0,
+    )
+    get_response = await module._request("GET", "status/IPRSCAN-JOB-1", retries=2, timeout=9.0)
+
+    assert post_response.text == "IPRSCAN-JOB-1\n"
+    assert get_response.text == "FINISHED"
+    assert calls == [
+        {
+            "method": "POST",
+            "url": f"{module.INTERPROSCAN_BASE_URL}/run",
+            "cache": module.INTERPROSCAN_API_CACHE,
+            "rate_limiter": module.INTERPROSCAN_RATE_LIMITER,
+            "data": {"email": "analyst@example.org", "sequence": "MEEPQSDPSV"},
+            "headers": {"User-Agent": module.INTERPROSCAN_USER_AGENT},
+            "timeout": 8.0,
+            "retries": 4,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+        {
+            "method": "GET",
+            "url": f"{module.INTERPROSCAN_BASE_URL}/status/IPRSCAN-JOB-1",
+            "cache": module.INTERPROSCAN_API_CACHE,
+            "rate_limiter": module.INTERPROSCAN_RATE_LIMITER,
+            "headers": {"User-Agent": module.INTERPROSCAN_USER_AGENT},
+            "timeout": 9.0,
+            "retries": 2,
+            "retry_delay": module.RETRY_DELAY_S,
+            "cache_ttl": None,
+            "follow_redirects": True,
+        },
+    ]
 
 
 @pytest.mark.asyncio

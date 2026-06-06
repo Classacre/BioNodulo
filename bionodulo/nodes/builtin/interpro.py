@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
 
 INTERPROSCAN_BASE_URL = "https://www.ebi.ac.uk/Tools/services/rest/iprscan5"
@@ -18,6 +19,10 @@ INTERPROSCAN_USER_AGENT = "BioNodulo/2.0 (workflow node; InterProScan REST)"
 REQUEST_TIMEOUT_S = 60.0
 MAX_RETRIES = 3
 RETRY_DELAY_S = 1.0
+INTERPROSCAN_CACHE_TTL_S = 300.0
+INTERPROSCAN_RATE_LIMIT_PER_SECOND = 1.0
+INTERPROSCAN_API_CACHE = APICache(ttl_seconds=INTERPROSCAN_CACHE_TTL_S)
+INTERPROSCAN_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=INTERPROSCAN_RATE_LIMIT_PER_SECOND, burst=1)
 RUNNING_STATUSES = {"PENDING", "RUNNING", "QUEUED"}
 FAILED_STATUSES = {"FAILURE", "ERROR", "NOT_FOUND"}
 
@@ -88,31 +93,29 @@ async def _request(
 ) -> httpx.Response:
     endpoint = endpoint.lstrip("/")
     url = f"{INTERPROSCAN_BASE_URL}/{endpoint}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                headers={"User-Agent": INTERPROSCAN_USER_AGENT},
-            ) as client:
-                if method.upper() == "POST":
-                    response = await client.post(url, data=data)
-                else:
-                    response = await client.get(url)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as exc:
-            last_error = exc
-            status = exc.response.status_code
-            if status < 500 or attempt >= retries - 1:
-                body = exc.response.text[:500]
-                raise RuntimeError(f"InterProScan {endpoint} failed with HTTP {status}: {body}") from exc
-        except httpx.HTTPError as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise RuntimeError(f"InterProScan {endpoint} request failed: {exc}") from exc
-        await asyncio.sleep(RETRY_DELAY_S * (2 ** attempt))
-    raise RuntimeError(f"InterProScan {endpoint} request failed: {last_error}")
+    client = APIHttpClient(cache=INTERPROSCAN_API_CACHE, rate_limiter=INTERPROSCAN_RATE_LIMITER)
+    method = method.upper()
+    request_kwargs: dict[str, Any] = {}
+    if method == "POST":
+        request_kwargs["data"] = data
+    try:
+        return await client.request(
+            method,
+            url,
+            **request_kwargs,
+            headers={"User-Agent": INTERPROSCAN_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=None,
+            follow_redirects=True,
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        body = exc.response.text[:500]
+        raise RuntimeError(f"InterProScan {endpoint} failed with HTTP {status}: {body}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"InterProScan {endpoint} request failed: {exc}") from exc
 
 
 def _interpro_to_tsv(result: dict[str, Any]) -> str:
