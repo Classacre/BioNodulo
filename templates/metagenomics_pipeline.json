@@ -97,6 +97,22 @@
       }
     },
     {
+      "id": "validate_db_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "directory",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Kraken2 DB"
+      }
+    },
+    {
       "id": "bracken_001",
       "type": "bracken",
       "position": [
@@ -287,8 +303,8 @@
         "output": "directory"
       },
       "to": {
-        "node": "kraken2_001",
-        "input": "db"
+        "node": "validate_db_001",
+        "input": "input"
       }
     },
     {
@@ -305,8 +321,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "db_001",
-        "output": "directory"
+        "node": "validate_db_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "bracken_001",
@@ -422,6 +438,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "validate_db_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "kraken2_001",
+        "input": "db"
+      }
     }
   ],
   "groups": [],
@@ -430,6 +457,7 @@
     "taxonomy_chart": "bracken_bar_001",
     "taxonomy_report": "taxonomy_report_001",
     "validated_bracken_report": "validate_bracken_001",
+    "validated_db": "validate_db_001",
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001",
     "validated_reads": "validate_reads_001",

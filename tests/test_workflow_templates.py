@@ -808,6 +808,23 @@ def test_metagenomics_template_validates_reads_before_trimming_and_qc() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_metagenomics_template_validates_database_directory_before_profiling() -> None:
+    workflow = _load_template("metagenomics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_db_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_db_001")
+    assert validator["params"]["expected_format"] == "directory"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "db_001", "directory", "validate_db_001", "input")
+    assert _has_edge(workflow, "validate_db_001", "passthrough", "kraken2_001", "db")
+    assert _has_edge(workflow, "validate_db_001", "passthrough", "bracken_001", "db")
+    assert not _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
+    assert not _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
+    assert workflow["outputs"]["validated_db"] == "validate_db_001"
+
+
 def test_metagenomics_template_validates_bracken_report_before_visualization() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
