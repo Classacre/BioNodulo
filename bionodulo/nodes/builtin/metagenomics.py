@@ -5,6 +5,7 @@ functional profiling (HUMAnN), binning (MaxBin), and quality assessment (CheckM)
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -228,8 +229,8 @@ class HUMAnNNode(CommandNode):
     CATEGORY = "metagenomics"
     DESCRIPTION = "Functional profiling of microbial communities"
     SEARCH_ALIASES = ["humann", "functional", "pathway", "gene family"]
-    RETURN_TYPES = ("HUMANN_OUTPUT",)
-    RETURN_NAMES = ("output_dir",)
+    RETURN_TYPES = ("HUMANN_OUTPUT", "TSV", "TSV", "TSV")
+    RETURN_NAMES = ("output_dir", "genefamilies", "pathabundance", "pathcoverage")
     REQUIRED_EXECUTABLES = ["humann"]
     DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
     VERSION = "3.8"
@@ -254,6 +255,30 @@ class HUMAnNNode(CommandNode):
         if inputs.get("bypass_translated_search"):
             cmd.append("--bypass-translated-search")
         return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        output_path = node_out / "output_dir.out"
+        output_path.mkdir(parents=True, exist_ok=True)
+        stem = cls._read_stem(inputs.get("reads", "sample"))
+        return [
+            output_path,
+            output_path / f"{stem}_genefamilies.tsv",
+            output_path / f"{stem}_pathabundance.tsv",
+            output_path / f"{stem}_pathcoverage.tsv",
+        ]
+
+    @staticmethod
+    def _read_stem(reads: Any) -> str:
+        if isinstance(reads, (list, tuple)) and reads:
+            reads = reads[0]
+        name = Path(str(reads or "sample")).name
+        for suffix in (".fastq.gz", ".fq.gz", ".fastq", ".fq", ".fasta.gz", ".fa.gz", ".fasta", ".fa"):
+            if name.lower().endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+        return name or "sample"
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

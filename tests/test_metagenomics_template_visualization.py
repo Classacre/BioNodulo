@@ -43,3 +43,28 @@ def test_metagenomics_template_adds_qc_dashboard_from_fastqc_report() -> None:
     assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+
+
+def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
+    workflow = _load_template("metagenomics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_humann_pathways_001"] == "data_validator"
+    assert node_types["functional_report_001"] == "html_report"
+    assert node_types["functional_report_preview_001"] == "html_preview"
+
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathways_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "functional_report_001")
+    assert validator["params"]["expected_format"] == "tsv"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert report["params"]["title"] == "Metagenomics Functional Report"
+    assert report["params"]["section_names"] == "HUMAnN pathway abundance,HUMAnN gene families"
+
+    assert _has_edge(workflow, "humann_001", "pathabundance", "validate_humann_pathways_001", "input")
+    assert _has_edge(workflow, "validate_humann_pathways_001", "passthrough", "functional_report_001", "tables")
+    assert _has_edge(workflow, "humann_001", "genefamilies", "functional_report_001", "tables")
+    assert _has_edge(workflow, "functional_report_001", "html_report", "functional_report_preview_001", "file")
+    assert workflow["outputs"]["validated_humann_pathways"] == "validate_humann_pathways_001"
+    assert workflow["outputs"]["functional_report"] == "functional_report_001"
+    assert workflow["outputs"]["functional_report_preview"] == "functional_report_preview_001"

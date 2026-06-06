@@ -290,6 +290,50 @@
       }
     },
     {
+      "id": "validate_humann_pathways_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        976
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate HUMAnN Pathways"
+      }
+    },
+    {
+      "id": "functional_report_001",
+      "type": "html_report",
+      "position": [
+        1520,
+        976
+      ],
+      "params": {
+        "title": "Metagenomics Functional Report",
+        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance and gene families.",
+        "section_names": "HUMAnN pathway abundance,HUMAnN gene families"
+      },
+      "ui": {
+        "title": "Functional Report"
+      }
+    },
+    {
+      "id": "functional_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1880,
+        976
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Functional Report"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -563,6 +607,50 @@
       }
     },
     {
+      "id": "e10a",
+      "from": {
+        "node": "humann_001",
+        "output": "pathabundance"
+      },
+      "to": {
+        "node": "validate_humann_pathways_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10b",
+      "from": {
+        "node": "validate_humann_pathways_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "functional_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e10c",
+      "from": {
+        "node": "humann_001",
+        "output": "genefamilies"
+      },
+      "to": {
+        "node": "functional_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e10d",
+      "from": {
+        "node": "functional_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "functional_report_preview_001",
+        "input": "file"
+      }
+    },
+    {
       "id": "e11",
       "from": {
         "node": "validate_reads_001",
@@ -664,6 +752,9 @@
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001",
     "humann_retry_policy": "humann_retry_001",
+    "validated_humann_pathways": "validate_humann_pathways_001",
+    "functional_report": "functional_report_001",
+    "functional_report_preview": "functional_report_preview_001",
     "validated_reads": "validate_reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_multiqc_report": "validate_multiqc_001",
