@@ -103,3 +103,22 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     assert _has_edge(workflow, "mafft_001", "alignment", "phylo_report_001", "tables")
     assert workflow["outputs"]["tree_image"] == "tree_viewer_001"
     assert workflow["outputs"]["report"] == "phylo_report_001"
+
+
+def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["qualimap_001"] == "qualimap"
+    assert node_types["flagstat_001"] == "samtools_flagstat"
+    assert node_types["qc_dashboard_001"] == "qc_dashboard"
+    dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
+    assert dashboard["params"]["run_name"] == "RNA-Seq QC"
+    assert _has_edge(workflow, "sort_001", "sorted_bam", "qualimap_001", "bam")
+    assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
+    assert _has_edge(workflow, "sort_001", "sorted_bam", "flagstat_001", "bam")
+    assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
+    assert _has_edge(workflow, "flagstat_001", "stats", "qc_dashboard_001", "alignment_stats")
+    assert workflow["outputs"]["alignment_qc"] == "qualimap_001"
+    assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+    assert workflow["outputs"]["report"] == "qc_dashboard_001"

@@ -189,6 +189,49 @@
       "ui": {
         "title": "View MultiQC Report"
       }
+    },
+    {
+      "id": "qualimap_001",
+      "type": "qualimap",
+      "position": [
+        1880,
+        320
+      ],
+      "params": {
+        "threads": 4,
+        "paint_chromosome_limits": true
+      },
+      "ui": {
+        "title": "QualiMap BAM QC"
+      }
+    },
+    {
+      "id": "flagstat_001",
+      "type": "samtools_flagstat",
+      "position": [
+        1880,
+        500
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools flagstat"
+      }
+    },
+    {
+      "id": "qc_dashboard_001",
+      "type": "qc_dashboard",
+      "position": [
+        2240,
+        320
+      ],
+      "params": {
+        "run_name": "RNA-Seq QC",
+        "title": "RNA-Seq Alignment QC Dashboard",
+        "theme": "light"
+      },
+      "ui": {
+        "title": "QC Dashboard"
+      }
     }
   ],
   "edges": [
@@ -312,11 +355,68 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "qualimap_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "annot_001",
+        "output": "annotation"
+      },
+      "to": {
+        "node": "qualimap_001",
+        "input": "feature_file"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "flagstat_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "qc_dashboard_001",
+        "input": "fastqc_dir"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "flagstat_001",
+        "output": "stats"
+      },
+      "to": {
+        "node": "qc_dashboard_001",
+        "input": "alignment_stats"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "counts": "counts_001",
-    "report": "mqc_001"
+    "alignment_qc": "qualimap_001",
+    "qc_dashboard": "qc_dashboard_001",
+    "report": "qc_dashboard_001"
   }
 }
