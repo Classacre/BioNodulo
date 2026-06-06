@@ -41,7 +41,7 @@
       "id": "fastqc_001",
       "type": "fastqc",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -55,7 +55,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
@@ -66,10 +66,27 @@
       }
     },
     {
+      "id": "validate_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTQ Reads"
+      }
+    },
+    {
       "id": "multiqc_001",
       "type": "multiqc",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -83,7 +100,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
+        2240,
         80
       ],
       "params": {},
@@ -95,7 +112,7 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {
@@ -111,7 +128,7 @@
       "id": "gate_multiqc_001",
       "type": "gate",
       "position": [
-        1700,
+        2060,
         220
       ],
       "params": {
@@ -130,6 +147,17 @@
       "from": {
         "node": "input_fastq_001",
         "output": "reads"
+      },
+      "to": {
+        "node": "validate_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1a",
+      "from": {
+        "node": "validate_reads_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -196,6 +224,7 @@
   "outputs": {
     "report": "multiqc_001",
     "validated_report": "validate_multiqc_001",
-    "trimmed_reads": "fastp_001"
+    "trimmed_reads": "fastp_001",
+    "validated_reads": "validate_reads_001"
   }
 }
