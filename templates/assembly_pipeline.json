@@ -72,7 +72,7 @@
       "id": "spades_001",
       "type": "spades",
       "position": [
-        800,
+        980,
         80
       ],
       "params": {
@@ -80,6 +80,38 @@
       },
       "ui": {
         "title": "SPAdes Assembly"
+      }
+    },
+    {
+      "id": "switch_assembler_001",
+      "type": "switch",
+      "position": [
+        800,
+        80
+      ],
+      "params": {
+        "value": "spades",
+        "cases": "spades,megahit",
+        "num_branches": 2,
+        "fallback": "error"
+      },
+      "ui": {
+        "title": "Select Assembler"
+      }
+    },
+    {
+      "id": "megahit_001",
+      "type": "megahit",
+      "position": [
+        980,
+        220
+      ],
+      "params": {
+        "threads": 8,
+        "min_contig_len": 200
+      },
+      "ui": {
+        "title": "MEGAHIT Assembly"
       }
     },
     {
@@ -249,7 +281,29 @@
         "output": "trimmed_reads"
       },
       "to": {
+        "node": "switch_assembler_001",
+        "input": "passthrough_data"
+      }
+    },
+    {
+      "id": "e2a",
+      "from": {
+        "node": "switch_assembler_001",
+        "output": "output_1"
+      },
+      "to": {
         "node": "spades_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e2b",
+      "from": {
+        "node": "switch_assembler_001",
+        "output": "output_2"
+      },
+      "to": {
+        "node": "megahit_001",
         "input": "reads"
       }
     },
@@ -258,6 +312,17 @@
       "from": {
         "node": "spades_001",
         "output": "assembly"
+      },
+      "to": {
+        "node": "validate_assembly_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3a",
+      "from": {
+        "node": "megahit_001",
+        "output": "contigs"
       },
       "to": {
         "node": "validate_assembly_001",
@@ -356,6 +421,8 @@
   "groups": [],
   "outputs": {
     "assembly": "spades_001",
+    "assembler_switch": "switch_assembler_001",
+    "megahit_assembly": "megahit_001",
     "validated_assembly": "validate_assembly_001",
     "assembly_quality_gate": "gate_assembly_001",
     "validated_reads": "validate_reads_001",

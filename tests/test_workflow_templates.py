@@ -747,6 +747,30 @@ def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -
     assert workflow["outputs"]["validated_assembly"] == "validate_assembly_001"
 
 
+def test_assembly_template_adds_megahit_switch_alternative() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["switch_assembler_001"] == "switch"
+    assert node_types["megahit_001"] == "megahit"
+    switch = next(node for node in workflow["nodes"] if node["id"] == "switch_assembler_001")
+    megahit = next(node for node in workflow["nodes"] if node["id"] == "megahit_001")
+    assert switch["params"]["value"] == "spades"
+    assert switch["params"]["cases"] == "spades,megahit"
+    assert switch["params"]["num_branches"] == 2
+    assert megahit["params"]["threads"] == 8
+    assert megahit["params"]["min_contig_len"] == 200
+
+    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "switch_assembler_001", "passthrough_data")
+    assert _has_edge(workflow, "switch_assembler_001", "output_1", "spades_001", "reads")
+    assert _has_edge(workflow, "switch_assembler_001", "output_2", "megahit_001", "reads")
+    assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
+    assert _has_edge(workflow, "megahit_001", "contigs", "validate_assembly_001", "input")
+    assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
+    assert workflow["outputs"]["assembler_switch"] == "switch_assembler_001"
+    assert workflow["outputs"]["megahit_assembly"] == "megahit_001"
+
+
 def test_assembly_template_gates_validated_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
@@ -776,9 +800,10 @@ def test_assembly_template_validates_reads_before_trimming() -> None:
     assert validator["params"]["fail_on_error"] is True
     assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
     assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
+    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "switch_assembler_001", "passthrough_data")
     assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "reads_001", "reads", "spades_001", "reads")
+    assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
