@@ -1189,6 +1189,25 @@ def test_metagenomics_template_validates_metaphlan_profile_before_visualization(
     assert workflow["outputs"]["validated_metaphlan_profile"] == "validate_metaphlan_profile_001"
 
 
+def test_metagenomics_template_validates_humann_pathcoverage_before_reporting() -> None:
+    workflow = _load_template("metagenomics_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_humann_pathcoverage_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathcoverage_001")
+    report = next(node for node in workflow["nodes"] if node["id"] == "functional_report_001")
+    assert validator["params"]["expected_format"] == "tsv"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert report["params"]["section_names"] == (
+        "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN gene families"
+    )
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
+    assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "functional_report_001", "tables")
+    assert not _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
+    assert workflow["outputs"]["validated_humann_pathcoverage"] == "validate_humann_pathcoverage_001"
+
+
 def test_metagenomics_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)

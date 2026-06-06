@@ -50,22 +50,32 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["validate_humann_pathways_001"] == "data_validator"
+    assert node_types["validate_humann_pathcoverage_001"] == "data_validator"
     assert node_types["functional_report_001"] == "html_report"
     assert node_types["functional_report_preview_001"] == "html_preview"
 
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathways_001")
+    abundance_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathways_001")
+    coverage_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathcoverage_001")
     report = next(node for node in workflow["nodes"] if node["id"] == "functional_report_001")
-    assert validator["params"]["expected_format"] == "tsv"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert abundance_validator["params"]["expected_format"] == "tsv"
+    assert abundance_validator["params"]["min_size_bytes"] > 0
+    assert abundance_validator["params"]["fail_on_error"] is True
+    assert coverage_validator["params"]["expected_format"] == "tsv"
+    assert coverage_validator["params"]["min_size_bytes"] > 0
+    assert coverage_validator["params"]["fail_on_error"] is True
     assert report["params"]["title"] == "Metagenomics Functional Report"
-    assert report["params"]["section_names"] == "HUMAnN pathway abundance,HUMAnN gene families"
+    assert report["params"]["section_names"] == (
+        "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN gene families"
+    )
 
     assert _has_edge(workflow, "humann_001", "pathabundance", "validate_humann_pathways_001", "input")
     assert _has_edge(workflow, "validate_humann_pathways_001", "passthrough", "functional_report_001", "tables")
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
+    assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "functional_report_001", "tables")
     assert _has_edge(workflow, "humann_001", "genefamilies", "functional_report_001", "tables")
     assert _has_edge(workflow, "functional_report_001", "html_report", "functional_report_preview_001", "file")
     assert workflow["outputs"]["validated_humann_pathways"] == "validate_humann_pathways_001"
+    assert workflow["outputs"]["validated_humann_pathcoverage"] == "validate_humann_pathcoverage_001"
     assert workflow["outputs"]["functional_report"] == "functional_report_001"
     assert workflow["outputs"]["functional_report_preview"] == "functional_report_preview_001"
 

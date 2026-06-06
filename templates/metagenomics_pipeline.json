@@ -338,6 +338,22 @@
       }
     },
     {
+      "id": "validate_humann_pathcoverage_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        1136
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate HUMAnN Path Coverage"
+      }
+    },
+    {
       "id": "functional_report_001",
       "type": "html_report",
       "position": [
@@ -346,8 +362,8 @@
       ],
       "params": {
         "title": "Metagenomics Functional Report",
-        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance and gene families.",
-        "section_names": "HUMAnN pathway abundance,HUMAnN gene families"
+        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance, pathway coverage, and gene families.",
+        "section_names": "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN gene families"
       },
       "ui": {
         "title": "Functional Report"
@@ -686,7 +702,18 @@
       "id": "e10c",
       "from": {
         "node": "humann_001",
-        "output": "genefamilies"
+        "output": "pathcoverage"
+      },
+      "to": {
+        "node": "validate_humann_pathcoverage_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10c_validated",
+      "from": {
+        "node": "validate_humann_pathcoverage_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "functional_report_001",
@@ -695,6 +722,17 @@
     },
     {
       "id": "e10d",
+      "from": {
+        "node": "humann_001",
+        "output": "genefamilies"
+      },
+      "to": {
+        "node": "functional_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e10e",
       "from": {
         "node": "functional_report_001",
         "output": "html_report"
@@ -820,6 +858,7 @@
     "pathways": "humann_001",
     "humann_retry_policy": "humann_retry_001",
     "validated_humann_pathways": "validate_humann_pathways_001",
+    "validated_humann_pathcoverage": "validate_humann_pathcoverage_001",
     "functional_report": "functional_report_001",
     "functional_report_preview": "functional_report_preview_001",
     "validated_reads": "validate_reads_001",
