@@ -64,6 +64,23 @@
       }
     },
     {
+      "id": "validate_reference_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        444
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Reference FASTA"
+      }
+    },
+    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
@@ -309,6 +326,17 @@
         "output": "reference"
       },
       "to": {
+        "node": "validate_reference_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2a",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "bwa_idx_001",
         "input": "reference"
       }
@@ -382,8 +410,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "ref_001",
-        "output": "reference"
+        "node": "validate_reference_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "gatk_001",
@@ -517,6 +545,7 @@
     "vcf": "snpeff_001",
     "flagstat": "flagstat_001",
     "variant_stats": "vcf_stats_001",
-    "report": "variant_report_001"
+    "report": "variant_report_001",
+    "validated_reference": "validate_reference_001"
   }
 }
