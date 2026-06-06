@@ -42,7 +42,9 @@ def test_assembly_template_adds_contig_stats_chart_to_final_report() -> None:
     assert chart["params"]["format"] == "png"
 
     report = _node(workflow, "assembly_report_001")
-    assert report["params"]["section_names"] == "Contig lengths,Contig statistics,QUAST report,Prokka annotation"
+    assert report["params"]["section_names"] == (
+        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
+    )
 
     assert _has_edge(workflow, "gate_assembly_001", "output", "assembly_stats_001", "input_file")
     assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "assembly_stats_chart_001", "table")

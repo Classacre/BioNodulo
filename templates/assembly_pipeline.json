@@ -258,6 +258,25 @@
       }
     },
     {
+      "id": "assembly_contig_summary_001",
+      "type": "aggregate",
+      "position": [
+        1700,
+        320
+      ],
+      "params": {
+        "group_columns": "id",
+        "agg_column": "length",
+        "agg_function": "sum",
+        "agg_column_2": "gc_content",
+        "agg_function_2": "mean",
+        "output_type": "TSV"
+      },
+      "ui": {
+        "title": "Contig Summary"
+      }
+    },
+    {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
@@ -311,7 +330,7 @@
       "params": {
         "title": "Assembly Annotation Report",
         "text_sections": "# Summary\nAssembly validation, QUAST quality assessment, and Prokka annotation for the genome assembly workflow.",
-        "section_names": "Contig lengths,Contig statistics,QUAST report,Prokka annotation"
+        "section_names": "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
       },
       "ui": {
         "title": "Assembly report"
@@ -486,6 +505,17 @@
       }
     },
     {
+      "id": "e6d",
+      "from": {
+        "node": "assembly_stats_001",
+        "output": "stats_tsv"
+      },
+      "to": {
+        "node": "assembly_contig_summary_001",
+        "input": "table"
+      }
+    },
+    {
       "id": "e7",
       "from": {
         "node": "quast_001",
@@ -534,6 +564,17 @@
       "from": {
         "node": "assembly_stats_001",
         "output": "stats_tsv"
+      },
+      "to": {
+        "node": "assembly_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e8d",
+      "from": {
+        "node": "assembly_contig_summary_001",
+        "output": "aggregated_table"
       },
       "to": {
         "node": "assembly_report_001",
@@ -599,6 +640,7 @@
     "validated_prokka_annotation": "validate_prokka_001",
     "assembly_stats": "assembly_stats_001",
     "assembly_stats_chart": "assembly_stats_chart_001",
+    "assembly_contig_summary": "assembly_contig_summary_001",
     "quast": "quast_001",
     "annotation": "prokka_001",
     "report": "assembly_report_001",

@@ -43,7 +43,9 @@ def test_assembly_template_validates_prokka_gff_before_final_report_preview() ->
 
     report = _node_by_id(workflow, "assembly_report_001")
     assert report["params"]["title"] == "Assembly Annotation Report"
-    assert report["params"]["section_names"] == "Contig lengths,Contig statistics,QUAST report,Prokka annotation"
+    assert report["params"]["section_names"] == (
+        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
+    )
 
     assert _has_edge(workflow, "prokka_001", "gff", "validate_prokka_001", "input")
     assert _has_edge(workflow, "validate_prokka_001", "passthrough", "assembly_report_001", "tables")
@@ -55,3 +57,29 @@ def test_assembly_template_validates_prokka_gff_before_final_report_preview() ->
     assert workflow["outputs"]["validated_prokka_annotation"] == "validate_prokka_001"
     assert workflow["outputs"]["assembly_report"] == "assembly_report_001"
     assert workflow["outputs"]["assembly_report_preview"] == "assembly_report_preview_001"
+
+
+def test_assembly_template_reports_aggregated_contig_summary() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["assembly_contig_summary_001"] == "aggregate"
+
+    summary = _node_by_id(workflow, "assembly_contig_summary_001")
+    assert summary["params"] == {
+        "group_columns": "id",
+        "agg_column": "length",
+        "agg_function": "sum",
+        "agg_column_2": "gc_content",
+        "agg_function_2": "mean",
+        "output_type": "TSV",
+    }
+
+    report = _node_by_id(workflow, "assembly_report_001")
+    assert report["params"]["section_names"] == (
+        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
+    )
+
+    assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "assembly_contig_summary_001", "table")
+    assert _has_edge(workflow, "assembly_contig_summary_001", "aggregated_table", "assembly_report_001", "tables")
+    assert workflow["outputs"]["assembly_contig_summary"] == "assembly_contig_summary_001"
