@@ -1421,6 +1421,57 @@ async def test_while_loop_iteration_accumulates_result_and_converges() -> None:
 
 
 @pytest.mark.asyncio
+async def test_while_loop_honors_check_frequency_between_condition_checks() -> None:
+    node = _node_class("while_loop")()
+    initial = await node.run(
+        condition_mode="numeric_less",
+        value=1,
+        compare_to="3",
+        max_iterations=5,
+        check_frequency=2,
+    )
+    loop_state = initial["flow_control"]["loop_state"]
+
+    first_iteration = await node.run(
+        condition_mode="numeric_less",
+        value=4,
+        compare_to="3",
+        _is_loop_iteration=True,
+        _loop_state=loop_state,
+        _body_result={"iteration": 1, "score": 4},
+    )
+
+    assert first_iteration["outputs"] == {
+        "results": [{"iteration": 1, "score": 4}],
+        "iterations": 1,
+        "converged": False,
+    }
+    assert first_iteration["inactive_outputs"] == ["results", "iterations", "converged"]
+    assert first_iteration["flow_control"]["phase"] == "iterating"
+    assert first_iteration["flow_control"]["is_complete"] is False
+
+    second_iteration = await node.run(
+        condition_mode="numeric_less",
+        value=4,
+        compare_to="3",
+        _is_loop_iteration=True,
+        _loop_state=first_iteration["flow_control"]["loop_state"],
+        _body_result={"iteration": 2, "score": 4},
+    )
+
+    assert second_iteration["outputs"] == {
+        "results": [
+            {"iteration": 1, "score": 4},
+            {"iteration": 2, "score": 4},
+        ],
+        "iterations": 2,
+        "converged": True,
+    }
+    assert second_iteration["flow_control"]["phase"] == "completed"
+    assert second_iteration["flow_control"]["is_complete"] is True
+
+
+@pytest.mark.asyncio
 async def test_while_loop_stops_at_max_iterations_without_convergence() -> None:
     node = _node_class("while_loop")()
     initial = await node.run(condition_mode="boolean_is_true", value=True, max_iterations=1)

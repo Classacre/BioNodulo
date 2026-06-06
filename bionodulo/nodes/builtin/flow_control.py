@@ -1580,6 +1580,17 @@ class WhileLoopNode(BaseNode):
             loop_state["is_complete"] = True
             return self._result(processed, iteration, False, "max_iterations", loop_state, inactive=[])
 
+        check_frequency = max(1, min(100, int(loop_state.get("check_frequency", check_frequency) or check_frequency)))
+        if iteration % check_frequency != 0:
+            return self._result(
+                processed,
+                iteration,
+                False,
+                "iterating",
+                loop_state,
+                inactive=["results", "iterations", "converged"],
+            )
+
         mode = str(loop_state.get("condition_mode", condition_mode) or condition_mode)
         compare = loop_state.get("compare_to", compare_to)
         if not self._evaluate_condition(value, mode, compare):
@@ -1641,6 +1652,7 @@ class WhileLoopNode(BaseNode):
                 state.update(context)
         state.setdefault("iteration", 0)
         state.setdefault("max_iterations", max_iterations)
+        state.setdefault("check_frequency", 1)
         state.setdefault("condition_mode", condition_mode)
         state.setdefault("compare_to", compare_to)
         state.setdefault("processed", [])
