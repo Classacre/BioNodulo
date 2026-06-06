@@ -105,6 +105,104 @@ def test_colabfold_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["colabfold"] == ">=1.5.5"
 
 
+def test_esmfold_predict_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    info = registry.object_info()
+
+    node_info = info["esmfold_predict"]
+    assert node_info["display_name"] == "ESMFold Predict"
+    assert node_info["category"] == "ai"
+    assert node_info["description"].startswith("Predict protein structures")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["pdb_dir"]
+    assert node_info["required_executables"] == ["esm-fold"]
+    assert node_info["required_conda_packages"] == ["fair-esm"]
+    assert "esmfold" in node_info["search_aliases"]
+    assert "protein folding" in node_info["search_aliases"]
+    assert "single sequence" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"fasta"}
+    assert set(inputs["optional"]) == {
+        "num_recycles",
+        "max_tokens_per_batch",
+        "chunk_size",
+        "cpu_only",
+        "cpu_offload",
+    }
+
+
+def test_esmfold_predict_renders_default_command() -> None:
+    node_class = _node_class("esmfold_predict")
+
+    cmd = node_class.render_command({
+        "fasta": "proteins.fasta",
+        "num_recycles": 4,
+        "max_tokens_per_batch": 1024,
+        "chunk_size": 0,
+        "cpu_only": False,
+        "cpu_offload": False,
+        "output": "/tmp/run/esmfold_predict",
+    })
+
+    assert cmd == [
+        "esm-fold",
+        "-i",
+        "proteins.fasta",
+        "-o",
+        "/tmp/run/esmfold_predict/pdb",
+        "--num-recycles",
+        "4",
+        "--max-tokens-per-batch",
+        "1024",
+    ]
+
+
+def test_esmfold_predict_renders_memory_flags() -> None:
+    node_class = _node_class("esmfold_predict")
+
+    cmd = node_class.render_command({
+        "fasta": "long_proteins.fasta",
+        "num_recycles": 3,
+        "max_tokens_per_batch": 0,
+        "chunk_size": 64,
+        "cpu_only": True,
+        "cpu_offload": True,
+        "output": "/tmp/run/esmfold_predict",
+    })
+
+    assert cmd == [
+        "esm-fold",
+        "-i",
+        "long_proteins.fasta",
+        "-o",
+        "/tmp/run/esmfold_predict/pdb",
+        "--num-recycles",
+        "3",
+        "--max-tokens-per-batch",
+        "0",
+        "--chunk-size",
+        "64",
+        "--cpu-only",
+        "--cpu-offload",
+    ]
+
+
+def test_esmfold_predict_plans_pdb_directory() -> None:
+    node_class = _node_class("esmfold_predict")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert outputs == [Path("/tmp/run/esmfold_predict/pdb")]
+
+
+def test_esmfold_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["esm-fold"] == "fair-esm"
+    assert PACKAGE_MIN_VERSIONS["fair-esm"] == ">=2.0.0"
+
+
 @pytest.mark.asyncio
 async def test_alphafold_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("alphafold_db")

@@ -296,3 +296,74 @@ class ColabFoldBatchNode(CommandNode):
         prediction_dir = Path(output_dir) / cls.NODE_ID / "predictions"
         prediction_dir.mkdir(parents=True, exist_ok=True)
         return [prediction_dir]
+
+
+class ESMFoldPredictNode(CommandNode):
+    """Predict protein structures with the ESMFold CLI."""
+
+    NODE_ID = "esmfold_predict"
+    DISPLAY_NAME = "ESMFold Predict"
+    CATEGORY = "ai"
+    DESCRIPTION = "Predict protein structures from FASTA sequences with ESMFold."
+    SEARCH_ALIASES = [
+        "esmfold",
+        "esm-fold",
+        "esm",
+        "structure",
+        "prediction",
+        "protein folding",
+        "single sequence",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("pdb_dir",)
+    REQUIRED_EXECUTABLES = ["esm-fold"]
+    REQUIRED_CONDA_PACKAGES = ["fair-esm"]
+    DOCUMENTATION_URL = "https://github.com/facebookresearch/esm"
+    VERSION = "2.0.0"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fasta": ("FASTA", {"description": "Input FASTA file with protein sequences"}),
+            },
+            "optional": {
+                "num_recycles": ("INT", {"default": 4, "min": 1, "max": 48, "advanced": True}),
+                "max_tokens_per_batch": ("INT", {"default": 1024, "min": 0, "advanced": True}),
+                "chunk_size": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "cpu_only": ("BOOLEAN", {"default": False, "advanced": True}),
+                "cpu_offload": ("BOOLEAN", {"default": False, "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        pdb_dir = Path(str(inputs.get("output", "."))) / "pdb"
+        cmd = [
+            "esm-fold",
+            "-i",
+            str(inputs.get("fasta", "")),
+            "-o",
+            str(pdb_dir),
+            "--num-recycles",
+            str(inputs.get("num_recycles", 4)),
+            "--max-tokens-per-batch",
+            str(inputs.get("max_tokens_per_batch", 1024)),
+        ]
+        chunk_size = int(inputs.get("chunk_size", 0) or 0)
+        if chunk_size:
+            cmd.extend(["--chunk-size", str(chunk_size)])
+        if inputs.get("cpu_only"):
+            cmd.append("--cpu-only")
+        if inputs.get("cpu_offload"):
+            cmd.append("--cpu-offload")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        pdb_dir = Path(output_dir) / cls.NODE_ID / "pdb"
+        pdb_dir.mkdir(parents=True, exist_ok=True)
+        return [pdb_dir]
