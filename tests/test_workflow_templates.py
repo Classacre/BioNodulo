@@ -575,6 +575,21 @@ def test_assembly_template_adds_annotation_html_report() -> None:
     assert workflow["outputs"]["report"] == "assembly_report_001"
 
 
+def test_assembly_template_validates_quast_report_before_preview() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_quast_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_quast_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "quast_001", "report", "validate_quast_001", "input")
+    assert _has_edge(workflow, "validate_quast_001", "passthrough", "html_preview_001", "file")
+    assert not _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_quast_report"] == "validate_quast_001"
+
+
 def test_chip_seq_template_trims_reads_before_alignment_and_qc() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
