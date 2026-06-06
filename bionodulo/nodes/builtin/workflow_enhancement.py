@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from bionodulo.execution.pause_state import PauseStateStore
 from bionodulo.nodes.base import BaseNode
 
 
@@ -2481,47 +2482,45 @@ class PauseResumeNode(BaseNode):
             return {"kind": "json", "text": json.dumps(data, indent=2, sort_keys=True, default=str)[:5000]}
         return {"kind": "text", "text": str(data)[:5000]}
 
+    @classmethod
+    def pause_store(cls, context: Any | None = None, workspace_dir: str | Path | None = None) -> PauseStateStore:
+        if workspace_dir is not None:
+            base = Path(workspace_dir)
+        elif context is not None:
+            context_workspace = getattr(context, "workspace_dir", None)
+            base = Path(context_workspace) if context_workspace else _node_output_dir(cls(), context)
+        else:
+            base = Path(".")
+        return PauseStateStore(base / "pause_requests")
+
     def _write_pause_file(self, context: Any, pause_info: dict[str, Any]) -> str:
         if context is None:
             return ""
-        workspace_dir = getattr(context, "workspace_dir", None)
-        base = Path(workspace_dir) if workspace_dir else _node_output_dir(self, context)
-        pause_dir = base / "pause_requests"
-        pause_dir.mkdir(parents=True, exist_ok=True)
-        run_id = str(getattr(context, "run_id", "") or "").strip()
-        node_id = getattr(context, "node_id", self.NODE_ID)
-        pause_file = pause_dir / f"{run_id}__{node_id}.json" if run_id else pause_dir / f"{node_id}.json"
-        pause_file.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
-        return str(pause_file)
+        store = self.pause_store(context)
+        return str(store.save(pause_info))
 
     async def _wait_for_decision(self, pause_file: Path, context: Any) -> dict[str, Any]:
+        store = PauseStateStore(pause_file.parent)
         cancel_event = getattr(context, "cancel_event", None)
         while True:
             if cancel_event is not None and cancel_event.is_set():
-                cancelled_info = {
-                    "pause_file": str(pause_file),
-                    "status": "cancelled",
-                    "approved": False,
-                    "resolved_at": time.time(),
-                    "review_decision_supported": True,
-                    "engine_pause_supported": True,
-                    "note": "Review request cancelled while waiting for approval.",
-                }
                 try:
-                    existing = json.loads(pause_file.read_text(encoding="utf-8"))
-                    if isinstance(existing, dict):
-                        cancelled_info = {**existing, **cancelled_info}
-                    pause_file.write_text(json.dumps(cancelled_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
-                except (OSError, json.JSONDecodeError):
-                    pass
-                return cancelled_info
+                    return store.cancel(pause_file)
+                except (OSError, ValueError):
+                    return {
+                        "pause_file": str(pause_file),
+                        "status": "cancelled",
+                        "approved": False,
+                        "resolved_at": time.time(),
+                        "review_decision_supported": True,
+                        "engine_pause_supported": True,
+                        "note": "Review request cancelled while waiting for approval.",
+                    }
             try:
-                pause_info = json.loads(pause_file.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+                pause_info = store.load(pause_file)
+            except (OSError, ValueError):
                 await asyncio.sleep(0.1)
                 continue
-            if not isinstance(pause_info, dict):
-                raise RuntimeError(f"Pause request file must contain a JSON object: {pause_file}")
             status = str(pause_info.get("status", "") or "").lower()
             if status in {"approved", "rejected", "cancelled"}:
                 pause_info.setdefault("pause_file", str(pause_file))
@@ -2530,33 +2529,30 @@ class PauseResumeNode(BaseNode):
 
     @staticmethod
     def resolve_pause_request(pause_file: str | Path, action: str, reviewer: str = "", comment: str = "") -> dict[str, Any]:
-        action = str(action or "").lower().strip()
-        if action not in {"approve", "reject"}:
-            raise ValueError(f"Unsupported pause resolution action: {action}")
-
         path = Path(pause_file)
-        try:
-            pause_info = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"pause request file is not valid JSON: {path}") from exc
-        if not isinstance(pause_info, dict):
-            raise ValueError(f"pause request file must contain a JSON object: {path}")
-
-        approved = action == "approve"
-        pause_info.update(
-            {
-                "status": "approved" if approved else "rejected",
-                "approved": approved,
-                "resolved_at": time.time(),
-                "resolved_by": str(reviewer or "").strip(),
-                "resolution_comment": str(comment or ""),
-                "review_decision_supported": True,
-                "engine_pause_supported": True,
-                "note": "Review request recorded with persistent approval metadata; executor-level blocking pause/resume is supported.",
-            }
+        return PauseStateStore(path.parent).resolve(
+            pause_file=path,
+            action=action,
+            reviewer=reviewer,
+            comment=comment,
         )
-        path.write_text(json.dumps(pause_info, indent=2, sort_keys=True, default=str), encoding="utf-8")
-        return dict(pause_info)
+
+    @staticmethod
+    def resolve_pause_request_by_id(
+        workspace_dir: str | Path,
+        run_id: str,
+        node_id: str,
+        action: str,
+        reviewer: str = "",
+        comment: str = "",
+    ) -> dict[str, Any]:
+        return PauseStateStore(Path(workspace_dir) / "pause_requests").resolve(
+            run_id=run_id,
+            node_id=node_id,
+            action=action,
+            reviewer=reviewer,
+            comment=comment,
+        )
 
 
 class SubWorkflowNode(BaseNode):

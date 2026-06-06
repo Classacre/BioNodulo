@@ -1452,6 +1452,27 @@ async def test_pause_resume_records_review_request_and_passes_through_file_previ
     assert context.logs[0] == ("info", "Pause / Resume requested: approved")
 
 
+def test_pause_resume_uses_file_backed_pause_state_store(tmp_path: Path) -> None:
+    context = _context(tmp_path, "pause-store")
+    context.workspace_dir = tmp_path
+    node_class = _node_class("pause_resume")
+    store = node_class.pause_store(context)
+
+    pause_file = store.save({"run_id": "run-1", "node_id": "pause-store", "status": "waiting", "approved": True})
+    resolved = node_class.resolve_pause_request_by_id(
+        workspace_dir=tmp_path,
+        run_id="run-1",
+        node_id="pause-store",
+        action="approve",
+        reviewer="ana",
+        comment="Looks good",
+    )
+
+    assert pause_file == tmp_path / "pause_requests" / "run-1__pause-store.json"
+    assert resolved["status"] == "approved"
+    assert resolved["resolved_by"] == "ana"
+
+
 @pytest.mark.asyncio
 async def test_pause_resume_waits_for_approval_before_returning(tmp_path: Path) -> None:
     context = _context(tmp_path, "pause-node")
