@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from bionodulo.ai.llm_backend import LLMConfig, call_llm, render_prompt, resolve_llm_config, safe_json_parse
+from bionodulo.core.credentials import resolve_secret_value
 from bionodulo.nodes.base import BaseNode
 
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -58,14 +59,7 @@ def _node_output_dir(node: BaseNode, context: Any) -> Path:
 
 
 def _resolve_ncbi_api_key(explicit: Any, context: Any) -> str:
-    value = str(explicit or "").strip()
-    if value:
-        return value
-    if context is not None and hasattr(context, "resolve_secret"):
-        secret = context.resolve_secret("ncbi_api_key") or context.resolve_secret("NCBI_API_KEY")
-        if secret:
-            return str(secret).strip()
-    return os.environ.get("NCBI_API_KEY", "")
+    return resolve_secret_value(explicit, context, "ncbi_api_key", "NCBI_API_KEY", default=os.environ.get("NCBI_API_KEY", ""))
 
 
 def _clean_params(params: dict[str, Any]) -> dict[str, Any]:

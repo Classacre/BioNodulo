@@ -8,6 +8,8 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
+from bionodulo.core.credentials import resolve_secret_value
+
 
 @dataclass(frozen=True)
 class LLMConfig:
@@ -47,13 +49,12 @@ def resolve_llm_config(
 ) -> LLMConfig:
     """Resolve explicit node inputs, workflow secrets, and environment defaults."""
     normalized_provider = (provider or os.environ.get("BIONODULO_LLM_PROVIDER") or "openai").strip().lower()
-    resolved_api_key = (api_key or "").strip()
-    if not resolved_api_key and context is not None and hasattr(context, "resolve_secret"):
-        secret = context.resolve_secret("llm_api_key")
-        if secret:
-            resolved_api_key = str(secret).strip()
-    if not resolved_api_key:
-        resolved_api_key = _provider_api_key(normalized_provider)
+    resolved_api_key = resolve_secret_value(
+        api_key,
+        context,
+        "llm_api_key",
+        default=_provider_api_key(normalized_provider),
+    )
 
     resolved_api_base = (api_base or "").strip()
     if not resolved_api_base:

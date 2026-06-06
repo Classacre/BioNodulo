@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from bionodulo.core.credentials import resolve_secret_value
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
 
@@ -50,26 +51,14 @@ def _string_headers(value: dict[str, Any]) -> dict[str, str]:
     return {str(key): str(header_value) for key, header_value in value.items()}
 
 
-def _resolve_secret(context: Any, *keys: str) -> str:
-    if context is None or not hasattr(context, "resolve_secret"):
-        return ""
-    for key in keys:
-        value = context.resolve_secret(key)
-        if value:
-            return str(value)
-    return ""
-
-
 def _auth_headers(kwargs: dict[str, Any], context: Any) -> dict[str, str]:
     mode = str(kwargs.get("auth_mode", "none") or "none").lower()
     if mode == "bearer":
-        token = str(kwargs.get("bearer_token", "") or "").strip()
-        token = token or _resolve_secret(context, "http_bearer_token", "HTTP_BEARER_TOKEN")
+        token = resolve_secret_value(kwargs.get("bearer_token", ""), context, "http_bearer_token", "HTTP_BEARER_TOKEN")
         return {"Authorization": f"Bearer {token}"} if token else {}
     if mode == "basic":
         username = str(kwargs.get("username", "") or "")
-        password = str(kwargs.get("password", "") or "")
-        password = password or _resolve_secret(context, "http_basic_password", "HTTP_BASIC_PASSWORD")
+        password = resolve_secret_value(kwargs.get("password", ""), context, "http_basic_password", "HTTP_BASIC_PASSWORD")
         if not username and not password:
             return {}
         encoded = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")

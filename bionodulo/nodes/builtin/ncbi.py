@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from bionodulo.core.credentials import resolve_secret_value
 from bionodulo.nodes.base import BaseNode
 
 
@@ -47,16 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_api_key(explicit: Any, context: Any) -> str:
-    value = str(explicit or "").strip()
-    if value:
-        return value
-    if context is None or not hasattr(context, "resolve_secret"):
-        return ""
-    return (
-        context.resolve_secret("ncbi_api_key")
-        or context.resolve_secret("NCBI_API_KEY")
-        or ""
-    )
+    return resolve_secret_value(explicit, context, "ncbi_api_key", "NCBI_API_KEY")
 
 
 def _clean_params(params: dict[str, Any]) -> dict[str, Any]:

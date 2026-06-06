@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 REDACTED = "***"
+CREDENTIAL_REFERENCE_PREFIX = "credential://"
 
 _SECRET_KEY_PARTS = frozenset({
     "apikey",
@@ -58,3 +59,36 @@ def merge_api_secrets(
                 continue
             merged[str(key)] = str(value)
     return merged
+
+
+def credential_reference_key(value: Any) -> str:
+    """Return the secret key from a credential:// reference, or an empty string."""
+    text = str(value or "").strip()
+    if not text.lower().startswith(CREDENTIAL_REFERENCE_PREFIX):
+        return ""
+    return text[len(CREDENTIAL_REFERENCE_PREFIX):].strip()
+
+
+def resolve_secret_value(
+    explicit: Any,
+    context: Any,
+    *fallback_keys: str,
+    default: str = "",
+) -> str:
+    """Resolve a direct value, credential:// reference, or fallback context secret."""
+    text = str(explicit or "").strip()
+    reference_key = credential_reference_key(text)
+    if reference_key:
+        if context is not None and hasattr(context, "resolve_secret"):
+            resolved = context.resolve_secret(reference_key)
+            if resolved not in (None, ""):
+                return str(resolved).strip()
+        return default
+    if text:
+        return text
+    if context is not None and hasattr(context, "resolve_secret"):
+        for key in fallback_keys:
+            resolved = context.resolve_secret(key)
+            if resolved not in (None, ""):
+                return str(resolved).strip()
+    return default

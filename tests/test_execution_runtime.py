@@ -50,6 +50,18 @@ def test_redact_tree_masks_nested_secret_values() -> None:
     assert redacted["nested"]["items"][1] == "plain"
 
 
+def test_resolve_secret_value_handles_credential_references() -> None:
+    from bionodulo.core.credentials import resolve_secret_value
+
+    context = SimpleNamespace(resolve_secret=lambda key: {"api_prod": "resolved-key"}.get(key))
+
+    assert resolve_secret_value("credential://api_prod", context) == "resolved-key"
+    assert resolve_secret_value("literal-key", context) == "literal-key"
+    assert resolve_secret_value("", context, "api_prod") == "resolved-key"
+    assert resolve_secret_value("credential://missing", context) == ""
+    assert resolve_secret_value("credential://missing", context, default="fallback") == "fallback"
+
+
 @pytest.mark.asyncio
 async def test_run_subprocess_streams_to_log_files(tmp_path: Path) -> None:
     events: list[tuple[str, dict[str, Any]]] = []

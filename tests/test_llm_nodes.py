@@ -375,6 +375,20 @@ def test_resolve_llm_config_uses_explicit_context_and_environment(monkeypatch: p
     assert without_secret.api_key == "env-openai"
 
 
+def test_resolve_llm_config_resolves_credential_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "env-openai")
+    context = SimpleNamespace(resolve_secret=lambda key: "resolved-llm-key" if key == "openai_prod" else None)
+
+    config = resolve_llm_config(
+        provider="openai",
+        model="",
+        api_key="credential://openai_prod",
+        context=context,
+    )
+
+    assert config.api_key == "resolved-llm-key"
+
+
 def test_safe_json_parse_accepts_plain_and_fenced_json() -> None:
     assert safe_json_parse('{"label": "pass"}') == {"label": "pass"}
     assert safe_json_parse('```json\n{"label": "fail"}\n```') == {"label": "fail"}

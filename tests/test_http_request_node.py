@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -98,6 +99,44 @@ async def test_http_request_posts_json_and_writes_response_outputs(
             "follow_redirects": True,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_http_request_resolves_bearer_token_credential_reference(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("http_request")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "text/plain"}
+        text = "ok"
+        url = "https://api.example.test/resource"
+
+    async def fake_request(**kwargs: Any) -> FakeResponse:
+        calls.append(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(module, "_request", fake_request)
+    context = SimpleNamespace(
+        node_dir=tmp_path,
+        resolve_secret=lambda key: "resolved-token" if key == "http_prod_token" else None,
+    )
+
+    result = await node_class().run(
+        url="https://api.example.test/resource",
+        method="GET",
+        auth_mode="bearer",
+        bearer_token="credential://http_prod_token",
+        context=context,
+    )
+
+    assert Path(result["outputs"]["response_body"]).read_text(encoding="utf-8") == "ok"
+    assert calls[0]["headers"]["Authorization"] == "Bearer resolved-token"
+    assert "credential://http_prod_token" not in json.dumps(calls, sort_keys=True)
 
 
 @pytest.mark.asyncio

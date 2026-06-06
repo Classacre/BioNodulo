@@ -97,6 +97,32 @@ async def test_ncbi_esearch_returns_ids_count_and_query_translation(monkeypatch:
 
 
 @pytest.mark.asyncio
+async def test_ncbi_esearch_resolves_api_key_credential_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"esearchresult": {"count": "0", "idlist": [], "querytranslation": "BRCA1[All Fields]"}}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    context = SimpleNamespace(resolve_secret=lambda key: "resolved-ncbi-key" if key == "ncbi_prod" else None)
+
+    await node_class().run(
+        query="BRCA1",
+        database="gene",
+        max_results=1,
+        sort="relevance",
+        api_key="credential://ncbi_prod",
+        context=context,
+    )
+
+    assert calls[0]["params"]["api_key"] == "resolved-ncbi-key"
+    assert "credential://ncbi_prod" not in json.dumps(calls, sort_keys=True)
+
+
+@pytest.mark.asyncio
 async def test_ncbi_efetch_writes_records_and_returns_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
