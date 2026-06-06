@@ -242,6 +242,22 @@
       }
     },
     {
+      "id": "validate_multiqc_001",
+      "type": "data_validator",
+      "position": [
+        980,
+        570
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MultiQC Report"
+      }
+    },
+    {
       "id": "qualimap_001",
       "type": "qualimap",
       "position": [
@@ -436,8 +452,8 @@
         "output": "report"
       },
       "to": {
-        "node": "html_preview_001",
-        "input": "file"
+        "node": "validate_multiqc_001",
+        "input": "input"
       }
     },
     {
@@ -494,6 +510,17 @@
         "node": "qc_dashboard_001",
         "input": "alignment_stats"
       }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "validate_multiqc_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "html_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -503,6 +530,7 @@
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
     "report": "qc_dashboard_001",
+    "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
   }
