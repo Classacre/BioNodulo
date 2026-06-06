@@ -426,6 +426,24 @@ def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -
     assert workflow["outputs"]["validated_assembly"] == "validate_assembly_001"
 
 
+def test_assembly_template_validates_reads_before_trimming() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reads_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
+    assert validator["params"]["expected_format"] == "fastq"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
+    assert _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert not _has_edge(workflow, "reads_001", "reads", "spades_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+
+
 def test_chip_seq_template_trims_reads_before_alignment_and_qc() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
