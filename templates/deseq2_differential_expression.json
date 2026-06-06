@@ -158,6 +158,26 @@
       }
     },
     {
+      "id": "significant_genes_001",
+      "type": "filter_rows",
+      "position": [
+        1160,
+        800
+      ],
+      "params": {
+        "column": "padj",
+        "operator": "less_or_equal",
+        "value": "0.05",
+        "column_2": "log2FoldChange",
+        "operator_2": "is_not_empty",
+        "logical_op": "AND",
+        "output_type": "CSV"
+      },
+      "ui": {
+        "title": "Significant Genes"
+      }
+    },
+    {
       "id": "de_report_001",
       "type": "html_report",
       "position": [
@@ -299,6 +319,28 @@
       }
     },
     {
+      "id": "e7a",
+      "from": {
+        "node": "deseq2_001",
+        "output": "results_csv"
+      },
+      "to": {
+        "node": "significant_genes_001",
+        "input": "table"
+      }
+    },
+    {
+      "id": "e7b",
+      "from": {
+        "node": "significant_genes_001",
+        "output": "filtered_table"
+      },
+      "to": {
+        "node": "de_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e8",
       "from": {
         "node": "ma_plot_001",
@@ -326,6 +368,7 @@
     "deseq2_results": "deseq2_001",
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001",
+    "significant_genes": "significant_genes_001",
     "heatmap": "heatmap_001",
     "report": "de_report_001",
     "validated_counts": "validate_counts_001",

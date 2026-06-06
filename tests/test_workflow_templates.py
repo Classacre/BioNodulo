@@ -484,6 +484,24 @@ def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
     assert workflow["outputs"]["report"] == "de_report_001"
 
 
+def test_deseq2_template_extracts_significant_genes() -> None:
+    workflow = _load_template("deseq2_differential_expression.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["significant_genes_001"] == "filter_rows"
+    filter_node = next(node for node in workflow["nodes"] if node["id"] == "significant_genes_001")
+    assert filter_node["params"]["column"] == "padj"
+    assert filter_node["params"]["operator"] == "less_or_equal"
+    assert filter_node["params"]["value"] == "0.05"
+    assert filter_node["params"]["column_2"] == "log2FoldChange"
+    assert filter_node["params"]["operator_2"] == "is_not_empty"
+    assert filter_node["params"]["logical_op"] == "AND"
+    assert filter_node["params"]["output_type"] == "CSV"
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "significant_genes_001", "table")
+    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "de_report_001", "tables")
+    assert workflow["outputs"]["significant_genes"] == "significant_genes_001"
+
+
 def test_deseq2_template_validates_count_matrix_and_sample_info_before_analysis() -> None:
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)
