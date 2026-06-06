@@ -857,6 +857,39 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
+    workflow = _load_template("chip_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["control_001"] == "input_fastq"
+    assert node_types["validate_control_reads_001"] == "data_validator"
+    assert node_types["fastp_control_001"] == "fastp"
+    assert node_types["gate_control_reads_001"] == "gate"
+    assert node_types["bt2_control_001"] == "bowtie2_align"
+    assert node_types["view_control_001"] == "samtools_view"
+    assert node_types["sort_control_001"] == "samtools_sort"
+
+    control = next(node for node in workflow["nodes"] if node["id"] == "control_001")
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_control_reads_001")
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_control_reads_001")
+    assert control["params"]["sample_name"] == "control"
+    assert validator["params"]["expected_format"] == "fastq"
+    assert validator["params"]["fail_on_error"] is True
+    assert gate["params"]["condition_mode"] == "is_not_empty"
+    assert gate["params"]["on_fail"] == "halt"
+
+    assert _has_edge(workflow, "control_001", "reads", "validate_control_reads_001", "input")
+    assert _has_edge(workflow, "validate_control_reads_001", "passthrough", "fastp_control_001", "reads")
+    assert _has_edge(workflow, "fastp_control_001", "trimmed_reads", "gate_control_reads_001", "value")
+    assert _has_edge(workflow, "gate_control_reads_001", "output", "bt2_control_001", "reads")
+    assert _has_edge(workflow, "validate_index_001", "passthrough", "bt2_control_001", "index")
+    assert _has_edge(workflow, "bt2_control_001", "alignment", "view_control_001", "sam")
+    assert _has_edge(workflow, "view_control_001", "bam", "sort_control_001", "bam")
+    assert _has_edge(workflow, "sort_control_001", "sorted_bam", "macs2_001", "control")
+    assert workflow["outputs"]["control_alignment"] == "sort_control_001"
+    assert workflow["outputs"]["validated_control_reads"] == "validate_control_reads_001"
+
+
 def test_chip_seq_template_validates_index_directory_before_alignment() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)

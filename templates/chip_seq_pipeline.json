@@ -38,6 +38,24 @@
       }
     },
     {
+      "id": "control_001",
+      "type": "input_fastq",
+      "position": [
+        80,
+        170
+      ],
+      "params": {
+        "sample_name": "control",
+        "reads": [
+          "examples/data/chip_seq/input_control_read1.fastq",
+          "examples/data/chip_seq/input_control_read2.fastq"
+        ]
+      },
+      "ui": {
+        "title": "Input Control FASTQ"
+      }
+    },
+    {
       "id": "idx_001",
       "type": "input_directory",
       "position": [
@@ -140,6 +158,95 @@
       },
       "ui": {
         "title": "Validate Bowtie2 Index"
+      }
+    },
+    {
+      "id": "validate_control_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        170
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Control FASTQ"
+      }
+    },
+    {
+      "id": "fastp_control_001",
+      "type": "fastp",
+      "position": [
+        620,
+        170
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "fastp Control Trim"
+      }
+    },
+    {
+      "id": "gate_control_reads_001",
+      "type": "gate",
+      "position": [
+        710,
+        170
+      ],
+      "params": {
+        "condition_mode": "is_not_empty",
+        "on_fail": "halt",
+        "error_message": "ChIP-seq control trimming produced no trimmed reads"
+      },
+      "ui": {
+        "title": "Gate Control Reads"
+      }
+    },
+    {
+      "id": "bt2_control_001",
+      "type": "bowtie2_align",
+      "position": [
+        800,
+        170
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Bowtie2 Control Align"
+      }
+    },
+    {
+      "id": "view_control_001",
+      "type": "samtools_view",
+      "position": [
+        1160,
+        170
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "Control SAM to BAM"
+      }
+    },
+    {
+      "id": "sort_control_001",
+      "type": "samtools_sort",
+      "position": [
+        1520,
+        170
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "sort control BAM"
       }
     },
     {
@@ -425,6 +532,94 @@
         "node": "bt2_001",
         "input": "index"
       }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "control_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "validate_control_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "validate_control_reads_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "fastp_control_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "fastp_control_001",
+        "output": "trimmed_reads"
+      },
+      "to": {
+        "node": "gate_control_reads_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "gate_control_reads_001",
+        "output": "output"
+      },
+      "to": {
+        "node": "bt2_control_001",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "validate_index_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "bt2_control_001",
+        "input": "index"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "bt2_control_001",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "view_control_001",
+        "input": "sam"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "view_control_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "sort_control_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "sort_control_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "macs2_001",
+        "input": "control"
+      }
     }
   ],
   "groups": [],
@@ -437,6 +632,8 @@
     "trimmed_reads": "fastp_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_reads": "validate_reads_001",
+    "validated_control_reads": "validate_control_reads_001",
+    "control_alignment": "sort_control_001",
     "validated_index": "validate_index_001"
   }
 }
