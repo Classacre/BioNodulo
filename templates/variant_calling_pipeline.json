@@ -81,6 +81,23 @@
       }
     },
     {
+      "id": "validate_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTQ Reads"
+      }
+    },
+    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
@@ -315,6 +332,17 @@
         "output": "reads"
       },
       "to": {
+        "node": "validate_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e1a",
+      "from": {
+        "node": "validate_reads_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "bwa_001",
         "input": "reads"
       }
@@ -443,8 +471,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "reads_001",
-        "output": "reads"
+        "node": "validate_reads_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "qc_001",
@@ -546,6 +574,7 @@
     "flagstat": "flagstat_001",
     "variant_stats": "vcf_stats_001",
     "report": "variant_report_001",
+    "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
   }
 }
