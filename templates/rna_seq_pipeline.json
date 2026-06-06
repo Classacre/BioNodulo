@@ -234,6 +234,35 @@
       }
     },
     {
+      "id": "counts_report_001",
+      "type": "html_report",
+      "position": [
+        2960,
+        80
+      ],
+      "params": {
+        "title": "RNA-Seq Counts Report",
+        "text_sections": "# Summary\nRaw featureCounts output and CPM-normalized counts for the RNA-seq workflow.",
+        "section_names": "Raw featureCounts,Normalized CPM counts",
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Counts Report"
+      }
+    },
+    {
+      "id": "counts_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        3140,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Counts Report"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -456,6 +485,39 @@
       }
     },
     {
+      "id": "e6b",
+      "from": {
+        "node": "counts_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "counts_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e6c",
+      "from": {
+        "node": "normalize_counts_001",
+        "output": "normalized_table"
+      },
+      "to": {
+        "node": "counts_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e6d",
+      "from": {
+        "node": "counts_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "counts_report_preview_001",
+        "input": "file"
+      }
+    },
+    {
       "id": "e7",
       "from": {
         "node": "validate_reads_001",
@@ -592,6 +654,8 @@
   "outputs": {
     "counts": "counts_001",
     "normalized_counts": "normalize_counts_001",
+    "counts_report": "counts_report_001",
+    "counts_report_preview": "counts_report_preview_001",
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
     "report": "qc_dashboard_001",
