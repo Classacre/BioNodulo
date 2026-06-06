@@ -623,6 +623,22 @@ def test_assembly_template_validates_reads_before_trimming() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_assembly_template_validates_reference_before_quast() -> None:
+    workflow = _load_template("assembly_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_reference_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
+    assert validator["params"]["expected_format"] == "fasta"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "validate_reference_001", "passthrough", "quast_001", "reference")
+    assert not _has_edge(workflow, "ref_001", "reference", "quast_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+
+
 def test_assembly_template_adds_annotation_html_report() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)

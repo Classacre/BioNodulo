@@ -111,6 +111,23 @@
       }
     },
     {
+      "id": "validate_reference_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Reference"
+      }
+    },
+    {
       "id": "validate_assembly_001",
       "type": "data_validator",
       "position": [
@@ -238,8 +255,8 @@
         "output": "reference"
       },
       "to": {
-        "node": "quast_001",
-        "input": "reference"
+        "node": "validate_reference_001",
+        "input": "input"
       }
     },
     {
@@ -296,6 +313,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "quast_001",
+        "input": "reference"
+      }
     }
   ],
   "groups": [],
@@ -303,6 +331,7 @@
     "assembly": "spades_001",
     "validated_assembly": "validate_assembly_001",
     "validated_reads": "validate_reads_001",
+    "validated_reference": "validate_reference_001",
     "validated_quast_report": "validate_quast_001",
     "quast": "quast_001",
     "annotation": "prokka_001",
