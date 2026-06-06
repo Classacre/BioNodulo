@@ -68,3 +68,22 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
     assert workflow["outputs"]["vcf"] == "snpeff_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
+
+
+def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
+    workflow = _load_template("fastq_qc_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_multiqc_001"] == "data_validator"
+    assert node_types["gate_multiqc_001"] == "gate"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
+    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_multiqc_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert gate["params"]["condition_mode"] == "boolean_is_true"
+    assert gate["params"]["on_fail"] == "halt"
+    assert _has_edge(workflow, "multiqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "validate_multiqc_001", "passed", "gate_multiqc_001", "value")
+    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_report"] == "validate_multiqc_001"

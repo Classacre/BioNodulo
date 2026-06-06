@@ -69,12 +69,44 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {},
       "ui": {
         "title": "View MultiQC Report"
+      }
+    },
+    {
+      "id": "validate_multiqc_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MultiQC Report"
+      }
+    },
+    {
+      "id": "gate_multiqc_001",
+      "type": "gate",
+      "position": [
+        1340,
+        220
+      ],
+      "params": {
+        "condition_mode": "boolean_is_true",
+        "on_fail": "halt",
+        "error_message": "MultiQC report validation failed"
+      },
+      "ui": {
+        "title": "Gate Valid QC"
       }
     }
   ],
@@ -108,6 +140,28 @@
         "output": "report"
       },
       "to": {
+        "node": "validate_multiqc_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "validate_multiqc_001",
+        "output": "passed"
+      },
+      "to": {
+        "node": "gate_multiqc_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "validate_multiqc_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "html_preview_001",
         "input": "file"
       }
@@ -115,6 +169,7 @@
   ],
   "groups": [],
   "outputs": {
-    "report": "multiqc_001"
+    "report": "multiqc_001",
+    "validated_report": "validate_multiqc_001"
   }
 }
