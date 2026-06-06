@@ -72,6 +72,7 @@ from bionodulo.manager.example_data import download_example_data
 from bionodulo.hpc.base import HPCBackend
 from bionodulo.nodes.builtin.workflow_enhancement import CheckpointNode, PauseResumeNode, WorkflowTriggerNode
 from bionodulo.manager.resolver import _resolve_workflow_async
+from bionodulo.manager.custom_nodes import list_installed_packages, registry_entries
 from bionodulo.workflow.graph import edge_source, edge_target
 from bionodulo.workflow.validation import validate_workflow
 
@@ -1390,9 +1391,12 @@ async def manager_status(request: Request) -> dict[str, Any]:
 async def manager_registry(request: Request) -> dict[str, Any]:
     """Get known registry entries for node discovery."""
     settings = _get_settings(request)
+    installed_packages = list_installed_packages(settings.custom_nodes_dir)
     return {
         "registries": settings.registries,
         "tool_paths": settings.tool_paths,
+        "custom_node_registries": registry_entries(settings.custom_nodes_dir),
+        "installed_packages": installed_packages,
     }
 
 

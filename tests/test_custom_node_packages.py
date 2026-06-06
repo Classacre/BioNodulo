@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bionodulo.manager.custom_nodes import list_installed_packages, load_package_manifest
+from bionodulo.manager.custom_nodes import list_installed_packages, load_package_manifest, registry_entries
 
 
 def test_load_package_manifest_parses_bionodulo_toml(tmp_path: Path) -> None:
@@ -90,3 +90,27 @@ entrypoints = ["nodes"]
     assert packages[1]["entrypoints"] == ["nodes"]
     assert packages[1]["manifest_present"] is True
     assert packages[2]["directory"] == "single_file.py"
+
+
+def test_registry_entries_marks_installed_packages_by_repository(tmp_path: Path) -> None:
+    installed_dir = tmp_path / "community_nodes"
+    installed_dir.mkdir()
+    (installed_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "community-nodes"
+version = "0.1.0"
+repository = "https://github.com/bionodulo/community-nodes.git"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    entries = registry_entries(tmp_path)
+
+    community = entries["bionodulo-community"]
+    assert community["installed"] is True
+    assert community["installed_package"]["name"] == "community-nodes"
+    assert community["install_status"] == "installed"
+    assert community["verified"] is True
+    assert community["compatibility"]["manifest_required"] is True
+    assert entries["bioconda-nodes"]["installed"] is False

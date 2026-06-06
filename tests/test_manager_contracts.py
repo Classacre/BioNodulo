@@ -52,3 +52,33 @@ def test_manager_status_reports_node_registry_contract() -> None:
     assert isinstance(first_node["version"], str)
     assert isinstance(first_node["category"], str)
     assert isinstance(first_node["builtin"], bool)
+
+
+def test_manager_registry_reports_community_catalog_and_installed_packages(monkeypatch, tmp_path) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    custom_nodes = tmp_path / "custom_nodes" / "community_nodes"
+    custom_nodes.mkdir(parents=True)
+    (custom_nodes / "bionodulo.toml").write_text(
+        """
+[package]
+name = "community-nodes"
+version = "0.1.0"
+repository = "https://github.com/bionodulo/community-nodes.git"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/manager/registry")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {"registries", "tool_paths", "custom_node_registries", "installed_packages"}
+    assert payload["installed_packages"][0]["name"] == "community-nodes"
+    community = payload["custom_node_registries"]["bionodulo-community"]
+    assert community["installed"] is True
+    assert community["install_status"] == "installed"
+    assert community["installed_package"]["name"] == "community-nodes"
+    assert community["compatibility"]["supported_manifest"] == "bionodulo.toml"

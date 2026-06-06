@@ -242,19 +242,33 @@ def update_package(package_dir: str | Path, branch: str = "main") -> bool:
         return False
 
 
-def registry_entries() -> dict[str, dict[str, Any]]:
+def registry_entries(custom_nodes_dir: str | Path | None = None) -> dict[str, dict[str, Any]]:
     """List available custom node registries.
 
     Returns:
         Dictionary of registry name -> metadata.
     """
+    installed_packages = list_installed_packages(custom_nodes_dir) if custom_nodes_dir is not None else []
+    installed_by_repository = {
+        str(package.get("repository", "")).rstrip("/").lower(): package
+        for package in installed_packages
+        if package.get("repository")
+    }
     entries: dict[str, dict[str, Any]] = {}
     for name, url in DEFAULT_REGISTRIES.items():
+        installed_package = installed_by_repository.get(url.rstrip("/").lower())
         entries[name] = {
             "name": name,
             "url": url,
             "description": f"BioNodulo custom node registry: {name}",
-            "installed": False,
+            "installed": installed_package is not None,
+            "install_status": "installed" if installed_package is not None else "available",
+            "installed_package": installed_package,
+            "verified": True,
+            "compatibility": {
+                "manifest_required": True,
+                "supported_manifest": "bionodulo.toml",
+            },
         }
     return entries
 
