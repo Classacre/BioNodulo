@@ -301,6 +301,37 @@
       }
     },
     {
+      "id": "manta_sv_001",
+      "type": "manta_call",
+      "position": [
+        2600,
+        920
+      ],
+      "params": {
+        "threads": 4,
+        "exome": false,
+        "rna": false
+      },
+      "ui": {
+        "title": "Manta SV Calling"
+      }
+    },
+    {
+      "id": "delly_sv_001",
+      "type": "delly_call",
+      "position": [
+        2600,
+        1100
+      ],
+      "params": {
+        "mode": "call",
+        "map_qual": 1
+      },
+      "ui": {
+        "title": "DELLY SV Calling"
+      }
+    },
+    {
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
@@ -314,6 +345,23 @@
       },
       "ui": {
         "title": "Variant report"
+      }
+    },
+    {
+      "id": "sv_report_001",
+      "type": "html_report",
+      "position": [
+        2960,
+        920
+      ],
+      "params": {
+        "title": "WGS Structural Variant Report",
+        "text_sections": "# Structural variants\nParallel Manta and DELLY structural variants from the duplicate-marked WGS alignment.",
+        "section_names": "Manta SV calls,DELLY SV calls",
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "SV report"
       }
     },
     {
@@ -677,6 +725,72 @@
       }
     },
     {
+      "id": "e19a",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e19b",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e19c",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e19d",
+      "from": {
+        "node": "validate_reference_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e19e",
+      "from": {
+        "node": "manta_sv_001",
+        "output": "sv_vcf"
+      },
+      "to": {
+        "node": "sv_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e19f",
+      "from": {
+        "node": "delly_sv_001",
+        "output": "sv_vcf"
+      },
+      "to": {
+        "node": "sv_report_001",
+        "input": "tables"
+      }
+    },
+    {
       "id": "e20",
       "from": {
         "node": "validate_multiqc_001",
@@ -696,6 +810,9 @@
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "report": "variant_report_001",
+    "manta_sv": "manta_sv_001",
+    "delly_sv": "delly_sv_001",
+    "structural_variant_report": "sv_report_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",
     "validated_reference": "validate_reference_001"
