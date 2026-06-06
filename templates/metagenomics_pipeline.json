@@ -905,6 +905,7 @@
     "validated_reads": "validate_reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_multiqc_report": "validate_multiqc_001",
-    "qc_dashboard": "qc_dashboard_001"
+    "qc_dashboard": "qc_dashboard_001",
+    "qc_dashboard_preview": "qc_dashboard_preview_001"
   }
 }

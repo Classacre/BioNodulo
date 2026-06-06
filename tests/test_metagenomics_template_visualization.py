@@ -43,6 +43,7 @@ def test_metagenomics_template_adds_qc_dashboard_from_fastqc_report() -> None:
     assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+    assert workflow["outputs"]["qc_dashboard_preview"] == "qc_dashboard_preview_001"
 
 
 def test_metagenomics_template_reports_humann_pathway_profiles() -> None:

@@ -832,6 +832,7 @@ def test_differential_expression_template_adds_quantification_html_report() -> N
     assert _has_edge(workflow, "quant_comparison_001", "joined_table", "quant_report_001", "tables")
     assert _has_edge(workflow, "quant_report_001", "html_report", "quant_report_preview_001", "file")
     assert workflow["outputs"]["quantification_report"] == "quant_report_001"
+    assert workflow["outputs"]["quantification_report_preview"] == "quant_report_preview_001"
 
 
 def test_differential_expression_template_compares_quantifier_outputs() -> None:

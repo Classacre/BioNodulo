@@ -53,3 +53,4 @@ def test_chip_seq_template_adds_final_html_report_from_validated_peaks() -> None
     assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"
     assert workflow["outputs"]["report"] == "chip_seq_report_001"
     assert workflow["outputs"]["chip_seq_report"] == "chip_seq_report_001"
+    assert workflow["outputs"]["chip_seq_report_preview"] == "chip_seq_report_preview_001"

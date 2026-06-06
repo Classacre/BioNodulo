@@ -490,6 +490,7 @@
     "report": "mqc_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "quantification_report": "quant_report_001",
+    "quantification_report_preview": "quant_report_preview_001",
     "quantifier_comparison": "quant_comparison_001"
   }
 }

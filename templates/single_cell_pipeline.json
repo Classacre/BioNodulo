@@ -419,7 +419,9 @@
     "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
+    "qc_dashboard_preview": "qc_dashboard_preview_001",
     "report": "single_cell_report_001",
-    "metrics_report": "single_cell_report_001"
+    "metrics_report": "single_cell_report_001",
+    "metrics_report_preview": "single_cell_report_preview_001"
   }
 }
