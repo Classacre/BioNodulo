@@ -694,6 +694,21 @@ def test_chip_seq_template_validates_macs2_peak_output() -> None:
     assert workflow["outputs"]["validated_peaks"] == "validate_peaks_001"
 
 
+def test_chip_seq_template_validates_multiqc_report_before_preview() -> None:
+    workflow = _load_template("chip_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_multiqc_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
+    assert validator["params"]["expected_format"] == "text"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
+    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+
+
 def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
