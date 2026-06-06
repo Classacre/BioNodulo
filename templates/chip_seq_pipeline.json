@@ -156,6 +156,22 @@
       }
     },
     {
+      "id": "validate_peaks_001",
+      "type": "data_validator",
+      "position": [
+        2240,
+        80
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MACS2 Peaks"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -317,11 +333,23 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "macs2_001",
+        "output": "peaks"
+      },
+      "to": {
+        "node": "validate_peaks_001",
+        "input": "input"
+      }
     }
   ],
   "groups": [],
   "outputs": {
     "peaks": "macs2_001",
+    "validated_peaks": "validate_peaks_001",
     "coverage_track": "coverage_001",
     "report": "mqc_001",
     "trimmed_reads": "fastp_001",
