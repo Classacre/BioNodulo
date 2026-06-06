@@ -102,7 +102,7 @@
       "id": "kraken2_001",
       "type": "kraken2",
       "position": [
-        800,
+        980,
         80
       ],
       "params": {
@@ -110,6 +110,25 @@
       },
       "ui": {
         "title": "Kraken2"
+      }
+    },
+    {
+      "id": "kraken2_retry_001",
+      "type": "retry",
+      "position": [
+        800,
+        80
+      ],
+      "params": {
+        "max_retries": 2,
+        "delay_seconds": 10.0,
+        "backoff_multiplier": 2.0,
+        "max_delay": 120,
+        "retry_on": "all",
+        "only_retry_specific_nodes": "kraken2_001"
+      },
+      "ui": {
+        "title": "Retry Kraken2"
       }
     },
     {
@@ -211,7 +230,7 @@
       "id": "humann_001",
       "type": "humann",
       "position": [
-        800,
+        980,
         976
       ],
       "params": {
@@ -219,6 +238,25 @@
       },
       "ui": {
         "title": "HUMAnN"
+      }
+    },
+    {
+      "id": "humann_retry_001",
+      "type": "retry",
+      "position": [
+        800,
+        976
+      ],
+      "params": {
+        "max_retries": 2,
+        "delay_seconds": 10.0,
+        "backoff_multiplier": 2.0,
+        "max_delay": 120,
+        "retry_on": "all",
+        "only_retry_specific_nodes": "humann_001"
+      },
+      "ui": {
+        "title": "Retry HUMAnN"
       }
     },
     {
@@ -347,6 +385,17 @@
         "output": "output"
       },
       "to": {
+        "node": "kraken2_retry_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2a_retry",
+      "from": {
+        "node": "kraken2_retry_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "kraken2_001",
         "input": "reads"
       }
@@ -433,6 +482,17 @@
       "from": {
         "node": "gate_trimmed_reads_001",
         "output": "output"
+      },
+      "to": {
+        "node": "humann_retry_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10_retry",
+      "from": {
+        "node": "humann_retry_001",
+        "output": "passthrough"
       },
       "to": {
         "node": "humann_001",
@@ -535,8 +595,10 @@
     "taxonomy_report": "taxonomy_report_001",
     "validated_bracken_report": "validate_bracken_001",
     "validated_db": "validate_db_001",
+    "kraken2_retry_policy": "kraken2_retry_001",
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001",
+    "humann_retry_policy": "humann_retry_001",
     "validated_reads": "validate_reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_multiqc_report": "validate_multiqc_001",

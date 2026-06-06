@@ -63,6 +63,25 @@
       }
     },
     {
+      "id": "cr_count_retry_001",
+      "type": "retry",
+      "position": [
+        350,
+        80
+      ],
+      "params": {
+        "max_retries": 2,
+        "delay_seconds": 5.0,
+        "backoff_multiplier": 2.0,
+        "max_delay": 120,
+        "retry_on": "all",
+        "only_retry_specific_nodes": "cr_count_001"
+      },
+      "ui": {
+        "title": "Retry Cell Ranger Count"
+      }
+    },
+    {
       "id": "validate_fastq_dir_001",
       "type": "data_validator",
       "position": [
@@ -260,6 +279,17 @@
         "output": "passthrough"
       },
       "to": {
+        "node": "cr_count_retry_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4a",
+      "from": {
+        "node": "cr_count_retry_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "cr_count_001",
         "input": "fastq_dir"
       }
@@ -301,6 +331,7 @@
   "groups": [],
   "outputs": {
     "counts": "cr_count_001",
+    "cellranger_retry_policy": "cr_count_retry_001",
     "validated_fastq_dir": "validate_fastq_dir_001",
     "validated_reference_dir": "validate_reference_dir_001",
     "validated_web_summary": "validate_web_summary_001",

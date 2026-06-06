@@ -1043,9 +1043,11 @@ def test_metagenomics_template_gates_trimmed_reads_before_profiling() -> None:
     assert gate["params"]["on_fail"] == "halt"
     assert "trimmed reads" in gate["params"]["error_message"]
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "gate_trimmed_reads_001", "value")
-    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "kraken2_001", "reads")
+    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "kraken2_retry_001", "input")
+    assert _has_edge(workflow, "kraken2_retry_001", "passthrough", "kraken2_001", "reads")
     assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "metaphlan_001", "reads")
-    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_001", "reads")
+    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_retry_001", "input")
+    assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "reads")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "kraken2_001", "reads")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "metaphlan_001", "reads")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "humann_001", "reads")
@@ -1116,7 +1118,8 @@ def test_single_cell_template_validates_input_directories_before_cellranger() ->
     assert fastq_validator["params"]["fail_on_error"] is True
     assert ref_validator["params"]["fail_on_error"] is True
     assert _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
-    assert _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_001", "fastq_dir")
+    assert _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_retry_001", "input")
+    assert _has_edge(workflow, "cr_count_retry_001", "passthrough", "cr_count_001", "fastq_dir")
     assert _has_edge(workflow, "ref_001", "directory", "validate_reference_dir_001", "input")
     assert _has_edge(workflow, "validate_reference_dir_001", "passthrough", "cr_count_001", "transcriptome")
     assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
