@@ -41,9 +41,9 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
-    assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
-    assert workflow["outputs"]["vcf"] == "snpeff_001"
+    assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
 
 
@@ -112,6 +112,22 @@ def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
+def test_variant_calling_template_prioritizes_annotated_variants() -> None:
+    workflow = _load_template("variant_calling_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["prioritize_vcf_001"] == "filter_vcf"
+    prioritizer = next(node for node in workflow["nodes"] if node["id"] == "prioritize_vcf_001")
+    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
+    assert prioritizer["params"]["pass_only"] is True
+    assert prioritizer["params"]["output_type"] == "VCF_GZ"
+    assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
+    assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
+    assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
+    assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
+
+
 def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotation_report() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
@@ -129,9 +145,9 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
-    assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
-    assert workflow["outputs"]["vcf"] == "snpeff_001"
+    assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
 
 
@@ -198,6 +214,22 @@ def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
     assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
     assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "variant_report_001", "images")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
+
+
+def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
+    workflow = _load_template("wgs_variant_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["prioritize_vcf_001"] == "filter_vcf"
+    prioritizer = next(node for node in workflow["nodes"] if node["id"] == "prioritize_vcf_001")
+    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
+    assert prioritizer["params"]["pass_only"] is True
+    assert prioritizer["params"]["output_type"] == "VCF_GZ"
+    assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
+    assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
+    assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
+    assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
 
 
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:

@@ -253,6 +253,22 @@
       }
     },
     {
+      "id": "prioritize_vcf_001",
+      "type": "filter_vcf",
+      "position": [
+        2780,
+        80
+      ],
+      "params": {
+        "custom_filter": "INFO/ANN ~ 'HIGH|MODERATE'",
+        "pass_only": true,
+        "output_type": "VCF_GZ"
+      },
+      "ui": {
+        "title": "Prioritize variants"
+      }
+    },
+    {
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
@@ -585,6 +601,17 @@
         "output": "annotated_vcf"
       },
       "to": {
+        "node": "prioritize_vcf_001",
+        "input": "vcf"
+      }
+    },
+    {
+      "id": "e16a",
+      "from": {
+        "node": "prioritize_vcf_001",
+        "output": "filtered_vcf"
+      },
+      "to": {
         "node": "variant_report_001",
         "input": "tables"
       }
@@ -636,7 +663,8 @@
   ],
   "groups": [],
   "outputs": {
-    "vcf": "snpeff_001",
+    "vcf": "prioritize_vcf_001",
+    "prioritized_vcf": "prioritize_vcf_001",
     "flagstat": "flagstat_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
