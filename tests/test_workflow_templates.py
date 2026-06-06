@@ -328,6 +328,15 @@ def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     assert workflow["outputs"]["report"] == "qc_dashboard_001"
 
 
+def test_rna_seq_template_aggregates_alignment_stats_in_multiqc() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["flagstat_001"] == "samtools_flagstat"
+    assert node_types["mqc_001"] == "multiqc"
+    assert _has_edge(workflow, "flagstat_001", "stats", "mqc_001", "reports")
+
+
 def test_rna_seq_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)

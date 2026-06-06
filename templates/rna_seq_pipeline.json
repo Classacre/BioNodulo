@@ -478,6 +478,17 @@
       }
     },
     {
+      "id": "e8a",
+      "from": {
+        "node": "flagstat_001",
+        "output": "stats"
+      },
+      "to": {
+        "node": "mqc_001",
+        "input": "reports"
+      }
+    },
+    {
       "id": "e4b",
       "from": {
         "node": "view_001",
