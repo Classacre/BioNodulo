@@ -100,6 +100,25 @@
       }
     },
     {
+      "id": "spades_retry_001",
+      "type": "retry",
+      "position": [
+        890,
+        80
+      ],
+      "params": {
+        "max_retries": 2,
+        "delay_seconds": 5.0,
+        "backoff_multiplier": 2.0,
+        "max_delay": 120,
+        "retry_on": "all",
+        "only_retry_specific_nodes": "spades_001"
+      },
+      "ui": {
+        "title": "Retry SPAdes"
+      }
+    },
+    {
       "id": "megahit_001",
       "type": "megahit",
       "position": [
@@ -292,6 +311,17 @@
         "output": "output_1"
       },
       "to": {
+        "node": "spades_retry_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2a_retry",
+      "from": {
+        "node": "spades_retry_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "spades_001",
         "input": "reads"
       }
@@ -422,6 +452,7 @@
   "outputs": {
     "assembly": "spades_001",
     "assembler_switch": "switch_assembler_001",
+    "spades_retry_policy": "spades_retry_001",
     "megahit_assembly": "megahit_001",
     "validated_assembly": "validate_assembly_001",
     "assembly_quality_gate": "gate_assembly_001",

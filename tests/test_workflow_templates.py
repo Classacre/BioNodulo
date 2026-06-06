@@ -769,7 +769,8 @@ def test_assembly_template_adds_megahit_switch_alternative() -> None:
     assert megahit["params"]["min_contig_len"] == 200
 
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "switch_assembler_001", "passthrough_data")
-    assert _has_edge(workflow, "switch_assembler_001", "output_1", "spades_001", "reads")
+    assert _has_edge(workflow, "switch_assembler_001", "output_1", "spades_retry_001", "input")
+    assert _has_edge(workflow, "spades_retry_001", "passthrough", "spades_001", "reads")
     assert _has_edge(workflow, "switch_assembler_001", "output_2", "megahit_001", "reads")
     assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
     assert _has_edge(workflow, "megahit_001", "contigs", "validate_assembly_001", "input")
