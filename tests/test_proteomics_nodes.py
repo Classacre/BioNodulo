@@ -209,6 +209,148 @@ def test_msfragger_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["msfragger"] == ">=4.0"
 
 
+def test_sage_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["sage_search"]
+    assert node_info["display_name"] == "Sage Search"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Fast Rust-based peptide-spectrum")
+    assert node_info["output"] == ["TSV", "JSON", "FILE"]
+    assert node_info["output_name"] == ["results_tsv", "results_json", "config_json"]
+    assert node_info["required_executables"] == ["sage"]
+    assert node_info["required_conda_packages"] == ["sage-proteomics"]
+    assert "sage" in node_info["search_aliases"]
+    assert "peptide identification" in node_info["search_aliases"]
+    assert "proteomics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"spectra_files", "fasta_db"}
+    assert set(inputs["optional"]) == {
+        "threads",
+        "precursor_tol_ppm",
+        "fragment_tol_da",
+        "enzyme",
+        "missed_cleavages",
+        "min_peptide_length",
+        "max_peptide_length",
+        "write_pin",
+        "parquet",
+    }
+
+
+def test_sage_renders_configured_search_command(tmp_path: Path) -> None:
+    node_class = _node_class("sage_search")
+    output_dir = tmp_path / "sage_search"
+
+    cmd = node_class.render_command({
+        "spectra_files": ["run1.mzML", "run2.mzML"],
+        "fasta_db": "proteome.fa",
+        "threads": 12,
+        "precursor_tol_ppm": 10,
+        "fragment_tol_da": 0.02,
+        "enzyme": "trypsin",
+        "missed_cleavages": 2,
+        "min_peptide_length": 7,
+        "max_peptide_length": 40,
+        "write_pin": True,
+        "parquet": True,
+        "output": str(output_dir),
+    })
+
+    config_file = output_dir / "sage_config.json"
+    assert cmd == [
+        "sage",
+        str(config_file),
+        "-f",
+        "proteome.fa",
+        "-o",
+        str(output_dir),
+        "--threads",
+        "12",
+        "--write-pin",
+        "--parquet",
+        "run1.mzML",
+        "run2.mzML",
+    ]
+    assert config_file.read_text(encoding="utf-8") == (
+        "{\n"
+        '  "database": {"fasta": "proteome.fa"},\n'
+        '  "mzml_paths": ["run1.mzML", "run2.mzML"],\n'
+        '  "precursor_tol": {"ppm": 10},\n'
+        '  "fragment_tol": {"da": 0.02},\n'
+        '  "enzyme": {"missed_cleavages": 2, "min_len": 7, "max_len": 40, "cleave_at": "KR", "restrict": "P"},\n'
+        '  "output_paths": {"results": "results.sage.tsv"}\n'
+        "}\n"
+    )
+
+
+def test_sage_accepts_single_spectrum_and_omits_optional_flags(tmp_path: Path) -> None:
+    node_class = _node_class("sage_search")
+    output_dir = tmp_path / "sage_search"
+
+    cmd = node_class.render_command({
+        "spectra_files": "run1.mzML",
+        "fasta_db": "proteome.fa",
+        "threads": 4,
+        "write_pin": False,
+        "parquet": False,
+        "output": str(output_dir),
+    })
+
+    assert "--write-pin" not in cmd
+    assert "--parquet" not in cmd
+    assert cmd == [
+        "sage",
+        str(output_dir / "sage_config.json"),
+        "-f",
+        "proteome.fa",
+        "-o",
+        str(output_dir),
+        "--threads",
+        "4",
+        "run1.mzML",
+    ]
+    config_text = (output_dir / "sage_config.json").read_text(encoding="utf-8")
+    assert '"mzml_paths": ["run1.mzML"]' in config_text
+    assert '"precursor_tol": {"ppm": 20}' in config_text
+    assert '"fragment_tol": {"da": 0.05}' in config_text
+
+
+def test_sage_plans_outputs() -> None:
+    node_class = _node_class("sage_search")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/sage_search/results.sage.tsv",
+        "/tmp/run/sage_search/results.json",
+        "/tmp/run/sage_search/sage_config.json",
+    ]
+
+
+def test_sage_rejects_missing_spectra_and_non_positive_threads() -> None:
+    node_class = _node_class("sage_search")
+
+    assert node_class.VALIDATE_INPUTS({
+        "spectra_files": "",
+        "fasta_db": "proteome.fa",
+        "threads": 4,
+    }) == "Sage Search requires at least one spectra file."
+    assert node_class.VALIDATE_INPUTS({
+        "spectra_files": "run1.mzML",
+        "fasta_db": "proteome.fa",
+        "threads": 0,
+    }) == "Sage Search threads must be greater than zero."
+
+
+def test_sage_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["sage"] == "sage-proteomics"
+    assert PACKAGE_MIN_VERSIONS["sage-proteomics"] == ">=0.14.7"
+
+
 def test_comet_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()

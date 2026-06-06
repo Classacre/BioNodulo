@@ -131,6 +131,21 @@ const objectInfo = {
     output: ['VCF_GZ'],
     output_name: ['vcf'],
   },
+  sage_search: {
+    name: 'sage_search',
+    display_name: 'Sage Search',
+    category: 'proteomics',
+    description: 'Fast Rust-based peptide-spectrum matching for large-scale proteomics searches.',
+    search_aliases: ['sage', 'sage-proteomics', 'proteomics', 'peptide identification'],
+    input: {
+      required: {
+        spectra_files: { type: 'FILE' },
+        fasta_db: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV', 'JSON', 'FILE'],
+    output_name: ['results_tsv', 'results_json', 'config_json'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -204,7 +219,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('11 nodes available')).toBeVisible();
+  await expect(page.getByText('12 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -217,6 +232,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
     { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
     { query: 'nanopore', name: 'Clair3', category: 'variant' },
+    { query: 'sage-proteomics', name: 'Sage Search', category: 'proteomics' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];
