@@ -111,6 +111,22 @@
       }
     },
     {
+      "id": "validate_index_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        276
+      ],
+      "params": {
+        "expected_format": "directory",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Bowtie2 Index"
+      }
+    },
+    {
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
@@ -269,8 +285,8 @@
         "output": "directory"
       },
       "to": {
-        "node": "bt2_001",
-        "input": "index"
+        "node": "validate_index_001",
+        "input": "input"
       }
     },
     {
@@ -371,6 +387,17 @@
         "node": "html_preview_001",
         "input": "file"
       }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "validate_index_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "bt2_001",
+        "input": "index"
+      }
     }
   ],
   "groups": [],
@@ -381,6 +408,7 @@
     "report": "mqc_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
-    "validated_reads": "validate_reads_001"
+    "validated_reads": "validate_reads_001",
+    "validated_index": "validate_index_001"
   }
 }

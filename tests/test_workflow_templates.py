@@ -715,6 +715,21 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
 
 
+def test_chip_seq_template_validates_index_directory_before_alignment() -> None:
+    workflow = _load_template("chip_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_index_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_index_001")
+    assert validator["params"]["expected_format"] == "directory"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "idx_001", "directory", "validate_index_001", "input")
+    assert _has_edge(workflow, "validate_index_001", "passthrough", "bt2_001", "index")
+    assert not _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
+    assert workflow["outputs"]["validated_index"] == "validate_index_001"
+
+
 def test_chip_seq_template_generates_bigwig_coverage_track() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
