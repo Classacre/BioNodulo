@@ -1077,6 +1077,51 @@ async def test_batch_submitter_submits_workflows_to_context_queue(tmp_path: Path
 
 
 @pytest.mark.asyncio
+async def test_batch_submitter_submits_workflows_to_context_hpc_backend(tmp_path: Path) -> None:
+    context = _context(tmp_path, "batch-hpc")
+    submitted: list[dict[str, Any]] = []
+
+    class FakeHPCBackend:
+        async def submit_workflow(self, **kwargs: Any) -> str:
+            submitted.append(kwargs)
+            return f"hpc-{len(submitted)}"
+
+    context.hpc_backend = FakeHPCBackend()
+
+    job_ids_json, summary_json, batch_log = await _node_class("batch_submitter")().run(
+        workflow_template=json.dumps(
+            {
+                "name": "align-{{sample}}",
+                "nodes": [{"id": "align", "type": "bwa_mem", "params": {"sample": "{{sample}}"}}],
+            }
+        ),
+        param_matrix=[{"sample": "S1"}, {"sample": "S2"}],
+        scheduler="slurm",
+        memory_per_job="12G",
+        walltime="02:00:00",
+        context=context,
+    )
+
+    jobs = json.loads(job_ids_json)
+    summary = json.loads(summary_json)
+    assert [job["job_id"] for job in jobs] == ["hpc-1", "hpc-2"]
+    assert [job["status"] for job in jobs] == ["submitted", "submitted"]
+    assert submitted[0]["workflow"]["name"] == "align-S1"
+    assert submitted[0]["name"] == "align-S1"
+    assert submitted[0]["memory"] == "12G"
+    assert submitted[0]["walltime"] == "02:00:00"
+    assert submitted[0]["parameters"] == {"sample": "S1"}
+    assert submitted[1]["workflow"]["nodes"][0]["params"]["sample"] == "S2"
+    assert summary["total"] == 2
+    assert summary["submitted"] == 2
+    assert summary["planned"] == 0
+    assert summary["queue_submission_supported"] is False
+    assert summary["hpc_submission_supported"] is True
+    assert Path(batch_log).exists()
+    assert context.events[0][0] == "batch_submitted"
+
+
+@pytest.mark.asyncio
 async def test_batch_submitter_rejects_invalid_json_inputs() -> None:
     with pytest.raises(ValueError, match="workflow_template must be valid JSON"):
         await _node_class("batch_submitter")().run(

@@ -1767,13 +1767,29 @@ class BatchSubmitterNode(BaseNode):
         param_sets = self._parse_param_matrix(kwargs.get("param_matrix", []))
         output_dir = _node_output_dir(self, context)
         queue = getattr(context, "queue", None) if context is not None else None
+        hpc_backend = getattr(context, "hpc_backend", None) if context is not None else None
         queue_submission_supported = queue is not None and hasattr(queue, "submit")
+        hpc_submission_supported = (
+            not queue_submission_supported
+            and hpc_backend is not None
+            and hasattr(hpc_backend, "submit_workflow")
+        )
 
         jobs: list[dict[str, Any]] = []
         for index, params in enumerate(param_sets):
             workflow = self._fill_template(workflow_template, params)
             if queue_submission_supported:
                 job = await self._submit_to_queue(queue, workflow, params, index, scheduler, context)
+            elif hpc_submission_supported:
+                job = await self._submit_to_hpc_backend(
+                    hpc_backend,
+                    workflow,
+                    params,
+                    index,
+                    scheduler,
+                    memory_per_job,
+                    walltime,
+                )
             else:
                 job = self._write_planned_workflow(output_dir, workflow, params, index, context)
             jobs.append(job)
@@ -1786,6 +1802,7 @@ class BatchSubmitterNode(BaseNode):
             memory_per_job=memory_per_job,
             walltime=walltime,
             queue_submission_supported=queue_submission_supported,
+            hpc_submission_supported=hpc_submission_supported,
         )
         log_path = output_dir / "batch_submitter_log.json"
         log_payload = {"summary": summary, "jobs": jobs}
@@ -1803,7 +1820,7 @@ class BatchSubmitterNode(BaseNode):
         }
         _ctx_emit(context, "batch_submitted", event_payload)
 
-        action = "queued" if queue_submission_supported else "planned"
+        action = "queued" if queue_submission_supported else "submitted" if hpc_submission_supported else "planned"
         _ctx_log(context, "info", f"Batch Submitter {action} {summary['total']} jobs via {scheduler}")
         return (json.dumps(jobs, sort_keys=True, default=str), _json_text(summary), str(log_path))
 
@@ -1870,6 +1887,43 @@ class BatchSubmitterNode(BaseNode):
             "params": params,
         }
 
+    async def _submit_to_hpc_backend(
+        self,
+        hpc_backend: Any,
+        workflow: dict[str, Any],
+        params: dict[str, Any],
+        index: int,
+        scheduler: str,
+        memory_per_job: str,
+        walltime: str,
+    ) -> dict[str, Any]:
+        try:
+            job_id = await hpc_backend.submit_workflow(
+                workflow=workflow,
+                name=str(workflow.get("name") or f"batch_job_{index}"),
+                cpus=None,
+                memory=memory_per_job,
+                walltime=walltime,
+                dependency_jobs=[],
+                parameters=params,
+            )
+        except Exception as exc:
+            return {
+                "index": index,
+                "job_id": None,
+                "status": "failed",
+                "error": str(exc),
+                "scheduler": scheduler,
+                "params": params,
+            }
+        return {
+            "index": index,
+            "job_id": str(job_id),
+            "status": "submitted",
+            "scheduler": scheduler,
+            "params": params,
+        }
+
     def _write_planned_workflow(
         self,
         output_dir: Path,
@@ -1916,10 +1970,12 @@ class BatchSubmitterNode(BaseNode):
         memory_per_job: str,
         walltime: str,
         queue_submission_supported: bool,
+        hpc_submission_supported: bool = False,
     ) -> dict[str, Any]:
         return {
             "total": len(jobs),
             "queued": sum(1 for job in jobs if job.get("status") == "queued"),
+            "submitted": sum(1 for job in jobs if job.get("status") == "submitted"),
             "planned": sum(1 for job in jobs if job.get("status") == "planned"),
             "completed": sum(1 for job in jobs if job.get("status") == "completed"),
             "failed": sum(1 for job in jobs if job.get("status") == "failed"),
@@ -1929,7 +1985,7 @@ class BatchSubmitterNode(BaseNode):
             "memory_per_job": memory_per_job,
             "walltime": walltime,
             "queue_submission_supported": queue_submission_supported,
-            "hpc_submission_supported": False,
+            "hpc_submission_supported": hpc_submission_supported,
         }
 
 
