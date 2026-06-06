@@ -18,13 +18,15 @@ class CellRangerCountNode(CommandNode):
     CATEGORY = "single_cell"
     DESCRIPTION = "Align 10x Genomics scRNA-seq reads and generate feature-barcode matrix"
     SEARCH_ALIASES = ["cellranger", "10x", "scrna", "count", "single cell"]
-    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE", "CSV", "DIRECTORY", "FILE")
+    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE", "CSV", "DIRECTORY", "FILE", "DIRECTORY", "FILE")
     RETURN_NAMES = (
         "output_dir",
         "web_summary",
         "metrics_summary",
         "filtered_feature_bc_matrix",
         "filtered_feature_bc_matrix_h5",
+        "raw_feature_bc_matrix",
+        "raw_feature_bc_matrix_h5",
     )
     REQUIRED_EXECUTABLES = ["cellranger"]
     DOCUMENTATION_URL = "https://www.10xgenomics.com/support/software/cell-ranger"
@@ -44,6 +46,8 @@ class CellRangerCountNode(CommandNode):
             outs / "metrics_summary.csv",
             outs / "filtered_feature_bc_matrix",
             outs / "filtered_feature_bc_matrix.h5",
+            outs / "raw_feature_bc_matrix",
+            outs / "raw_feature_bc_matrix.h5",
         ]
 
     @classmethod
