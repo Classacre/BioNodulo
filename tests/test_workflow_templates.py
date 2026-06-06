@@ -857,6 +857,30 @@ def test_metagenomics_template_validates_multiqc_report_before_preview() -> None
     assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
 
 
+def test_single_cell_template_validates_input_directories_before_cellranger() -> None:
+    workflow = _load_template("single_cell_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_fastq_dir_001"] == "data_validator"
+    assert node_types["validate_reference_dir_001"] == "data_validator"
+    fastq_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_fastq_dir_001")
+    ref_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_dir_001")
+    assert fastq_validator["params"]["expected_format"] == "directory"
+    assert ref_validator["params"]["expected_format"] == "directory"
+    assert fastq_validator["params"]["min_size_bytes"] > 0
+    assert ref_validator["params"]["min_size_bytes"] > 0
+    assert fastq_validator["params"]["fail_on_error"] is True
+    assert ref_validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
+    assert _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_001", "fastq_dir")
+    assert _has_edge(workflow, "ref_001", "directory", "validate_reference_dir_001", "input")
+    assert _has_edge(workflow, "validate_reference_dir_001", "passthrough", "cr_count_001", "transcriptome")
+    assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
+    assert not _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
+    assert workflow["outputs"]["validated_fastq_dir"] == "validate_fastq_dir_001"
+    assert workflow["outputs"]["validated_reference_dir"] == "validate_reference_dir_001"
+
+
 def test_single_cell_template_validates_cellranger_web_summary_before_preview() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
