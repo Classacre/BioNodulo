@@ -107,6 +107,23 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert if_condition_inputs["optional"]["output_mode"][1]["options"] == ["route", "signal"]
 
 
+def test_switch_frontend_metadata_exposes_dynamic_branch_contract() -> None:
+    switch_info = _loaded_registry().object_info("switch")
+
+    num_branches_type, num_branches_config = switch_info["input"]["optional"]["num_branches"]
+
+    assert num_branches_type == "INT"
+    assert num_branches_config["default"] == 4
+    assert num_branches_config["min"] == 1
+    assert num_branches_config["max"] >= 6
+    assert num_branches_config["dynamic_outputs"] == {
+        "prefix": "output_",
+        "count_input": "num_branches",
+        "default_output": "default",
+        "type": "ANY",
+    }
+
+
 @pytest.mark.asyncio
 async def test_if_condition_routes_value_to_selected_branch() -> None:
     node = _node_class("if_condition")()
@@ -221,6 +238,29 @@ async def test_switch_routes_passthrough_to_matching_case() -> None:
         "default": None,
     }
     assert result["inactive_outputs"] == ["output_1", "output_3", "output_4", "default"]
+
+
+@pytest.mark.asyncio
+async def test_switch_num_branches_routes_to_dynamic_case_output() -> None:
+    node = _node_class("switch")()
+
+    result = await node.run(
+        value="zebrafish",
+        cases="mouse,human,yeast,rat,fly,zebrafish",
+        passthrough_data="danRer11",
+        num_branches=6,
+    )
+
+    assert result["outputs"] == {
+        "output_1": None,
+        "output_2": None,
+        "output_3": None,
+        "output_4": None,
+        "output_5": None,
+        "output_6": "danRer11",
+        "default": None,
+    }
+    assert result["inactive_outputs"] == ["output_1", "output_2", "output_3", "output_4", "output_5", "default"]
 
 
 @pytest.mark.asyncio

@@ -266,7 +266,7 @@ class IfConditionNode(BaseNode):
 
 
 class SwitchNode(BaseNode):
-    """Route a value to one of four case outputs or a default output."""
+    """Route a value to one of several case outputs or a default output."""
 
     NODE_ID = "switch"
     DISPLAY_NAME = "Switch"
@@ -275,6 +275,9 @@ class SwitchNode(BaseNode):
     SEARCH_ALIASES = ["switch", "case", "route", "branch", "match"]
     RETURN_TYPES = ("ANY", "ANY", "ANY", "ANY", "ANY")
     RETURN_NAMES = ("output_1", "output_2", "output_3", "output_4", "default")
+    DEFAULT_NUM_BRANCHES = 4
+    MIN_NUM_BRANCHES = 1
+    MAX_NUM_BRANCHES = 32
     REQUIRES_EXTERNAL_TOOLS = False
     ROUTES_FLOW = True
 
@@ -286,11 +289,22 @@ class SwitchNode(BaseNode):
                 "cases": ("STRING", {
                     "default": "",
                     "multiline": True,
-                    "description": "Comma- or newline-separated case values; first four map to output_1..output_4",
+                    "description": "Comma- or newline-separated case values; map in order to output_1..output_N",
                 }),
             },
             "optional": {
                 "passthrough_data": ("ANY", {"description": "Data to emit on the matched output; defaults to value"}),
+                "num_branches": ("INT", {
+                    "default": cls.DEFAULT_NUM_BRANCHES,
+                    "min": cls.MIN_NUM_BRANCHES,
+                    "max": cls.MAX_NUM_BRANCHES,
+                    "dynamic_outputs": {
+                        "prefix": "output_",
+                        "count_input": "num_branches",
+                        "default_output": "default",
+                        "type": "ANY",
+                    },
+                }),
                 "case_sensitive": ("BOOLEAN", {"default": True}),
                 "rules": ("STRING", {
                     "default": "[]",
@@ -310,6 +324,7 @@ class SwitchNode(BaseNode):
         passthrough = kwargs.get("passthrough_data", value)
         case_sensitive = bool(kwargs.get("case_sensitive", True))
         rules = self._parse_rules(kwargs.get("rules", "[]"))
+        return_names = self._return_names_for(kwargs.get("num_branches", self.DEFAULT_NUM_BRANCHES))
 
         if rules:
             selected_names = self._selected_rule_outputs(
@@ -318,16 +333,18 @@ class SwitchNode(BaseNode):
                 case_sensitive=case_sensitive,
                 match_mode=str(kwargs.get("match_mode", "first") or "first"),
                 fallback=str(kwargs.get("fallback", "last") or "last"),
+                return_names=return_names,
             )
-            outputs = {name: None for name in self.RETURN_NAMES}
+            outputs = {name: None for name in return_names}
             for name in selected_names:
                 outputs[name] = passthrough
             return {
                 "outputs": outputs,
-                "inactive_outputs": [name for name in self.RETURN_NAMES if name not in selected_names],
+                "inactive_outputs": [name for name in return_names if name not in selected_names],
             }
 
-        cases = _split_cases(str(kwargs.get("cases", "")))[:4]
+        branch_names = return_names[:-1]
+        cases = _split_cases(str(kwargs.get("cases", "")))[:len(branch_names)]
 
         matched_index: int | None = None
         value_text = str(value)
@@ -338,13 +355,22 @@ class SwitchNode(BaseNode):
                 matched_index = idx
                 break
 
-        selected_name = "default" if matched_index is None else self.RETURN_NAMES[matched_index]
-        outputs = {name: None for name in self.RETURN_NAMES}
+        selected_name = "default" if matched_index is None else branch_names[matched_index]
+        outputs = {name: None for name in return_names}
         outputs[selected_name] = passthrough
         return {
             "outputs": outputs,
-            "inactive_outputs": [name for name in self.RETURN_NAMES if name != selected_name],
+            "inactive_outputs": [name for name in return_names if name != selected_name],
         }
+
+    @classmethod
+    def _return_names_for(cls, num_branches: Any) -> tuple[str, ...]:
+        branch_count = int(num_branches)
+        if not cls.MIN_NUM_BRANCHES <= branch_count <= cls.MAX_NUM_BRANCHES:
+            raise ValueError(
+                f"Switch num_branches must be between {cls.MIN_NUM_BRANCHES} and {cls.MAX_NUM_BRANCHES}"
+            )
+        return tuple(f"output_{index}" for index in range(1, branch_count + 1)) + ("default",)
 
     @staticmethod
     def _parse_rules(raw_rules: Any) -> list[dict[str, Any]]:
@@ -372,7 +398,10 @@ class SwitchNode(BaseNode):
         case_sensitive: bool,
         match_mode: str,
         fallback: str,
+        return_names: tuple[str, ...] | None = None,
     ) -> list[str]:
+        return_names = return_names or cls.RETURN_NAMES
+        branch_names = return_names[:-1]
         match_mode = match_mode.lower()
         fallback = fallback.lower()
         if match_mode not in {"first", "all"}:
@@ -383,10 +412,12 @@ class SwitchNode(BaseNode):
         selected: list[str] = []
         for index, rule in enumerate(rules):
             branch_index = int(rule.get("branch_index", -1))
-            if not 0 <= branch_index < 4:
-                raise ValueError(f"Switch rule {index} branch_index must be between 0 and 3")
+            if not 0 <= branch_index < len(branch_names):
+                raise ValueError(
+                    f"Switch rule {index} branch_index must be between 0 and {len(branch_names) - 1}"
+                )
             if cls._rule_matches(value, rule, case_sensitive):
-                output_name = cls.RETURN_NAMES[branch_index]
+                output_name = branch_names[branch_index]
                 if output_name not in selected:
                     selected.append(output_name)
                 if match_mode == "first":
@@ -398,7 +429,7 @@ class SwitchNode(BaseNode):
             return []
         if fallback == "error":
             raise ValueError(f"Switch value did not match any rule: {value}")
-        return [cls.RETURN_NAMES[3]]
+        return [branch_names[-1]]
 
     @staticmethod
     def _rule_matches(value: Any, rule: dict[str, Any], case_sensitive: bool) -> bool:
