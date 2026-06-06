@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
 import traceback
 from collections import deque
 from dataclasses import dataclass, field, replace
@@ -665,6 +666,109 @@ class WorkflowExecutor:
             "node_results": node_results,
         }
 
+    async def dry_run(
+        self,
+        run_id: str,
+        workflow: dict[str, Any],
+        *,
+        force: bool = False,
+        force_nodes: set[str] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return a no-execute preview of node commands, outputs, cache, and environments."""
+        options = options or {}
+        force_nodes = force_nodes or set()
+        graph = self._prepare_execution_plan_graph(workflow, options)
+        if graph.get("status") == "failed":
+            return {"status": "failed", "run_id": run_id, "error": graph["error"]}
+
+        execution_order: list[str] = graph["execution_order"]
+        nodes: dict[str, dict[str, Any]] = graph["nodes"]
+        edge_map: dict[str, list[dict[str, Any]]] = graph["edge_map"]
+        workflow_parameters: dict[str, Any] = graph["workflow_parameters"]
+
+        node_outputs: dict[str, dict[str, Any]] = {}
+        node_cache_keys: dict[str, str | None] = {}
+        plan_nodes: list[dict[str, Any]] = []
+
+        for node_id in execution_order:
+            node = nodes[node_id]
+            node_type = str(node.get("type", "unknown"))
+            node_class = self._node_class_for(node)
+            resolved_inputs = self._resolve_inputs(
+                node_id,
+                node,
+                edge_map,
+                node_outputs,
+                workflow_parameters,
+            )
+            resolved_params = self._with_defaults(node, resolved_inputs, node_class, workflow_parameters)
+            upstream_keys: dict[str, str | None] = {}
+            for edge in edge_map.get(node_id, []):
+                src = edge_source(edge)
+                src_port = edge_source_port(edge)
+                tgt_port = edge_target_port(edge)
+                upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
+
+            forced_node = (
+                force
+                or node_id in force_nodes
+                or self._executes_loop_body(node_class)
+                or self._executes_try_catch_branches(node_class)
+                or self._executor_cache_policy(node_class) == "always_run"
+            )
+            cache_key = None
+            cache_hit = False
+            if not forced_node:
+                cache_key = self.cache.cache_key_for_node(
+                    node_id=node_id,
+                    node_type=node_type,
+                    params=resolved_params,
+                    inputs=resolved_inputs,
+                    upstream_keys=upstream_keys,
+                )
+                cache_hit = self.cache.is_hit(cache_key)
+            node_cache_keys[node_id] = cache_key
+
+            node_dir = self.workspace_dir / "runs" / run_id / node_id
+            planned_paths = self._dry_run_planned_outputs(node_class, resolved_params, node_dir)
+            planned_outputs = self._planned_output_map(node_class, planned_paths)
+            command = self._dry_run_command(node_class, resolved_params, node_dir)
+            node_outputs[node_id] = planned_outputs
+
+            plan_nodes.append(
+                {
+                    "node_id": node_id,
+                    "node_type": node_type,
+                    "display_name": getattr(node_class, "DISPLAY_NAME", "") if node_class else "",
+                    "category": getattr(node_class, "CATEGORY", "") if node_class else "",
+                    "inputs": self._public_plan_values(resolved_inputs),
+                    "params": self._public_plan_values(resolved_params),
+                    "command": command,
+                    "shell": bool(getattr(node_class, "SHELL", False)) if node_class else False,
+                    "env_prefix": self._env_prefix_for_node(node, workflow),
+                    "required_executables": list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []),
+                    "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
+                    "planned_outputs": planned_outputs,
+                    "cache": {
+                        "key": cache_key,
+                        "hit": cache_hit,
+                        "forced": forced_node,
+                    },
+                }
+            )
+
+        return {
+            "status": "dry_run",
+            "run_id": run_id,
+            "workflow_name": workflow.get("name", ""),
+            "target_nodes": sorted(graph["target_nodes"]),
+            "workflow_parameters": workflow_parameters,
+            "execution_order": execution_order,
+            "nodes": plan_nodes,
+            "will_execute": False,
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -728,6 +832,231 @@ class WorkflowExecutor:
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
             node_class = self.registry.get(str(node.get("type", "unknown")))
         return node_class
+
+    def _prepare_execution_plan_graph(
+        self,
+        workflow: dict[str, Any],
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Resolve workflow parameters and build the outer execution graph."""
+        options = options or {}
+        try:
+            workflow_parameters = self._resolve_workflow_parameters(
+                workflow.get("parameters", []),
+                options.get("parameters", {}),
+            )
+        except ValueError as exc:
+            return {"status": "failed", "error": str(exc)}
+
+        visual_only_types = frozenset({"note"})
+        raw_nodes_data = workflow.get("nodes", [])
+        if isinstance(raw_nodes_data, dict):
+            raw_nodes = []
+            for node_id, node in raw_nodes_data.items():
+                if isinstance(node, dict):
+                    node_data = dict(node)
+                elif hasattr(node, "model_dump"):
+                    node_data = node.model_dump()
+                else:
+                    node_data = dict(getattr(node, "__dict__", {}))
+                node_data.setdefault("id", str(node_id))
+                raw_nodes.append(node_data)
+        else:
+            raw_nodes = list(raw_nodes_data or [])
+
+        nodes: dict[str, dict[str, Any]] = {
+            str(n["id"]): n
+            for n in raw_nodes
+            if isinstance(n, dict) and n.get("id") is not None and n.get("type") not in visual_only_types
+        }
+        edges: list[dict[str, Any]] = list(workflow.get("edges", []) or [])
+        target_nodes = self._coerce_node_id_set(options.get("target_nodes"))
+
+        if target_nodes:
+            raw_node_ids = {
+                str(n["id"])
+                for n in raw_nodes
+                if isinstance(n, dict) and n.get("id") is not None
+            }
+            unknown_targets = sorted(target_nodes - raw_node_ids)
+            if unknown_targets:
+                return {
+                    "status": "failed",
+                    "error": f"Unknown target node(s): {', '.join(unknown_targets)}",
+                }
+
+            executable_targets = target_nodes & set(nodes)
+            if executable_targets:
+                required_nodes = self._upstream_closure(executable_targets, nodes, edges)
+                nodes = {nid: node for nid, node in nodes.items() if nid in required_nodes}
+                edges = [
+                    edge
+                    for edge in edges
+                    if edge_source(edge) in nodes and edge_target(edge) in nodes
+                ]
+            else:
+                nodes = {}
+                edges = []
+
+        all_nodes = nodes
+        loop_bodies = self._loop_bodies(all_nodes, edges)
+        try_catch_regions = self._try_catch_regions(all_nodes, edges)
+        loop_body_node_ids = {body_node for body in loop_bodies.values() for body_node in body}
+        try_catch_body_node_ids = {
+            body_node
+            for branches in try_catch_regions.values()
+            for body in branches.values()
+            for body_node in body
+        }
+        internal_node_ids = loop_body_node_ids | try_catch_body_node_ids
+        nodes = {
+            node_id: node
+            for node_id, node in all_nodes.items()
+            if node_id not in internal_node_ids
+        }
+        outer_edges = [
+            edge
+            for edge in edges
+            if edge_source(edge) in nodes and edge_target(edge) in nodes
+        ]
+
+        upstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
+        downstream_of: dict[str, list[str]] = {nid: [] for nid in nodes}
+        edge_map: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
+
+        for edge in outer_edges:
+            src = edge_source(edge)
+            tgt = edge_target(edge)
+            if src in nodes and tgt in nodes:
+                upstream_of[tgt].append(src)
+                downstream_of[src].append(tgt)
+                edge_map[tgt].append(edge)
+
+        try:
+            execution_order = self._topological_sort(nodes, upstream_of, downstream_of)
+        except ValueError as exc:
+            return {"status": "failed", "error": str(exc)}
+
+        return {
+            "status": "ok",
+            "workflow_parameters": workflow_parameters,
+            "target_nodes": target_nodes,
+            "all_nodes": all_nodes,
+            "nodes": nodes,
+            "edges": edges,
+            "outer_edges": outer_edges,
+            "edge_map": edge_map,
+            "upstream_of": upstream_of,
+            "downstream_of": downstream_of,
+            "execution_order": execution_order,
+            "loop_bodies": loop_bodies,
+            "try_catch_regions": try_catch_regions,
+        }
+
+    def _dry_run_planned_outputs(
+        self,
+        node_class: Any,
+        resolved_params: dict[str, Any],
+        node_dir: Path,
+    ) -> list[Path] | dict[str, Any]:
+        """Plan node outputs without invoking the node's run method."""
+        if node_class is None or not hasattr(node_class, "PLAN_OUTPUTS"):
+            return []
+
+        with tempfile.TemporaryDirectory(prefix="bionodulo-dry-run-") as scratch:
+            scratch_dir = Path(scratch)
+            plan_inputs = dict(resolved_params)
+            scratch_output_dir = scratch_dir / str(getattr(node_class, "NODE_ID", "") or "")
+            plan_inputs["output"] = str(scratch_output_dir)
+            plan_inputs["output_dir"] = str(scratch_output_dir)
+            planned = node_class.PLAN_OUTPUTS(plan_inputs, scratch_dir)
+            return self._remap_planned_paths(planned, scratch_dir, node_dir)
+
+    def _remap_planned_paths(
+        self,
+        value: Any,
+        scratch_dir: Path,
+        node_dir: Path,
+    ) -> Any:
+        if isinstance(value, Path):
+            try:
+                return node_dir / value.relative_to(scratch_dir)
+            except ValueError:
+                return value
+        if isinstance(value, str):
+            try:
+                path = Path(value)
+                return str(node_dir / path.relative_to(scratch_dir))
+            except ValueError:
+                return value
+        if isinstance(value, list):
+            return [self._remap_planned_paths(item, scratch_dir, node_dir) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self._remap_planned_paths(item, scratch_dir, node_dir) for item in value)
+        if isinstance(value, dict):
+            return {
+                key: self._remap_planned_paths(item, scratch_dir, node_dir)
+                for key, item in value.items()
+            }
+        return value
+
+    @staticmethod
+    def _planned_output_map(
+        node_class: Any,
+        planned_paths: list[Path] | tuple[Any, ...] | dict[str, Any],
+    ) -> dict[str, Any]:
+        if isinstance(planned_paths, dict):
+            return {
+                str(name): str(path) if isinstance(path, Path) else path
+                for name, path in planned_paths.items()
+            }
+
+        return_names = getattr(node_class, "RETURN_NAMES", ()) or ()
+        outputs: dict[str, Any] = {}
+        for idx, path in enumerate(planned_paths or []):
+            name = return_names[idx] if idx < len(return_names) else f"output_{idx}"
+            outputs[str(name)] = str(path) if isinstance(path, Path) else path
+        return outputs
+
+    def _dry_run_command(
+        self,
+        node_class: Any,
+        resolved_params: dict[str, Any],
+        node_dir: Path,
+    ) -> str | list[str] | None:
+        """Render the command a command-style node would submit."""
+        if node_class is None or not hasattr(node_class, "render_command"):
+            return None
+
+        from bionodulo.nodes.command_node import _shell_join
+
+        command_inputs = dict(resolved_params)
+        node_output_dir = node_dir / str(getattr(node_class, "NODE_ID", "") or "")
+        command_inputs["output"] = str(node_output_dir)
+        command_inputs["output_dir"] = str(node_output_dir)
+        command = node_class.render_command(command_inputs)
+        if getattr(node_class, "SHELL", False) and isinstance(command, list):
+            return _shell_join(command)
+        return command
+
+    @staticmethod
+    def _public_plan_values(value: Any) -> Any:
+        """Return a JSON-friendly planning value with private metadata omitted."""
+        if isinstance(value, dict):
+            return {
+                str(key): WorkflowExecutor._public_plan_values(item)
+                for key, item in value.items()
+                if not str(key).startswith("_")
+            }
+        if isinstance(value, list):
+            return [WorkflowExecutor._public_plan_values(item) for item in value]
+        if isinstance(value, tuple):
+            return [WorkflowExecutor._public_plan_values(item) for item in value]
+        if isinstance(value, set):
+            return sorted(WorkflowExecutor._public_plan_values(item) for item in value)
+        if isinstance(value, Path):
+            return str(value)
+        return value
 
     def _loop_bodies(
         self,

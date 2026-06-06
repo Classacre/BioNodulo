@@ -252,6 +252,79 @@ def test_hpc_submit_rejects_parameterized_run_when_backend_cannot_accept_paramet
     assert response.json()["detail"] == "HPC backend submit_workflow does not support runtime parameters"
 
 
+def test_run_create_dry_run_returns_preview_without_queue_submission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+
+    class PreviewExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        async def dry_run(self, **kwargs: object) -> dict[str, object]:
+            self.calls.append(kwargs)
+            return {
+                "status": "dry_run",
+                "run_id": kwargs["run_id"],
+                "workflow_name": "Dry Run Workflow",
+                "execution_order": ["node-a"],
+                "nodes": [
+                    {
+                        "node_id": "node-a",
+                        "node_type": "generic_command",
+                        "command": ["echo", "hello"],
+                        "planned_outputs": {"output": "/tmp/out.txt"},
+                    }
+                ],
+            }
+
+    class Queue:
+        def __init__(self) -> None:
+            self.executor = PreviewExecutor()
+            self.submit_calls: list[dict[str, object]] = []
+
+        async def submit(self, **kwargs: object) -> str:
+            self.submit_calls.append(kwargs)
+            return str(kwargs.get("run_id", "queued"))
+
+        async def shutdown(self) -> None:
+            return None
+
+    with TestClient(create_app()) as client:
+        queue = Queue()
+        client.app.state.run_queue = queue
+        response = client.post(
+            "/api/runs",
+            json={
+                "name": "Dry Run Workflow",
+                "dry_run": True,
+                "workflow": {
+                    "name": "Dry Run Workflow",
+                    "nodes": [{"id": "node-a", "type": "generic_command", "outputs": {"output": {}}}],
+                    "edges": [],
+                },
+                "parameters": {"sample": "S1"},
+                "target_nodes": ["node-a"],
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "dry_run"
+    assert payload["workflow_name"] == "Dry Run Workflow"
+    assert payload["execution_order"] == ["node-a"]
+    assert payload["nodes"][0]["command"] == ["echo", "hello"]
+    assert queue.submit_calls == []
+    assert queue.executor.calls
+    assert queue.executor.calls[0]["options"] == {
+        "parameters": {"sample": "S1"},
+        "target_nodes": ["node-a"],
+    }
+
+
 def test_run_manifest_uses_persisted_artifacts_when_queue_result_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

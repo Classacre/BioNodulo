@@ -505,13 +505,32 @@ def _generate_run_id(workflow_name: str) -> str:
 
 @router.post("/runs")
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
-    """Submit a workflow for execution."""
+    """Submit a workflow for execution, or preview it when dry_run is true."""
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     queue = _get_queue(request)
-    event_hub = _get_event_hub(request)
 
     wf_name = body.workflow.get("name", body.name or "Untitled")
     run_id = _generate_run_id(str(wf_name))
+    execution_options = {
+        **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
+        **({"parameters": body.parameters} if body.parameters else {}),
+    }
+    if body.dry_run:
+        executor = getattr(queue, "executor", None)
+        if executor is None or not hasattr(executor, "dry_run"):
+            raise HTTPException(status_code=500, detail="Executor dry-run preview is unavailable")
+        preview = await executor.dry_run(
+            run_id=run_id,
+            workflow=body.workflow,
+            options=execution_options,
+            force=body.no_cache,
+            force_nodes=set(body.force_nodes),
+        )
+        preview.setdefault("workflow_name", wf_name)
+        preview.setdefault("name", body.name)
+        return preview
+
+    event_hub = _get_event_hub(request)
     await event_hub.emit_typed(
         "execution.run_submitted",
         {"run_id": run_id, "name": body.name},
@@ -530,10 +549,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
                 "force_nodes": body.force_nodes,
                 "parameters": body.parameters,
             },
-            options={
-                **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
-                **({"parameters": body.parameters} if body.parameters else {}),
-            },
+            options=execution_options,
             force=body.no_cache,
             force_nodes=set(body.force_nodes),
         )

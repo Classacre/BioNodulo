@@ -285,6 +285,64 @@ async def test_run_queue_retry_uses_stored_workflow_options_and_force_nodes() ->
 
 
 @pytest.mark.asyncio
+async def test_executor_dry_run_preview_plans_command_outputs_and_cache(tmp_path: Path) -> None:
+    class PreviewCommandNode(CommandNode):
+        NODE_ID = "preview_command"
+        COMMAND = ["echo", "{params.message}", ">", "{output}/result.out"]
+        RETURN_TYPES = ("FILE",)
+        RETURN_NAMES = ("result",)
+        REQUIRED_EXECUTABLES = ["echo"]
+        REQUIRED_CONDA_PACKAGES = ["coreutils"]
+        SHELL = True
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"preview_command": PreviewCommandNode}.get(node_type)
+
+    workflow = {
+        "parameters": [{"name": "message", "default": "hello"}],
+        "nodes": [
+            {
+                "id": "preview",
+                "type": "preview_command",
+                "inputs": {"message": {"value": "{{message}}"}},
+                "outputs": {"result": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    preview = await executor.dry_run(
+        "dry-run-1",
+        workflow,
+        options={"parameters": {"message": "from-runtime"}},
+    )
+
+    assert preview["status"] == "dry_run"
+    assert preview["run_id"] == "dry-run-1"
+    assert preview["execution_order"] == ["preview"]
+    node_plan = preview["nodes"][0]
+    assert node_plan["node_id"] == "preview"
+    assert node_plan["node_type"] == "preview_command"
+    assert node_plan["inputs"]["message"] == "from-runtime"
+    assert node_plan["params"]["message"] == "from-runtime"
+    assert node_plan["command"] == (
+        "echo from-runtime > "
+        f"{tmp_path / 'runs' / 'dry-run-1' / 'preview' / 'preview_command' / 'result.out'}"
+    )
+    assert node_plan["shell"] is True
+    assert node_plan["required_executables"] == ["echo"]
+    assert node_plan["required_conda_packages"] == ["coreutils"]
+    assert node_plan["cache"]["key"]
+    assert node_plan["cache"]["hit"] is False
+    assert node_plan["planned_outputs"] == {
+        "result": str(tmp_path / "runs" / "dry-run-1" / "preview" / "preview_command" / "result.out")
+    }
+    assert not (tmp_path / "runs" / "dry-run-1" / "run_metadata.json").exists()
+
+
+@pytest.mark.asyncio
 async def test_run_queue_shutdown_closes_executor_cache() -> None:
     class Cache:
         def __init__(self) -> None:

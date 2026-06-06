@@ -29,6 +29,10 @@ class RunCreateRequest(BaseModel):
     name: str = Field("Untitled", description="Human-readable run name")
     environment: str | None = Field(None, description="Conda env or container to use")
     no_cache: bool = Field(False, description="Force re-execution by bypassing cache")
+    dry_run: bool = Field(
+        False,
+        description="Resolve the workflow and return command/output/cache previews without submitting execution",
+    )
     force_nodes: list[str] = Field(
         default_factory=list,
         description="Specific node IDs to force re-execution",
