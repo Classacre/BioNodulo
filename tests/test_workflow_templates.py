@@ -200,6 +200,23 @@ def test_deseq2_template_validates_count_matrix_and_sample_info_before_analysis(
     assert workflow["outputs"]["validated_sample_info"] == "validate_samples_001"
 
 
+def test_r_visualization_template_validates_heatmap_csv_before_pheatmap() -> None:
+    workflow = _load_template("r_visualization_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["validate_heatmap_csv_001"] == "data_validator"
+    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_heatmap_csv_001")
+    assert validator["params"]["expected_format"] == "csv"
+    assert validator["params"]["min_records"] >= 1
+    assert validator["params"]["required_fields"] == "gene"
+    assert validator["params"]["min_size_bytes"] > 0
+    assert validator["params"]["fail_on_error"] is True
+    assert _has_edge(workflow, "heatmap_data_001", "file", "validate_heatmap_csv_001", "input")
+    assert _has_edge(workflow, "validate_heatmap_csv_001", "passthrough", "pheatmap_001", "data_csv")
+    assert not _has_edge(workflow, "heatmap_data_001", "file", "pheatmap_001", "data_csv")
+    assert workflow["outputs"]["validated_heatmap_data"] == "validate_heatmap_csv_001"
+
+
 def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)

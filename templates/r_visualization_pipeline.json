@@ -164,7 +164,7 @@
       "id": "pheatmap_001",
       "type": "r_pheatmap",
       "position": [
-        440,
+        800,
         1228
       ],
       "params": {
@@ -184,10 +184,28 @@
       }
     },
     {
+      "id": "validate_heatmap_csv_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        808
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "required_fields": "gene",
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Heatmap CSV"
+      }
+    },
+    {
       "id": "heatmap_preview_001",
       "type": "image_preview",
       "position": [
-        800,
+        1160,
         628
       ],
       "params": {
@@ -250,6 +268,17 @@
         "output": "file"
       },
       "to": {
+        "node": "validate_heatmap_csv_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e5b",
+      "from": {
+        "node": "validate_heatmap_csv_001",
+        "output": "passthrough"
+      },
+      "to": {
         "node": "pheatmap_001",
         "input": "data_csv"
       }
@@ -267,5 +296,7 @@
     }
   ],
   "groups": [],
-  "outputs": {}
+  "outputs": {
+    "validated_heatmap_data": "validate_heatmap_csv_001"
+  }
 }
