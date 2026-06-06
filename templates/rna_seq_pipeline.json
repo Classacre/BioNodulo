@@ -360,6 +360,18 @@
       "ui": {
         "title": "QC Dashboard"
       }
+    },
+    {
+      "id": "qc_dashboard_preview_001",
+      "type": "html_preview",
+      "position": [
+        2960,
+        320
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QC Dashboard"
+      }
     }
   ],
   "edges": [
@@ -628,6 +640,17 @@
       }
     },
     {
+      "id": "e14a",
+      "from": {
+        "node": "qc_dashboard_001",
+        "output": "qc_dashboard"
+      },
+      "to": {
+        "node": "qc_dashboard_preview_001",
+        "input": "file"
+      }
+    },
+    {
       "id": "e15",
       "from": {
         "node": "validate_multiqc_001",
@@ -658,6 +681,7 @@
     "counts_report_preview": "counts_report_preview_001",
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
+    "qc_dashboard_preview": "qc_dashboard_preview_001",
     "report": "qc_dashboard_001",
     "validated_multiqc_report": "validate_multiqc_001",
     "validated_reads": "validate_reads_001",

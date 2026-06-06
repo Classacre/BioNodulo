@@ -47,3 +47,20 @@ def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables
     assert workflow["outputs"]["counts_report"] == "counts_report_001"
     assert workflow["outputs"]["counts_report_preview"] == "counts_report_preview_001"
     assert workflow["outputs"]["report"] == "qc_dashboard_001"
+
+
+def test_rna_seq_template_previews_alignment_qc_dashboard() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["qc_dashboard_001"] == "qc_dashboard"
+    assert node_types["qc_dashboard_preview_001"] == "html_preview"
+
+    dashboard = _node(workflow, "qc_dashboard_001")
+    assert dashboard["params"]["title"] == "RNA-Seq Alignment QC Dashboard"
+
+    assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
+    assert _has_edge(workflow, "flagstat_001", "stats", "qc_dashboard_001", "alignment_stats")
+    assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
+    assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
+    assert workflow["outputs"]["qc_dashboard_preview"] == "qc_dashboard_preview_001"
