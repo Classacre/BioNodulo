@@ -354,6 +354,21 @@ def test_r_visualization_template_validates_heatmap_csv_before_pheatmap() -> Non
     assert workflow["outputs"]["validated_heatmap_data"] == "validate_heatmap_csv_001"
 
 
+def test_r_visualization_template_combines_plots_into_html_report() -> None:
+    workflow = _load_template("r_visualization_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["viz_report_001"] == "html_report"
+    report = next(node for node in workflow["nodes"] if node["id"] == "viz_report_001")
+    assert report["params"]["title"] == "R Visualization Report"
+    assert "Sequencing depth" in report["params"]["text_sections"]
+    assert report["params"]["section_names"] == "QC plot,Expression plot,Heatmap"
+    assert _has_edge(workflow, "qc_plot_001", "plot_png", "viz_report_001", "images")
+    assert _has_edge(workflow, "expr_plot_001", "plot_png", "viz_report_001", "images")
+    assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
+    assert workflow["outputs"]["report"] == "viz_report_001"
+
+
 def test_biopython_template_validates_input_fastas_before_sequence_tools() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
