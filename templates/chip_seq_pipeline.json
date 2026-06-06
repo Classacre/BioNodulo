@@ -311,6 +311,23 @@
       }
     },
     {
+      "id": "chip_signal_plot_001",
+      "type": "coverage_plot",
+      "position": [
+        2240,
+        276
+      ],
+      "params": {
+        "region": "chrX:1-50000",
+        "window_size": 100,
+        "title": "ChIP-Seq Signal Coverage",
+        "format": "png"
+      },
+      "ui": {
+        "title": "ChIP-seq Signal Plot"
+      }
+    },
+    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -661,6 +678,28 @@
       }
     },
     {
+      "id": "e19a",
+      "from": {
+        "node": "coverage_001",
+        "output": "coverage_bw"
+      },
+      "to": {
+        "node": "chip_signal_plot_001",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e19b",
+      "from": {
+        "node": "chip_signal_plot_001",
+        "output": "coverage_image"
+      },
+      "to": {
+        "node": "chip_seq_report_001",
+        "input": "images"
+      }
+    },
+    {
       "id": "e20",
       "from": {
         "node": "chip_seq_report_001",
@@ -677,6 +716,7 @@
     "peaks": "macs2_001",
     "validated_peaks": "validate_peaks_001",
     "coverage_track": "coverage_001",
+    "chip_signal_plot": "chip_signal_plot_001",
     "report": "chip_seq_report_001",
     "chip_seq_report": "chip_seq_report_001",
     "validated_multiqc_report": "validate_multiqc_001",
