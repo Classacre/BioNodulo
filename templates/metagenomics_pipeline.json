@@ -276,6 +276,34 @@
       "ui": {
         "title": "Validate MultiQC Report"
       }
+    },
+    {
+      "id": "qc_dashboard_001",
+      "type": "qc_dashboard",
+      "position": [
+        1160,
+        1510
+      ],
+      "params": {
+        "run_name": "Metagenomics QC",
+        "title": "Metagenomics QC Dashboard",
+        "theme": "light"
+      },
+      "ui": {
+        "title": "QC Dashboard"
+      }
+    },
+    {
+      "id": "qc_dashboard_preview_001",
+      "type": "html_preview",
+      "position": [
+        1340,
+        1510
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QC Dashboard"
+      }
     }
   ],
   "edges": [
@@ -476,6 +504,28 @@
         "node": "kraken2_001",
         "input": "db"
       }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "qc_001",
+        "output": "report_dir"
+      },
+      "to": {
+        "node": "qc_dashboard_001",
+        "input": "fastqc_dir"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "qc_dashboard_001",
+        "output": "qc_dashboard"
+      },
+      "to": {
+        "node": "qc_dashboard_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -489,6 +539,7 @@
     "pathways": "humann_001",
     "validated_reads": "validate_reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
-    "validated_multiqc_report": "validate_multiqc_001"
+    "validated_multiqc_report": "validate_multiqc_001",
+    "qc_dashboard": "qc_dashboard_001"
   }
 }
