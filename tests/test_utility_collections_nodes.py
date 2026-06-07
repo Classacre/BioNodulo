@@ -59,6 +59,43 @@ async def test_string_operations_support_required_string_modes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_string_operations_support_planned_stage2_alias_modes() -> None:
+    node = _node_class("string_operations")()
+
+    assert await node.run(operation="concatenate", string="sample", string_b="R1", delimiter="_") == (
+        "sample_R1",
+        9,
+        False,
+    )
+    assert await node.run(operation="uppercase", string="atcg") == ("ATCG", 4, False)
+    assert await node.run(operation="lowercase", string="ATCG") == ("atcg", 4, False)
+    assert await node.run(operation="trim", string="  BioNodulo  ") == ("BioNodulo", 9, False)
+    assert await node.run(operation="substring", string="BioNodulo", start=3, end=6) == ("Nod", 3, False)
+    assert await node.run(operation="replace", string="sample_R1.fastq", old="R1", new="R2") == (
+        "sample_R2.fastq",
+        15,
+        False,
+    )
+    assert await node.run(operation="replace", string="AAAA", old="A", new="T", count=2) == ("TTAA", 4, False)
+    assert await node.run(operation="regex_match", string="depth=42", pattern=r"depth=(\d+)", group=1) == (
+        "42",
+        1,
+        True,
+    )
+    assert await node.run(operation="startswith", string="sample_R1.fastq", string_b="sample") == ("", 0, True)
+    assert await node.run(operation="endswith", string="sample_R1.fastq", string_b=".fastq") == ("", 0, True)
+
+
+def test_string_operations_metadata_exposes_planned_stage2_alias_modes() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    operations = registry.object_info()["string_operations"]["input"]["required"]["operation"][1]["options"]
+
+    assert {"trim", "substring", "replace", "startswith", "endswith"}.issubset(operations)
+    assert {"concatenate", "uppercase", "lowercase", "regex_match"}.issubset(operations)
+
+
+@pytest.mark.asyncio
 async def test_string_operations_reject_bad_inputs_clearly() -> None:
     node = _node_class("string_operations")()
 
