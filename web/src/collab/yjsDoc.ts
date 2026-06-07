@@ -1,5 +1,10 @@
 import * as Y from 'yjs';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, WorkflowParameter } from '../types';
+import i18n from '../i18n';
+
+function fallbackWorkflowName(): string {
+  return i18n.t('common.untitled');
+}
 
 export function createWorkflowDoc(workflowId: string): Y.Doc {
   const ydoc = new Y.Doc();
@@ -8,7 +13,7 @@ export function createWorkflowDoc(workflowId: string): Y.Doc {
   const meta = ydoc.getMap('meta');
   meta.set('id', workflowId);
   meta.set('version', 1);
-  meta.set('name', 'Untitled');
+  meta.set('name', fallbackWorkflowName());
   meta.set('createdAt', new Date().toISOString());
   meta.set('lastModified', new Date().toISOString());
 
@@ -133,7 +138,7 @@ export function docToWorkflow(doc: Y.Doc): Workflow {
     id: String(meta.get('id') || ''),
     version: String(meta.get('version') || '2.0'),
     app: 'bionodulo',
-    name: String(meta.get('name') || 'Untitled'),
+    name: String(meta.get('name') || fallbackWorkflowName()),
     description: '',
     nodes,
     edges,
@@ -150,7 +155,7 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
     const meta = ydoc.getMap('meta');
     meta.set('id', workflow.id || String(meta.get('id') || workflow.name || 'Untitled'));
     meta.set('version', workflow.version || '2.0');
-    meta.set('name', workflow.name || 'Untitled');
+    meta.set('name', workflow.name || fallbackWorkflowName());
     meta.set('parameters', serializeParameters(workflow.parameters));
     meta.set('lastModified', new Date().toISOString());
 
