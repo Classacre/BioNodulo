@@ -800,6 +800,7 @@ const en = {
     environment: 'Environment',
     aliases: 'Aliases',
     defaultLabel: 'Default',
+    noDefaultValue: 'No default value',
     optionsLabel: 'Options',
     minLabel: 'Min',
     maxLabel: 'Max',

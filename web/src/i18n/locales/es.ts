@@ -804,6 +804,7 @@ const es = {
     environment: 'Entorno',
     aliases: 'Alias',
     defaultLabel: 'Predeterminado',
+    noDefaultValue: 'Sin valor predeterminado',
     optionsLabel: 'Opciones',
     minLabel: 'Min',
     maxLabel: 'Max',

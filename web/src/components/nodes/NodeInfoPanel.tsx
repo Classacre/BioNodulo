@@ -133,7 +133,7 @@ function ParamRow({ name, spec, t }: { name: string; spec: {
   tooltip?: string; label?: string; multiline?: boolean; accept?: string;
 }; t: (key: string) => string }) {
   const label = spec.label || name;
-  const defaultVal = spec.default !== undefined ? String(spec.default) : '—';
+  const defaultVal = spec.default !== undefined ? String(spec.default) : t('nodeDetails.noDefaultValue');
   const options = spec.options ? spec.options.join(', ') : '';
 
   return (

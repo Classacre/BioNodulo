@@ -149,6 +149,8 @@ describe('Node editor and info panel i18n', () => {
     expect(screen.getByText('Entorno')).toBeInTheDocument();
     expect(screen.getByText('Alias')).toBeInTheDocument();
     expect(screen.getAllByText(/Predeterminado:/)).toHaveLength(4);
+    expect(screen.getByText('Sin valor predeterminado')).toBeInTheDocument();
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.getByText(/Opciones:/)).toBeInTheDocument();
     expect(screen.getByText('Min: 1')).toBeInTheDocument();
     expect(screen.getByText('Max: 16')).toBeInTheDocument();
