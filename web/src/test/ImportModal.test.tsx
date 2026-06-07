@@ -74,8 +74,10 @@ describe('ImportModal i18n', () => {
 
     render(<ImportModal onImport={onImport} onClose={onClose} />);
 
-    expect(screen.getByRole('dialog', { name: 'Importar workflow' })).toBeInTheDocument();
-    expect(screen.getByText('Importar workflow')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Importar flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.getByText('Importar flujo de trabajo')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Importar workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Importar workflow')).not.toBeInTheDocument();
     expect(screen.getByText(/Pega codigo de workflow arriba/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Importar' })).toBeDisabled();

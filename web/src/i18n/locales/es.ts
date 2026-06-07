@@ -2503,7 +2503,7 @@ class MyToolNode(CommandNode):
     },
   },
   importModal: {
-    title: 'Importar workflow',
+    title: 'Importar flujo de trabajo',
     formats: {
       json: 'JSON de BioNodulo',
       snakemake: 'SnakeMake',
