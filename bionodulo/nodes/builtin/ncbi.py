@@ -47,6 +47,7 @@ GEO_ENTRY_TYPES = {
 SRA_OUTPUT_FORMATS = ("fastq", "fasta")
 NCBI_EFETCH_RETTYPES = ("fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum")
 NCBI_EFETCH_DATABASES = ("pubmed", "gene", "snp", "sra", "nuccore", "nucleotide", "protein", "assembly", "gds", "taxonomy")
+NCBI_ESEARCH_DATABASES = NCBI_EFETCH_DATABASES
 SRA_FILE_SUFFIXES = {
     "fastq": (".fastq", ".fq", ".fastq.gz", ".fq.gz"),
     "fasta": (".fasta", ".fa", ".fna", ".fasta.gz", ".fa.gz", ".fna.gz"),
@@ -399,17 +400,7 @@ class NCBIESearchNode(BaseNode):
         return {
             "required": {
                 "query": ("STRING", {"default": "", "description": "NCBI Entrez search query"}),
-                "database": ([
-                    "pubmed",
-                    "gene",
-                    "snp",
-                    "sra",
-                    "nuccore",
-                    "protein",
-                    "assembly",
-                    "gds",
-                    "taxonomy",
-                ], {"default": "pubmed"}),
+                "database": (list(NCBI_ESEARCH_DATABASES), {"default": "pubmed"}),
             },
             "optional": {
                 "max_results": ("INT", {"default": 20, "min": 1, "max": 10000}),
@@ -432,8 +423,9 @@ class NCBIESearchNode(BaseNode):
         retstart = int(kwargs.get("retstart", 0) or 0)
         if retstart < 0:
             raise ValueError("retstart must be at least 0")
+        database = _normalise_ncbi_database(kwargs.get("database", "pubmed"))
         params: dict[str, Any] = {
-            "db": str(kwargs.get("database", "pubmed")),
+            "db": database,
             "term": query,
             "retmode": "json",
             "retmax": max_results,
@@ -455,7 +447,7 @@ class NCBIESearchNode(BaseNode):
         result_ids = ids
         if not return_uids and ids:
             fetch_params: dict[str, Any] = {
-                "db": str(kwargs.get("database", "pubmed")),
+                "db": database,
                 "id": ",".join(ids),
                 "rettype": "acc",
                 "retmode": "text",

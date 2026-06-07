@@ -278,6 +278,48 @@ async def test_ncbi_esearch_returns_ids_count_and_query_translation(monkeypatch:
 
 
 @pytest.mark.asyncio
+async def test_ncbi_esearch_accepts_planned_nucleotide_database_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {
+            "esearchresult": {
+                "count": "1",
+                "idlist": ["186972394"],
+                "querytranslation": "TP53[All Fields]",
+            }
+        }
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    database_input = node_class.INPUT_TYPES()["required"]["database"]
+    assert "nucleotide" in database_input[0]
+
+    result = await node_class().run(
+        query="TP53",
+        database="nucleotide",
+        max_results=1,
+    )
+
+    assert result["outputs"]["id_list"] == ["186972394"]
+    assert calls == [
+        {
+            "endpoint": "esearch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "term": "TP53",
+                "retmode": "json",
+                "retmax": 1,
+                "sort": "relevance",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_esearch_resolves_api_key_credential_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("ncbi_esearch")
     module = importlib.import_module(node_class.__module__)
