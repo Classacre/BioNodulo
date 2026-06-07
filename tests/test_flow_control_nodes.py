@@ -1928,6 +1928,69 @@ async def test_executor_skips_inactive_if_branch_and_descendants(tmp_path: Path)
 
 
 @pytest.mark.asyncio
+async def test_executor_skips_branch_marked_inactive_by_branch_meta(tmp_path: Path) -> None:
+    class BranchMetaRouterNode:
+        NODE_ID = "branch_meta_router"
+        RETURN_NAMES = ("true", "false")
+        RETURN_TYPES = ("ANY", "ANY")
+        ROUTES_FLOW = True
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any) -> dict[str, Any]:
+            return {
+                "outputs": {"true": "ALLOW", "false": "BLOCKED"},
+                "_branch_meta": {
+                    "type": "test_router",
+                    "active_ports": ["true"],
+                    "inactive_ports": ["false"],
+                },
+            }
+
+    class RecordingNode:
+        NODE_ID = "record"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"branch_meta_router": BranchMetaRouterNode, "record": RecordingNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "router", "type": "branch_meta_router", "outputs": {"true": {}, "false": {}}},
+            {"id": "true_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "false_branch", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "router", "target_node": "true_branch", "source_output": "true", "target_input": "value"},
+            {"source_node": "router", "target_node": "false_branch", "source_output": "false", "target_input": "value"},
+        ],
+    }
+    RecordingNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("branch-meta", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert RecordingNode.calls == ["true_branch"]
+    assert result["node_results"]["false_branch"]["status"] == "skipped"
+    assert result["node_results"]["false_branch"]["reason"] == "inactive_branch"
+    assert set(result["outputs"]) == {"router", "true_branch"}
+
+
+@pytest.mark.asyncio
 async def test_executor_skips_inactive_switch_outputs(tmp_path: Path) -> None:
     switch_node = _node_class("switch")
 

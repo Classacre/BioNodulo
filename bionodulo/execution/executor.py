@@ -948,6 +948,11 @@ class WorkflowExecutor:
         raw = result.get("inactive_outputs")
         if raw is not None:
             return {str(port) for port in raw}
+        branch_meta = result.get("_branch_meta")
+        if isinstance(branch_meta, dict):
+            raw = branch_meta.get("inactive_ports")
+            if raw is not None:
+                return {str(port) for port in raw}
         return {str(port) for port, value in outputs.items() if value is None}
 
     @staticmethod
