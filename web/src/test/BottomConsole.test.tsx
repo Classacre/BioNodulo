@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
 
@@ -108,6 +108,38 @@ describe('BottomConsole i18n', () => {
 
     expect(screen.getByRole('img', { name: 'Previsualizacion plot_node' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Preview plot_node' })).not.toBeInTheDocument();
+  });
+
+  it('renders missing log run and node labels from the active locale', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
+    const { logsAtom } = await import('../state/runAtoms');
+    const store = createStore();
+
+    await setLanguage('es');
+    store.set(logsAtom, [{
+      level: 'info',
+      message: 'Runtime emitted a log without identifiers',
+      timestamp: '2026-06-07T05:00:00.000Z',
+    }]);
+
+    render(
+      <Provider store={store}>
+        <BottomConsole
+          queue={[]}
+          history={[]}
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    expect(screen.getByText('Desconocido')).toBeInTheDocument();
+    expect(screen.queryByText('unknown')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Desconocido/ }));
+
+    expect(screen.getByText('[Desconocido]')).toBeInTheDocument();
+    expect(screen.queryByText('[unknown]')).not.toBeInTheDocument();
   });
 
   it('renders queue and history controls from the active locale', async () => {

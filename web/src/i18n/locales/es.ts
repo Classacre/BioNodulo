@@ -1684,6 +1684,7 @@ class MyToolNode(CommandNode):
     showVerbose: 'Mostrar verboso',
     expandNode: 'Expandir nodo',
     collapseNode: 'Contraer nodo',
+    unknownLogLabel: 'Desconocido',
     logGroupCount: '{{lines}} lineas, {{nodes}} nodos',
     showEarlierLines: 'Mostrar {{count}} lineas anteriores ({{hidden}} ocultas)',
     solverLinesHidden: '{{count}} linea del solver oculta - haz clic en "Mostrar verboso" para verla',

@@ -1679,6 +1679,7 @@ class MyToolNode(CommandNode):
     showVerbose: 'Show verbose',
     expandNode: 'Expand node',
     collapseNode: 'Collapse node',
+    unknownLogLabel: 'Unknown',
     logGroupCount: '{{lines}} lines, {{nodes}} nodes',
     showEarlierLines: 'Show {{count}} earlier lines ({{hidden}} hidden)',
     solverLinesHidden: '{{count}} solver line hidden - click "Show verbose" to reveal',

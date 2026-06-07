@@ -113,6 +113,10 @@ function isHtmlPath(path: string): boolean {
   return Array.from(HTML_EXTS).some(ext => lower.endsWith(ext));
 }
 
+function logFallbackLabel(t: TFunction, value: string): string {
+  return value === 'unknown' ? t('console.unknownLogLabel') : value;
+}
+
 function LogLine({ entry, nodeIdToName, t }: { entry: LogEntry; nodeIdToName?: ReadonlyMap<string, string>; t: TFunction }) {
   const [expanded, setExpanded] = useState(false);
   const level = entry.level || 'info';
@@ -120,7 +124,7 @@ function LogLine({ entry, nodeIdToName, t }: { entry: LogEntry; nodeIdToName?: R
   const rawNodeId = typeof entry.node_id === 'string' ? entry.node_id : 'unknown';
   // Prefer the friendly node title when we have it. We still keep the raw id
   // accessible via the title attribute for debugging.
-  const nodeLabel = nodeIdToName?.get(rawNodeId) ?? rawNodeId;
+  const nodeLabel = nodeIdToName?.get(rawNodeId) ?? logFallbackLabel(t, rawNodeId);
   const message = typeof entry.message === 'string' ? entry.message : '';
   const detail = typeof entry.detail === 'string' ? entry.detail : '';
   const hasDetail = detail.length > 0;
@@ -804,6 +808,7 @@ export default function BottomConsole({
                 {groupedEntries.map(([runId, runLogs]) => {
                   const isExpanded = expandedRuns.has(runId);
                   const nodeGroups = groupLogsByNode(runLogs);
+                  const runLabel = logFallbackLabel(t, runId);
                   return (
                     <div key={runId} className="console-log-group">
                       <button
@@ -812,7 +817,7 @@ export default function BottomConsole({
                         title={isExpanded ? t('common.collapse') : t('common.expand')}
                       >
                         <Icon name={isExpanded ? 'chevronDown' : 'chevronRight'} size={12} />
-                        <span className="console-log-group-title">{runId}</span>
+                        <span className="console-log-group-title" title={runLabel !== runId ? runId : undefined}>{runLabel}</span>
                         <span className="console-log-group-count">
                           ({t('console.logGroupCount', { lines: runLogs.length, nodes: nodeGroups.size })})
                         </span>
@@ -822,7 +827,7 @@ export default function BottomConsole({
                           {Array.from(nodeGroups.entries()).map(([nodeId, nodeLogs]) => {
                             const nodeKey = `${runId}:${nodeId}`;
                             const isNodeExpanded = expandedNodes.has(nodeKey);
-                            const nodeTitle = nodeIdToName?.get(nodeId) ?? nodeId;
+                            const nodeTitle = nodeIdToName?.get(nodeId) ?? logFallbackLabel(t, nodeId);
                             return (
                               <div key={nodeId} className="console-log-node-group">
                                 <button
