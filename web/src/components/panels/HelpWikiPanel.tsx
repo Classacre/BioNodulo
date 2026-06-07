@@ -5,6 +5,7 @@ import Icon from '../ui/Icon';
 import type { NodeMetadata, ObjectInfo } from '../../types';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 
 interface HelpWikiPanelProps {
   onClose: () => void;
@@ -36,7 +37,7 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const description = meta?.description?.trim()
     ? escapeHtml(meta.description.trim())
     : `<em>${escapeHtml(t('helpWiki.nodeDocs.noDescription'))}</em>`;
-  const category = meta?.category || t('helpWiki.nodeDocs.uncategorised');
+  const category = nodeCategoryDisplayLabel(meta?.category, t, t('helpWiki.nodeDocs.uncategorised'));
   const tools = meta?.requires_external_tools || [];
   const { required, optional } = getVisibleInputSpecs(meta, node.params);
   const outputs = resolveNodeOutputs(meta, node.params);
@@ -345,7 +346,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
                     }}
                   >
                     <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.meta.display_name, query) }} />
-                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{hit.meta.category || t('helpWiki.nodeDocs.otherCategory')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--accent, #2dd4bf)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{nodeCategoryDisplayLabel(hit.meta.category, t, t('helpWiki.nodeDocs.otherCategory'))}</div>
                     {hit.snippet && (
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: highlightQuery(hit.snippet, query) }} />
                     )}

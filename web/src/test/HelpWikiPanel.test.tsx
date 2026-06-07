@@ -342,6 +342,45 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('desde busqueda')).toBeInTheDocument();
   });
 
+  it('localizes node category labels in selected docs and search results', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    const fastqcMeta: NodeMetadata = {
+      ...objectInfo.diann,
+      id: 'fastqc',
+      display_name: 'FastQC',
+      category: 'Quality Control',
+      description: 'Assess read quality.',
+    };
+
+    render(
+      <HelpWikiPanel
+        onClose={vi.fn()}
+        objectInfo={{ ...objectInfo, fastqc: fastqcMeta }}
+        selectedNode={{
+          id: 'fastqc-1',
+          type: 'fastqc',
+          title: 'FastQC',
+          meta: fastqcMeta,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Control de calidad')).toBeInTheDocument();
+    expect(screen.queryByText('Quality Control')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'FastQC' },
+    });
+
+    const result = screen.getByRole('button', { name: /FastQC/i });
+    expect(result).toHaveTextContent('Control de calidad');
+    expect(result).not.toHaveTextContent('Quality Control');
+  });
+
   it('renders getting-started article content from the active locale', async () => {
     const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
     const { setLanguage } = await import('../i18n');
