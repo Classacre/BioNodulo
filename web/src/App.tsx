@@ -3057,7 +3057,7 @@ export default function App() {
             const world = vp
               ? { x: (cx - vp.x) / vp.scale, y: (cy - vp.y) / vp.scale }
               : { x: cx, y: cy };
-            const fileName = filePath.split(/[\\/]/).pop() || 'file';
+            const fileName = filePath.split(/[\\/]/).pop() || appFileActionCopy.fileTypeFallback;
             const newNode: WorkflowNode = {
               id: `input_file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
               type: 'input_file',

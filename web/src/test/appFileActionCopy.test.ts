@@ -54,6 +54,7 @@ describe('App file action copy i18n', () => {
       'Could not upload pasted file',
       'No input_file node registered; cannot create node for dropped file',
       'File dropped',
+      "|| 'file'",
     ].forEach(text => {
       expect(appSource).not.toContain(text);
     });
