@@ -638,6 +638,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Data Validator now reads gzipped FASTQ, FASTA, VCF, and text inputs through a gzip-aware text reader, so common `.fastq.gz` and `.vcf.gz` files validate without manual decompression.
 - Data Validator now recognizes BGZF/gzip BAM container magic during shallow BAM validation, avoiding misleading compressed-BAM warnings for normal `.bam` files.
 - List Operations now supports the planned `get` operation with positive and negative index lookup plus bounds-safe false results.
+- List Operations now supports the planned `slice` operation with `start`/`end` indices and JSON-list output.
 
 ---
 

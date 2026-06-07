@@ -325,8 +325,8 @@ class ListOperationsNode(BaseNode):
     NODE_ID = "list_operations"
     DISPLAY_NAME = "List Operations"
     CATEGORY = "utils"
-    DESCRIPTION = "List manipulation: join, append, prepend, get, unique, sort, length, contains"
-    SEARCH_ALIASES = ["list", "array", "collection", "join", "append", "prepend", "get", "unique", "sort", "length", "contains"]
+    DESCRIPTION = "List manipulation: join, append, prepend, get, slice, unique, sort, length, contains"
+    SEARCH_ALIASES = ["list", "array", "collection", "join", "append", "prepend", "get", "slice", "unique", "sort", "length", "contains"]
     RETURN_TYPES = ("STRING", "INT", "BOOLEAN")
     RETURN_NAMES = ("result", "length", "contains")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -336,7 +336,7 @@ class ListOperationsNode(BaseNode):
         return {
             "required": {
                 "operation": (
-                    ["join", "append", "prepend", "get", "unique", "sort", "length", "contains"],
+                    ["join", "append", "prepend", "get", "slice", "unique", "sort", "length", "contains"],
                     {"default": "length", "description": "List operation"},
                 ),
                 "items": (
@@ -347,6 +347,8 @@ class ListOperationsNode(BaseNode):
             "optional": {
                 "item": ("STRING", {"default": "", "description": "Item for append/prepend/contains"}),
                 "index": ("INT", {"default": 0, "description": "Index for get"}),
+                "start": ("INT", {"default": 0, "description": "Start index for slice"}),
+                "end": ("INT", {"default": -1, "description": "End index for slice; negative means through the end"}),
                 "delimiter": ("STRING", {"default": ",", "description": "Delimiter for join"}),
                 "reverse": ("BOOLEAN", {"default": False, "description": "Reverse sort order"}),
             },
@@ -374,6 +376,12 @@ class ListOperationsNode(BaseNode):
             if -len(items) <= index < len(items):
                 return (items[index], len(items), True)
             return ("", len(items), False)
+
+        if operation == "slice":
+            start = int(kwargs.get("start", 0) or 0)
+            end = int(kwargs.get("end", -1) or -1)
+            result = items[start:end] if end >= 0 else items[start:]
+            return (_to_json(result), len(result), False)
 
         if operation == "unique":
             result = list(dict.fromkeys(items))
