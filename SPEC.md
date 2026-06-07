@@ -131,6 +131,7 @@ bionodulo-v2/
 │   ├── r_visualization_pipeline.json
 │   ├── rna_seq_pipeline.json
 │   ├── single_cell_pipeline.json
+│   ├── spatial_transcriptomics_qc_clustering.json
 │   ├── variant_calling_pipeline.json
 │   ├── wgbs_methylation_pipeline.json
 │   ├── wgs_variant_pipeline.json
@@ -279,14 +280,15 @@ Settings stored per-user in `bionodulo.settings.json`:
 11. **Metagenomics** - Kraken2, Bracken, MetaPhlAn, HUMAnN, MaxBin
 12. **ChIP-Seq** - MACS2, Homer, DeepTools
 13. **Single Cell** - Cell Ranger, Seurat (via R)
-14. **Long Read** - Dorado, Chopper, NanoPlot, Modkit, Medaka
-15. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
-16. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
-17. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
-18. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
-19. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
-20. **HPC** - SLURM submit, PBS submit, SGE submit
-21. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+14. **Spatial Transcriptomics** - Space Ranger, Squidpy, Scanpy, Seurat, Cell2location, Baysor
+15. **Long Read** - Dorado, Chopper, NanoPlot, Modkit, Medaka
+16. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
+17. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
+18. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
+19. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
+20. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
+21. **HPC** - SLURM submit, PBS submit, SGE submit
+22. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel

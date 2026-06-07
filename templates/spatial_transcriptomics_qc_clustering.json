@@ -1,0 +1,395 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "Spatial Transcriptomics QC and Clustering",
+  "description": "Spatial transcriptomics workflow for precomputed 10x Genomics Visium outputs. It validates a Space Ranger outs directory, runs Squidpy QC and spatial visualization, optionally clusters a small count matrix with Scanpy, previews generated plots, and assembles an HTML QC report.",
+  "category": "Spatial Transcriptomics",
+  "tags": [
+    "spatial-transcriptomics",
+    "visium",
+    "spaceranger",
+    "squidpy",
+    "scanpy",
+    "qc",
+    "clustering",
+    "umap"
+  ],
+  "tools": [
+    "input_directory",
+    "input_file",
+    "data_validator",
+    "squidpy_qc",
+    "scanpy_spatial",
+    "image_preview",
+    "html_report",
+    "html_preview"
+  ],
+  "nodes": [
+    {
+      "id": "note_spatial_transcriptomics_pipeline",
+      "type": "note",
+      "position": [
+        -240,
+        80
+      ],
+      "params": {
+        "text": "Spatial transcriptomics QC and clustering workflow: validate a precomputed Space Ranger outs directory, run Squidpy QC and spatial visualization, run Scanpy clustering on a small count matrix plus spot coordinates, preview generated images, and compile the QC outputs into an HTML report.\n\nInputs are placeholders. Use a Space Ranger outs directory for Squidpy. The optional Scanpy branch expects a gene-by-spot CSV count matrix and a coordinates CSV containing a barcode column."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "visium_outs_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "directory": "examples/data/spatial_transcriptomics/visium_outs"
+      },
+      "ui": {
+        "title": "Visium outs Directory"
+      }
+    },
+    {
+      "id": "validate_visium_outs_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        80
+      ],
+      "params": {
+        "expected_format": "directory",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Visium outs"
+      }
+    },
+    {
+      "id": "squidpy_qc_001",
+      "type": "squidpy_qc",
+      "position": [
+        760,
+        80
+      ],
+      "params": {
+        "min_counts": 500,
+        "min_cells": 3,
+        "max_mt_pct": 20.0,
+        "n_hvg": 2000,
+        "n_pcs": 15,
+        "resolution": 0.8
+      },
+      "ui": {
+        "title": "Squidpy QC"
+      }
+    },
+    {
+      "id": "validate_squidpy_adata_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        -40
+      ],
+      "params": {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Squidpy AnnData"
+      }
+    },
+    {
+      "id": "spatial_plot_preview_001",
+      "type": "image_preview",
+      "position": [
+        1100,
+        180
+      ],
+      "params": {},
+      "ui": {
+        "title": "Preview Spatial Plot"
+      }
+    },
+    {
+      "id": "count_matrix_001",
+      "type": "input_file",
+      "position": [
+        80,
+        380
+      ],
+      "params": {
+        "file": "examples/data/spatial_transcriptomics/counts.csv"
+      },
+      "ui": {
+        "title": "Count Matrix"
+      }
+    },
+    {
+      "id": "validate_count_matrix_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        380
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Count Matrix"
+      }
+    },
+    {
+      "id": "coordinates_001",
+      "type": "input_file",
+      "position": [
+        80,
+        560
+      ],
+      "params": {
+        "file": "examples/data/spatial_transcriptomics/coordinates.csv"
+      },
+      "ui": {
+        "title": "Spot Coordinates"
+      }
+    },
+    {
+      "id": "validate_coordinates_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        560
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Coordinates"
+      }
+    },
+    {
+      "id": "scanpy_spatial_001",
+      "type": "scanpy_spatial",
+      "position": [
+        760,
+        470
+      ],
+      "params": {
+        "sample_name": "visium_sample",
+        "delimiter": "comma",
+        "min_cells": 3,
+        "min_genes": 200,
+        "n_hvg": 2000,
+        "n_pcs": 15,
+        "resolution": 0.8
+      },
+      "ui": {
+        "title": "Scanpy Spatial"
+      }
+    },
+    {
+      "id": "validate_scanpy_clusters_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        400
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Scanpy Clusters"
+      }
+    },
+    {
+      "id": "scanpy_umap_preview_001",
+      "type": "image_preview",
+      "position": [
+        1100,
+        620
+      ],
+      "params": {},
+      "ui": {
+        "title": "Preview Scanpy UMAP"
+      }
+    },
+    {
+      "id": "spatial_report_001",
+      "type": "html_report",
+      "position": [
+        1460,
+        320
+      ],
+      "params": {
+        "title": "Spatial Transcriptomics QC and Clustering Report",
+        "text_sections": "# Summary\nSquidpy performs Visium quality control, preprocessing, neighborhood enrichment, and spatial visualization from a validated Space Ranger outs directory. Scanpy clusters a gene-by-spot count matrix with matching spatial coordinates and renders a UMAP for quick inspection.",
+        "images": "squidpy_qc/spatial_plot.png,scanpy_spatial/umap.png",
+        "tables": "scanpy_spatial/clusters.csv",
+        "section_names": "Squidpy spatial QC,Scanpy UMAP,Scanpy clusters",
+        "theme": "light",
+        "include_toc": true,
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Spatial Transcriptomics Report"
+      }
+    },
+    {
+      "id": "spatial_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1800,
+        320
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Spatial Report"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "visium_outs_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "validate_visium_outs_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "validate_visium_outs_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "squidpy_qc_001",
+        "input": "visium_path"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "squidpy_qc_001",
+        "output": "adata"
+      },
+      "to": {
+        "node": "validate_squidpy_adata_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "squidpy_qc_001",
+        "output": "spatial_plot"
+      },
+      "to": {
+        "node": "spatial_plot_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "count_matrix_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_count_matrix_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "coordinates_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_coordinates_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "validate_count_matrix_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "scanpy_spatial_001",
+        "input": "count_matrix"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "validate_coordinates_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "scanpy_spatial_001",
+        "input": "coordinates"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "scanpy_spatial_001",
+        "output": "clusters"
+      },
+      "to": {
+        "node": "validate_scanpy_clusters_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "scanpy_spatial_001",
+        "output": "umap"
+      },
+      "to": {
+        "node": "scanpy_umap_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "spatial_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "spatial_report_preview_001",
+        "input": "file"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "validated_visium_outs": "validate_visium_outs_001",
+    "squidpy_adata": "validate_squidpy_adata_001",
+    "spatial_plot_preview": "spatial_plot_preview_001",
+    "scanpy_clusters": "validate_scanpy_clusters_001",
+    "scanpy_umap_preview": "scanpy_umap_preview_001",
+    "report": "spatial_report_001",
+    "report_preview": "spatial_report_preview_001"
+  }
+}

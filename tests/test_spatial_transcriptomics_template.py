@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from fastapi.testclient import TestClient
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_template(name: str) -> dict[str, Any]:
+    return json.loads((ROOT / "templates" / name).read_text(encoding="utf-8"))
+
+
+def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
+    return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
+
+
+def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+    return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
+def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
+    return any(
+        edge.get("from") == {"node": source, "output": source_output}
+        and edge.get("to") == {"node": target, "input": target_input}
+        for edge in workflow["edges"]
+    )
+
+
+def _target_input_count(workflow: dict[str, Any], target: str, target_input: str) -> int:
+    return sum(
+        edge.get("to") == {"node": target, "input": target_input}
+        for edge in workflow["edges"]
+    )
+
+
+def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering() -> None:
+    workflow = _load_template("spatial_transcriptomics_qc_clustering.json")
+    node_types = _node_types(workflow)
+
+    assert workflow["name"] == "Spatial Transcriptomics QC and Clustering"
+    assert workflow["category"] == "Spatial Transcriptomics"
+    assert {
+        "spatial-transcriptomics",
+        "visium",
+        "squidpy",
+        "scanpy",
+        "qc",
+        "clustering",
+        "umap",
+    }.issubset(set(workflow["tags"]))
+    assert {
+        "input_directory",
+        "input_file",
+        "data_validator",
+        "squidpy_qc",
+        "scanpy_spatial",
+        "image_preview",
+        "html_report",
+        "html_preview",
+    }.issubset(set(workflow["tools"]))
+
+    assert node_types["visium_outs_001"] == "input_directory"
+    assert node_types["validate_visium_outs_001"] == "data_validator"
+    assert node_types["squidpy_qc_001"] == "squidpy_qc"
+    assert node_types["validate_squidpy_adata_001"] == "data_validator"
+    assert node_types["spatial_plot_preview_001"] == "image_preview"
+    assert node_types["count_matrix_001"] == "input_file"
+    assert node_types["validate_count_matrix_001"] == "data_validator"
+    assert node_types["coordinates_001"] == "input_file"
+    assert node_types["validate_coordinates_001"] == "data_validator"
+    assert node_types["scanpy_spatial_001"] == "scanpy_spatial"
+    assert node_types["validate_scanpy_clusters_001"] == "data_validator"
+    assert node_types["scanpy_umap_preview_001"] == "image_preview"
+    assert node_types["spatial_report_001"] == "html_report"
+    assert node_types["spatial_report_preview_001"] == "html_preview"
+
+    assert _has_edge(workflow, "visium_outs_001", "directory", "validate_visium_outs_001", "input")
+    assert _has_edge(workflow, "validate_visium_outs_001", "passthrough", "squidpy_qc_001", "visium_path")
+    assert _has_edge(workflow, "squidpy_qc_001", "adata", "validate_squidpy_adata_001", "input")
+    assert _has_edge(workflow, "squidpy_qc_001", "spatial_plot", "spatial_plot_preview_001", "file")
+
+    assert _has_edge(workflow, "count_matrix_001", "file", "validate_count_matrix_001", "input")
+    assert _has_edge(workflow, "coordinates_001", "file", "validate_coordinates_001", "input")
+    assert _has_edge(workflow, "validate_count_matrix_001", "passthrough", "scanpy_spatial_001", "count_matrix")
+    assert _has_edge(workflow, "validate_coordinates_001", "passthrough", "scanpy_spatial_001", "coordinates")
+    assert _has_edge(workflow, "scanpy_spatial_001", "clusters", "validate_scanpy_clusters_001", "input")
+    assert _has_edge(workflow, "scanpy_spatial_001", "umap", "scanpy_umap_preview_001", "file")
+    assert _has_edge(workflow, "spatial_report_001", "html_report", "spatial_report_preview_001", "file")
+
+    assert not _has_edge(workflow, "visium_outs_001", "directory", "squidpy_qc_001", "visium_path")
+    assert not _has_edge(workflow, "count_matrix_001", "file", "scanpy_spatial_001", "count_matrix")
+    assert not _has_edge(workflow, "coordinates_001", "file", "scanpy_spatial_001", "coordinates")
+    assert _target_input_count(workflow, "spatial_report_001", "images") == 0
+    assert _target_input_count(workflow, "spatial_report_001", "tables") == 0
+
+
+def test_spatial_transcriptomics_template_validates_outputs_and_analysis_parameters() -> None:
+    workflow = _load_template("spatial_transcriptomics_qc_clustering.json")
+
+    visium_input = _node_by_id(workflow, "visium_outs_001")
+    visium_validator = _node_by_id(workflow, "validate_visium_outs_001")
+    squidpy = _node_by_id(workflow, "squidpy_qc_001")
+    squidpy_validator = _node_by_id(workflow, "validate_squidpy_adata_001")
+    count_input = _node_by_id(workflow, "count_matrix_001")
+    count_validator = _node_by_id(workflow, "validate_count_matrix_001")
+    coordinates_input = _node_by_id(workflow, "coordinates_001")
+    coordinates_validator = _node_by_id(workflow, "validate_coordinates_001")
+    scanpy = _node_by_id(workflow, "scanpy_spatial_001")
+    clusters_validator = _node_by_id(workflow, "validate_scanpy_clusters_001")
+    report = _node_by_id(workflow, "spatial_report_001")
+
+    assert visium_input["params"]["directory"] == "examples/data/spatial_transcriptomics/visium_outs"
+    assert visium_validator["params"]["expected_format"] == "directory"
+    assert visium_validator["params"]["min_size_bytes"] > 0
+    assert visium_validator["params"]["fail_on_error"] is True
+
+    assert squidpy["params"]["min_counts"] == 500
+    assert squidpy["params"]["min_cells"] == 3
+    assert squidpy["params"]["max_mt_pct"] == 20.0
+    assert squidpy["params"]["n_hvg"] == 2000
+    assert squidpy["params"]["n_pcs"] == 15
+    assert squidpy["params"]["resolution"] == 0.8
+    assert squidpy_validator["params"]["expected_format"] == "auto"
+    assert squidpy_validator["params"]["fail_on_error"] is True
+
+    assert count_input["params"]["file"] == "examples/data/spatial_transcriptomics/counts.csv"
+    assert count_validator["params"]["expected_format"] == "csv"
+    assert count_validator["params"]["min_size_bytes"] > 0
+    assert coordinates_input["params"]["file"] == "examples/data/spatial_transcriptomics/coordinates.csv"
+    assert coordinates_validator["params"]["expected_format"] == "csv"
+    assert coordinates_validator["params"]["fail_on_error"] is True
+
+    assert scanpy["params"]["sample_name"] == "visium_sample"
+    assert scanpy["params"]["delimiter"] == "comma"
+    assert scanpy["params"]["min_cells"] == 3
+    assert scanpy["params"]["min_genes"] == 200
+    assert scanpy["params"]["n_hvg"] == 2000
+    assert scanpy["params"]["n_pcs"] == 15
+    assert scanpy["params"]["resolution"] == 0.8
+    assert clusters_validator["params"]["expected_format"] == "csv"
+    assert clusters_validator["params"]["fail_on_error"] is True
+
+    assert report["params"]["title"] == "Spatial Transcriptomics QC and Clustering Report"
+    assert "Squidpy" in report["params"]["text_sections"]
+    assert "Scanpy" in report["params"]["text_sections"]
+    assert report["params"]["images"] == "squidpy_qc/spatial_plot.png,scanpy_spatial/umap.png"
+    assert report["params"]["tables"] == "scanpy_spatial/clusters.csv"
+    assert report["params"]["section_names"] == "Squidpy spatial QC,Scanpy UMAP,Scanpy clusters"
+
+    assert workflow["outputs"]["validated_visium_outs"] == "validate_visium_outs_001"
+    assert workflow["outputs"]["squidpy_adata"] == "validate_squidpy_adata_001"
+    assert workflow["outputs"]["spatial_plot_preview"] == "spatial_plot_preview_001"
+    assert workflow["outputs"]["scanpy_clusters"] == "validate_scanpy_clusters_001"
+    assert workflow["outputs"]["scanpy_umap_preview"] == "scanpy_umap_preview_001"
+    assert workflow["outputs"]["report"] == "spatial_report_001"
+    assert workflow["outputs"]["report_preview"] == "spatial_report_preview_001"
+
+
+def test_spatial_transcriptomics_template_is_discoverable_from_workflow_templates_api() -> None:
+    from server import create_app
+
+    with TestClient(create_app()) as client:
+        list_response = client.get("/api/workflow_templates")
+        template_response = client.get("/api/workflow_templates/spatial_transcriptomics_qc_clustering.json")
+
+    assert list_response.status_code == 200
+    listed = next(
+        template
+        for template in list_response.json()["templates"]
+        if template["filename"] == "spatial_transcriptomics_qc_clustering.json"
+    )
+    assert listed["name"] == "Spatial Transcriptomics QC and Clustering"
+    assert listed["category"] == "Spatial Transcriptomics"
+    assert listed["node_count"] >= 14
+    assert "squidpy_qc" in listed["tools"]
+    assert "scanpy_spatial" in listed["tools"]
+    assert "Squidpy QC" in listed["preview_steps"]
+
+    assert template_response.status_code == 200
+    assert template_response.json()["name"] == "Spatial Transcriptomics QC and Clustering"
