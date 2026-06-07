@@ -174,7 +174,7 @@ class STRINGDBNode(BaseNode):
 
     NODE_ID = "string_db"
     DISPLAY_NAME = "STRING DB"
-    CATEGORY = "databases"
+    CATEGORY = "api"
     DESCRIPTION = "Query protein-protein interaction networks and enrichment from STRING DB."
     SEARCH_ALIASES = ["string", "ppi", "network", "interaction", "protein-protein", "enrichment"]
     RETURN_TYPES = ("TSV", "JSON")
@@ -191,9 +191,9 @@ class STRINGDBNode(BaseNode):
             },
             "optional": {
                 "species": ("INT", {"default": 9606, "min": 1, "description": "NCBI taxonomy ID"}),
-                "query_type": (list(STRING_QUERY_TYPES), {"default": "network"}),
+                "query_type": ("STRING", {"default": "network", "options": list(STRING_QUERY_TYPES)}),
                 "required_score": ("INT", {"default": 400, "min": 0, "max": 1000}),
-                "network_flavor": (list(NETWORK_FLAVORS), {"default": "evidence"}),
+                "network_flavor": ("STRING", {"default": "evidence", "options": list(NETWORK_FLAVORS)}),
                 "add_nodes": ("INT", {"default": 0, "min": 0, "max": 50}),
                 "protein_table": ("FILE", {"default": "", "description": "Optional CSV/TSV table containing protein IDs or gene symbols"}),
                 "id_column": ("STRING", {"default": "", "description": "Column to read from protein_table"}),

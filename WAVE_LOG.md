@@ -594,6 +594,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - PDB Download now advertises the planning-style `format` input as a `STRING` with RCSB format options, preserving runtime validation while exposing the expected frontend/API contract.
 - STRING DB image queries now download the planned `string_network.png` artifact and record `image_path` metadata while preserving the existing TSV/JSON output contract.
 - InterProScan REST nodes now advertise the planned `api` category for `interpro_scan` and its compatibility wrapper.
+- STRING DB now advertises the planned `api` category and exposes `query_type` / `network_flavor` as `STRING` controls with explicit option lists.
 
 ---
 

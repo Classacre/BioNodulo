@@ -27,9 +27,17 @@ def test_string_db_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     assert info["string_db"]["display_name"] == "STRING DB"
-    assert info["string_db"]["category"] == "databases"
+    assert info["string_db"]["category"] == "api"
     assert info["string_db"]["output_name"] == ["interaction_network", "network_metadata"]
     assert info["string_db"]["output"] == ["TSV", "JSON"]
+    assert info["string_db"]["input"]["optional"]["query_type"] == (
+        "STRING",
+        {"default": "network", "options": ["network", "interactions", "enrichment", "mapping", "image"]},
+    )
+    assert info["string_db"]["input"]["optional"]["network_flavor"] == (
+        "STRING",
+        {"default": "evidence", "options": ["evidence", "confidence", "actions"]},
+    )
     assert set(info["string_db"]["input"]["optional"]) == {
         "species",
         "query_type",
