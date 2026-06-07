@@ -309,6 +309,28 @@ describe('TemplatesPanel i18n', () => {
     expect(loggingMock.logError).toHaveBeenCalledWith('templates.load', loadError);
   });
 
+  it('localizes remote template load failures when no local fallback exists', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const { setLanguage } = await import('../i18n');
+    const loadError = new Error('template index unavailable');
+
+    await setLanguage('es');
+    localTemplateMocks.listLocalTemplates.mockReturnValueOnce([]);
+    fetchSpy.mockRejectedValueOnce(loadError);
+
+    render(
+      <TemplatesPanel
+        onClose={() => undefined}
+        onLoadTemplate={() => undefined}
+      />,
+    );
+
+    expect(await screen.findByText('Error: No se pudieron cargar las plantillas')).toBeInTheDocument();
+    expect(screen.queryByText(/template index unavailable/)).not.toBeInTheDocument();
+    expect(localTemplateMocks.listLocalTemplates).toHaveBeenCalledTimes(1);
+    expect(loggingMock.logError).toHaveBeenCalledWith('templates.load', loadError);
+  });
+
   it('logs template card load failures without closing the panel', async () => {
     const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
     const loadError = new Error('template load unavailable');

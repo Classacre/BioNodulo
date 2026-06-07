@@ -1010,6 +1010,7 @@ const en = {
     resultSummary: '{{shown}} of {{total}} templates',
     rankedByFuzzyMatch: 'Ranked by fuzzy match',
     errorPrefix: 'Error: {{message}}',
+    loadFailed: 'Failed to load templates',
     loadTemplate: 'Load {{name}}',
     templateMatchRank: 'Template match rank',
     workflowPreviewSteps: 'Workflow preview steps',

@@ -10,7 +10,7 @@ import { listLocalTemplates } from '../../localTemplates';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
 import { getOrRenderTemplateThumbnail } from '../../state/templateThumbnails';
-import { apiGet, ApiError } from '../../api/client';
+import { apiGet } from '../../api/client';
 import { logError } from '../../state/logging';
 
 export type TemplateSortMode = 'ranked' | 'name' | 'category' | 'node_count' | 'recent';
@@ -246,8 +246,7 @@ export default function TemplatesPanel({
         logError('templates.load', err);
         const localTemplates = listLocalTemplates() as TemplateCardInfo[];
         setTemplates(localTemplates);
-        const message = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);
-        setError(localTemplates.length > 0 ? null : message);
+        setError(localTemplates.length > 0 ? null : 'templates.loadFailed');
         setLoading(false);
       });
     return () => { cancelled = true; };
@@ -428,7 +427,7 @@ export default function TemplatesPanel({
           {!loading && filter.trim() && <span>{t('templates.rankedByFuzzyMatch')}</span>}
         </div>
         {loading && <TemplateSkeletons />}
-        {error && <div className="template-error">{t('templates.errorPrefix', { message: error })}</div>}
+        {error && <div className="template-error">{t('templates.errorPrefix', { message: t(error) })}</div>}
         {!loading && !error && (
           <div className="template-grid">
             {rankedTemplates.map(({ template, score }, index) => {

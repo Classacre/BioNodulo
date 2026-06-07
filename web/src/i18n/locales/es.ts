@@ -1019,6 +1019,7 @@ const es = {
     resultSummary: '{{shown}} de {{total}} plantillas',
     rankedByFuzzyMatch: 'Clasificado por coincidencia difusa',
     errorPrefix: 'Error: {{message}}',
+    loadFailed: 'No se pudieron cargar las plantillas',
     loadTemplate: 'Cargar {{name}}',
     templateMatchRank: 'Ranking de coincidencia de plantilla',
     workflowPreviewSteps: 'Pasos de vista previa del flujo de trabajo',
