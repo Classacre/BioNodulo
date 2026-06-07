@@ -28,10 +28,12 @@ NCBI_RATE_LIMIT_PER_SECOND = 3.0
 NCBI_API_KEY_RATE_LIMIT_PER_SECOND = 10.0
 BLAST_PROGRAMS = ("blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast")
 BLAST_DATABASES = ("nt", "nr", "refseq_rna", "refseq_protein", "pdb", "est", "gss", "pat", "env_nr")
-BLAST_OUTPUT_FORMATS = ("JSON2", "XML2", "Text", "CSV", "SAM")
+BLAST_OUTPUT_FORMATS = ("JSON2", "XML", "Tabular", "Text", "XML2", "CSV", "SAM")
 BLAST_EXTENSIONS = {
     "JSON2": ".json",
+    "XML": ".xml",
     "XML2": ".xml",
+    "Tabular": ".tsv",
     "Text": ".txt",
     "CSV": ".csv",
     "SAM": ".sam",

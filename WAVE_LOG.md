@@ -610,6 +610,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI BLAST now accepts FASTA file paths through `query_sequence` and submits the file contents instead of the path string.
 - Ensembl VEP now accepts HGVS `variants` input via `variant_format=hgvs` while preserving VCF-file annotation.
 - UniProt Search now exposes a `database` selector for `uniprotkb`, `uniref`, and `uniparc` search endpoints.
+- NCBI BLAST now accepts the planned `XML` and `Tabular` output-format labels while preserving `XML2`, `CSV`, `Text`, and `SAM` compatibility.
 
 ---
 

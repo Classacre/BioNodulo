@@ -41,6 +41,10 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ncbi_blast"]["display_name"] == "NCBI BLAST"
     assert info["ncbi_blast"]["category"] == "databases"
     assert info["ncbi_blast"]["output_name"] == ["blast_results", "blast_summary"]
+    assert info["ncbi_blast"]["input"]["optional"]["output_format"] == (
+        "STRING",
+        {"default": "JSON2", "options": ["JSON2", "XML", "Tabular", "Text", "XML2", "CSV", "SAM"]},
+    )
     assert info["geo_query"]["display_name"] == "GEO Query"
     assert info["geo_query"]["category"] == "databases"
     assert info["geo_query"]["output_name"] == ["geo_metadata", "sample_table"]
@@ -667,6 +671,63 @@ async def test_ncbi_blast_accepts_fasta_file_path_query(
     )
 
     assert calls[0]["params"]["QUERY"] == ">file_query\nATGC\nTTAA"
+
+
+@pytest.mark.asyncio
+async def test_ncbi_blast_accepts_planned_xml_and_tabular_output_formats(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ncbi_blast")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_blast_request_text(method: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"method": method, "params": dict(params)})
+        if params["CMD"] == "Put":
+            return f"RID = {params['FORMAT_TYPE']}RID\n"
+        if params.get("FORMAT_OBJECT") == "SearchInfo":
+            return "Status=READY\n"
+        return f"results for {params['FORMAT_TYPE']}"
+
+    async def fake_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(module, "_blast_request_text", fake_blast_request_text)
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+
+    xml_result = await node_class().run(
+        query_sequence="ATGC",
+        program="blastn",
+        database="nt",
+        output_format="XML",
+        timeout_minutes=1,
+        context=SimpleNamespace(node_dir=tmp_path / "xml"),
+    )
+    tabular_result = await node_class().run(
+        query_sequence="ATGC",
+        program="blastn",
+        database="nt",
+        output_format="Tabular",
+        timeout_minutes=1,
+        context=SimpleNamespace(node_dir=tmp_path / "tabular"),
+    )
+
+    assert Path(xml_result["outputs"]["blast_results"]).name == "blast_results.xml"
+    assert Path(xml_result["outputs"]["blast_results"]).read_text(encoding="utf-8") == "results for XML"
+    assert json.loads(Path(xml_result["outputs"]["blast_summary"]).read_text(encoding="utf-8"))["format"] == "XML"
+    assert Path(tabular_result["outputs"]["blast_results"]).name == "blast_results.tsv"
+    assert Path(tabular_result["outputs"]["blast_results"]).read_text(encoding="utf-8") == "results for Tabular"
+    assert json.loads(Path(tabular_result["outputs"]["blast_summary"]).read_text(encoding="utf-8"))["format"] == "Tabular"
+    assert [call["params"].get("FORMAT_TYPE") for call in calls if call["params"]["CMD"] == "Put"] == [
+        "XML",
+        "Tabular",
+    ]
+    assert [
+        call["params"].get("FORMAT_TYPE")
+        for call in calls
+        if call["params"]["CMD"] == "Get" and call["params"].get("FORMAT_TYPE")
+    ] == ["XML", "Tabular"]
 
 
 @pytest.mark.asyncio
