@@ -1891,6 +1891,8 @@ class MyToolNode(CommandNode):
       messageLabel: 'mensaje',
       leftRun: 'Ejecucion izquierda: {{message}}',
       rightRun: 'Ejecucion derecha: {{message}}',
+      leftRunLoad: 'No se pudo cargar la ejecucion izquierda',
+      rightRunLoad: 'No se pudo cargar la ejecucion derecha',
     },
   },
   canvas: {

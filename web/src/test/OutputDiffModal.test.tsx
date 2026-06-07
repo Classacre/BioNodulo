@@ -130,9 +130,12 @@ describe('OutputDiffModal i18n', () => {
     expect(screen.queryByText('completed')).not.toBeInTheDocument();
   });
 
-  it('logs left run fetch failures while preserving the inline error', async () => {
+  it('localizes left run fetch failures while logging the raw error', async () => {
     const { default: OutputDiffModal } = await import('../components/modals/OutputDiffModal');
+    const { setLanguage } = await import('../i18n');
     const leftError = new Error('left fetch failed');
+
+    await setLanguage('es');
 
     fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -152,13 +155,17 @@ describe('OutputDiffModal i18n', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByText('Left run: Error: left fetch failed')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No se pudo cargar la ejecucion izquierda')).toBeInTheDocument());
+    expect(screen.queryByText('Error: left fetch failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('outputDiff.leftRun.fetch', leftError);
   });
 
-  it('logs right run fetch failures while preserving the inline error', async () => {
+  it('localizes right run fetch failures while logging the raw error', async () => {
     const { default: OutputDiffModal } = await import('../components/modals/OutputDiffModal');
+    const { setLanguage } = await import('../i18n');
     const rightError = new Error('right fetch failed');
+
+    await setLanguage('es');
 
     fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -178,7 +185,8 @@ describe('OutputDiffModal i18n', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByText('Right run: Error: right fetch failed')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No se pudo cargar la ejecucion derecha')).toBeInTheDocument());
+    expect(screen.queryByText('Error: right fetch failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('outputDiff.rightRun.fetch', rightError);
   });
 

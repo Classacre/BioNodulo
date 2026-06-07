@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
-import { apiGet, ApiError } from '../../api/client';
+import { apiGet } from '../../api/client';
 import { safeValidateRunRecord } from '../../api/validators';
 import { logError } from '../../state/logging';
 import type { RunRecord } from '../../types';
@@ -113,7 +113,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
         if (cancelled) return;
         logError('outputDiff.leftRun.fetch', err);
         setLeftRecord(null);
-        setError(t('outputDiff.errors.leftRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
+        setError(t('outputDiff.errors.leftRunLoad'));
       })
       .finally(() => { if (!cancelled) setLoadingLeft(false); });
     return () => { cancelled = true; };
@@ -139,7 +139,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
         if (cancelled) return;
         logError('outputDiff.rightRun.fetch', err);
         setRightRecord(null);
-        setError(t('outputDiff.errors.rightRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
+        setError(t('outputDiff.errors.rightRunLoad'));
       })
       .finally(() => { if (!cancelled) setLoadingRight(false); });
     return () => { cancelled = true; };

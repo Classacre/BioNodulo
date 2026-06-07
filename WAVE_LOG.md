@@ -696,7 +696,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - useCollab share-state load and share-action failures now report structured `logError` scopes while preserving the unshared fallback and generic share error.
 - `useCollab.shareWorkflow` sign-in and share-failure exceptions now read from `collab` i18n keys with Spanish hook coverage and a static guard against reintroducing literal English fallback errors.
 - HPCPanel test-connection failures now report a structured `logError` scope while preserving the localized connection feedback.
-- OutputDiffModal left and right run fetch failures now report structured `logError` scopes while preserving inline comparison errors and skipping cancelled fetches.
+- OutputDiffModal left and right run fetch failures now show localized inline fallback copy instead of raw run-fetch exception messages, while preserving structured diagnostics and skipping cancelled fetches.
 - RuntimeArtifactsPanel trigger evaluation, submit-due, pause resolution, and checkpoint resolution failures now report structured `logError` scopes while preserving inline action errors.
 - HostPrerequisitesBanner Pixi install request failures now report a structured `logError` scope while preserving localized install feedback and the recheck flow.
 - ExportModal workflow export generation failures now report a structured `logError` scope while preserving inline export errors and suppressing fallback downloads.

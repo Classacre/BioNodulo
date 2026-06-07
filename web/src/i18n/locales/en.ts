@@ -1882,6 +1882,8 @@ class MyToolNode(CommandNode):
       messageLabel: 'message',
       leftRun: 'Left run: {{message}}',
       rightRun: 'Right run: {{message}}',
+      leftRunLoad: 'Could not load the left run',
+      rightRunLoad: 'Could not load the right run',
     },
   },
   canvas: {
