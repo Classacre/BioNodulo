@@ -667,6 +667,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - WorkspacePanel root loading, file listing, root-change, and file-preview failures now report structured `logError` scopes while preserving existing empty-state and inline error fallbacks.
 - TemplateGallery load, fork, and save-template failure paths now report structured `logError` scopes while preserving existing localized fallback errors.
 - EnvironmentPanel list, rename, delete, duplicate, and package-removal failures now report structured `logError` scopes while preserving existing inline error fallbacks.
+- UserList share refresh, role-change, and remove-user failures now report structured `logError` scopes while preserving existing empty-share and localized error fallbacks.
 
 ---
 

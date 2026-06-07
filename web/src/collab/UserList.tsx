@@ -4,6 +4,7 @@ import Icon from '../components/ui/Icon';
 import { getToken } from './auth';
 import type { CollabRole, LivePresenceUser } from './types';
 import { apiDelete, apiGet, apiPost } from '../api/client';
+import { logError } from '../state/logging';
 
 interface ShareRecord {
   id: string;
@@ -57,7 +58,8 @@ const UserList: React.FC<UserListProps> = ({
       try {
         const data = await apiGet<{ shares?: ShareRecord[] }>(`/api/collab/shares/${workflowId}`);
         return [workflowId, data.shares ?? []] as const;
-      } catch {
+      } catch (err) {
+        logError('collab.userList.refresh', err);
         return [workflowId, []] as const;
       }
     }));
@@ -84,7 +86,8 @@ const UserList: React.FC<UserListProps> = ({
     setError(null);
     try {
       await apiPost('/api/collab/share', { workflow_id: user.workflow_id, user_id: user.user_id, role });
-    } catch {
+    } catch (err) {
+      logError('collab.userList.roleChange', err);
       setError(t('collab.userListRoleChangeError', { name: user.name }));
       return;
     }
@@ -99,7 +102,8 @@ const UserList: React.FC<UserListProps> = ({
     setError(null);
     try {
       await apiDelete(`/api/collab/share/${share.id}`);
-    } catch {
+    } catch (err) {
+      logError('collab.userList.remove', err);
       setError(t('collab.userListRemoveError', { name: user.name }));
       return;
     }
