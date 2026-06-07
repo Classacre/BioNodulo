@@ -156,10 +156,10 @@ describe('RuntimeArtifactsPanel', () => {
     }));
   });
 
-  it('logs runtime artifact action failures while preserving inline errors', async () => {
+  it('logs runtime artifact action failures while localizing inline errors', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     const evaluateError = new Error('evaluation failed');
     const submitError = new Error('submission failed');
@@ -174,20 +174,24 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Evaluate triggers' }));
-    await waitFor(() => expect(screen.getByText('evaluation failed')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluar activadores' }));
+    await waitFor(() => expect(screen.getByText('No se pudieron evaluar los activadores de flujo de trabajo: evaluation failed')).toBeInTheDocument());
+    expect(screen.queryByText('evaluation failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.workflowTriggers.evaluate', evaluateError);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit due triggers' }));
-    await waitFor(() => expect(screen.getByText('submission failed')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar activadores pendientes' }));
+    await waitFor(() => expect(screen.getByText('No se pudieron enviar los activadores pendientes: submission failed')).toBeInTheDocument());
+    expect(screen.queryByText('submission failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.workflowTriggers.submitDue', submitError);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve pause-node' }));
-    await waitFor(() => expect(screen.getByText('pause resolve failed')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar pause-node' }));
+    await waitFor(() => expect(screen.getByText('No se pudo resolver la solicitud de pausa: pause resolve failed')).toBeInTheDocument());
+    expect(screen.queryByText('pause resolve failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.pauseRequests.resolve', pauseError);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve after_qc' }));
-    await waitFor(() => expect(screen.getByText('checkpoint resolve failed')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Resolver after_qc' }));
+    await waitFor(() => expect(screen.getByText('No se pudo resolver el punto de control: checkpoint resolve failed')).toBeInTheDocument());
+    expect(screen.queryByText('checkpoint resolve failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.checkpoints.resolve', checkpointError);
   });
 

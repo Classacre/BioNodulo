@@ -1131,6 +1131,12 @@ const es = {
     noCheckpoints: 'No hay puntos de control registrados.',
     noPauseRequests: 'No hay solicitudes de pausa.',
     noWorkflowTriggers: 'No hay activadores de flujo de trabajo.',
+    errors: {
+      evaluateFailed: 'No se pudieron evaluar los activadores de flujo de trabajo: {{message}}',
+      submitDueFailed: 'No se pudieron enviar los activadores pendientes: {{message}}',
+      resolvePauseFailed: 'No se pudo resolver la solicitud de pausa: {{message}}',
+      resolveCheckpointFailed: 'No se pudo resolver el punto de control: {{message}}',
+    },
   },
   hpc: {
     title: 'HPC',

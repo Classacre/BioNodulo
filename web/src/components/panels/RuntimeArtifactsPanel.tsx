@@ -31,6 +31,10 @@ function valueAsString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function errorDetail(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() || path;
 }
@@ -223,7 +227,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
       await evaluateWorkflowTriggers();
     } catch (err) {
       logError('runtimeArtifacts.workflowTriggers.evaluate', err);
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(t('runtimeArtifacts.errors.evaluateFailed', { message: errorDetail(err) }));
     } finally {
       setEvaluating(false);
     }
@@ -236,7 +240,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
       await evaluateWorkflowTriggers(undefined, { submitRuns: true });
     } catch (err) {
       logError('runtimeArtifacts.workflowTriggers.submitDue', err);
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(t('runtimeArtifacts.errors.submitDueFailed', { message: errorDetail(err) }));
     } finally {
       setSubmittingTriggers(false);
     }
@@ -254,7 +258,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
       });
     } catch (err) {
       logError('runtimeArtifacts.pauseRequests.resolve', err);
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(t('runtimeArtifacts.errors.resolvePauseFailed', { message: errorDetail(err) }));
     } finally {
       setResolvingPauseKey(null);
     }
@@ -273,7 +277,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
       }
     } catch (err) {
       logError('runtimeArtifacts.checkpoints.resolve', err);
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(t('runtimeArtifacts.errors.resolveCheckpointFailed', { message: errorDetail(err) }));
     } finally {
       setResolvingCheckpointKey(null);
     }

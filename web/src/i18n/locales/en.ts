@@ -1122,6 +1122,12 @@ const en = {
     noCheckpoints: 'No checkpoints recorded.',
     noPauseRequests: 'No pause requests.',
     noWorkflowTriggers: 'No workflow triggers.',
+    errors: {
+      evaluateFailed: 'Could not evaluate workflow triggers: {{message}}',
+      submitDueFailed: 'Could not submit due triggers: {{message}}',
+      resolvePauseFailed: 'Could not resolve the pause request: {{message}}',
+      resolveCheckpointFailed: 'Could not resolve the checkpoint: {{message}}',
+    },
   },
   hpc: {
     title: 'HPC',
