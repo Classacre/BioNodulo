@@ -422,6 +422,22 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('Primeros pasos')).toBeInTheDocument();
   });
 
+  it('does not search English page fallback titles in a localized help wiki', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
+      target: { value: 'Getting Started' },
+    });
+
+    expect(screen.getByText('Sin resultados para "Getting Started"')).toBeInTheDocument();
+    expect(screen.queryByText('Primeros pasos')).not.toBeInTheDocument();
+  });
+
   it('keeps getting-started wiki article content behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
 
@@ -429,6 +445,33 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(source).not.toContain('Welcome to BioNodulo v2');
     expect(source).not.toContain('BioNodulo is a visual bioinformatics workflow workbench.');
     expect(source).not.toContain('Quick Start');
+  });
+
+  it('keeps wiki page titles behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HelpWikiPanel.tsx'), 'utf8');
+
+    [
+      'helpWiki.pages.gettingStarted',
+      'helpWiki.pages.canvasFeatures',
+      'helpWiki.pages.nodesReference',
+      'helpWiki.pages.templatesGuide',
+      'helpWiki.pages.customNodes',
+      'helpWiki.pages.hpcIntegration',
+      'helpWiki.pages.workflowConverters',
+      'helpWiki.pages.keyboardShortcuts',
+    ].forEach(key => expect(source).toContain(key));
+
+    [
+      'fallbackTitle',
+      'Getting Started',
+      'Canvas & Nodes',
+      'Node Reference',
+      'Templates Guide',
+      'Custom Nodes',
+      'HPC Integration',
+      'Workflow Converters',
+      'Keyboard Shortcuts',
+    ].forEach(text => expect(source).not.toContain(text));
   });
 
   it('renders canvas-features article content from the active locale', async () => {

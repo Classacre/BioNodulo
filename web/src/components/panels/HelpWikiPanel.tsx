@@ -115,15 +115,15 @@ function nodeFromMeta(meta: NodeMetadata): HelpNode {
 
 type WikiPage = 'getting-started' | 'nodes-reference' | 'templates-guide' | 'custom-nodes' | 'hpc-integration' | 'workflow-converters' | 'keyboard-shortcuts' | 'canvas-features';
 
-const PAGES: { id: WikiPage; titleKey: string; fallbackTitle: string }[] = [
-  { id: 'getting-started', titleKey: 'helpWiki.pages.gettingStarted', fallbackTitle: 'Getting Started' },
-  { id: 'canvas-features', titleKey: 'helpWiki.pages.canvasFeatures', fallbackTitle: 'Canvas & Nodes' },
-  { id: 'nodes-reference', titleKey: 'helpWiki.pages.nodesReference', fallbackTitle: 'Node Reference' },
-  { id: 'templates-guide', titleKey: 'helpWiki.pages.templatesGuide', fallbackTitle: 'Templates Guide' },
-  { id: 'custom-nodes', titleKey: 'helpWiki.pages.customNodes', fallbackTitle: 'Custom Nodes' },
-  { id: 'hpc-integration', titleKey: 'helpWiki.pages.hpcIntegration', fallbackTitle: 'HPC Integration' },
-  { id: 'workflow-converters', titleKey: 'helpWiki.pages.workflowConverters', fallbackTitle: 'Workflow Converters' },
-  { id: 'keyboard-shortcuts', titleKey: 'helpWiki.pages.keyboardShortcuts', fallbackTitle: 'Keyboard Shortcuts' },
+const PAGES: { id: WikiPage; titleKey: string }[] = [
+  { id: 'getting-started', titleKey: 'helpWiki.pages.gettingStarted' },
+  { id: 'canvas-features', titleKey: 'helpWiki.pages.canvasFeatures' },
+  { id: 'nodes-reference', titleKey: 'helpWiki.pages.nodesReference' },
+  { id: 'templates-guide', titleKey: 'helpWiki.pages.templatesGuide' },
+  { id: 'custom-nodes', titleKey: 'helpWiki.pages.customNodes' },
+  { id: 'hpc-integration', titleKey: 'helpWiki.pages.hpcIntegration' },
+  { id: 'workflow-converters', titleKey: 'helpWiki.pages.workflowConverters' },
+  { id: 'keyboard-shortcuts', titleKey: 'helpWiki.pages.keyboardShortcuts' },
 ];
 
 const CONTENT: Partial<Record<WikiPage, string>> = {};
@@ -226,7 +226,7 @@ function nodeSearchSnippet(meta: NodeMetadata, query: string): string {
 }
 
 function pageTitle(page: (typeof PAGES)[number], t: TFunction): string {
-  return t(page.titleKey, { defaultValue: page.fallbackTitle });
+  return t(page.titleKey);
 }
 
 function wikiContent(page: WikiPage, t: TFunction): string {
@@ -253,7 +253,7 @@ export default function HelpWikiPanel({ onClose, selectedNode, objectInfo }: Hel
     return PAGES.filter(p => {
       const title = pageTitle(p, t);
       const text = wikiContent(p.id, t).toLowerCase();
-      return title.toLowerCase().includes(q) || p.fallbackTitle.toLowerCase().includes(q) || text.includes(q);
+      return title.toLowerCase().includes(q) || text.includes(q);
     }).map(p => {
       const content = wikiContent(p.id, t);
       const plain = stripHtml(content);
