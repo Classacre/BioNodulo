@@ -16,7 +16,9 @@ export interface KeybindingDefinition {
   category: KeybindingCategory;
   scope?: KeybindingScope;
   label: string;
+  labelKey?: string;
   description?: string;
+  descriptionKey?: string;
   defaultBinding: string;
   editable?: boolean;
 }
@@ -34,33 +36,33 @@ const STORAGE_KEY = 'bionodulo.keybindings.v1';
 const listeners = new Set<() => void>();
 
 export const DEFAULT_KEYBINDINGS: KeybindingDefinition[] = [
-  { id: 'commandPalette.open', category: 'global', label: 'Open command palette', defaultBinding: 'Ctrl+K' },
-  { id: 'shortcuts.open', category: 'global', label: 'Open keyboard shortcuts', defaultBinding: 'Ctrl+Shift+/' },
-  { id: 'view.focusMode', category: 'global', label: 'Toggle focus mode (hide chrome)', defaultBinding: 'Ctrl+.' },
-  { id: 'nodes.search', category: 'panels', label: 'Open node search', defaultBinding: 'Ctrl+F' },
-  { id: 'workflow.run', category: 'workflow', label: 'Run workflow', defaultBinding: 'Ctrl+R' },
-  { id: 'workflow.export', category: 'workflow', label: 'Export workflow', defaultBinding: 'Ctrl+E' },
-  { id: 'workflow.import', category: 'workflow', label: 'Import workflow', defaultBinding: 'Ctrl+I' },
-  { id: 'settings.toggle', category: 'panels', label: 'Toggle settings', defaultBinding: 'Ctrl+,' },
-  { id: 'console.toggle', category: 'panels', label: 'Toggle console', defaultBinding: 'Ctrl+`' },
-  { id: 'ai.open', category: 'global', label: 'Open AI assistant', defaultBinding: 'Ctrl+Shift+A' },
-  { id: 'rail.workspace', category: 'panels', label: 'Open workspace panel', defaultBinding: 'Ctrl+1' },
-  { id: 'rail.nodes', category: 'panels', label: 'Open nodes panel', defaultBinding: 'Ctrl+2' },
-  { id: 'rail.templates', category: 'panels', label: 'Open templates panel', defaultBinding: 'Ctrl+3' },
-  { id: 'rail.environment', category: 'panels', label: 'Open environment panel', defaultBinding: 'Ctrl+4' },
-  { id: 'rail.hpc', category: 'panels', label: 'Open HPC panel', defaultBinding: 'Ctrl+5' },
-  { id: 'rail.help', category: 'panels', label: 'Open help panel', defaultBinding: 'Ctrl+6' },
-  { id: 'rail.console', category: 'panels', label: 'Open console panel', defaultBinding: 'Ctrl+7' },
-  { id: 'canvas.selectAll', category: 'canvas', scope: 'canvas', label: 'Select all nodes', defaultBinding: 'Ctrl+A' },
-  { id: 'canvas.copy', category: 'canvas', scope: 'canvas', label: 'Copy selection', defaultBinding: 'Ctrl+C' },
-  { id: 'canvas.paste', category: 'canvas', scope: 'canvas', label: 'Paste selection', defaultBinding: 'Ctrl+V' },
-  { id: 'canvas.cut', category: 'canvas', scope: 'canvas', label: 'Cut selection', defaultBinding: 'Ctrl+X' },
-  { id: 'canvas.undo', category: 'canvas', scope: 'canvas', label: 'Undo', defaultBinding: 'Ctrl+Z' },
-  { id: 'canvas.redo', category: 'canvas', scope: 'canvas', label: 'Redo', defaultBinding: 'Ctrl+Y' },
-  { id: 'canvas.redoAlternate', category: 'canvas', scope: 'canvas', label: 'Redo alternate', defaultBinding: 'Ctrl+Shift+Z' },
-  { id: 'canvas.group', category: 'canvas', scope: 'canvas', label: 'Group selected nodes', defaultBinding: 'Ctrl+G' },
-  { id: 'canvas.collapse', category: 'canvas', scope: 'canvas', label: 'Collapse selected nodes', defaultBinding: 'Alt+C' },
-  { id: 'canvas.delete', category: 'canvas', scope: 'canvas', label: 'Delete selected nodes', defaultBinding: 'Delete' },
+  { id: 'commandPalette.open', category: 'global', label: 'Open command palette', labelKey: 'shortcuts.actions.commandPalette.open', defaultBinding: 'Ctrl+K' },
+  { id: 'shortcuts.open', category: 'global', label: 'Open keyboard shortcuts', labelKey: 'shortcuts.actions.shortcuts.open', defaultBinding: 'Ctrl+Shift+/' },
+  { id: 'view.focusMode', category: 'global', label: 'Toggle focus mode (hide chrome)', labelKey: 'shortcuts.actions.view.focusMode', defaultBinding: 'Ctrl+.' },
+  { id: 'nodes.search', category: 'panels', label: 'Open node search', labelKey: 'shortcuts.actions.nodes.search', defaultBinding: 'Ctrl+F' },
+  { id: 'workflow.run', category: 'workflow', label: 'Run workflow', labelKey: 'shortcuts.actions.workflow.run', defaultBinding: 'Ctrl+R' },
+  { id: 'workflow.export', category: 'workflow', label: 'Export workflow', labelKey: 'shortcuts.actions.workflow.export', defaultBinding: 'Ctrl+E' },
+  { id: 'workflow.import', category: 'workflow', label: 'Import workflow', labelKey: 'shortcuts.actions.workflow.import', defaultBinding: 'Ctrl+I' },
+  { id: 'settings.toggle', category: 'panels', label: 'Toggle settings', labelKey: 'shortcuts.actions.settings.toggle', defaultBinding: 'Ctrl+,' },
+  { id: 'console.toggle', category: 'panels', label: 'Toggle console', labelKey: 'shortcuts.actions.console.toggle', defaultBinding: 'Ctrl+`' },
+  { id: 'ai.open', category: 'global', label: 'Open AI assistant', labelKey: 'shortcuts.actions.ai.open', defaultBinding: 'Ctrl+Shift+A' },
+  { id: 'rail.workspace', category: 'panels', label: 'Open workspace panel', labelKey: 'shortcuts.actions.rail.workspace', defaultBinding: 'Ctrl+1' },
+  { id: 'rail.nodes', category: 'panels', label: 'Open nodes panel', labelKey: 'shortcuts.actions.rail.nodes', defaultBinding: 'Ctrl+2' },
+  { id: 'rail.templates', category: 'panels', label: 'Open templates panel', labelKey: 'shortcuts.actions.rail.templates', defaultBinding: 'Ctrl+3' },
+  { id: 'rail.environment', category: 'panels', label: 'Open environment panel', labelKey: 'shortcuts.actions.rail.environment', defaultBinding: 'Ctrl+4' },
+  { id: 'rail.hpc', category: 'panels', label: 'Open HPC panel', labelKey: 'shortcuts.actions.rail.hpc', defaultBinding: 'Ctrl+5' },
+  { id: 'rail.help', category: 'panels', label: 'Open help panel', labelKey: 'shortcuts.actions.rail.help', defaultBinding: 'Ctrl+6' },
+  { id: 'rail.console', category: 'panels', label: 'Open console panel', labelKey: 'shortcuts.actions.rail.console', defaultBinding: 'Ctrl+7' },
+  { id: 'canvas.selectAll', category: 'canvas', scope: 'canvas', label: 'Select all nodes', labelKey: 'shortcuts.actions.canvas.selectAll', defaultBinding: 'Ctrl+A' },
+  { id: 'canvas.copy', category: 'canvas', scope: 'canvas', label: 'Copy selection', labelKey: 'shortcuts.actions.canvas.copy', defaultBinding: 'Ctrl+C' },
+  { id: 'canvas.paste', category: 'canvas', scope: 'canvas', label: 'Paste selection', labelKey: 'shortcuts.actions.canvas.paste', defaultBinding: 'Ctrl+V' },
+  { id: 'canvas.cut', category: 'canvas', scope: 'canvas', label: 'Cut selection', labelKey: 'shortcuts.actions.canvas.cut', defaultBinding: 'Ctrl+X' },
+  { id: 'canvas.undo', category: 'canvas', scope: 'canvas', label: 'Undo', labelKey: 'shortcuts.actions.canvas.undo', defaultBinding: 'Ctrl+Z' },
+  { id: 'canvas.redo', category: 'canvas', scope: 'canvas', label: 'Redo', labelKey: 'shortcuts.actions.canvas.redo', defaultBinding: 'Ctrl+Y' },
+  { id: 'canvas.redoAlternate', category: 'canvas', scope: 'canvas', label: 'Redo alternate', labelKey: 'shortcuts.actions.canvas.redoAlternate', defaultBinding: 'Ctrl+Shift+Z' },
+  { id: 'canvas.group', category: 'canvas', scope: 'canvas', label: 'Group selected nodes', labelKey: 'shortcuts.actions.canvas.group', defaultBinding: 'Ctrl+G' },
+  { id: 'canvas.collapse', category: 'canvas', scope: 'canvas', label: 'Collapse selected nodes', labelKey: 'shortcuts.actions.canvas.collapse', defaultBinding: 'Alt+C' },
+  { id: 'canvas.delete', category: 'canvas', scope: 'canvas', label: 'Delete selected nodes', labelKey: 'shortcuts.actions.canvas.delete', defaultBinding: 'Delete' },
 ];
 
 let overrides = loadOverrides();

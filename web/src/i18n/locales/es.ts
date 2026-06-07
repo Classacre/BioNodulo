@@ -140,6 +140,55 @@ const es = {
     pressTwoKeys: 'Press two keys to bind',
     bindingFor: 'Binding for {{action}}',
     cleared: 'Shortcut cleared',
+    actions: {
+      commandPalette: {
+        open: 'Abrir paleta de comandos',
+      },
+      shortcuts: {
+        open: 'Abrir atajos de teclado',
+      },
+      view: {
+        focusMode: 'Alternar modo enfoque (ocultar interfaz)',
+      },
+      nodes: {
+        search: 'Abrir busqueda de nodos',
+      },
+      workflow: {
+        run: 'Ejecutar workflow',
+        export: 'Exportar workflow',
+        import: 'Importar workflow',
+      },
+      settings: {
+        toggle: 'Alternar configuracion',
+      },
+      console: {
+        toggle: 'Alternar consola',
+      },
+      ai: {
+        open: 'Abrir asistente de IA',
+      },
+      rail: {
+        workspace: 'Abrir panel de espacio de trabajo',
+        nodes: 'Abrir panel de nodos',
+        templates: 'Abrir panel de plantillas',
+        environment: 'Abrir panel de entorno',
+        hpc: 'Abrir panel de HPC',
+        help: 'Abrir panel de ayuda',
+        console: 'Abrir panel de consola',
+      },
+      canvas: {
+        selectAll: 'Seleccionar todos los nodos',
+        copy: 'Copiar seleccion',
+        paste: 'Pegar seleccion',
+        cut: 'Cortar seleccion',
+        undo: 'Deshacer',
+        redo: 'Rehacer',
+        redoAlternate: 'Rehacer alternativo',
+        group: 'Agrupar nodos seleccionados',
+        collapse: 'Colapsar nodos seleccionados',
+        delete: 'Eliminar nodos seleccionados',
+      },
+    },
     categories: {
       global: 'Global',
       workflow: 'Workflow',

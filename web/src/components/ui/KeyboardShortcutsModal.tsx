@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import { useFocusTrap, useKeybindings } from '../../hooks/ui';
@@ -24,8 +25,17 @@ function ShortcutKeys({ binding }: { binding: string }) {
   );
 }
 
-function categoryLabel(category: KeybindingCategory, t: (key: string) => string) {
+function categoryLabel(category: KeybindingCategory, t: TFunction) {
   return t(`shortcuts.categories.${category}`);
+}
+
+function shortcutLabel(binding: KeybindingRecord, t: TFunction) {
+  return binding.labelKey ? t(binding.labelKey, { defaultValue: binding.label }) : binding.label;
+}
+
+function shortcutDescription(binding: KeybindingRecord, t: TFunction) {
+  if (binding.descriptionKey) return t(binding.descriptionKey, { defaultValue: binding.description ?? '' });
+  return binding.description;
 }
 
 export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardShortcutsModalProps) {
@@ -47,12 +57,12 @@ export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardSh
     const normalized = query.trim().toLowerCase();
     if (!normalized) return bindings;
     return bindings.filter(binding => [
-      binding.label,
-      binding.description,
-      binding.category,
+      shortcutLabel(binding, t),
+      shortcutDescription(binding, t),
+      categoryLabel(binding.category, t),
       binding.binding,
     ].filter(Boolean).join(' ').toLowerCase().includes(normalized));
-  }, [bindings, query]);
+  }, [bindings, query, t]);
 
   const groupedBindings = useMemo(() => {
     const byCategory = new Map<KeybindingCategory, KeybindingRecord[]>();
@@ -157,11 +167,13 @@ export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardSh
               <div className="bn-ui-shortcut-section-title">{categoryLabel(category, t)}</div>
               {items.map(binding => {
                 const bindingConflicts = getConflictsForAction(binding.id);
+                const label = shortcutLabel(binding, t);
+                const description = shortcutDescription(binding, t);
                 return (
                   <div className="bn-ui-shortcut-row" key={binding.id}>
                     <div>
-                      <div className="bn-ui-shortcut-label">{binding.label}</div>
-                      {binding.description ? <div className="bn-ui-shortcut-desc">{binding.description}</div> : null}
+                      <div className="bn-ui-shortcut-label">{label}</div>
+                      {description ? <div className="bn-ui-shortcut-desc">{description}</div> : null}
                     </div>
                     <button
                       className="bn-ui-shortcut-input"

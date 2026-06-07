@@ -140,6 +140,55 @@ const en = {
     pressTwoKeys: 'Press two keys to bind',
     bindingFor: 'Binding for {{action}}',
     cleared: 'Shortcut cleared',
+    actions: {
+      commandPalette: {
+        open: 'Open command palette',
+      },
+      shortcuts: {
+        open: 'Open keyboard shortcuts',
+      },
+      view: {
+        focusMode: 'Toggle focus mode (hide chrome)',
+      },
+      nodes: {
+        search: 'Open node search',
+      },
+      workflow: {
+        run: 'Run workflow',
+        export: 'Export workflow',
+        import: 'Import workflow',
+      },
+      settings: {
+        toggle: 'Toggle settings',
+      },
+      console: {
+        toggle: 'Toggle console',
+      },
+      ai: {
+        open: 'Open AI assistant',
+      },
+      rail: {
+        workspace: 'Open workspace panel',
+        nodes: 'Open nodes panel',
+        templates: 'Open templates panel',
+        environment: 'Open environment panel',
+        hpc: 'Open HPC panel',
+        help: 'Open help panel',
+        console: 'Open console panel',
+      },
+      canvas: {
+        selectAll: 'Select all nodes',
+        copy: 'Copy selection',
+        paste: 'Paste selection',
+        cut: 'Cut selection',
+        undo: 'Undo',
+        redo: 'Redo',
+        redoAlternate: 'Redo alternate',
+        group: 'Group selected nodes',
+        collapse: 'Collapse selected nodes',
+        delete: 'Delete selected nodes',
+      },
+    },
     categories: {
       global: 'Global',
       workflow: 'Workflow',
