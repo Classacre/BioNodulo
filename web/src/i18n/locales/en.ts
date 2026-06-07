@@ -130,6 +130,10 @@ const en = {
         bulkParams: 'Bulk edit parameters (selection)...',
         bulkParamsDescription: 'Edit parameters shared across all selected nodes at once',
       },
+      nodes: {
+        search: 'Search nodes',
+        searchDescription: 'Open the fuzzy node library',
+      },
       palette: {
         use: 'Use {{name}} palette',
       },
@@ -148,11 +152,14 @@ const en = {
         doctorDescription: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints',
         autoName: 'Suggest workflow name',
         autoNameDescription: 'Rename the current tab based on the dominant tools in the workflow',
+        export: 'Export workflow',
+        import: 'Import workflow',
       },
     },
     groups: {
       appearance: 'Appearance',
       edit: 'Edit',
+      panels: 'Panels',
       workflow: 'Workflow',
     },
   },

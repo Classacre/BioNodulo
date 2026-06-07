@@ -133,6 +133,10 @@ const es = {
         bulkParams: 'Editar parametros en masa (seleccion)...',
         bulkParamsDescription: 'Editar parametros compartidos por todos los nodos seleccionados a la vez',
       },
+      nodes: {
+        search: 'Buscar nodos',
+        searchDescription: 'Abrir la biblioteca difusa de nodos',
+      },
       palette: {
         use: 'Usar paleta {{name}}',
       },
@@ -151,11 +155,14 @@ const es = {
         doctorDescription: 'Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias',
         autoName: 'Sugerir nombre de workflow',
         autoNameDescription: 'Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow',
+        export: 'Exportar workflow',
+        import: 'Importar workflow',
       },
     },
     groups: {
       appearance: 'Apariencia',
       edit: 'Editar',
+      panels: 'Paneles',
       workflow: 'Workflow',
     },
   },
