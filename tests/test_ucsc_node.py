@@ -43,7 +43,7 @@ def test_ucsc_genome_browser_is_registered_for_frontend_discovery() -> None:
     )
     assert info["ucsc_genome_browser"]["input"]["optional"]["track"] == (
         "STRING",
-        {"default": "knownGene", "options": ["knownGene", "refGene", "ensGene", "ncbiRefSeq", "snp"]},
+        {"default": "", "options": ["", "refGene", "knownGene", "ensGene", "ucscGenes", "snp"]},
     )
 
 
@@ -254,6 +254,47 @@ async def test_ucsc_genes_in_region_query_writes_annotation_json(
                 "start": 43044295,
                 "end": 43125364,
                 "maxItemsOutput": 25,
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ucsc_genes_in_region_accepts_ucscgenes_track(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ucsc_genome_browser")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"ucscGenes": {"chr17": []}, "itemsReturned": 0}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        coordinates="chr17:43044295-43125364",
+        genome="hg38",
+        query_type="genes_in_region",
+        track="ucscGenes",
+        max_items=50,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    annotations = json.loads(Path(result["outputs"]["annotations_json"]).read_text(encoding="utf-8"))
+    assert annotations["track"] == "ucscGenes"
+    assert calls == [
+        {
+            "endpoint": "getData/track",
+            "params": {
+                "genome": "hg38",
+                "track": "ucscGenes",
+                "chrom": "chr17",
+                "start": 43044295,
+                "end": 43125364,
+                "maxItemsOutput": 50,
             },
         }
     ]

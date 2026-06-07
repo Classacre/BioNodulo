@@ -34,7 +34,7 @@ UCSC_GENOMES = (
     "ce11",
     "sacCer3",
 )
-UCSC_TRACKS = ("knownGene", "refGene", "ensGene", "ncbiRefSeq", "snp")
+UCSC_TRACKS = ("", "refGene", "knownGene", "ensGene", "ucscGenes", "snp")
 
 
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
@@ -137,7 +137,7 @@ class UCSCGenomeBrowserNode(BaseNode):
             },
             "optional": {
                 "query_type": ("STRING", {"default": "sequence", "options": list(UCSC_QUERY_TYPES)}),
-                "track": ("STRING", {"default": "knownGene", "options": list(UCSC_TRACKS)}),
+                "track": ("STRING", {"default": "", "options": list(UCSC_TRACKS)}),
                 "max_items": ("INT", {"default": 1000, "min": 1, "max": 100000, "advanced": True}),
             },
             "hidden": {},
