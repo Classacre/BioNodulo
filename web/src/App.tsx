@@ -1310,7 +1310,7 @@ export default function App() {
             undefined,
             { body: form },
           );
-          if (!data.path) throw new Error('Upload response missing path');
+          if (!data.path) throw new Error(appFileActionCopy.error.uploadResponseMissingPath);
           const baseX = 200 + Math.random() * 40;
           const baseY = 200 + i * 120;
           const newNode: WorkflowNode = {

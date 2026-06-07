@@ -9,6 +9,7 @@ export interface AppFileActionCopy {
   error: {
     missingInputFileForPaste: string;
     couldNotUploadPastedFile: string;
+    uploadResponseMissingPath: string;
     missingInputFileForDrop: string;
   };
 }
@@ -23,6 +24,7 @@ export function makeAppFileActionCopy(t: TFunction): AppFileActionCopy {
     error: {
       missingInputFileForPaste: t('workspace.missingInputFileForPaste'),
       couldNotUploadPastedFile: t('workspace.couldNotUploadPastedFile'),
+      uploadResponseMissingPath: t('workspace.uploadResponseMissingPath'),
       missingInputFileForDrop: t('workspace.missingInputFileForDrop'),
     },
   };

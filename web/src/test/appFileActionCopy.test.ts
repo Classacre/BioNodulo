@@ -42,6 +42,7 @@ describe('App file action copy i18n', () => {
     expect(i18n.t('workspace.couldNotUploadPastedFile')).toBe('No se pudo subir el archivo pegado');
     expect(i18n.t('workspace.missingInputFileForDrop')).toBe('No hay nodo input_file registrado; no se puede crear un nodo para el archivo soltado');
     expect(i18n.t('workspace.fileTypeFallback')).toBe('archivo');
+    expect(i18n.t('workspace.uploadResponseMissingPath')).toBe('La respuesta de subida no incluyo ruta');
   });
 
   it('keeps App pasted and dropped file feedback behind i18n helpers', () => {
@@ -52,6 +53,7 @@ describe('App file action copy i18n', () => {
       'No input_file node registered; cannot wire pasted file',
       'Pasted file added',
       'Could not upload pasted file',
+      'Upload response missing path',
       'No input_file node registered; cannot create node for dropped file',
       'File dropped',
       "|| 'file'",

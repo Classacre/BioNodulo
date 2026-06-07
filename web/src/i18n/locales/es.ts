@@ -782,6 +782,7 @@ const es = {
     fileDropped: 'Archivo soltado',
     missingInputFileForPaste: 'No hay nodo input_file registrado; no se puede conectar el archivo pegado',
     couldNotUploadPastedFile: 'No se pudo subir el archivo pegado',
+    uploadResponseMissingPath: 'La respuesta de subida no incluyo ruta',
     missingInputFileForDrop: 'No hay nodo input_file registrado; no se puede crear un nodo para el archivo soltado',
     fileTypeFallback: 'archivo',
     newFolder: 'New folder',

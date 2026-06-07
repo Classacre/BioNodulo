@@ -778,6 +778,7 @@ const en = {
     fileDropped: 'File dropped',
     missingInputFileForPaste: 'No input_file node registered; cannot wire pasted file',
     couldNotUploadPastedFile: 'Could not upload pasted file',
+    uploadResponseMissingPath: 'Upload response missing path',
     missingInputFileForDrop: 'No input_file node registered; cannot create node for dropped file',
     fileTypeFallback: 'file',
     newFolder: 'New folder',
