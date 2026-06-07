@@ -191,7 +191,7 @@ const es = {
         exitFocusMode: 'Salir del modo enfoque',
         focusModeDescription: 'Ocultar la interfaz y maximizar el lienzo',
         fitAll: 'Ajustar todos los nodos',
-        fitAllDescription: 'Encuadrar cada nodo del workflow actual',
+        fitAllDescription: 'Encuadrar cada nodo del flujo de trabajo actual',
         fitSelection: 'Ajustar seleccion',
         fitSelectionDescription: 'Encuadrar solo los nodos seleccionados',
         toggleMinimap: 'Alternar minimapa',

@@ -41,7 +41,8 @@ describe('App view command copy i18n', () => {
     expect(i18n.t('commandPalette.commands.view.exitFocusMode')).toBe('Salir del modo enfoque');
     expect(i18n.t('commandPalette.commands.view.focusModeDescription')).toBe('Ocultar la interfaz y maximizar el lienzo');
     expect(i18n.t('commandPalette.commands.view.fitAll')).toBe('Ajustar todos los nodos');
-    expect(i18n.t('commandPalette.commands.view.fitAllDescription')).toBe('Encuadrar cada nodo del workflow actual');
+    expect(i18n.t('commandPalette.commands.view.fitAllDescription')).toBe('Encuadrar cada nodo del flujo de trabajo actual');
+    expect(i18n.t('commandPalette.commands.view.fitAllDescription')).not.toBe('Encuadrar cada nodo del workflow actual');
     expect(i18n.t('commandPalette.commands.view.fitSelection')).toBe('Ajustar seleccion');
     expect(i18n.t('commandPalette.commands.view.fitSelectionDescription')).toBe('Encuadrar solo los nodos seleccionados');
     expect(i18n.t('commandPalette.commands.view.toggleMinimap')).toBe('Alternar minimapa');
