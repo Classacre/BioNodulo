@@ -459,14 +459,14 @@ function ReportPanel({ history, t }: { history: RunRecord[]; t: TFunction }) {
       } catch (err) {
         if (!cancelled) {
           logError('console.report.fetch', err);
-          setError(err instanceof Error ? err.message : String(err));
+          setError(t('console.reportLoadError'));
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     return () => { cancelled = true; };
-  }, [selectedRunId]);
+  }, [selectedRunId, t]);
 
   const downloadManifest = () => {
     if (!selectedRunId) return;

@@ -1764,6 +1764,7 @@ class MyToolNode(CommandNode):
     openReportTitle: 'Open report in a new tab',
     openReport: 'Open report',
     loadingReport: 'Loading provenance report...',
+    reportLoadError: 'Could not load the provenance report',
     runReportTitle: 'Run report',
     previewImageTitle: 'Double-click to view fullscreen',
     previewImageAlt: 'Preview {{node}}',

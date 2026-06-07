@@ -1773,6 +1773,7 @@ class MyToolNode(CommandNode):
     openReportTitle: 'Abrir informe en una pestana nueva',
     openReport: 'Abrir informe',
     loadingReport: 'Cargando informe de procedencia...',
+    reportLoadError: 'No se pudo cargar el informe de procedencia',
     runReportTitle: 'Informe de ejecucion',
     previewImageTitle: 'Doble clic para ver en pantalla completa',
     previewImageAlt: 'Previsualizacion {{node}}',

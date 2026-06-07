@@ -95,10 +95,13 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
   });
 
-  it('logs report fetch failures while preserving the inline error', async () => {
+  it('localizes report fetch failures while logging the raw error', async () => {
     const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
     const reportError = new Error('report unavailable');
     apiMocks.apiGetText.mockRejectedValueOnce(reportError);
+
+    await setLanguage('es');
 
     const historyRun = runRecord({
       run_id: 'history-run-report',
@@ -117,9 +120,10 @@ describe('BottomConsole i18n', () => {
       </Provider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Report' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Informe' }));
 
-    await waitFor(() => expect(screen.getByText('report unavailable')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No se pudo cargar el informe de procedencia')).toBeInTheDocument());
+    expect(screen.queryByText('report unavailable')).not.toBeInTheDocument();
     expect(apiMocks.apiGetText).toHaveBeenCalledWith('/api/runs/history-run-report/report');
     expect(loggingMock.logError).toHaveBeenCalledWith('console.report.fetch', reportError);
   });
