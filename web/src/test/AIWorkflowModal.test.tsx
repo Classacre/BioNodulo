@@ -238,6 +238,42 @@ describe('AIWorkflowModal i18n', () => {
     expect(onApplyWorkflow).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'Untitled' }));
   });
 
+  it('applies the active locale untitled fallback when no workflow name is available', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+    const onApplyWorkflow = vi.fn();
+
+    await setLanguage('es');
+    vi.mocked(apiPost).mockResolvedValueOnce({
+      model: 'test-model',
+      steps: [{
+        type: 'propose_changes',
+        content: '',
+        workflow: {
+          nodes: [],
+          edges: [],
+        },
+      }],
+    });
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow({ name: '' })}
+        onClose={() => undefined}
+        onApplyWorkflow={onApplyWorkflow}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      target: { value: 'Crear workflow sin nombre' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Aplicar cambios' }));
+
+    expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ name: 'Sin titulo' }));
+    expect(onApplyWorkflow).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'Untitled' }));
+  });
+
   it('keeps explicit proposed workflow metadata from the AI response', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const onApplyWorkflow = vi.fn();
@@ -506,6 +542,7 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.localResponses.singleCell',
       'aiWorkflow.localResponses.plotting',
       'aiWorkflow.localResponses.default',
+      'common.untitled',
       'common.close',
       'common.rename',
       'common.delete',
@@ -562,6 +599,7 @@ describe('AIWorkflowModal i18n', () => {
       'For single-cell:',
       'For plotting:',
       'I can help you design bioinformatics workflows!',
+      "'Untitled'",
     ].forEach(text => expect(source).not.toContain(text));
   });
 });
