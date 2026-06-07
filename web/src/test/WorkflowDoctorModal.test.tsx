@@ -204,4 +204,51 @@ describe('WorkflowDoctorModal i18n', () => {
     expect(screen.getByText('Declare this workflow parameter or update the placeholder name before running.')).toBeInTheDocument();
     expect(screen.queryByText(/sample" in params.template/)).not.toBeInTheDocument();
   });
+
+  it('reports duplicate nodes, dangling edges, and unknown node types', async () => {
+    const { default: WorkflowDoctorModal } = await import('../components/modals/WorkflowDoctorModal');
+
+    render(
+      <WorkflowDoctorModal
+        workflow={workflow({
+          nodes: [
+            node({ id: 'dup', type: 'known_node', ui: { title: 'First duplicate' } }),
+            node({ id: 'dup', type: 'known_node', ui: { title: 'Second duplicate' } }),
+            node({ id: 'unknown', type: 'missing_node_type' }),
+          ],
+          edges: [
+            {
+              id: 'dangling-source',
+              from: { node: 'ghost-source', output: 'out' },
+              to: { node: 'dup', input: 'in' },
+            },
+            {
+              id: 'dangling-target',
+              from: { node: 'dup', output: 'out' },
+              to: { node: 'ghost-target', input: 'in' },
+            },
+          ],
+        })}
+        objectInfo={{
+          known_node: {
+            id: 'known_node',
+            display_name: 'Known node',
+            category: 'Utility',
+            output_node: true,
+          },
+        }}
+        onClose={() => undefined}
+        onJumpToNode={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('4 errors')).toBeInTheDocument();
+    expect(screen.getByText('Duplicate node id "dup"')).toBeInTheDocument();
+    expect(screen.getByText('Node IDs must be unique before the workflow can be run reliably.')).toBeInTheDocument();
+    expect(screen.getByText('Unknown node type "missing_node_type"')).toBeInTheDocument();
+    expect(screen.getByText('Install the node package or replace this node with a registered type.')).toBeInTheDocument();
+    expect(screen.getByText('Edge "dangling-source" references missing source node "ghost-source"')).toBeInTheDocument();
+    expect(screen.getByText('Edge "dangling-target" references missing target node "ghost-target"')).toBeInTheDocument();
+    expect(screen.getAllByText('Remove the stale connection or reconnect it to an existing node.')).toHaveLength(2);
+  });
 });

@@ -44,11 +44,50 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
   const nodes = workflow.nodes || [];
   const edges = workflow.edges || [];
   const parameterNames = new Set((workflow.parameters || []).map(parameter => parameter.name));
+  const nodeIds = new Set(nodes.map(node => node.id));
+  const seenNodeIds = new Set<string>();
+  const duplicateNodeIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (seenNodeIds.has(node.id)) duplicateNodeIds.add(node.id);
+    seenNodeIds.add(node.id);
+  }
+
+  for (const nodeId of duplicateNodeIds) {
+    findings.push({
+      id: `duplicate-node-${nodeId}`,
+      severity: 'error',
+      titleKey: 'duplicateNodeIdTitle',
+      titleValues: { nodeId },
+      detailKey: 'duplicateNodeIdDetail',
+      nodeId,
+    });
+  }
 
   // Per-node checks.
   const incomingByNode = new Map<string, Set<string>>();
   const outgoingByNode = new Map<string, number>();
   for (const edge of edges) {
+    if (!nodeIds.has(edge.from.node)) {
+      findings.push({
+        id: `dangling-edge-source-${edge.id}`,
+        severity: 'error',
+        titleKey: 'danglingSourceEdgeTitle',
+        titleValues: { edge: edge.id, node: edge.from.node },
+        detailKey: 'danglingEdgeDetail',
+        nodeId: nodeIds.has(edge.to.node) ? edge.to.node : undefined,
+      });
+    }
+    if (!nodeIds.has(edge.to.node)) {
+      findings.push({
+        id: `dangling-edge-target-${edge.id}`,
+        severity: 'error',
+        titleKey: 'danglingTargetEdgeTitle',
+        titleValues: { edge: edge.id, node: edge.to.node },
+        detailKey: 'danglingEdgeDetail',
+        nodeId: nodeIds.has(edge.from.node) ? edge.from.node : undefined,
+      });
+    }
     let set = incomingByNode.get(edge.to.node);
     if (!set) { set = new Set(); incomingByNode.set(edge.to.node, set); }
     set.add(edge.to.input);
@@ -63,6 +102,16 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
   for (const node of nodes) {
     if (isVisualOnly(node.type)) continue;
     const meta = objectInfo[node.type];
+    if (!meta) {
+      findings.push({
+        id: `unknown-node-type-${node.id}`,
+        severity: 'error',
+        titleKey: 'unknownNodeTypeTitle',
+        titleValues: { type: node.type },
+        detailKey: 'unknownNodeTypeDetail',
+        nodeId: node.id,
+      });
+    }
     const required = meta?.input_types?.required || {};
     const connected = incomingByNode.get(node.id) || new Set();
     for (const key of Object.keys(required)) {
