@@ -95,4 +95,108 @@ describe('InspectorPanel i18n', () => {
     expect(screen.getByText('Optional')).toBeInTheDocument();
     expect(screen.getByText('Default: 8')).toBeInTheDocument();
   });
+
+  it('adds workflow parameter definitions from the empty Inspector state', async () => {
+    const { default: InspectorPanel } = await import('../components/panels/InspectorPanel');
+    const onWorkflowParametersChange = vi.fn();
+
+    render(
+      <InspectorPanel
+        selectedNode={null}
+        objectInfo={{}}
+        workflowParameters={[]}
+        onWorkflowParametersChange={onWorkflowParametersChange}
+        onParamChange={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add workflow parameter' }));
+
+    expect(onWorkflowParametersChange).toHaveBeenCalledWith([
+      { name: 'parameter', type: 'STRING', required: false },
+    ]);
+  });
+
+  it('updates and removes workflow parameter definitions from the Inspector', async () => {
+    const { default: InspectorPanel } = await import('../components/panels/InspectorPanel');
+    const onWorkflowParametersChange = vi.fn();
+
+    render(
+      <InspectorPanel
+        selectedNode={null}
+        objectInfo={{}}
+        workflowParameters={[
+          {
+            name: 'sample_id',
+            type: 'STRING',
+            required: true,
+            default: 'S1',
+            description: 'Initial sample identifier.',
+          },
+        ]}
+        onWorkflowParametersChange={onWorkflowParametersChange}
+        onParamChange={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Workflow parameter name'), { target: { value: 'project_id' } });
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([
+      {
+        name: 'project_id',
+        type: 'STRING',
+        required: true,
+        default: 'S1',
+        description: 'Initial sample identifier.',
+      },
+    ]);
+
+    fireEvent.change(screen.getByLabelText('Workflow parameter type'), { target: { value: 'INTEGER' } });
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([
+      {
+        name: 'sample_id',
+        type: 'INTEGER',
+        required: true,
+        default: 'S1',
+        description: 'Initial sample identifier.',
+      },
+    ]);
+
+    fireEvent.click(screen.getByLabelText('Required workflow parameter'));
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([
+      {
+        name: 'sample_id',
+        type: 'STRING',
+        required: false,
+        default: 'S1',
+        description: 'Initial sample identifier.',
+      },
+    ]);
+
+    fireEvent.change(screen.getByLabelText('Workflow parameter default'), { target: { value: 'P1' } });
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([
+      {
+        name: 'sample_id',
+        type: 'STRING',
+        required: true,
+        default: 'P1',
+        description: 'Initial sample identifier.',
+      },
+    ]);
+
+    fireEvent.change(screen.getByLabelText('Workflow parameter description'), { target: { value: 'Project identifier.' } });
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([
+      {
+        name: 'sample_id',
+        type: 'STRING',
+        required: true,
+        default: 'S1',
+        description: 'Project identifier.',
+      },
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove workflow parameter sample_id' }));
+    expect(onWorkflowParametersChange).toHaveBeenLastCalledWith([]);
+  });
 });

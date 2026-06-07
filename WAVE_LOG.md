@@ -653,6 +653,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - The frontend now documents and validates the `/api/manager/registry` contract, including custom-node registry compatibility metadata and installed-package manifest records.
 - The static docs endpoint now serves a repo-backed Custom Nodes help article when workspace docs are absent.
 - The Inspector empty state now lists declared workflow parameters, including type, required/optional status, defaults, and descriptions, so parameterized workflows are discoverable before Run prompts or batch sample-sheet mapping.
+- The Inspector now authors workflow parameter definitions directly: add, rename, retag type, toggle required, edit defaults/descriptions, and remove entries, with changes flowing through active workflow state/history.
 
 ---
 

@@ -1275,6 +1275,12 @@ export default function App() {
     updateActive({ groups });
   }, [updateActive]);
 
+  const handleWorkflowParametersChange = useCallback((parameters: Workflow['parameters']) => {
+    pendingStateRef.current = { ...pendingStateRef.current, parameters };
+    setDirty(true);
+    updateActive({ parameters });
+  }, [updateActive]);
+
   // Media paste: pasting a clipboard image / audio / generic file blob
   // (Ctrl+V outside any text input) uploads it to the workspace and spawns
   // an input_file node wired to the new path.
@@ -2889,6 +2895,7 @@ export default function App() {
           selectedNode={selected}
           objectInfo={objectInfo}
           workflowParameters={activeWorkflow.parameters ?? []}
+          onWorkflowParametersChange={handleWorkflowParametersChange}
           onParamChange={(nodeId, key, value) => {
             handleNodesChange(activeWorkflow.nodes.map(node => (
               node.id === nodeId
