@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
 import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface FileEntry {
   name: string;
@@ -40,7 +41,9 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
         setRootPath(data.root);
         setRootInput(data.root);
       }
-    } catch { /* backend unavailable */ }
+    } catch (err) {
+      logError('workspace.root.load', err);
+    }
   }, []);
 
   const loadFiles = useCallback(async (p: string) => {
@@ -51,7 +54,8 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
       const data = await apiGet<{ entries?: FileEntry[]; path?: string }>(`/workspace/files?path=${encodeURIComponent(p)}`);
       setFiles(data.entries || []);
       setPath(data.path || p);
-    } catch {
+    } catch (err) {
+      logError('workspace.files.load', err);
       setFiles([]);
     }
     setLoading(false);
@@ -74,6 +78,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
         loadFiles('/');
       }
     } catch (err) {
+      logError('workspace.root.change', err);
       if (err instanceof ApiError) {
         const detail = (err.body as { detail?: string } | null)?.detail;
         setRootError(detail || t('workspace.changeFailed'));
@@ -142,6 +147,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
       const text = await apiGetText(`/workspace/file?path=${encodeURIComponent(file.path)}`);
       setPreviewContent(text);
     } catch (err) {
+      logError('workspace.file.preview', err);
       setPreviewContent(err instanceof ApiError ? t('workspace.fileLoadError', { status: err.status }) : t('workspace.networkError'));
     }
     setPreviewLoading(false);

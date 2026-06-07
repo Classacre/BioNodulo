@@ -5,7 +5,12 @@ const dialogMocks = vi.hoisted(() => ({
   alertDialog: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../components/ui', () => dialogMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -67,6 +72,7 @@ describe('WorkspacePanel i18n', () => {
         headers: { 'Content-Type': 'application/json' },
       });
     });
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -127,5 +133,83 @@ describe('WorkspacePanel i18n', () => {
 
     await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith('JSON de flujo de trabajo no valido'));
     expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith('JSON de workflow no valido');
+  });
+
+  it('logs swallowed workspace load failures with stable scopes', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const rootError = new TypeError('root unavailable');
+    const filesError = new TypeError('files unavailable');
+
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/api/workspace/root')) throw rootError;
+      if (url.includes('/api/workspace/files')) throw filesError;
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.root.load', rootError));
+    expect(loggingMock.logError).toHaveBeenCalledWith('workspace.files.load', filesError);
+    expect(screen.getByText('No files in this directory')).toBeInTheDocument();
+  });
+
+  it('logs workspace root change and preview failures with stable scopes', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/api/workspace/root') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ detail: 'denied' }), {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/root')) {
+        return new Response(JSON.stringify({ root: '/analysis' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/files')) {
+        return new Response(JSON.stringify({
+          path: '/',
+          entries: [{ name: 'sample.fastq', path: '/sample.fastq', type: 'file', size: 512 }],
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/file')) {
+        return new Response('missing', {
+          status: 404,
+          statusText: 'Not Found',
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+
+    await waitFor(() => expect(screen.getByText('sample.fastq')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('/path/to/workspace'), { target: { value: '/restricted' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set' }));
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.root.change', expect.any(Error)));
+    expect(screen.getByText('denied')).toBeInTheDocument();
+
+    fireEvent.doubleClick(screen.getByText('sample.fastq'));
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.file.preview', expect.any(Error)));
+    expect(screen.getByDisplayValue('Error loading file: 404')).toBeInTheDocument();
   });
 });
