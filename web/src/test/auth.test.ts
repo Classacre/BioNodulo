@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ApiError, apiGet, apiPost } from '../api/client';
-import { clearToken, fetchToken, getAuthUser, initAuth, isAuthTokenError, setAuthSession } from '../collab/auth';
+import { clearToken, fetchToken, generateGuestName, getAuthUser, initAuth, isAuthTokenError, setAuthSession } from '../collab/auth';
 
 const apiMocks = vi.hoisted(() => {
   class MockApiError extends Error {
@@ -58,10 +58,13 @@ describe('collab/auth', () => {
     vi.mocked(apiPost).mockReset();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
     clearToken();
     storage.clear();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('fetches a token through the API client and shapes the auth session', async () => {
@@ -108,9 +111,41 @@ describe('collab/auth', () => {
     [
       'Auth failed',
       'Auth response missing token',
+      "'Anonymous'",
+      '`Guest ',
+      "'Azure'",
+      "'Phoenix'",
     ].forEach(text => {
       expect(source).not.toContain(text);
     });
+  });
+
+  it('uses locale copy for missing authenticated user names', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+    await setLanguage('es');
+    setAuthSession({
+      token: jwtWithExp(Math.floor(Date.now() / 1000) + 60),
+      user: { id: 'user-1', name: 'Mika', color: '#123456' },
+    });
+    vi.mocked(apiGet).mockResolvedValueOnce({ user_id: 'user-2' });
+
+    await expect(initAuth()).resolves.toBe(true);
+
+    expect(i18n.t('collab.authAnonymousName')).toBe('Anonimo');
+    expect(getAuthUser()).toEqual(expect.objectContaining({ id: 'user-2', name: 'Anonimo' }));
+  });
+
+  it('generates guest names from the active locale', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+    await setLanguage('es');
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    expect(i18n.t('collab.guestName', {
+      adjective: i18n.t('collab.guestAdjectives.azure'),
+      noun: i18n.t('collab.guestNouns.phoenix'),
+      number: 1000,
+    })).toBe('Invitado AzulFenix1000');
+    expect(generateGuestName()).toBe('Invitado AzulFenix1000');
   });
 
   it('clears invalid stored tokens when auth validation returns an API error', async () => {

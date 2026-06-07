@@ -1,4 +1,5 @@
 import { ApiError, apiGet, apiPost } from '../api/client';
+import i18n from '../i18n';
 import {
   clearToken,
   getAuthUser,
@@ -79,7 +80,7 @@ export async function initAuth(): Promise<boolean> {
     }
     setAuthUser({
       id: data.user_id,
-      name: data.name || 'Anonymous',
+      name: data.name || i18n.t('collab.authAnonymousName'),
       color: getUserColor(data.user_id),
     });
     return true;
@@ -96,10 +97,10 @@ export async function initAuth(): Promise<boolean> {
 
 /** Generate a random guest user name */
 export function generateGuestName(): string {
-  const adjectives = ['Azure', 'Crimson', 'Emerald', 'Golden', 'Violet', 'Silver', 'Ruby', 'Sapphire', 'Amber', 'Coral'];
-  const nouns = ['Phoenix', 'Falcon', 'Tiger', 'Wolf', 'Dragon', 'Bear', 'Eagle', 'Shark', 'Lion', 'Hawk'];
-  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 9000) + 1000;
-  return `Guest ${adj}${noun}${num}`;
+  const adjectiveKeys = ['azure', 'crimson', 'emerald', 'golden', 'violet', 'silver', 'ruby', 'sapphire', 'amber', 'coral'];
+  const nounKeys = ['phoenix', 'falcon', 'tiger', 'wolf', 'dragon', 'bear', 'eagle', 'shark', 'lion', 'hawk'];
+  const adjective = i18n.t(`collab.guestAdjectives.${adjectiveKeys[Math.floor(Math.random() * adjectiveKeys.length)]}`);
+  const noun = i18n.t(`collab.guestNouns.${nounKeys[Math.floor(Math.random() * nounKeys.length)]}`);
+  const number = Math.floor(Math.random() * 9000) + 1000;
+  return i18n.t('collab.guestName', { adjective, noun, number });
 }
