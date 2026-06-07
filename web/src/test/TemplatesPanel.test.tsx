@@ -253,6 +253,45 @@ describe('TemplatesPanel i18n', () => {
     expect(screen.queryByText('Workflow de RNA-Seq: fastqc -> multiqc')).not.toBeInTheDocument();
   });
 
+  it('localizes known template category labels from the active locale', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const { setLanguage } = await import('../i18n');
+
+    templatesPayload = {
+      templates: [
+        {
+          id: 'qc-template',
+          name: 'QC template',
+          description: '',
+          category: 'Quality Control',
+          tags: [],
+          tools: [],
+          node_count: 2,
+          filename: 'qc_template.json',
+          preview_steps: ['fastqc', 'multiqc'],
+        },
+      ],
+    };
+
+    await setLanguage('es');
+
+    render(
+      <TemplatesPanel
+        onClose={() => undefined}
+        onLoadTemplate={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('QC template')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Control de calidad' })).toHaveAttribute(
+      'title',
+      'Mostrar plantillas de Control de calidad',
+    );
+    expect(screen.queryByRole('button', { name: 'Quality Control' })).not.toBeInTheDocument();
+    expect(screen.getByText('Flujo de trabajo de Control de calidad: fastqc -> multiqc')).toBeInTheDocument();
+  });
+
   it('logs remote template load failures while preserving the local fallback', async () => {
     const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
     const loadError = new Error('template index unavailable');

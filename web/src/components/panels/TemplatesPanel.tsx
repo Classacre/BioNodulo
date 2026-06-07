@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import Fuse from 'fuse.js';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { TemplateInfo } from '../../types';
 import Icon from '../ui/Icon';
 import Dialog from '../ui/Dialog';
 import { listLocalTemplates } from '../../localTemplates';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
 import { getOrRenderTemplateThumbnail } from '../../state/templateThumbnails';
 import { apiGet, ApiError } from '../../api/client';
@@ -83,7 +85,7 @@ function scoreTemplate(template: TemplateCardInfo, searchScore: number, index: n
   return Math.max(0, Math.min(1, base + hasDescription + tagDepth + toolDepth + nodeBalance + usageBoost + localUsageBoost - positionalPenalty));
 }
 
-function templateSummary(template: TemplateCardInfo, t: (key: string, options?: Record<string, unknown>) => string): string {
+function templateSummary(template: TemplateCardInfo, t: TFunction): string {
   const category = templateCategoryLabel(template.category, t);
   if (template.description.trim()) return template.description;
   const steps = template.preview_steps?.slice(0, 3).join(' -> ');
@@ -96,8 +98,8 @@ function compactStep(step: string): string {
   return step.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function templateCategoryLabel(category: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  return category === DEFAULT_OTHER_CATEGORY ? t('templates.otherCategory') : category;
+function templateCategoryLabel(category: string | undefined, t: TFunction): string {
+  return nodeCategoryDisplayLabel(category, t, t('templates.otherCategory'));
 }
 
 function sortRankedTemplates(items: RankedTemplate[], mode: TemplateSortMode): RankedTemplate[] {

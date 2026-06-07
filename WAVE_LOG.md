@@ -711,6 +711,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - While-loop body execution now honors `break_continue` signals, stopping on break and skipping the rest of the current iteration on continue just like `foreach`.
 - HPC backend dropdown option labels now read from `hpc.backends` i18n keys, with Spanish render coverage and a static guard against reintroducing literal option copy.
 - Keyboard Shortcuts now renders localized scope pills for global/canvas/modal bindings, making the already-scoped shortcut contract visible in the modal with Spanish coverage.
+- Templates panel now localizes known canonical category labels through the shared node-category display mapping, keeping filtering data stable while Spanish tabs, metadata, and summaries show localized category text.
 
 ---
 
