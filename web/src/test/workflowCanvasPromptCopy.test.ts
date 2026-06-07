@@ -56,6 +56,13 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
     expect(i18n.t('canvas.mediaPasteFailed')).toBe('No se pudo pegar');
     expect(i18n.t('canvas.mediaPasteInputFileMissing')).toBe('El nodo input_file no esta registrado');
     expect(i18n.t('canvas.mediaPasteImported')).toBe('Importado');
+    expect(i18n.t('canvas.flashUndo')).toBe('Deshacer');
+    expect(i18n.t('canvas.flashRedo')).toBe('Rehacer');
+    expect(i18n.t('canvas.flashAutoLayout')).toBe('Autoordenar');
+    expect(i18n.t('canvas.flashSelectOtherNodesFirst')).toBe('Selecciona otros nodos primero');
+    expect(i18n.t('canvas.flashNoSelectedNodeHasParam', { param: 'threads' })).toBe('Ningun nodo seleccionado tiene "threads"');
+    expect(i18n.t('canvas.flashCopiedParamToNodes', { param: 'threads', count: 1 })).toBe('Copiado threads -> 1 nodo');
+    expect(i18n.t('canvas.flashCopiedParamToNodes', { param: 'threads', count: 3 })).toBe('Copiado threads -> 3 nodos');
     expect(i18n.t('workspace.uploadFailed')).toBe('Upload failed');
     expect(i18n.t('common.preview')).toBe('Vista previa');
   });
@@ -83,6 +90,12 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
       'Paste failed',
       'input_file node not registered',
       "'Imported'",
+      "flashAction('Undo')",
+      "flashAction('Redo')",
+      "flashAction('Auto layout')",
+      "flashAction('Select other nodes first')",
+      'No selected node has "',
+      'Copied ${key}',
       "'Upload failed'",
       'alt="Preview"',
     ].forEach(text => expect(source).not.toContain(text));

@@ -1864,7 +1864,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       if (isCtrl && key === 'z' && !e.shiftKey) {
         e.preventDefault();
         onUndoRef.current();
-        flashAction('Undo');
+        flashAction(tRef.current('canvas.flashUndo'));
         return;
       }
 
@@ -1872,7 +1872,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       if ((isCtrl && key === 'y') || (isCtrl && key === 'z' && e.shiftKey)) {
         e.preventDefault();
         onRedoRef.current();
-        flashAction('Redo');
+        flashAction(tRef.current('canvas.flashRedo'));
         return;
       }
 
@@ -2897,8 +2897,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     });
     onNodesChangeRef.current(updated);
     onPushHistoryRef.current();
-    flashAction('Auto layout');
-  }, [flashAction]);
+    flashAction(t('canvas.flashAutoLayout'));
+  }, [flashAction, t]);
 
   useImperativeHandle(ref, () => ({
     fitView,
@@ -3085,12 +3085,12 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     const value = source.params?.[key];
     const selectedIds = graphNodesRef.current.filter(n => n.selected && n.id !== sourceId).map(n => n.id);
     if (selectedIds.length === 0) {
-      flashAction('Select other nodes first');
+      flashAction(t('canvas.flashSelectOtherNodesFirst'));
       return;
     }
     const targets = nodesRef.current.filter(n => selectedIds.includes(n.id) && Object.prototype.hasOwnProperty.call(n.params || {}, key));
     if (targets.length === 0) {
-      flashAction(`No selected node has "${key}"`);
+      flashAction(t('canvas.flashNoSelectedNodeHasParam', { param: key }));
       return;
     }
     const targetIds = new Set(targets.map(n => n.id));
@@ -3098,8 +3098,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       targetIds.has(n.id) ? { ...n, params: { ...n.params, [key]: value } } : n
     ));
     onPushHistory();
-    flashAction(`Copied ${key} → ${targets.length} node${targets.length === 1 ? '' : 's'}`);
-  }, [flashAction, onNodesChange, onPushHistory]);
+    flashAction(t('canvas.flashCopiedParamToNodes', { param: key, count: targets.length }));
+  }, [flashAction, onNodesChange, onPushHistory, t]);
 
   const cursorStyle = panning ? 'grabbing' : dragging || groupDragging || groupResizing ? 'grabbing' : resizingNode ? 'nwse-resize' : activeWidget ? 'ew-resize' : linkDrag ? 'crosshair' : hoveredLink ? 'pointer' : 'default';
 
