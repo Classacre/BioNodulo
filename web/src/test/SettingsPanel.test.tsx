@@ -1,6 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -22,6 +28,7 @@ describe('SettingsPanel shell i18n', () => {
 
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({}), {
       status: 200,
@@ -237,6 +244,22 @@ describe('SettingsPanel shell i18n', () => {
       revokeObjectURL.mockRestore();
       linkClick.mockRestore();
     }
+  });
+
+  it('logs cache clear failures while preserving the error toast', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { getNotificationsSnapshot } = await import('../state/notifications');
+    const clearError = new Error('cache endpoint unavailable');
+    fetchSpy.mockRejectedValueOnce(clearError);
+
+    render(<SettingsPanel onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cache' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+    await waitFor(() => expect(getNotificationsSnapshot().at(0)?.title).toBe('Failed to clear cache'));
+    expect(getNotificationsSnapshot().at(0)?.message).toBe('Server unreachable');
+    expect(loggingMock.logError).toHaveBeenCalledWith('settings.cache.clear', clearError);
   });
 
   it('uses the active locale for built-in palette preview names and descriptions', async () => {

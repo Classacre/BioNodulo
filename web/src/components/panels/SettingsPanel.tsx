@@ -17,6 +17,7 @@ import {
   subscribeTelemetry,
 } from '../../state/telemetry';
 import { ApiError, apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -355,6 +356,7 @@ export default function SettingsPanel({
                   const count = data?.entries_deleted || 0;
                   toast.success(st('cache.clearedTitle'), { message: t('settings.cache.entriesDeleted', { count }) });
                 } catch (err) {
+                  logError('settings.cache.clear', err);
                   toast.error(st('cache.clearFailed'), {
                     message: err instanceof ApiError ? undefined : st('cache.serverUnreachable'),
                   });
