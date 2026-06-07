@@ -1647,6 +1647,15 @@ class MyToolNode(CommandNode):
     unknown: 'Unexpected error',
     retryHint: 'Retry the action or check your connection',
   },
+  errorBoundary: {
+    panelCrashed: '{{name}} panel crashed',
+    inlineCrashed: '{{name}} crashed',
+    panelFallbackName: 'panel',
+    generic: 'Something went wrong',
+    unknownError: 'unknown error',
+    tryAgain: 'Try again',
+    retryInline: 'retry',
+  },
   collab: {
     title: 'Collaboration',
     badgeTitle: 'Collaboration: {{status}}',

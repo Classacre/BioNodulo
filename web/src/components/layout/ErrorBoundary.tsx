@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 
 interface Props {
@@ -71,9 +72,15 @@ export default class ErrorBoundary extends Component<Props, State> {
           role="alert"
           style={{ padding: '6px 10px', fontSize: 12, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4 }}
         >
-          <span style={{ fontWeight: 600 }}>{this.props.name ?? 'panel'}</span> crashed:{' '}
-          <span>{this.state.error?.message ?? 'unknown error'}</span>{' '}
-          <button onClick={tryAgain} style={{ marginLeft: 6, fontSize: 11 }}>retry</button>
+          <span style={{ fontWeight: 600 }}>
+            {i18n.t('errorBoundary.inlineCrashed', {
+              name: this.props.name ?? i18n.t('errorBoundary.panelFallbackName'),
+            })}
+          </span>
+          : <span>{this.state.error?.message ?? i18n.t('errorBoundary.unknownError')}</span>{' '}
+          <button onClick={tryAgain} style={{ marginLeft: 6, fontSize: 11 }}>
+            {i18n.t('errorBoundary.retryInline')}
+          </button>
         </div>
       );
     }
@@ -81,7 +88,9 @@ export default class ErrorBoundary extends Component<Props, State> {
     return (
       <div role="alert" style={{ padding: 12, color: '#dc2626', fontSize: 12 }}>
         <div style={{ fontWeight: 600 }}>
-          {this.props.name ? `${this.props.name} panel crashed` : 'Something went wrong'}
+          {this.props.name
+            ? i18n.t('errorBoundary.panelCrashed', { name: this.props.name })
+            : i18n.t('errorBoundary.generic')}
         </div>
         <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
           {this.state.error?.message}
@@ -90,7 +99,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           style={{ marginTop: 8, padding: '4px 12px', cursor: 'pointer' }}
           onClick={tryAgain}
         >
-          Try again
+          {i18n.t('errorBoundary.tryAgain')}
         </button>
       </div>
     );
