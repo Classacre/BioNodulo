@@ -1566,7 +1566,7 @@ class MyToolNode(CommandNode):
 `,
       hpcIntegration: `
 <h3>Integracion HPC</h3>
-<p>BioNodulo puede enviar workflows a clusters de computacion de alto rendimiento mediante planificadores de trabajos.</p>
+<p>BioNodulo puede enviar flujos de trabajo a clusters de computacion de alto rendimiento mediante planificadores de trabajos.</p>
 
 <h4>Planificadores soportados</h4>
 <table>
@@ -1589,7 +1589,7 @@ class MyToolNode(CommandNode):
 <p>Cuando el modo HPC esta habilitado, hacer clic en Ejecutar generara un script de trabajo por lotes y lo enviara al planificador. Monitorea el estado del trabajo en el panel HPC.</p>
 
 <h4>Modulos de entorno</h4>
-<p>Especifica modulos para cargar, por ejemplo <code>bioinfo/BWA/0.7.17</code>, en la configuracion HPC. Se cargan mediante <code>module load</code> antes de ejecutar el workflow.</p>
+<p>Especifica modulos para cargar, por ejemplo <code>bioinfo/BWA/0.7.17</code>, en la configuracion HPC. Se cargan mediante <code>module load</code> antes de ejecutar el flujo de trabajo.</p>
 `,
       workflowConverters: `
 <h3>Conversores de flujos de trabajo</h3>

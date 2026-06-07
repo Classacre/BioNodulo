@@ -444,11 +444,15 @@ describe('HelpWikiPanel node documentation search', () => {
 
     expect(screen.getByRole('heading', { name: 'Integracion HPC' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Planificadores soportados' })).toBeInTheDocument();
+    expect(screen.getByText(/BioNodulo puede enviar flujos de trabajo/)).toBeInTheDocument();
     expect(screen.getByText(/clusters de computacion de alto rendimiento/)).toBeInTheDocument();
     expect(screen.getByText(/Ajustes > HPC/)).toBeInTheDocument();
     expect(screen.getByText(/hacer clic en Ejecutar generara un script de trabajo por lotes/)).toBeInTheDocument();
     expect(screen.getByText('sbatch, squeue, scancel')).toBeInTheDocument();
     expect(screen.getByText('module load')).toBeInTheDocument();
+    expect(screen.getByText(/antes de ejecutar el flujo de trabajo/)).toBeInTheDocument();
+    expect(screen.queryByText(/BioNodulo puede enviar workflows/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/antes de ejecutar el workflow/)).not.toBeInTheDocument();
     expect(screen.queryByText('HPC Integration')).not.toBeInTheDocument();
     expect(screen.queryByText(/High Performance Computing/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Settings > HPC/)).not.toBeInTheDocument();
