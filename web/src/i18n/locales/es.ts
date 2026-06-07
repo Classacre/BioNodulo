@@ -1397,8 +1397,8 @@ const es = {
 <li><strong>Agrega nodos:</strong> Haz doble clic en un area vacia del lienzo o pulsa <kbd>Ctrl+F</kbd> para abrir la paleta de nodos.</li>
 <li><strong>Conecta nodos:</strong> Arrastra desde una ranura de salida (lado derecho) hacia una ranura de entrada (lado izquierdo).</li>
 <li><strong>Configura:</strong> Haz doble clic en un nodo para editar sus parametros.</li>
-<li><strong>Ejecuta:</strong> Haz clic en el boton <strong>Run</strong> de la barra superior para ejecutar tu workflow.</li>
-<li><strong>Nodos de nota:</strong> Agrega nodos Note amarillos para documentar tu workflow.</li>
+<li><strong>Ejecuta:</strong> Haz clic en el boton <strong>Ejecutar</strong> de la barra superior para ejecutar tu workflow.</li>
+<li><strong>Nodos de nota:</strong> Agrega nodos de nota amarillos para documentar tu workflow.</li>
 </ol>
 
 <h4>Categorias de nodos</h4>
@@ -1454,7 +1454,7 @@ const es = {
 <tr><th>Accion</th><th>Como</th></tr>
 <tr><td>Crear enlace</td><td>Arrastra desde una ranura de salida hacia una ranura de entrada</td></tr>
 <tr><td>Cancelar arrastre de enlace</td><td>Clic derecho o Esc</td></tr>
-<tr><td>Hover de ranura</td><td>Las ranuras brillan en turquesa al pasar el cursor</td></tr>
+<tr><td>Resaltado de ranura</td><td>Las ranuras brillan en turquesa al pasar el cursor</td></tr>
 </table>
 
 <h4>Grupos</h4>
@@ -1467,7 +1467,7 @@ const es = {
 </ul>
 
 <h4>Nodos de nota</h4>
-<p>Los nodos Note amarillos permiten agregar descripciones de texto al workflow. No tienen entradas ni salidas y ajustan automaticamente su tamano al contenido.</p>
+<p>Los nodos de nota amarillos permiten agregar descripciones de texto al workflow. No tienen entradas ni salidas y ajustan automaticamente su tamano al contenido.</p>
 
 <h4>Deshacer / Rehacer</h4>
 <p>Usa <kbd>Ctrl+Z</kbd> y <kbd>Ctrl+Y</kbd> o <kbd>Ctrl+Shift+Z</kbd> para deshacer y rehacer acciones. El historial conserva hasta 50 estados.</p>

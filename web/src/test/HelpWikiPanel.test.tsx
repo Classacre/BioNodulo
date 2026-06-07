@@ -214,7 +214,14 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByRole('heading', { name: 'Bienvenido a BioNodulo v2' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Inicio rapido' })).toBeInTheDocument();
     expect(screen.getByText(/BioNodulo es un entorno visual/)).toBeInTheDocument();
+    expect(screen.getByText((_, node) => (
+      node?.tagName === 'LI'
+      && node.textContent?.includes('boton Ejecutar de la barra superior')
+    ) ?? false)).toBeInTheDocument();
+    expect(screen.getByText(/Agrega nodos de nota amarillos/)).toBeInTheDocument();
     expect(screen.queryByText('Welcome to BioNodulo v2')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Run/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nodos Note amarillos/)).not.toBeInTheDocument();
   });
 
   it('searches getting-started article content from the active locale', async () => {
@@ -255,7 +262,11 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByRole('heading', { name: 'Funciones del lienzo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Navegacion' })).toBeInTheDocument();
     expect(screen.getByText(/El lienzo es un espacio de trabajo 2D infinito/)).toBeInTheDocument();
+    expect(screen.getByText('Resaltado de ranura')).toBeInTheDocument();
+    expect(screen.getByText(/Los nodos de nota amarillos permiten agregar descripciones/)).toBeInTheDocument();
     expect(screen.queryByText('Canvas Features')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hover de ranura/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nodos Note amarillos/)).not.toBeInTheDocument();
   });
 
   it('searches canvas-features article content from the active locale', async () => {
