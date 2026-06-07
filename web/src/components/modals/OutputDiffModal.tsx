@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
 import { apiGet, ApiError } from '../../api/client';
 import { safeValidateRunRecord } from '../../api/validators';
+import { logError } from '../../state/logging';
 import type { RunRecord } from '../../types';
 
 interface OutputDiffModalProps {
@@ -110,6 +111,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        logError('outputDiff.leftRun.fetch', err);
         setLeftRecord(null);
         setError(t('outputDiff.errors.leftRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
       })
@@ -135,6 +137,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        logError('outputDiff.rightRun.fetch', err);
         setRightRecord(null);
         setError(t('outputDiff.errors.rightRun', { message: err instanceof ApiError ? err.statusText : String(err) }));
       })

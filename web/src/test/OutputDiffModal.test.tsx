@@ -2,6 +2,12 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -57,6 +63,7 @@ describe('OutputDiffModal i18n', () => {
 
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
     const fetchGate = new Promise<void>(resolve => {
       releaseFetches = resolve;
@@ -121,6 +128,58 @@ describe('OutputDiffModal i18n', () => {
     expect(screen.getByText('Errores')).toBeInTheDocument();
     expect(screen.getByText('mensaje')).toBeInTheDocument();
     expect(screen.queryByText('completed')).not.toBeInTheDocument();
+  });
+
+  it('logs left run fetch failures while preserving the inline error', async () => {
+    const { default: OutputDiffModal } = await import('../components/modals/OutputDiffModal');
+    const leftError = new Error('left fetch failed');
+
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('left-run-123')) throw leftError;
+      return new Response(JSON.stringify(rightRun), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    render(
+      <OutputDiffModal
+        runs={[leftRun, rightRun]}
+        initialLeftRunId="left-run-123"
+        initialRightRunId="right-run-456"
+        onClose={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Left run: Error: left fetch failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('outputDiff.leftRun.fetch', leftError);
+  });
+
+  it('logs right run fetch failures while preserving the inline error', async () => {
+    const { default: OutputDiffModal } = await import('../components/modals/OutputDiffModal');
+    const rightError = new Error('right fetch failed');
+
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('right-run-456')) throw rightError;
+      return new Response(JSON.stringify(leftRun), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    render(
+      <OutputDiffModal
+        runs={[leftRun, rightRun]}
+        initialLeftRunId="left-run-123"
+        initialRightRunId="right-run-456"
+        onClose={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Right run: Error: right fetch failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('outputDiff.rightRun.fetch', rightError);
   });
 
   it('renders empty comparison states from the active locale', async () => {
