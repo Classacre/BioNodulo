@@ -212,6 +212,7 @@ class UniProtSearchNode(BaseNode):
             "optional": {
                 "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
                 "reviewed_only": ("BOOLEAN", {"default": False}),
+                "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "fields": ("STRING", {"default": UNIPROT_SEARCH_FIELDS, "advanced": True}),
                 "output_name": ("STRING", {"default": "", "description": "Optional TSV filename stem"}),
             },
@@ -235,6 +236,8 @@ class UniProtSearchNode(BaseNode):
             "fields": fields,
             "size": max_results,
         }
+        if bool(kwargs.get("include_isoform", False)):
+            params["includeIsoform"] = "true"
 
         payload = await _request_json("uniprotkb/search", params=params)
         raw_entries = payload.get("results", [])
@@ -282,6 +285,7 @@ class UniProtRetrieveNode(BaseNode):
             },
             "optional": {
                 "include_fasta": ("BOOLEAN", {"default": True}),
+                "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "output_name": ("STRING", {"default": "", "description": "Optional FASTA filename stem"}),
             },
             "hidden": {},
@@ -296,10 +300,11 @@ class UniProtRetrieveNode(BaseNode):
         entries: list[dict[str, Any]] = []
         fasta_records: list[str] = []
         include_fasta = bool(kwargs.get("include_fasta", True))
+        params = {"includeIsoform": "true"} if bool(kwargs.get("include_isoform", False)) else None
         for accession in accessions:
-            entries.append(_with_summary(await _request_json(f"uniprotkb/{accession}.json")))
+            entries.append(_with_summary(await _request_json(f"uniprotkb/{accession}.json", params=params)))
             if include_fasta:
-                fasta_records.append(await _request_text(f"uniprotkb/{accession}.fasta"))
+                fasta_records.append(await _request_text(f"uniprotkb/{accession}.fasta", params=params))
 
         protein_data: dict[str, Any]
         if len(entries) == 1:

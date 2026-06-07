@@ -267,3 +267,41 @@ async def test_uniprot_search_writes_summary_tsv_and_returns_payload(
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_nodes_forward_include_isoform(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    search_class = _node_class("uniprot_search")
+    retrieve_class = _node_class("uniprot_retrieve")
+    module = importlib.import_module(search_class.__module__)
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+
+    async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
+        calls.append((resource, params))
+        if resource == "uniprotkb/search":
+            return {"results": []}
+        return {"primaryAccession": "P04637", "uniProtkbId": "P53_HUMAN"}
+
+    async def fake_text(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> str:
+        calls.append((resource, params))
+        return ">sp|P04637|P53_HUMAN\nMSEQ\n"
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_request_text", fake_text)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    assert search_class.INPUT_TYPES()["optional"]["include_isoform"][0] == "BOOLEAN"
+    assert retrieve_class.INPUT_TYPES()["optional"]["include_isoform"][0] == "BOOLEAN"
+
+    await search_class().run(query="gene:TP53", include_isoform=True, context=context)
+    await retrieve_class().run(accession="P04637", include_isoform=True, include_fasta=True, context=context)
+
+    assert calls[0][1] == {
+        "query": "gene:TP53",
+        "format": "json",
+        "fields": "accession,id,gene_names,organism_name,protein_name,length",
+        "size": 25,
+        "includeIsoform": "true",
+    }
+    assert calls[1] == ("uniprotkb/P04637.json", {"includeIsoform": "true"})
+    assert calls[2] == ("uniprotkb/P04637.fasta", {"includeIsoform": "true"})
