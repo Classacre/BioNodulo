@@ -444,6 +444,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Workflow canvas hover-card metadata plus canvas/link context-menu labels now read from `canvas` i18n keys with Spanish coverage and a static wiring guard.
 - Workflow canvas widget-copy hints and node-error popover labels now read from `canvas`/`errors` i18n keys with Spanish coverage and a static wiring guard.
 - Workflow stats overlay labels, fallback category, collapse/expand titles, and compact pill units now read from `workflowStats` i18n keys with Spanish render coverage and a static wiring guard.
+- Workflow stats overlay category chips now reuse the shared node-category label mapping, so registered categories such as `Input` and `Quality Control` render as `Entrada` and `Control de calidad` under Spanish while unknown categories still use the localized fallback.
 - Getting-started modal shell, tabs, welcome intro, footer checkbox, and close button now read from `gettingStarted`/`common` i18n keys with Spanish render coverage and a static wiring guard.
 - HPC panel form placeholders and job-script workflow placeholder comments now read from `hpc` i18n keys with Spanish render coverage.
 - Getting-started resources tab link titles and descriptions now read from `gettingStarted.resources` i18n keys with Spanish render coverage and a static wiring guard.

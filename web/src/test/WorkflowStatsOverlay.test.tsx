@@ -44,7 +44,14 @@ const workflow: Workflow = {
       type: 'fastqc',
       position: [200, 0],
       params: {},
-      node_info: { id: 'fastqc', display_name: 'FastQC', category: '' },
+      node_info: { id: 'fastqc', display_name: 'FastQC', category: 'Quality Control' },
+    },
+    {
+      id: 'n3',
+      type: 'custom_node',
+      position: [400, 0],
+      params: {},
+      node_info: { id: 'custom_node', display_name: 'Custom', category: '' },
     },
     {
       id: 'note-1',
@@ -118,6 +125,10 @@ describe('WorkflowStatsOverlay i18n', () => {
     expect(screen.getByText('nodos')).toBeInTheDocument();
     expect(screen.getByText('enlaces')).toBeInTheDocument();
     expect(screen.getByText('grupos')).toBeInTheDocument();
+    expect(screen.getByText('Entrada')).toBeInTheDocument();
+    expect(screen.getByText('Control de calidad')).toBeInTheDocument();
+    expect(screen.queryByText('Input')).not.toBeInTheDocument();
+    expect(screen.queryByText('Quality Control')).not.toBeInTheDocument();
     expect(screen.getByText('Otros')).toBeInTheDocument();
     expect(screen.getByText('CPU')).toBeInTheDocument();
     expect(screen.getByText('RAM')).toBeInTheDocument();
@@ -127,7 +138,7 @@ describe('WorkflowStatsOverlay i18n', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Colapsar estadisticas de workflow' }));
 
-    expect(screen.getByTitle('Expandir estadisticas de workflow y sistema')).toHaveTextContent('2n - 1e');
+    expect(screen.getByTitle('Expandir estadisticas de workflow y sistema')).toHaveTextContent('3n - 1e');
   });
 
   it('keeps WorkflowStatsOverlay labels behind i18n keys', () => {

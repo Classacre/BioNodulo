@@ -10,8 +10,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { Workflow } from '../../types';
 import { apiGet } from '../../api/client';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 
 interface SystemStats {
   system: {
@@ -44,14 +46,14 @@ interface WorkflowStatsOverlayProps {
 
 interface CategoryBucket { label: string; count: number }
 
-function summarise(workflow: Workflow, categoryFallback: string): { nodes: number; edges: number; groups: number; categories: CategoryBucket[] } {
+function summarise(workflow: Workflow, t: TFunction, categoryFallback: string): { nodes: number; edges: number; groups: number; categories: CategoryBucket[] } {
   const nodes = workflow.nodes || [];
   const edges = workflow.edges || [];
   const groups = workflow.groups || [];
   const byCategory = new Map<string, number>();
   for (const node of nodes) {
     if (node.type === 'reroute' || node.type === 'note') continue;
-    const label = node.node_info?.category || categoryFallback;
+    const label = nodeCategoryDisplayLabel(node.node_info?.category, t, categoryFallback);
     byCategory.set(label, (byCategory.get(label) ?? 0) + 1);
   }
   const categories = Array.from(byCategory.entries())
@@ -93,7 +95,7 @@ function tempColor(c: number, warn: number, danger: number): string {
 export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStatsOverlayProps) {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
-  const stats = useMemo(() => summarise(workflow, t('workflowStats.categoryFallback')), [workflow, t]);
+  const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
 
   // Live system stats. Polled at 2 s on a single shared interval, regardless
   // of whether the card is collapsed (the pill needs CPU / RAM numbers too).
