@@ -1619,7 +1619,7 @@ export default function App() {
     const selectedNodes = activeWorkflow.nodes.filter(n => nodeIds.includes(n.id));
     const avgX = selectedNodes.reduce((sum, n) => sum + n.position[0], 0) / Math.max(1, selectedNodes.length);
     const avgY = selectedNodes.reduce((sum, n) => sum + n.position[1], 0) / Math.max(1, selectedNodes.length);
-    const subgraphName = `${activeWorkflow.name || 'Untitled'} block`;
+    const subgraphName = t('canvas.subgraphBlockName', { name: activeWorkflow.name || t('common.untitled') });
     const result = extractSubgraph(activeWorkflow, nodeIds, subgraphName, [Math.round(avgX), Math.round(avgY)]);
     const nextParent: Workflow = {
       ...activeWorkflow,
@@ -1629,15 +1629,15 @@ export default function App() {
     };
     updateWorkflow(activeIndex, nextParent);
     setRailTab(null);
-    toast.success('Selection converted to subgraph', { message: subgraphName });
+    toast.success(t('canvas.subgraphSelectionConverted'), { message: subgraphName });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
-  }, [activeIndex, activeWorkflow, setRailTab, updateWorkflow]);
+  }, [activeIndex, activeWorkflow, setRailTab, t, updateWorkflow]);
 
   const handlePromoteWidgets = useCallback((innerNodeId: string) => {
     if (subgraphPath.length === 0) {
-      toast.info('Enter a subgraph first to promote its widgets');
+      toast.info(t('canvas.subgraphEnterFirst'));
       return;
     }
     const innerNode = activeWorkflow.nodes.find(n => n.id === innerNodeId);
@@ -1679,20 +1679,21 @@ export default function App() {
         added += 1;
       }
       if (added === 0) {
-        toast.info(`${innerNode.ui?.title || innerNode.type} has no promotable widgets`);
+        toast.info(t('canvas.subgraphNoPromotableWidgets', { name: innerNode.ui?.title || innerNode.type }));
         return prev;
       }
-      toast.success(`Promoted ${added} widget${added === 1 ? '' : 's'} to ${top.subgraphName}`);
+      toast.success(t('canvas.subgraphPromotedWidgets', { count: added, name: top.subgraphName }));
       const updatedFrames = prev.slice(0, -1).concat({ ...top, parentWorkflow: parent });
       return updatedFrames;
     });
-  }, [activeWorkflow, subgraphPath]);
+  }, [activeWorkflow, subgraphPath, t]);
 
-  const handleEnterSubgraph = useCallback((nodeId: string) => {    const node = activeWorkflow.nodes.find(n => n.id === nodeId);
+  const handleEnterSubgraph = useCallback((nodeId: string) => {
+    const node = activeWorkflow.nodes.find(n => n.id === nodeId);
     if (!node || node.type !== 'subgraph') return;
     const innerWorkflow = (node.params?.workflow as Workflow | undefined);
     if (!innerWorkflow) {
-      toast.warning('Subgraph has no embedded workflow');
+      toast.warning(t('canvas.subgraphMissingEmbeddedWorkflow'));
       return;
     }
     // Push the parent snapshot onto the breadcrumb and swap the current tab's
@@ -1704,19 +1705,19 @@ export default function App() {
         workflowId: activeWorkflow.id || activeWorkflowId,
         parentWorkflow: activeWorkflow,
         subgraphNodeId: nodeId,
-        subgraphName: String(node.ui?.title || node.node_info?.display_name || 'Subgraph'),
+        subgraphName: String(node.ui?.title || node.node_info?.display_name || t('canvas.subgraphFallbackName')),
       },
     ]);
     const inner: Workflow = {
       ...innerWorkflow,
       id: activeWorkflow.id || activeWorkflowId,
-      name: String(node.ui?.title || innerWorkflow.name || 'Subgraph'),
+      name: String(node.ui?.title || innerWorkflow.name || t('canvas.subgraphFallbackName')),
     };
     setWorkflow(activeIndex, () => inner);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
-  }, [activeIndex, activeWorkflow, activeWorkflowId, setWorkflow]);
+  }, [activeIndex, activeWorkflow, activeWorkflowId, setWorkflow, t]);
 
   const handleExitSubgraph = useCallback((depth: number) => {
     if (subgraphPath.length === 0) return;
@@ -3070,7 +3071,7 @@ export default function App() {
               color: 'var(--text)',
             }}
           >
-            <span style={{ color: 'var(--muted)' }}>Subgraph:</span>
+            <span style={{ color: 'var(--muted)' }}>{t('canvas.subgraphBreadcrumbLabel')}</span>
             <button
               type="button"
               onClick={() => handleExitSubgraph(0)}
@@ -3078,9 +3079,9 @@ export default function App() {
                 background: 'transparent', border: 'none', color: 'var(--text)',
                 cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
               }}
-              title="Back to top-level workflow"
+              title={t('canvas.subgraphBackToTopLevel')}
             >
-              {subgraphPath[0]?.parentWorkflow?.name || 'Workflow'}
+              {subgraphPath[0]?.parentWorkflow?.name || t('canvas.subgraphWorkflowFallbackName')}
             </button>
             {subgraphPath.map((frame, idx) => (
               <span key={`${frame.subgraphNodeId}-${idx}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
