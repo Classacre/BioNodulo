@@ -48,7 +48,7 @@ SRA_OUTPUT_FORMATS = ("fastq", "fasta")
 NCBI_EFETCH_RETTYPES = ("fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum")
 NCBI_EFETCH_RETMODES = ("text", "xml", "json", "asn.1")
 NCBI_EFETCH_DATABASES = ("pubmed", "gene", "snp", "sra", "nuccore", "nucleotide", "protein", "assembly", "gds", "taxonomy")
-NCBI_ESEARCH_DATABASES = NCBI_EFETCH_DATABASES
+NCBI_ESEARCH_DATABASES = (*NCBI_EFETCH_DATABASES, "mesh")
 SRA_FILE_SUFFIXES = {
     "fastq": (".fastq", ".fq", ".fastq.gz", ".fq.gz"),
     "fasta": (".fasta", ".fa", ".fna", ".fasta.gz", ".fa.gz", ".fna.gz"),

@@ -324,6 +324,44 @@ async def test_ncbi_esearch_accepts_planned_nucleotide_database_alias(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_ncbi_esearch_exposes_planned_mesh_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"esearchresult": {"count": "1", "idlist": ["D009369"], "querytranslation": "cancer"}}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    database_input = node_class.INPUT_TYPES()["required"]["database"]
+    assert "mesh" in database_input[0]
+
+    result = await node_class().run(
+        query="cancer",
+        database="mesh",
+        max_results=1,
+        sort="",
+    )
+
+    assert result["outputs"]["id_list"] == ["D009369"]
+    assert calls == [
+        {
+            "endpoint": "esearch.fcgi",
+            "params": {
+                "db": "mesh",
+                "term": "cancer",
+                "retmode": "json",
+                "retmax": 1,
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_esearch_sends_tool_and_email_identification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
