@@ -8,9 +8,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import fnmatch
+import re
 from typing import Any
 
 from bionodulo.workflow.graph import edge_source, edge_target, edge_target_port, topological_sort
+
+
+WORKFLOW_PARAMETER_REFERENCE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
+NODE_LOCAL_TEMPLATE_FIELDS = {
+    "custom_prompt",
+    "custom_script",
+    "prompt",
+    "system_prompt",
+    "template",
+    "workflow_template",
+}
 
 
 @dataclass
@@ -59,7 +71,7 @@ def validate_workflow(
         return ValidationResult(valid=False, errors=errors, warnings=warnings)
 
     edges = workflow.get("edges", [])
-    _validate_workflow_parameters(workflow.get("parameters", []), errors)
+    parameter_names = _validate_workflow_parameters(workflow.get("parameters", []), errors)
 
     def registry_lookup(node_type: str) -> Any:
         if registry is None:
@@ -169,6 +181,8 @@ def validate_workflow(
                     f"missing required input '{in_name}'"
                 )
 
+    _validate_workflow_parameter_references(nodes, parameter_names, errors)
+
     valid = len(errors) == 0
     return ValidationResult(
         valid=valid,
@@ -235,13 +249,13 @@ def _version_matches(saved_version: str, pattern: str) -> bool:
     return saved_version == pattern or fnmatch.fnmatch(saved_version, pattern)
 
 
-def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> None:
+def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> set[str]:
     """Validate workflow-level parameter definitions."""
     if raw_parameters in (None, {}):
-        return
+        return set()
     if not isinstance(raw_parameters, list):
         errors.append("Workflow parameters must be a list")
-        return
+        return set()
 
     seen: set[str] = set()
     for index, parameter in enumerate(raw_parameters):
@@ -261,3 +275,46 @@ def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> Non
         param_type = raw_type.strip() if isinstance(raw_type, str) else ""
         if not param_type:
             errors.append(f"Workflow parameter '{name}' must have a non-empty type")
+    return seen
+
+
+def _validate_workflow_parameter_references(
+    nodes: dict[str, dict[str, Any]],
+    parameter_names: set[str],
+    errors: list[str],
+) -> None:
+    """Validate ``{{name}}`` references in execution-bound node values."""
+    for node_id, node in nodes.items():
+        if not isinstance(node, dict):
+            continue
+        for root_key in ("params", "inputs", "widgets"):
+            value = node.get(root_key)
+            if value is None:
+                continue
+            for path, name in _iter_workflow_parameter_references(value, root_key):
+                if name not in parameter_names:
+                    errors.append(
+                        f"Node '{node_id}' references unknown workflow parameter '{name}' in {path}"
+                    )
+
+
+def _iter_workflow_parameter_references(value: Any, path: str) -> list[tuple[str, str]]:
+    """Return parameter references found in a nested node value."""
+    references: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text in NODE_LOCAL_TEMPLATE_FIELDS:
+                continue
+            references.extend(_iter_workflow_parameter_references(item, f"{path}.{key_text}"))
+        return references
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            references.extend(_iter_workflow_parameter_references(item, f"{path}[{index}]"))
+        return references
+    if not isinstance(value, str):
+        return references
+
+    for match in WORKFLOW_PARAMETER_REFERENCE_RE.finditer(value):
+        references.append((path, match.group(1)))
+    return references

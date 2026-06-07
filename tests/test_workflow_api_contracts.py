@@ -94,6 +94,35 @@ def test_workflow_import_rejects_unavailable_converter_instead_of_placeholder_re
     assert "Converter for snakemake is unavailable" in response.json()["detail"]
 
 
+def test_workflow_validate_reports_unknown_workflow_parameter_references() -> None:
+    from server import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/workflow/validate",
+            json={
+                "workflow": {
+                    "nodes": [
+                        {
+                            "id": "input",
+                            "type": "input_fastq",
+                            "params": {"reads": "sample-{{sample_typo}}.fastq.gz"},
+                        }
+                    ],
+                    "edges": [],
+                    "parameters": [{"name": "sample_id", "type": "STRING"}],
+                }
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["valid"] is False
+    assert payload["errors"] == [
+        "Node 'input' references unknown workflow parameter 'sample_typo' in params.reads"
+    ]
+
+
 def test_settings_routes_redact_secret_like_values(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

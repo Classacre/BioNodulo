@@ -151,3 +151,75 @@ def test_validation_rejects_malformed_workflow_parameter_definitions() -> None:
     assert "Workflow parameter at index 0 must have a non-empty name" in result.errors
     assert "Workflow parameter 'threshold' must have a non-empty type" in result.errors
     assert "Workflow parameter at index 2 must be an object" in result.errors
+
+
+def test_validation_accepts_declared_workflow_parameter_references() -> None:
+    workflow = {
+        "nodes": [
+            {
+                "id": "input",
+                "type": "input_file",
+                "params": {"path": "sample-{{sample_id}}.fastq.gz"},
+                "inputs": {"threads": {"value": "{{threads}}"}},
+            }
+        ],
+        "edges": [],
+        "parameters": [
+            {"name": "sample_id", "type": "STRING"},
+            {"name": "threads", "type": "INTEGER", "default": 8},
+        ],
+    }
+
+    result = validate_workflow(workflow, registry=None)
+
+    assert result.valid is True
+    assert result.errors == []
+
+
+def test_validation_rejects_unknown_workflow_parameter_references() -> None:
+    workflow = {
+        "nodes": [
+            {
+                "id": "input",
+                "type": "input_file",
+                "params": {
+                    "path": "sample-{{sample_typo}}.fastq.gz",
+                    "metadata": {"sample": "{{sample_id}}"},
+                },
+            }
+        ],
+        "edges": [],
+        "parameters": [
+            {"name": "sample_id", "type": "STRING"},
+        ],
+    }
+
+    result = validate_workflow(workflow, registry=None)
+
+    assert result.valid is False
+    assert "Node 'input' references unknown workflow parameter 'sample_typo' in params.path" in result.errors
+    assert "Node 'input' references unknown workflow parameter 'sample_id' in params.metadata.sample" not in result.errors
+
+
+def test_validation_allows_node_local_template_placeholders() -> None:
+    workflow = {
+        "nodes": [
+            {
+                "id": "template",
+                "type": "text_template",
+                "params": {
+                    "template": "sample {{sample}}",
+                    "workflow_template": '{"name": "qc-{{sample}}"}',
+                    "prompt": "Summarize {{gene}}",
+                    "custom_script": "output <- '{{sample}}'",
+                },
+            }
+        ],
+        "edges": [],
+        "parameters": [],
+    }
+
+    result = validate_workflow(workflow, registry=None)
+
+    assert result.valid is True
+    assert result.errors == []
