@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus, WorkflowParameter } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 import { useSettings } from '../../hooks/settings';
@@ -3638,7 +3639,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               <span className="node-hover-card-swatch" style={{ background: node.color }} />
               <strong>{node.title}</strong>
             </div>
-            <div className="node-hover-card-meta">{node.category}</div>
+            <div className="node-hover-card-meta">{nodeCategoryDisplayLabel(node.category, t, t('nodeLibrary.otherCategory'))}</div>
             {node.meta.description && <p>{node.meta.description}</p>}
             <div className="node-hover-card-grid">
               <span>{t('canvas.hoverInputs')}</span><strong>{node.inputs.length}</strong>

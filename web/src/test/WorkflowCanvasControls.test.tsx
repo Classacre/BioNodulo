@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ObjectInfo } from '../types';
 
@@ -174,6 +174,61 @@ describe('WorkflowCanvas controls i18n', () => {
       expect(fillText).toHaveBeenCalledWith('samples: 3 elementos', expect.any(Number), expect.any(Number));
     });
     expect(fillText).not.toHaveBeenCalledWith('samples: 3 items', expect.any(Number), expect.any(Number));
+  });
+
+  it('renders hover-card node categories from the active locale', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    const { setLanguage } = await import('../i18n');
+    const fillText = vi.fn();
+    stubCanvasContext(fillText);
+
+    await setLanguage('es');
+
+    const { container } = render(
+      <WorkflowCanvas
+        nodes={[{
+          id: 'hover-node',
+          type: 'hover_node',
+          position: [100, 100],
+          params: {},
+        }]}
+        edges={[]}
+        groups={[]}
+        objectInfo={{
+          hover_node: {
+            id: 'hover_node',
+            display_name: 'Hover Node',
+            category: 'Utility',
+            return_types: [],
+          },
+        } satisfies ObjectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fillText).toHaveBeenCalledWith('Hover Node', expect.any(Number), expect.any(Number));
+    });
+
+    const canvas = container.querySelector('canvas');
+    expect(canvas).toBeTruthy();
+    act(() => {
+      fireEvent.mouseMove(canvas!, { clientX: 120, clientY: 120 });
+    });
+
+    expect(await screen.findByText('Utilidad')).toBeInTheDocument();
+    expect(screen.queryByText('Utility')).not.toBeInTheDocument();
   });
 
   it('draws dynamic switch outputs from the branch count parameter', async () => {
