@@ -93,4 +93,29 @@ describe('App workflow command copy i18n', () => {
       ).toContain("groupLabelKey: 'commandPalette.groups.workflow'");
     });
   });
+
+  it('keeps command palette group identities canonical while localizing headings', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const appLines = appSource.split('\n');
+
+    expect(appSource).not.toContain("group: t('commandPalette.groups.");
+
+    [
+      ['Workflow', 'commandPalette.groups.workflow'],
+      ['Edit', 'commandPalette.groups.edit'],
+      ['View', 'commandPalette.groups.view'],
+      ['Panels', 'commandPalette.groups.panels'],
+      ['Tools', 'commandPalette.groups.tools'],
+      ['Appearance', 'commandPalette.groups.appearance'],
+    ].forEach(([group, key]) => {
+      appLines.forEach((line, index) => {
+        if (!line.includes(`group: '${group}'`)) return;
+
+        expect(
+          appLines[index + 1],
+          `${group} command group at App.tsx:${index + 1} should use ${key}`,
+        ).toContain(`groupLabelKey: '${key}'`);
+      });
+    });
+  });
 });
