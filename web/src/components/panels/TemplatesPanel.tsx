@@ -83,15 +83,20 @@ function scoreTemplate(template: TemplateCardInfo, searchScore: number, index: n
 }
 
 function templateSummary(template: TemplateCardInfo, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const category = templateCategoryLabel(template.category, t);
   if (template.description.trim()) return template.description;
   const steps = template.preview_steps?.slice(0, 3).join(' -> ');
   return steps
-    ? t('templates.workflowStepsSummary', { category: template.category, steps })
-    : t('templates.workflowTemplateSummary', { category: template.category });
+    ? t('templates.workflowStepsSummary', { category, steps })
+    : t('templates.workflowTemplateSummary', { category });
 }
 
 function compactStep(step: string): string {
   return step.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function templateCategoryLabel(category: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return category === DEFAULT_OTHER_CATEGORY ? t('templates.otherCategory') : category;
 }
 
 function sortRankedTemplates(items: RankedTemplate[], mode: TemplateSortMode): RankedTemplate[] {
@@ -401,7 +406,7 @@ export default function TemplatesPanel({
 
         <div className="template-category-tabs">
           {categories.map(c => {
-            const categoryLabel = c === ALL_CATEGORY ? t('templates.allCategories') : c;
+            const categoryLabel = c === ALL_CATEGORY ? t('templates.allCategories') : templateCategoryLabel(c, t);
             return (
             <button
               key={c}
@@ -450,7 +455,7 @@ export default function TemplatesPanel({
                     ))}
                   </div>
                   <div className="template-card-meta">
-                    <span>{template.category}</span>
+                    <span>{templateCategoryLabel(template.category, t)}</span>
                     <span>#{index + 1}</span>
                   </div>
                   <div className="tags">

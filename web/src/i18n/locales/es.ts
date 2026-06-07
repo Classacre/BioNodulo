@@ -981,6 +981,7 @@ const es = {
     sortNodeCount: 'Cantidad de nodos',
     sortUpdated: 'Actualizado',
     allCategories: 'Todas',
+    otherCategory: 'Otro',
     showCategoryTemplates: 'Mostrar plantillas de {{category}}',
     loadingTemplates: 'Cargando plantillas',
     resultSummary: '{{shown}} de {{total}} plantillas',

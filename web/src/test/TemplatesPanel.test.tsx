@@ -17,7 +17,9 @@ const localStorageStub: Storage = {
   },
 };
 
-const templatesPayload = {
+let templatesPayload: { templates: Record<string, unknown>[] };
+
+const defaultTemplatesPayload = {
   templates: [
     {
       id: 'rna-qc',
@@ -39,6 +41,9 @@ describe('TemplatesPanel i18n', () => {
 
   beforeEach(() => {
     storage.clear();
+    templatesPayload = {
+      templates: defaultTemplatesPayload.templates.map(template => ({ ...template })),
+    };
     originalLocalStorage = window.localStorage;
     vi.stubGlobal('localStorage', localStorageStub);
     Object.defineProperty(window, 'localStorage', {
@@ -142,5 +147,45 @@ describe('TemplatesPanel i18n', () => {
     await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith(expect.objectContaining({
       category: 'Custom',
     })));
+  });
+
+  it('localizes the uncategorized template fallback without changing category filtering', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const { setLanguage } = await import('../i18n');
+
+    templatesPayload = {
+      templates: [
+        {
+          id: 'uncategorized',
+          name: 'Uncategorized template',
+          description: '',
+          tags: [],
+          tools: [],
+          node_count: 1,
+          filename: 'uncategorized.json',
+          preview_steps: [],
+        },
+      ],
+    };
+
+    await setLanguage('es');
+
+    render(
+      <TemplatesPanel
+        onClose={() => undefined}
+        onLoadTemplate={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Uncategorized template')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Otro' })).toHaveAttribute('title', 'Mostrar plantillas de Otro');
+    expect(screen.getByText('Plantilla de workflow de Otro')).toBeInTheDocument();
+    expect(screen.queryByText('Other')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Otro' }));
+
+    expect(screen.getByText('Uncategorized template')).toBeInTheDocument();
+    expect(screen.getByText('1 de 1 plantillas')).toBeInTheDocument();
   });
 });

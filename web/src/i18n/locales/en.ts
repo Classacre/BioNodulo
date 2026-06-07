@@ -976,6 +976,7 @@ const en = {
     sortNodeCount: 'Node count',
     sortUpdated: 'Updated',
     allCategories: 'All',
+    otherCategory: 'Other',
     showCategoryTemplates: 'Show {{category}} templates',
     loadingTemplates: 'Loading templates',
     resultSummary: '{{shown}} of {{total}} templates',
