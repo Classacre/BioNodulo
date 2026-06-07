@@ -879,6 +879,7 @@ class MergeNode(BaseNode):
         strategy = str(kwargs.get("strategy", "append") or "append")
         wait_mode = str(kwargs.get("wait_mode", "all") or "all")
         wait_n = max(1, int(kwargs.get("wait_n", 1) or 1))
+        timeout = max(0.0, float(kwargs.get("timeout", 0.0) or 0.0))
         ignore_none = bool(kwargs.get("ignore_none", True))
 
         values: list[Any] = []
@@ -886,6 +887,12 @@ class MergeNode(BaseNode):
             value = kwargs.get(f"input_{index}")
             if value is not None or not ignore_none:
                 values.append(value)
+
+        if timeout > 0 and wait_mode == "all" and len(values) < num_inputs:
+            raise RuntimeError(
+                f"Merge timed out after {timeout:g}s waiting for all inputs "
+                f"({len(values)}/{num_inputs} received)"
+            )
 
         values = self._apply_wait_mode(values, wait_mode, wait_n)
         non_none = [value for value in values if value is not None]

@@ -1138,6 +1138,20 @@ async def test_merge_wait_modes_filter_received_inputs() -> None:
 
 
 @pytest.mark.asyncio
+async def test_merge_timeout_raises_when_all_expected_inputs_do_not_arrive() -> None:
+    node = _node_class("merge")()
+
+    with pytest.raises(RuntimeError, match="Merge timed out"):
+        await node.run(
+            num_inputs=3,
+            strategy="append",
+            wait_mode="all",
+            timeout=0.001,
+            input_0=["ready"],
+        )
+
+
+@pytest.mark.asyncio
 async def test_merge_zip_and_interleave_strategies() -> None:
     node = _node_class("merge")()
 
