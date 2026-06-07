@@ -28,6 +28,22 @@ def test_uniprot_retrieve_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_retrieve"]["display_name"] == "UniProt Retrieve"
     assert info["uniprot_retrieve"]["category"] == "databases"
     assert info["uniprot_retrieve"]["output_name"] == ["protein_data", "sequence"]
+    assert info["uniprot_retrieve"]["input"]["required"]["uniprot_ids"] == (
+        "STRING",
+        {"default": "", "description": "UniProt accession(s), comma-separated"},
+    )
+    assert info["uniprot_retrieve"]["input"]["optional"]["format"] == (
+        "STRING",
+        {"default": "json", "options": ["json", "fasta"]},
+    )
+    assert info["uniprot_retrieve"]["input"]["optional"]["accession"] == (
+        "STRING",
+        {
+            "default": "",
+            "advanced": True,
+            "description": "Backward-compatible UniProt accession(s), comma-separated",
+        },
+    )
 
 
 def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
@@ -150,6 +166,48 @@ async def test_uniprot_retrieve_fetches_json_and_writes_fasta(
     }
     assert sequence_path.name == "tp53.fasta"
     assert sequence_path.read_text(encoding="utf-8") == ">sp|P04637|P53_HUMAN Cellular tumor antigen p53\nMEEPQSDPSV\n"
+    assert calls == [
+        ("json", "uniprotkb/P04637.json"),
+        ("text", "uniprotkb/P04637.fasta"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_retrieve_accepts_planned_uniprot_ids_and_format(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_retrieve")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[tuple[str, str]] = []
+
+    async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
+        calls.append(("json", resource))
+        return {
+            "primaryAccession": "P04637",
+            "uniProtkbId": "P53_HUMAN",
+            "sequence": {"length": 393},
+        }
+
+    async def fake_text(resource: str, **_: Any) -> str:
+        calls.append(("text", resource))
+        return ">sp|P04637|P53_HUMAN\nMEEPQSDPSV\n"
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_request_text", fake_text)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(
+        uniprot_ids="P04637",
+        format="fasta",
+        output_name="tp53_planned",
+        context=context,
+    )
+
+    sequence_path = Path(result["outputs"]["sequence"])
+    assert result["outputs"]["protein_data"]["primaryAccession"] == "P04637"
+    assert sequence_path.name == "tp53_planned.fasta"
+    assert sequence_path.read_text(encoding="utf-8") == ">sp|P04637|P53_HUMAN\nMEEPQSDPSV\n"
     assert calls == [
         ("json", "uniprotkb/P04637.json"),
         ("text", "uniprotkb/P04637.fasta"),

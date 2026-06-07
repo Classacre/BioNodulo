@@ -281,9 +281,18 @@ class UniProtRetrieveNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "accession": ("STRING", {"default": "", "description": "UniProt accession(s), comma-separated"}),
+                "uniprot_ids": ("STRING", {"default": "", "description": "UniProt accession(s), comma-separated"}),
             },
             "optional": {
+                "format": ("STRING", {"default": "json", "options": ["json", "fasta"]}),
+                "accession": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Backward-compatible UniProt accession(s), comma-separated",
+                    },
+                ),
                 "include_fasta": ("BOOLEAN", {"default": True}),
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "output_name": ("STRING", {"default": "", "description": "Optional FASTA filename stem"}),
@@ -293,13 +302,16 @@ class UniProtRetrieveNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        accessions = _coerce_accessions(kwargs.get("accession", ""))
+        accessions = _coerce_accessions(kwargs.get("uniprot_ids", "") or kwargs.get("accession", ""))
         if not accessions:
-            raise ValueError("UniProt Retrieve requires at least one accession")
+            raise ValueError("UniProt Retrieve requires at least one uniprot_id")
+        output_format = str(kwargs.get("format", "json") or "json").strip().lower()
+        if output_format not in {"json", "fasta"}:
+            raise ValueError("UniProt Retrieve format must be one of: json, fasta")
 
         entries: list[dict[str, Any]] = []
         fasta_records: list[str] = []
-        include_fasta = bool(kwargs.get("include_fasta", True))
+        include_fasta = bool(kwargs["include_fasta"]) if "include_fasta" in kwargs else output_format == "fasta"
         params = {"includeIsoform": "true"} if bool(kwargs.get("include_isoform", False)) else None
         for accession in accessions:
             entries.append(_with_summary(await _request_json(f"uniprotkb/{accession}.json", params=params)))
