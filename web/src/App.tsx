@@ -2497,7 +2497,7 @@ export default function App() {
     for (const meta of metas) {
       items.push({
         id: `addNode.${meta.id}`,
-        label: `Add: ${meta.display_name}`,
+        label: t('nodePalette.addNodeTitle', { name: meta.display_name }),
         description: meta.description || meta.category,
         group: t('nodePalette.addNode'),
         groupLabelKey: 'nodePalette.addNode',

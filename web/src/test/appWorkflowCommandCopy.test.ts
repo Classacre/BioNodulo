@@ -46,6 +46,7 @@ describe('App workflow command copy i18n', () => {
     expect(i18n.t('commandPalette.commands.workflow.doctor')).toBe('Ejecutar doctor de workflow');
     expect(i18n.t('commandPalette.commands.workflow.doctorDescription')).toBe('Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias');
     expect(i18n.t('nodePalette.addNode')).toBe('Agregar nodo');
+    expect(i18n.t('nodePalette.addNodeTitle', { name: 'FastQC' })).toBe('Agregar FastQC');
   });
 
   it('keeps App workflow command copy behind i18n keys', () => {
@@ -62,6 +63,7 @@ describe('App workflow command copy i18n', () => {
       'commandPalette.commands.workflow.doctorDescription',
       'commandPalette.groups.workflow',
       'nodePalette.addNode',
+      'nodePalette.addNodeTitle',
     ].forEach(key => expect(appSource).toContain(key));
 
     [
@@ -74,6 +76,7 @@ describe('App workflow command copy i18n', () => {
       "label: 'Run workflow doctor'",
       "description: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints'",
       "group: 'Add Node'",
+      "label: `Add: ${meta.display_name}`",
     ].forEach(text => expect(appSource).not.toContain(text));
   });
 });
