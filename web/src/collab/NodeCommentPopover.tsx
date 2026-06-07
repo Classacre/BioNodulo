@@ -65,7 +65,7 @@ export default function NodeCommentPopover({
       onChanged();
     } catch (err) {
       logError('collab.nodeComment.post', err);
-      setError(err instanceof Error ? err.message : t('collab.couldNotPostComment'));
+      setError(t('collab.couldNotPostComment'));
     }
   };
 
@@ -76,7 +76,7 @@ export default function NodeCommentPopover({
       onChanged();
     } catch (err) {
       logError('collab.nodeComment.resolve', err);
-      setError(err instanceof Error ? err.message : t('collab.couldNotResolveComment'));
+      setError(t('collab.couldNotResolveComment'));
     }
   };
 

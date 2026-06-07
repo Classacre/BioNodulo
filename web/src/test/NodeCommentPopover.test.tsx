@@ -104,6 +104,8 @@ describe('NodeCommentPopover i18n', () => {
 
   it('logs swallowed comment post and resolve failures with stable scopes', async () => {
     const { default: NodeCommentPopover } = await import('../collab/NodeCommentPopover');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
     const postError = new Error('comment post failed');
     const resolveError = new Error('comment resolve failed');
 
@@ -122,11 +124,12 @@ describe('NodeCommentPopover i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Mika, add a node comment...'), { target: { value: 'Please check this' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+    fireEvent.change(screen.getByPlaceholderText('Mika, agrega un comentario al nodo...'), { target: { value: 'Please check this' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar comentario' }));
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.nodeComment.post', postError));
-    expect(screen.getByText('comment post failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudo publicar el comentario')).toBeInTheDocument();
+    expect(screen.queryByText('comment post failed')).not.toBeInTheDocument();
     postView.unmount();
 
     apiMocks.apiPost.mockRejectedValueOnce(resolveError);
@@ -158,9 +161,10 @@ describe('NodeCommentPopover i18n', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Resolve/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Resolver/ }));
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.nodeComment.resolve', resolveError));
-    expect(screen.getByText('comment resolve failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudo resolver el comentario')).toBeInTheDocument();
+    expect(screen.queryByText('comment resolve failed')).not.toBeInTheDocument();
   });
 });
