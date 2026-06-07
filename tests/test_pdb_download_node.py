@@ -32,6 +32,10 @@ def test_pdb_download_is_registered_for_frontend_discovery() -> None:
     assert info["pdb_retrieve"]["display_name"] == "PDB Retrieve"
     assert info["pdb_retrieve"]["category"] == "api"
     assert info["pdb_retrieve"]["output_name"] == ["structure_file", "pdb_metadata"]
+    assert info["pdb_retrieve"]["input"]["optional"]["pdb_id"] == (
+        "STRING",
+        {"default": "", "advanced": True, "description": "Backward-compatible singular PDB ID"},
+    )
     assert issubclass(registry.get("pdb_retrieve"), registry.get("pdb_download"))
 
 
@@ -222,6 +226,52 @@ async def test_pdb_download_writes_structure_density_and_metadata(
         ("https://maps.rcsb.org/x-ray/4hhb/cell/", tmp_path / "pdb_download" / "4HHB_density.bcif"),
         ("https://files.rcsb.org/download/1MBN.cif", tmp_path / "pdb_download" / "1MBN.cif"),
         ("https://maps.rcsb.org/x-ray/1mbn/cell/", tmp_path / "pdb_download" / "1MBN_density.bcif"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pdb_retrieve_accepts_singular_pdb_id_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("pdb_retrieve")
+    module = importlib.import_module(node_class.__module__)
+    download_calls: list[tuple[str, Path]] = []
+
+    async def fake_download(url: str, path: Path, **_: Any) -> None:
+        download_calls.append((url, path))
+        path.write_text(f"downloaded from {url}\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_download_file", fake_download)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(
+        pdb_id="4hhb",
+        format="pdb",
+        fetch_metadata=False,
+        download_density=False,
+        context=context,
+    )
+
+    structure_path = Path(result["outputs"]["structure_file"])
+    metadata_path = Path(result["outputs"]["pdb_metadata"])
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert structure_path == tmp_path / "pdb_retrieve" / "4HHB.pdb"
+    assert metadata == {
+        "record_count": 1,
+        "structures": [
+            {
+                "pdb_id": "4HHB",
+                "format": "pdb",
+                "structure_file": str(tmp_path / "pdb_retrieve" / "4HHB.pdb"),
+                "density_file": "",
+                "metadata": {},
+            }
+        ],
+    }
+    assert download_calls == [
+        ("https://files.rcsb.org/download/4HHB.pdb", tmp_path / "pdb_retrieve" / "4HHB.pdb")
     ]
 
 

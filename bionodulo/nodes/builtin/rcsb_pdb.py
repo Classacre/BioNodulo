@@ -217,3 +217,17 @@ class PDBRetrieveNode(PDBDownloadNode):
     DISPLAY_NAME = "PDB Retrieve"
     DESCRIPTION = "Retrieve protein structures and metadata from RCSB PDB."
     SEARCH_ALIASES = ["pdb retrieve", "pdb", "rcsb", "structure", "download", "protein", "3d", "mmcif"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        inputs = super().INPUT_TYPES()
+        inputs["optional"] = {
+            "pdb_id": ("STRING", {"default": "", "advanced": True, "description": "Backward-compatible singular PDB ID"}),
+            **inputs["optional"],
+        }
+        return inputs
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        if not _coerce_ids(kwargs.get("pdb_ids", "")) and "pdb_id" in kwargs:
+            kwargs["pdb_ids"] = kwargs["pdb_id"]
+        return await super().run(**kwargs)
