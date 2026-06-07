@@ -686,6 +686,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - ImportModal backend converter failures now report a structured `logError` scope while preserving the existing local JSON fallback and localized parse dialogs.
 - AIWorkflowModal chat API failures now report a structured `logError` scope while preserving local fallback replies and leaving user-aborted requests unlogged.
 - TemplatesPanel remote template index load failures now report a structured `logError` scope while preserving the bundled local-template fallback.
+- TemplatesPanel template-card load failures now report a structured `logError` scope while preserving the existing failed-load behavior of leaving the panel open.
 - useWorkflowRuntimeArtifacts refresh failures now report a structured `logError` scope while preserving the existing hook error state.
 - BatchSampleSheetModal submit failures now report a structured `logError` scope while preserving inline batch submission errors.
 - useWorkflow backend import failures now report a structured `logError` scope while preserving the existing local JSON fallback.

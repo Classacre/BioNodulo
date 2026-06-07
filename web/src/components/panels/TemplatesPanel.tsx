@@ -438,7 +438,9 @@ export default function TemplatesPanel({
                 type="button"
                 onClick={() => {
                   recordTemplateUse(template.id);
-                  void Promise.resolve(onLoadTemplate(template)).then(onClose).catch(() => undefined);
+                  void Promise.resolve(onLoadTemplate(template)).then(onClose).catch((err: unknown) => {
+                    logError('templates.loadTemplate', err);
+                  });
                 }}
                 title={t('templates.loadTemplate', { name: template.name })}
               >

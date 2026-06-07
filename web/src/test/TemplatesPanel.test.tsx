@@ -269,4 +269,26 @@ describe('TemplatesPanel i18n', () => {
     expect(localTemplateMocks.listLocalTemplates).toHaveBeenCalledTimes(1);
     expect(loggingMock.logError).toHaveBeenCalledWith('templates.load', loadError);
   });
+
+  it('logs template card load failures without closing the panel', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const loadError = new Error('template load unavailable');
+    const onClose = vi.fn();
+    const onLoadTemplate = vi.fn().mockRejectedValue(loadError);
+
+    render(
+      <TemplatesPanel
+        onClose={onClose}
+        onLoadTemplate={onLoadTemplate}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTitle('Load RNA QC'));
+
+    await waitFor(() => expect(onLoadTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: 'rna-qc' })));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('templates.loadTemplate', loadError));
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
