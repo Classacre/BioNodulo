@@ -202,6 +202,68 @@ async def test_interpro_scan_submits_polls_and_writes_outputs(
 
 
 @pytest.mark.asyncio
+async def test_interpro_scan_accepts_fasta_file_path_input(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("interpro_scan")
+    submitted: list[dict[str, Any]] = []
+    fasta = tmp_path / "tp53.fasta"
+    fasta.write_text(">TP53 fragment\nMEEPQSDPSV\nEPPLSQETFSDLWKLLPEN\n", encoding="utf-8")
+
+    async def fake_submit_job(
+        self: Any,
+        *,
+        sequence: str,
+        applications: str,
+        goterms: bool,
+        pathways: bool,
+        email: str,
+    ) -> str:
+        submitted.append(
+            {
+                "sequence": sequence,
+                "applications": applications,
+                "goterms": goterms,
+                "pathways": pathways,
+                "email": email,
+            }
+        )
+        return "IPRSCAN-JOB-FASTA"
+
+    async def fake_poll_job(
+        self: Any,
+        *,
+        job_id: str,
+        timeout_minutes: int,
+        poll_interval_seconds: float,
+    ) -> dict[str, Any]:
+        return {"matches": []}
+
+    monkeypatch.setattr(node_class, "_submit_job", fake_submit_job)
+    monkeypatch.setattr(node_class, "_poll_job", fake_poll_job)
+
+    await node_class().run(
+        sequence=str(fasta),
+        applications="pfam",
+        goterms=False,
+        pathways=False,
+        email="analyst@example.org",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    assert submitted == [
+        {
+            "sequence": "MEEPQSDPSVEPPLSQETFSDLWKLLPEN",
+            "applications": "pfam",
+            "goterms": False,
+            "pathways": False,
+            "email": "analyst@example.org",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_interpro_scan_rejects_empty_sequence() -> None:
     node_class = _node_class("interpro_scan")
 

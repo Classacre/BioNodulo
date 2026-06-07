@@ -44,6 +44,16 @@ def _clean_sequence(value: Any) -> str:
     return "".join(lines).replace(" ", "")
 
 
+def _sequence_input_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    path = Path(text).expanduser()
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    return text
+
+
 def _coerce_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -231,7 +241,7 @@ class InterProScanNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        sequence = _clean_sequence(kwargs.get("sequence", ""))
+        sequence = _clean_sequence(_sequence_input_text(kwargs.get("sequence", "")))
         if not sequence:
             raise ValueError("InterProScan requires a protein sequence")
 
