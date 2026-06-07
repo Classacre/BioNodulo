@@ -1,7 +1,18 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
+
+const apiMocks = vi.hoisted(() => ({
+  apiGetText: vi.fn(),
+}));
+
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -34,6 +45,8 @@ function runRecord(partial: Partial<RunRecord> & Pick<RunRecord, 'run_id' | 'sta
 describe('BottomConsole i18n', () => {
   beforeEach(() => {
     storage.clear();
+    apiMocks.apiGetText.mockReset();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -80,6 +93,35 @@ describe('BottomConsole i18n', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Informe' }));
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
+  });
+
+  it('logs report fetch failures while preserving the inline error', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const reportError = new Error('report unavailable');
+    apiMocks.apiGetText.mockRejectedValueOnce(reportError);
+
+    const historyRun = runRecord({
+      run_id: 'history-run-report',
+      status: 'completed',
+      workflow_name: 'Report workflow',
+      end_time: new Date().toISOString(),
+    });
+
+    render(
+      <Provider>
+        <BottomConsole
+          queue={[]}
+          history={[historyRun]}
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report' }));
+
+    await waitFor(() => expect(screen.getByText('report unavailable')).toBeInTheDocument());
+    expect(apiMocks.apiGetText).toHaveBeenCalledWith('/api/runs/history-run-report/report');
+    expect(loggingMock.logError).toHaveBeenCalledWith('console.report.fetch', reportError);
   });
 
   it('renders preview image and HTML labels from the active locale', async () => {

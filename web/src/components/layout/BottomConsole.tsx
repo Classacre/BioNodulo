@@ -6,6 +6,7 @@ import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 import Icon from '../ui/Icon';
 import { apiGetText } from '../../api/client';
 import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
+import { logError } from '../../state/logging';
 import { batchCountAtom, logsAtom } from '../../state/runAtoms';
 import { showOutputDiffAtom } from '../../state/uiAtoms';
 import { appPath } from '../../utils/appBase';
@@ -456,7 +457,10 @@ function ReportPanel({ history, t }: { history: RunRecord[]; t: TFunction }) {
         const text = await apiGetText(`/api/runs/${encodeURIComponent(runId)}/report`);
         if (!cancelled) setReportHtml(text);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          logError('console.report.fetch', err);
+          setError(err instanceof Error ? err.message : String(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
