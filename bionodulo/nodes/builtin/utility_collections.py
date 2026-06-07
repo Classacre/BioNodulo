@@ -325,8 +325,8 @@ class ListOperationsNode(BaseNode):
     NODE_ID = "list_operations"
     DISPLAY_NAME = "List Operations"
     CATEGORY = "utils"
-    DESCRIPTION = "List manipulation: join, append, prepend, get, slice, unique, sort, length, contains"
-    SEARCH_ALIASES = ["list", "array", "collection", "join", "append", "prepend", "get", "slice", "unique", "sort", "length", "contains"]
+    DESCRIPTION = "List manipulation: join, append, prepend, get, slice, reverse, unique, sort, length, contains"
+    SEARCH_ALIASES = ["list", "array", "collection", "join", "append", "prepend", "get", "slice", "reverse", "unique", "sort", "length", "contains"]
     RETURN_TYPES = ("STRING", "INT", "BOOLEAN")
     RETURN_NAMES = ("result", "length", "contains")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -336,7 +336,7 @@ class ListOperationsNode(BaseNode):
         return {
             "required": {
                 "operation": (
-                    ["join", "append", "prepend", "get", "slice", "unique", "sort", "length", "contains"],
+                    ["join", "append", "prepend", "get", "slice", "reverse", "unique", "sort", "length", "contains"],
                     {"default": "length", "description": "List operation"},
                 ),
                 "items": (
@@ -381,6 +381,10 @@ class ListOperationsNode(BaseNode):
             start = int(kwargs.get("start", 0) or 0)
             end = int(kwargs.get("end", -1) or -1)
             result = items[start:end] if end >= 0 else items[start:]
+            return (_to_json(result), len(result), False)
+
+        if operation == "reverse":
+            result = list(reversed(items))
             return (_to_json(result), len(result), False)
 
         if operation == "unique":

@@ -179,6 +179,7 @@ async def test_list_operations_parse_json_and_text_inputs() -> None:
     assert await node.run(operation="get", items='["S1", "S2", "S3"]', index=9) == ("", 3, False)
     assert await node.run(operation="slice", items='["S1", "S2", "S3", "S4"]', start=1, end=3) == ('["S2", "S3"]', 2, False)
     assert await node.run(operation="slice", items='["S1", "S2", "S3", "S4"]', start=2, end=-1) == ('["S3", "S4"]', 2, False)
+    assert await node.run(operation="reverse", items='["S1", "S2", "S3"]') == ('["S3", "S2", "S1"]', 3, False)
     assert await node.run(operation="unique", items="S1\nS2\nS1") == ('["S1", "S2"]', 2, False)
     assert await node.run(operation="sort", items='["10", "2", "1"]') == ('["1", "2", "10"]', 3, False)
     assert await node.run(operation="length", items="S1,S2") == ("", 2, False)
