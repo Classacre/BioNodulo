@@ -1,0 +1,706 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "CRISPR Editing and Screen Analysis",
+  "description": "CRISPR workflow template for guide RNA design, candidate off-target screening, amplicon editing analysis with CRISPResso2, pooled screen counting with MAGeCK, gene ranking, and an integrated HTML report.",
+  "category": "CRISPR",
+  "tags": [
+    "crispr",
+    "guide-rna",
+    "cas9",
+    "off-target",
+    "crispresso2",
+    "mageck",
+    "cas-offinder"
+  ],
+  "tools": [
+    "input_fasta",
+    "input_file",
+    "input_fastq",
+    "data_validator",
+    "guide_rna_design",
+    "cas_offinder",
+    "crispresso2",
+    "gate",
+    "mageck_count",
+    "mageck_test",
+    "html_report",
+    "html_preview"
+  ],
+  "nodes": [
+    {
+      "id": "note_crispr_pipeline",
+      "type": "note",
+      "position": [
+        -240,
+        80
+      ],
+      "params": {
+        "text": "CRISPR workflow: validate genome, amplicon FASTQ, pooled-screen FASTQ, and sgRNA library inputs; design guides from a target interval; run Cas-OFFinder for candidate off-targets; quantify amplicon editing with CRISPResso2; count and rank pooled-screen sgRNAs with MAGeCK; then collect the core outputs into an HTML report.\n\nInputs are placeholders. Set the genome FASTA, edited amplicon FASTQs, pooled-screen FASTQs, and sgRNA library before execution. Edit guide_seq and amplicon_seq on the CRISPResso2/Cas-OFFinder nodes for the target locus."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "genome_001",
+      "type": "input_fasta",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "reference": "examples/data/crispr/genome.fa"
+      },
+      "ui": {
+        "title": "Genome FASTA"
+      }
+    },
+    {
+      "id": "guide_design_001",
+      "type": "guide_rna_design",
+      "position": [
+        800,
+        80
+      ],
+      "params": {
+        "target": "chr1:1-1000",
+        "pam": "NGG",
+        "guide_length": 20,
+        "max_guides": 50,
+        "mismatches": 3
+      },
+      "ui": {
+        "title": "Guide RNA Design"
+      }
+    },
+    {
+      "id": "cas_offinder_001",
+      "type": "cas_offinder",
+      "position": [
+        980,
+        240
+      ],
+      "params": {
+        "guide_seq": "ACGTACGTACGTACGTACGT",
+        "mismatches": 3,
+        "pam_sequence": "NNG",
+        "device": "C"
+      },
+      "ui": {
+        "title": "Cas-OFFinder"
+      }
+    },
+    {
+      "id": "crispresso2_001",
+      "type": "crispresso2",
+      "position": [
+        800,
+        420
+      ],
+      "params": {
+        "amplicon_seq": "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT",
+        "name": "edited_locus",
+        "guide_seq": "ACGTACGTACGTACGTACGT",
+        "quant_window_center": -3,
+        "quant_window_size": 5
+      },
+      "ui": {
+        "title": "CRISPResso2"
+      }
+    },
+    {
+      "id": "mageck_count_001",
+      "type": "mageck_count",
+      "position": [
+        800,
+        660
+      ],
+      "params": {
+        "output_prefix": "screen_counts",
+        "sample_labels": "control,treated",
+        "day0_label": "control"
+      },
+      "ui": {
+        "title": "MAGeCK Count"
+      }
+    },
+    {
+      "id": "mageck_test_001",
+      "type": "mageck_test",
+      "position": [
+        1160,
+        660
+      ],
+      "params": {
+        "treatment_labels": "treated",
+        "control_labels": "control",
+        "output_prefix": "screen_test",
+        "norm_method": "median",
+        "adjust_method": "fdr",
+        "sort_criteria": "neg"
+      },
+      "ui": {
+        "title": "MAGeCK Test"
+      }
+    },
+    {
+      "id": "amplicon_r1_001",
+      "type": "input_file",
+      "position": [
+        80,
+        260
+      ],
+      "params": {
+        "file": "examples/data/crispr/amplicon_R1.fastq.gz"
+      },
+      "ui": {
+        "title": "Amplicon R1 FASTQ"
+      }
+    },
+    {
+      "id": "amplicon_r2_001",
+      "type": "input_file",
+      "position": [
+        80,
+        440
+      ],
+      "params": {
+        "file": "examples/data/crispr/amplicon_R2.fastq.gz"
+      },
+      "ui": {
+        "title": "Amplicon R2 FASTQ"
+      }
+    },
+    {
+      "id": "screen_reads_001",
+      "type": "input_fastq",
+      "position": [
+        80,
+        620
+      ],
+      "params": {
+        "reads": [
+          "examples/data/crispr/control.fastq.gz",
+          "examples/data/crispr/treated.fastq.gz"
+        ],
+        "sample_name": "screen"
+      },
+      "ui": {
+        "title": "Screen FASTQs"
+      }
+    },
+    {
+      "id": "library_001",
+      "type": "input_file",
+      "position": [
+        80,
+        800
+      ],
+      "params": {
+        "file": "examples/data/crispr/sgrna_library.tsv"
+      },
+      "ui": {
+        "title": "sgRNA Library"
+      }
+    },
+    {
+      "id": "validate_genome_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Genome"
+      }
+    },
+    {
+      "id": "validate_amplicon_r1_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        260
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Amplicon R1"
+      }
+    },
+    {
+      "id": "validate_amplicon_r2_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        440
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Amplicon R2"
+      }
+    },
+    {
+      "id": "validate_screen_reads_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        620
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Screen FASTQs"
+      }
+    },
+    {
+      "id": "validate_library_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        800
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "required_fields": "sgRNA,sequence,gene",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate sgRNA Library"
+      }
+    },
+    {
+      "id": "gate_crispresso_report_001",
+      "type": "gate",
+      "position": [
+        980,
+        420
+      ],
+      "params": {
+        "condition_mode": "file_exists",
+        "on_fail": "halt",
+        "error_message": "CRISPResso2 HTML report is required before final CRISPR reporting"
+      },
+      "ui": {
+        "title": "Gate CRISPResso2 Report"
+      }
+    },
+    {
+      "id": "validate_mageck_count_001",
+      "type": "data_validator",
+      "position": [
+        980,
+        660
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MAGeCK Counts"
+      }
+    },
+    {
+      "id": "validate_mageck_gene_summary_001",
+      "type": "data_validator",
+      "position": [
+        1340,
+        660
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate MAGeCK Genes"
+      }
+    },
+    {
+      "id": "validate_guides_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Designed Guides"
+      }
+    },
+    {
+      "id": "validate_offtargets_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        180
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Designed Off-Targets"
+      }
+    },
+    {
+      "id": "validate_cas_offinder_001",
+      "type": "data_validator",
+      "position": [
+        1160,
+        300
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cas-OFFinder Sites"
+      }
+    },
+    {
+      "id": "crispr_report_001",
+      "type": "html_report",
+      "position": [
+        1520,
+        360
+      ],
+      "params": {
+        "title": "CRISPR Editing and Screen Analysis Report",
+        "text_sections": "# Summary\nGuide RNA design, candidate off-target checks, CRISPResso2 amplicon editing, and MAGeCK pooled-screen ranking are combined into one CRISPR analysis report.",
+        "section_names": "Designed guides,Design off-targets,Cas-OFFinder sites,CRISPResso2 report,MAGeCK gene summary"
+      },
+      "ui": {
+        "title": "CRISPR Report"
+      }
+    },
+    {
+      "id": "crispr_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1700,
+        360
+      ],
+      "params": {},
+      "ui": {
+        "title": "View CRISPR Report"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "genome_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "validate_genome_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "amplicon_r1_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_amplicon_r1_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "amplicon_r2_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_amplicon_r2_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "screen_reads_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "validate_screen_reads_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "library_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_library_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "validate_genome_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "guide_design_001",
+        "input": "genome"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "validate_genome_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "cas_offinder_001",
+        "input": "genome_fasta"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "guide_design_001",
+        "output": "guides"
+      },
+      "to": {
+        "node": "validate_guides_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "guide_design_001",
+        "output": "off_targets"
+      },
+      "to": {
+        "node": "validate_offtargets_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "cas_offinder_001",
+        "output": "offtarget_sites"
+      },
+      "to": {
+        "node": "validate_cas_offinder_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "validate_amplicon_r1_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispresso2_001",
+        "input": "r1"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "validate_amplicon_r2_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispresso2_001",
+        "input": "r2"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "crispresso2_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "gate_crispresso_report_001",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "validate_screen_reads_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "mageck_count_001",
+        "input": "fastq_files"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "validate_library_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "mageck_count_001",
+        "input": "library_file"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "mageck_count_001",
+        "output": "count_table"
+      },
+      "to": {
+        "node": "validate_mageck_count_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "validate_mageck_count_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "mageck_test_001",
+        "input": "count_table"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "mageck_test_001",
+        "output": "gene_summary"
+      },
+      "to": {
+        "node": "validate_mageck_gene_summary_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "validate_guides_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispr_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "validate_offtargets_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispr_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e21",
+      "from": {
+        "node": "validate_cas_offinder_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispr_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e22",
+      "from": {
+        "node": "gate_crispresso_report_001",
+        "output": "output"
+      },
+      "to": {
+        "node": "crispr_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e23",
+      "from": {
+        "node": "validate_mageck_gene_summary_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "crispr_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e24",
+      "from": {
+        "node": "crispr_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "crispr_report_preview_001",
+        "input": "file"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "validated_genome": "validate_genome_001",
+    "validated_amplicon_r1": "validate_amplicon_r1_001",
+    "validated_amplicon_r2": "validate_amplicon_r2_001",
+    "validated_screen_reads": "validate_screen_reads_001",
+    "validated_library": "validate_library_001",
+    "designed_guides": "guide_design_001",
+    "designed_off_targets": "guide_design_001",
+    "cas_offinder_sites": "cas_offinder_001",
+    "crispresso_report_gate": "gate_crispresso_report_001",
+    "crispresso_report": "crispresso2_001",
+    "mageck_counts": "mageck_count_001",
+    "mageck_gene_summary": "mageck_test_001",
+    "mageck_sgrna_summary": "mageck_test_001",
+    "report": "crispr_report_001",
+    "report_preview": "crispr_report_preview_001"
+  }
+}

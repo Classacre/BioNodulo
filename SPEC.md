@@ -118,6 +118,7 @@ bionodulo-v2/
 │   ├── assembly_pipeline.json
 │   ├── biopython_analysis_pipeline.json
 │   ├── chip_seq_pipeline.json
+│   ├── crispr_editing_pipeline.json
 │   ├── deseq2_differential_expression.json
 │   ├── differential_expression.json
 │   ├── fastq_qc_pipeline.json
@@ -279,8 +280,9 @@ Settings stored per-user in `bionodulo.settings.json`:
 14. **Long Read** - Dorado, Chopper, NanoPlot, Modkit, Medaka
 15. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
 16. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
-17. **HPC** - SLURM submit, PBS submit, SGE submit
-18. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+17. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
+18. **HPC** - SLURM submit, PBS submit, SGE submit
+19. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel
