@@ -1152,7 +1152,7 @@ const es = {
     modulesPlaceholder: 'bioinfo/BWA/0.7.17\nbioinfo/samtools/1.17',
     containerPlaceholder: 'ruta/al/contenedor.sif',
     extraArgsPlaceholder: '--gres=gpu:1',
-    workflowCommandsPlaceholder: '# Comandos del workflow aqui',
+    workflowCommandsPlaceholder: '# Comandos del flujo de trabajo aqui',
     connect: 'Connect to HPC',
     disconnect: 'Disconnect',
     host: 'Host',

@@ -83,7 +83,8 @@ describe('HPCPanel i18n', () => {
     expect(screen.getByPlaceholderText(/bioinfo\/BWA\/0\.7\.17\s+bioinfo\/samtools\/1\.17/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('ruta/al/contenedor.sif')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('--gres=gpu:1')).toBeInTheDocument();
-    expect(screen.getByText(/# Comandos del workflow aqui/)).toBeInTheDocument();
+    expect(screen.getByText(/# Comandos del flujo de trabajo aqui/)).toBeInTheDocument();
+    expect(screen.queryByText(/# Comandos del workflow aqui/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Probar conexion' }));
 
