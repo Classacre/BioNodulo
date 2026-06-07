@@ -611,6 +611,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Ensembl VEP now accepts HGVS `variants` input via `variant_format=hgvs` while preserving VCF-file annotation.
 - UniProt Search now exposes a `database` selector for `uniprotkb`, `uniref`, and `uniparc` search endpoints.
 - NCBI BLAST now accepts the planned `XML` and `Tabular` output-format labels while preserving `XML2`, `CSV`, `Text`, and `SAM` compatibility.
+- NCBI EFetch now exposes the planned return-type selector options for FASTA, GenBank, feature table, XML, accession, SeqID, and docsum fetches.
 
 ---
 

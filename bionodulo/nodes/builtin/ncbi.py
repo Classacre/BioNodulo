@@ -45,6 +45,7 @@ GEO_ENTRY_TYPES = {
     "platform": "gpl",
 }
 SRA_OUTPUT_FORMATS = ("fastq", "fasta")
+NCBI_EFETCH_RETTYPES = ("fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum")
 SRA_FILE_SUFFIXES = {
     "fastq": (".fastq", ".fq", ".fastq.gz", ".fq.gz"),
     "fasta": (".fasta", ".fa", ".fna", ".fasta.gz", ".fa.gz", ".fna.gz"),
@@ -499,7 +500,7 @@ class NCBIEFetchNode(BaseNode):
                 ], {"default": "nuccore"}),
             },
             "optional": {
-                "rettype": ("STRING", {"default": "fasta"}),
+                "rettype": ("STRING", {"default": "fasta", "options": list(NCBI_EFETCH_RETTYPES)}),
                 "retmode": ("STRING", {"default": "text", "options": ["text", "xml", "json"]}),
                 "api_key": ("STRING", {"default": "", "advanced": True}),
                 "batch_size": ("INT", {"default": 100, "min": 1, "max": 500}),

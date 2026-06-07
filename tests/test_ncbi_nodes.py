@@ -38,6 +38,10 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
         "*",
         {"default": "", "advanced": True, "description": "Backward-compatible record ID input"},
     )
+    assert info["ncbi_efetch"]["input"]["optional"]["rettype"] == (
+        "STRING",
+        {"default": "fasta", "options": ["fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum"]},
+    )
     assert info["ncbi_blast"]["display_name"] == "NCBI BLAST"
     assert info["ncbi_blast"]["category"] == "databases"
     assert info["ncbi_blast"]["output_name"] == ["blast_results", "blast_summary"]
