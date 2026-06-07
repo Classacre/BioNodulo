@@ -51,7 +51,8 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByRole('button', { name: 'Bienvenida' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Novedades' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recursos' })).toBeInTheDocument();
-    expect(screen.getByText(/constructor visual de workflows para bioinformatica/)).toBeInTheDocument();
+    expect(screen.getByText(/constructor visual de flujos de trabajo para bioinformatica/)).toBeInTheDocument();
+    expect(screen.queryByText(/constructor visual de workflows para bioinformatica/)).not.toBeInTheDocument();
     expect(screen.getByText(/Crea, ejecuta y comparte pipelines reproducibles/)).toBeInTheDocument();
     expect(screen.getByLabelText('Ocultar al inicio')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerrar' })).toBeInTheDocument();
@@ -104,9 +105,11 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByText('Inicio rapido')).toBeInTheDocument();
     expectFullText('Abre el panel Plantillas (Ctrl+3) para cargar un pipeline integrado.');
     expect(screen.getByText('Haz doble clic en un nodo para configurar sus parametros.')).toBeInTheDocument();
-    expectFullText('Presiona Ctrl+R para validar y ejecutar tu workflow.');
+    expectFullText('Presiona Ctrl+R para validar y ejecutar tu flujo de trabajo.');
     expectFullText('Mira los registros en tiempo real en la Consola (Ctrl+`).');
-    expectFullText('Consejo: usa el Asistente de IA (Ctrl+Shift+A) para generar workflows desde descripciones en lenguaje natural.');
+    expectFullText('Consejo: usa el Asistente de IA (Ctrl+Shift+A) para generar flujos de trabajo desde descripciones en lenguaje natural.');
+    expect(screen.queryByText((_, node) => node?.textContent === 'Presiona Ctrl+R para validar y ejecutar tu workflow.')).not.toBeInTheDocument();
+    expect(screen.queryByText((_, node) => node?.textContent === 'Consejo: usa el Asistente de IA (Ctrl+Shift+A) para generar workflows desde descripciones en lenguaje natural.')).not.toBeInTheDocument();
   });
 
   it('renders getting-started recents and news status from the active locale', async () => {
@@ -152,7 +155,8 @@ describe('GettingStartedModal i18n', () => {
       />,
     );
 
-    expect(screen.getByText('Workflows recientes')).toBeInTheDocument();
+    expect(screen.getByText('Flujos de trabajo recientes')).toBeInTheDocument();
+    expect(screen.queryByText('Workflows recientes')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Todo' })).toBeInTheDocument();
     expect(screen.getByTitle('Abrir RNA QC')).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.textContent === 'Plantilla - 3 nodos - hace 2 min')).toBeInTheDocument();
