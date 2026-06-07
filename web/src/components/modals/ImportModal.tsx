@@ -5,6 +5,7 @@ import { alertDialog } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
 import { useFocusTrap } from '../../hooks/ui';
 import { apiPost, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface ImportModalProps {
   onImport: (workflow: Workflow) => void;
@@ -68,6 +69,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         }
       } catch (err) {
         if (!(err instanceof ApiError)) throw err;
+        logError('importModal.backendImport', err);
         // Backend converter unavailable: fall through to the local JSON
         // parse attempt below.
       }

@@ -25,7 +25,12 @@ const dialogMocks = vi.hoisted(() => ({
   alertDialog: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../components/ui', () => dialogMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -61,6 +66,7 @@ describe('ImportModal i18n', () => {
     storage.clear();
     apiMocks.apiPost.mockReset();
     dialogMocks.alertDialog.mockReset();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -166,11 +172,10 @@ describe('ImportModal i18n', () => {
   it('uses localized parse-format errors from the active locale', async () => {
     const { default: ImportModal } = await import('../components/modals/ImportModal');
     const { setLanguage } = await import('../i18n');
+    const converterError = new apiMocks.ApiError('converter unavailable', 503, 'Unavailable', null);
 
     await setLanguage('es');
-    apiMocks.apiPost.mockRejectedValueOnce(
-      new apiMocks.ApiError('converter unavailable', 503, 'Unavailable', null),
-    );
+    apiMocks.apiPost.mockRejectedValueOnce(converterError);
 
     render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
@@ -182,6 +187,7 @@ describe('ImportModal i18n', () => {
     await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith(
       'No se pudo analizar el flujo de trabajo. Asegurate de que el formato sea correcto.',
     ));
+    expect(loggingMock.logError).toHaveBeenCalledWith('importModal.backendImport', converterError);
     expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(
       'No se pudo analizar el workflow. Asegurate de que el formato sea correcto.',
     );
