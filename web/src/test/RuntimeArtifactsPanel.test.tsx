@@ -495,6 +495,8 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
+    expect(screen.getByText('Puntos de control')).toBeInTheDocument();
+    expect(screen.getByText('0 puntos de control')).toBeInTheDocument();
     expect(screen.getByText('Solicitud de pausa')).toBeInTheDocument();
     expect(screen.getByText('1 · rechazado')).toBeInTheDocument();
     expect(screen.getByText('Trigger de workflow')).toBeInTheDocument();
