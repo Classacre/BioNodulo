@@ -48,6 +48,7 @@ import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hook
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { logError } from './state/logging';
 import { usePanelRegistry } from './state/panels';
+import { paletteDisplayName } from './state/palettes';
 import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
@@ -2451,16 +2452,19 @@ export default function App() {
       },
     ];
 
-    const paletteCommands = palettes.map(palette => ({
-      id: `palette.${palette.id}`,
-      label: t('commandPalette.commands.palette.use', { name: palette.name }),
-      description: palette.descriptionKey
-        ? t(palette.descriptionKey, { defaultValue: palette.description })
-        : palette.description,
-      group: 'Appearance',
-      groupLabelKey: 'commandPalette.groups.appearance',
-      onSelect: () => setPalette(palette.id),
-    }));
+    const paletteCommands = palettes.map(palette => {
+      const name = paletteDisplayName(palette, t);
+      return {
+        id: `palette.${palette.id}`,
+        label: t('commandPalette.commands.palette.use', { name }),
+        description: palette.descriptionKey
+          ? t(palette.descriptionKey, { defaultValue: palette.description })
+          : palette.description,
+        group: 'Appearance',
+        groupLabelKey: 'commandPalette.groups.appearance',
+        onSelect: () => setPalette(palette.id),
+      };
+    });
 
     return [...baseCommands, ...paletteCommands];
   }, [

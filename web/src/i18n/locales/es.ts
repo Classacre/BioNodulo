@@ -333,9 +333,9 @@ const es = {
   },
   palettes: {
     bionodulo: 'BioNodulo',
-    clinical: 'Clinical',
-    field: 'Field Station',
-    contrast: 'High Contrast',
+    clinical: 'Clinica',
+    field: 'Estacion de campo',
+    contrast: 'Alto contraste',
     monochrome: 'Monochrome',
     forest: 'Forest',
     ocean: 'Ocean',

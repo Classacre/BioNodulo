@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../hooks/settings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
-import { addCustomPalette, type ThemePalette } from '../../state/palettes';
+import { addCustomPalette, paletteDisplayName, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
 import Dialog from '../ui/Dialog';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
@@ -133,6 +133,7 @@ export default function SettingsPanel({
   const paletteDescription = (palette: ThemePalette) => palette.descriptionKey
     ? t(palette.descriptionKey, { defaultValue: palette.description })
     : palette.description;
+  const paletteName = (palette: ThemePalette) => paletteDisplayName(palette, t);
   const collabStatusLabel = collabEnabled
     ? collabConnected
       ? st('collaboration.statusLive')
@@ -223,7 +224,7 @@ export default function SettingsPanel({
             <div className="palette-setting">
               <select className="select-input" value={paletteId} onChange={event => setPalette(event.target.value)}>
                 {palettes.map(palette => (
-                  <option key={palette.id} value={palette.id}>{palette.name}</option>
+                  <option key={palette.id} value={palette.id}>{paletteName(palette)}</option>
                 ))}
               </select>
               <button className="btn btn-sm" onClick={resetPalette} type="button">{t('common.reset')}</button>
@@ -245,7 +246,7 @@ export default function SettingsPanel({
                 title={paletteDescription(palette)}
                 type="button"
               >
-                <span>{palette.name}</span>
+                <span>{paletteName(palette)}</span>
                 <span className="palette-swatches">
                   {palette.preview.map(color => <i key={color} style={{ background: color }} />)}
                 </span>

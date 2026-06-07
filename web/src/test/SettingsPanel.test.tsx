@@ -235,7 +235,7 @@ describe('SettingsPanel shell i18n', () => {
     }
   });
 
-  it('uses the active locale for built-in palette preview descriptions', async () => {
+  it('uses the active locale for built-in palette preview names and descriptions', async () => {
     const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
     const { setLanguage } = await import('../i18n');
 
@@ -243,11 +243,15 @@ describe('SettingsPanel shell i18n', () => {
 
     render(<SettingsPanel onClose={() => undefined} />);
 
-    expect(screen.getByRole('button', { name: 'Clinical' })).toHaveAttribute(
+    expect(screen.getByRole('option', { name: 'Estacion de campo' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Field Station' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Alto contraste' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'High Contrast' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clinica' })).toHaveAttribute(
       'title',
       'Tema clinico de alto contraste para estacion de trabajo.',
     );
-    expect(screen.getByRole('button', { name: 'Clinical' })).not.toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Clinica' })).not.toHaveAttribute(
       'title',
       'High-contrast clinical workstation theme.',
     );

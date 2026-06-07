@@ -74,10 +74,15 @@ describe('App palette command copy i18n', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('commandPalette.commands.palette.use', { name: 'Clinical' })).toBe('Usar paleta Clinical');
+    expect(i18n.t('palettes.clinical')).toBe('Clinica');
+    expect(i18n.t('palettes.field')).toBe('Estacion de campo');
+    expect(i18n.t('palettes.contrast')).toBe('Alto contraste');
+    expect(i18n.t('commandPalette.commands.palette.use', { name: i18n.t('palettes.clinical') })).toBe('Usar paleta Clinica');
     expect(i18n.t('commandPalette.groups.appearance')).toBe('Apariencia');
+    expect(appSource).toContain('paletteDisplayName(palette, t)');
     expect(appSource).toContain('commandPalette.commands.palette.use');
     expect(appSource).toContain('commandPalette.groups.appearance');
+    expect(appSource).not.toContain('name: palette.name');
     expect(appSource).not.toContain('Use ${palette.name} palette');
   });
 });

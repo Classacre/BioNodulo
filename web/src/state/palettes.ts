@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next';
+
 export type PaletteMode = 'light' | 'dark';
 
 // 66-token design system. Tokens are organised into semantic groups so a
@@ -303,6 +305,11 @@ export function setActivePaletteId(id: string): void {
 
 export function listPalettes(): ThemePalette[] {
   return [...BUILT_IN_PALETTES, ...customPalettes];
+}
+
+export function paletteDisplayName(palette: Pick<ThemePalette, 'id' | 'name'>, t: TFunction): string {
+  const name = t(`palettes.${palette.id}`, { defaultValue: palette.name });
+  return typeof name === 'string' && name ? name : palette.name;
 }
 
 export function getPaletteDefinition(id: string): ThemePalette | undefined {
