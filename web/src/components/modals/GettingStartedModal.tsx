@@ -151,7 +151,7 @@ export default function GettingStartedModal({
   showOnStartup,
   onOpenRecent,
 }: GettingStartedModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>('welcome');
   const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
   // Tag filter. Empty string == "All". Set by clicking a tag chip.
@@ -324,7 +324,7 @@ export default function GettingStartedModal({
                               {t('gettingStarted.recentMeta', {
                                 source: recentSourceLabel(entry.source, t),
                                 nodes: t('gettingStarted.recentNodeCount', { count: entry.nodeCount ?? 0 }),
-                                age: timeAgo(entry.openedAt, t),
+                                age: timeAgo(entry.openedAt, t, i18n.language),
                               })}
                             </span>
                             {(entry.tags && entry.tags.length > 0) && (
@@ -546,7 +546,7 @@ function recentSourceLabel(source: RecentWorkflow['source'], t: TFunction): stri
   }
 }
 
-function timeAgo(ts: number, t: TFunction): string {
+function timeAgo(ts: number, t: TFunction, locale?: string): string {
   const diff = Date.now() - ts;
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return t('gettingStarted.recentJustNow');
@@ -556,5 +556,5 @@ function timeAgo(ts: number, t: TFunction): string {
   if (hr < 24) return t('gettingStarted.recentHoursAgo', { count: hr });
   const day = Math.floor(hr / 24);
   if (day < 7) return t('gettingStarted.recentDaysAgo', { count: day });
-  return new Date(ts).toLocaleDateString();
+  return new Date(ts).toLocaleDateString(locale);
 }

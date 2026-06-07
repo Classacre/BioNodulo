@@ -114,14 +114,25 @@ describe('GettingStartedModal i18n', () => {
     const { setLanguage } = await import('../i18n');
 
     await setLanguage('es');
-    storage.set('bionodulo.recentWorkflows', JSON.stringify([{
-      id: 'recent-1',
-      name: 'RNA QC',
-      source: 'template',
-      openedAt: Date.now() - 2 * 60 * 1000,
-      nodeCount: 3,
-      tags: ['rna'],
-    }]));
+    const olderOpenedAt = new Date('2026-05-03T09:30:00.000Z').getTime();
+    storage.set('bionodulo.recentWorkflows', JSON.stringify([
+      {
+        id: 'recent-1',
+        name: 'RNA QC',
+        source: 'template',
+        openedAt: Date.now() - 2 * 60 * 1000,
+        nodeCount: 3,
+        tags: ['rna'],
+      },
+      {
+        id: 'recent-2',
+        name: 'Older workflow',
+        source: 'manual',
+        openedAt: olderOpenedAt,
+        nodeCount: 1,
+        tags: [],
+      },
+    ]));
     storage.set('bionodulo.releases.cache', JSON.stringify({
       fetchedAt: Date.now(),
       releases: [{
@@ -145,10 +156,13 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByRole('button', { name: 'Todo' })).toBeInTheDocument();
     expect(screen.getByTitle('Abrir RNA QC')).toBeInTheDocument();
     expect(screen.getByText((_, node) => node?.textContent === 'Plantilla - 3 nodos - hace 2 min')).toBeInTheDocument();
-    expect(screen.getByTitle('Editar etiquetas')).toBeInTheDocument();
-    expect(screen.getByTitle('Olvidar esta entrada')).toBeInTheDocument();
+    expect(screen.getByTitle('Abrir Older workflow')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === `Manual - 1 nodo - ${new Date(olderOpenedAt).toLocaleDateString('es')}`)).toBeInTheDocument();
+    expect(screen.queryByText((_, node) => node?.textContent === `Manual - 1 nodo - ${new Date(olderOpenedAt).toLocaleDateString()}`)).not.toBeInTheDocument();
+    expect(screen.getAllByTitle('Editar etiquetas')).toHaveLength(2);
+    expect(screen.getAllByTitle('Olvidar esta entrada')).toHaveLength(2);
 
-    fireEvent.click(screen.getByTitle('Editar etiquetas'));
+    fireEvent.click(screen.getAllByTitle('Editar etiquetas')[0]);
 
     expect(screen.getByLabelText('Editar etiquetas (separadas por comas)')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('etiqueta1, etiqueta2')).toBeInTheDocument();

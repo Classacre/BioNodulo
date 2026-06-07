@@ -449,6 +449,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Getting-started resources tab link titles and descriptions now read from `gettingStarted.resources` i18n keys with Spanish render coverage and a static wiring guard.
 - Getting-started quick-start guidance and AI-assistant tip now read from `gettingStarted` i18n keys with Spanish render coverage and a static wiring guard.
 - Getting-started recent-workflow controls, row metadata, and release-status chrome now read from `gettingStarted` i18n keys with Spanish render coverage and a static wiring guard.
+- Getting-started recent-workflow absolute dates now format with the active i18n language instead of the browser default locale, keeping older recent rows consistent with Spanish metadata.
 - AI workflow assistant drawer title, default session/greeting, and session-menu chrome now read from `aiWorkflow` / `common` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant quick prompts and basic input controls now read from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
 - AI workflow assistant step controls, tool-result labels, and proposed-change actions now read from `aiWorkflow` i18n keys with Spanish render coverage and a static wiring guard.
