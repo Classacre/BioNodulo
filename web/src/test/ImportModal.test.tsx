@@ -29,8 +29,13 @@ const loggingMock = vi.hoisted(() => ({
   logError: vi.fn(),
 }));
 
+const pngMetadataMocks = vi.hoisted(() => ({
+  extractWorkflowFromPng: vi.fn(),
+}));
+
 vi.mock('../components/ui', () => dialogMocks);
 vi.mock('../state/logging', () => loggingMock);
+vi.mock('../utils/pngMetadata', () => pngMetadataMocks);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -67,6 +72,8 @@ describe('ImportModal i18n', () => {
     apiMocks.apiPost.mockReset();
     dialogMocks.alertDialog.mockReset();
     loggingMock.logError.mockReset();
+    pngMetadataMocks.extractWorkflowFromPng.mockReset();
+    pngMetadataMocks.extractWorkflowFromPng.mockReturnValue(undefined);
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -212,5 +219,26 @@ describe('ImportModal i18n', () => {
     expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(expect.objectContaining({
       title: 'No se encontro ningun workflow',
     }));
+    expect(loggingMock.logError).not.toHaveBeenCalled();
+  });
+
+  it('logs PNG workflow extraction failures while preserving the alert', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const extractionError = new Error('bad png metadata');
+    pngMetadataMocks.extractWorkflowFromPng.mockImplementationOnce(() => {
+      throw extractionError;
+    });
+
+    const { container } = render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([0, 1, 2, 3])], 'workflow.png', { type: 'image/png' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith({
+      title: 'PNG read failed',
+      message: 'bad png metadata',
+    }));
+    expect(loggingMock.logError).toHaveBeenCalledWith('importModal.pngRead', extractionError);
   });
 });

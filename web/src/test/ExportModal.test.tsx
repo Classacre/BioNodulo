@@ -35,6 +35,10 @@ const thumbnailMocks = vi.hoisted(() => ({
   renderWorkflowThumbnail: vi.fn(() => 'data:image/png;base64,dGh1bWI='),
 }));
 
+const pngMetadataMocks = vi.hoisted(() => ({
+  embedWorkflowInPngDataUrl: vi.fn(() => new Blob(['png'], { type: 'image/png' })),
+}));
+
 vi.mock('../utils', async importOriginal => {
   const actual = await importOriginal<typeof import('../utils')>();
   return {
@@ -44,6 +48,7 @@ vi.mock('../utils', async importOriginal => {
 });
 
 vi.mock('../utils/workflowThumbnail', () => thumbnailMocks);
+vi.mock('../utils/pngMetadata', () => pngMetadataMocks);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -83,6 +88,8 @@ describe('ExportModal i18n', () => {
     loggingMock.logError.mockReset();
     utilsMocks.saveToFile.mockReset();
     thumbnailMocks.renderWorkflowThumbnail.mockClear();
+    pngMetadataMocks.embedWorkflowInPngDataUrl.mockReset();
+    pngMetadataMocks.embedWorkflowInPngDataUrl.mockReturnValue(new Blob(['png'], { type: 'image/png' }));
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -170,5 +177,23 @@ describe('ExportModal i18n', () => {
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy to clipboard' })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(/"version": "2.0"/)).not.toBeInTheDocument();
+  });
+
+  it('logs PNG download embedding failures while preserving the inline error', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const downloadError = new Error('metadata write failed');
+    pngMetadataMocks.embedWorkflowInPngDataUrl.mockImplementationOnce(() => {
+      throw downloadError;
+    });
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Render thumbnail' }));
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Workflow thumbnail preview' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+
+    expect(await screen.findByText('metadata write failed')).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.downloadPng', downloadError);
   });
 });

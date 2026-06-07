@@ -125,6 +125,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         const blob = embedWorkflowInPngDataUrl(pngPreview, workflow);
         triggerDownload(blob, `${baseName}.png`);
       } catch (err) {
+        logError('exportModal.downloadPng', err);
         setError(err instanceof Error ? err.message : String(err));
       }
       return;
