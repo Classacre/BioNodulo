@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HPCConfig } from '../types';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -36,6 +42,7 @@ describe('HPCPanel i18n', () => {
 
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 503, statusText: 'Unavailable' }));
   });
@@ -89,5 +96,6 @@ describe('HPCPanel i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Probar conexion' }));
 
     await waitFor(() => expect(screen.getByText('No se pudo conectar (503). Revisa tu configuracion HPC.')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('hpc.panel.testConnection', expect.any(Error));
   });
 });

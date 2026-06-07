@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { HPCConfig } from '../../types';
 import Icon from '../ui/Icon';
 import { apiGet, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface HPCPanelProps {
   config: HPCConfig;
@@ -27,6 +28,7 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
         partition: data.partition ? t('hpc.partitionSuffix', { partition: data.partition }) : '',
       }));
     } catch (err) {
+      logError('hpc.panel.testConnection', err);
       if (err instanceof ApiError) {
         setTestResult(t('hpc.connectionFailed', { status: err.status }));
       } else {
