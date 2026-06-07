@@ -672,6 +672,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - `useWorkflow.resolve` manager failures now report a structured `workflow.resolve` log entry while preserving the existing null resolve-report fallback.
 - NodeCommentPopover post-comment and resolve-comment failures now report structured `logError` scopes while preserving existing inline error messages.
 - AuditLog load and CSV-export failures now report structured `logError` scopes while preserving existing inline error messages.
+- CommentsPanel post, reply, resolve, and delete action failures now report structured `logError` scopes while the recurring comment polling failure path stays intentionally unlogged to avoid repeated offline-noise.
 
 ---
 

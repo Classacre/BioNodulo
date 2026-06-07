@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -14,8 +14,13 @@ const dialogMocks = vi.hoisted(() => ({
   confirmDialog: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
 vi.mock('../components/ui', () => dialogMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -41,6 +46,7 @@ describe('CommentsPanel i18n', () => {
     apiMocks.apiGet.mockReset();
     apiMocks.apiPost.mockReset();
     dialogMocks.confirmDialog.mockReset();
+    loggingMock.logError.mockReset();
     localStorage.setItem('bionodulo_auth_token', 'test-token');
   });
 
@@ -199,6 +205,128 @@ describe('CommentsPanel i18n', () => {
 
     await waitFor(() => expect(screen.getByText('Unete a la colaboracion antes de usar comentarios de flujo de trabajo.')).toBeInTheDocument());
     expect(screen.queryByText('Unete a la colaboracion antes de usar comentarios de workflow.')).not.toBeInTheDocument();
+  });
+
+  it('keeps comment polling failures out of structured logging to avoid repeated noise', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const loadError = new Error('comments unavailable');
+
+    apiMocks.apiGet.mockRejectedValueOnce(loadError);
+
+    render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('comments unavailable')).toBeInTheDocument());
+    expect(loggingMock.logError).not.toHaveBeenCalled();
+  });
+
+  it('logs swallowed comment-panel action API failures with stable scopes', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const postError = new Error('post failed');
+    const replyError = new Error('reply failed');
+    const resolveError = new Error('resolve failed');
+    const deleteError = new Error('delete failed');
+    const comment = {
+      id: 'comment-1',
+      workflow_id: 'workflow-1',
+      node_id: 'node-1',
+      user_id: 'user-1',
+      user_name: 'Mika',
+      user_color: '#0d9488',
+      content: 'Review this node',
+      parent_id: null,
+      resolved: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      replies: [],
+    };
+
+    apiMocks.apiGet.mockResolvedValueOnce({ comments: [], count: 0, workflow_names: {} });
+    apiMocks.apiPost.mockRejectedValueOnce(postError);
+    const postView = render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByPlaceholderText('New comment... Use @name to mention')).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText('New comment... Use @name to mention'), { target: { value: 'Please review' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.commentsPanel.post', postError));
+    expect(screen.getByText('post failed')).toBeInTheDocument();
+    postView.unmount();
+
+    apiMocks.apiGet.mockResolvedValueOnce({ comments: [comment], count: 1, workflow_names: {} });
+    apiMocks.apiPost.mockRejectedValueOnce(replyError);
+    const replyView = render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Review this node')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
+    fireEvent.change(screen.getByPlaceholderText('Write a reply...'), { target: { value: 'Reply text' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.commentsPanel.reply', replyError));
+    expect(screen.getByText('reply failed')).toBeInTheDocument();
+    replyView.unmount();
+
+    apiMocks.apiGet.mockResolvedValueOnce({ comments: [comment], count: 1, workflow_names: {} });
+    apiMocks.apiPost.mockRejectedValueOnce(resolveError);
+    const resolveView = render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByTitle('Resolve')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Resolve'));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.commentsPanel.resolve', resolveError));
+    expect(screen.getByText('resolve failed')).toBeInTheDocument();
+    resolveView.unmount();
+
+    apiMocks.apiGet.mockResolvedValueOnce({ comments: [comment], count: 1, workflow_names: {} });
+    vi.mocked(dialogMocks.confirmDialog).mockResolvedValueOnce(true);
+    apiMocks.apiDelete.mockRejectedValueOnce(deleteError);
+    render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByTitle('Delete')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Delete'));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.commentsPanel.delete', deleteError));
+    expect(screen.getByText('delete failed')).toBeInTheDocument();
   });
 
   it('keeps comment workflow fallback copy behind i18n keys', () => {

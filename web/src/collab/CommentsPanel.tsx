@@ -8,6 +8,7 @@ import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
 import { selectedNodeIdAtom } from '../state/uiAtoms';
 import { apiDelete, apiGet, apiPost } from '../api/client';
+import { logError } from '../state/logging';
 
 const API_BASE = 'api/collab';
 
@@ -118,6 +119,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       setNewContent('');
       fetchComments();
     } catch (err) {
+      logError('collab.commentsPanel.post', err);
       setError(err instanceof Error ? err.message : t('collab.commentsPostError'));
     }
   };
@@ -136,6 +138,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       setReplyTo(null);
       fetchComments();
     } catch (err) {
+      logError('collab.commentsPanel.reply', err);
       setError(err instanceof Error ? err.message : t('collab.commentsReplyError'));
     }
   };
@@ -151,6 +154,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
       fetchComments();
     } catch (err) {
+      logError('collab.commentsPanel.resolve', err);
       setError(err instanceof Error ? err.message : t('collab.commentsResolveError'));
     }
   };
@@ -167,6 +171,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       await apiDelete(`${API_BASE}/comments/${commentId}`);
       fetchComments();
     } catch (err) {
+      logError('collab.commentsPanel.delete', err);
       setError(err instanceof Error ? err.message : t('collab.commentsDeleteError'));
     }
   };
