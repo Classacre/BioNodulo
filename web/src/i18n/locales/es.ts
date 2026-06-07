@@ -2280,7 +2280,7 @@ class MyToolNode(CommandNode):
     versionHistoryDiff: 'Diferencias',
     versionHistoryLoadError: 'No se pudieron cargar las versiones',
     versionHistorySavePromptTitle: 'Guardar version',
-    versionHistorySavePromptMessage: 'Nombra esta version del workflow.',
+    versionHistorySavePromptMessage: 'Nombra esta version del flujo de trabajo.',
     versionHistorySavePromptInputLabel: 'Nombre de version',
     versionHistorySavePromptPlaceholder: 'Opcional',
     versionHistorySavePromptConfirm: 'Guardar version',

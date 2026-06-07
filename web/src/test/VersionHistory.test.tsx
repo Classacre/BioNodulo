@@ -118,7 +118,7 @@ describe('VersionHistory i18n', () => {
 
     await waitFor(() => expect(dialogMocks.promptDialog).toHaveBeenCalledWith({
       title: 'Guardar version',
-      message: 'Nombra esta version del workflow.',
+      message: 'Nombra esta version del flujo de trabajo.',
       inputLabel: 'Nombre de version',
       placeholder: 'Opcional',
       confirmLabel: 'Guardar version',
