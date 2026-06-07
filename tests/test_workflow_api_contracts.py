@@ -1162,3 +1162,21 @@ def test_docs_endpoint_serves_getting_started_help_page() -> None:
     assert response.status_code == 200
     assert "BioNodulo" in response.text
     assert "Getting Started" in response.text
+
+
+def test_docs_endpoint_serves_repo_custom_nodes_article_without_workspace_docs(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from server import create_app
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("BIONODULO_ROOT", str(workspace))
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/docs/custom-nodes")
+
+    assert response.status_code == 200
+    assert "# Custom Nodes" in response.text
+    assert "CUSTOM_NODE_CLASS" in response.text
+    assert not (workspace / "docs" / "help" / "custom-nodes.md").exists()

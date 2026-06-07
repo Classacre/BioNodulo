@@ -651,6 +651,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Command Palette now localizes the escape-key hint instead of rendering a hard-coded `Esc` label.
 - Dialog and Tooltip primitives now have focused contract coverage, and Dialog stacking updates immediately after mount so only the top dialog handles Escape/backdrop dismissal.
 - The frontend now documents and validates the `/api/manager/registry` contract, including custom-node registry compatibility metadata and installed-package manifest records.
+- The static docs endpoint now serves a repo-backed Custom Nodes help article when workspace docs are absent.
 
 ---
 
