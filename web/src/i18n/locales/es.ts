@@ -523,13 +523,13 @@ const es = {
     newsFetching: 'Buscando releases mas recientes...',
     newsOffline: 'Modo sin conexion - mostrando changelog incluido',
     newsBundled: 'Mostrando changelog incluido',
-    newsRefetchTitle: 'Volver a cargar release notes',
+    newsRefetchTitle: 'Volver a cargar notas de version',
     newsViewOnGitHub: 'Ver en GitHub',
     newsUnreleased: 'Sin release',
     changelog: {
       v2: {
         items: {
-          commandPalette: 'Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo',
+          commandPalette: 'Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo',
           panels: 'Paneles laterales redimensionables y flotantes con controles de acoplamiento mejorados',
           templates: 'Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del workflow',
           canvas: 'Mejoras del lienzo para insignias de nodos, detalles al pasar el cursor, reroutes, ejecucion seleccionada y extraccion de subgrafos',
@@ -541,10 +541,10 @@ const es = {
         items: {
           visualNotes: 'Notas solo visuales y soporte para minimizar nodos',
           consoleGrouping: 'Agrupacion de registros de consola por run_id con expandir y contraer',
-          environmentPanel: 'Rework completo del panel de entornos con migracion a pixi',
+          environmentPanel: 'Redisenio completo del panel de entornos con migracion a pixi',
           biopythonFixes: 'Correcciones de pipelines BioPython (BLAST, traduccion, SeqIO)',
           isolatedEnvironments: 'Entornos aislados por workflow con entornos direccionados por contenido',
-          hpcSupport: 'Soporte backend HPC (SLURM, PBS, SGE)',
+          hpcSupport: 'Soporte HPC para sistemas de colas (SLURM, PBS, SGE)',
           gettingStartedData: 'Modal Primeros pasos con descargas de datasets publicos',
         },
       },
@@ -554,7 +554,7 @@ const es = {
           workflowExport: 'Exportacion de workflows a Snakemake, NextFlow, CWL y Galaxy',
           nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
           websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
-          hardwareMonitor: 'Overlay de monitor de hardware',
+          hardwareMonitor: 'Panel superpuesto de monitor de hardware',
         },
       },
       alpha10: {

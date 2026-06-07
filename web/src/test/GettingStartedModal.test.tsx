@@ -170,9 +170,10 @@ describe('GettingStartedModal i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
 
     expect(screen.getByText('Desde releases de GitHub - 1 entrada')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Actualizar' })).toHaveAttribute('title', 'Volver a cargar release notes');
+    expect(screen.getByRole('button', { name: 'Actualizar' })).toHaveAttribute('title', 'Volver a cargar notas de version');
     expect(screen.getByRole('link', { name: 'Ver en GitHub' })).toHaveAttribute('href', 'https://example.com/release');
     expect(screen.getByText('Cached release item')).toBeInTheDocument();
+    expect(screen.queryByTitle('Volver a cargar release notes')).not.toBeInTheDocument();
   });
 
   it('renders bundled release notes from the active locale when live releases fail', async () => {
@@ -193,10 +194,17 @@ describe('GettingStartedModal i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
 
     expect(await screen.findByText('Modo sin conexion - mostrando changelog incluido')).toBeInTheDocument();
-    expect(i18n.t('gettingStarted.changelog.v2.items.commandPalette')).toBe('Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo');
-    expect(screen.getByText('Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo')).toBeInTheDocument();
+    expect(i18n.t('gettingStarted.changelog.v2.items.commandPalette')).toBe('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo');
+    expect(screen.getByText('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo')).toBeInTheDocument();
+    expect(screen.getByText('Redisenio completo del panel de entornos con migracion a pixi')).toBeInTheDocument();
+    expect(screen.getByText('Soporte HPC para sistemas de colas (SLURM, PBS, SGE)')).toBeInTheDocument();
+    expect(screen.getByText('Panel superpuesto de monitor de hardware')).toBeInTheDocument();
     expect(screen.getByText('Version inicial de BioNodulo v2')).toBeInTheDocument();
     expect(screen.queryByText('BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText(/toasts/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rework/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/backend/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Overlay/)).not.toBeInTheDocument();
   });
 
   it('renders missing GitHub release names from the active locale', async () => {
