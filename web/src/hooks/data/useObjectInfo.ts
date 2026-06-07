@@ -46,6 +46,19 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
+function normalizeCustomNodePackage(raw: unknown): NodeMetadata['custom_node_package'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  return {
+    name: String(obj.name || ''),
+    version: String(obj.version || ''),
+    repository: String(obj.repository || ''),
+    directory: String(obj.directory || ''),
+    entrypoint: String(obj.entrypoint || ''),
+    manifest_present: Boolean(obj.manifest_present),
+  };
+}
+
 function normalizeLifecycle(raw: unknown): NodeMetadata['lifecycle'] | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const obj = raw as Record<string, unknown>;
@@ -109,6 +122,7 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       builtin: typeof raw.builtin === 'boolean' ? raw.builtin : undefined,
       git_url: optionalString(raw.git_url),
       git_commit: optionalString(raw.git_commit),
+      custom_node_package: normalizeCustomNodePackage(raw.custom_node_package),
     } satisfies NodeMetadata];
   }));
 }

@@ -74,6 +74,14 @@ describe('useObjectInfo', () => {
         builtin: false,
         git_url: 'https://github.com/example/custom-qc.git',
         git_commit: 'abc123',
+        custom_node_package: {
+          name: 'manifest-pkg',
+          version: '0.1.0',
+          repository: 'https://github.com/example/custom-qc.git',
+          directory: 'manifest_pkg',
+          entrypoint: 'nodes',
+          manifest_present: true,
+        },
         required_executables: ['custom-qc'],
         required_conda_packages: ['custom-qc=1.0'],
         required_r_packages: ['BiocManager'],
@@ -91,6 +99,14 @@ describe('useObjectInfo', () => {
     expect(meta.builtin).toBe(false);
     expect(meta.git_url).toBe('https://github.com/example/custom-qc.git');
     expect(meta.git_commit).toBe('abc123');
+    expect(meta.custom_node_package).toEqual({
+      name: 'manifest-pkg',
+      version: '0.1.0',
+      repository: 'https://github.com/example/custom-qc.git',
+      directory: 'manifest_pkg',
+      entrypoint: 'nodes',
+      manifest_present: true,
+    });
     expect(meta.requires_external_tools).toEqual(['custom-qc']);
     expect(meta.required_conda_packages).toEqual(['custom-qc=1.0']);
     expect(meta.required_r_packages).toEqual(['BiocManager']);

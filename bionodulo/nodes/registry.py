@@ -31,6 +31,7 @@ class NodeRegistry:
     _nodes: dict[str, Type[BaseNode]]
     _loaded: set[str]
     _object_info_cache: dict[str, Any] | None
+    _custom_node_packages: dict[str, dict[str, Any]]
 
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
@@ -50,14 +51,20 @@ class NodeRegistry:
         registry._nodes = {}
         registry._loaded = set()
         registry._object_info_cache = None
+        registry._custom_node_packages = {}
 
     # ── Registration ─────────────────────────────────────────────────
 
-    def register(self, node_class: Type[BaseNode]) -> None:
+    def register(
+        self,
+        node_class: Type[BaseNode],
+        custom_node_package: dict[str, Any] | None = None,
+    ) -> None:
         """Register a single node class.
 
         Args:
             node_class: A BaseNode subclass to register.
+            custom_node_package: Optional manifest package metadata for custom nodes.
 
         Raises:
             ValueError: If NODE_ID is missing or already registered.
@@ -73,6 +80,10 @@ class NodeRegistry:
         if node_id in self._nodes:
             logger.warning("Overwriting registered node: %s", node_id)
         self._nodes[node_id] = node_class
+        if custom_node_package is None:
+            self._custom_node_packages.pop(node_id, None)
+        else:
+            self._custom_node_packages[node_id] = dict(custom_node_package)
         self._object_info_cache = None
         logger.debug("Registered node: %s", node_id)
 
@@ -119,11 +130,14 @@ class NodeRegistry:
             node_class = self._nodes.get(node_id)
             if node_class is None:
                 return {}
-            return _to_node_info(node_class)
+            return _to_node_info(
+                node_class,
+                self._custom_node_packages.get(node_id),
+            )
 
         if self._object_info_cache is None:
             self._object_info_cache = {
-                nid: _to_node_info(nc)
+                nid: _to_node_info(nc, self._custom_node_packages.get(nid))
                 for nid, nc in sorted(self._nodes.items())
             }
         return self._object_info_cache
@@ -238,7 +252,15 @@ class NodeRegistry:
             module_name = self._module_name_for_entrypoint(package_dir.name, entrypoint)
             module = self._load_module_from_path(module_name, module_path)
             if module:
-                count += self.register_from_module(module)
+                package_info = {
+                    "name": manifest.name,
+                    "version": manifest.version,
+                    "repository": manifest.repository,
+                    "directory": manifest.directory,
+                    "entrypoint": entrypoint,
+                    "manifest_present": manifest.manifest_present,
+                }
+                count += self.register_from_module(module, custom_node_package=package_info)
         return count
 
     @staticmethod
@@ -271,11 +293,16 @@ class NodeRegistry:
         raw = f"bionodulo_custom_{package_name}_{entrypoint}"
         return "".join(char if char.isalnum() or char == "_" else "_" for char in raw)
 
-    def register_from_module(self, module: Any) -> int:
+    def register_from_module(
+        self,
+        module: Any,
+        custom_node_package: dict[str, Any] | None = None,
+    ) -> int:
         """Find and register all BaseNode subclasses in a module.
 
         Args:
             module: Python module to scan.
+            custom_node_package: Optional manifest package metadata for custom nodes.
 
         Returns:
             Number of node classes registered.
@@ -288,7 +315,7 @@ class NodeRegistry:
                 and obj is not CommandNode
                 and obj.NODE_ID
             ):
-                self.register(obj)
+                self.register(obj, custom_node_package=custom_node_package)
                 count += 1
         return count
 
@@ -327,10 +354,14 @@ class NodeRegistry:
         """Clear all registrations (primarily for testing)."""
         self._nodes.clear()
         self._loaded.clear()
+        self._custom_node_packages.clear()
         self._object_info_cache = None
 
 
-def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
+def _to_node_info(
+    node_class: Type[BaseNode],
+    custom_node_package: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Convert a BaseNode class to frontend registry metadata.
 
     Args:
@@ -355,7 +386,7 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
     for name, spec in hidden.items():
         node_input["hidden"][name] = _to_frontend_input_spec(spec)
 
-    return {
+    info = {
         "input": node_input,
         "output": list(node_class.RETURN_TYPES),
         "output_name": list(node_class.RETURN_NAMES),
@@ -382,6 +413,9 @@ def _to_node_info(node_class: Type[BaseNode]) -> dict[str, Any]:
         "required_conda_packages": getattr(node_class, "REQUIRED_CONDA_PACKAGES", []),
         "required_r_packages": getattr(node_class, "REQUIRED_R_PACKAGES", []),
     }
+    if custom_node_package is not None:
+        info["custom_node_package"] = dict(custom_node_package)
+    return info
 
 
 def _to_frontend_input_spec(spec: Any) -> tuple[str, dict[str, Any]]:

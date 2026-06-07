@@ -28,6 +28,15 @@ export interface InputSpec {
   dynamic_outputs?: DynamicOutputSpec;
 }
 
+export interface CustomNodePackageProvenance {
+  name: string;
+  version: string;
+  repository: string;
+  directory: string;
+  entrypoint: string;
+  manifest_present: boolean;
+}
+
 export interface NodeMetadata {
   id: string;
   display_name: string;
@@ -73,6 +82,7 @@ export interface NodeMetadata {
   builtin?: boolean;
   git_url?: string;
   git_commit?: string;
+  custom_node_package?: CustomNodePackageProvenance;
 }
 
 export interface ObjectInfo {

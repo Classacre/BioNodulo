@@ -17,6 +17,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Read-only node docs now honor the same conditional input visibility rules as the editor and canvas: Node Info filters with current node params, and Help Wiki receives selected-node params while registry docs fall back to metadata defaults.
 - Switch-node canvas ports now honor the backend `dynamic_outputs` metadata contract, so `num_branches` expands selectable/drawable branch outputs beyond the static registry fallback.
 - Dynamic output resolution is now shared by canvas, Node Info, and Help Wiki selected-node docs, keeping switch branch output rows consistent across editable and read-only surfaces.
+- Manifest-loaded custom nodes now expose compact package provenance through `object_info` and the frontend object-info normalizer, giving extension tooling a stable join between registered nodes and their `bionodulo.toml` package.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

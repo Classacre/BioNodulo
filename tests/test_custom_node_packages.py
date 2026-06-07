@@ -188,6 +188,52 @@ class ManifestEntrypointNode(BaseNode):
     assert registry.get("manifest_entrypoint") is not None
 
 
+def test_manifest_loaded_node_object_info_exposes_package_provenance(tmp_path: Path) -> None:
+    package_dir = tmp_path / "custom_nodes" / "manifest_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-pkg"
+version = "0.1.0"
+repository = "https://example.test/manifest-pkg.git"
+entrypoints = ["nodes"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "nodes.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestEntrypointNode(BaseNode):
+    NODE_ID = "manifest_entrypoint"
+    DISPLAY_NAME = "Manifest Entrypoint"
+    CATEGORY = "custom"
+    GIT_URL = "https://example.test/manifest-pkg.git"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "ok"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    registry = NodeRegistry.create_isolated()
+
+    registry.load_custom_nodes(tmp_path / "custom_nodes")
+
+    package = registry.object_info("manifest_entrypoint")["custom_node_package"]
+    assert package == {
+        "name": "manifest-pkg",
+        "version": "0.1.0",
+        "repository": "https://example.test/manifest-pkg.git",
+        "directory": "manifest_pkg",
+        "entrypoint": "nodes",
+        "manifest_present": True,
+    }
+
+
 def test_node_registry_falls_back_to_package_init_when_manifest_has_no_entrypoints(tmp_path: Path) -> None:
     package_dir = tmp_path / "custom_nodes" / "manifest_init_pkg"
     package_dir.mkdir(parents=True)
