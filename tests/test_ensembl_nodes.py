@@ -319,6 +319,85 @@ async def test_ensembl_gene_lookup_fetches_homologs_when_requested(monkeypatch: 
 
 
 @pytest.mark.asyncio
+async def test_ensembl_gene_lookup_fetches_comma_separated_homolog_species(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ensembl_gene_lookup")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(
+        resource: str,
+        params: dict[str, Any] | None = None,
+        base_url: str | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        calls.append({"resource": resource, "params": dict(params or {}), "base_url": base_url})
+        if resource == "lookup/symbol/homo_sapiens/TP53":
+            return {
+                "id": "ENSG00000141510",
+                "display_name": "TP53",
+                "species": "homo_sapiens",
+                "object_type": "Gene",
+            }
+        if resource == "homology/id/ENSG00000141510":
+            target_species = str((params or {}).get("target_species", ""))
+            return {
+                "data": [
+                    {
+                        "id": "ENSG00000141510",
+                        "homologies": [
+                            {
+                                "target": {
+                                    "species": target_species,
+                                    "id": f"{target_species}:tp53",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        raise AssertionError(f"unexpected resource: {resource}")
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        gene_symbol="TP53",
+        species="homo_sapiens",
+        expand=True,
+        assembly="current",
+        fetch_homologs=True,
+        homolog_species="mus_musculus,rattus_norvegicus",
+    )
+
+    homologs_by_species = result["outputs"]["gene_info"]["homologs_by_species"]
+    assert sorted(homologs_by_species) == ["mus_musculus", "rattus_norvegicus"]
+    assert homologs_by_species["mus_musculus"]["data"][0]["homologies"][0]["target"]["id"] == (
+        "mus_musculus:tp53"
+    )
+    assert homologs_by_species["rattus_norvegicus"]["data"][0]["homologies"][0]["target"]["id"] == (
+        "rattus_norvegicus:tp53"
+    )
+    assert calls == [
+        {
+            "resource": "lookup/symbol/homo_sapiens/TP53",
+            "params": {"expand": 1},
+            "base_url": "https://rest.ensembl.org",
+        },
+        {
+            "resource": "homology/id/ENSG00000141510",
+            "params": {"type": "orthologues", "target_species": "mus_musculus"},
+            "base_url": "https://rest.ensembl.org",
+        },
+        {
+            "resource": "homology/id/ENSG00000141510",
+            "params": {"type": "orthologues", "target_species": "rattus_norvegicus"},
+            "base_url": "https://rest.ensembl.org",
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ensembl_vep_posts_vcf_variants_and_writes_outputs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -605,6 +605,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI EFetch now exposes the planned `accessions` input and accepts it at runtime while preserving `id_list` as a backward-compatible advanced alias.
 - Ensembl VEP now exposes the planned `maf` toggle and forwards the corresponding `MAF=yes/no` request parameter.
 - Ensembl Gene Lookup now exposes optional homolog controls and fetches `homology/id/{gene_id}` orthologue data when requested.
+- Ensembl Gene Lookup now accepts comma-separated homolog target species and records per-species homology responses while preserving the single-species `homologs` output shape.
 - Ensembl Gene Lookup now exposes the planned `gene_symbol` input and preserves `query` as a backward-compatible advanced alias.
 - UniProt Retrieve now exposes the planned `uniprot_ids` and `format` inputs while preserving `accession` / `include_fasta` compatibility.
 - InterProScan now accepts FASTA file paths through the existing `sequence` input and submits cleaned sequence content to EBI.

@@ -222,6 +222,13 @@ def _write_vep_table(path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
+def _coerce_species_list(value: str) -> list[str]:
+    text = str(value or "").strip()
+    if not text:
+        return []
+    return [part for part in re.split(r"[\s,;]+", text) if part]
+
+
 class EnsemblGeneLookupNode(BaseNode):
     """Lookup Ensembl genes by symbol or stable ID."""
 
@@ -271,6 +278,7 @@ class EnsemblGeneLookupNode(BaseNode):
         params = {"expand": 1 if expand else 0}
         fetch_homologs = bool(kwargs.get("fetch_homologs", False))
         homolog_species = str(kwargs.get("homolog_species", "") or "").strip()
+        homolog_species_list = _coerce_species_list(homolog_species)
 
         if _is_stable_id(query):
             resource = f"lookup/id/{quote(query, safe='')}"
@@ -284,14 +292,24 @@ class EnsemblGeneLookupNode(BaseNode):
         gene_info = dict(payload)
         gene_id = str(payload.get("id", "") or "").strip()
         if fetch_homologs and gene_id:
-            homolog_params: dict[str, Any] = {"type": "orthologues"}
-            if homolog_species:
-                homolog_params["target_species"] = homolog_species
-            gene_info["homologs"] = await _request_json(
-                f"homology/id/{quote(gene_id, safe='')}",
-                params=homolog_params,
-                base_url=base_url,
-            )
+            if len(homolog_species_list) > 1:
+                gene_info["homologs_by_species"] = {}
+                for target_species in homolog_species_list:
+                    homolog_params = {"type": "orthologues", "target_species": target_species}
+                    gene_info["homologs_by_species"][target_species] = await _request_json(
+                        f"homology/id/{quote(gene_id, safe='')}",
+                        params=homolog_params,
+                        base_url=base_url,
+                    )
+            else:
+                homolog_params: dict[str, Any] = {"type": "orthologues"}
+                if homolog_species_list:
+                    homolog_params["target_species"] = homolog_species_list[0]
+                gene_info["homologs"] = await _request_json(
+                    f"homology/id/{quote(gene_id, safe='')}",
+                    params=homolog_params,
+                    base_url=base_url,
+                )
         gene_info["summary"] = _summary(payload)
         return {
             "outputs": {
