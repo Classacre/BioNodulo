@@ -78,7 +78,9 @@ describe('ImportModal i18n', () => {
     expect(screen.getByText('Importar flujo de trabajo')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Importar workflow' })).not.toBeInTheDocument();
     expect(screen.queryByText('Importar workflow')).not.toBeInTheDocument();
-    expect(screen.getByText(/Pega codigo de workflow arriba/)).toBeInTheDocument();
+    expect(screen.getByText(/Pega codigo de flujo de trabajo arriba/)).toBeInTheDocument();
+    expect(screen.queryByText(/Pega codigo de workflow arriba/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/metadatos de workflow incrustados/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Importar' })).toBeDisabled();
 

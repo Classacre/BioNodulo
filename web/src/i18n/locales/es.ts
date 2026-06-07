@@ -2518,7 +2518,7 @@ class MyToolNode(CommandNode):
       cwl: 'clase: Workflow\ninputs:\n  reads: File\noutputs:\n  aligned: File\nsteps:\n  ...',
       galaxy: '{\n  "a_galaxy_workflow": "true",\n  "steps": {...}\n}',
     },
-    uploadHint: 'Pega codigo de workflow arriba o sube un archivo (los PNG con metadatos de workflow incrustados se decodifican automaticamente):',
+    uploadHint: 'Pega codigo de flujo de trabajo arriba o sube un archivo (los PNG con metadatos de flujo de trabajo incrustados se decodifican automaticamente):',
     parsing: 'Analizando...',
     errors: {
       parseFormat: 'No se pudo analizar el workflow. Asegurate de que el formato sea correcto.',
