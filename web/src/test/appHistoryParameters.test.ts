@@ -94,7 +94,8 @@ describe('App inline history workflow parameters', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('parameters.runPromptTitle')).toBe('Parametros del workflow');
+    expect(i18n.t('parameters.runPromptTitle')).toBe('Parametros del flujo de trabajo');
+    expect(i18n.t('parameters.runPromptTitle')).not.toBe('Parametros del workflow');
     expect(i18n.t('parameters.runPromptConfirm')).toBe('Usar valor');
     expect(i18n.t('parameters.runPromptCancel')).toBe('Cancelar ejecucion');
     await setLanguage('en');

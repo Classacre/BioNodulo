@@ -86,7 +86,8 @@ describe('workflow parameter run prompts', () => {
 
     await promptWorkflowRunParameters([{ name: 'threads', type: 'INT' }], prompt);
 
-    expect(prompt.mock.calls[0][0].title).toBe('Parametro del workflow');
+    expect(prompt.mock.calls[0][0].title).toBe('Parametro del flujo de trabajo');
+    expect(prompt.mock.calls[0][0].title).not.toBe('Parametro del workflow');
     expect(prompt.mock.calls[0][0].confirmLabel).toBe('Usar valor');
     expect(prompt.mock.calls[0][0].cancelLabel).toBe('Cancelar ejecucion');
     expect(i18n.t('parameters.integerRequired', { name: 'threads' })).toBe("El parametro 'threads' requiere un entero");

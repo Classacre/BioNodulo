@@ -811,8 +811,8 @@ const es = {
   parameters: {
     selectNodeHint: 'Select a node to edit its parameters',
     multiSelectHint: '{{count}} nodes selected — bulk edit available',
-    runPromptTitle: 'Parametros del workflow',
-    runParameterPromptTitle: 'Parametro del workflow',
+    runPromptTitle: 'Parametros del flujo de trabajo',
+    runParameterPromptTitle: 'Parametro del flujo de trabajo',
     runPromptConfirm: 'Usar valor',
     runPromptCancel: 'Cancelar ejecucion',
     integerRequired: "El parametro '{{name}}' requiere un entero",
