@@ -145,6 +145,50 @@ describe('TopBar i18n', () => {
     expect(screen.getByRole('button', { name: 'Increase batch count' })).toHaveFocus();
   });
 
+  it('moves focus through open run options with arrow and home/end keys', async () => {
+    const { default: TopBar } = await import('../components/layout/TopBar');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('en');
+
+    render(
+      <TopBar
+        validationValid
+        validationErrors={[]}
+        onRun={() => undefined}
+        hpcStatus="off"
+        queueCount={0}
+        queueMode="manual"
+        onQueueModeChange={() => undefined}
+        onToggleQueue={() => undefined}
+        onDryRunPreviewChange={() => undefined}
+        onOpenRuntimeArtifacts={() => undefined}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', { name: 'Run options' });
+    toggle.focus();
+    fireEvent.keyDown(toggle, { key: 'ArrowDown' });
+
+    const firstControl = screen.getByRole('button', { name: 'Increase batch count' });
+    const dryRunItem = screen.getByRole('menuitemcheckbox', { name: /Dry run preview/ });
+    const lastControl = screen.getByRole('menuitem', { name: /Batch from sheet/ });
+
+    expect(firstControl).toHaveFocus();
+
+    fireEvent.keyDown(firstControl, { key: 'ArrowDown' });
+    expect(dryRunItem).toHaveFocus();
+
+    fireEvent.keyDown(dryRunItem, { key: 'ArrowUp' });
+    expect(firstControl).toHaveFocus();
+
+    fireEvent.keyDown(firstControl, { key: 'End' });
+    expect(lastControl).toHaveFocus();
+
+    fireEvent.keyDown(lastControl, { key: 'Home' });
+    expect(firstControl).toHaveFocus();
+  });
+
   it('closes run options with Escape and restores focus to the toggle', async () => {
     const { default: TopBar } = await import('../components/layout/TopBar');
     const { setLanguage } = await import('../i18n');

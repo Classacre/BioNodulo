@@ -90,6 +90,27 @@ export default function TopBar({
     target?.focus();
   };
 
+  const moveRunMenuFocus = (event: ReactKeyboardEvent<HTMLElement>, direction: 'next' | 'previous' | 'first' | 'last') => {
+    const menu = runMenuRef.current?.querySelector<HTMLElement>('.run-split-menu');
+    if (!menu) return;
+    const controls = Array.from(menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+    if (controls.length === 0) return;
+    event.preventDefault();
+    if (direction === 'first') {
+      controls[0].focus();
+      return;
+    }
+    if (direction === 'last') {
+      controls[controls.length - 1].focus();
+      return;
+    }
+    const currentIndex = controls.findIndex(control => control === document.activeElement);
+    const startIndex = currentIndex >= 0 ? currentIndex : 0;
+    const offset = direction === 'next' ? 1 : -1;
+    const nextIndex = (startIndex + offset + controls.length) % controls.length;
+    controls[nextIndex].focus();
+  };
+
   const closeRunMenu = (restoreFocus = false) => {
     pendingRunMenuFocusRef.current = null;
     setRunMenuOpen(false);
@@ -132,6 +153,13 @@ export default function TopBar({
       event.preventDefault();
       openRunMenuFromKeyboard('last');
     }
+  };
+
+  const handleRunMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowDown') moveRunMenuFocus(event, 'next');
+    else if (event.key === 'ArrowUp') moveRunMenuFocus(event, 'previous');
+    else if (event.key === 'Home') moveRunMenuFocus(event, 'first');
+    else if (event.key === 'End') moveRunMenuFocus(event, 'last');
   };
 
   const hpcBadgeClass =
@@ -212,7 +240,7 @@ export default function TopBar({
           </button>
 
           {runMenuOpen && (
-            <div className="run-split-menu" role="menu">
+            <div className="run-split-menu" role="menu" onKeyDown={handleRunMenuKeyDown}>
               <div className="run-split-menu-header">{t('topbar.batchCount')}</div>
               <div className="run-split-menu-batch">
                 <button
