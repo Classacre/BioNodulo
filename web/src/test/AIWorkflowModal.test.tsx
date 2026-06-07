@@ -26,6 +26,12 @@ vi.mock('../api/client', () => {
   };
 });
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -61,6 +67,7 @@ function workflow(partial: Partial<Workflow> = {}): Workflow {
 describe('AIWorkflowModal i18n', () => {
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -438,7 +445,8 @@ describe('AIWorkflowModal i18n', () => {
 
     async function expectFallback(prompt: string, expected: string, forbidden: RegExp[] = []) {
       storage.clear();
-      vi.mocked(apiPost).mockRejectedValueOnce(new Error('offline'));
+      const chatError = new Error('offline');
+      vi.mocked(apiPost).mockRejectedValueOnce(chatError);
 
       render(
         <AIWorkflowModal
@@ -454,8 +462,10 @@ describe('AIWorkflowModal i18n', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
       expect(await screen.findByText(expected)).toBeInTheDocument();
+      expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat', chatError);
       forbidden.forEach(pattern => expect(screen.queryByText(pattern)).not.toBeInTheDocument());
       cleanup();
+      loggingMock.logError.mockReset();
     }
 
     await expectFallback(

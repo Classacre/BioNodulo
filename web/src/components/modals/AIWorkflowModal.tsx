@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
 import { apiPost, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 import { renderMarkdownToHtml } from '../../utils/markdown';
 
 interface AIWorkflowModalProps {
@@ -314,6 +315,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             )
           );
         } else if (err instanceof ApiError || err instanceof Error) {
+          logError('aiWorkflow.chat', err);
           respondLocally();
         } else {
           throw err;
