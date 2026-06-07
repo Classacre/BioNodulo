@@ -1136,6 +1136,11 @@ const es = {
     enabledDescription: 'Los trabajos se enviaran al planificador configurado.',
     scheduler: 'Planificador',
     backend: 'Sistema de colas',
+    backends: {
+      slurm: 'SLURM',
+      pbs: 'PBS / Torque',
+      sge: 'Sun Grid Engine',
+    },
     jobResources: 'Recursos del trabajo',
     partitionQueue: 'Particion / Cola',
     accountProject: 'Cuenta / Proyecto',

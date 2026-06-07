@@ -66,9 +66,9 @@ export default function HPCPanel({ config, onChange, onClose }: HPCPanelProps) {
               <div className="param-row">
                 <label className="param-label">{t('hpc.backend')}</label>
                 <select className="select-input" value={config.backend} onChange={e => update({ backend: e.target.value as 'slurm' | 'pbs' | 'sge' })}>
-                  <option value="slurm">SLURM</option>
-                  <option value="pbs">PBS / Torque</option>
-                  <option value="sge">Sun Grid Engine</option>
+                  <option value="slurm">{t('hpc.backends.slurm')}</option>
+                  <option value="pbs">{t('hpc.backends.pbs')}</option>
+                  <option value="sge">{t('hpc.backends.sge')}</option>
                 </select>
               </div>
             </div>

@@ -1127,6 +1127,11 @@ const en = {
     enabledDescription: 'Jobs will be submitted to the configured scheduler.',
     scheduler: 'Scheduler',
     backend: 'Backend',
+    backends: {
+      slurm: 'SLURM',
+      pbs: 'PBS / Torque',
+      sge: 'Sun Grid Engine',
+    },
     jobResources: 'Job Resources',
     partitionQueue: 'Partition / Queue',
     accountProject: 'Account / Project',

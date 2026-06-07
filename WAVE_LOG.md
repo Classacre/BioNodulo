@@ -709,6 +709,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - GettingStartedModal release-fetch failures now report a structured `logError` scope while preserving the bundled changelog fallback and skipping abort noise.
 - CWL export now routes core table transforms `filter_rows` and `merge_tables` through the builtin node runner, with exported command smoke tests covering filtered and merged table outputs.
 - While-loop body execution now honors `break_continue` signals, stopping on break and skipping the rest of the current iteration on continue just like `foreach`.
+- HPC backend dropdown option labels now read from `hpc.backends` i18n keys, with Spanish render coverage and a static guard against reintroducing literal option copy.
 
 ---
 

@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HPCConfig } from '../types';
 
@@ -76,6 +78,9 @@ describe('HPCPanel i18n', () => {
     expect(screen.getByText('Los trabajos se enviaran al planificador configurado.')).toBeInTheDocument();
     expect(screen.getByText('Planificador')).toBeInTheDocument();
     expect(screen.getByText('Sistema de colas')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'SLURM' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'PBS / Torque' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Sun Grid Engine' })).toBeInTheDocument();
     expect(screen.getByText('Recursos del trabajo')).toBeInTheDocument();
     expect(screen.getByText('Particion / Cola')).toBeInTheDocument();
     expect(screen.getByText('Cuenta / Proyecto')).toBeInTheDocument();
@@ -97,5 +102,21 @@ describe('HPCPanel i18n', () => {
 
     await waitFor(() => expect(screen.getByText('No se pudo conectar (503). Revisa tu configuracion HPC.')).toBeInTheDocument());
     expect(loggingMock.logError).toHaveBeenCalledWith('hpc.panel.testConnection', expect.any(Error));
+  });
+
+  it('keeps backend option labels behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/HPCPanel.tsx'), 'utf8');
+
+    [
+      'hpc.backends.slurm',
+      'hpc.backends.pbs',
+      'hpc.backends.sge',
+    ].forEach(key => expect(source).toContain(key));
+
+    [
+      '>SLURM<',
+      '>PBS / Torque<',
+      '>Sun Grid Engine<',
+    ].forEach(text => expect(source).not.toContain(text));
   });
 });
