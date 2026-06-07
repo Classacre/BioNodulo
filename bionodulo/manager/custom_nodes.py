@@ -113,7 +113,10 @@ def list_installed_packages(custom_nodes_dir: str | Path) -> list[dict[str, Any]
         if entry.is_dir():
             manifest = entry / "bionodulo.toml"
             if manifest.exists():
-                packages.append(load_package_manifest(entry))
+                try:
+                    packages.append(load_package_manifest(entry))
+                except Exception as exc:
+                    packages.append(_invalid_manifest_package(entry, manifest, exc))
             elif (entry / "__init__.py").exists():
                 packages.append(_legacy_package(entry))
         elif entry.is_file() and entry.suffix == ".py":
@@ -327,4 +330,16 @@ def _legacy_package(path: Path) -> CustomNodePackage:
         version="",
         directory=path.name,
         manifest_present=False,
+    )
+
+
+def _invalid_manifest_package(path: Path, manifest_path: Path, exc: Exception) -> CustomNodePackage:
+    return CustomNodePackage(
+        name=path.name,
+        version="",
+        directory=path.name,
+        manifest_path=str(manifest_path),
+        manifest_present=True,
+        valid=False,
+        errors=[str(exc)],
     )

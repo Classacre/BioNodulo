@@ -93,6 +93,39 @@ entrypoints = ["nodes"]
     assert packages[2]["directory"] == "single_file.py"
 
 
+def test_list_installed_packages_reports_invalid_manifest_without_hiding_valid_packages(tmp_path: Path) -> None:
+    invalid_pkg = tmp_path / "broken_pkg"
+    invalid_pkg.mkdir()
+    (invalid_pkg / "bionodulo.toml").write_text(
+        """
+[package]
+name = "broken-pkg"
+entrypoints = ["nodes"
+""".strip(),
+        encoding="utf-8",
+    )
+    valid_pkg = tmp_path / "valid_pkg"
+    valid_pkg.mkdir()
+    (valid_pkg / "bionodulo.toml").write_text(
+        """
+[package]
+name = "valid-pkg"
+version = "1.0.0"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    packages = list_installed_packages(tmp_path)
+
+    assert [pkg["name"] for pkg in packages] == ["broken_pkg", "valid-pkg"]
+    assert packages[0]["directory"] == "broken_pkg"
+    assert packages[0]["manifest_path"] == str(invalid_pkg / "bionodulo.toml")
+    assert packages[0]["manifest_present"] is True
+    assert packages[0]["valid"] is False
+    assert packages[0]["errors"]
+    assert packages[1]["valid"] is True
+
+
 def test_registry_entries_marks_installed_packages_by_repository(tmp_path: Path) -> None:
     installed_dir = tmp_path / "community_nodes"
     installed_dir.mkdir()

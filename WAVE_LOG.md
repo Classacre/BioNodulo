@@ -646,6 +646,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Merge now enforces a positive `timeout` for `wait_mode="all"` when fewer than the expected inputs are present, while preserving inactive-branch fan-in via `wait_mode="any"`.
 - The `/api/docs/{page}` route now serves repo-backed Getting Started help content when workspace docs are absent.
 - Node Info now localizes missing-default parameter copy instead of rendering a raw placeholder symbol.
+- Custom-node package listing now reports malformed manifests as invalid package records instead of breaking the whole manager registry response.
 
 ---
 
