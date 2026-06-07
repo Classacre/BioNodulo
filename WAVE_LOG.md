@@ -502,6 +502,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Runtime artifact panel title, activator labels, submitted-run summaries, and checkpoint empty states now avoid English `runtime`/`workflow`/`checkpoint` terms in Spanish UI copy with panel coverage.
 - Settings cache and telemetry labels now use Spanish storage/registro wording with SettingsPanel and runtime-command copy coverage.
 - Settings appearance/canvas copy now avoids English `Tooltips`, `cache`, and raw status terms in Spanish UI coverage.
+- Settings AI base-URL and API-key placeholder examples now read from `settings.ai` i18n keys while preserving the existing example values.
 - Command palette workflow group and execution-cache commands now use Spanish `flujo de trabajo` and storage wording with runtime-command copy coverage.
 - Help Wiki getting-started and canvas-feature articles now avoid English `Run`, `Note`, and `Hover` action wording in Spanish render coverage.
 - Help Wiki HPC and workflow-converter articles now avoid English HPC action, settings, import/export, and generic-command wording in Spanish render coverage.

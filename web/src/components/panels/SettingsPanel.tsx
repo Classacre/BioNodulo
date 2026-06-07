@@ -405,10 +405,10 @@ export default function SettingsPanel({
             <input type="text" className="text-input" value={String(get('bionodulo.llm.model'))} onChange={e => set('bionodulo.llm.model', e.target.value)} />
           </SettingRow>
           <SettingRow query={query} label={st('ai.baseUrl')} desc={st('ai.baseUrlDescription')} keywords="endpoint url proxy litellm openai compatible base">
-            <input type="text" className="text-input" value={String(get('bionodulo.llm.baseUrl') || '')} onChange={e => set('bionodulo.llm.baseUrl', e.target.value)} placeholder="http://localhost:4000/v1" />
+            <input type="text" className="text-input" value={String(get('bionodulo.llm.baseUrl') || '')} onChange={e => set('bionodulo.llm.baseUrl', e.target.value)} placeholder={st('ai.baseUrlPlaceholder')} />
           </SettingRow>
           <SettingRow query={query} label={st('ai.apiKey')} desc={st('ai.apiKeyDescription')} keywords="secret token api clave">
-            <input type="password" className="text-input" value={String(get('bionodulo.llm.apiKey') || '')} onChange={e => set('bionodulo.llm.apiKey', e.target.value)} placeholder="sk-..." />
+            <input type="password" className="text-input" value={String(get('bionodulo.llm.apiKey') || '')} onChange={e => set('bionodulo.llm.apiKey', e.target.value)} placeholder={st('ai.apiKeyPlaceholder')} />
           </SettingRow>
           <SettingRow query={query} label={st('ai.temperature')} desc={st('ai.temperatureDescription')} keywords="temperature creativity temperatura">
             <input type="number" className="text-input" style={{ width: 60 }} min={0} max={2} step={0.1} value={Number(get('bionodulo.llm.temperature'))} onChange={e => set('bionodulo.llm.temperature', parseFloat(e.target.value))} />

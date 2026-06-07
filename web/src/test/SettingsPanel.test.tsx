@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const loggingMock = vi.hoisted(() => ({
   logError: vi.fn(),
@@ -204,6 +206,8 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Temperatura de muestreo')).toBeInTheDocument();
     expect(screen.getByText('Tokens maximos')).toBeInTheDocument();
     expect(screen.getByText('Tokens maximos de respuesta')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('http://localhost:4000/v1')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('sk-...')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Telemetria' }));
 
@@ -213,6 +217,15 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('0 eventos almacenados (limite 200)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
+  });
+
+  it('keeps AI placeholder examples behind settings i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/SettingsPanel.tsx'), 'utf8');
+
+    expect(source).toContain('ai.baseUrlPlaceholder');
+    expect(source).toContain('ai.apiKeyPlaceholder');
+    expect(source).not.toContain('placeholder="http://localhost:4000/v1"');
+    expect(source).not.toContain('placeholder="sk-..."');
   });
 
   it('shows palette toasts from the active locale', async () => {
