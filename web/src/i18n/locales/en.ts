@@ -129,6 +129,10 @@ const en = {
       palette: {
         use: 'Use {{name}} palette',
       },
+      share: {
+        copyUrl: 'Copy share URL',
+        copyUrlDescription: 'Encode the current workflow into a URL hash and copy to clipboard',
+      },
       workflow: {
         run: 'Run workflow',
         currentWorkflow: 'Current workflow',
@@ -144,6 +148,13 @@ const en = {
       appearance: 'Appearance',
       workflow: 'Workflow',
     },
+  },
+  workflowShare: {
+    copyUrlBuildError: 'Could not build share URL',
+    copyUrlTooLarge: 'URL exceeds 32 KB',
+    copyUrlTooLargeMessage: 'Some chat tools may truncate. Consider exporting instead.',
+    copyUrlCopied: 'Share URL copied',
+    copyUrlDialogTitle: 'Share URL',
   },
   shortcuts: {
     title: 'Keyboard shortcuts',

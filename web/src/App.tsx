@@ -2072,22 +2072,23 @@ export default function App() {
       },
       {
         id: 'workflow.copyShareUrl',
-        label: 'Copy share URL',
-        description: 'Encode the current workflow into a URL hash and copy to clipboard',
+        label: t('commandPalette.commands.share.copyUrl'),
+        description: t('commandPalette.commands.share.copyUrlDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: async () => {
           const url = buildShareUrl(activeWorkflow);
-          if (!url) { toast.error('Could not build share URL'); return; }
+          if (!url) { toast.error(t('workflowShare.copyUrlBuildError')); return; }
           if (url.length > 32_000) {
-            toast.warning('URL exceeds 32 KB', { message: 'Some chat tools may truncate. Consider exporting instead.' });
+            toast.warning(t('workflowShare.copyUrlTooLarge'), { message: t('workflowShare.copyUrlTooLargeMessage') });
           }
           try {
             await navigator.clipboard.writeText(url);
-            toast.success('Share URL copied', { message: `${(url.length / 1024).toFixed(1)} KB` });
+            toast.success(t('workflowShare.copyUrlCopied'), { message: `${(url.length / 1024).toFixed(1)} KB` });
           } catch {
             // Some browsers block clipboard from non-user gestures — surface
             // the URL inline as a fallback.
-            await alertDialog({ title: 'Share URL', message: url });
+            await alertDialog({ title: t('workflowShare.copyUrlDialogTitle'), message: url });
           }
         },
       },

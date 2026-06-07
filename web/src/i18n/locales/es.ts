@@ -132,6 +132,10 @@ const es = {
       palette: {
         use: 'Usar paleta {{name}}',
       },
+      share: {
+        copyUrl: 'Copiar URL compartible',
+        copyUrlDescription: 'Codificar el workflow actual en un hash de URL y copiarlo al portapapeles',
+      },
       workflow: {
         run: 'Ejecutar workflow',
         currentWorkflow: 'Workflow actual',
@@ -147,6 +151,13 @@ const es = {
       appearance: 'Apariencia',
       workflow: 'Workflow',
     },
+  },
+  workflowShare: {
+    copyUrlBuildError: 'No se pudo crear la URL compartible',
+    copyUrlTooLarge: 'La URL supera 32 KB',
+    copyUrlTooLargeMessage: 'Algunas herramientas de chat pueden truncarla. Considera exportar en su lugar.',
+    copyUrlCopied: 'URL compartible copiada',
+    copyUrlDialogTitle: 'URL compartible',
   },
   shortcuts: {
     title: 'Atajos de teclado',
