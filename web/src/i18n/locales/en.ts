@@ -1771,6 +1771,8 @@ class MyToolNode(CommandNode):
       consoleDetailsFallback: 'see the console for details',
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Run failed: {{message}}',
+      runErrorLog: 'Run error: {{message}}',
+      runInterruptedLog: 'Run interrupted',
       selectedRunFailedLog: 'Selected run failed: {{message}}',
       sampleSheetRunsQueued: '{{count}} runs queued from sample sheet',
       sampleSheetBatchFailed: 'Sample sheet batch failed',

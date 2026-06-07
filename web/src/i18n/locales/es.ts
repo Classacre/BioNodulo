@@ -1776,6 +1776,8 @@ class MyToolNode(CommandNode):
       consoleDetailsFallback: 'consulta la consola para mas detalles',
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Ejecucion fallida: {{message}}',
+      runErrorLog: 'Error de ejecucion: {{message}}',
+      runInterruptedLog: 'Ejecucion interrumpida',
       selectedRunFailedLog: 'Ejecucion seleccionada fallida: {{message}}',
       sampleSheetRunsQueued: '{{count}} ejecuciones en cola desde hoja de muestras',
       sampleSheetBatchFailed: 'Lote de hoja de muestras fallido',

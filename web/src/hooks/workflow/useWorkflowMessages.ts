@@ -292,7 +292,7 @@ export function useWorkflowMessages({
           run_id: String(payload.run_id),
           node_id: 'queue',
           level: 'error',
-          message: `Run error: ${payload.error}`,
+          message: t('console.actions.runErrorLog', { message: payload.error }),
           timestamp: ts,
         });
         updateRun(String(payload.run_id), { status: 'error', end_time: ts });
@@ -324,7 +324,7 @@ export function useWorkflowMessages({
           run_id: String(payload.run_id),
           node_id: 'queue',
           level: 'warn',
-          message: `Run interrupted`,
+          message: t('console.actions.runInterruptedLog'),
           timestamp: ts,
         });
         updateRun(String(payload.run_id), { status: 'cancelled', end_time: ts });
