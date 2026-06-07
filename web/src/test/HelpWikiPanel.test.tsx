@@ -352,10 +352,14 @@ describe('HelpWikiPanel node documentation search', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Guia de plantillas' }));
 
-    expect(screen.getByRole('heading', { name: 'Plantillas de workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plantillas de flujo de trabajo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Plantillas disponibles' })).toBeInTheDocument();
-    expect(screen.getByText(/Las plantillas son workflows preconstruidos/)).toBeInTheDocument();
+    expect(screen.getByText(/Las plantillas son flujos de trabajo preconstruidos/)).toBeInTheDocument();
+    expect(screen.getByText(/Guarda cualquier flujo de trabajo como plantilla/)).toBeInTheDocument();
     expect(screen.getByText(/Kraken2 -> Bracken/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Plantillas de workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Las plantillas son workflows preconstruidos/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Guarda cualquier workflow como plantilla/)).not.toBeInTheDocument();
     expect(screen.queryByText('Workflow Templates')).not.toBeInTheDocument();
   });
 

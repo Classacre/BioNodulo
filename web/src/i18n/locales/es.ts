@@ -1508,8 +1508,8 @@ const es = {
 </table>
 `,
       templatesGuide: `
-<h3>Plantillas de workflow</h3>
-<p>Las plantillas son workflows preconstruidos para analisis comunes de bioinformatica. Carga una plantilla como punto de partida y personalizala.</p>
+<h3>Plantillas de flujo de trabajo</h3>
+<p>Las plantillas son flujos de trabajo preconstruidos para analisis comunes de bioinformatica. Carga una plantilla como punto de partida y personalizala.</p>
 
 <h4>Plantillas disponibles</h4>
 <ul>
@@ -1529,7 +1529,7 @@ const es = {
 <p>Haz clic en el icono Plantillas de la barra izquierda para explorar las plantillas disponibles. Haz clic en una tarjeta de plantilla para cargarla en el lienzo. Cada plantilla incluye un nodo <strong>Note</strong> amarillo en la parte superior que describe el pipeline.</p>
 
 <h4>Crear plantillas personalizadas</h4>
-<p>Guarda cualquier workflow como plantilla exportandolo a JSON y colocandolo en el directorio <code>templates/</code>. Las plantillas deben incluir los campos <code>version</code>, <code>app</code>, <code>name</code>, <code>description</code>, <code>nodes</code>, <code>edges</code> y <code>groups</code>.</p>
+<p>Guarda cualquier flujo de trabajo como plantilla exportandolo a JSON y colocandolo en el directorio <code>templates/</code>. Las plantillas deben incluir los campos <code>version</code>, <code>app</code>, <code>name</code>, <code>description</code>, <code>nodes</code>, <code>edges</code> y <code>groups</code>.</p>
 `,
       customNodes: `
 <h3>Nodos personalizados</h3>
