@@ -640,6 +640,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - List Operations now supports the planned `get` operation with positive and negative index lookup plus bounds-safe false results.
 - List Operations now supports the planned `slice` operation with `start`/`end` indices and JSON-list output.
 - List Operations now supports the planned `reverse` operation while preserving JSON-list output and length metadata.
+- Dictionary now supports the planned `remove` operation for deleting a key while keeping the existing unsupported `delete` operation behavior unchanged.
 
 ---
 

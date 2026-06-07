@@ -285,6 +285,11 @@ async def test_dictionary_operations_support_json_objects() -> None:
     assert merged_value == ""
     assert merged_count == 3
 
+    remove_json, remove_value, remove_count = await node.run(operation="remove", dictionary=source, key="condition")
+    assert json.loads(remove_json) == {"sample": "S1"}
+    assert remove_value == ""
+    assert remove_count == 1
+
     assert await node.run(operation="has_key", dictionary=source, key="sample") == (source, "true", 2)
 
 

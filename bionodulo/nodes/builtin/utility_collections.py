@@ -525,7 +525,7 @@ class DictionaryNode(BaseNode):
     NODE_ID = "dictionary"
     DISPLAY_NAME = "Dictionary"
     CATEGORY = "utils"
-    DESCRIPTION = "JSON object operations: get, set, keys, values, merge, has_key"
+    DESCRIPTION = "JSON object operations: get, set, keys, values, merge, remove, has_key"
     SEARCH_ALIASES = ["dict", "map", "dictionary", "key-value", "json", "object", "properties"]
     RETURN_TYPES = ("STRING", "STRING", "INT")
     RETURN_NAMES = ("result_json", "value", "count")
@@ -536,7 +536,7 @@ class DictionaryNode(BaseNode):
         return {
             "required": {
                 "operation": (
-                    ["get", "set", "keys", "values", "merge", "has_key"],
+                    ["get", "set", "keys", "values", "merge", "remove", "has_key"],
                     {"default": "get", "description": "Dictionary operation"},
                 ),
                 "dictionary": ("STRING", {"default": "{}", "multiline": True, "description": "Dictionary as JSON object"}),
@@ -570,6 +570,10 @@ class DictionaryNode(BaseNode):
 
         if operation == "merge":
             data.update(_parse_json_object(kwargs.get("dictionary_b", "{}"), field_name="dictionary_b"))
+            return (_to_json(data), "", len(data))
+
+        if operation == "remove":
+            data.pop(key, None)
             return (_to_json(data), "", len(data))
 
         if operation == "has_key":
