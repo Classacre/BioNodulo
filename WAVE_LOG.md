@@ -588,6 +588,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UniProt Search and Retrieve now expose `include_isoform` and forward UniProt's `includeIsoform=true` parameter for search, JSON retrieve, and FASTA retrieve requests when enabled.
 - Ensembl VEP now exposes REST SIFT and PolyPhen prediction toggles, advertises them in search aliases, and forwards `SiftPrediction` / `PolyPhen` request params with covered on/off behavior.
 - Pause / Resume now includes structured preview data in the emitted `pause_requested` runtime event, matching the persisted pause record and giving UI clients immediate review context.
+- KEGG Pathway now supports the planned `pathway_image` query type and `download_image` option, downloading pathway PNG maps and recording image path/URL metadata alongside existing JSON/TSV outputs.
 
 ---
 

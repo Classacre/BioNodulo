@@ -123,3 +123,50 @@ async def test_kegg_pathway_genes_writes_json_and_tsv(
         "path:hsa04110\thsa:51343\n"
     )
     assert calls == ["link/genes/hsa04110"]
+
+
+@pytest.mark.asyncio
+async def test_kegg_downloads_pathway_image_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("kegg_pathway")
+    module = importlib.import_module(node_class.__module__)
+    text_calls: list[str] = []
+    download_calls: list[tuple[str, Path]] = []
+
+    async def fake_text(resource: str, **_: Any) -> str:
+        text_calls.append(resource)
+        return "ENTRY       hsa04110                    Pathway\nNAME        Cell cycle - Homo sapiens\n///\n"
+
+    async def fake_download(url: str, path: Path, **_: Any) -> None:
+        download_calls.append((url, path))
+        path.write_bytes(b"png-bytes")
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+    monkeypatch.setattr(module, "_download_file", fake_download)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    assert "pathway_image" in node_class.INPUT_TYPES()["required"]["query_type"][0]
+    assert node_class.INPUT_TYPES()["optional"]["download_image"][0] == "BOOLEAN"
+
+    result = await node_class().run(
+        query="04110",
+        query_type="pathway_image",
+        organism="hsa",
+        download_image=True,
+        context=context,
+    )
+
+    json_path = Path(result["outputs"]["pathway_data"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    image_path = tmp_path / "kegg_pathway" / "hsa04110.png"
+
+    assert payload["query_type"] == "pathway_image"
+    assert payload["effective_query"] == "hsa04110"
+    assert payload["pathway_image"] == str(image_path)
+    assert image_path.read_bytes() == b"png-bytes"
+    assert text_calls == ["get/hsa04110"]
+    assert download_calls == [
+        ("https://www.kegg.jp/kegg/pathway/hsa/hsa04110.png", image_path),
+    ]

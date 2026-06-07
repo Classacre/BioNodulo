@@ -24,6 +24,7 @@ KEGG_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=KEGG_RATE_LIMIT_PER_S
 QUERY_TYPES = (
     "pathway_info",
     "pathway_genes",
+    "pathway_image",
     "list_pathways",
     "gene_info",
     "find_genes",
@@ -75,6 +76,33 @@ async def _request(resource: str, *, retries: int, timeout: float) -> httpx.Resp
         raise RuntimeError(f"KEGG {resource} request failed: {exc}") from exc
 
 
+async def _download_file(
+    url: str,
+    path: Path,
+    *,
+    retries: int = MAX_RETRIES,
+    timeout: float = REQUEST_TIMEOUT_S,
+) -> None:
+    client = APIHttpClient(cache=KEGG_API_CACHE, rate_limiter=KEGG_RATE_LIMITER)
+    try:
+        response = await client.request(
+            "GET",
+            url,
+            headers={"User-Agent": KEGG_USER_AGENT},
+            timeout=timeout,
+            retries=retries,
+            retry_delay=RETRY_DELAY_S,
+            cache_ttl=KEGG_CACHE_TTL_S,
+            follow_redirects=True,
+        )
+        path.write_bytes(response.content)
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        raise RuntimeError(f"KEGG pathway image download failed with HTTP {status}: {url}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"KEGG pathway image download failed: {url}: {exc}") from exc
+
+
 def _normalise_pathway_id(query: str, organism: str) -> str:
     text = str(query or "").strip()
     if text.startswith("path:"):
@@ -101,6 +129,9 @@ def _resource_for(query: str, query_type: str, organism: str) -> tuple[str, str]
     if query_type == "link_kegg":
         source = str(query or "").strip().replace(",", "+").replace(" ", "+")
         return f"link/pathway/{source}", source
+    if query_type == "pathway_image":
+        pathway_id = _normalise_pathway_id(query, organism)
+        return f"get/{pathway_id}", pathway_id
     pathway_id = _normalise_pathway_id(query, organism)
     return f"get/{pathway_id}", pathway_id
 
@@ -216,6 +247,7 @@ class KEGGPathwayNode(BaseNode):
             },
             "optional": {
                 "organism": ("STRING", {"default": "hsa", "description": "KEGG organism code, e.g. hsa, mmu, eco"}),
+                "download_image": ("BOOLEAN", {"default": False}),
                 "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
             },
             "hidden": {},
@@ -230,6 +262,7 @@ class KEGGPathwayNode(BaseNode):
         if query_type not in QUERY_TYPES:
             raise ValueError(f"Unsupported KEGG query_type: {query_type}")
         organism = str(kwargs.get("organism", "hsa") or "hsa").strip() or "hsa"
+        download_image = bool(kwargs.get("download_image", False))
 
         resource, effective_query = _resource_for(query, query_type, organism)
         text = await _request_text(resource)
@@ -246,6 +279,12 @@ class KEGGPathwayNode(BaseNode):
         output_name = str(kwargs.get("output_name", "") or "").strip()
         stem = _safe_filename(output_name or effective_query or query_type)
         out_dir = _node_output_dir(self, context)
+        if download_image and query_type in {"pathway_info", "pathway_image"}:
+            image_path = out_dir / f"{_safe_filename(effective_query)}.png"
+            image_url = f"https://www.kegg.jp/kegg/pathway/{organism}/{effective_query}.png"
+            await _download_file(image_url, image_path)
+            data["pathway_image"] = str(image_path)
+            data["pathway_image_url"] = image_url
         json_path = out_dir / f"{stem}.json"
         tsv_path = out_dir / f"{stem}.tsv"
         json_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
