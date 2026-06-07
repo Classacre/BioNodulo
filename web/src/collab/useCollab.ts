@@ -214,13 +214,13 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const shareWorkflow = useCallback(async (userId: string, role: string) => {
     if (!workflowId) return;
     const token = getToken();
-    if (!token) throw new Error('Sign in before sharing workflows');
+    if (!token) throw new Error(tRef.current('collab.shareSignInRequired'));
     try {
       await apiPost('/api/collab/share', { workflow_id: workflowId, user_id: userId, role });
       setIsShared(true);
     } catch (err) {
       logError('collab.useCollab.share', err);
-      throw new Error('Failed to share workflow');
+      throw new Error(tRef.current('collab.shareWorkflowError'));
     }
   }, [workflowId]);
 

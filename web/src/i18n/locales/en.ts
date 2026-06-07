@@ -2105,6 +2105,8 @@ class MyToolNode(CommandNode):
     connectionForbidden: 'Forbidden',
     connectionUnauthorized: 'Unauthorized',
     connectionError: 'WebSocket connection error',
+    shareSignInRequired: 'Sign in before sharing workflows',
+    shareWorkflowError: 'Failed to share workflow',
     followingUserTitle: 'Following {{name}}. Click to unfollow.',
     followingUser: 'Following {{name}}',
     followViewportTitle: "Follow a user's viewport",

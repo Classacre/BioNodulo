@@ -688,6 +688,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - VersionHistory load, save, restore, delete, and diff failures now report structured `logError` scopes while preserving existing localized inline error messages.
 - BottomConsole report fetch failures now report a structured `logError` scope while preserving the inline report-panel error and skipping cancelled fetches.
 - useCollab share-state load and share-action failures now report structured `logError` scopes while preserving the unshared fallback and generic share error.
+- `useCollab.shareWorkflow` sign-in and share-failure exceptions now read from `collab` i18n keys with Spanish hook coverage and a static guard against reintroducing literal English fallback errors.
 - HPCPanel test-connection failures now report a structured `logError` scope while preserving the localized connection feedback.
 - OutputDiffModal left and right run fetch failures now report structured `logError` scopes while preserving inline comparison errors and skipping cancelled fetches.
 - RuntimeArtifactsPanel trigger evaluation, submit-due, pause resolution, and checkpoint resolution failures now report structured `logError` scopes while preserving inline action errors.

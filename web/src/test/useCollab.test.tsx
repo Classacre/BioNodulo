@@ -37,7 +37,10 @@ vi.mock('../collab/auth', () => authMocks);
 vi.mock('y-websocket', () => websocketMocks);
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => ({
+      'collab.shareSignInRequired': 'Inicia sesion antes de compartir flujos de trabajo',
+      'collab.shareWorkflowError': 'No se pudo compartir el flujo de trabajo',
+    }[key] ?? key),
   }),
 }));
 vi.mock('../collab/useAwareness', () => ({
@@ -92,7 +95,7 @@ describe('useCollab', () => {
     expect(result.current.isShared).toBe(false);
   });
 
-  it('logs shareWorkflow failures and preserves the generic UI error', async () => {
+  it('throws localized shareWorkflow failure errors', async () => {
     const err = new Error('share failed upstream');
     vi.mocked(apiGet).mockResolvedValueOnce({ shares: [] });
     vi.mocked(apiPost).mockRejectedValueOnce(err);
@@ -100,8 +103,20 @@ describe('useCollab', () => {
     const { result } = renderHook(() => useCollab('workflow-1', currentUser));
 
     await expect(result.current.shareWorkflow('user-2', 'viewer')).rejects.toThrow(
-      'Failed to share workflow',
+      'No se pudo compartir el flujo de trabajo',
     );
     expect(logError).toHaveBeenCalledWith('collab.useCollab.share', err);
+  });
+
+  it('throws localized shareWorkflow sign-in errors', async () => {
+    authMocks.getToken.mockReturnValue('');
+    vi.mocked(apiGet).mockResolvedValueOnce({ shares: [] });
+
+    const { result } = renderHook(() => useCollab('workflow-1', currentUser));
+
+    await expect(result.current.shareWorkflow('user-2', 'viewer')).rejects.toThrow(
+      'Inicia sesion antes de compartir flujos de trabajo',
+    );
+    expect(apiPost).not.toHaveBeenCalled();
   });
 });

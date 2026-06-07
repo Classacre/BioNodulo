@@ -2115,6 +2115,8 @@ class MyToolNode(CommandNode):
     connectionForbidden: 'Acceso denegado',
     connectionUnauthorized: 'No autorizado',
     connectionError: 'Error de conexion WebSocket',
+    shareSignInRequired: 'Inicia sesion antes de compartir flujos de trabajo',
+    shareWorkflowError: 'No se pudo compartir el flujo de trabajo',
     followingUserTitle: 'Siguiendo a {{name}}. Haz clic para dejar de seguir.',
     followingUser: 'Siguiendo a {{name}}',
     followViewportTitle: 'Seguir la vista de un usuario',

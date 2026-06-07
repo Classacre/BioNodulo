@@ -39,6 +39,8 @@ describe('Collaboration connection copy i18n', () => {
     expect(i18n.t('collab.connectionForbidden')).toBe('Acceso denegado');
     expect(i18n.t('collab.connectionUnauthorized')).toBe('No autorizado');
     expect(i18n.t('collab.connectionError')).toBe('Error de conexion WebSocket');
+    expect(i18n.t('collab.shareSignInRequired')).toBe('Inicia sesion antes de compartir flujos de trabajo');
+    expect(i18n.t('collab.shareWorkflowError')).toBe('No se pudo compartir el flujo de trabajo');
   });
 
   it('keeps useCollab connection fallback errors behind i18n keys', () => {
@@ -47,10 +49,14 @@ describe('Collaboration connection copy i18n', () => {
     expect(source).toContain('collab.connectionForbidden');
     expect(source).toContain('collab.connectionUnauthorized');
     expect(source).toContain('collab.connectionError');
+    expect(source).toContain('collab.shareSignInRequired');
+    expect(source).toContain('collab.shareWorkflowError');
     [
       "'Forbidden'",
       "'Unauthorized'",
       "'WebSocket connection error'",
+      "'Sign in before sharing workflows'",
+      "'Failed to share workflow'",
     ].forEach(text => {
       expect(source).not.toContain(text);
     });
