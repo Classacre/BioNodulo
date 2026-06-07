@@ -190,6 +190,11 @@ def _write_summary_tsv(path: Path, entries: list[dict[str, Any]]) -> None:
             writer.writerow(_summary_row(entry))
 
 
+def _count_tsv_records(text: str) -> int:
+    lines = [line for line in text.splitlines() if line.strip()]
+    return max(0, len(lines) - 1)
+
+
 class UniProtSearchNode(BaseNode):
     """Search UniProtKB and write a summary table."""
 
@@ -214,6 +219,7 @@ class UniProtSearchNode(BaseNode):
                 "database": ("STRING", {"default": "uniprotkb", "options": list(UNIPROT_SEARCH_DATABASES)}),
                 "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
                 "size": ("INT", {"default": 25, "min": 1, "max": 500, "advanced": True}),
+                "format": ("STRING", {"default": "json", "options": ["json", "tsv"], "advanced": True}),
                 "reviewed_only": ("BOOLEAN", {"default": False}),
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "fields": ("STRING", {"default": UNIPROT_SEARCH_FIELDS, "advanced": True}),
@@ -234,17 +240,40 @@ class UniProtSearchNode(BaseNode):
         if database not in UNIPROT_SEARCH_DATABASES:
             allowed = ", ".join(UNIPROT_SEARCH_DATABASES)
             raise ValueError(f"UniProt Search database must be one of: {allowed}")
+        output_format = str(kwargs.get("format", "json") or "json").strip().lower()
+        if output_format not in {"json", "tsv"}:
+            raise ValueError("UniProt Search format must be one of: json, tsv")
 
         effective_query = f"({query}) AND reviewed:true" if bool(kwargs.get("reviewed_only", False)) else query
         fields = str(kwargs.get("fields", "") or UNIPROT_SEARCH_FIELDS).strip()
         params: dict[str, Any] = {
             "query": effective_query,
-            "format": "json",
+            "format": output_format,
             "fields": fields,
             "size": max_results,
         }
         if bool(kwargs.get("include_isoform", False)):
             params["includeIsoform"] = "true"
+
+        output_name = str(kwargs.get("output_name", "") or "").strip()
+        filename = _safe_filename(output_name or "uniprot_search") + ".tsv"
+        table_path = _node_output_dir(self, context) / filename
+
+        if output_format == "tsv":
+            tsv_text = await _request_text(f"{database}/search", params=params)
+            table_path.write_text(tsv_text, encoding="utf-8")
+            return {
+                "outputs": {
+                    "results_table": str(table_path),
+                    "results_data": {
+                        "query": query,
+                        "effective_query": effective_query,
+                        "database": database,
+                        "format": output_format,
+                        "record_count": _count_tsv_records(tsv_text),
+                    },
+                }
+            }
 
         payload = await _request_json(f"{database}/search", params=params)
         raw_entries = payload.get("results", [])
@@ -252,9 +281,6 @@ class UniProtSearchNode(BaseNode):
             raw_entries = []
         entries = [_with_summary(entry) for entry in raw_entries if isinstance(entry, dict)]
 
-        output_name = str(kwargs.get("output_name", "") or "").strip()
-        filename = _safe_filename(output_name or "uniprot_search") + ".tsv"
-        table_path = _node_output_dir(self, context) / filename
         _write_summary_tsv(table_path, entries)
 
         return {

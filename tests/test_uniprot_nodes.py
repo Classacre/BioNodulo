@@ -327,6 +327,57 @@ async def test_uniprot_search_accepts_planned_size_alias(
 
 
 @pytest.mark.asyncio
+async def test_uniprot_search_accepts_planned_tsv_format(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+
+    async def fake_text(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> str:
+        calls.append((resource, params))
+        return "Entry\tEntry Name\nP04637\tP53_HUMAN\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    format_input = node_class.INPUT_TYPES()["optional"]["format"]
+    assert format_input == (
+        "STRING",
+        {"default": "json", "options": ["json", "tsv"], "advanced": True},
+    )
+
+    result = await node_class().run(
+        query="gene:TP53",
+        format="tsv",
+        output_name="tp53_search",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    table_path = Path(result["outputs"]["results_table"])
+    assert table_path.name == "tp53_search.tsv"
+    assert table_path.read_text(encoding="utf-8") == "Entry\tEntry Name\nP04637\tP53_HUMAN\n"
+    assert result["outputs"]["results_data"] == {
+        "query": "gene:TP53",
+        "effective_query": "gene:TP53",
+        "database": "uniprotkb",
+        "format": "tsv",
+        "record_count": 1,
+    }
+    assert calls == [
+        (
+            "uniprotkb/search",
+            {
+                "query": "gene:TP53",
+                "format": "tsv",
+                "fields": "accession,id,gene_names,organism_name,protein_name,length",
+                "size": 25,
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_uniprot_search_writes_summary_tsv_and_returns_payload(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
