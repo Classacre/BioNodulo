@@ -3,6 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow, WorkflowNode } from '../types';
 import type { SampleSheetRun } from '../components/modals/BatchSampleSheetModal';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -50,6 +56,7 @@ function workflow(partial: Partial<Workflow>): Workflow {
 describe('BatchSampleSheetModal i18n', () => {
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -119,6 +126,38 @@ describe('BatchSampleSheetModal i18n', () => {
     expect(submittedRuns[0].workflow.nodes[0].params.fastq_in).toBe('/data/c1.fastq.gz');
     expect(submittedRuns[0].workflow.nodes[0].params.threads).toBe(8);
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('logs submit failures while preserving inline batch errors', async () => {
+    const { default: BatchSampleSheetModal } = await import('../components/modals/BatchSampleSheetModal');
+    const submitError = new Error('queue unavailable');
+
+    render(
+      <BatchSampleSheetModal
+        workflow={workflow({
+          name: 'Batch workflow',
+          nodes: [
+            node({
+              id: 'align',
+              type: 'bwa_align',
+              params: { fastq_in: '', threads: 4 },
+            }),
+          ],
+        })}
+        onClose={() => undefined}
+        onSubmit={vi.fn().mockRejectedValueOnce(submitError)}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/sample,fastq_in,threads/), {
+      target: {
+        value: 'sample,fastq_in,threads\nctrl_01,/data/c1.fastq.gz,8',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Queue 1 run/ }));
+
+    await waitFor(() => expect(screen.getByText('queue unavailable')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('batchSampleSheet.submit', submitError);
   });
 
   it('maps declared workflow parameter columns to runtime overrides without replacing placeholders', async () => {

@@ -6,6 +6,7 @@ import { Skeleton } from '../ui/Skeleton';
 import type { Workflow, WorkflowNode, WorkflowParameter } from '../../types';
 import { useFocusTrap } from '../../hooks/ui';
 import { coerceWorkflowParameterInput } from '../../utils/workflowParameters';
+import { logError } from '../../state/logging';
 
 export interface SampleSheetRun {
   rowIndex: number;
@@ -264,6 +265,7 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
       await onSubmit(buildRuns());
       onClose();
     } catch (err) {
+      logError('batchSampleSheet.submit', err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
