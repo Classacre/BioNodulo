@@ -1126,7 +1126,7 @@ const es = {
     enabledStatus: 'HPC esta activado',
     enabledDescription: 'Los trabajos se enviaran al planificador configurado.',
     scheduler: 'Planificador',
-    backend: 'Backend',
+    backend: 'Sistema de colas',
     jobResources: 'Recursos del trabajo',
     partitionQueue: 'Particion / Cola',
     accountProject: 'Cuenta / Proyecto',

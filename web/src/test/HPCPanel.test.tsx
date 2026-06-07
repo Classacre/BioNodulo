@@ -68,6 +68,7 @@ describe('HPCPanel i18n', () => {
     expect(screen.getByText('HPC esta activado')).toBeInTheDocument();
     expect(screen.getByText('Los trabajos se enviaran al planificador configurado.')).toBeInTheDocument();
     expect(screen.getByText('Planificador')).toBeInTheDocument();
+    expect(screen.getByText('Sistema de colas')).toBeInTheDocument();
     expect(screen.getByText('Recursos del trabajo')).toBeInTheDocument();
     expect(screen.getByText('Particion / Cola')).toBeInTheDocument();
     expect(screen.getByText('Cuenta / Proyecto')).toBeInTheDocument();
