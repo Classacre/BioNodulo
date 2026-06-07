@@ -428,6 +428,32 @@ describe('AIWorkflowModal i18n', () => {
     );
   });
 
+  it('renders the missing model fallback from the active locale', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    vi.mocked(apiPost).mockResolvedValueOnce({
+      steps: [{ type: 'reply', content: 'Listo' }],
+    });
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      target: { value: 'Ayudame con QC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(await screen.findByText('Modelo desconocido')).toBeInTheDocument();
+    expect(screen.queryByText('unknown')).not.toBeInTheDocument();
+  });
+
   it('keeps AI workflow shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/AIWorkflowModal.tsx'), 'utf8');
 
@@ -469,6 +495,7 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.generation.stopped',
       'aiWorkflow.generation.regenerateTitle',
       'aiWorkflow.generation.regenerate',
+      'aiWorkflow.modelUnknown',
       'aiWorkflow.localResponses.rna',
       'aiWorkflow.localResponses.variant',
       'aiWorkflow.localResponses.assembly',
@@ -524,6 +551,7 @@ describe('AIWorkflowModal i18n', () => {
       '_Stopped by user._',
       'Re-run the previous question',
       '↻ Regenerate',
+      "model: data.model || 'unknown'",
       'For RNA-Seq, I recommend',
       'For variant calling:',
       'For assembly:',

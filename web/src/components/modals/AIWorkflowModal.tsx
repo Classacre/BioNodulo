@@ -291,7 +291,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         const assistantTurn: ChatTurn = {
           role: 'assistant',
           steps,
-          model: data.model || 'unknown',
+          model: data.model || undefined,
         };
         setSessions(prev =>
           prev.map(s =>
@@ -503,7 +503,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                       {turn.steps.map((step, si) => (
                         <StepRenderer key={si} step={step} onApply={handleApply} />
                       ))}
-                      {turn.model && <div className="ai-model-badge">{turn.model}</div>}
+                      <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>
                     </div>
                   ) : (
                     <div

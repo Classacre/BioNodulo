@@ -564,6 +564,7 @@ const es = {
     title: 'Asistente de workflows con IA',
     defaultSessionName: 'Nuevo chat',
     greeting: 'Hola! Puedo ayudarte a crear workflows de bioinformatica. En que tipo de analisis estas trabajando?',
+    modelUnknown: 'Modelo desconocido',
     sessions: {
       openTitle: 'Sesiones',
       menuTitle: 'Sesiones de chat',

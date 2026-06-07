@@ -560,6 +560,7 @@ const en = {
     title: 'AI Workflow Assistant',
     defaultSessionName: 'New Chat',
     greeting: 'Hello! I can help you build bioinformatics workflows. What kind of analysis are you working on?',
+    modelUnknown: 'Unknown model',
     sessions: {
       openTitle: 'Sessions',
       menuTitle: 'Chat Sessions',
