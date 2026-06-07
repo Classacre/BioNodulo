@@ -2143,15 +2143,19 @@ async def get_docs(request: Request, page: str) -> Any:
         raise HTTPException(status_code=400, detail="Invalid page name")
 
     settings = _get_settings(request)
-    docs_dir = settings.project_root / "docs" / "help"
-    html_file = docs_dir / f"{page}.html"
-    md_file = docs_dir / f"{page}.md"
+    docs_dirs = [
+        settings.project_root / "docs" / "help",
+        REPO_ROOT / "docs" / "help",
+    ]
+    for docs_dir in docs_dirs:
+        html_file = docs_dir / f"{page}.html"
+        md_file = docs_dir / f"{page}.md"
 
-    if html_file.exists():
-        return FileResponse(html_file)
-    if md_file.exists():
-        content = md_file.read_text(encoding="utf-8")
-        return PlainTextResponse(content)
+        if html_file.exists():
+            return FileResponse(html_file)
+        if md_file.exists():
+            content = md_file.read_text(encoding="utf-8")
+            return PlainTextResponse(content)
 
     raise HTTPException(status_code=404, detail=f"Documentation page \\\'{page}\\\' not found")
 

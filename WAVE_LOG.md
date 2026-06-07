@@ -644,6 +644,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - CSV to JSON now exposes named `pipe` and `semicolon` delimiter choices and accepts the planned `pipe` alias for pipe-delimited tables.
 - QC Dashboard now derives read-retention and read-loss metric cards from before/after read-count custom metrics such as `raw_reads` and `trimmed_reads`.
 - Merge now enforces a positive `timeout` for `wait_mode="all"` when fewer than the expected inputs are present, while preserving inactive-branch fan-in via `wait_mode="any"`.
+- The `/api/docs/{page}` route now serves repo-backed Getting Started help content when workspace docs are absent.
 
 ---
 

@@ -1151,3 +1151,14 @@ def test_workflow_trigger_evaluate_advances_file_watch_baseline(
 
     saved = json.loads(watch_file.read_text(encoding="utf-8"))
     assert "new.fastq" in saved["baseline_snapshot"]
+
+
+def test_docs_endpoint_serves_getting_started_help_page() -> None:
+    from server import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.get("/api/docs/getting-started")
+
+    assert response.status_code == 200
+    assert "BioNodulo" in response.text
+    assert "Getting Started" in response.text
