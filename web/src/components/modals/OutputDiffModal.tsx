@@ -78,7 +78,7 @@ function DiffRow({ label, left, right }: DiffRowProps) {
 }
 
 export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRunId, onClose }: OutputDiffModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const eligible = useMemo(
     () => runs.filter(r => r.status === 'completed' || r.status === 'error').slice(0, 30),
     [runs],
@@ -173,7 +173,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
       artifacts: t('outputDiff.artifactCount', { count: summary.artifactCount }),
     });
     if (!summary.startTime) return counts;
-    return `${counts} ${t('outputDiff.startedAt', { time: new Date(summary.startTime).toLocaleString() })}`;
+    return `${counts} ${t('outputDiff.startedAt', { time: new Date(summary.startTime).toLocaleString(i18n.language) })}`;
   };
 
   const runOptionLabel = (run: RunRecord) => t('outputDiff.picker.optionLabel', {

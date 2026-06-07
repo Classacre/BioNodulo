@@ -113,6 +113,8 @@ describe('OutputDiffModal i18n', () => {
     expect(screen.getByText(/1 nodo - 1 artefacto/)).toBeInTheDocument();
     expect(screen.getByText(/1 nodo - 0 artefactos/)).toBeInTheDocument();
     expect(screen.getAllByText(/iniciada/).length).toBeGreaterThan(0);
+    expect(screen.getByText(`1 nodo - 1 artefacto - iniciada ${new Date(leftRun.start_time!).toLocaleString('es')}`)).toBeInTheDocument();
+    expect(screen.queryByText(`1 nodo - 1 artefacto - iniciada ${new Date(leftRun.start_time!).toLocaleString()}`)).not.toBeInTheDocument();
     expect(screen.getByText('Estado por nodo (1)')).toBeInTheDocument();
     expect(screen.getAllByText((_, node) => node?.textContent === 'aligncompletadaerror').length).toBeGreaterThan(0);
     expect(screen.getByText('Artefactos (1)')).toBeInTheDocument();
