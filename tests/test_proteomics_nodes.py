@@ -295,8 +295,8 @@ def test_sage_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "Sage Search"
     assert node_info["category"] == "proteomics"
     assert node_info["description"].startswith("Fast Rust-based peptide-spectrum")
-    assert node_info["output"] == ["TSV", "JSON", "FILE"]
-    assert node_info["output_name"] == ["results_tsv", "results_json", "config_json"]
+    assert node_info["output"] == ["TSV", "JSON", "FILE", "FILE"]
+    assert node_info["output_name"] == ["results_tsv", "results_json", "config_json", "pin_file"]
     assert node_info["required_executables"] == ["sage"]
     assert node_info["required_conda_packages"] == ["sage-proteomics"]
     assert "sage" in node_info["search_aliases"]
@@ -405,6 +405,7 @@ def test_sage_plans_outputs() -> None:
         "/tmp/run/sage_search/results.sage.tsv",
         "/tmp/run/sage_search/results.json",
         "/tmp/run/sage_search/sage_config.json",
+        "/tmp/run/sage_search/results.pin",
     ]
 
 

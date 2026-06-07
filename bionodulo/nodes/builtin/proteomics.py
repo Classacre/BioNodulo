@@ -267,8 +267,8 @@ class SageSearchNode(CommandNode):
     CATEGORY = "proteomics"
     DESCRIPTION = "Fast Rust-based peptide-spectrum matching for large-scale proteomics searches."
     SEARCH_ALIASES = ["sage", "sage-proteomics", "proteomics", "peptide identification", "database search"]
-    RETURN_TYPES = ("TSV", "JSON", "FILE")
-    RETURN_NAMES = ("results_tsv", "results_json", "config_json")
+    RETURN_TYPES = ("TSV", "JSON", "FILE", "FILE")
+    RETURN_NAMES = ("results_tsv", "results_json", "config_json", "pin_file")
     REQUIRED_EXECUTABLES = ["sage"]
     REQUIRED_CONDA_PACKAGES = ["sage-proteomics"]
     DOCUMENTATION_URL = "https://github.com/lazear/sage"
@@ -317,7 +317,7 @@ class SageSearchNode(CommandNode):
             "--threads",
             str(inputs.get("threads", 4)),
         ]
-        if inputs.get("write_pin"):
+        if inputs.get("write_pin", True):
             cmd.append("--write-pin")
         if inputs.get("parquet"):
             cmd.append("--parquet")
@@ -328,11 +328,14 @@ class SageSearchNode(CommandNode):
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
         node_out = Path(output_dir) / cls.NODE_ID
         node_out.mkdir(parents=True, exist_ok=True)
-        return [
+        outputs = [
             node_out / "results.sage.tsv",
             node_out / "results.json",
             node_out / "sage_config.json",
         ]
+        if inputs.get("write_pin", True):
+            outputs.append(node_out / "results.pin")
+        return outputs
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -349,7 +352,7 @@ class SageSearchNode(CommandNode):
                 "missed_cleavages": ("INT", {"default": 2, "min": 0, "max": 10}),
                 "min_peptide_length": ("INT", {"default": 7, "min": 4, "max": 60}),
                 "max_peptide_length": ("INT", {"default": 40, "min": 4, "max": 100}),
-                "write_pin": ("BOOLEAN", {"default": False, "description": "Ask Sage to write Percolator PIN output"}),
+                "write_pin": ("BOOLEAN", {"default": True, "description": "Ask Sage to write Percolator PIN output"}),
                 "parquet": ("BOOLEAN", {"default": False, "description": "Ask Sage to write parquet output when supported"}),
             },
             "hidden": {

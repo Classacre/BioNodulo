@@ -1,0 +1,348 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "Proteomics Sage-Percolator Search",
+  "description": "Database-search DDA spectra with Sage, validate the Sage PIN output, estimate FDR with Percolator, and generate an HTML proteomics report.",
+  "category": "Proteomics",
+  "tags": [
+    "proteomics",
+    "dda",
+    "sage",
+    "percolator",
+    "fdr",
+    "peptide-identification"
+  ],
+  "tools": [
+    "input_file",
+    "input_fasta",
+    "data_validator",
+    "sage_search",
+    "percolator",
+    "html_report",
+    "html_preview"
+  ],
+  "nodes": [
+    {
+      "id": "note_proteomics_pipeline",
+      "type": "note",
+      "position": [
+        -240,
+        80
+      ],
+      "params": {
+        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, validate the PIN file, then run Percolator for PSM and protein-level FDR estimates.\n\nInputs are placeholders. Provide mzML/mzXML/MGF spectra and a target-decoy protein FASTA before execution."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "spectra_001",
+      "type": "input_file",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "file": "examples/data/proteomics/sample.mzML"
+      },
+      "ui": {
+        "title": "Spectra File"
+      }
+    },
+    {
+      "id": "fasta_001",
+      "type": "input_fasta",
+      "position": [
+        80,
+        280
+      ],
+      "params": {
+        "reference": "examples/data/proteomics/target_decoy.fasta"
+      },
+      "ui": {
+        "title": "Protein FASTA"
+      }
+    },
+    {
+      "id": "validate_spectra_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        80
+      ],
+      "params": {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Spectra"
+      }
+    },
+    {
+      "id": "validate_fasta_001",
+      "type": "data_validator",
+      "position": [
+        440,
+        280
+      ],
+      "params": {
+        "expected_format": "fasta",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate FASTA"
+      }
+    },
+    {
+      "id": "sage_search_001",
+      "type": "sage_search",
+      "position": [
+        800,
+        80
+      ],
+      "params": {
+        "threads": 8,
+        "precursor_tol_ppm": 20.0,
+        "fragment_tol_da": 0.05,
+        "enzyme": "trypsin",
+        "missed_cleavages": 2,
+        "min_peptide_length": 7,
+        "max_peptide_length": 40,
+        "write_pin": true,
+        "parquet": false
+      },
+      "ui": {
+        "title": "Sage Search"
+      }
+    },
+    {
+      "id": "validate_sage_pin_001",
+      "type": "data_validator",
+      "position": [
+        980,
+        80
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Sage PIN"
+      }
+    },
+    {
+      "id": "percolator_001",
+      "type": "percolator",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "decoy_prefix": "decoy",
+        "fdr_psm": 0.01,
+        "fdr_protein": 0.01,
+        "enzyme": "trypsin"
+      },
+      "ui": {
+        "title": "Percolator FDR"
+      }
+    },
+    {
+      "id": "validate_percolator_psms_001",
+      "type": "data_validator",
+      "position": [
+        1340,
+        80
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Percolator PSMs"
+      }
+    },
+    {
+      "id": "proteomics_report_001",
+      "type": "html_report",
+      "position": [
+        1520,
+        80
+      ],
+      "params": {
+        "title": "Proteomics Sage-Percolator Report",
+        "text_sections": "# Summary\nSage peptide-spectrum matching results are post-processed with Percolator to estimate PSM and protein-level FDR.",
+        "section_names": "Percolator PSMs,Percolator proteins,Sage search results"
+      },
+      "ui": {
+        "title": "Proteomics Report"
+      }
+    },
+    {
+      "id": "proteomics_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1700,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Proteomics Report"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "spectra_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_spectra_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "fasta_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "validate_fasta_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "validate_spectra_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "sage_search_001",
+        "input": "spectra_files"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "validate_fasta_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "sage_search_001",
+        "input": "fasta_db"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "sage_search_001",
+        "output": "pin_file"
+      },
+      "to": {
+        "node": "validate_sage_pin_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "validate_sage_pin_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "percolator_001",
+        "input": "pin_file"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "validate_fasta_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "percolator_001",
+        "input": "fasta_db"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "percolator_001",
+        "output": "percolator_psms"
+      },
+      "to": {
+        "node": "validate_percolator_psms_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "validate_percolator_psms_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "proteomics_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "percolator_001",
+        "output": "percolator_proteins"
+      },
+      "to": {
+        "node": "proteomics_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "sage_search_001",
+        "output": "results_tsv"
+      },
+      "to": {
+        "node": "proteomics_report_001",
+        "input": "tables"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "proteomics_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "proteomics_report_preview_001",
+        "input": "file"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "validated_spectra": "validate_spectra_001",
+    "validated_fasta": "validate_fasta_001",
+    "sage_results": "sage_search_001",
+    "sage_pin": "sage_search_001",
+    "validated_sage_pin": "validate_sage_pin_001",
+    "percolator_psms": "percolator_001",
+    "percolator_proteins": "percolator_001",
+    "report": "proteomics_report_001",
+    "report_preview": "proteomics_report_preview_001"
+  }
+}
