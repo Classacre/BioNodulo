@@ -73,9 +73,11 @@ describe('WorkflowDoctorModal i18n', () => {
       />,
     );
 
-    expect(screen.getByRole('dialog', { name: 'Doctor de workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Doctor de flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Doctor de workflow' })).not.toBeInTheDocument();
     expect(screen.getByText('1 info')).toBeInTheDocument();
-    expect(screen.getByText('El workflow esta vacio')).toBeInTheDocument();
+    expect(screen.getByText('El flujo de trabajo esta vacio')).toBeInTheDocument();
+    expect(screen.queryByText('El workflow esta vacio')).not.toBeInTheDocument();
     expect(screen.getByText('Suelta una plantilla, arrastra un archivo desde el espacio de trabajo o abre la biblioteca de nodos para empezar.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Cerrar' }).length).toBeGreaterThan(0);
   });
@@ -104,7 +106,8 @@ describe('WorkflowDoctorModal i18n', () => {
       />,
     );
 
-    expect(screen.getByText('El workflow se ve correcto')).toBeInTheDocument();
+    expect(screen.getByText('El flujo de trabajo se ve correcto')).toBeInTheDocument();
+    expect(screen.queryByText('El workflow se ve correcto')).not.toBeInTheDocument();
     expect(screen.getByText('No se encontraron incidencias. Todo esta conectado.')).toBeInTheDocument();
   });
 
