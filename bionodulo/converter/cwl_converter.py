@@ -15,7 +15,13 @@ from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_t
 from bionodulo.nodes.registry import NodeRegistry
 
 
-_CWL_NODE_RUNNER_TYPES = {"extract_columns", "normalize_data", "replace_text"}
+_CWL_NODE_RUNNER_TYPES = {
+    "extract_columns",
+    "filter_rows",
+    "merge_tables",
+    "normalize_data",
+    "replace_text",
+}
 
 
 def export_to_cwl(

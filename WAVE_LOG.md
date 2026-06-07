@@ -698,6 +698,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - App command-palette cache-clear failures now report a structured `logError` scope while preserving the existing localized error toast.
 - WorkflowCanvas pasted-media upload failures now report a structured `logError` scope while preserving the existing localized upload-failed toast and leaving clipboard capability fallthrough unlogged.
 - GettingStartedModal release-fetch failures now report a structured `logError` scope while preserving the bundled changelog fallback and skipping abort noise.
+- CWL export now routes core table transforms `filter_rows` and `merge_tables` through the builtin node runner, with exported command smoke tests covering filtered and merged table outputs.
 
 ---
 

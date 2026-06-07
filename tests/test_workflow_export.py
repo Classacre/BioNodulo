@@ -149,6 +149,56 @@ def _replace_text_workflow() -> dict:
     }
 
 
+def _filter_rows_workflow() -> dict:
+    return {
+        "id": "filter-export-test",
+        "name": "Filter Export Test",
+        "nodes": [
+            {
+                "id": "filter",
+                "type": "filter_rows",
+                "inputs": {"table": {"type": "FILE"}},
+                "widgets": {
+                    "column": "depth",
+                    "operator": ">=",
+                    "value": "10",
+                    "delimiter": "tsv",
+                    "output_type": "TSV",
+                },
+                "outputs": {"filtered_table": {"path": "results/filter/filtered.tsv"}},
+                "meta": {},
+            }
+        ],
+        "edges": [],
+    }
+
+
+def _merge_tables_workflow() -> dict:
+    return {
+        "id": "merge-export-test",
+        "name": "Merge Export Test",
+        "nodes": [
+            {
+                "id": "merge",
+                "type": "merge_tables",
+                "inputs": {
+                    "table_a": {"type": "FILE"},
+                    "table_b": {"type": "FILE"},
+                },
+                "widgets": {
+                    "join_key": "gene",
+                    "join_type": "left",
+                    "delimiter": "tsv",
+                    "output_type": "TSV",
+                },
+                "outputs": {"merged_table": {"path": "results/merge/merged.tsv"}},
+                "meta": {},
+            }
+        ],
+        "edges": [],
+    }
+
+
 def _cwl_runner_command(tool: dict, replacements: dict[str, str]) -> list[str]:
     return [*tool["baseCommand"], *(replacements.get(argument, argument) for argument in tool["arguments"])]
 
@@ -289,6 +339,52 @@ def test_cwl_export_supports_additional_data_transform_nodes_with_builtin_runner
     }
 
 
+@pytest.mark.parametrize(
+    ("workflow", "node_id", "node_type", "root_inputs", "output_name"),
+    [
+        (
+            _filter_rows_workflow(),
+            "filter",
+            "filter_rows",
+            {"filter_table": "File"},
+            "filtered_table",
+        ),
+        (
+            _merge_tables_workflow(),
+            "merge",
+            "merge_tables",
+            {"merge_table_a": "File", "merge_table_b": "File"},
+            "merged_table",
+        ),
+    ],
+)
+def test_cwl_export_supports_core_table_transform_nodes_with_builtin_runner(
+    workflow: dict,
+    node_id: str,
+    node_type: str,
+    root_inputs: dict[str, str],
+    output_name: str,
+) -> None:
+    exported = export_to_cwl(workflow)
+    cwl_workflow = json.loads(exported["workflow.cwl"])
+    tool = json.loads(exported[f"tools/{node_id}.cwl"])
+
+    assert cwl_workflow["inputs"] == root_inputs
+    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["arguments"][:4] == [
+        "--node-type",
+        node_type,
+        "--output-dir",
+        ".",
+    ]
+    assert tool["outputs"] == {
+        output_name: {
+            "type": "File",
+            "outputBinding": {"glob": f"{output_name}_output"},
+        }
+    }
+
+
 def test_cwl_exported_extract_columns_command_executes(tmp_path: Path) -> None:
     exported = export_to_cwl(_extract_columns_workflow())
     tool = json.loads(exported["tools/extract.cwl"])
@@ -335,6 +431,69 @@ def test_cwl_exported_replace_text_command_executes(tmp_path: Path) -> None:
     assert (tmp_path / "replaced_file_output").read_text(encoding="utf-8") == (
         "chr1\t100\nchromosome chr2\nchrom and chrom\n"
     )
+
+
+def test_cwl_exported_filter_rows_command_executes(tmp_path: Path) -> None:
+    exported = export_to_cwl(_filter_rows_workflow())
+    tool = json.loads(exported["tools/filter.cwl"])
+    table = tmp_path / "samples.tsv"
+    with table.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["sample", "depth", "status"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"sample": "S1", "depth": "8", "status": "fail"},
+            {"sample": "S2", "depth": "12", "status": "pass"},
+            {"sample": "S3", "depth": "40", "status": "pass"},
+        ])
+
+    defaults = {name: spec.get("default") for name, spec in tool["inputs"].items()}
+    command = _cwl_runner_command(tool, {
+        "$(inputs.table.path)": str(table),
+        **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
+    })
+    completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    with (tmp_path / "filtered_table_output").open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh, delimiter="\t"))
+    assert [row["sample"] for row in rows] == ["S2", "S3"]
+
+
+def test_cwl_exported_merge_tables_command_executes(tmp_path: Path) -> None:
+    exported = export_to_cwl(_merge_tables_workflow())
+    tool = json.loads(exported["tools/merge.cwl"])
+    expression = tmp_path / "expression.tsv"
+    annotation = tmp_path / "annotation.tsv"
+    with expression.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["gene", "logfc"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"gene": "g1", "logfc": "2.0"},
+            {"gene": "g2", "logfc": "-1.2"},
+        ])
+    with annotation.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["gene", "symbol"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows([
+            {"gene": "g1", "symbol": "ABC1"},
+            {"gene": "g3", "symbol": "XYZ3"},
+        ])
+
+    defaults = {name: spec.get("default") for name, spec in tool["inputs"].items()}
+    command = _cwl_runner_command(tool, {
+        "$(inputs.table_a.path)": str(expression),
+        "$(inputs.table_b.path)": str(annotation),
+        **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
+    })
+    completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    with (tmp_path / "merged_table_output").open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh, delimiter="\t"))
+    assert rows == [
+        {"gene": "g1", "logfc": "2.0", "symbol": "ABC1"},
+        {"gene": "g2", "logfc": "-1.2", "symbol": ""},
+    ]
 
 
 def test_cwl_exported_normalize_data_command_executes(tmp_path: Path) -> None:
