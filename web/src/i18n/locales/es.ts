@@ -131,7 +131,7 @@ const es = {
     recentWorkflowFallback: 'flujo de trabajo reciente',
     commands: {
       ai: {
-        open: 'Abrir constructor de workflows con IA',
+        open: 'Abrir constructor de flujos de trabajo con IA',
       },
       cache: {
         toggle: 'Alternar almacenamiento temporal de ejecucion',

@@ -48,7 +48,8 @@ describe('App panel command copy i18n', () => {
     expect(i18n.t('commandPalette.commands.rail.console')).toBe('Abrir consola');
     expect(i18n.t('commandPalette.commands.console.toggle')).toBe('Alternar consola');
     expect(i18n.t('commandPalette.commands.settings.toggle')).toBe('Alternar ajustes');
-    expect(i18n.t('commandPalette.commands.ai.open')).toBe('Abrir constructor de workflows con IA');
+    expect(i18n.t('commandPalette.commands.ai.open')).toBe('Abrir constructor de flujos de trabajo con IA');
+    expect(i18n.t('commandPalette.commands.ai.open')).not.toBe('Abrir constructor de workflows con IA');
     expect(i18n.t('commandPalette.commands.shortcuts.open')).toBe('Atajos de teclado');
   });
 
