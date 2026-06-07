@@ -131,18 +131,19 @@ export function useWorkflowMessages({
           timestamp: ts,
         });
       } else if (data.type === 'node_error') {
+        const errorMessage = String(payload.error || t('console.actions.nodeErrorFallback'));
         updateNodeRunStatus(
           runId,
           String(payload.node_id),
           'error',
-          String(payload.error || 'Node error'),
+          errorMessage,
         );
         clearNodeRunProgress(String(payload.node_id));
         addLog({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'error',
-          message: t('console.actions.nodeErrorLog', { message: payload.error }),
+          message: t('console.actions.nodeErrorLog', { message: errorMessage }),
           timestamp: ts,
         });
       } else if (data.type === 'node_skip') {

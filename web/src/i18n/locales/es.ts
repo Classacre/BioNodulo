@@ -1771,6 +1771,7 @@ class MyToolNode(CommandNode):
       workflowStartedLog: 'Workflow iniciado ({{count}} {{nodeWord}})',
       nodeStartedLog: 'Nodo iniciado [{{progress}}] {{type}}',
       nodeCompletedLog: 'Nodo completado',
+      nodeErrorFallback: 'Error de nodo',
       nodeErrorLog: 'Error de nodo: {{message}}',
       nodeSkippedLog: 'Nodo omitido ({{reason}})',
       nodeBypassedLog: 'Nodo omitido por bypass',

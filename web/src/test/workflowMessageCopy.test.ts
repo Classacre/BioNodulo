@@ -302,6 +302,49 @@ describe('Workflow message copy i18n', () => {
     });
   });
 
+  it('uses localized fallback copy for node errors without details', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { useWorkflowMessages } = await import('../hooks/workflow/useWorkflowMessages');
+    const logs: LogEntry[] = [];
+    let handler: ((msg: unknown) => void) | undefined;
+    const updateNodeRunStatus = vi.fn();
+
+    await setLanguage('es');
+
+    renderHook(() => useWorkflowMessages({
+      onMessage: next => {
+        handler = next;
+        return () => {
+          handler = undefined;
+        };
+      },
+      addLog: entry => logs.push(entry),
+      runs: [],
+      updateRun: vi.fn(),
+      setRuns: vi.fn(),
+      updateNodeRunStatus,
+      recordNodeStart: vi.fn(),
+      clearNodeRunProgress: vi.fn(),
+    }));
+
+    expect(handler).toBeDefined();
+
+    act(() => {
+      handler?.({
+        type: 'node_error',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-2',
+          timestamp: '2026-06-07T05:00:03.000Z',
+        },
+      });
+    });
+
+    expect(updateNodeRunStatus).toHaveBeenCalledWith('run-1', 'node-2', 'error', 'Error de nodo');
+    expect(logs.map(log => log.message)).toContain('Error de nodo: Error de nodo');
+    expect(logs.map(log => log.message)).not.toContain('Node error: Node error');
+  });
+
   it('keeps workflow failure toast copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../hooks/workflow/useWorkflowMessages.ts'), 'utf8');
 
@@ -315,5 +358,12 @@ describe('Workflow message copy i18n', () => {
     ].forEach(text => {
       expect(source).not.toContain(text);
     });
+  });
+
+  it('keeps node error fallback copy behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../hooks/workflow/useWorkflowMessages.ts'), 'utf8');
+
+    expect(source).toContain('console.actions.nodeErrorFallback');
+    expect(source).not.toContain("'Node error'");
   });
 });
