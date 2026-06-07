@@ -64,4 +64,35 @@ describe('useObjectInfo', () => {
       to_version: '2.0.0',
     });
   });
+
+  it('preserves custom node source and dependency metadata from object_info', async () => {
+    vi.mocked(apiGet).mockResolvedValueOnce({
+      custom_qc: {
+        name: 'custom_qc',
+        display_name: 'Custom QC',
+        category: 'custom',
+        builtin: false,
+        git_url: 'https://github.com/example/custom-qc.git',
+        git_commit: 'abc123',
+        required_executables: ['custom-qc'],
+        required_conda_packages: ['custom-qc=1.0'],
+        required_r_packages: ['BiocManager'],
+        input: { required: {} },
+        output: ['STRING'],
+        output_name: ['report'],
+      },
+    });
+
+    const { result } = renderHook(() => useObjectInfo());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const meta = result.current.objectInfo.custom_qc;
+    expect(meta.builtin).toBe(false);
+    expect(meta.git_url).toBe('https://github.com/example/custom-qc.git');
+    expect(meta.git_commit).toBe('abc123');
+    expect(meta.requires_external_tools).toEqual(['custom-qc']);
+    expect(meta.required_conda_packages).toEqual(['custom-qc=1.0']);
+    expect(meta.required_r_packages).toEqual(['BiocManager']);
+  });
 });

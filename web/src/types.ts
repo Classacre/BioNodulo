@@ -34,6 +34,8 @@ export interface NodeMetadata {
   visual_only?: boolean;
   experimental?: boolean;
   requires_external_tools?: string[];
+  required_conda_packages?: string[];
+  required_r_packages?: string[];
   documentation_url?: string;
   version?: string;
   deprecation_message?: string;
@@ -57,6 +59,9 @@ export interface NodeMetadata {
   environment?: string;
   function?: string;
   deprecated?: boolean;
+  builtin?: boolean;
+  git_url?: string;
+  git_commit?: string;
 }
 
 export interface ObjectInfo {

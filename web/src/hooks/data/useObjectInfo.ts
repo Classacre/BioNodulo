@@ -42,6 +42,10 @@ function optionalString(value: unknown): string | undefined {
   return value ? String(value) : undefined;
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
 function normalizeLifecycle(raw: unknown): NodeMetadata['lifecycle'] | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const obj = raw as Record<string, unknown>;
@@ -99,9 +103,12 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       lifecycle: normalizeLifecycle(raw.lifecycle),
       versioning: normalizeVersioning(raw.versioning),
       function: raw.python_class ? String(raw.python_class) : undefined,
-      requires_external_tools: Array.isArray(raw.required_executables)
-        ? raw.required_executables.map(String)
-        : [],
+      requires_external_tools: stringList(raw.required_executables),
+      required_conda_packages: stringList(raw.required_conda_packages),
+      required_r_packages: stringList(raw.required_r_packages),
+      builtin: typeof raw.builtin === 'boolean' ? raw.builtin : undefined,
+      git_url: optionalString(raw.git_url),
+      git_commit: optionalString(raw.git_commit),
     } satisfies NodeMetadata];
   }));
 }
