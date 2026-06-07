@@ -58,7 +58,8 @@ describe('AuthDialog i18n', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Unirse a colaboracion' })).toBeInTheDocument();
-    expect(screen.getByText('Ingresa tu nombre visible para colaborar en workflows en tiempo real.')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa tu nombre visible para colaborar en flujos de trabajo en tiempo real.')).toBeInTheDocument();
+    expect(screen.queryByText('Ingresa tu nombre visible para colaborar en workflows en tiempo real.')).not.toBeInTheDocument();
     expect(screen.getByText('Nombre visible')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Tu nombre')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unirse' })).toBeInTheDocument();

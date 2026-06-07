@@ -2056,7 +2056,7 @@ class MyToolNode(CommandNode):
     userListMakeRole: 'Hacer {{role}}',
     userListKickUser: 'Expulsar usuario',
     authJoinTitle: 'Unirse a colaboracion',
-    authJoinDescription: 'Ingresa tu nombre visible para colaborar en workflows en tiempo real.',
+    authJoinDescription: 'Ingresa tu nombre visible para colaborar en flujos de trabajo en tiempo real.',
     authDisplayNameLabel: 'Nombre visible',
     authNamePlaceholder: 'Tu nombre',
     authJoining: 'Uniendo...',
