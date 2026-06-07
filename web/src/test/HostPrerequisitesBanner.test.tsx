@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostStatus } from '../types';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => ({
   apiPost: vi.fn(),
 }));
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -50,6 +55,7 @@ function hostStatus(): HostStatus {
 describe('HostPrerequisitesBanner i18n', () => {
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -115,6 +121,32 @@ describe('HostPrerequisitesBanner i18n', () => {
     expect(screen.getByText('Instalando...')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Instalado correctamente - recarga la pagina para activar.')).toBeInTheDocument());
     expect(onOpenConsole).toHaveBeenCalledTimes(1);
+    expect(onRecheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs Pixi install request failures while preserving localized feedback', async () => {
+    const { apiPost } = await import('../api/client');
+    const { default: HostPrerequisitesBanner } = await import('../components/layout/HostPrerequisitesBanner');
+    const { setLanguage } = await import('../i18n');
+    const installError = new Error('install endpoint unavailable');
+    const onRecheck = vi.fn();
+    vi.mocked(apiPost).mockRejectedValueOnce(installError);
+
+    await setLanguage('es');
+
+    render(
+      <HostPrerequisitesBanner
+        status={hostStatus()}
+        onDismiss={() => undefined}
+        onOpenConsole={() => undefined}
+        onRecheck={onRecheck}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Instalar Pixi automaticamente/ }));
+
+    await waitFor(() => expect(screen.getByText('La solicitud de instalacion fallo - revisa los registros del servidor.')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('hostStatus.installPixi', installError);
     expect(onRecheck).toHaveBeenCalledTimes(1);
   });
 });

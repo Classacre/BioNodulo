@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { HostStatus } from '../../types';
 import { apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface Props {
   status: HostStatus;
@@ -32,7 +33,8 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
         setInstallMsg(t('hostStatus.installFailed', { message: data.message || t('hostStatus.unknownError') }));
         setInstallMsgKind('error');
       }
-    } catch {
+    } catch (err) {
+      logError('hostStatus.installPixi', err);
       setInstallMsg(t('hostStatus.installRequestFailed'));
       setInstallMsgKind('error');
     } finally {
