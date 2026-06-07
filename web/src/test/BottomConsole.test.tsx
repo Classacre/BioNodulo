@@ -67,7 +67,7 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByRole('button', { name: 'Previsualizaciones' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Informe' })).toBeInTheDocument();
     expect(screen.getByTitle('Cerrar consola')).toBeInTheDocument();
-    expect(screen.getByText('Todavia no hay registros. Ejecuta un workflow para verlos.')).toBeInTheDocument();
+    expect(screen.getByText('Todavia no hay registros. Ejecuta un flujo de trabajo para verlos.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cola (0)' }));
     expect(screen.getByText('La cola esta vacia.')).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByText('Todavia no hay ejecuciones completadas.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Previsualizaciones' }));
-    expect(screen.getByText('Todavia no hay previsualizaciones. Ejecuta un workflow que genere graficos o informes HTML.')).toBeInTheDocument();
+    expect(screen.getByText('Todavia no hay previsualizaciones. Ejecuta un flujo de trabajo que genere graficos o informes HTML.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Informe' }));
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
