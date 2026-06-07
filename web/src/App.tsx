@@ -75,7 +75,7 @@ import {
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { safeValidateHostStatus } from './api/validators';
+import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
@@ -759,57 +759,43 @@ export default function App() {
 
   // Load queue and execution history from backend on startup
   useEffect(() => {
-    // Backend payload shape: snake-case fields (started_at, finished_at) and
-    // mixed status strings — accept as Record<string, unknown> and narrow at
-    // each call-site.
-    type BackendRun = Record<string, unknown> & { run_id: string };
     Promise.all([
-      apiGet<{ pending?: BackendRun[]; running?: BackendRun[] }>('/queue').catch(() => null),
-      apiGet<{ history: BackendRun[] }>('/history').catch(() => null),
+      apiGet<unknown>('/queue').catch(() => null),
+      apiGet<unknown>('/history').catch(() => null),
     ]).then(([queueData, historyData]) => {
       const allRuns: RunRecord[] = [];
       const seen = new Set<string>();
+      const validatedQueue = queueData ? safeValidateRunsList(queueData) : null;
+      const validatedHistory = historyData ? safeValidateRunsList(historyData) : null;
+      const queueRuns = validatedQueue?.ok ? validatedQueue.value : [];
+      const historyRuns = validatedHistory?.ok ? validatedHistory.value : [];
+      const toRunRecord = (h: typeof queueRuns[number]): RunRecord => ({
+        run_id: h.run_id,
+        status: h.status as RunRecord['status'],
+        workflow_name: h.workflow_name || t('console.untitledWorkflow'),
+        node_statuses: h.node_statuses as NodeStatus[],
+        node_outputs: {},
+        execution_plan: [],
+        previews: h.previews as Record<string, string>,
+        artifacts: h.artifacts as Record<string, string>,
+        start_time: h.start_time,
+        end_time: h.end_time,
+        error: h.error,
+      });
 
       // Queue items first (active runs)
-      if (queueData) {
-        const items = [...(queueData.pending || []), ...(queueData.running || [])];
-        for (const h of items) {
-          const run: RunRecord = {
-            run_id: String(h.run_id),
-            status: String(h.status) as RunRecord['status'],
-            workflow_name: String(h.workflow_name || t('console.untitledWorkflow')),
-            node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
-            node_outputs: {},
-            execution_plan: [],
-            previews: (h.previews as Record<string, string>) || {},
-            artifacts: (h.artifacts as Record<string, string>) || {},
-            start_time: h.started_at ? new Date(Number(h.started_at) * 1000).toISOString() : undefined,
-            end_time: h.finished_at ? new Date(Number(h.finished_at) * 1000).toISOString() : undefined,
-          };
-          allRuns.push(run);
-          seen.add(run.run_id);
-        }
+      for (const h of queueRuns) {
+        const run = toRunRecord(h);
+        allRuns.push(run);
+        seen.add(run.run_id);
       }
 
       // History items (completed runs)
-      if (historyData && Array.isArray(historyData.history)) {
-        for (const h of historyData.history) {
-          const runId = String(h.run_id);
-          if (seen.has(runId)) continue;
-          allRuns.push({
-            run_id: runId,
-            status: String(h.status) as RunRecord['status'],
-            workflow_name: String(h.workflow_name || t('console.untitledWorkflow')),
-            node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
-            node_outputs: {},
-            execution_plan: [],
-            previews: (h.previews as Record<string, string>) || {},
-            artifacts: (h.artifacts as Record<string, string>) || {},
-            start_time: h.started_at ? new Date(Number(h.started_at) * 1000).toISOString() : undefined,
-            end_time: h.finished_at ? new Date(Number(h.finished_at) * 1000).toISOString() : undefined,
-          });
-          seen.add(runId);
-        }
+      for (const h of historyRuns) {
+        if (seen.has(h.run_id)) continue;
+        const run = toRunRecord(h);
+        allRuns.push(run);
+        seen.add(run.run_id);
       }
 
       setRuns(allRuns);

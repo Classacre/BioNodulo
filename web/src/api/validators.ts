@@ -55,6 +55,15 @@ function optionalString(value: unknown, path: string): string | undefined {
   return value;
 }
 
+function optionalTimestamp(value: unknown, path: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value * 1000).toISOString();
+  }
+  throw new ApiValidationError(path, 'string | unix timestamp | undefined', value);
+}
+
 function requireObject(value: unknown, path: string): Record<string, unknown> {
   if (!isObject(value)) throw new ApiValidationError(path, 'object', value);
   return value;
@@ -110,8 +119,10 @@ export function validateRunRecord(value: unknown, path = 'run'): ValidatedRunRec
     node_statuses: Array.isArray(obj.node_statuses) ? obj.node_statuses : [],
     artifacts: isObject(obj.artifacts) ? obj.artifacts : {},
     previews: isObject(obj.previews) ? obj.previews : {},
-    start_time: optionalString(obj.start_time, `${path}.start_time`),
-    end_time: optionalString(obj.end_time, `${path}.end_time`),
+    start_time: optionalTimestamp(obj.start_time, `${path}.start_time`)
+      ?? optionalTimestamp(obj.started_at, `${path}.started_at`),
+    end_time: optionalTimestamp(obj.end_time, `${path}.end_time`)
+      ?? optionalTimestamp(obj.finished_at, `${path}.finished_at`),
     error: optionalString(obj.error, `${path}.error`),
   };
 }
@@ -302,16 +313,26 @@ export const safeValidateHpcStatus = (value: unknown): ValidationResult<Validate
   safe(() => validateHpcStatus(value));
 
 // ---------------------------------------------------------------------------
-// Runs list validator. The /api/queue and /api/history endpoints both return
-// { runs: RunRecord[] }; we tolerate a top-level array as a fallback.
+// Runs list validator. The queue/history endpoints have had a few shapes over
+// time: { runs }, { pending, running }, { history }, plus legacy top-level
+// arrays. Normalize them here so callers do not duplicate shape handling.
 // ---------------------------------------------------------------------------
 
 export function validateRunsList(value: unknown): ValidatedRunRecord[] {
-  const raw = isObject(value) && Array.isArray(value.runs)
-    ? value.runs
-    : Array.isArray(value)
-      ? value
-      : (() => { throw new ApiValidationError('runs_list', '{ runs: [] } or array', value); })();
+  const raw = (() => {
+    if (Array.isArray(value)) return value;
+    if (!isObject(value)) {
+      throw new ApiValidationError('runs_list', '{ runs: [] }, { pending/running }, { history }, or array', value);
+    }
+    if ('runs' in value) return requireArray(value.runs, 'runs_list.runs');
+    if ('history' in value) return requireArray(value.history, 'runs_list.history');
+    if ('pending' in value || 'running' in value) {
+      const pending = value.pending === undefined ? [] : requireArray(value.pending, 'runs_list.pending');
+      const running = value.running === undefined ? [] : requireArray(value.running, 'runs_list.running');
+      return [...pending, ...running];
+    }
+    throw new ApiValidationError('runs_list', '{ runs: [] }, { pending/running }, { history }, or array', value);
+  })();
   const out: ValidatedRunRecord[] = [];
   for (let i = 0; i < raw.length; i++) {
     try {

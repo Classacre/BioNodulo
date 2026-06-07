@@ -84,6 +84,32 @@ describe('validateRunsList', () => {
     expect(result[0].run_id).toBe('r1');
   });
 
+  it('parses queue payloads with pending and running runs', () => {
+    const result = validateRunsList({
+      pending: [
+        { run_id: 'pending-1', status: 'pending' },
+      ],
+      running: [
+        { run_id: 'running-1', status: 'running', started_at: 1_710_000_000, finished_at: 1_710_000_060 },
+      ],
+    });
+
+    expect(result.map(r => r.run_id)).toEqual(['pending-1', 'running-1']);
+    expect(result[1].start_time).toBe(new Date(1_710_000_000 * 1000).toISOString());
+    expect(result[1].end_time).toBe(new Date(1_710_000_060 * 1000).toISOString());
+  });
+
+  it('parses history payloads with a history run array', () => {
+    const result = validateRunsList({
+      history: [
+        { run_id: 'history-1', status: 'completed' },
+      ],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('completed');
+  });
+
   it('parses a top-level array as fallback', () => {
     const result = validateRunsList([{ run_id: 'r1', status: 'pending' }]);
     expect(result).toHaveLength(1);
