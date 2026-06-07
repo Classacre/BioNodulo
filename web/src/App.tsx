@@ -178,7 +178,7 @@ function withWorkflowId(workflow: Workflow, id = workflow.id || createWorkflowId
   return { ...workflow, id };
 }
 
-function emptySharedWorkflow(id: string, name = 'Shared workflow'): Workflow {
+function emptySharedWorkflow(id: string, name: string): Workflow {
   return {
     id,
     version: '2.0',
@@ -303,8 +303,8 @@ export default function App() {
   const currentUser = useMemo(() => (
     authUser
       ? { id: authUser.id, name: authUser.name, color: authUser.color }
-      : { id: 'anonymous', name: 'You', color: getUserColor('anonymous') }
-  ), [authUser?.color, authUser?.id, authUser?.name]);
+      : { id: 'anonymous', name: appCollabCopy.anonymousUserName, color: getUserColor('anonymous') }
+  ), [appCollabCopy.anonymousUserName, authUser?.color, authUser?.id, authUser?.name]);
   const pendingWorkflowIdsRef = useRef<WeakMap<Workflow, string>>(new WeakMap());
   const activeWorkflowId = useMemo(() => {
     if (activeWorkflow.id) return activeWorkflow.id;

@@ -1888,6 +1888,7 @@ class MyToolNode(CommandNode):
     badgeStopFollowing: 'Stop following {{name}}',
     badgeNoOtherUsersActive: 'No other users are active.',
     badgeWorkflowFallback: 'Workflow {{id}}',
+    anonymousUserName: 'You',
     role: {
       owner: 'Admin',
       editor: 'Editor',

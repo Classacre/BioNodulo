@@ -9,6 +9,7 @@ export interface AppCollabCopy {
   saveTemplateUnavailableDialog: () => DialogOptions;
   connectedAsRole: (role: string) => string;
   workflowFallback: (workflowId: string) => string;
+  anonymousUserName: string;
   toast: {
     linkCopied: string;
     linkReady: string;
@@ -53,6 +54,7 @@ export function makeAppCollabCopy(t: TFunction): AppCollabCopy {
     }),
     connectedAsRole: role => t('collab.appConnectedAsRole', { role: roleLabel(t, role) }),
     workflowFallback: workflowId => t('collab.badgeWorkflowFallback', { id: workflowId.slice(0, 12) }),
+    anonymousUserName: t('collab.anonymousUserName'),
     toast: {
       linkCopied: t('collab.linkCopied'),
       linkReady: t('collab.badgeLinkReady'),
