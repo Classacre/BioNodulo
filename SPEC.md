@@ -132,6 +132,7 @@ bionodulo-v2/
 │   ├── rna_seq_pipeline.json
 │   ├── single_cell_pipeline.json
 │   ├── spatial_transcriptomics_qc_clustering.json
+│   ├── synthetic_biology_design_simulation.json
 │   ├── variant_calling_pipeline.json
 │   ├── wgbs_methylation_pipeline.json
 │   ├── wgs_variant_pipeline.json
@@ -287,8 +288,9 @@ Settings stored per-user in `bionodulo.settings.json`:
 18. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
 19. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
 20. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
-21. **HPC** - SLURM submit, PBS submit, SGE submit
-22. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+21. **Synthetic Biology** - SBOL, COPASI, iBioSim, Cello
+22. **HPC** - SLURM submit, PBS submit, SGE submit
+23. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel

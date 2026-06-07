@@ -1,0 +1,647 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "Synthetic Biology Design and Simulation",
+  "description": "BioCAD workflow template that validates SBOL, COPASI, COMBINE archive, and Cello inputs; imports and summarizes SBOL designs; runs COPASI and iBioSim simulation branches; compiles a Cello circuit design; and collects TSV result summaries into an HTML report.",
+  "category": "Synthetic Biology",
+  "tags": [
+    "synthetic-biology",
+    "sbol",
+    "biocad",
+    "cello",
+    "copasi",
+    "ibiosim",
+    "sed-ml",
+    "combine-archive"
+  ],
+  "tools": [
+    "input_file",
+    "input_directory",
+    "data_validator",
+    "sbol_design_import",
+    "copasi_simulation",
+    "ibiosim_model",
+    "cello_circuit_design",
+    "html_report",
+    "html_preview"
+  ],
+  "nodes": [
+    {
+      "id": "note_synthetic_biology_pipeline",
+      "type": "note",
+      "position": [
+        -240,
+        80
+      ],
+      "params": {
+        "text": "Synthetic biology BioCAD workflow: validate SBOL, COPASI, COMBINE archive, and Cello inputs; import and summarize the SBOL design; run COPASI and iBioSim simulation branches; run a Cello circuit design branch; then collect TSV result summaries into an HTML report.\n\nInputs are placeholders. COPASI, iBioSim, and Cello require local executables or installations that are not automatically installed by conda in this template."
+      },
+      "ui": {
+        "title": "Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "sbol_design_001",
+      "type": "input_file",
+      "position": [
+        80,
+        80
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/toggle_switch.xml"
+      },
+      "ui": {
+        "title": "SBOL Design"
+      }
+    },
+    {
+      "id": "validate_sbol_design_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        80
+      ],
+      "params": {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate SBOL Design"
+      }
+    },
+    {
+      "id": "sbol_import_001",
+      "type": "sbol_design_import",
+      "position": [
+        760,
+        80
+      ],
+      "params": {
+        "namespace": "https://bionodulo.local/synthetic-biology",
+        "validate": true,
+        "output_format": "rdfxml",
+        "output_name": "toggle_switch"
+      },
+      "ui": {
+        "title": "SBOL Design Import"
+      }
+    },
+    {
+      "id": "validate_sbol_summary_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        80
+      ],
+      "params": {
+        "expected_format": "json",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate SBOL Summary"
+      }
+    },
+    {
+      "id": "copasi_model_001",
+      "type": "input_file",
+      "position": [
+        80,
+        300
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/toggle_model.cps"
+      },
+      "ui": {
+        "title": "COPASI Model"
+      }
+    },
+    {
+      "id": "validate_copasi_model_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        300
+      ],
+      "params": {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate COPASI Model"
+      }
+    },
+    {
+      "id": "copasi_simulation_001",
+      "type": "copasi_simulation",
+      "position": [
+        760,
+        300
+      ],
+      "params": {
+        "copasi_executable": "CopasiSE",
+        "scheduled_task": "Time-Course",
+        "sedml_task": "",
+        "save_model": true,
+        "validate_only": false,
+        "verbose": false,
+        "max_time": 600,
+        "output_name": "toggle_simulation"
+      },
+      "ui": {
+        "title": "COPASI Simulation"
+      }
+    },
+    {
+      "id": "validate_copasi_report_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        300
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate COPASI Report"
+      }
+    },
+    {
+      "id": "omex_archive_001",
+      "type": "input_file",
+      "position": [
+        80,
+        520
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/toggle_study.omex"
+      },
+      "ui": {
+        "title": "COMBINE Archive"
+      }
+    },
+    {
+      "id": "validate_omex_archive_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        520
+      ],
+      "params": {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate COMBINE Archive"
+      }
+    },
+    {
+      "id": "ibiosim_model_001",
+      "type": "ibiosim_model",
+      "position": [
+        760,
+        520
+      ],
+      "params": {
+        "execution_mode": "cli",
+        "ibiosim_executable": "ibiosim",
+        "docker_image": "ghcr.io/biosimulators/ibiosim:latest",
+        "quiet": true,
+        "debug": false,
+        "output_name": "toggle_study"
+      },
+      "ui": {
+        "title": "iBioSim Model"
+      }
+    },
+    {
+      "id": "validate_ibiosim_index_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        520
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate iBioSim Index"
+      }
+    },
+    {
+      "id": "cello_netlist_001",
+      "type": "input_file",
+      "position": [
+        80,
+        760
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/toggle_netlist.v"
+      },
+      "ui": {
+        "title": "Cello Netlist"
+      }
+    },
+    {
+      "id": "validate_cello_netlist_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        760
+      ],
+      "params": {
+        "expected_format": "text",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cello Netlist"
+      }
+    },
+    {
+      "id": "cello_ucf_001",
+      "type": "input_file",
+      "position": [
+        80,
+        940
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/Eco1C1G1T1.UCF.json"
+      },
+      "ui": {
+        "title": "Cello UCF"
+      }
+    },
+    {
+      "id": "validate_cello_ucf_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        940
+      ],
+      "params": {
+        "expected_format": "json",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cello UCF"
+      }
+    },
+    {
+      "id": "cello_options_001",
+      "type": "input_file",
+      "position": [
+        80,
+        1120
+      ],
+      "params": {
+        "file": "examples/data/synthetic_biology/cello_options.csv"
+      },
+      "ui": {
+        "title": "Cello Options"
+      }
+    },
+    {
+      "id": "validate_cello_options_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        1120
+      ],
+      "params": {
+        "expected_format": "csv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cello Options"
+      }
+    },
+    {
+      "id": "cello_exec_dir_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        1300
+      ],
+      "params": {
+        "directory": "/opt/Cello-v2/exec"
+      },
+      "ui": {
+        "title": "Cello Exec Directory"
+      }
+    },
+    {
+      "id": "validate_cello_exec_dir_001",
+      "type": "data_validator",
+      "position": [
+        420,
+        1300
+      ],
+      "params": {
+        "expected_format": "directory",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cello Exec Directory"
+      }
+    },
+    {
+      "id": "cello_design_001",
+      "type": "cello_circuit_design",
+      "position": [
+        760,
+        1030
+      ],
+      "params": {
+        "netlist_constraint_file": "",
+        "java_args": "-Xms2G -Xmx5G",
+        "application": "DNACompiler",
+        "algo_name": "",
+        "output_name": "toggle_circuit"
+      },
+      "ui": {
+        "title": "Cello Circuit Design"
+      }
+    },
+    {
+      "id": "validate_cello_index_001",
+      "type": "data_validator",
+      "position": [
+        1100,
+        1030
+      ],
+      "params": {
+        "expected_format": "tsv",
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Cello Index"
+      }
+    },
+    {
+      "id": "synthetic_biology_report_001",
+      "type": "html_report",
+      "position": [
+        1460,
+        520
+      ],
+      "params": {
+        "title": "Synthetic Biology Design and Simulation Report",
+        "text_sections": "# Summary\nSBOL import normalizes and summarizes the design file. COPASI runs a scheduled simulation task, iBioSim executes a COMBINE archive branch, and Cello compiles a genetic circuit from validated Verilog and UCF inputs.",
+        "tables": "copasi_simulation/toggle_simulation.report.tsv,ibiosim_model/toggle_study.result_index.tsv,cello_circuit_design/toggle_circuit.result_index.tsv",
+        "section_names": "COPASI report,iBioSim result index,Cello result index",
+        "theme": "light",
+        "include_toc": true,
+        "max_table_rows": 100
+      },
+      "ui": {
+        "title": "Synthetic Biology Report"
+      }
+    },
+    {
+      "id": "synthetic_biology_report_preview_001",
+      "type": "html_preview",
+      "position": [
+        1800,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Synthetic Biology Report"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "sbol_design_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_sbol_design_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "validate_sbol_design_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "sbol_import_001",
+        "input": "sbol_file"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "sbol_import_001",
+        "output": "summary"
+      },
+      "to": {
+        "node": "validate_sbol_summary_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "copasi_model_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_copasi_model_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "validate_copasi_model_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "copasi_simulation_001",
+        "input": "model_file"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "copasi_simulation_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "validate_copasi_report_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "omex_archive_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_omex_archive_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "validate_omex_archive_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "ibiosim_model_001",
+        "input": "archive_file"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "ibiosim_model_001",
+        "output": "result_index"
+      },
+      "to": {
+        "node": "validate_ibiosim_index_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "cello_netlist_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_cello_netlist_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "cello_ucf_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_cello_ucf_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e12",
+      "from": {
+        "node": "cello_options_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "validate_cello_options_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "cello_exec_dir_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "validate_cello_exec_dir_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "validate_cello_netlist_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "cello_design_001",
+        "input": "input_netlist"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "validate_cello_ucf_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "cello_design_001",
+        "input": "target_data_file"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "validate_cello_options_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "cello_design_001",
+        "input": "options_file"
+      }
+    },
+    {
+      "id": "e17",
+      "from": {
+        "node": "validate_cello_exec_dir_001",
+        "output": "passthrough"
+      },
+      "to": {
+        "node": "cello_design_001",
+        "input": "cello_exec_dir"
+      }
+    },
+    {
+      "id": "e18",
+      "from": {
+        "node": "cello_design_001",
+        "output": "result_index"
+      },
+      "to": {
+        "node": "validate_cello_index_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "synthetic_biology_report_001",
+        "output": "html_report"
+      },
+      "to": {
+        "node": "synthetic_biology_report_preview_001",
+        "input": "file"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "validated_sbol": "validate_sbol_design_001",
+    "sbol_summary": "validate_sbol_summary_001",
+    "copasi_report": "validate_copasi_report_001",
+    "ibiosim_index": "validate_ibiosim_index_001",
+    "cello_index": "validate_cello_index_001",
+    "report": "synthetic_biology_report_001",
+    "report_preview": "synthetic_biology_report_preview_001"
+  }
+}
