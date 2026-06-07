@@ -250,6 +250,71 @@ async def test_ncbi_esearch_resolves_api_key_credential_reference(monkeypatch: p
 
 
 @pytest.mark.asyncio
+async def test_ncbi_esearch_supports_retstart_and_accession_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {
+            "esearchresult": {
+                "count": "50",
+                "idlist": ["111", "222"],
+                "querytranslation": "16S[All Fields]",
+            }
+        }
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return "NR_024570.1\nNR_027552.1\n"
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        query="16S",
+        database="nuccore",
+        max_results=2,
+        retstart=20,
+        sort="",
+        return_uids=False,
+        api_key="secret-key",
+    )
+
+    assert result["outputs"] == {
+        "id_list": ["NR_024570.1", "NR_027552.1"],
+        "total_count": 50,
+        "query_translation": "16S[All Fields]",
+    }
+    assert calls == [
+        {
+            "endpoint": "esearch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "term": "16S",
+                "retmode": "json",
+                "retmax": 2,
+                "retstart": 20,
+                "api_key": "secret-key",
+            },
+        },
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "111,222",
+                "rettype": "acc",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+                "api_key": "secret-key",
+            },
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_efetch_writes_records_and_returns_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

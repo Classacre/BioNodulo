@@ -392,8 +392,10 @@ class NCBIESearchNode(BaseNode):
             },
             "optional": {
                 "max_results": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                "retstart": ("INT", {"default": 0, "min": 0, "advanced": True}),
                 "sort": ("STRING", {"default": "relevance"}),
                 "api_key": ("STRING", {"default": "", "advanced": True}),
+                "return_uids": ("BOOLEAN", {"default": True, "advanced": True}),
             },
             "hidden": {},
         }
@@ -406,13 +408,20 @@ class NCBIESearchNode(BaseNode):
         max_results = int(kwargs.get("max_results", 20))
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
+        retstart = int(kwargs.get("retstart", 0) or 0)
+        if retstart < 0:
+            raise ValueError("retstart must be at least 0")
         params: dict[str, Any] = {
             "db": str(kwargs.get("database", "pubmed")),
             "term": query,
             "retmode": "json",
             "retmax": max_results,
-            "sort": str(kwargs.get("sort", "relevance")),
         }
+        if "retstart" in kwargs:
+            params["retstart"] = retstart
+        sort = str(kwargs.get("sort", "relevance"))
+        if sort:
+            params["sort"] = sort
         api_key = _resolve_api_key(kwargs.get("api_key", ""), context)
         if api_key:
             params["api_key"] = api_key
@@ -421,9 +430,24 @@ class NCBIESearchNode(BaseNode):
         result = payload.get("esearchresult", {})
         ids = [str(item) for item in result.get("idlist", [])]
         count = int(result.get("count", 0))
+        return_uids = bool(kwargs.get("return_uids", True))
+        result_ids = ids
+        if not return_uids and ids:
+            fetch_params: dict[str, Any] = {
+                "db": str(kwargs.get("database", "pubmed")),
+                "id": ",".join(ids),
+                "rettype": "acc",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": _default_ncbi_email(),
+            }
+            if api_key:
+                fetch_params["api_key"] = api_key
+            accession_text = await _request_text("efetch.fcgi", fetch_params)
+            result_ids = [line.strip() for line in accession_text.splitlines() if line.strip()]
         return {
             "outputs": {
-                "id_list": ids,
+                "id_list": result_ids,
                 "total_count": count,
                 "query_translation": str(result.get("querytranslation", "")),
             }
