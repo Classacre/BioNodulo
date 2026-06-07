@@ -81,6 +81,10 @@ describe('console action copy i18n', () => {
     expect(copy.toast.retryQueued).toBe('Reintento en cola');
     expect(copy.toast.queueCleared).toBe('Cola limpiada');
     expect(copy.toast.historyCleared).toBe('Historial limpiado');
+    expect(copy.error.noRunWorkflowSnapshot).toBe('La ejecucion no tiene una instantanea de flujo de trabajo asociada');
+    expect(copy.error.noRunWorkflowSnapshot).not.toBe('La ejecucion no tiene una instantanea de workflow asociada');
+    expect(copy.error.couldNotLoadWorkflow).toBe('No se pudo cargar el flujo de trabajo');
+    expect(copy.error.couldNotLoadWorkflow).not.toBe('No se pudo cargar el workflow');
     expect(copy.error.couldNotDeleteRun).toBe('No se pudo eliminar la ejecucion');
   });
 });
