@@ -2371,47 +2371,55 @@ export default function App() {
       // --- Cache / runtime --------------------------------------------------
       {
         id: 'cache.toggle',
-        label: 'Toggle execution cache',
-        group: 'Workflow',
+        label: t('commandPalette.commands.cache.toggle'),
+        group: t('commandPalette.groups.workflow'),
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => set('bionodulo.cacheEnabled', !getBool('bionodulo.cacheEnabled')),
       },
       {
         id: 'cache.clear',
-        label: 'Clear execution cache',
-        group: 'Workflow',
+        label: t('commandPalette.commands.cache.clear'),
+        group: t('commandPalette.groups.workflow'),
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: async () => {
           try {
             const data = await apiPost<{ entries_deleted?: number }>('/api/cache/clear');
-            toast.success('Cache cleared', { message: `${data.entries_deleted || 0} entries` });
+            toast.success(t('settings.cache.clearedTitle'), {
+              message: t('settings.cache.entriesDeleted', { count: data.entries_deleted || 0 }),
+            });
           } catch (err) {
-            toast.error('Could not clear cache', { message: err instanceof Error ? err.message : String(err) });
+            toast.error(t('settings.cache.clearFailed'), { message: err instanceof Error ? err.message : String(err) });
           }
         },
       },
       {
         id: 'queue.clear',
-        label: 'Clear pending queue',
-        group: 'Workflow',
+        label: t('commandPalette.commands.queue.clear'),
+        group: t('commandPalette.groups.workflow'),
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => void handleClearQueue(),
       },
       // --- Logs / console ---------------------------------------------------
       {
         id: 'logs.clear',
-        label: 'Clear console logs',
-        group: 'Tools',
+        label: t('commandPalette.commands.logs.clear'),
+        group: t('commandPalette.groups.tools'),
+        groupLabelKey: 'commandPalette.groups.tools',
         onSelect: clearLogs,
       },
       // --- Help / onboarding ------------------------------------------------
       {
         id: 'help.gettingStarted',
-        label: 'Open Getting Started',
-        group: 'Tools',
+        label: t('commandPalette.commands.help.gettingStarted'),
+        group: t('commandPalette.groups.tools'),
+        groupLabelKey: 'commandPalette.groups.tools',
         onSelect: () => setShowGettingStarted(true),
       },
       {
         id: 'help.shortcuts',
-        label: 'Open keyboard shortcuts (alias)',
-        group: 'Tools',
+        label: t('commandPalette.commands.help.shortcutsAlias'),
+        group: t('commandPalette.groups.tools'),
+        groupLabelKey: 'commandPalette.groups.tools',
         onSelect: () => setShowShortcuts(true),
       },
     ];

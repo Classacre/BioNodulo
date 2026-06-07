@@ -129,6 +129,10 @@ const en = {
       ai: {
         open: 'Open AI workflow builder',
       },
+      cache: {
+        toggle: 'Toggle execution cache',
+        clear: 'Clear execution cache',
+      },
       console: {
         toggle: 'Toggle console',
       },
@@ -140,12 +144,22 @@ const en = {
         bulkParams: 'Bulk edit parameters (selection)...',
         bulkParamsDescription: 'Edit parameters shared across all selected nodes at once',
       },
+      help: {
+        gettingStarted: 'Open Getting Started',
+        shortcutsAlias: 'Open keyboard shortcuts (alias)',
+      },
+      logs: {
+        clear: 'Clear console logs',
+      },
       nodes: {
         search: 'Search nodes',
         searchDescription: 'Open the fuzzy node library',
       },
       palette: {
         use: 'Use {{name}} palette',
+      },
+      queue: {
+        clear: 'Clear pending queue',
       },
       rail: {
         workspace: 'Open workspace',

@@ -132,6 +132,10 @@ const es = {
       ai: {
         open: 'Abrir constructor de workflows con IA',
       },
+      cache: {
+        toggle: 'Alternar cache de ejecucion',
+        clear: 'Limpiar cache de ejecucion',
+      },
       console: {
         toggle: 'Alternar consola',
       },
@@ -143,12 +147,22 @@ const es = {
         bulkParams: 'Editar parametros en masa (seleccion)...',
         bulkParamsDescription: 'Editar parametros compartidos por todos los nodos seleccionados a la vez',
       },
+      help: {
+        gettingStarted: 'Abrir primeros pasos',
+        shortcutsAlias: 'Abrir atajos de teclado (alias)',
+      },
+      logs: {
+        clear: 'Limpiar registros de consola',
+      },
       nodes: {
         search: 'Buscar nodos',
         searchDescription: 'Abrir la biblioteca difusa de nodos',
       },
       palette: {
         use: 'Usar paleta {{name}}',
+      },
+      queue: {
+        clear: 'Limpiar cola pendiente',
       },
       rail: {
         workspace: 'Abrir espacio de trabajo',
