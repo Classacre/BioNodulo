@@ -495,15 +495,20 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
+    expect(screen.getByText('Artefactos de ejecucion')).toBeInTheDocument();
     expect(screen.getByText('Puntos de control')).toBeInTheDocument();
     expect(screen.getByText('0 puntos de control')).toBeInTheDocument();
+    expect(screen.getByText('Todavia no hay manifiesto de puntos de control.')).toBeInTheDocument();
     expect(screen.getByText('Solicitud de pausa')).toBeInTheDocument();
     expect(screen.getByText('1 · rechazado')).toBeInTheDocument();
-    expect(screen.getByText('Disparador de workflow')).toBeInTheDocument();
-    expect(screen.getByText('1 disparador de workflow')).toBeInTheDocument();
-    expect(screen.getByText('Ejecucion de disparador de workflow')).toBeInTheDocument();
+    expect(screen.getByText('Activador de flujo de trabajo')).toBeInTheDocument();
+    expect(screen.getByText('1 activador de flujo de trabajo')).toBeInTheDocument();
+    expect(screen.getByText('Ejecucion de activador de flujo de trabajo')).toBeInTheDocument();
     expect(screen.queryByText('pause request')).not.toBeInTheDocument();
     expect(screen.queryByText('workflow trigger run')).not.toBeInTheDocument();
+    expect(screen.queryByText(/workflow/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/checkpoint/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
   });
 
   it('keeps runtime artifact fallback copy behind i18n keys', () => {
