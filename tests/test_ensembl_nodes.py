@@ -52,6 +52,18 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_vep"]["display_name"] == "Ensembl VEP"
     assert info["ensembl_vep"]["category"] == "databases"
     assert info["ensembl_vep"]["output_name"] == ["vep_json", "annotation_table"]
+    assert info["ensembl_vep"]["input"]["required"]["variants"] == (
+        "STRING",
+        {"default": "", "multiline": True, "description": "HGVS variants, one per line"},
+    )
+    assert info["ensembl_vep"]["input"]["optional"]["variant_format"] == (
+        "STRING",
+        {"default": "hgvs", "options": ["hgvs", "vcf"]},
+    )
+    assert info["ensembl_vep"]["input"]["optional"]["vcf_file"] == (
+        "VCF",
+        {"default": "", "advanced": True, "description": "Backward-compatible VCF file containing variants to annotate"},
+    )
     assert info["ensembl_vep"]["input"]["optional"]["sift"][0] == "BOOLEAN"
     assert info["ensembl_vep"]["input"]["optional"]["polyphen"][0] == "BOOLEAN"
     assert info["ensembl_vep"]["input"]["optional"]["maf"][0] == "BOOLEAN"
@@ -398,6 +410,93 @@ async def test_ensembl_vep_posts_vcf_variants_and_writes_outputs(
                 "SiftPrediction": "yes",
                 "PolyPhen": "no",
                 "MAF": "yes",
+            },
+            "base_url": "https://rest.ensembl.org",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ensembl_vep_accepts_hgvs_variants_input(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ensembl_vep")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+    payload = [
+        {
+            "input": "9:g.22125503G>C",
+            "transcript_consequences": [
+                {
+                    "gene_symbol": "CDKN2A",
+                    "gene_id": "ENSG00000147889",
+                    "transcript_id": "ENST00000304494",
+                    "consequence_terms": ["missense_variant"],
+                    "impact": "MODERATE",
+                }
+            ],
+        }
+    ]
+
+    async def fake_post_json(
+        resource: str,
+        json_body: dict[str, Any],
+        params: dict[str, Any] | None = None,
+        base_url: str | None = None,
+        **_: Any,
+    ) -> list[dict[str, Any]]:
+        calls.append({
+            "resource": resource,
+            "json_body": dict(json_body),
+            "params": dict(params or {}),
+            "base_url": base_url,
+        })
+        return payload
+
+    monkeypatch.setattr(module, "_post_json", fake_post_json)
+
+    result = await node_class().run(
+        variants="9:g.22125503G>C",
+        variant_format="hgvs",
+        species="homo_sapiens",
+        assembly="current",
+        canonical=True,
+        domains=True,
+        gene_phenotype=False,
+        variant_class=False,
+        sift=False,
+        polyphen=True,
+        maf=False,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    table_path = Path(result["outputs"]["annotation_table"])
+    with table_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+
+    assert rows == [
+        {
+            "input": "9:g.22125503G>C",
+            "gene_symbol": "CDKN2A",
+            "gene_id": "ENSG00000147889",
+            "transcript_id": "ENST00000304494",
+            "consequence_terms": "missense_variant",
+            "impact": "MODERATE",
+        }
+    ]
+    assert calls == [
+        {
+            "resource": "vep/homo_sapiens/hgvs",
+            "json_body": {"variants": ["9:g.22125503G>C"]},
+            "params": {
+                "canonical": 1,
+                "domains": 1,
+                "gene_phenotype": 0,
+                "variant_class": 0,
+                "SiftPrediction": "no",
+                "PolyPhen": "yes",
+                "MAF": "no",
             },
             "base_url": "https://rest.ensembl.org",
         }

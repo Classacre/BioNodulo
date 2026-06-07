@@ -302,13 +302,13 @@ class EnsemblGeneLookupNode(BaseNode):
 
 
 class EnsemblVEPNode(BaseNode):
-    """Annotate VCF variants with Ensembl Variant Effect Predictor."""
+    """Annotate variants with Ensembl Variant Effect Predictor."""
 
     NODE_ID = "ensembl_vep"
     DISPLAY_NAME = "Ensembl VEP"
     CATEGORY = "databases"
-    DESCRIPTION = "Annotate VCF variant records with Ensembl VEP via Ensembl REST."
-    SEARCH_ALIASES = ["ensembl", "vep", "variant", "annotation", "vcf", "sift", "polyphen", "database"]
+    DESCRIPTION = "Annotate variants with Ensembl VEP via Ensembl REST."
+    SEARCH_ALIASES = ["ensembl", "vep", "variant", "annotation", "vcf", "hgvs", "sift", "polyphen", "database"]
     RETURN_TYPES = ("JSON", "TSV")
     RETURN_NAMES = ("vep_json", "annotation_table")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -319,10 +319,19 @@ class EnsemblVEPNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "vcf_file": ("VCF", {"default": "", "description": "VCF file containing variants to annotate"}),
+                "variants": ("STRING", {"default": "", "multiline": True, "description": "HGVS variants, one per line"}),
                 "species": ("STRING", {"default": "homo_sapiens"}),
             },
             "optional": {
+                "variant_format": ("STRING", {"default": "hgvs", "options": ["hgvs", "vcf"]}),
+                "vcf_file": (
+                    "VCF",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Backward-compatible VCF file containing variants to annotate",
+                    },
+                ),
                 "assembly": ("STRING", {"default": "current", "options": ["current", "GRCh38", "GRCh37"]}),
                 "canonical": ("BOOLEAN", {"default": True}),
                 "domains": ("BOOLEAN", {"default": False}),
@@ -337,9 +346,11 @@ class EnsemblVEPNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        vcf_file = str(kwargs.get("vcf_file", "")).strip()
-        if not vcf_file:
-            raise ValueError("Ensembl VEP requires a VCF file")
+        vcf_file = str(kwargs.get("vcf_file", "") or "").strip()
+        variants_text = str(kwargs.get("variants", "") or "").strip()
+        variant_format = str(kwargs.get("variant_format", "") or ("vcf" if vcf_file and not variants_text else "hgvs")).lower()
+        if variant_format not in {"hgvs", "vcf"}:
+            raise ValueError(f"Unsupported Ensembl VEP variant_format: {variant_format}")
 
         species = str(kwargs.get("species", "homo_sapiens")).strip() or "homo_sapiens"
         base_url = _base_url_for_assembly(str(kwargs.get("assembly", "current")))
@@ -352,9 +363,20 @@ class EnsemblVEPNode(BaseNode):
             "PolyPhen": "yes" if bool(kwargs.get("polyphen", True)) else "no",
             "MAF": "yes" if bool(kwargs.get("maf", False)) else "no",
         }
+        if variant_format == "hgvs":
+            variants = [line.strip() for line in variants_text.splitlines() if line.strip()]
+            if not variants:
+                raise ValueError("Ensembl VEP requires at least one HGVS variant")
+            resource = f"vep/{quote(species, safe='')}/hgvs"
+        else:
+            if not vcf_file:
+                raise ValueError("Ensembl VEP requires a VCF file")
+            variants = _vcf_variants(vcf_file)
+            resource = f"vep/{quote(species, safe='')}/region"
+
         payload = await _post_json(
-            f"vep/{quote(species, safe='')}/region",
-            {"variants": _vcf_variants(vcf_file)},
+            resource,
+            {"variants": variants},
             params=params,
             base_url=base_url,
         )

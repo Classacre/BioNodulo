@@ -608,6 +608,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - GEO Query now accepts `query` and `dataset_type` aliases while preserving `search_query` / `query_type` behavior.
 - PDB Retrieve now accepts a singular `pdb_id` alias while preserving existing `pdb_ids` behavior.
 - NCBI BLAST now accepts FASTA file paths through `query_sequence` and submits the file contents instead of the path string.
+- Ensembl VEP now accepts HGVS `variants` input via `variant_format=hgvs` while preserving VCF-file annotation.
 
 ---
 
