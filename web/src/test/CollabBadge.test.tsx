@@ -70,4 +70,54 @@ describe('CollabBadge i18n', () => {
     expect(screen.getByRole('button', { name: 'Registro de auditoria' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Ajustes de colaboracion' })).toBeInTheDocument();
   });
+
+  it('renders missing follow-user workflow labels from the active locale', async () => {
+    const { default: CollabBadge } = await import('../collab/CollabBadge');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    render(
+      <Provider>
+        <CollabBadge
+          enabled
+          connected
+          connecting={false}
+          activeUsers={[]}
+          liveUsers={[
+            {
+              session_id: 'session-owner',
+              user_id: 'owner-1',
+              name: 'Mika',
+              color: '#0d9488',
+              role: 'owner',
+              workflow_id: 'workflow-1',
+            },
+            {
+              session_id: 'session-ada',
+              user_id: 'user-2',
+              name: 'Ada',
+              color: '#7c3aed',
+              role: 'viewer',
+              workflow_id: 'workflow-1',
+            },
+          ]}
+          currentUserId="owner-1"
+          currentSessionId="session-owner"
+          currentWorkflowId="workflow-1"
+          followingUserId={null}
+          isShared={false}
+          onFollow={() => undefined}
+          onOpenSettings={() => undefined}
+          onCreateSession={() => undefined}
+          onJoinSession={() => undefined}
+          onLeaveSession={() => undefined}
+        />
+      </Provider>,
+    );
+
+    fireEvent.click(screen.getByTitle('Colaboracion: Conectado'));
+
+    expect(screen.getByText('Flujo de trabajo workflow-1')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow workflow-1')).not.toBeInTheDocument();
+  });
 });

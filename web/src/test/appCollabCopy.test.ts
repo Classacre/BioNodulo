@@ -56,7 +56,7 @@ describe('App collaboration copy i18n', () => {
     });
     expect(copy.connectedAsRole('editor')).toBe('Conectado como Editor.');
     expect(copy.connectedAsRole('viewer')).toBe('Conectado como Lector.');
-    expect(copy.workflowFallback('workflow-1234567890abcdef')).toBe('Workflow workflow-123');
+    expect(copy.workflowFallback('workflow-1234567890abcdef')).toBe('Flujo de trabajo workflow-123');
     expect(copy.anonymousUserName).toBe('Tu');
     expect(copy.toast.linkCopied).toBe('Enlace de colaboracion copiado');
     expect(copy.toast.linkReady).toBe('Enlace de colaboracion listo');

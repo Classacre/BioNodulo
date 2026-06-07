@@ -2037,7 +2037,7 @@ class MyToolNode(CommandNode):
     badgeFollowViewport: 'Seguir vista',
     badgeStopFollowing: 'Dejar de seguir a {{name}}',
     badgeNoOtherUsersActive: 'No hay otros usuarios activos.',
-    badgeWorkflowFallback: 'Workflow {{id}}',
+    badgeWorkflowFallback: 'Flujo de trabajo {{id}}',
     anonymousUserName: 'Tu',
     role: {
       owner: 'Administrador',
