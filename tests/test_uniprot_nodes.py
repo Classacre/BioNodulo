@@ -343,6 +343,51 @@ async def test_uniprot_search_summarizes_uniref_json_results(
 
 
 @pytest.mark.asyncio
+async def test_uniprot_search_summarizes_uniparc_json_results(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
+        assert resource == "uniparc/search"
+        return {
+            "results": [
+                {
+                    "uniParcId": "UPI0000000001",
+                    "crossReferenceCount": 57,
+                    "commonTaxons": [
+                        {"commonTaxon": "synthetic construct", "commonTaxonId": 32630},
+                        {"commonTaxon": "Homo sapiens", "commonTaxonId": 9606},
+                    ],
+                    "uniProtKBAccessions": ["P07612.1", "P07612"],
+                    "sequence": {"length": 250},
+                }
+            ]
+        }
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        query="upi:UPI0000000001",
+        database="uniparc",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    table_path = Path(result["outputs"]["results_table"])
+    assert table_path.read_text(encoding="utf-8") == (
+        "accession\tentry_name\tprotein_name\torganism\tgene_names\tsequence_length\n"
+        "P07612.1\tUPI0000000001\t\tHomo sapiens\t\t250\n"
+    )
+    summary = result["outputs"]["results_data"]["entries"][0]["summary"]
+    assert summary["accession"] == "P07612.1"
+    assert summary["entry_name"] == "UPI0000000001"
+    assert summary["organism"] == "Homo sapiens"
+    assert summary["cross_reference_count"] == 57
+
+
+@pytest.mark.asyncio
 async def test_uniprot_search_accepts_planned_size_alias(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

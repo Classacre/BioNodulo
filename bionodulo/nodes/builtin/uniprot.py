@@ -162,6 +162,32 @@ def _with_summary(payload: dict[str, Any]) -> dict[str, Any]:
         }
         return enriched
 
+    if payload.get("uniParcId"):
+        accessions = payload.get("uniProtKBAccessions") if isinstance(payload.get("uniProtKBAccessions"), list) else []
+        common_taxons = payload.get("commonTaxons") if isinstance(payload.get("commonTaxons"), list) else []
+        organism = ""
+        for taxon in common_taxons:
+            if not isinstance(taxon, dict):
+                continue
+            common_taxon = str(taxon.get("commonTaxon", "") or "")
+            if common_taxon and common_taxon != "synthetic construct":
+                organism = common_taxon
+                break
+        if not organism and common_taxons and isinstance(common_taxons[0], dict):
+            organism = str(common_taxons[0].get("commonTaxon", "") or "")
+        sequence = payload.get("sequence") if isinstance(payload.get("sequence"), dict) else {}
+        enriched = dict(payload)
+        enriched["summary"] = {
+            "accession": str(accessions[0] if accessions else ""),
+            "entry_name": str(payload.get("uniParcId", "")),
+            "protein_name": "",
+            "organism": organism,
+            "gene_names": [],
+            "sequence_length": sequence.get("length"),
+            "cross_reference_count": payload.get("crossReferenceCount"),
+        }
+        return enriched
+
     sequence = payload.get("sequence") if isinstance(payload.get("sequence"), dict) else {}
     organism = payload.get("organism") if isinstance(payload.get("organism"), dict) else {}
     enriched = dict(payload)
