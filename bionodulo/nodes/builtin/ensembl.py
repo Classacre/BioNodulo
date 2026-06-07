@@ -308,6 +308,7 @@ class EnsemblVEPNode(BaseNode):
                 "variant_class": ("BOOLEAN", {"default": True}),
                 "sift": ("BOOLEAN", {"default": True, "advanced": True}),
                 "polyphen": ("BOOLEAN", {"default": True, "advanced": True}),
+                "maf": ("BOOLEAN", {"default": False, "advanced": True}),
             },
             "hidden": {},
         }
@@ -327,6 +328,7 @@ class EnsemblVEPNode(BaseNode):
             "variant_class": 1 if bool(kwargs.get("variant_class", True)) else 0,
             "SiftPrediction": "yes" if bool(kwargs.get("sift", True)) else "no",
             "PolyPhen": "yes" if bool(kwargs.get("polyphen", True)) else "no",
+            "MAF": "yes" if bool(kwargs.get("maf", False)) else "no",
         }
         payload = await _post_json(
             f"vep/{quote(species, safe='')}/region",

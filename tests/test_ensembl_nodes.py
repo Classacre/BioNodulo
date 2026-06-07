@@ -34,6 +34,7 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_vep"]["output_name"] == ["vep_json", "annotation_table"]
     assert info["ensembl_vep"]["input"]["optional"]["sift"][0] == "BOOLEAN"
     assert info["ensembl_vep"]["input"]["optional"]["polyphen"][0] == "BOOLEAN"
+    assert info["ensembl_vep"]["input"]["optional"]["maf"][0] == "BOOLEAN"
 
 
 @pytest.mark.asyncio
@@ -255,6 +256,7 @@ async def test_ensembl_vep_posts_vcf_variants_and_writes_outputs(
         variant_class=True,
         sift=True,
         polyphen=False,
+        maf=True,
         context=context,
     )
 
@@ -285,6 +287,7 @@ async def test_ensembl_vep_posts_vcf_variants_and_writes_outputs(
                 "variant_class": 1,
                 "SiftPrediction": "yes",
                 "PolyPhen": "no",
+                "MAF": "yes",
             },
             "base_url": "https://rest.ensembl.org",
         }
