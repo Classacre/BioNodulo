@@ -80,8 +80,8 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     } catch (err) {
       logError('workspace.root.change', err);
       if (err instanceof ApiError) {
-        const detail = (err.body as { detail?: string } | null)?.detail;
-        setRootError(detail || t('workspace.changeFailed'));
+        const detail = (err.body as { detail?: string } | null)?.detail?.trim();
+        setRootError(detail ? `${t('workspace.changeFailed')}: ${detail}` : t('workspace.changeFailed'));
       } else {
         setRootError(t('workspace.networkError'));
       }

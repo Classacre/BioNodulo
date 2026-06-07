@@ -205,11 +205,55 @@ describe('WorkspacePanel i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set' }));
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.root.change', expect.any(Error)));
-    expect(screen.getByText('denied')).toBeInTheDocument();
+    expect(screen.getByText('Failed to change workspace: denied')).toBeInTheDocument();
 
     fireEvent.doubleClick(screen.getByText('sample.fastq'));
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.file.preview', expect.any(Error)));
     expect(screen.getByDisplayValue('Error loading file: 404')).toBeInTheDocument();
+  });
+
+  it('keeps workspace root API detail errors behind the localized change label', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const { setLanguage } = await import('../i18n');
+
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/api/workspace/root') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ detail: 'backend root detail' }), {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/root')) {
+        return new Response(JSON.stringify({ root: '/analysis' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/files')) {
+        return new Response(JSON.stringify({ path: '/', entries: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    await setLanguage('es');
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+
+    await waitFor(() => expect(screen.getByPlaceholderText('/ruta/al/espacio')).toHaveValue('/analysis'));
+
+    fireEvent.change(screen.getByPlaceholderText('/ruta/al/espacio'), { target: { value: '/restricted' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Definir' }));
+
+    await waitFor(() => expect(screen.getByText('No se pudo cambiar el espacio de trabajo: backend root detail')).toBeInTheDocument());
+    expect(screen.queryByText('backend root detail')).not.toBeInTheDocument();
   });
 });

@@ -685,6 +685,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - ShareDialog now uses the shared Dialog primitive, inheriting accessible dialog semantics, Escape/backdrop dismissal, and stack-aware modal behavior while preserving collaboration share/link actions.
 - ShareDialog share-list, invite, and revoke failure paths now report swallowed API errors through structured `logError` scopes while preserving the existing fallback UI behavior.
 - WorkspacePanel root loading, file listing, root-change, and file-preview failures now report structured `logError` scopes while preserving existing empty-state and inline error fallbacks.
+- WorkspacePanel root-change failures now keep backend API details behind the localized workspace-change label instead of showing raw detail text as the whole message.
 - TemplateGallery load, fork, and save-template failures now show localized inline fallback copy instead of raw API exception messages, while preserving structured diagnostics for each action.
 - EnvironmentPanel list, rename, delete, duplicate, and package-removal failures now report structured `logError` scopes while preserving existing inline error fallbacks.
 - EnvironmentPanel action failures now keep backend API details behind localized rename/delete/duplicate/remove labels instead of showing raw detail text as the whole message.
