@@ -1022,7 +1022,7 @@ const es = {
     managerTitle: 'Entornos',
     loadingEnvironments: 'Cargando entornos...',
     emptyTitle: 'No hay entornos todavia.',
-    emptyHint: 'Ejecuta un workflow para crear uno.',
+    emptyHint: 'Ejecuta un flujo de trabajo para crear uno.',
     showPackages: 'Mostrar paquetes',
     collapsePackages: 'Contraer paquetes',
     renameAction: 'Renombrar',

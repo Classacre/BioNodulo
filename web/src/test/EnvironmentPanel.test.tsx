@@ -151,7 +151,9 @@ describe('EnvironmentPanel i18n', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/No hay entornos todavia/)).toHaveTextContent('No hay entornos todavia.Ejecuta un workflow para crear uno.');
+      const emptyState = screen.getByText(/No hay entornos todavia/);
+      expect(emptyState).toHaveTextContent('No hay entornos todavia.Ejecuta un flujo de trabajo para crear uno.');
+      expect(emptyState).not.toHaveTextContent('Ejecuta un workflow para crear uno.');
     });
   });
 });
