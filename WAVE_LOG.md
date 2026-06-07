@@ -14,6 +14,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - `parallel_for` now honors `max_concurrency` by running body chunks through an async semaphore, while preserving gathered result order and `all_succeeded` reporting.
 - `http_request` now exposes `displayOptions` metadata for body/auth fields, and the frontend shares one visibility helper across node editor rows and canvas widgets/ports.
 - Workspace file-management locale coverage now keeps secondary file action copy in Spanish, including new-folder, reveal/copy/delete prompts, empty-state text, and file/folder plural counts.
+- Read-only node docs now honor the same conditional input visibility rules as the editor and canvas: Node Info filters with current node params, and Help Wiki receives selected-node params while registry docs fall back to metadata defaults.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

@@ -91,6 +91,52 @@ function graphNode(): GraphNode {
   };
 }
 
+function httpRequestNode(params: Record<string, unknown> = { body_format: 'none', auth_mode: 'none' }): GraphNode {
+  return {
+    ...graphNode(),
+    id: 'http-1',
+    type: 'http_request',
+    display_name: 'HTTP Request',
+    category: 'api',
+    params,
+    meta: {
+      id: 'http_request',
+      display_name: 'HTTP Request',
+      category: 'api',
+      input_types: {
+        required: {
+          url: { type: 'STRING', label: 'URL', default: '' },
+        },
+        optional: {
+          body_format: { type: 'STRING', label: 'Body format', default: 'none', options: ['none', 'json', 'text', 'form'] },
+          body: {
+            type: 'STRING',
+            label: 'Body',
+            displayOptions: { show: { body_format: ['json', 'text', 'form'] } },
+          },
+          auth_mode: { type: 'STRING', label: 'Auth mode', default: 'none', options: ['none', 'bearer', 'basic'] },
+          bearer_token: {
+            type: 'STRING',
+            label: 'Bearer token',
+            displayOptions: { show: { auth_mode: ['bearer'] } },
+          },
+          username: {
+            type: 'STRING',
+            label: 'Username',
+            displayOptions: { show: { auth_mode: ['basic'] } },
+          },
+          password: {
+            type: 'STRING',
+            label: 'Password',
+            displayOptions: { show: { auth_mode: ['basic'] } },
+          },
+        },
+      },
+    },
+    title: 'HTTP Request node',
+  };
+}
+
 describe('Node editor and info panel i18n', () => {
   beforeEach(() => {
     storage.clear();
@@ -153,45 +199,7 @@ describe('Node editor and info panel i18n', () => {
   it('hides conditional editor fields until their controlling parameter matches', async () => {
     const { default: NodeEditor } = await import('../components/nodes/NodeEditor');
     const onParamChange = vi.fn();
-    const node = graphNode();
-    node.params = {
-      body_format: 'none',
-      auth_mode: 'none',
-    };
-    node.meta = {
-      id: 'http_request',
-      display_name: 'HTTP Request',
-      category: 'api',
-      input_types: {
-        required: {
-          url: { type: 'STRING', label: 'URL', default: '' },
-        },
-        optional: {
-          body_format: { type: 'STRING', label: 'Body format', default: 'none', options: ['none', 'json', 'text', 'form'] },
-          body: {
-            type: 'STRING',
-            label: 'Body',
-            displayOptions: { show: { body_format: ['json', 'text', 'form'] } },
-          },
-          auth_mode: { type: 'STRING', label: 'Auth mode', default: 'none', options: ['none', 'bearer', 'basic'] },
-          bearer_token: {
-            type: 'STRING',
-            label: 'Bearer token',
-            displayOptions: { show: { auth_mode: ['bearer'] } },
-          },
-          username: {
-            type: 'STRING',
-            label: 'Username',
-            displayOptions: { show: { auth_mode: ['basic'] } },
-          },
-          password: {
-            type: 'STRING',
-            label: 'Password',
-            displayOptions: { show: { auth_mode: ['basic'] } },
-          },
-        },
-      },
-    };
+    const node = httpRequestNode();
 
     const { rerender } = render(<NodeEditor node={node} onParamChange={onParamChange} onClose={() => undefined} />);
 
@@ -213,6 +221,32 @@ describe('Node editor and info panel i18n', () => {
           },
         }}
         onParamChange={onParamChange}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Body')).toBeInTheDocument();
+    expect(screen.getByText('Username')).toBeInTheDocument();
+    expect(screen.getByText('Password')).toBeInTheDocument();
+    expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+  });
+
+  it('hides conditional read-only info inputs until their controlling parameter matches', async () => {
+    const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
+    const node = httpRequestNode();
+
+    const { rerender } = render(<NodeInfoPanel node={node} onClose={() => undefined} />);
+
+    expect(screen.getByText('Body format')).toBeInTheDocument();
+    expect(screen.getByText('Auth mode')).toBeInTheDocument();
+    expect(screen.queryByText('Body')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+    expect(screen.queryByText('Username')).not.toBeInTheDocument();
+    expect(screen.queryByText('Password')).not.toBeInTheDocument();
+
+    rerender(
+      <NodeInfoPanel
+        node={httpRequestNode({ body_format: 'json', auth_mode: 'basic' })}
         onClose={() => undefined}
       />,
     );

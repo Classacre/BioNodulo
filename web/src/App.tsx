@@ -2815,6 +2815,7 @@ export default function App() {
           type: selected.type,
           meta: objectInfo[selected.type],
           title: selected.ui?.title || objectInfo[selected.type]?.display_name || selected.type,
+          params: selected.params,
         }
         : null;
       return wrap('help', <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} objectInfo={objectInfo} />);

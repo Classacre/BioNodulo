@@ -3,16 +3,23 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Icon from '../ui/Icon';
 import type { NodeMetadata, ObjectInfo } from '../../types';
+import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 
 interface HelpWikiPanelProps {
   onClose: () => void;
   /** Currently selected node — when set, the panel surfaces node-specific docs first. */
-  selectedNode?: { id: string; type: string; meta?: NodeMetadata; title?: string } | null;
+  selectedNode?: HelpNode | null;
   /** Optional registry so search can look across node names + descriptions. */
   objectInfo?: ObjectInfo;
 }
 
-type HelpNode = { id: string; type: string; meta?: NodeMetadata; title?: string };
+type HelpNode = {
+  id: string;
+  type: string;
+  meta?: NodeMetadata;
+  title?: string;
+  params?: Record<string, unknown>;
+};
 
 function escapeHtml(value: string): string {
   return value
@@ -30,8 +37,7 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
     : `<em>${escapeHtml(t('helpWiki.nodeDocs.noDescription'))}</em>`;
   const category = meta?.category || t('helpWiki.nodeDocs.uncategorised');
   const tools = meta?.requires_external_tools || [];
-  const required = meta?.input_types?.required || {};
-  const optional = meta?.input_types?.optional || {};
+  const { required, optional } = getVisibleInputSpecs(meta, node.params);
   const outputs = meta?.return_types || [];
   const outputNames = meta?.return_names || [];
   const lifecycleStatus = meta?.lifecycle?.status || (meta?.deprecated ? 'deprecated' : '');

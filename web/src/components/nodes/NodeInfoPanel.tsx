@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
+import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 
 interface NodeInfoPanelProps {
   node?: GraphNode;
@@ -12,8 +13,7 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
   const { t } = useTranslation();
   if (!node) return null;
   const meta = node.meta;
-  const required = meta?.input_types?.required || {};
-  const optional = meta?.input_types?.optional || {};
+  const { required, optional } = getVisibleInputSpecs(meta, node.params);
   const categoryLabel = nodeCategoryDisplayLabel(meta?.category, t, t('nodeLibrary.otherCategory'));
   // const hidden = meta?.input_types?.hidden || {};
 

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { ObjectInfo } from '../types';
+import type { NodeMetadata, ObjectInfo } from '../types';
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -18,6 +18,44 @@ const localStorageStub: Storage = {
   setItem: (key: string, value: string) => {
     storage.set(key, String(value));
   },
+};
+
+const httpRequestMeta: NodeMetadata = {
+  id: 'http_request',
+  display_name: 'HTTP Request',
+  category: 'api',
+  description: 'Make a generic HTTP request.',
+  input_types: {
+    required: {
+      url: { type: 'STRING', label: 'URL', default: '' },
+    },
+    optional: {
+      body_format: { type: 'STRING', label: 'Body format', default: 'none', options: ['none', 'json', 'text', 'form'] },
+      body: {
+        type: 'STRING',
+        label: 'Body',
+        displayOptions: { show: { body_format: ['json', 'text', 'form'] } },
+      },
+      auth_mode: { type: 'STRING', label: 'Auth mode', default: 'none', options: ['none', 'bearer', 'basic'] },
+      bearer_token: {
+        type: 'STRING',
+        label: 'Bearer token',
+        displayOptions: { show: { auth_mode: ['bearer'] } },
+      },
+      username: {
+        type: 'STRING',
+        label: 'Username',
+        displayOptions: { show: { auth_mode: ['basic'] } },
+      },
+      password: {
+        type: 'STRING',
+        label: 'Password',
+        displayOptions: { show: { auth_mode: ['basic'] } },
+      },
+    },
+  },
+  return_types: ['JSON'],
+  return_names: ['response_json'],
 };
 
 const objectInfo: ObjectInfo = {
@@ -73,6 +111,7 @@ const objectInfo: ObjectInfo = {
       ],
     },
   },
+  http_request: httpRequestMeta,
 };
 
 describe('HelpWikiPanel node documentation search', () => {
@@ -120,6 +159,53 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('raw_files')).toBeInTheDocument();
     expect(screen.getByText('report')).toBeInTheDocument();
     expect(screen.getByText(/Requires:/)).toBeInTheDocument();
+  });
+
+  it('hides conditional node documentation inputs until their metadata defaults match', async () => {
+    await import('../i18n');
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+
+    const { rerender } = render(
+      <HelpWikiPanel
+        onClose={vi.fn()}
+        objectInfo={objectInfo}
+        selectedNode={{
+          id: 'http-1',
+          type: 'http_request',
+          title: 'HTTP Request',
+          meta: httpRequestMeta,
+          params: { body_format: 'none', auth_mode: 'none' },
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'HTTP Request' })).toBeInTheDocument();
+    expect(screen.getByText('url')).toBeInTheDocument();
+    expect(screen.getByText('body_format')).toBeInTheDocument();
+    expect(screen.getByText('auth_mode')).toBeInTheDocument();
+    expect(screen.queryByText('body')).not.toBeInTheDocument();
+    expect(screen.queryByText('bearer_token')).not.toBeInTheDocument();
+    expect(screen.queryByText('username')).not.toBeInTheDocument();
+    expect(screen.queryByText('password')).not.toBeInTheDocument();
+
+    rerender(
+      <HelpWikiPanel
+        onClose={vi.fn()}
+        objectInfo={objectInfo}
+        selectedNode={{
+          id: 'http-1',
+          type: 'http_request',
+          title: 'HTTP Request',
+          meta: httpRequestMeta,
+          params: { body_format: 'json', auth_mode: 'basic' },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('body')).toBeInTheDocument();
+    expect(screen.getByText('username')).toBeInTheDocument();
+    expect(screen.getByText('password')).toBeInTheDocument();
+    expect(screen.queryByText('bearer_token')).not.toBeInTheDocument();
   });
 
   it('surfaces lifecycle and migration metadata in node docs and search', async () => {
