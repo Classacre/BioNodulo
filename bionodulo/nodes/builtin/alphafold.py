@@ -155,6 +155,7 @@ class AlphaFoldDBNode(BaseNode):
             },
             "optional": {
                 "structure_format": (list(STRUCTURE_FORMATS), {"default": "mmcif"}),
+                "format": ("STRING", {"default": "mmcif", "options": list(STRUCTURE_FORMATS), "advanced": True}),
                 "model_version": ("STRING", {"default": "", "advanced": True}),
                 "download_pae": ("BOOLEAN", {"default": False}),
             },
@@ -166,7 +167,7 @@ class AlphaFoldDBNode(BaseNode):
         ids = _coerce_ids(kwargs.get("uniprot_ids", ""))
         if not ids:
             raise ValueError("AlphaFold DB requires at least one UniProt ID")
-        structure_format = str(kwargs.get("structure_format", "mmcif") or "mmcif").lower()
+        structure_format = str(kwargs.get("structure_format", kwargs.get("format", "mmcif")) or "mmcif").lower()
         if structure_format not in STRUCTURE_FORMATS:
             raise ValueError(f"Unsupported structure_format: {structure_format}")
         model_version = str(kwargs.get("model_version", "") or "").strip()

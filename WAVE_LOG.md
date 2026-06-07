@@ -590,6 +590,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Pause / Resume now includes structured preview data in the emitted `pause_requested` runtime event, matching the persisted pause record and giving UI clients immediate review context.
 - KEGG Pathway now supports the planned `pathway_image` query type and `download_image` option, downloading pathway PNG maps and recording image path/URL metadata alongside existing JSON/TSV outputs.
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
+- AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.
 
 ---
 
