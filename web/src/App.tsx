@@ -3167,6 +3167,7 @@ export default function App() {
           edges={activeWorkflow.edges}
           groups={activeWorkflow.groups}
           objectInfo={objectInfo}
+          workflowParameters={activeWorkflow.parameters ?? []}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onGroupsChange={handleGroupsChange}

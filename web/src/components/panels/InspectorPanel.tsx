@@ -259,6 +259,7 @@ export default function InspectorPanel({
             return (
               <NodeEditor
                 node={synthetic}
+                workflowParameters={workflowParameters}
                 onParamChange={onParamChange}
                 onClose={onClose}
               />

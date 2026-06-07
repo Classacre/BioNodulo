@@ -793,6 +793,8 @@ const en = {
     openDocumentationLink: 'Open Documentation ↗',
     dropFilePlaceholder: 'Drop file or type path...',
     dropDirectoryPlaceholder: 'Drop directory or type path...',
+    workflowParameterInsertLabel: 'Insert workflow parameter into {{label}}',
+    workflowParameterInsertPlaceholder: 'Parameter',
     requiredInputs: 'Required Inputs',
     optionalInputs: 'Optional Inputs',
     outputs: 'Outputs',

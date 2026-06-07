@@ -797,6 +797,8 @@ const es = {
     openDocumentationLink: 'Abrir documentacion ↗',
     dropFilePlaceholder: 'Suelta un archivo o escribe una ruta...',
     dropDirectoryPlaceholder: 'Suelta un directorio o escribe una ruta...',
+    workflowParameterInsertLabel: 'Insertar parametro de flujo en {{label}}',
+    workflowParameterInsertPlaceholder: 'Parametro',
     requiredInputs: 'Entradas obligatorias',
     optionalInputs: 'Entradas opcionales',
     outputs: 'Salidas',

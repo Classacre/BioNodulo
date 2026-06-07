@@ -1,15 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { WorkflowParameter } from '../../types';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
 interface NodeEditorProps {
   node?: GraphNode;
+  workflowParameters?: WorkflowParameter[];
   onParamChange: (nodeId: string, key: string, value: unknown) => void;
   onClose: () => void;
 }
 
-export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorProps) {
+export default function NodeEditor({ node, workflowParameters = [], onParamChange, onClose }: NodeEditorProps) {
   const { t } = useTranslation();
   const [showAdvanced, setShowAdvanced] = useState(false);
   if (!node) return null;
@@ -33,7 +35,7 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
         {Object.keys(required).length > 0 && (
           <>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8, letterSpacing: '0.05em' }}>{t('nodeDetails.required')}</div>
-            {Object.entries(required).map(([key, spec]) => renderParam(key, spec as any, node, onParamChange, t))}
+            {Object.entries(required).map(([key, spec]) => renderParam(key, spec as any, node, workflowParameters, onParamChange, t))}
           </>
         )}
 
@@ -53,7 +55,7 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
             {Object.entries(optional).map(([key, spec]) => {
               const s = spec as any;
               if (s?.advanced && !showAdvanced) return null;
-              return renderParam(key, s, node, onParamChange, t);
+              return renderParam(key, s, node, workflowParameters, onParamChange, t);
             })}
           </>
         )}
@@ -77,6 +79,77 @@ export default function NodeEditor({ node, onParamChange, onClose }: NodeEditorP
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function workflowParameterReference(name: string): string {
+  return `{{${name}}}`;
+}
+
+function appendWorkflowParameterReference(value: unknown, name: string): string {
+  return `${String(value ?? '')}${workflowParameterReference(name)}`;
+}
+
+function WorkflowParameterInsert({
+  label,
+  parameters,
+  onInsert,
+  t,
+}: {
+  label: string;
+  parameters: WorkflowParameter[];
+  onInsert: (name: string) => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  const namedParameters = parameters.filter(parameter => parameter.name.trim() !== '');
+  if (namedParameters.length === 0) return null;
+
+  return (
+    <select
+      className="select-input param-input"
+      aria-label={t('nodeDetails.workflowParameterInsertLabel', { label })}
+      value=""
+      onChange={event => {
+        const name = event.target.value;
+        if (name) onInsert(name);
+      }}
+      style={{ flex: '0 0 120px', minWidth: 0, fontSize: 11 }}
+    >
+      <option value="">{t('nodeDetails.workflowParameterInsertPlaceholder')}</option>
+      {namedParameters.map(parameter => (
+        <option key={parameter.name} value={parameter.name}>
+          {workflowParameterReference(parameter.name)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TextLikeParamControl({
+  children,
+  label,
+  value,
+  parameters,
+  onInsert,
+  t,
+}: {
+  children: ReactNode;
+  label: string;
+  value: unknown;
+  parameters: WorkflowParameter[];
+  onInsert: (value: string) => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+      <div style={{ flex: '1 1 auto', minWidth: 0 }}>{children}</div>
+      <WorkflowParameterInsert
+        label={label}
+        parameters={parameters}
+        onInsert={name => onInsert(appendWorkflowParameterReference(value, name))}
+        t={t}
+      />
     </div>
   );
 }
@@ -164,7 +237,7 @@ function renderParam(key: string, spec: {
   type: string; default?: unknown; options?: string[]; min?: number; max?: number; step?: number;
   tooltip?: string; label?: string; advanced?: boolean; multiline?: boolean; display?: string;
   accept?: string; directory?: boolean;
-}, node: GraphNode, onChange: (nodeId: string, key: string, value: unknown) => void, t: (key: string) => string) {
+}, node: GraphNode, workflowParameters: WorkflowParameter[], onChange: (nodeId: string, key: string, value: unknown) => void, t: (key: string, options?: Record<string, unknown>) => string) {
   const label = spec.label || key;
   const value = node.params[key] ?? spec.default ?? '';
   const isFileLike = spec.type === 'FILE' || spec.type === 'FASTA' || spec.type === 'FASTQ' || spec.type === 'BAM' || spec.type === 'VCF' || spec.type === 'GFF' || spec.type === 'GTF' || spec.type === 'BED' || spec.type === 'ASSEMBLY' || spec.type === 'CONTIGS' || spec.type === 'INDEX_DIR' || spec.type === 'QC_REPORT_DIR' || spec.type === 'HTML_REPORT' || spec.type === 'KRAKEN_REPORT';
@@ -196,23 +269,50 @@ function renderParam(key: string, spec: {
     );
   } else if (spec.multiline) {
     control = (
-      <textarea
-        className="text-input param-input"
-        style={{ minHeight: 60, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}
-        value={String(value)}
-        onChange={e => onChange(node.id, key, e.target.value)}
-      />
+      <TextLikeParamControl
+        label={label}
+        value={value}
+        parameters={workflowParameters}
+        onInsert={nextValue => onChange(node.id, key, nextValue)}
+        t={t}
+      >
+        <textarea
+          className="text-input param-input"
+          style={{ minHeight: 60, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, width: '100%' }}
+          value={String(value)}
+          onChange={e => onChange(node.id, key, e.target.value)}
+        />
+      </TextLikeParamControl>
     );
   } else if (isFileLike || isDirLike) {
-    control = <FileDropZone value={String(value)} accept={spec.accept} directory={isDirLike} onChange={v => onChange(node.id, key, v)} placeholder={t(isDirLike ? 'nodeDetails.dropDirectoryPlaceholder' : 'nodeDetails.dropFilePlaceholder')} />;
+    control = (
+      <TextLikeParamControl
+        label={label}
+        value={value}
+        parameters={workflowParameters}
+        onInsert={nextValue => onChange(node.id, key, nextValue)}
+        t={t}
+      >
+        <FileDropZone value={String(value)} accept={spec.accept} directory={isDirLike} onChange={v => onChange(node.id, key, v)} placeholder={t(isDirLike ? 'nodeDetails.dropDirectoryPlaceholder' : 'nodeDetails.dropFilePlaceholder')} />
+      </TextLikeParamControl>
+    );
   } else {
     control = (
-      <input
-        type="text"
-        className="text-input param-input"
-        value={String(value)}
-        onChange={e => onChange(node.id, key, e.target.value)}
-      />
+      <TextLikeParamControl
+        label={label}
+        value={value}
+        parameters={workflowParameters}
+        onInsert={nextValue => onChange(node.id, key, nextValue)}
+        t={t}
+      >
+        <input
+          type="text"
+          className="text-input param-input"
+          style={{ width: '100%' }}
+          value={String(value)}
+          onChange={e => onChange(node.id, key, e.target.value)}
+        />
+      </TextLikeParamControl>
     );
   }
 

@@ -130,6 +130,26 @@ describe('Node editor and info panel i18n', () => {
     expect(onParamChange).toHaveBeenCalledWith('fastqc-1', 'threads', 8);
   });
 
+  it('inserts workflow parameter references into text-like node fields', async () => {
+    const { default: NodeEditor } = await import('../components/nodes/NodeEditor');
+    const onParamChange = vi.fn();
+
+    render(
+      <NodeEditor
+        node={graphNode()}
+        workflowParameters={[{ name: 'sample_id', type: 'STRING' }]}
+        onParamChange={onParamChange}
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Insert workflow parameter into Reads'), {
+      target: { value: 'sample_id' },
+    });
+
+    expect(onParamChange).toHaveBeenCalledWith('fastqc-1', 'reads', '{{sample_id}}');
+  });
+
   it('renders read-only node information from the active locale', async () => {
     const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
     const { setLanguage } = await import('../i18n');

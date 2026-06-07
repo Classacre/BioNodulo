@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
+import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus, WorkflowParameter } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
@@ -42,6 +42,7 @@ interface WorkflowCanvasProps {
   edges: WorkflowEdge[];
   groups: WorkflowGroup[];
   objectInfo: ObjectInfo;
+  workflowParameters?: WorkflowParameter[];
   onNodesChange: (nodes: WorkflowNode[]) => void;
   onEdgesChange: (edges: WorkflowEdge[]) => void;
   onGroupsChange: (groups: WorkflowGroup[]) => void;
@@ -547,6 +548,7 @@ export interface WorkflowCanvasRef {
 
 const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(function WorkflowCanvas({
   nodes, edges, groups, objectInfo,
+  workflowParameters = [],
   onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, onUndo, onRedo,
   snapToGrid, showMinimap, viewportLocked, linksHidden,
   onToggleMinimap, onToggleLinksHidden,
@@ -3933,6 +3935,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       {editingNode && (
         <NodeEditor
           node={graphNodes.find(n => n.id === editingNode)}
+          workflowParameters={workflowParameters}
           onParamChange={handleNodeParamChange}
           onClose={() => setEditingNode(null)}
         />
