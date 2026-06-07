@@ -2113,6 +2113,20 @@ class MyToolNode(CommandNode):
   },
   importModal: {
     title: 'Import workflow',
+    formats: {
+      json: 'BioNodulo JSON',
+      snakemake: 'SnakeMake',
+      nextflow: 'NextFlow',
+      cwl: 'CWL',
+      galaxy: 'Galaxy (.ga)',
+    },
+    placeholders: {
+      json: '{\n  "version": "2.0",\n  "nodes": [...],\n  "edges": [...]\n}',
+      snakemake: 'rule example:\n    input: "reads.fastq"\n    output: "aligned.bam"\n    shell: "bwa mem ref {input} > {output}"',
+      nextflow: 'process align {\n  input: path reads\n  output: path "*.bam"\n  script:\n  "bwa mem ref $reads > out.bam"\n}',
+      cwl: 'class: Workflow\ninputs:\n  reads: File\noutputs:\n  aligned: File\nsteps:\n  ...',
+      galaxy: '{\n  "a_galaxy_workflow": "true",\n  "steps": {...}\n}',
+    },
     uploadHint: 'Paste workflow code above, or upload a file (PNGs with embedded workflow metadata are decoded automatically):',
     parsing: 'Parsing...',
     errors: {

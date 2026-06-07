@@ -13,12 +13,32 @@ interface ImportModalProps {
 
 type ImportFormat = 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
 
-const FORMATS: { id: ImportFormat; name: string; placeholder: string }[] = [
-  { id: 'json', name: 'BioNodulo JSON', placeholder: '{\n  "version": "2.0",\n  "nodes": [...],\n  "edges": [...]\n}' },
-  { id: 'snakemake', name: 'SnakeMake', placeholder: 'rule example:\n    input: "reads.fastq"\n    output: "aligned.bam"\n    shell: "bwa mem ref {input} > {output}"' },
-  { id: 'nextflow', name: 'NextFlow', placeholder: 'process align {\n  input: path reads\n  output: path "*.bam"\n  script:\n  "bwa mem ref $reads > out.bam"\n}' },
-  { id: 'cwl', name: 'CWL', placeholder: 'class: Workflow\ninputs:\n  reads: File\noutputs:\n  aligned: File\nsteps:\n  ...' },
-  { id: 'galaxy', name: 'Galaxy (.ga)', placeholder: '{\n  "a_galaxy_workflow": "true",\n  "steps": {...}\n}' },
+const FORMATS: { id: ImportFormat; labelKey: string; placeholderKey: string }[] = [
+  {
+    id: 'json',
+    labelKey: 'importModal.formats.json',
+    placeholderKey: 'importModal.placeholders.json',
+  },
+  {
+    id: 'snakemake',
+    labelKey: 'importModal.formats.snakemake',
+    placeholderKey: 'importModal.placeholders.snakemake',
+  },
+  {
+    id: 'nextflow',
+    labelKey: 'importModal.formats.nextflow',
+    placeholderKey: 'importModal.placeholders.nextflow',
+  },
+  {
+    id: 'cwl',
+    labelKey: 'importModal.formats.cwl',
+    placeholderKey: 'importModal.placeholders.cwl',
+  },
+  {
+    id: 'galaxy',
+    labelKey: 'importModal.formats.galaxy',
+    placeholderKey: 'importModal.placeholders.galaxy',
+  },
 ];
 
 export default function ImportModal({ onImport, onClose }: ImportModalProps) {
@@ -83,22 +103,40 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         aria-modal="true"
         aria-label={t('importModal.title')}
         style={{ width: 700, maxHeight: '80vh' }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">{t('importModal.title')}</div>
         <div className="modal-body">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            {FORMATS.map(f => (
-              <button key={f.id} className={`env-type-tab ${format === f.id ? 'active' : ''}`} onClick={() => setFormat(f.id)}>
-                {f.name}
+            {FORMATS.map((f) => (
+              <button
+                key={f.id}
+                className={`env-type-tab ${format === f.id ? 'active' : ''}`}
+                onClick={() => setFormat(f.id)}
+              >
+                {t(f.labelKey)}
               </button>
             ))}
           </div>
           <textarea
             value={source}
-            onChange={e => setSource(e.target.value)}
-            placeholder={FORMATS.find(f => f.id === format)?.placeholder}
-            style={{ width: '100%', minHeight: 300, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', resize: 'vertical' }}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder={t(
+              FORMATS.find((f) => f.id === format)?.placeholderKey ??
+                'importModal.placeholders.json',
+            )}
+            style={{
+              width: '100%',
+              minHeight: 300,
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: 11,
+              padding: 12,
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              background: 'var(--surface-2)',
+              color: 'var(--text)',
+              resize: 'vertical',
+            }}
           />
           <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
             {t('importModal.uploadHint')}
@@ -106,7 +144,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
               type="file"
               accept=".json,.smk,.nf,.cwl,.ga,.png,.txt,application/json,image/png"
               style={{ marginLeft: 8 }}
-              onChange={async e => {
+              onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
@@ -138,7 +176,9 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
           </div>
         </div>
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
+          <button className="btn" onClick={onClose}>
+            {t('common.cancel')}
+          </button>
           <button className="btn btn-primary" onClick={parse} disabled={!source.trim() || parsing}>
             {parsing ? t('importModal.parsing') : t('common.import')}
           </button>

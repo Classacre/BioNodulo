@@ -91,6 +91,34 @@ describe('ImportModal i18n', () => {
     expect(onImport.mock.calls[0][0].name).toBe('Imported workflow');
   });
 
+  it('renders import format labels and placeholders from the active locale', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
+
+    expect(screen.getByRole('button', { name: 'JSON de BioNodulo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SnakeMake' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'NextFlow' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CWL' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Galaxy (.ga)' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/"version": "2.0"/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    expect(screen.getByPlaceholderText(/regla ejemplo/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'NextFlow' }));
+    expect(screen.getByPlaceholderText(/proceso alinear/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CWL' }));
+    expect(screen.getByPlaceholderText(/clase: Workflow/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Galaxy (.ga)' }));
+    expect(screen.getByPlaceholderText(/"a_galaxy_workflow": "true"/)).toBeInTheDocument();
+  });
+
   it('posts external workflow imports using the backend request contract', async () => {
     const { default: ImportModal } = await import('../components/modals/ImportModal');
     const onImport = vi.fn<(workflow: Workflow) => void>();
