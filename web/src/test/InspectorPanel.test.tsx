@@ -41,6 +41,7 @@ describe('InspectorPanel i18n', () => {
       <InspectorPanel
         selectedNode={null}
         objectInfo={{}}
+        workflowParameters={[]}
         onParamChange={() => undefined}
         onClose={onClose}
       />,
@@ -54,5 +55,44 @@ describe('InspectorPanel i18n', () => {
     fireEvent.click(screen.getByTitle('Cerrar inspector'));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows declared workflow parameters when no node is selected', async () => {
+    const { default: InspectorPanel } = await import('../components/panels/InspectorPanel');
+
+    render(
+      <InspectorPanel
+        selectedNode={null}
+        objectInfo={{}}
+        workflowParameters={[
+          {
+            name: 'sample_id',
+            type: 'STRING',
+            required: true,
+            default: 'S1',
+            description: 'Sample identifier used in {{sample_id}} bindings.',
+          },
+          {
+            name: 'threads',
+            type: 'INTEGER',
+            required: false,
+            default: 8,
+          },
+        ]}
+        onParamChange={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Workflow parameters')).toBeInTheDocument();
+    expect(screen.getByText('sample_id')).toBeInTheDocument();
+    expect(screen.getByText('STRING')).toBeInTheDocument();
+    expect(screen.getByText('Required')).toBeInTheDocument();
+    expect(screen.getByText('Default: S1')).toBeInTheDocument();
+    expect(screen.getByText('Sample identifier used in {{sample_id}} bindings.')).toBeInTheDocument();
+    expect(screen.getByText('threads')).toBeInTheDocument();
+    expect(screen.getByText('INTEGER')).toBeInTheDocument();
+    expect(screen.getByText('Optional')).toBeInTheDocument();
+    expect(screen.getByText('Default: 8')).toBeInTheDocument();
   });
 });

@@ -2888,6 +2888,7 @@ export default function App() {
         <InspectorPanel
           selectedNode={selected}
           objectInfo={objectInfo}
+          workflowParameters={activeWorkflow.parameters ?? []}
           onParamChange={(nodeId, key, value) => {
             handleNodesChange(activeWorkflow.nodes.map(node => (
               node.id === nodeId
