@@ -52,7 +52,10 @@ describe('TopBar i18n', () => {
 
     expect(screen.getByText('2 incidencias')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cola: 3' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ejecutar workflow/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ejecutar flujo de trabajo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ejecutar workflow/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Exportar flujo de trabajo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Exportar workflow/ })).not.toBeInTheDocument();
     expect(screen.getByTitle('HPC activa')).toHaveTextContent('HPC activa');
     expect(screen.getByRole('button', { name: 'Opciones de ejecucion' })).toHaveAttribute(
       'title',
@@ -68,6 +71,11 @@ describe('TopBar i18n', () => {
     expect(screen.getByRole('menuitemradio', { name: /Manual/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: /Al cambiar/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitemradio', { name: /Instantaneo/ })).toBeInTheDocument();
+    expect(screen.getByText('Punto de control de reanudacion')).toBeInTheDocument();
+    expect(screen.getByText('Sin punto de control seleccionado')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Elegir punto de control/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Checkpoint/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/checkpoint/)).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Lote desde hoja/ })).toBeInTheDocument();
   });
 
