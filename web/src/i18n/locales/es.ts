@@ -863,7 +863,7 @@ const es = {
     upload: 'Upload files',
     uploadDrop: 'Drop files to upload',
     uploadProgress: 'Uploading {{name}}...',
-    uploadFailed: 'Upload failed',
+    uploadFailed: 'No se pudo subir',
     uploadSuccess: 'Uploaded {{name}}',
     pastedFileAdded: 'Archivo pegado agregado',
     fileDropped: 'Archivo soltado',

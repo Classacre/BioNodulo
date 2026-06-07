@@ -63,7 +63,7 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
     expect(i18n.t('canvas.flashNoSelectedNodeHasParam', { param: 'threads' })).toBe('Ningun nodo seleccionado tiene "threads"');
     expect(i18n.t('canvas.flashCopiedParamToNodes', { param: 'threads', count: 1 })).toBe('Copiado threads -> 1 nodo');
     expect(i18n.t('canvas.flashCopiedParamToNodes', { param: 'threads', count: 3 })).toBe('Copiado threads -> 3 nodos');
-    expect(i18n.t('workspace.uploadFailed')).toBe('Upload failed');
+    expect(i18n.t('workspace.uploadFailed')).toBe('No se pudo subir');
     expect(i18n.t('common.preview')).toBe('Vista previa');
     expect(i18n.t('canvas.htmlPreviewTitle', { id: 'node-1' })).toBe('Vista previa HTML para node-1');
   });
