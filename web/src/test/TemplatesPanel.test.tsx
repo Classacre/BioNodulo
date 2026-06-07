@@ -170,6 +170,8 @@ describe('TemplatesPanel i18n', () => {
     await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
 
     fireEvent.click(screen.getByTitle('Guardar flujo de trabajo como plantilla'));
+    expect(screen.getByPlaceholderText('Categoria')).toHaveValue('Personalizado');
+    expect(screen.queryByDisplayValue('Custom')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Guardar plantilla' }));
 
     await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith(expect.objectContaining({

@@ -102,6 +102,16 @@ function templateCategoryLabel(category: string | undefined, t: TFunction): stri
   return nodeCategoryDisplayLabel(category, t, t('templates.otherCategory'));
 }
 
+function templateSaveCategoryValue(category: string, t: TFunction): string {
+  return category === DEFAULT_CUSTOM_CATEGORY ? t('templates.customCategory') : category;
+}
+
+function templateSaveCategoryCanonical(category: string, t: TFunction): string {
+  const trimmed = category.trim();
+  if (!trimmed || trimmed === t('templates.customCategory')) return DEFAULT_CUSTOM_CATEGORY;
+  return trimmed;
+}
+
 function sortRankedTemplates(items: RankedTemplate[], mode: TemplateSortMode): RankedTemplate[] {
   const next = [...items];
   next.sort((a, b) => {
@@ -305,7 +315,7 @@ export default function TemplatesPanel({
     await onSaveTemplate({
       name,
       description: saveDraft.description.trim(),
-      category: saveDraft.category.trim() || DEFAULT_CUSTOM_CATEGORY,
+      category: templateSaveCategoryCanonical(saveDraft.category, t),
       tags: normalizeTags(saveDraft.tags),
     });
     setSaveOpen(false);
@@ -358,7 +368,7 @@ export default function TemplatesPanel({
             <div className="template-save-row">
               <input
                 className="text-input"
-                value={saveDraft.category}
+                value={templateSaveCategoryValue(saveDraft.category, t)}
                 onChange={event => setSaveDraft(prev => ({ ...prev, category: event.target.value }))}
                 placeholder={t('templates.categoryPlaceholder')}
                 disabled={isSavingTemplate}

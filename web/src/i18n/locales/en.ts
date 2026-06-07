@@ -1004,6 +1004,7 @@ const en = {
     sortNodeCount: 'Node count',
     sortUpdated: 'Updated',
     allCategories: 'All',
+    customCategory: 'Custom',
     otherCategory: 'Other',
     showCategoryTemplates: 'Show {{category}} templates',
     loadingTemplates: 'Loading templates',
