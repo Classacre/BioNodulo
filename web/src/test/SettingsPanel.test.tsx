@@ -60,7 +60,7 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByRole('button', { name: 'Telemetria' })).toBeInTheDocument();
 
     const search = screen.getByRole('searchbox', { name: 'Buscar ajustes' });
-    expect(search).toHaveAttribute('placeholder', 'Buscar ajustes... (p. ej. tema, cache, hpc)');
+    expect(search).toHaveAttribute('placeholder', 'Buscar ajustes... (p. ej. tema, almacenamiento, hpc)');
 
     fireEvent.change(search, { target: { value: 'zzzz-no-match' } });
 
@@ -81,8 +81,8 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByRole('option', { name: 'Sistema' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Claro' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Oscuro' })).toBeInTheDocument();
-    expect(screen.getByText('Tooltips')).toBeInTheDocument();
-    expect(screen.getByText('Mostrar tooltips al pasar el cursor')).toBeInTheDocument();
+    expect(screen.getByText('Ayudas emergentes')).toBeInTheDocument();
+    expect(screen.getByText('Mostrar ayudas emergentes al pasar el cursor')).toBeInTheDocument();
     expect(screen.getByText('Paleta')).toBeInTheDocument();
     expect(screen.getByText('Cambiar paleta de colores')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restablecer' })).toBeInTheDocument();
@@ -105,6 +105,8 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByRole('option', { name: 'Auto (recomendado)' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Alta (siempre)' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Baja (rapida)' })).toBeInTheDocument();
+    expect(screen.getByText('Color por estado')).toBeInTheDocument();
+    expect(screen.getByText('Tintar encabezados de nodos segun el ultimo estado de ejecucion (completado/error/almacenado)')).toBeInTheDocument();
     expect(screen.getByText('Color de enlaces')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Por tipo de dato' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Gradiente (resalta incompatibilidad)' })).toBeInTheDocument();
