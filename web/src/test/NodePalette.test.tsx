@@ -91,12 +91,21 @@ describe('NodePalette i18n', () => {
     expect(screen.getByText('Usados recientemente')).toBeInTheDocument();
     expect(screen.getByTitle('Limpiar nodos recientes')).toBeInTheDocument();
     expect(screen.getByText('Limpiar recientes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Alineacion/ })).toBeInTheDocument();
+    expect(screen.queryByText('Alignment')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Otro/ })).toBeInTheDocument();
     expect(screen.getByTitle('Agregar FastQC')).toBeInTheDocument();
 
+    fireEvent.change(screen.getByRole('combobox', { name: 'Buscar nodos' }), {
+      target: { value: 'Alignment' },
+    });
+
+    expect(screen.getByText('1 coincidencia aproximada')).toBeInTheDocument();
+    expect(screen.getAllByText('Alineacion').length).toBeGreaterThan(0);
+
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Buscar nodos' }), { key: 'Enter' });
 
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'fastqc' }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'bwa' }));
   });
 
   it('renders filtered summaries and empty search states in the active locale', async () => {

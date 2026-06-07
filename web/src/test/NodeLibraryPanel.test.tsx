@@ -96,8 +96,17 @@ describe('NodeLibraryPanel i18n', () => {
     expect(screen.getByPlaceholderText('Buscar nodos...')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Buscar nodos' })).toBeInTheDocument();
     expect(screen.getByText('2 nodos disponibles')).toBeInTheDocument();
+    expect(screen.getAllByText('Control de calidad').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Quality Control')).not.toBeInTheDocument();
     expect(screen.getByTitle('Agregar FastQC')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Marcar FastQC' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Buscar nodos' }), {
+      target: { value: 'Quality Control' },
+    });
+
+    expect(screen.getByText('2 coincidencias')).toBeInTheDocument();
+    expect(screen.getAllByText('Control de calidad').length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Buscar nodos' }), {
       target: { value: 'zz' },

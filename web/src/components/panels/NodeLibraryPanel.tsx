@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
 import {
   isNodeBookmarked,
@@ -85,10 +86,6 @@ function buildGroups(
 
 interface PortPreview { name: string; type: string }
 
-function displayCategoryLabel(label: string, otherLabel: string): string {
-  return label === 'Other' ? otherLabel : label;
-}
-
 function collectPorts(meta: NodeMetadata): { inputs: PortPreview[]; outputs: PortPreview[] } {
   const inputsMap = {
     ...(meta.input_types?.required || {}),
@@ -127,7 +124,7 @@ function NodeLibraryResult({
   const { t } = useTranslation();
   const tools = meta.requires_external_tools || [];
   const subtitle = meta.description || meta.id;
-  const categoryLabel = meta.category || t('nodeLibrary.otherCategory');
+  const categoryLabel = nodeCategoryDisplayLabel(meta.category, t, t('nodeLibrary.otherCategory'));
   const [showPreview, setShowPreview] = useState(false);
   const hoverTimer = useRef<number | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -284,7 +281,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
     if (categoryFilters.size === 0) return all;
     return all.filter(meta => categoryFilters.has(meta.category || 'Other'));
   }, [searchResults, categoryFilters]);
-  const categoryDisplayLabel = (label: string) => displayCategoryLabel(label, t('nodeLibrary.otherCategory'));
+  const categoryDisplayLabel = (label: string) => nodeCategoryDisplayLabel(label, t, t('nodeLibrary.otherCategory'));
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
     () => buildGroups(

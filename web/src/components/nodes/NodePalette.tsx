@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { useNodeSearch, useRecentNodes } from '../../utils/nodeSearch';
 import Icon from '../ui/Icon';
 
@@ -86,7 +87,7 @@ function NodePaletteResult({
   recent,
   onChoose,
   onFocus,
-  otherCategory,
+  categoryLabel,
   addTitle,
 }: {
   meta: NodeMetadata;
@@ -94,7 +95,7 @@ function NodePaletteResult({
   recent?: boolean;
   onChoose: (meta: NodeMetadata) => void;
   onFocus: (id: string) => void;
-  otherCategory: string;
+  categoryLabel: string;
   addTitle: string;
 }) {
   return (
@@ -109,7 +110,7 @@ function NodePaletteResult({
       <span className="node-search-result-main">
         <span className="node-search-result-title">{meta.display_name}</span>
         {meta.description && <span className="node-search-result-desc">{meta.description}</span>}
-        <span className="node-search-result-meta">{meta.category || otherCategory}</span>
+        <span className="node-search-result-meta">{categoryLabel}</span>
       </span>
       <span className="node-search-result-action" aria-hidden="true">
         <Icon name="plus" size={12} />
@@ -254,6 +255,7 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
         <div className="node-search-results node-palette-results">
           {groups.map(group => {
             const expandedGroup = group.recent || hasQuery || expanded.has(group.label);
+            const groupLabel = group.recent ? group.label : nodeCategoryDisplayLabel(group.label, t, otherCategory);
             return (
               <section key={group.recent ? '__recent' : group.label} className={`node-search-group ${group.recent ? 'is-recent' : ''}`}>
                 {group.recent ? (
@@ -267,11 +269,11 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
                     className="node-category-toggle"
                     onClick={() => toggleCategory(group.label)}
                     title={expandedGroup
-                      ? t('nodePalette.collapseGroup', { label: group.label })
-                      : t('nodePalette.expandGroup', { label: group.label })}
+                      ? t('nodePalette.collapseGroup', { label: groupLabel })
+                      : t('nodePalette.expandGroup', { label: groupLabel })}
                   >
                     <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
-                    <span>{group.label}</span>
+                    <span>{groupLabel}</span>
                     <span className="node-category-count">{group.nodes.length}</span>
                   </button>
                 )}
@@ -285,7 +287,7 @@ export default function NodePalette({ objectInfo, onSelect, onClose, style, requ
                         recent={group.recent}
                         onChoose={chooseNode}
                         onFocus={setActiveNodeId}
-                        otherCategory={otherCategory}
+                        categoryLabel={nodeCategoryDisplayLabel(meta.category, t, otherCategory)}
                         addTitle={t('nodePalette.addNodeTitle', { name: meta.display_name })}
                       />
                     ))}
