@@ -429,7 +429,7 @@ describe('AIWorkflowModal i18n', () => {
 
     await setLanguage('es');
 
-    async function expectFallback(prompt: string, expected: string) {
+    async function expectFallback(prompt: string, expected: string, forbidden: RegExp[] = []) {
       storage.clear();
       vi.mocked(apiPost).mockRejectedValueOnce(new Error('offline'));
 
@@ -447,20 +447,34 @@ describe('AIWorkflowModal i18n', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
       expect(await screen.findByText(expected)).toBeInTheDocument();
+      forbidden.forEach(pattern => expect(screen.queryByText(pattern)).not.toBeInTheDocument());
       cleanup();
     }
 
     await expectFallback(
       'rna workflow',
-      'Para RNA-Seq, recomiendo: input_fastq -> fastp (recorte) -> STAR o HISAT2 (alinear) -> featureCounts (cuantificar). Agrega un nodo Sample Sheet para ejecuciones con multiples muestras. La plantilla RNA-Seq ya lo trae conectado.',
+      'Para RNA-Seq, recomiendo: input_fastq -> fastp (recorte) -> STAR o HISAT2 (alinear) -> featureCounts (cuantificar). Agrega un nodo Hoja de muestras para ejecuciones con multiples muestras. La plantilla RNA-Seq ya lo trae conectado.',
+      [/Sample Sheet/],
     );
     await expectFallback(
       'variant calling',
-      'Para llamada de variantes: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. La plantilla Variant Calling tambien incluye QC de BAM con samtools flagstat.',
+      'Para llamada de variantes: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. La plantilla de llamado de variantes tambien incluye QC de BAM con samtools flagstat.',
+      [/Variant Calling/],
+    );
+    await expectFallback(
+      'single cell analysis',
+      'Para celula unica: directorio de entrada (FASTQs) + transcriptoma de referencia -> Cell Ranger Count. La plantilla de celula unica esta preconfigurada para datos 10x Genomics.',
+      [/single-cell/, /Single Cell/],
+    );
+    await expectFallback(
+      'plot graph',
+      'Para graficar: usa el nodo Grafico R. Conecta un nodo Constructor de DataFrame con tus columnas x/y, elige dispersion/lineas/barras/cajas y configura color/titulo opcionales.',
+      [/R Plot/, /scatter\/line\/bar\/boxplot/],
     );
     await expectFallback(
       'something else',
-      'Puedo ayudarte a disenar workflows de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis single-cell.',
+      'Puedo ayudarte a disenar workflows de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
+      [/single-cell/],
     );
   });
 
