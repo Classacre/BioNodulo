@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import { useFocusTrap, useKeybindings } from '../../hooks/ui';
-import { eventToKeybinding, type KeybindingCategory, type KeybindingRecord } from '../../state/keybindings';
+import { eventToKeybinding, type KeybindingCategory, type KeybindingRecord, type KeybindingScope } from '../../state/keybindings';
 import Icon from './Icon';
 import { useFoundationStyles } from './FoundationStyles';
 
@@ -36,6 +36,10 @@ function shortcutLabel(binding: KeybindingRecord, t: TFunction) {
 function shortcutDescription(binding: KeybindingRecord, t: TFunction) {
   if (binding.descriptionKey) return t(binding.descriptionKey, { defaultValue: binding.description ?? '' });
   return binding.description;
+}
+
+function shortcutScopeLabel(scope: KeybindingScope | undefined, t: TFunction) {
+  return t(`shortcuts.scopes.${scope ?? 'global'}`);
 }
 
 export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardShortcutsModalProps) {
@@ -173,6 +177,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardSh
                   <div className="bn-ui-shortcut-row" key={binding.id}>
                     <div>
                       <div className="bn-ui-shortcut-label">{label}</div>
+                      <div className="bn-ui-shortcut-scope">{shortcutScopeLabel(binding.scope, t)}</div>
                       {description ? <div className="bn-ui-shortcut-desc">{description}</div> : null}
                     </div>
                     <button

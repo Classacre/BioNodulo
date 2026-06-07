@@ -271,6 +271,11 @@ const en = {
     pressTwoKeys: 'Press two keys to bind',
     bindingFor: 'Binding for {{action}}',
     cleared: 'Shortcut cleared',
+    scopes: {
+      global: 'Global',
+      canvas: 'Canvas only',
+      modal: 'Modal only',
+    },
     actions: {
       commandPalette: {
         open: 'Open command palette',

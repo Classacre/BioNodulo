@@ -354,6 +354,19 @@ const FOUNDATION_CSS = `
   font-size: 12px;
   font-weight: 650;
 }
+.bn-ui-shortcut-scope {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
 .bn-ui-shortcut-desc {
   margin-top: 2px;
   color: var(--muted);

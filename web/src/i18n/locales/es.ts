@@ -274,6 +274,11 @@ const es = {
     pressTwoKeys: 'Presiona dos teclas para asignar',
     bindingFor: 'Atajo para {{action}}',
     cleared: 'Atajo eliminado',
+    scopes: {
+      global: 'Global',
+      canvas: 'Solo lienzo',
+      modal: 'Solo modal',
+    },
     actions: {
       commandPalette: {
         open: 'Abrir paleta de comandos',

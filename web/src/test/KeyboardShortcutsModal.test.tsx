@@ -87,4 +87,19 @@ describe('KeyboardShortcutsModal i18n', () => {
     expect(screen.getByText('Sin atajo asignado')).toBeInTheDocument();
     expect(screen.queryByText('-')).not.toBeInTheDocument();
   });
+
+  it('renders shortcut scopes from the active locale', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { KeyboardShortcutsModal } = await import('../components/ui/KeyboardShortcutsModal');
+
+    await setLanguage('es');
+
+    render(<KeyboardShortcutsModal open onOpenChange={() => undefined} />);
+
+    const globalRow = screen.getByText('Abrir paleta de comandos').closest('.bn-ui-shortcut-row');
+    const canvasRow = screen.getByText('Eliminar nodos seleccionados').closest('.bn-ui-shortcut-row');
+
+    expect(globalRow).toHaveTextContent('Global');
+    expect(canvasRow).toHaveTextContent('Solo lienzo');
+  });
 });
