@@ -135,6 +135,26 @@ def _generate_coding_sequences(path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _generate_pangenomics_haplotypes(path: Path) -> None:
+    """Generate a tiny two-haplotype FASTA for PGGB/ODGI template smoke runs."""
+    sequences = {
+        "haplotype_A": (
+            "Synthetic haplotype A",
+            "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAGGATCCGATCGATCGATCGTTACGATCGATCGATCGATCGGCTA",
+        ),
+        "haplotype_B": (
+            "Synthetic haplotype B",
+            "ACGTTGCAACGTTGCAACGTTGCAACGTTGCAGGATCCGATCGATCGATCGTTACGATCGATCGTTCGATCGGCTA",
+        ),
+    }
+    lines: list[str] = []
+    for name, (description, sequence) in sequences.items():
+        lines.append(f">{name} {description}")
+        for index in range(0, len(sequence), 70):
+            lines.append(sequence[index : index + 70])
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _generate_deseq2_counts(path: Path) -> None:
     content = """gene_id,control_1,control_2,control_3,treated_1,treated_2,treated_3
 YAL001C,120,135,128,450,470,460
@@ -428,4 +448,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("biopython", "deseq2_sample_info.csv", generator=_generate_deseq2_sample_info, description="Sample metadata for DESeq2"),
     DataFile("biopython", "heatmap_data.csv", generator=_generate_heatmap_data, description="Gene expression matrix for pheatmap"),
     DataFile("biopython", "heatmap_annotation.csv", generator=_generate_heatmap_annotation, description="Sample annotations for heatmap"),
+
+    # pangenomics — generated tiny haplotypes for template smoke runs
+    DataFile("pangenomics", "haplotypes.fa", generator=_generate_pangenomics_haplotypes, description="Synthetic two-haplotype FASTA"),
 ]

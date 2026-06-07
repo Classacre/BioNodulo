@@ -125,6 +125,7 @@ bionodulo-v2/
 │   ├── long_read_ont_pipeline.json
 │   ├── metagenomics_pipeline.json
 │   ├── phylogenetics_pipeline.json
+│   ├── pangenomics_graph_pipeline.json
 │   ├── proteomics_sage_percolator_pipeline.json
 │   ├── r_visualization_pipeline.json
 │   ├── rna_seq_pipeline.json
@@ -281,8 +282,9 @@ Settings stored per-user in `bionodulo.settings.json`:
 15. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
 16. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
 17. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
-18. **HPC** - SLURM submit, PBS submit, SGE submit
-19. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+18. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
+19. **HPC** - SLURM submit, PBS submit, SGE submit
+20. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel
