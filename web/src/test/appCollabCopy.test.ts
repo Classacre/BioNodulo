@@ -41,8 +41,8 @@ describe('App collaboration copy i18n', () => {
 
     expect(copy.createLinkCopiedMessage(true)).toBe('Compartelo con colaboradores mientras esta app se ejecuta.');
     expect(copy.createLinkCopiedMessage(false)).toBe('Este es un enlace local. Inicia un tunel o usa un host publico antes de compartir fuera de esta maquina.');
-    expect(copy.createLinkReadyMessage(true)).toBe('Abre Compartir workflow para copiarlo.');
-    expect(copy.createLinkReadyMessage(false)).toBe('Abre Compartir workflow para copiar el enlace local, o inicia BioNodulo mediante un tunel publico.');
+    expect(copy.createLinkReadyMessage(true)).toBe('Abre Compartir flujo de trabajo para copiarlo.');
+    expect(copy.createLinkReadyMessage(false)).toBe('Abre Compartir flujo de trabajo para copiar el enlace local, o inicia BioNodulo mediante un tunel publico.');
     expect(copy.joinPrompt()).toMatchObject({
       title: 'Unirse a colaboracion',
       message: 'Pega un enlace de colaboracion de BioNodulo o ID de sala.',
@@ -52,7 +52,7 @@ describe('App collaboration copy i18n', () => {
     });
     expect(copy.saveTemplateUnavailableDialog()).toMatchObject({
       title: 'Compartir plantilla no disponible',
-      message: 'Inicia colaboracion e inicia sesion para guardar plantillas de workflow compartidas.',
+      message: 'Inicia colaboracion e inicia sesion para guardar plantillas de flujo de trabajo compartidas.',
     });
     expect(copy.connectedAsRole('editor')).toBe('Conectado como Editor.');
     expect(copy.connectedAsRole('viewer')).toBe('Conectado como Lector.');
