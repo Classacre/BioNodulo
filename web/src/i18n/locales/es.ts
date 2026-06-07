@@ -580,9 +580,9 @@ const es = {
     hideOnStartup: 'Ocultar al inicio',
   },
   aiWorkflow: {
-    title: 'Asistente de workflows con IA',
+    title: 'Asistente de flujos de trabajo con IA',
     defaultSessionName: 'Nuevo chat',
-    greeting: 'Hola! Puedo ayudarte a crear workflows de bioinformatica. En que tipo de analisis estas trabajando?',
+    greeting: 'Hola! Puedo ayudarte a crear flujos de trabajo de bioinformatica. En que tipo de analisis estas trabajando?',
     modelUnknown: 'Modelo desconocido',
     sessions: {
       openTitle: 'Sesiones',
@@ -594,8 +594,8 @@ const es = {
     },
     quickPrompts: {
       summary: {
-        label: 'Resumir mi workflow',
-        prompt: 'Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.',
+        label: 'Resumir mi flujo de trabajo',
+        prompt: 'Usa get_workflow_summary y dime que hace mi flujo de trabajo actual en 3-4 frases.',
       },
       failure: {
         label: 'Que fallo?',
@@ -603,16 +603,16 @@ const es = {
       },
       missingQc: {
         label: 'Buscar QC faltante',
-        prompt: 'Revisa mi workflow y sugiere pasos de control de calidad que podrian faltar.',
+        prompt: 'Revisa mi flujo de trabajo y sugiere pasos de control de calidad que podrian faltar.',
       },
       nextStep: {
         label: 'Sugerir siguiente paso',
-        prompt: 'Segun el workflow actual, que siguiente paso de analisis deberia agregar?',
+        prompt: 'Segun el flujo de trabajo actual, que siguiente paso de analisis deberia agregar?',
       },
     },
     input: {
       attachFileTitle: 'Adjuntar archivo',
-      placeholder: 'Pregunta sobre workflows... (pega imagenes directamente)',
+      placeholder: 'Pregunta sobre flujos de trabajo... (pega imagenes directamente)',
       send: 'Enviar',
       pastedNodes: {
         prompt: 'Aqui estan mis nodos seleccionados ({{nodeLabel}}{{edgeSuffix}}): {{nodeNames}}',
@@ -630,11 +630,11 @@ const es = {
       hideReasoning: 'Ocultar razonamiento',
       toolResult: '{{name}} resultado',
       proposedChanges: 'Cambios propuestos',
-      proposalFallbackDescription: 'La IA sugiere modificar el workflow.',
+      proposalFallbackDescription: 'La IA sugiere modificar el flujo de trabajo.',
       applyChanges: 'Aplicar cambios',
       copyToCanvas: 'Copiar al lienzo',
       previewJson: 'Previsualizar JSON',
-      applySuccess: 'Workflow aplicado correctamente. Dime si necesitas algun ajuste.',
+      applySuccess: 'Flujo de trabajo aplicado correctamente. Dime si necesitas algun ajuste.',
     },
     generation: {
       thinking: 'Pensando...',
@@ -654,7 +654,7 @@ const es = {
       phylogenetics: 'Para filogenetica: input_fasta -> MAFFT (alineamiento) -> IQ-TREE (inferencia de arbol). Tambien puedes probar FastTree para arboles exploratorios rapidos.',
       singleCell: 'Para celula unica: directorio de entrada (FASTQs) + transcriptoma de referencia -> Cell Ranger Count. La plantilla de celula unica esta preconfigurada para datos 10x Genomics.',
       plotting: 'Para graficar: usa el nodo Grafico R. Conecta un nodo Constructor de DataFrame con tus columnas x/y, elige dispersion/lineas/barras/cajas y configura color/titulo opcionales.',
-      default: 'Puedo ayudarte a disenar workflows de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
+      default: 'Puedo ayudarte a disenar flujos de trabajo de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
     },
   },
   panels: {

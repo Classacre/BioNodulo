@@ -86,8 +86,10 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    expect(screen.getByText('Asistente de workflows con IA')).toBeInTheDocument();
-    expect(screen.getByText('Hola! Puedo ayudarte a crear workflows de bioinformatica. En que tipo de analisis estas trabajando?')).toBeInTheDocument();
+    expect(screen.getByText('Asistente de flujos de trabajo con IA')).toBeInTheDocument();
+    expect(screen.getByText('Hola! Puedo ayudarte a crear flujos de trabajo de bioinformatica. En que tipo de analisis estas trabajando?')).toBeInTheDocument();
+    expect(screen.queryByText('Asistente de workflows con IA')).not.toBeInTheDocument();
+    expect(screen.queryByText(/crear workflows de bioinformatica/i)).not.toBeInTheDocument();
     expect(screen.getByTitle('Sesiones')).toBeInTheDocument();
     expect(screen.getByTitle('Cerrar')).toBeInTheDocument();
 
@@ -115,9 +117,9 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Resumir mi workflow' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Resumir mi flujo de trabajo' })).toHaveAttribute(
       'title',
-      'Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.',
+      'Usa get_workflow_summary y dime que hace mi flujo de trabajo actual en 3-4 frases.',
     );
     expect(screen.getByRole('button', { name: 'Que fallo?' })).toHaveAttribute(
       'title',
@@ -125,19 +127,22 @@ describe('AIWorkflowModal i18n', () => {
     );
     expect(screen.getByRole('button', { name: 'Buscar QC faltante' })).toHaveAttribute(
       'title',
-      'Revisa mi workflow y sugiere pasos de control de calidad que podrian faltar.',
+      'Revisa mi flujo de trabajo y sugiere pasos de control de calidad que podrian faltar.',
     );
     expect(screen.getByRole('button', { name: 'Sugerir siguiente paso' })).toHaveAttribute(
       'title',
-      'Segun el workflow actual, que siguiente paso de analisis deberia agregar?',
+      'Segun el flujo de trabajo actual, que siguiente paso de analisis deberia agregar?',
     );
     expect(screen.getByTitle('Adjuntar archivo')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resumir mi workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resumir mi workflow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resumir mi flujo de trabajo' }));
 
-    expect(screen.getByDisplayValue('Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Usa get_workflow_summary y dime que hace mi flujo de trabajo actual en 3-4 frases.')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Usa get_workflow_summary y dime que hace mi workflow actual en 3-4 frases.')).not.toBeInTheDocument();
   });
 
   it('renders assistant step controls from the active locale', async () => {
@@ -175,7 +180,8 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByRole('button', { name: /Ocultar razonamiento/ })).toBeInTheDocument();
     expect(screen.getByText('get_workflow_summary resultado')).toBeInTheDocument();
     expect(screen.getByText('Cambios propuestos')).toBeInTheDocument();
-    expect(screen.getByText('La IA sugiere modificar el workflow.')).toBeInTheDocument();
+    expect(screen.getByText('La IA sugiere modificar el flujo de trabajo.')).toBeInTheDocument();
+    expect(screen.queryByText('La IA sugiere modificar el workflow.')).not.toBeInTheDocument();
     const applyButton = screen.getByRole('button', { name: 'Aplicar cambios' });
     expect(applyButton).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Copiar al lienzo/ })).toBeInTheDocument();
@@ -184,7 +190,8 @@ describe('AIWorkflowModal i18n', () => {
     fireEvent.click(applyButton);
 
     expect(onApplyWorkflow).toHaveBeenCalledWith(expect.objectContaining({ name: 'Suggested' }));
-    expect(await screen.findByText('Workflow aplicado correctamente. Dime si necesitas algun ajuste.')).toBeInTheDocument();
+    expect(await screen.findByText('Flujo de trabajo aplicado correctamente. Dime si necesitas algun ajuste.')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow aplicado correctamente. Dime si necesitas algun ajuste.')).not.toBeInTheDocument();
   });
 
   it('applies current workflow metadata when proposed workflow omits workflow data', async () => {
@@ -264,7 +271,7 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
       target: { value: 'Crear workflow sin nombre' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -332,7 +339,7 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
       target: { value: 'Ayudame con QC' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -356,7 +363,7 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
       target: { value: 'Ayudame con QC' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -410,7 +417,7 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    fireEvent.paste(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+    fireEvent.paste(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
       clipboardData: {
         getData: (type: string) =>
           type === 'text'
@@ -441,7 +448,7 @@ describe('AIWorkflowModal i18n', () => {
         />,
       );
 
-      fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+      fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
         target: { value: prompt },
       });
       fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
@@ -473,8 +480,8 @@ describe('AIWorkflowModal i18n', () => {
     );
     await expectFallback(
       'something else',
-      'Puedo ayudarte a disenar workflows de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
-      [/single-cell/],
+      'Puedo ayudarte a disenar flujos de trabajo de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
+      [/single-cell/, /disenar workflows/i],
     );
   });
 
@@ -495,7 +502,7 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre workflows... (pega imagenes directamente)'), {
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
       target: { value: 'Ayudame con QC' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
