@@ -11,7 +11,11 @@ function createWorkflowId(): string {
 }
 
 function normalizeWorkflow(wf: Workflow): Workflow {
-  return { ...wf, id: wf.id || createWorkflowId() };
+  return {
+    ...wf,
+    id: wf.id || createWorkflowId(),
+    parameters: Array.isArray(wf.parameters) ? wf.parameters : [],
+  };
 }
 
 function emptyWorkflow(): Workflow {

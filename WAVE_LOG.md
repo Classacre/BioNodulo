@@ -658,6 +658,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Node editors now expose a workflow-parameter insert control for text-like node fields, appending `{{parameter}}` references from both the Inspector and floating canvas editor paths.
 - Workflow Doctor now surfaces unknown workflow-parameter placeholders client-side for execution-bound node values, matching backend validation while ignoring node-local template and prompt placeholders.
 - Dry-run console details now include the resolved workflow-parameter map alongside execution order and planned nodes, preserving redaction while making parameter substitution auditable before execution.
+- Legacy and imported frontend workflows now normalize missing or malformed workflow-parameter collections to `parameters: []`, keeping parameter-aware UI paths on a stable array contract.
 
 ---
 

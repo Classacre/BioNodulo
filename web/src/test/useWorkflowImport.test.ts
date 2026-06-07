@@ -60,6 +60,34 @@ describe('useWorkflow importWorkflow', () => {
   });
 });
 
+describe('useWorkflow normalization', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+  });
+
+  it('normalizes legacy persisted workflows to an empty workflow parameter array', () => {
+    storage.set('bionodulo.local.workflows', JSON.stringify({
+      workflows: [{
+        id: 'legacy-wf',
+        version: '2.0',
+        app: 'bionodulo',
+        name: 'Legacy workflow',
+        description: '',
+        nodes: [],
+        edges: [],
+        groups: [],
+        outputs: {},
+      }],
+      activeIndex: 0,
+    }));
+
+    const { result } = renderHook(() => useWorkflow());
+
+    expect(result.current.activeWorkflow.parameters).toEqual([]);
+  });
+});
+
 describe('useWorkflow exportWorkflow', () => {
   beforeEach(() => {
     storage.clear();
