@@ -531,7 +531,7 @@ const es = {
         items: {
           commandPalette: 'Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo',
           panels: 'Paneles laterales redimensionables y flotantes con controles de acoplamiento mejorados',
-          templates: 'Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del workflow',
+          templates: 'Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del flujo de trabajo',
           canvas: 'Mejoras del lienzo para insignias de nodos, detalles al pasar el cursor, reroutes, ejecucion seleccionada y extraccion de subgrafos',
           queue: 'Controles de cola para cancelar, reintentar, reordenar, limpiar, seguir progreso y ejecutar lotes',
           collaboration: 'Mejoras de colaboracion, autoguardado, i18n, paleta de temas y modo de rendimiento',
@@ -543,7 +543,7 @@ const es = {
           consoleGrouping: 'Agrupacion de registros de consola por run_id con expandir y contraer',
           environmentPanel: 'Redisenio completo del panel de entornos con migracion a pixi',
           biopythonFixes: 'Correcciones de pipelines BioPython (BLAST, traduccion, SeqIO)',
-          isolatedEnvironments: 'Entornos aislados por workflow con entornos direccionados por contenido',
+          isolatedEnvironments: 'Entornos aislados por flujo de trabajo con entornos direccionados por contenido',
           hpcSupport: 'Soporte HPC para sistemas de colas (SLURM, PBS, SGE)',
           gettingStartedData: 'Modal Primeros pasos con descargas de datasets publicos',
         },
@@ -551,7 +551,7 @@ const es = {
       alpha11: {
         items: {
           aiAssistant: 'Asistente de IA con llamadas a herramientas para construir flujos de trabajo',
-          workflowExport: 'Exportacion de workflows a Snakemake, NextFlow, CWL y Galaxy',
+          workflowExport: 'Exportacion de flujos de trabajo a Snakemake, NextFlow, CWL y Galaxy',
           nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
           websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
           hardwareMonitor: 'Panel superpuesto de monitor de hardware',
@@ -560,7 +560,7 @@ const es = {
       alpha10: {
         items: {
           initialRelease: 'Version inicial de BioNodulo v2',
-          workflowCanvas: 'Lienzo de workflows con nodos bioinformaticos personalizados',
+          workflowCanvas: 'Lienzo de flujos de trabajo con nodos bioinformaticos personalizados',
           templates: '14 plantillas de pipelines integradas',
           pixiPackages: 'Gestion de paquetes basada en Pixi',
           resultCaching: 'Cache de resultados y ejecucion basada en cola',
