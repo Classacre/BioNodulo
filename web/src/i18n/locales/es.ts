@@ -122,6 +122,7 @@ const es = {
     title: 'Paleta de comandos',
     placeholder: 'Buscar comandos...',
     searchLabel: 'Buscar comandos',
+    escapeKey: 'Esc',
     empty: 'No se encontraron comandos',
     defaultGroup: 'Comandos',
     recent: 'Reciente',

@@ -119,6 +119,7 @@ const en = {
     title: 'Command palette',
     placeholder: 'Search commands...',
     searchLabel: 'Search commands',
+    escapeKey: 'Esc',
     empty: 'No commands found',
     defaultGroup: 'Commands',
     recent: 'Recent',

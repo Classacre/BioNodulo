@@ -85,4 +85,15 @@ describe('App palette command copy i18n', () => {
     expect(appSource).not.toContain('name: palette.name');
     expect(appSource).not.toContain('Use ${palette.name} palette');
   });
+
+  it('keeps the command palette escape key hint behind an i18n key', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+    const commandPaletteSource = readFileSync(resolve(__dirname, '../components/ui/CommandPalette.tsx'), 'utf8');
+
+    await setLanguage('es');
+
+    expect(i18n.t('commandPalette.escapeKey')).toBe('Esc');
+    expect(commandPaletteSource).toContain("t('commandPalette.escapeKey')");
+    expect(commandPaletteSource).not.toContain('<kbd>Esc</kbd>');
+  });
 });

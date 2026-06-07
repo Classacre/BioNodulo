@@ -157,7 +157,7 @@ export function CommandPalette({
             ref={inputRef}
             value={query}
           />
-          <kbd>Esc</kbd>
+          <kbd>{t('commandPalette.escapeKey')}</kbd>
         </div>
         <div className="bn-ui-command-list" ref={listRef} role="listbox">
           {filteredItems.length ? groupedItems.map(([group, groupData]) => (
