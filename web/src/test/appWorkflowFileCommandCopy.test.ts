@@ -37,8 +37,10 @@ describe('App workflow file and node search command copy i18n', () => {
     await setLanguage('es');
 
     expect(i18n.t('commandPalette.groups.panels')).toBe('Paneles');
-    expect(i18n.t('commandPalette.commands.workflow.export')).toBe('Exportar workflow');
-    expect(i18n.t('commandPalette.commands.workflow.import')).toBe('Importar workflow');
+    expect(i18n.t('commandPalette.commands.workflow.export')).toBe('Exportar flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.import')).toBe('Importar flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.export')).not.toBe('Exportar workflow');
+    expect(i18n.t('commandPalette.commands.workflow.import')).not.toBe('Importar workflow');
     expect(i18n.t('commandPalette.commands.nodes.search')).toBe('Buscar nodos');
     expect(i18n.t('commandPalette.commands.nodes.searchDescription')).toBe('Abrir la biblioteca difusa de nodos');
   });
