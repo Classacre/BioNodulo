@@ -53,6 +53,7 @@ describe('TopBar i18n', () => {
     expect(screen.getByText('2 incidencias')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cola: 3' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ejecutar workflow/ })).toBeInTheDocument();
+    expect(screen.getByTitle('HPC activa')).toHaveTextContent('HPC activa');
     expect(screen.getByRole('button', { name: 'Opciones de ejecucion' })).toHaveAttribute(
       'title',
       'Opciones de ejecucion - lote 1, Al cambiar',
