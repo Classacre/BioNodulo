@@ -52,6 +52,8 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   const [pngQuality, setPngQuality] = useState(0.92);
   const [pngJsonOnly, setPngJsonOnly] = useState(false);
 
+  const thumbnailRenderError = () => t('exportModal.thumbnailRenderFailed');
+
   const resetState = () => {
     setContent('');
     setPngPreview(null);
@@ -82,7 +84,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       }
     } catch (err) {
       logError('exportModal.generate', err);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(format === 'png' && !pngJsonOnly ? thumbnailRenderError() : err instanceof Error ? err.message : String(err));
       setContent('');
       setPngPreview(null);
     }
@@ -109,8 +111,8 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
           quality: pngQuality,
         });
         if (!cancelled) setPngPreview(dataUrl);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } catch {
+        if (!cancelled) setError(thumbnailRenderError());
       }
     })();
     return () => { cancelled = true; };

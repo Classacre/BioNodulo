@@ -2589,6 +2589,7 @@ class MyToolNode(CommandNode):
     generate: 'Generar',
     defaultFilename: 'workflow-sin-titulo',
     thumbnailAlt: 'Vista previa de miniatura del flujo de trabajo',
+    thumbnailRenderFailed: 'No se pudo renderizar la miniatura del flujo de trabajo',
     downloadPng: 'Descargar PNG',
     copyToClipboard: 'Copiar al portapapeles',
     regenerate: 'Regenerar',

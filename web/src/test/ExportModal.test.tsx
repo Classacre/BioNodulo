@@ -158,6 +158,27 @@ describe('ExportModal i18n', () => {
     );
   });
 
+  it('localizes PNG thumbnail render failures', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const { setLanguage } = await import('../i18n');
+    const error = new Error('Canvas 2D context unavailable');
+    thumbnailMocks.renderWorkflowThumbnail.mockImplementationOnce(() => {
+      throw error;
+    });
+
+    await setLanguage('es');
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Renderizar miniatura' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('No se pudo renderizar la miniatura del flujo de trabajo')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Canvas 2D context unavailable')).not.toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.generate', error);
+  });
+
   it('shows export API errors without generating fallback downloadable content', async () => {
     const { default: ExportModal } = await import('../components/modals/ExportModal');
     const exportError = new apiMocks.ApiError('HTTP 500 Server Error (/api/workflow/export)', 500, 'Server Error', {
