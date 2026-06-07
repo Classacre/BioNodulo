@@ -202,6 +202,8 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByText('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo')).toBeInTheDocument();
     expect(screen.getByText('Redisenio completo del panel de entornos con migracion a pixi')).toBeInTheDocument();
     expect(screen.getByText('Soporte HPC para sistemas de colas (SLURM, PBS, SGE)')).toBeInTheDocument();
+    expect(screen.getByText('Asistente de IA con llamadas a herramientas para construir flujos de trabajo')).toBeInTheDocument();
+    expect(screen.queryByText('Asistente de IA con llamadas a herramientas para construir workflows')).not.toBeInTheDocument();
     expect(screen.getByText('Panel superpuesto de monitor de hardware')).toBeInTheDocument();
     expect(screen.getByText('Version inicial de BioNodulo v2')).toBeInTheDocument();
     expect(screen.queryByText('BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow')).not.toBeInTheDocument();

@@ -550,7 +550,7 @@ const es = {
       },
       alpha11: {
         items: {
-          aiAssistant: 'Asistente de IA con llamadas a herramientas para construir workflows',
+          aiAssistant: 'Asistente de IA con llamadas a herramientas para construir flujos de trabajo',
           workflowExport: 'Exportacion de workflows a Snakemake, NextFlow, CWL y Galaxy',
           nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
           websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
