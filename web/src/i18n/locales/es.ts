@@ -1099,6 +1099,18 @@ const es = {
       rejected: 'rechazado',
       waiting: 'en espera',
     },
+    triggerTypes: {
+      schedule: 'programado',
+      fileWatch: 'vigilancia de archivos',
+    },
+    triggerStatuses: {
+      active: 'activo',
+      registered: 'registrado',
+    },
+    submittedRunStatuses: {
+      submitted: 'enviado',
+      skipped: 'omitido',
+    },
     reviewOnly: 'Solo revision',
     blockingPauseAvailable: 'Pausa bloqueante disponible',
     blockingPauseUnavailable: 'Pausa bloqueante no disponible',

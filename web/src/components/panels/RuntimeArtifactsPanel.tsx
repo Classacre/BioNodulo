@@ -126,6 +126,30 @@ function pauseStatusLabel(status: string, t: (key: string) => string): string {
   return status;
 }
 
+function triggerTypeLabel(value: unknown, t: (key: string) => string): string | undefined {
+  const triggerType = valueAsString(value);
+  if (!triggerType) return undefined;
+  if (triggerType === 'schedule') return t('runtimeArtifacts.triggerTypes.schedule');
+  if (triggerType === 'file_watch') return t('runtimeArtifacts.triggerTypes.fileWatch');
+  return triggerType;
+}
+
+function triggerStatusLabel(value: unknown, t: (key: string) => string): string | undefined {
+  const status = valueAsString(value);
+  if (!status) return undefined;
+  if (status === 'active') return t('runtimeArtifacts.triggerStatuses.active');
+  if (status === 'registered') return t('runtimeArtifacts.triggerStatuses.registered');
+  return status;
+}
+
+function submittedRunStatusLabel(value: unknown, t: (key: string) => string): string | undefined {
+  const status = valueAsString(value);
+  if (!status) return undefined;
+  if (status === 'submitted') return t('runtimeArtifacts.submittedRunStatuses.submitted');
+  if (status === 'skipped') return t('runtimeArtifacts.submittedRunStatuses.skipped');
+  return status;
+}
+
 function pauseTitle(record: PauseRequestRecord, t: (key: string) => string): string {
   return valueAsString(record.message)
     || valueAsString(record.node_id)
@@ -135,7 +159,7 @@ function pauseTitle(record: PauseRequestRecord, t: (key: string) => string): str
 
 function triggerTitle(record: WorkflowTriggerRecord, t: (key: string) => string): string {
   return valueAsString(record.target_workflow)
-    || valueAsString(record.trigger_type)
+    || triggerTypeLabel(record.trigger_type, t)
     || valueAsString(record.trigger_file)
     || t('runtimeArtifacts.triggerFallback');
 }
@@ -144,15 +168,22 @@ function submittedRunTitle(record: SubmittedWorkflowTriggerRun, t: (key: string)
   return valueAsString(record.run_id)
     || valueAsString(record.target_workflow)
     || valueAsString(record.trigger_file)
-    || valueAsString(record.status)
+    || submittedRunStatusLabel(record.status, t)
     || t('runtimeArtifacts.workflowTriggerRunFallback');
 }
 
-function submittedRunMeta(record: SubmittedWorkflowTriggerRun): string {
+function submittedRunMeta(record: SubmittedWorkflowTriggerRun, t: (key: string) => string): string {
   return [
     valueAsString(record.target_workflow),
-    valueAsString(record.status),
+    submittedRunStatusLabel(record.status, t),
     valueAsString(record.due_at),
+  ].filter(Boolean).join(' · ');
+}
+
+function triggerMeta(record: WorkflowTriggerRecord, t: (key: string) => string): string {
+  return [
+    triggerTypeLabel(record.trigger_type, t),
+    triggerStatusLabel(record.status, t),
   ].filter(Boolean).join(' · ');
 }
 
@@ -460,7 +491,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
                 const key = valueAsString(run.run_id)
                   || valueAsString(run.trigger_file)
                   || `${submittedRunTitle(run, t)}-${index}`;
-                const meta = submittedRunMeta(run);
+                const meta = submittedRunMeta(run, t);
                 const reason = valueAsString(run.reason);
                 return (
                   <div className="runtime-artifact-row" key={key}>
@@ -486,14 +517,13 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
             <div className="runtime-artifacts-list">
               {triggerList.map((trigger, index) => {
                 const key = valueAsString(trigger.trigger_file) || `${triggerTitle(trigger, t)}-${index}`;
+                const meta = triggerMeta(trigger, t);
                 return (
                   <div className="runtime-artifact-row" key={key}>
                     <Icon name={trigger.trigger_type === 'schedule' ? 'clock' : 'target'} size={14} />
                     <div>
                       <div className="runtime-artifact-title">{triggerTitle(trigger, t)}</div>
-                      <div className="runtime-artifact-meta">
-                        {[trigger.trigger_type, trigger.status].filter(Boolean).join(' · ')}
-                      </div>
+                      {meta && <div className="runtime-artifact-meta">{meta}</div>}
                     </div>
                   </div>
                 );

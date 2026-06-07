@@ -1090,6 +1090,18 @@ const en = {
       rejected: 'rejected',
       waiting: 'waiting',
     },
+    triggerTypes: {
+      schedule: 'schedule',
+      fileWatch: 'file watch',
+    },
+    triggerStatuses: {
+      active: 'active',
+      registered: 'registered',
+    },
+    submittedRunStatuses: {
+      submitted: 'submitted',
+      skipped: 'skipped',
+    },
     reviewOnly: 'Review only',
     blockingPauseAvailable: 'Blocking pause available',
     blockingPauseUnavailable: 'Blocking pause unavailable',

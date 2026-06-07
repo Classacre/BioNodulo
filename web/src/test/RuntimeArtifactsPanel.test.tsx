@@ -195,6 +195,58 @@ describe('RuntimeArtifactsPanel', () => {
     expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.checkpoints.resolve', checkpointError);
   });
 
+  it('localizes workflow trigger and submitted run metadata labels', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
+      pauseRequests: { pause_requests_dir: '/workspace/pause_requests', count: 0, pause_requests: [], errors: [] },
+      workflowTriggers: {
+        trigger_dir: '/workspace/workflow_triggers',
+        count: 2,
+        triggers: [
+          { trigger_type: 'schedule', target_workflow: 'weekly-qc', status: 'active' },
+          { trigger_type: 'file_watch', target_workflow: 'import-watch', status: 'active' },
+        ],
+        errors: [],
+      },
+      triggerEvaluation: {
+        due_schedule_triggers: [],
+        due_schedule_count: 0,
+        due_file_watch_triggers: [],
+        due_file_watch_count: 0,
+        submitted_runs: [
+          { status: 'submitted', run_id: 'weekly-qc-run', target_workflow: 'weekly-qc' },
+          { status: 'skipped', reason: 'already_submitted', target_workflow: 'weekly-qc' },
+        ],
+        submitted_run_count: 1,
+        errors: [],
+      },
+      lastResolvedCheckpoint: null,
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('programado · activo')).toBeInTheDocument();
+    expect(screen.getByText('vigilancia de archivos · activo')).toBeInTheDocument();
+    expect(screen.getByText('weekly-qc · enviado')).toBeInTheDocument();
+    expect(screen.getByText('weekly-qc · omitido')).toBeInTheDocument();
+    expect(screen.getByText('already_submitted')).toBeInTheDocument();
+    expect(screen.queryByText('schedule · active')).not.toBeInTheDocument();
+    expect(screen.queryByText('file_watch · active')).not.toBeInTheDocument();
+    expect(screen.queryByText('weekly-qc · submitted')).not.toBeInTheDocument();
+    expect(screen.queryByText('weekly-qc · skipped')).not.toBeInTheDocument();
+  });
+
   it('selects a resolved checkpoint for run resume options', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
