@@ -47,7 +47,7 @@ function runTimestamp(run: RunRecord): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function bucketLabelForRun(run: RunRecord, now: Date): string {
+function bucketLabelForRun(run: RunRecord, now: Date, locale?: string): string {
   const ts = runTimestamp(run);
   if (!ts) return 'Earlier';
   const runDate = new Date(ts);
@@ -57,16 +57,16 @@ function bucketLabelForRun(run: RunRecord, now: Date): string {
   if (ts >= todayStart) return 'Today';
   if (ts >= yesterdayStart) return 'Yesterday';
   if (ts >= weekStart) return 'Past Week';
-  if (runDate.getFullYear() === now.getFullYear()) return runDate.toLocaleString(undefined, { month: 'long' });
+  if (runDate.getFullYear() === now.getFullYear()) return runDate.toLocaleString(locale, { month: 'long' });
   return runDate.getFullYear().toString();
 }
 
-function bucketHistory(history: RunRecord[]): HistoryBucket[] {
+function bucketHistory(history: RunRecord[], locale?: string): HistoryBucket[] {
   const now = new Date();
   const order: string[] = [];
   const groups = new Map<string, RunRecord[]>();
   for (const run of history) {
-    const label = bucketLabelForRun(run, now);
+    const label = bucketLabelForRun(run, now, locale);
     if (!groups.has(label)) {
       groups.set(label, []);
       order.push(label);
@@ -559,7 +559,7 @@ export default function BottomConsole({
   onClearHistory,
   nodeIdToName,
 }: BottomConsoleProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const logs = useAtomValue(logsAtom);
   const batchCount = useAtomValue(batchCountAtom);
   const openLightbox = useSetAtom(openLightboxAtom);
@@ -591,7 +591,7 @@ export default function BottomConsole({
     });
   }, [history, historyQuery, historyStatusFilter]);
 
-  const historyBuckets = useMemo(() => bucketHistory(filteredHistory), [filteredHistory]);
+  const historyBuckets = useMemo(() => bucketHistory(filteredHistory, i18n.language), [filteredHistory, i18n.language]);
   const historyCountsByStatus = useMemo(() => {
     const counts: Record<HistoryStatusFilter, number> = { all: history.length, completed: 0, error: 0, cancelled: 0 };
     for (const run of history) {

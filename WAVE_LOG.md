@@ -403,6 +403,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings AI and Telemetry rows now read labels, descriptions, descriptive provider options, telemetry buffer copy, and telemetry toasts from `settings` / `common` i18n keys with Spanish unit coverage and a Firefox smoke of the persisted Spanish language path.
 - Settings palette toasts now read from locale keys, and feature flags can opt into localized labels/descriptions with fallback search preserving the original English label/description.
 - Bottom console tabs, empty states, queue/history run controls, status chips, report actions, and preview affordances now read from `console` i18n keys with Spanish unit coverage.
+- Bottom console history buckets now format older same-year month headings with the active i18n language instead of the browser default locale, so Spanish history groups render `mayo` rather than `May`.
 - App-level console queue/history confirmations, fallback run names, retry labels, and toast/error feedback now read from `console.actions` i18n keys with Spanish unit coverage.
 - Workflow WebSocket run-failure toast titles, workflow fallback names, and console-detail fallback messages now read from `console.actions` i18n keys with Spanish unit coverage.
 - Help wiki panel chrome, search headings/no-results copy, page navigation labels, node-source hints, and generated node documentation labels now read from `helpWiki` i18n keys with Spanish unit coverage; embedded static article HTML remains deferred.

@@ -40,6 +40,7 @@ describe('BottomConsole i18n', () => {
   afterEach(async () => {
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
+    vi.useRealTimers();
     storage.clear();
     vi.unstubAllGlobals();
   });
@@ -224,5 +225,36 @@ describe('BottomConsole i18n', () => {
     const filters = screen.getByRole('group', { name: 'Filtrar historial por estado' });
     fireEvent.click(within(filters).getByRole('button', { name: /Canceladas/ }));
     expect(screen.getByText('Ninguna ejecucion coincide con el filtro actual.')).toBeInTheDocument();
+  });
+
+  it('uses the active locale for older same-year history month buckets', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-07T12:00:00.000Z'));
+    await setLanguage('es');
+
+    const historyRun = runRecord({
+      run_id: 'history-run-may',
+      status: 'completed',
+      workflow_name: 'May workflow',
+      end_time: '2026-05-03T09:30:00.000Z',
+    });
+
+    render(
+      <Provider>
+        <BottomConsole
+          queue={[]}
+          history={[historyRun]}
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }));
+
+    expect(screen.getByText('mayo')).toBeInTheDocument();
+    expect(screen.queryByText('May')).not.toBeInTheDocument();
   });
 });
