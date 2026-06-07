@@ -72,8 +72,10 @@ describe('ShareDialog i18n', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Compartir workflow' })).toBeInTheDocument();
-    expect(screen.getByText('La colaboracion esta sin conexion. Crea una sala temporal antes de compartir este workflow.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Compartir flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Compartir workflow' })).not.toBeInTheDocument();
+    expect(screen.getByText('La colaboracion esta sin conexion. Crea una sala temporal antes de compartir este flujo de trabajo.')).toBeInTheDocument();
+    expect(screen.queryByText('La colaboracion esta sin conexion. Crea una sala temporal antes de compartir este workflow.')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Usuario o email')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Invitar' })).toBeDisabled();
     expect(screen.getByText('Enlace de sala de colaboracion')).toBeInTheDocument();
