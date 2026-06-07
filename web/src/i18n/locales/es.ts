@@ -136,6 +136,10 @@ const es = {
         toggle: 'Alternar consola',
       },
       edit: {
+        undo: 'Deshacer',
+        redo: 'Rehacer',
+        autoLayout: 'Autoordenar (nodos seleccionados)',
+        autoLayoutDescription: 'Organizar nodos seleccionados (o todos los nodos) en columnas topologicas',
         bulkParams: 'Editar parametros en masa (seleccion)...',
         bulkParamsDescription: 'Editar parametros compartidos por todos los nodos seleccionados a la vez',
       },

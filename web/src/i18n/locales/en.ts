@@ -133,6 +133,10 @@ const en = {
         toggle: 'Toggle console',
       },
       edit: {
+        undo: 'Undo',
+        redo: 'Redo',
+        autoLayout: 'Auto-layout (selected nodes)',
+        autoLayoutDescription: 'Arrange selected nodes (or all nodes) in topological columns',
         bulkParams: 'Bulk edit parameters (selection)...',
         bulkParamsDescription: 'Edit parameters shared across all selected nodes at once',
       },

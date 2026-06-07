@@ -2316,23 +2316,26 @@ export default function App() {
       // --- History ----------------------------------------------------------
       {
         id: 'edit.undo',
-        label: 'Undo',
-        group: 'Edit',
+        label: t('commandPalette.commands.edit.undo'),
+        group: t('commandPalette.groups.edit'),
+        groupLabelKey: 'commandPalette.groups.edit',
         shortcut: 'Ctrl+Z',
         onSelect: undo,
       },
       {
         id: 'edit.redo',
-        label: 'Redo',
-        group: 'Edit',
+        label: t('commandPalette.commands.edit.redo'),
+        group: t('commandPalette.groups.edit'),
+        groupLabelKey: 'commandPalette.groups.edit',
         shortcut: 'Ctrl+Shift+Z',
         onSelect: redo,
       },
       {
         id: 'edit.autoLayout',
-        label: 'Auto-layout (selected nodes)',
-        description: 'Arrange selected nodes (or all nodes) in topological columns',
-        group: 'Edit',
+        label: t('commandPalette.commands.edit.autoLayout'),
+        description: t('commandPalette.commands.edit.autoLayoutDescription'),
+        group: t('commandPalette.groups.edit'),
+        groupLabelKey: 'commandPalette.groups.edit',
         onSelect: () => canvasRef.current?.autoLayout(),
       },
       // --- Workflow tabs ----------------------------------------------------
