@@ -478,7 +478,7 @@ class NCBIEFetchNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "id_list": ("ANY", {"description": "Record IDs as a list, JSON list, or comma-separated string"}),
+                "accessions": ("STRING", {"default": "", "description": "Record IDs or accessions as a list, JSON list, or comma-separated string"}),
                 "database": ([
                     "pubmed",
                     "gene",
@@ -497,6 +497,7 @@ class NCBIEFetchNode(BaseNode):
                 "api_key": ("STRING", {"default": "", "advanced": True}),
                 "batch_size": ("INT", {"default": 100, "min": 1, "max": 500}),
                 "email": ("STRING", {"default": "", "advanced": True}),
+                "id_list": ("ANY", {"default": "", "advanced": True, "description": "Backward-compatible record ID input"}),
                 "output_name": ("STRING", {"default": ""}),
             },
             "hidden": {},
@@ -504,7 +505,7 @@ class NCBIEFetchNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        ids = _coerce_ids(kwargs.get("id_list", ""))
+        ids = _coerce_ids(kwargs.get("accessions", "") or kwargs.get("id_list", ""))
         if not ids:
             raise ValueError("NCBI EFetch requires at least one ID")
         database = str(kwargs.get("database", "nuccore"))

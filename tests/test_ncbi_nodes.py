@@ -30,6 +30,14 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ncbi_esearch"]["category"] == "databases"
     assert info["ncbi_efetch"]["display_name"] == "NCBI EFetch"
     assert info["ncbi_efetch"]["category"] == "databases"
+    assert info["ncbi_efetch"]["input"]["required"]["accessions"] == (
+        "STRING",
+        {"default": "", "description": "Record IDs or accessions as a list, JSON list, or comma-separated string"},
+    )
+    assert info["ncbi_efetch"]["input"]["optional"]["id_list"] == (
+        "*",
+        {"default": "", "advanced": True, "description": "Backward-compatible record ID input"},
+    )
     assert info["ncbi_blast"]["display_name"] == "NCBI BLAST"
     assert info["ncbi_blast"]["category"] == "databases"
     assert info["ncbi_blast"]["output_name"] == ["blast_results", "blast_summary"]
@@ -400,6 +408,48 @@ async def test_ncbi_efetch_writes_records_and_returns_metadata(
                 "tool": "bionodulo",
                 "email": "bionodulo@example.com",
                 "api_key": "explicit-key",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ncbi_efetch_accepts_planned_accessions_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ncbi_efetch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return ">NM_000546.6 TP53\nATGC\n>NM_001126112.3 TP53\nATGC\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        accessions="NM_000546.6, NM_001126112.3",
+        database="nuccore",
+        rettype="fasta",
+        retmode="text",
+        output_name="tp53_alias.fasta",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    records_path = Path(result["outputs"]["records"])
+    assert records_path.name == "tp53_alias.fasta"
+    assert result["outputs"]["metadata"]["ids"] == ["NM_000546.6", "NM_001126112.3"]
+    assert calls == [
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "NM_000546.6,NM_001126112.3",
+                "rettype": "fasta",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
             },
         }
     ]

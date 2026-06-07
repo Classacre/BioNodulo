@@ -598,6 +598,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - KEGG Pathway now advertises the planned REST `api` category and exposes `query_type` as a `STRING` control with explicit KEGG query options.
 - UCSC Genome Browser now advertises the planned `api` category and exposes genome, query type, and track selectors as `STRING` controls with explicit option lists.
 - NCBI E-utilities API-key resolution now honors the planned `BIONODULO_NCBI_API_KEY` environment fallback while preserving explicit and credential-based overrides.
+- NCBI EFetch now exposes the planned `accessions` input and accepts it at runtime while preserving `id_list` as a backward-compatible advanced alias.
 
 ---
 
