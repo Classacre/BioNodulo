@@ -569,7 +569,7 @@ const es = {
     },
     resources: {
       wikiTitle: 'Wiki y documentacion',
-      wikiDescription: 'Aprende a crear workflows y usar nodos',
+      wikiDescription: 'Aprende a crear flujos de trabajo y usar nodos',
       githubTitle: 'Repositorio de GitHub',
       githubDescription: 'Codigo fuente, releases e incidencias',
       issueTitle: 'Reportar una incidencia',

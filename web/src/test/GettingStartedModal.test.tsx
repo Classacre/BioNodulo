@@ -75,7 +75,8 @@ describe('GettingStartedModal i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recursos' }));
 
     expect(screen.getByText('Wiki y documentacion')).toBeInTheDocument();
-    expect(screen.getByText('Aprende a crear workflows y usar nodos')).toBeInTheDocument();
+    expect(screen.getByText('Aprende a crear flujos de trabajo y usar nodos')).toBeInTheDocument();
+    expect(screen.queryByText('Aprende a crear workflows y usar nodos')).not.toBeInTheDocument();
     expect(screen.getByText('Repositorio de GitHub')).toBeInTheDocument();
     expect(screen.getByText('Codigo fuente, releases e incidencias')).toBeInTheDocument();
     expect(screen.getByText('Reportar una incidencia')).toBeInTheDocument();
