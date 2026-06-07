@@ -189,6 +189,8 @@ class NodeRegistry:
                     )
                     if module:
                         count += self.register_from_module(module)
+                elif entry.is_dir() and (entry / "bionodulo.toml").exists():
+                    count += self._load_manifest_package(entry)
                 elif entry.is_dir() and (entry / "__init__.py").exists():
                     module = self._load_module_from_path(
                         entry.name, entry / "__init__.py"
@@ -211,6 +213,63 @@ class NodeRegistry:
 
         logger.info("Loaded %d nodes from custom_nodes", count)
         return count
+
+    def _load_manifest_package(self, package_dir: Path) -> int:
+        """Load modules declared by a custom node package manifest."""
+        try:
+            from bionodulo.manager.custom_nodes import load_package_manifest
+
+            manifest = load_package_manifest(package_dir)
+        except Exception as exc:
+            logger.warning("Failed to load custom node package manifest %s: %s", package_dir, exc)
+            return 0
+
+        count = 0
+        entrypoints = manifest.entrypoints or ["__init__"]
+        for entrypoint in entrypoints:
+            module_path = self._entrypoint_path(package_dir, entrypoint)
+            if module_path is None:
+                logger.warning(
+                    "Custom node package %s entrypoint %r was not found",
+                    package_dir.name,
+                    entrypoint,
+                )
+                continue
+            module_name = self._module_name_for_entrypoint(package_dir.name, entrypoint)
+            module = self._load_module_from_path(module_name, module_path)
+            if module:
+                count += self.register_from_module(module)
+        return count
+
+    @staticmethod
+    def _entrypoint_path(package_dir: Path, entrypoint: str) -> Path | None:
+        """Resolve a manifest entrypoint module path inside a package directory."""
+        entry = entrypoint.strip()
+        if not entry:
+            return None
+        package_root = package_dir.resolve()
+        parts = [part for part in entry.replace("/", ".").split(".") if part]
+        if parts and parts[0] == package_dir.name:
+            parts = parts[1:]
+        if not parts:
+            candidates = [package_dir / "__init__.py"]
+        else:
+            candidate = package_dir.joinpath(*parts)
+            candidates = [candidate.with_suffix(".py"), candidate / "__init__.py"]
+
+        for candidate in candidates:
+            try:
+                candidate.resolve().relative_to(package_root)
+            except ValueError:
+                continue
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        return None
+
+    @staticmethod
+    def _module_name_for_entrypoint(package_name: str, entrypoint: str) -> str:
+        raw = f"bionodulo_custom_{package_name}_{entrypoint}"
+        return "".join(char if char.isalnum() or char == "_" else "_" for char in raw)
 
     def register_from_module(self, module: Any) -> int:
         """Find and register all BaseNode subclasses in a module.

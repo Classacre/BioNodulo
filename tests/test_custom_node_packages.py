@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from bionodulo.manager.custom_nodes import list_installed_packages, load_package_manifest, registry_entries
+from bionodulo.nodes.registry import NodeRegistry
 
 
 def test_load_package_manifest_parses_bionodulo_toml(tmp_path: Path) -> None:
@@ -114,3 +115,78 @@ repository = "https://github.com/bionodulo/community-nodes.git"
     assert community["verified"] is True
     assert community["compatibility"]["manifest_required"] is True
     assert entries["bioconda-nodes"]["installed"] is False
+
+
+def test_node_registry_loads_manifest_declared_entrypoint_modules(tmp_path: Path) -> None:
+    package_dir = tmp_path / "custom_nodes" / "manifest_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-pkg"
+version = "0.1.0"
+entrypoints = ["nodes"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "nodes.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestEntrypointNode(BaseNode):
+    NODE_ID = "manifest_entrypoint"
+    DISPLAY_NAME = "Manifest Entrypoint"
+    CATEGORY = "custom"
+    GIT_URL = "https://example.test/manifest-pkg.git"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "ok"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    registry = NodeRegistry.create_isolated()
+
+    loaded_count = registry.load_custom_nodes(tmp_path / "custom_nodes")
+
+    assert loaded_count == 1
+    assert registry.get("manifest_entrypoint") is not None
+
+
+def test_node_registry_falls_back_to_package_init_when_manifest_has_no_entrypoints(tmp_path: Path) -> None:
+    package_dir = tmp_path / "custom_nodes" / "manifest_init_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-init-pkg"
+version = "0.1.0"
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "__init__.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestInitNode(BaseNode):
+    NODE_ID = "manifest_init"
+    DISPLAY_NAME = "Manifest Init"
+    CATEGORY = "custom"
+    GIT_URL = "https://example.test/manifest-init-pkg.git"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "ok"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    registry = NodeRegistry.create_isolated()
+
+    loaded_count = registry.load_custom_nodes(tmp_path / "custom_nodes")
+
+    assert loaded_count == 1
+    assert registry.get("manifest_init") is not None
