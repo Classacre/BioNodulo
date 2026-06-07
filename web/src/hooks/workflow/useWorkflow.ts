@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../../types';
 import { apiPost, apiRequest } from '../../api/client';
+import i18n from '../../i18n';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -166,7 +167,7 @@ export function useWorkflow() {
       json: {
         workflow: wf,
         workflow_id: wf.id || null,
-        name: options?.name || wf.name || 'Untitled',
+        name: options?.name || wf.name || i18n.t('common.untitled'),
         no_cache: options?.no_cache || false,
         environment: options?.environment || null,
         force_nodes: options?.force_nodes || [],

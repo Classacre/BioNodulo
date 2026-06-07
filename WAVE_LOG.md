@@ -407,6 +407,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Bottom console history buckets now format older same-year month headings with the active i18n language instead of the browser default locale, so Spanish history groups render `mayo` rather than `May`.
 - Bottom console history-card completion timestamps now also use the active i18n language instead of the browser default locale, keeping run metadata formatting consistent with localized bucket headings.
 - App-level console queue/history confirmations, fallback run names, retry labels, and toast/error feedback now read from `console.actions` i18n keys with Spanish unit coverage.
+- Workflow run submission now uses the active locale's untitled fallback for unnamed `/runs` payloads, so Spanish sessions queue `Sin titulo` instead of the raw English default while keeping stored workflow sentinels unchanged.
 - Workflow WebSocket run-failure toast titles, workflow fallback names, and console-detail fallback messages now read from `console.actions` i18n keys with Spanish unit coverage.
 - Help wiki panel chrome, search headings/no-results copy, page navigation labels, node-source hints, and generated node documentation labels now read from `helpWiki` i18n keys with Spanish unit coverage; embedded static article HTML remains deferred.
 - Output comparison modal title, run pickers, loading/empty states, summary counts, section headings, error labels, and footer action now read from `outputDiff` / `common` i18n keys with Spanish unit coverage.

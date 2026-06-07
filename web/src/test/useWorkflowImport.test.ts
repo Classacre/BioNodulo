@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiPost, apiRequest } from '../api/client';
 import { useWorkflow } from '../hooks/workflow/useWorkflow';
 import type { Workflow } from '../types';
@@ -95,6 +95,13 @@ describe('useWorkflow submitRun', () => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
     vi.mocked(apiRequest).mockReset();
+  });
+
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
   });
 
   it('posts runtime workflow parameter overrides to the run API', async () => {
@@ -202,6 +209,47 @@ describe('useWorkflow submitRun', () => {
         dry_run: true,
         resume_checkpoint: resumeCheckpoint,
       },
+    });
+  });
+
+  it('uses the active locale for unnamed submitted run payloads', async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    const workflow = {
+      id: 'wf-empty-name',
+      version: '2.0',
+      app: 'bionodulo',
+      name: '',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+    } as Workflow;
+    vi.mocked(apiRequest).mockResolvedValueOnce(new Response(JSON.stringify({
+      run_id: 'run-empty-name',
+      status: 'pending',
+      workflow_name: 'Sin titulo',
+      node_statuses: [],
+      node_outputs: {},
+      execution_plan: [],
+      previews: {},
+      artifacts: {},
+    })));
+    const { result } = renderHook(() => useWorkflow());
+
+    await act(async () => {
+      await result.current.submitRun(workflow);
+    });
+
+    expect(apiRequest).toHaveBeenCalledWith('/runs', {
+      method: 'POST',
+      json: expect.objectContaining({
+        workflow,
+        workflow_id: 'wf-empty-name',
+        name: 'Sin titulo',
+      }),
     });
   });
 });
