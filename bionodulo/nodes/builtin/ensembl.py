@@ -35,6 +35,15 @@ VEP_TABLE_COLUMNS = (
     "consequence_terms",
     "impact",
 )
+COMMON_ENSEMBL_SPECIES_OPTIONS = (
+    "homo_sapiens",
+    "mus_musculus",
+    "rattus_norvegicus",
+    "danio_rerio",
+    "drosophila_melanogaster",
+    "caenorhabditis_elegans",
+    "saccharomyces_cerevisiae",
+)
 ENSEMBL_API_CACHE = APICache(ttl_seconds=ENSEMBL_CACHE_TTL_S)
 ENSEMBL_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=ENSEMBL_RATE_LIMIT_PER_SECOND, burst=1)
 
@@ -248,7 +257,7 @@ class EnsemblGeneLookupNode(BaseNode):
         return {
             "required": {
                 "gene_symbol": ("STRING", {"default": "", "description": "Gene symbol or Ensembl stable ID"}),
-                "species": ("STRING", {"default": "homo_sapiens"}),
+                "species": ("STRING", {"default": "homo_sapiens", "options": list(COMMON_ENSEMBL_SPECIES_OPTIONS)}),
             },
             "optional": {
                 "query": (
@@ -338,7 +347,7 @@ class EnsemblVEPNode(BaseNode):
         return {
             "required": {
                 "variants": ("STRING", {"default": "", "multiline": True, "description": "HGVS variants, one per line"}),
-                "species": ("STRING", {"default": "homo_sapiens"}),
+                "species": ("STRING", {"default": "homo_sapiens", "options": list(COMMON_ENSEMBL_SPECIES_OPTIONS)}),
             },
             "optional": {
                 "variant_format": ("STRING", {"default": "hgvs", "options": ["hgvs", "vcf", "ensembl"]}),

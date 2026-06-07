@@ -12,6 +12,17 @@ import pytest
 from bionodulo.nodes.registry import NodeRegistry
 
 
+COMMON_ENSEMBL_SPECIES_OPTIONS = [
+    "homo_sapiens",
+    "mus_musculus",
+    "rattus_norvegicus",
+    "danio_rerio",
+    "drosophila_melanogaster",
+    "caenorhabditis_elegans",
+    "saccharomyces_cerevisiae",
+]
+
+
 def _node_class(node_id: str) -> type:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -67,6 +78,22 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_vep"]["input"]["optional"]["sift"][0] == "BOOLEAN"
     assert info["ensembl_vep"]["input"]["optional"]["polyphen"][0] == "BOOLEAN"
     assert info["ensembl_vep"]["input"]["optional"]["maf"][0] == "BOOLEAN"
+
+
+def test_ensembl_metadata_exposes_common_species_options() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    info = registry.object_info()
+
+    assert info["ensembl_gene_lookup"]["input"]["required"]["species"] == (
+        "STRING",
+        {"default": "homo_sapiens", "options": COMMON_ENSEMBL_SPECIES_OPTIONS},
+    )
+    assert info["ensembl_vep"]["input"]["required"]["species"] == (
+        "STRING",
+        {"default": "homo_sapiens", "options": COMMON_ENSEMBL_SPECIES_OPTIONS},
+    )
 
 
 @pytest.mark.asyncio

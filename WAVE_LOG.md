@@ -610,6 +610,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Ensembl Gene Lookup now exposes optional homolog controls and fetches `homology/id/{gene_id}` orthologue data when requested.
 - Ensembl Gene Lookup now accepts comma-separated homolog target species and records per-species homology responses while preserving the single-species `homologs` output shape.
 - Ensembl Gene Lookup now exposes the planned `gene_symbol` input and preserves `query` as a backward-compatible advanced alias.
+- Ensembl Gene Lookup and VEP now expose common Ensembl species options in their frontend metadata while preserving existing runtime request behavior.
 - UniProt Retrieve now exposes the planned `uniprot_ids` and `format` inputs while preserving `accession` / `include_fasta` compatibility.
 - InterProScan now accepts FASTA file paths through the existing `sequence` input and submits cleaned sequence content to EBI.
 - SRA Download now accepts singular `accession` and planning-style `format` aliases while preserving `accessions` / `output_format` behavior.
