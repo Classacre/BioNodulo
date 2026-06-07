@@ -211,6 +211,11 @@ def _normalise_blast_query(query: Any) -> str:
     text = str(query or "").strip()
     if not text:
         raise ValueError("NCBI BLAST requires a query_sequence")
+    path = Path(text).expanduser()
+    if path.is_file():
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise ValueError("NCBI BLAST requires a query_sequence")
     if text.startswith(">"):
         return text
     sequence = "".join(text.split())

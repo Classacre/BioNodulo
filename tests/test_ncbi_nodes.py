@@ -633,6 +633,43 @@ async def test_ncbi_blast_submits_polls_and_writes_results(
 
 
 @pytest.mark.asyncio
+async def test_ncbi_blast_accepts_fasta_file_path_query(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ncbi_blast")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+    fasta = tmp_path / "query.fasta"
+    fasta.write_text(">file_query\nATGC\nTTAA\n", encoding="utf-8")
+
+    async def fake_blast_request_text(method: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"method": method, "params": dict(params)})
+        if params["CMD"] == "Put":
+            return "RID = FILEQUERY1\n"
+        if params.get("FORMAT_OBJECT") == "SearchInfo":
+            return "Status=READY\n"
+        return "No hits"
+
+    async def fake_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(module, "_blast_request_text", fake_blast_request_text)
+    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+
+    await node_class().run(
+        query_sequence=str(fasta),
+        program="blastn",
+        database="nt",
+        output_format="Text",
+        timeout_minutes=1,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    assert calls[0]["params"]["QUERY"] == ">file_query\nATGC\nTTAA"
+
+
+@pytest.mark.asyncio
 async def test_ncbi_blast_uses_megablast_api_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
