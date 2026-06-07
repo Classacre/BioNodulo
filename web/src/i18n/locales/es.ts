@@ -129,6 +129,12 @@ const es = {
     openRecentWorkflow: 'Abrir reciente: {{name}}',
     recentWorkflowFallback: 'workflow reciente',
     commands: {
+      ai: {
+        open: 'Abrir constructor de workflows con IA',
+      },
+      console: {
+        toggle: 'Alternar consola',
+      },
       edit: {
         bulkParams: 'Editar parametros en masa (seleccion)...',
         bulkParamsDescription: 'Editar parametros compartidos por todos los nodos seleccionados a la vez',
@@ -140,9 +146,26 @@ const es = {
       palette: {
         use: 'Usar paleta {{name}}',
       },
+      rail: {
+        workspace: 'Abrir espacio de trabajo',
+        nodes: 'Abrir nodos',
+        inspector: 'Abrir inspector',
+        templates: 'Abrir plantillas',
+        environment: 'Abrir entornos',
+        runtimeArtifacts: 'Abrir artefactos de ejecucion',
+        hpc: 'Abrir HPC',
+        help: 'Abrir ayuda',
+        console: 'Abrir consola',
+      },
+      settings: {
+        toggle: 'Alternar ajustes',
+      },
       share: {
         copyUrl: 'Copiar URL compartible',
         copyUrlDescription: 'Codificar el workflow actual en un hash de URL y copiarlo al portapapeles',
+      },
+      shortcuts: {
+        open: 'Atajos de teclado',
       },
       workflow: {
         run: 'Ejecutar workflow',
@@ -163,6 +186,7 @@ const es = {
       appearance: 'Apariencia',
       edit: 'Editar',
       panels: 'Paneles',
+      tools: 'Herramientas',
       workflow: 'Workflow',
     },
   },

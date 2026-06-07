@@ -126,6 +126,12 @@ const en = {
     openRecentWorkflow: 'Open recent: {{name}}',
     recentWorkflowFallback: 'recent workflow',
     commands: {
+      ai: {
+        open: 'Open AI workflow builder',
+      },
+      console: {
+        toggle: 'Toggle console',
+      },
       edit: {
         bulkParams: 'Bulk edit parameters (selection)...',
         bulkParamsDescription: 'Edit parameters shared across all selected nodes at once',
@@ -137,9 +143,26 @@ const en = {
       palette: {
         use: 'Use {{name}} palette',
       },
+      rail: {
+        workspace: 'Open workspace',
+        nodes: 'Open nodes',
+        inspector: 'Open inspector',
+        templates: 'Open templates',
+        environment: 'Open environments',
+        runtimeArtifacts: 'Open runtime artifacts',
+        hpc: 'Open HPC',
+        help: 'Open help',
+        console: 'Open console',
+      },
+      settings: {
+        toggle: 'Toggle settings',
+      },
       share: {
         copyUrl: 'Copy share URL',
         copyUrlDescription: 'Encode the current workflow into a URL hash and copy to clipboard',
+      },
+      shortcuts: {
+        open: 'Keyboard shortcuts',
       },
       workflow: {
         run: 'Run workflow',
@@ -160,6 +183,7 @@ const en = {
       appearance: 'Appearance',
       edit: 'Edit',
       panels: 'Panels',
+      tools: 'Tools',
       workflow: 'Workflow',
     },
   },
