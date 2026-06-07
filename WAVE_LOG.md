@@ -728,6 +728,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Keyboard Shortcuts now renders localized scope pills for global/canvas/modal bindings, making the already-scoped shortcut contract visible in the modal with Spanish coverage.
 - Templates panel now localizes known canonical category labels through the shared node-category display mapping, keeping filtering data stable while Spanish tabs, metadata, and summaries show localized category text.
 - Templates panel now displays the save-template default category through localized copy while still submitting the canonical `Custom` category when unchanged.
+- Newly-created empty workflows now use the active locale's untitled fallback instead of hard-coded `Untitled`, including new tabs.
 - Dynamic Add Node command-palette entries now keep the canonical `Add Node` group identity while rendering the localized heading through `nodePalette.addNode`, avoiding locale-dependent command grouping for future extension registrations.
 - Runtime Artifacts now localizes workflow trigger type/status and submitted-run status metadata while preserving canonical unknown values and run-submission reasons.
 

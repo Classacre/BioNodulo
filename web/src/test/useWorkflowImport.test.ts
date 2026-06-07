@@ -100,6 +100,30 @@ describe('useWorkflow normalization', () => {
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
+  afterEach(async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the active locale for newly-created empty workflow names', async () => {
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    const { result } = renderHook(() => useWorkflow());
+
+    expect(result.current.activeWorkflow.name).toBe('Sin titulo');
+    expect(result.current.activeWorkflow.name).not.toBe('Untitled');
+
+    act(() => {
+      result.current.addTab();
+    });
+
+    expect(result.current.activeWorkflow.name).toBe('Sin titulo');
+    expect(result.current.workflows.map(workflow => workflow.name)).toEqual(['Sin titulo', 'Sin titulo']);
+  });
+
   it('normalizes legacy persisted workflows to an empty workflow parameter array', () => {
     storage.set('bionodulo.local.workflows', JSON.stringify({
       workflows: [{
