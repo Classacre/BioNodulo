@@ -671,6 +671,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - MissingDependenciesBanner install-start and first status-poll failures now report structured `logError` scopes while preserving existing install fallback behavior and avoiding repeated poll log spam.
 - `useWorkflow.resolve` manager failures now report a structured `workflow.resolve` log entry while preserving the existing null resolve-report fallback.
 - NodeCommentPopover post-comment and resolve-comment failures now report structured `logError` scopes while preserving existing inline error messages.
+- AuditLog load and CSV-export failures now report structured `logError` scopes while preserving existing inline error messages.
 
 ---
 

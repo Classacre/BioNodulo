@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({
@@ -6,7 +6,12 @@ const apiMocks = vi.hoisted(() => ({
   apiGetBlob: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -30,6 +35,7 @@ describe('AuditLog i18n', () => {
     vi.stubGlobal('localStorage', localStorageStub);
     apiMocks.apiGet.mockReset();
     apiMocks.apiGetBlob.mockReset();
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -86,5 +92,41 @@ describe('AuditLog i18n', () => {
     expect(screen.getByText('Destino')).toBeInTheDocument();
     expect(screen.getByText('Flujo de trabajo:workflow-123')).toBeInTheDocument();
     expect(screen.queryByText('Workflow:workflow-123')).not.toBeInTheDocument();
+  });
+
+  it('logs swallowed audit API failures with stable scopes', async () => {
+    const { default: AuditLog } = await import('../collab/AuditLog');
+    const loadError = new Error('audit load failed');
+    const exportError = new Error('audit export failed');
+
+    apiMocks.apiGet.mockRejectedValueOnce(loadError);
+    const loadView = render(
+      <AuditLog
+        workflowId="workflow-1"
+        isOpen
+        onClose={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.audit.load', loadError));
+    expect(screen.getByText('audit load failed')).toBeInTheDocument();
+    loadView.unmount();
+
+    apiMocks.apiGet.mockResolvedValueOnce({ entries: [], count: 0 });
+    apiMocks.apiGetBlob.mockRejectedValueOnce(exportError);
+
+    render(
+      <AuditLog
+        workflowId="workflow-1"
+        isOpen
+        onClose={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('No audit entries found.')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.audit.export', exportError));
+    expect(screen.getByText('audit export failed')).toBeInTheDocument();
   });
 });

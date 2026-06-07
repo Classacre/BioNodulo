@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { AuditEntry } from './types';
 import Icon from '../components/ui/Icon';
 import { apiGet, apiGetBlob } from '../api/client';
+import { logError } from '../state/logging';
 
 const API_BASE = 'api/collab';
 const PAGE_SIZE = 50;
@@ -66,6 +67,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       setError(null);
       setPage(1);
     } catch (err) {
+      logError('collab.audit.load', err);
       setError(err instanceof Error ? err.message : t('collab.auditLoadError'));
     } finally {
       setLoading(false);
@@ -130,6 +132,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
+      logError('collab.audit.export', err);
       setError(err instanceof Error ? err.message : t('collab.auditExportError'));
     }
   };
