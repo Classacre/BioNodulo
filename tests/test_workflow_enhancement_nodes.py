@@ -1625,6 +1625,10 @@ async def test_pause_resume_records_review_request_and_passes_through_file_previ
     assert "chr1\t42" in pause_info["preview"]["text"]
     assert saved["message"] == "Review variant calls before annotation."
     assert context.events[0][0] == "pause_requested"
+    event_payload = context.events[0][1]
+    assert event_payload["preview_data"]["kind"] == "file"
+    assert event_payload["preview_data"]["path"] == str(source)
+    assert "chr1\t42" in event_payload["preview_data"]["text"]
     assert context.logs[0] == ("info", "Pause / Resume requested: approved")
 
 

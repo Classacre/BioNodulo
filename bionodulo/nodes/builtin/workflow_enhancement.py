@@ -2639,6 +2639,7 @@ class PauseResumeNode(BaseNode):
                 "timeout_seconds": timeout_seconds,
                 "reviewers": reviewers,
                 "pause_file": pause_file,
+                "preview_data": pause_info["preview"],
                 "review_decision_supported": True,
                 "engine_pause_supported": True,
             },
