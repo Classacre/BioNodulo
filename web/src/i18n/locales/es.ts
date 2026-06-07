@@ -827,7 +827,7 @@ const es = {
     runPromptCancel: 'Cancelar ejecucion',
     integerRequired: "El parametro '{{name}}' requiere un entero",
     numberRequired: "El parametro '{{name}}' requiere un numero",
-    booleanRequired: "El parametro '{{name}}' requiere true o false",
+    booleanRequired: "El parametro '{{name}}' requiere verdadero o falso",
     jsonRequired: "El parametro '{{name}}' requiere JSON",
     validJsonRequired: "El parametro '{{name}}' requiere JSON valido",
     parameterRequired: "El parametro '{{name}}' es obligatorio",

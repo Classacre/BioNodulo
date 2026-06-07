@@ -95,6 +95,13 @@ describe('workflow parameter run prompts', () => {
       { name: 'threads', type: 'INT', required: true },
       '',
     )).toThrow("El parametro 'threads' requiere un entero");
+    expect(i18n.t('parameters.booleanRequired', { name: 'dry_run' })).toBe("El parametro 'dry_run' requiere verdadero o falso");
+    expect(coerceWorkflowParameterInput({ name: 'dry_run', type: 'BOOLEAN' }, 'verdadero')).toBe(true);
+    expect(coerceWorkflowParameterInput({ name: 'dry_run', type: 'BOOLEAN' }, 'falso')).toBe(false);
+    expect(() => coerceWorkflowParameterInput(
+      { name: 'dry_run', type: 'BOOLEAN', required: true },
+      'maybe',
+    )).toThrow("El parametro 'dry_run' requiere verdadero o falso");
   });
 
   it('keeps workflow parameter utility copy behind i18n keys', () => {

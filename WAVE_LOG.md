@@ -538,6 +538,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - AI builder command label now avoids English `workflows` wording in Spanish command-copy coverage.
 - Canvas clear-workflow context-menu label now avoids English `workflow` wording in Spanish menu coverage.
 - Workflow parameter prompt titles now avoid English `workflow` wording in Spanish prompt coverage.
+- Workflow parameter boolean prompts now avoid raw `true`/`false` wording in Spanish validation copy and accept `verdadero`/`falso` inputs alongside existing English boolean tokens.
 - Canvas subgraph embedded-workflow and breadcrumb labels now avoid English `workflow` wording in Spanish feedback coverage.
 - Console workflow-loaded, fallback, and lifecycle log copy now avoids English `workflow` wording in Spanish console coverage.
 - Workflow auto-naming fallback fragments now avoid English `workflow` wording in Spanish naming coverage.

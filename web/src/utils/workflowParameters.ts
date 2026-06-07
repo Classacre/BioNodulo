@@ -16,8 +16,8 @@ function parameterValue(parameter: WorkflowParameter): unknown {
 
 function booleanFromString(value: string): boolean {
   const normalized = value.trim().toLowerCase();
-  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
-  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  if (['true', '1', 'yes', 'on', 'verdadero'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off', 'falso'].includes(normalized)) return false;
   throw new Error('Expected true or false');
 }
 
