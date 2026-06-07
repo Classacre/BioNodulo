@@ -5,6 +5,12 @@ vi.mock('../components/ui', () => ({
   confirmDialog: vi.fn(async () => true),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -44,6 +50,7 @@ describe('EnvironmentPanel i18n', () => {
   beforeEach(() => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
+    loggingMock.logError.mockReset();
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       const method = init?.method || 'GET';
@@ -155,5 +162,79 @@ describe('EnvironmentPanel i18n', () => {
       expect(emptyState).toHaveTextContent('No hay entornos todavia.Ejecuta un flujo de trabajo para crear uno.');
       expect(emptyState).not.toHaveTextContent('Ejecuta un workflow para crear uno.');
     });
+  });
+
+  it('logs swallowed environment API failures with stable scopes', async () => {
+    const { default: EnvironmentPanel } = await import('../components/panels/EnvironmentPanel');
+    const { confirmDialog } = await import('../components/ui');
+
+    const queueFetches = (failure: { method: string; path: string; error: Error }) => {
+      fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        const method = init?.method || 'GET';
+        if (method === failure.method && url.includes(failure.path)) throw failure.error;
+        if (url.includes('/api/manager/environments') && method === 'GET') {
+          return new Response(JSON.stringify(environmentsResponse), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ detail: 'unexpected request' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+    };
+
+    const loadError = new Error('environment load failed');
+    fetchSpy.mockRejectedValueOnce(loadError);
+    const loadView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.list.load', loadError));
+    loadView.unmount();
+
+    const renameError = new Error('rename failed');
+    queueFetches({ method: 'POST', path: '/api/manager/environments/env-alpha-001/rename', error: renameError });
+    const renameView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Options'));
+    fireEvent.click(screen.getByText('Rename'));
+    await waitFor(() => expect(screen.getByDisplayValue('rna env')).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue('rna env'), { target: { value: 'renamed env' } });
+    fireEvent.keyDown(screen.getByDisplayValue('renamed env'), { key: 'Enter' });
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.rename', renameError));
+    expect(screen.getByText('Network error')).toBeInTheDocument();
+    renameView.unmount();
+
+    const deleteError = new Error('delete failed');
+    queueFetches({ method: 'DELETE', path: '/api/manager/environments/env-alpha-001', error: deleteError });
+    const deleteView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Options'));
+    fireEvent.click(screen.getByText('Delete'));
+    await waitFor(() => expect(vi.mocked(confirmDialog)).toHaveBeenCalled());
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.delete', deleteError));
+    deleteView.unmount();
+
+    const duplicateError = new Error('duplicate failed');
+    queueFetches({ method: 'POST', path: '/api/manager/environments/env-alpha-001/duplicate', error: duplicateError });
+    const duplicateView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Options'));
+    fireEvent.click(screen.getByText('Duplicate'));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.duplicate', duplicateError));
+    duplicateView.unmount();
+
+    const packageError = new Error('package removal failed');
+    queueFetches({
+      method: 'POST',
+      path: '/api/manager/environments/env-alpha-001/packages/fastqc/remove',
+      error: packageError,
+    });
+    const packageView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Show packages'));
+    fireEvent.click(screen.getByTitle('Remove fastqc'));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.package.remove', packageError));
+    packageView.unmount();
   });
 });

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { confirmDialog } from '../ui';
 import { ApiError, apiDelete, apiGet, apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface PackageInfo {
   name: string;
@@ -58,7 +59,10 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
     try {
       const data = await apiGet<{ environments?: EnvInfo[] }>('/manager/environments');
       setEnvs(data.environments || []);
-    } catch { /* offline / backend unavailable — keep prior list */ }
+    } catch (err) {
+      logError('environment.list.load', err);
+      /* offline / backend unavailable — keep prior list */
+    }
     setLoading(false);
   }, []);
 
@@ -88,6 +92,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
+      logError('environment.rename', err);
       setMessage(apiErrorMessage(err, t('environment.renameFailed'), t('errors.network')));
       setMessageTone('err');
     }
@@ -109,6 +114,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
+      logError('environment.delete', err);
       setMessage(apiErrorMessage(err, t('environment.deleteFailed'), t('errors.network')));
       setMessageTone('err');
     }
@@ -122,6 +128,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
+      logError('environment.duplicate', err);
       setMessage(apiErrorMessage(err, t('environment.duplicateFailed'), t('errors.network')));
       setMessageTone('err');
     }
@@ -143,6 +150,7 @@ export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {
       setMessageTone('ok');
       fetchEnvs();
     } catch (err) {
+      logError('environment.package.remove', err);
       setMessage(apiErrorMessage(err, t('environment.removeFailed'), t('errors.network')));
       setMessageTone('err');
     }
