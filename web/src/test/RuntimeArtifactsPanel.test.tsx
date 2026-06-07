@@ -499,8 +499,9 @@ describe('RuntimeArtifactsPanel', () => {
     expect(screen.getByText('0 puntos de control')).toBeInTheDocument();
     expect(screen.getByText('Solicitud de pausa')).toBeInTheDocument();
     expect(screen.getByText('1 · rechazado')).toBeInTheDocument();
-    expect(screen.getByText('Trigger de workflow')).toBeInTheDocument();
-    expect(screen.getByText('Ejecucion de trigger de workflow')).toBeInTheDocument();
+    expect(screen.getByText('Disparador de workflow')).toBeInTheDocument();
+    expect(screen.getByText('1 disparador de workflow')).toBeInTheDocument();
+    expect(screen.getByText('Ejecucion de disparador de workflow')).toBeInTheDocument();
     expect(screen.queryByText('pause request')).not.toBeInTheDocument();
     expect(screen.queryByText('workflow trigger run')).not.toBeInTheDocument();
   });
