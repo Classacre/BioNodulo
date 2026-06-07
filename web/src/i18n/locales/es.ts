@@ -117,7 +117,7 @@ const es = {
   commandPalette: {
     title: 'Paleta de comandos',
     placeholder: 'Buscar comandos...',
-    searchLabel: 'Search commands',
+    searchLabel: 'Buscar comandos',
     empty: 'No se encontraron comandos',
     defaultGroup: 'Comandos',
     recent: 'Reciente',

@@ -56,6 +56,10 @@ describe('App palette command copy i18n', () => {
       />,
     );
 
+    expect(screen.getByRole('textbox', { name: 'Buscar comandos' })).toHaveAttribute(
+      'placeholder',
+      'Buscar comandos...',
+    );
     expect(screen.getByText('Apariencia')).toBeInTheDocument();
     expect(screen.queryByText('Appearance')).not.toBeInTheDocument();
 
