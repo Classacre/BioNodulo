@@ -1725,7 +1725,7 @@ class MyToolNode(CommandNode):
     moveLater: 'Mover despues',
     retryRun: 'Reintentar ejecucion',
     cancelRun: 'Cancelar ejecucion',
-    loadWorkflow: 'Cargar este workflow en una pestana nueva',
+    loadWorkflow: 'Cargar este flujo de trabajo en una pestana nueva',
     deleteHistoryRun: 'Eliminar esta ejecucion del historial',
     inProgress: 'en progreso',
     bucketPastWeek: 'Ultima semana',

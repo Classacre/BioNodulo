@@ -211,7 +211,8 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByRole('button', { name: /Canceladas/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Comparar ejecuciones' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limpiar historial' })).toBeInTheDocument();
-    expect(screen.getByTitle('Cargar este workflow en una pestana nueva')).toBeInTheDocument();
+    expect(screen.getByTitle('Cargar este flujo de trabajo en una pestana nueva')).toBeInTheDocument();
+    expect(screen.queryByTitle('Cargar este workflow en una pestana nueva')).not.toBeInTheDocument();
     expect(screen.getByTitle('Reintentar ejecucion')).toBeInTheDocument();
     expect(screen.getByTitle('Eliminar esta ejecucion del historial')).toBeInTheDocument();
     expect(screen.getByText('Hoy')).toBeInTheDocument();
