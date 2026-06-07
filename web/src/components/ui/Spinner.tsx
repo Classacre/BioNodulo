@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import i18n from '../../i18n';
 
 const STYLE_ID = 'bionodulo-ui-spinner-styles';
 
@@ -40,11 +41,11 @@ export interface SpinnerProps {
   color?: string;
   className?: string;
   style?: CSSProperties;
-  /** Accessible label; defaults to a generic "Loading". */
+  /** Accessible label; defaults to the active locale's generic loading label. */
   label?: string;
 }
 
-export function Spinner({ size = 'md', color, className, style, label = 'Loading' }: SpinnerProps): ReactElement {
+export function Spinner({ size = 'md', color, className, style, label }: SpinnerProps): ReactElement {
   useEffect(() => { ensureSpinnerStyles(); }, []);
   const dimension = typeof size === 'number' ? size : SIZES[size];
   const stroke = typeof size === 'number' ? Math.max(1.5, dimension / 8) : STROKES[size];
@@ -52,7 +53,7 @@ export function Spinner({ size = 'md', color, className, style, label = 'Loading
     <span
       role="status"
       aria-live="polite"
-      aria-label={label}
+      aria-label={label ?? i18n.t('common.loading')}
       className={`bn-ui-spinner ${className ?? ''}`.trim()}
       style={{
         width: dimension,
