@@ -668,6 +668,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - TemplateGallery load, fork, and save-template failure paths now report structured `logError` scopes while preserving existing localized fallback errors.
 - EnvironmentPanel list, rename, delete, duplicate, and package-removal failures now report structured `logError` scopes while preserving existing inline error fallbacks.
 - UserList share refresh, role-change, and remove-user failures now report structured `logError` scopes while preserving existing empty-share and localized error fallbacks.
+- MissingDependenciesBanner install-start and first status-poll failures now report structured `logError` scopes while preserving existing install fallback behavior and avoiding repeated poll log spam.
 
 ---
 

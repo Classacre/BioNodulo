@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { ResolveReport, InstallJobStatus, Workflow } from '../../types';
 import { apiGet, apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface Props {
   report: ResolveReport;
@@ -18,6 +19,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
   const [installing, setInstalling] = useState(false);
   const [jobStatus, setJobStatus] = useState<InstallJobStatus | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const statusPollErrorLoggedRef = useRef(false);
 
   const totalMissing =
     report.missing_nodes.length +
@@ -33,7 +35,8 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
       try {
         const data = await apiPost<{ job_id?: string }>('/manager/ensure-workflow-env', { workflow });
         jobId = data.job_id;
-      } catch {
+      } catch (err) {
+        logError('dependencies.install.start', err);
         setInstalling(false);
         return;
       }
@@ -42,6 +45,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
         onResolve();
         return;
       }
+      statusPollErrorLoggedRef.current = false;
       pollRef.current = setInterval(async () => {
         try {
           const status = await apiGet<InstallJobStatus>(`/manager/status/${jobId}`);
@@ -54,7 +58,13 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
               setTimeout(() => onResolve(), 1000);
             }
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          if (!statusPollErrorLoggedRef.current) {
+            logError('dependencies.install.status', err);
+            statusPollErrorLoggedRef.current = true;
+          }
+          /* ignore */
+        }
       }, 1500);
     } catch {
       setInstalling(false);

@@ -1,6 +1,18 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolveReport, Workflow } from '../types';
+
+const apiMocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+}));
+
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -59,12 +71,17 @@ describe('MissingDependenciesBanner i18n', () => {
   beforeEach(() => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
+    apiMocks.apiGet.mockReset();
+    apiMocks.apiPost.mockReset();
+    loggingMock.logError.mockReset();
+    vi.useRealTimers();
   });
 
   afterEach(async () => {
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -102,5 +119,64 @@ describe('MissingDependenciesBanner i18n', () => {
     expect(screen.getByRole('heading', { name: 'Paquetes Python faltantes (1)' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Paquetes R faltantes (1)' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Errores' })).toBeInTheDocument();
+  });
+
+  it('logs swallowed install and status-poll failures with stable scopes', async () => {
+    vi.useFakeTimers();
+    const { default: MissingDependenciesBanner } = await import('../components/layout/MissingDependenciesBanner');
+    const onOpenConsole = vi.fn();
+    const onResolve = vi.fn();
+    const installError = new Error('install start failed');
+    const statusError = new Error('status poll failed');
+
+    apiMocks.apiPost.mockRejectedValueOnce(installError);
+
+    const installView = render(
+      <MissingDependenciesBanner
+        report={report()}
+        workflow={workflow()}
+        onDismiss={() => undefined}
+        onOpenConsole={onOpenConsole}
+        onResolve={onResolve}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Install Env/ }));
+      await Promise.resolve();
+    });
+
+    expect(loggingMock.logError).toHaveBeenCalledWith('dependencies.install.start', installError);
+    expect(onOpenConsole).toHaveBeenCalledTimes(1);
+    installView.unmount();
+
+    apiMocks.apiPost.mockResolvedValueOnce({ job_id: 'job-1' });
+    apiMocks.apiGet.mockRejectedValue(statusError);
+
+    render(
+      <MissingDependenciesBanner
+        report={report()}
+        workflow={workflow()}
+        onDismiss={() => undefined}
+        onOpenConsole={onOpenConsole}
+        onResolve={onResolve}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Install Env/ }));
+      await Promise.resolve();
+    });
+    expect(apiMocks.apiPost).toHaveBeenCalledWith('/manager/ensure-workflow-env', { workflow: workflow() });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(loggingMock.logError).toHaveBeenCalledWith('dependencies.install.status', statusError);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4500);
+    });
+    expect(loggingMock.logError.mock.calls.filter(([scope]) => scope === 'dependencies.install.status')).toHaveLength(1);
   });
 });
