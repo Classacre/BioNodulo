@@ -584,6 +584,54 @@ async def test_ncbi_efetch_accepts_planned_nucleotide_database_alias(
 
 
 @pytest.mark.asyncio
+async def test_ncbi_efetch_accepts_planned_asn1_retmode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ncbi_efetch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return "Seq-entry ::= set {\n}\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    retmode_input = node_class.INPUT_TYPES()["optional"]["retmode"]
+    assert retmode_input == (
+        "STRING",
+        {"default": "text", "options": ["text", "xml", "json", "asn.1"]},
+    )
+
+    result = await node_class().run(
+        accessions="NM_000546.6",
+        database="nuccore",
+        rettype="gb",
+        retmode="asn.1",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    records_path = Path(result["outputs"]["records"])
+    assert records_path.name == "nuccore_gb_1_records.asn1"
+    assert records_path.read_text(encoding="utf-8") == "Seq-entry ::= set {\n}\n"
+    assert result["outputs"]["metadata"]["retmode"] == "asn.1"
+    assert calls == [
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "NM_000546.6",
+                "rettype": "gb",
+                "retmode": "asn.1",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_efetch_batches_ids_and_combines_records(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     node_class = _node_class("ncbi_efetch")
     module = importlib.import_module(node_class.__module__)

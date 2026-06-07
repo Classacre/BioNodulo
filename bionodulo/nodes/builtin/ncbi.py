@@ -46,6 +46,7 @@ GEO_ENTRY_TYPES = {
 }
 SRA_OUTPUT_FORMATS = ("fastq", "fasta")
 NCBI_EFETCH_RETTYPES = ("fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum")
+NCBI_EFETCH_RETMODES = ("text", "xml", "json", "asn.1")
 NCBI_EFETCH_DATABASES = ("pubmed", "gene", "snp", "sra", "nuccore", "nucleotide", "protein", "assembly", "gds", "taxonomy")
 NCBI_ESEARCH_DATABASES = NCBI_EFETCH_DATABASES
 SRA_FILE_SUFFIXES = {
@@ -201,6 +202,8 @@ def _default_extension(rettype: str, retmode: str) -> str:
         return ".json"
     if retmode == "xml":
         return ".xml"
+    if retmode == "asn.1":
+        return ".asn1"
     if rettype in {"fasta", "fasta_cds_na", "fasta_cds_aa"}:
         return ".fasta"
     if rettype in {"gb", "gbwithparts"}:
@@ -489,7 +492,7 @@ class NCBIEFetchNode(BaseNode):
             },
             "optional": {
                 "rettype": ("STRING", {"default": "fasta", "options": list(NCBI_EFETCH_RETTYPES)}),
-                "retmode": ("STRING", {"default": "text", "options": ["text", "xml", "json"]}),
+                "retmode": ("STRING", {"default": "text", "options": list(NCBI_EFETCH_RETMODES)}),
                 "api_key": ("STRING", {"default": "", "advanced": True}),
                 "batch_size": ("INT", {"default": 100, "min": 1, "max": 500}),
                 "email": ("STRING", {"default": "", "advanced": True}),
