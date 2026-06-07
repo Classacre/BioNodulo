@@ -375,7 +375,7 @@ const es = {
     viewMenu: 'Vista',
     runMenu: 'Ejecutar',
     helpMenu: 'Ayuda',
-    newWorkflow: 'Nuevo workflow',
+    newWorkflow: 'Nuevo flujo de trabajo',
     openWorkflow: 'Abrir workflow...',
     saveWorkflow: 'Guardar workflow',
     saveWorkflowAs: 'Guardar workflow como...',
@@ -431,7 +431,7 @@ const es = {
     guestUser: 'Invitado',
   },
   workflowTabs: {
-    newWorkflowTab: 'Nueva pestana de workflow',
+    newWorkflowTab: 'Nueva pestana de flujo de trabajo',
     scrollLeft: 'Desplazar pestanas a la izquierda',
     scrollRight: 'Desplazar pestanas a la derecha',
     rename: 'Renombrar',

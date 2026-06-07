@@ -56,7 +56,9 @@ describe('WorkflowTabs i18n', () => {
 
     expect(screen.getByText('Sin titulo')).toBeInTheDocument();
     expect(screen.getByTitle('Cambios sin guardar')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Nueva pestana de workflow' })).toHaveAttribute('title', 'Nuevo workflow');
+    expect(screen.getByRole('button', { name: 'Nueva pestana de flujo de trabajo' })).toHaveAttribute('title', 'Nuevo flujo de trabajo');
+    expect(screen.queryByRole('button', { name: 'Nueva pestana de workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Nuevo workflow')).not.toBeInTheDocument();
 
     fireEvent.contextMenu(screen.getByText('RNA workflow'));
 
