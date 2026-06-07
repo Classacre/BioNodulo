@@ -4,7 +4,7 @@
 // with role="dialog"/aria-modal, focus trap with ESC handling, and stacked
 // z-index so a child dialog renders above its parent.
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFocusTrap } from '../../hooks/ui';
 import {
@@ -58,6 +58,10 @@ export function Dialog({
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const id = useId();
+  const [, setStackVersion] = useState(0);
+
+  // Subscribe before registering so the initial push updates top/z-index state.
+  useEffect(() => subscribeDialogStack(() => setStackVersion(v => v + 1)), []);
 
   // Register with the stack on mount; pop on unmount.
   useEffect(() => {
@@ -66,11 +70,8 @@ export function Dialog({
   }, [id]);
 
   // Re-render when stack changes so isTopDialog/dialogZIndex stay live.
-  const [stackVersion, setStackVersion] = useState(0);
-  useEffect(() => subscribeDialogStack(() => setStackVersion(v => v + 1)), []);
-
   const isTop = isTopDialog(id);
-  const zIndex = useMemo(() => dialogZIndex(id), [id, stackVersion]);
+  const zIndex = dialogZIndex(id);
 
   // Only the topmost dialog should respond to Escape so a stack of modals
   // closes one layer at a time rather than collapsing en masse.
