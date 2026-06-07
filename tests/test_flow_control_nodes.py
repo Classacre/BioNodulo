@@ -1694,6 +1694,182 @@ async def test_executor_runs_while_loop_body_until_condition_is_false(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_executor_while_loop_honors_break_continue_break_signal(tmp_path: Path) -> None:
+    while_node = _node_class("while_loop")
+    break_continue_node = _node_class("break_continue")
+
+    class BreakNode:
+        NODE_ID = "break_node"
+        RETURN_NAMES = ("signal", "value", "triggered", "reason")
+        RETURN_TYPES = ("STRING", "ANY", "BOOLEAN", "STRING")
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return await break_continue_node().run(
+                action="break",
+                condition=True,
+                value=value,
+                reason="stop while loop",
+            )
+
+    class SentinelNode:
+        NODE_ID = "sentinel"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return {"outputs": {"out": f"processed:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "while_loop": while_node,
+                "break_node": BreakNode,
+                "sentinel": SentinelNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "while_loop",
+                "inputs": {
+                    "condition_mode": {"value": "boolean_is_true"},
+                    "value": {"value": True},
+                    "max_iterations": {"value": 5},
+                },
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            {
+                "id": "control",
+                "type": "break_node",
+                "outputs": {"signal": {}, "value": {}, "triggered": {}, "reason": {}},
+            },
+            {"id": "sentinel", "type": "sentinel", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "control", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "control", "target_node": "sentinel", "source_output": "value", "target_input": "value"},
+            {"source_node": "sentinel", "target_node": "loop", "source_output": "out", "target_input": "_body_result"},
+        ],
+    }
+    BreakNode.calls = 0
+    SentinelNode.calls = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("while-loop-break", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert BreakNode.calls == 1
+    assert SentinelNode.calls == 0
+    assert result["outputs"]["loop"]["results"] == []
+    assert result["outputs"]["loop"]["iterations"] == 1
+    assert result["outputs"]["loop"]["converged"] is False
+
+
+@pytest.mark.asyncio
+async def test_executor_while_loop_honors_break_continue_continue_signal(tmp_path: Path) -> None:
+    while_node = _node_class("while_loop")
+    break_continue_node = _node_class("break_continue")
+
+    class ContinueNode:
+        NODE_ID = "continue_node"
+        RETURN_NAMES = ("signal", "value", "triggered", "reason")
+        RETURN_TYPES = ("STRING", "ANY", "BOOLEAN", "STRING")
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return await break_continue_node().run(
+                action="continue",
+                condition=True,
+                value=False,
+                reason="finish after skipped body",
+            )
+
+    class SentinelNode:
+        NODE_ID = "sentinel"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return {"outputs": {"out": f"processed:{value}"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "while_loop": while_node,
+                "continue_node": ContinueNode,
+                "sentinel": SentinelNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "loop",
+                "type": "while_loop",
+                "inputs": {
+                    "condition_mode": {"value": "boolean_is_true"},
+                    "value": {"value": True},
+                    "max_iterations": {"value": 5},
+                },
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            {
+                "id": "control",
+                "type": "continue_node",
+                "outputs": {"signal": {}, "value": {}, "triggered": {}, "reason": {}},
+            },
+            {"id": "sentinel", "type": "sentinel", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "loop", "target_node": "control", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "control", "target_node": "sentinel", "source_output": "value", "target_input": "value"},
+            {"source_node": "control", "target_node": "loop", "source_output": "value", "target_input": "value"},
+            {
+                "source_node": "control",
+                "target_node": "loop",
+                "source_output": "value",
+                "target_input": "_body_result",
+            },
+        ],
+    }
+    ContinueNode.calls = 0
+    SentinelNode.calls = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("while-loop-continue", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert ContinueNode.calls == 1
+    assert SentinelNode.calls == 0
+    assert result["outputs"]["loop"]["results"] == []
+    assert result["outputs"]["loop"]["iterations"] == 1
+    assert result["outputs"]["loop"]["converged"] is True
+
+
+@pytest.mark.asyncio
 async def test_executor_skips_inactive_if_branch_and_descendants(tmp_path: Path) -> None:
     if_node = _node_class("if_condition")
 

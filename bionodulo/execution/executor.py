@@ -1840,6 +1840,7 @@ class WorkflowExecutor:
             }
             local_inactive_outputs: dict[str, set[str]] = {}
             local_skipped_nodes: set[str] = set()
+            loop_signal = "none"
 
             for body_node_id in body_order:
                 body_node = body_nodes[body_node_id]
@@ -1938,6 +1939,29 @@ class WorkflowExecutor:
                         "iteration": visible_iteration,
                     },
                 )
+                loop_signal = self._loop_control_signal(body_result)
+                if loop_signal in {"break", "continue"}:
+                    break
+
+            if loop_signal == "break":
+                processed = list(loop_state.get("processed", []))
+                loop_state["iteration"] = visible_iteration
+                loop_state["processed"] = processed
+                loop_state["is_complete"] = True
+                return {
+                    "outputs": {
+                        "results": processed,
+                        "iterations": visible_iteration,
+                        "converged": False,
+                    },
+                    "inactive_outputs": [],
+                    "flow_control": {
+                        "type": "while_loop",
+                        "phase": "break",
+                        "is_complete": True,
+                        "loop_state": dict(loop_state),
+                    },
+                }
 
             body_result_value = self._loop_body_result(ctx.node_id, edges, local_outputs, body_order)
             current_value = self._loop_feedback_value(
@@ -1952,7 +1976,7 @@ class WorkflowExecutor:
                 "value": current_value,
                 "_loop_state": loop_state,
                 "_is_loop_iteration": True,
-                "_body_result": self._loop_feedback_value(
+                "_body_result": None if loop_signal == "continue" else self._loop_feedback_value(
                     ctx.node_id,
                     "_body_result",
                     edges,
