@@ -150,10 +150,24 @@ class UCSCGenomeBrowserNode(BaseNode):
         query_type = str(kwargs.get("query_type", "sequence") or "sequence")
         if query_type not in UCSC_QUERY_TYPES:
             raise ValueError(f"Unsupported UCSC query_type: {query_type}")
-        chrom, start, end = _parse_coordinates(coordinates)
 
         out_dir = _node_output_dir(self, context)
         fasta_path = out_dir / "sequence.fasta"
+
+        if query_type == "tracks":
+            payload = await _request_json("list/tracks", {"genome": genome})
+            metadata = {
+                "query_type": query_type,
+                "genome": genome,
+                "coordinates": coordinates,
+                "ucsc_response": payload,
+            }
+            json_path = out_dir / "tracks.json"
+            header = f"{genome}:{coordinates}" if coordinates else f"{genome}:tracks"
+            fasta_path.write_text(f">{header}\n\n", encoding="utf-8")
+            json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        else:
+            chrom, start, end = _parse_coordinates(coordinates)
 
         if query_type in {"sequence", "dna_sequence"}:
             payload = await _request_json(
@@ -204,17 +218,6 @@ class UCSCGenomeBrowserNode(BaseNode):
                 "ucsc_response": payload,
             }
             json_path = out_dir / "annotations.json"
-            fasta_path.write_text(f">{genome}:{coordinates}\n\n", encoding="utf-8")
-            json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-        else:
-            payload = await _request_json("list/tracks", {"genome": genome})
-            metadata = {
-                "query_type": query_type,
-                "genome": genome,
-                "coordinates": coordinates,
-                "ucsc_response": payload,
-            }
-            json_path = out_dir / "tracks.json"
             fasta_path.write_text(f">{genome}:{coordinates}\n\n", encoding="utf-8")
             json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 

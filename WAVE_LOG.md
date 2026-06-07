@@ -592,6 +592,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - KEGG Pathway now exposes the planned organism selector options while preserving non-human resource formation such as `mmu04110`.
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
 - UCSC Genome Browser now exposes the planned empty/default and `ucscGenes` annotation-track choices while preserving track pass-through to `getData/track`.
+- UCSC Genome Browser now allows genome-level `tracks` queries without requiring region coordinates, preserving coordinate validation for sequence and region annotation queries.
 - AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.
 - AlphaFold DB now gives the planning-style `format` input precedence when both `format` and legacy `structure_format` are supplied.
 - PDB Download now advertises the planning-style `format` input as a `STRING` with RCSB format options, preserving runtime validation while exposing the expected frontend/API contract.
