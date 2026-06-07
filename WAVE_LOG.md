@@ -625,6 +625,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI EFetch now exposes the planned `nucleotide` database alias and normalizes it to NCBI's `nuccore` request parameter.
 - NCBI ESearch now exposes the planned `nucleotide` database alias and normalizes it to NCBI's `nuccore` request parameter, including accession-conversion follow-up fetches.
 - NCBI EFetch now exposes the planned `asn.1` return mode and writes default ASN.1 responses with a `.asn1` extension.
+- NCBI ESearch now identifies initial E-utilities requests with `tool=bionodulo` and the configured/default contact email, matching the existing follow-up EFetch behavior.
 - UniProt Search now accepts the planned `size` input alias while preserving `max_results` compatibility.
 - UniProt Search and Retrieve now advertise the planned discovery aliases such as `query`, `retrieve`, `fetch`, `sequence`, and `annotation`.
 - UniProt Search now accepts the planned `format` input for direct TSV search responses while preserving JSON-default summary behavior.

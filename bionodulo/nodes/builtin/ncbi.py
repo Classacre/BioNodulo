@@ -432,6 +432,8 @@ class NCBIESearchNode(BaseNode):
             "term": query,
             "retmode": "json",
             "retmax": max_results,
+            "tool": "bionodulo",
+            "email": _default_ncbi_email(),
         }
         if "retstart" in kwargs:
             params["retstart"] = retstart

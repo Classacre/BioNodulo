@@ -270,6 +270,8 @@ async def test_ncbi_esearch_returns_ids_count_and_query_translation(monkeypatch:
                 "term": "TP53",
                 "retmode": "json",
                 "retmax": 5,
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
                 "sort": "relevance",
                 "api_key": "secret-key",
             },
@@ -313,7 +315,46 @@ async def test_ncbi_esearch_accepts_planned_nucleotide_database_alias(monkeypatc
                 "term": "TP53",
                 "retmode": "json",
                 "retmax": 1,
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
                 "sort": "relevance",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ncbi_esearch_sends_tool_and_email_identification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"esearchresult": {"count": "0", "idlist": [], "querytranslation": "TP53[All Fields]"}}
+
+    monkeypatch.setenv("BIONODULO_EMAIL", "workflow@example.org")
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    await node_class().run(
+        query="TP53",
+        database="gene",
+        max_results=1,
+        sort="",
+    )
+
+    assert calls == [
+        {
+            "endpoint": "esearch.fcgi",
+            "params": {
+                "db": "gene",
+                "term": "TP53",
+                "retmode": "json",
+                "retmax": 1,
+                "tool": "bionodulo",
+                "email": "workflow@example.org",
             },
         }
     ]
@@ -375,6 +416,8 @@ async def test_ncbi_esearch_resolves_api_key_from_bionodulo_env(monkeypatch: pyt
                 "term": "BRCA1",
                 "retmode": "json",
                 "retmax": 1,
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
                 "sort": "relevance",
                 "api_key": "env-ncbi-key",
             },
@@ -428,6 +471,8 @@ async def test_ncbi_esearch_supports_retstart_and_accession_mode(monkeypatch: py
                 "term": "16S",
                 "retmode": "json",
                 "retmax": 2,
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
                 "retstart": 20,
                 "api_key": "secret-key",
             },
