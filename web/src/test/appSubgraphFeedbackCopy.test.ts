@@ -42,11 +42,21 @@ describe('App subgraph feedback copy i18n', () => {
     expect(i18n.t('canvas.subgraphNoPromotableWidgets', { name: 'FastQC' })).toBe('FastQC no tiene widgets promovibles');
     expect(i18n.t('canvas.subgraphPromotedWidgets', { count: 1, name: 'QC' })).toBe('1 widget promovido a QC');
     expect(i18n.t('canvas.subgraphPromotedWidgets', { count: 3, name: 'QC' })).toBe('3 widgets promovidos a QC');
-    expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).toBe('El subgrafo no tiene workflow embebido');
+    expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).toBe('El subgrafo no tiene flujo de trabajo embebido');
     expect(i18n.t('canvas.subgraphFallbackName')).toBe('Subgrafo');
-    expect(i18n.t('canvas.subgraphWorkflowFallbackName')).toBe('Workflow');
+    expect(i18n.t('canvas.subgraphWorkflowFallbackName')).toBe('Flujo de trabajo');
     expect(i18n.t('canvas.subgraphBreadcrumbLabel')).toBe('Subgrafo:');
-    expect(i18n.t('canvas.subgraphBackToTopLevel')).toBe('Volver al workflow de nivel superior');
+    expect(i18n.t('canvas.subgraphBackToTopLevel')).toBe('Volver al flujo de trabajo de nivel superior');
+
+    [
+      'El subgrafo no tiene workflow embebido',
+      'Workflow',
+      'Volver al workflow de nivel superior',
+    ].forEach(text => {
+      expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).not.toBe(text);
+      expect(i18n.t('canvas.subgraphWorkflowFallbackName')).not.toBe(text);
+      expect(i18n.t('canvas.subgraphBackToTopLevel')).not.toBe(text);
+    });
   });
 
   it('keeps App subgraph feedback and breadcrumb copy behind i18n keys', () => {

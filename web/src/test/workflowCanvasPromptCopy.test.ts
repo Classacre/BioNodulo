@@ -40,7 +40,8 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
     expect(i18n.t('canvas.renameNodeMessage')).toBe('Elige un nombre visible para este nodo.');
     expect(i18n.t('canvas.nodeNameInput')).toBe('Nombre del nodo');
     expect(i18n.t('canvas.saveSubgraphLibraryOnlySubgraph')).toBe('Guardar en biblioteca solo funciona en nodos de subgrafo');
-    expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).toBe('El subgrafo no tiene workflow embebido');
+    expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).toBe('El subgrafo no tiene flujo de trabajo embebido');
+    expect(i18n.t('canvas.subgraphMissingEmbeddedWorkflow')).not.toBe('El subgrafo no tiene workflow embebido');
     expect(i18n.t('canvas.subgraphFallbackName')).toBe('Subgrafo');
     expect(i18n.t('canvas.subgraphLibrarySaved')).toBe('Guardado en la biblioteca de subgrafos');
     expect(i18n.t('canvas.presetDefaultName', { name: 'FastQC' })).toBe('Preset de FastQC');
