@@ -191,6 +191,26 @@ async def test_qc_dashboard_writes_dashboard_from_metrics_and_registers_preview(
 
 
 @pytest.mark.asyncio
+async def test_qc_dashboard_derives_read_retention_from_custom_metrics(tmp_path: Path) -> None:
+    node_class = _node_class("qc_dashboard")
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    result = await node_class().run(
+        run_name="Sample_001",
+        custom_metrics='{"raw_reads": 1000, "trimmed_reads": 800}',
+        context=context,
+    )
+
+    dashboard_path = Path(result["outputs"]["qc_dashboard"])
+    dashboard = dashboard_path.read_text(encoding="utf-8")
+
+    assert "Read Retention" in dashboard
+    assert "80.00%" in dashboard
+    assert "Read Loss" in dashboard
+    assert "20.00%" in dashboard
+
+
+@pytest.mark.asyncio
 async def test_html_report_rejects_bad_theme() -> None:
     node_class = _node_class("html_report")
 

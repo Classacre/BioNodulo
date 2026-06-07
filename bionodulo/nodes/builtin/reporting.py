@@ -152,6 +152,35 @@ def _parse_custom_metrics(value: str) -> dict[str, str]:
     return {str(key): str(val) for key, val in data.items()}
 
 
+def _add_read_retention_metrics(metrics: dict[str, str]) -> None:
+    raw = _first_numeric_metric(metrics, "raw_reads", "total_reads", "input_reads", "reads_before")
+    retained = _first_numeric_metric(metrics, "trimmed_reads", "filtered_reads", "retained_reads", "reads_after")
+    if raw is None or retained is None or raw <= 0:
+        return
+    retained = max(0.0, min(retained, raw))
+    retention = retained / raw * 100
+    loss = 100 - retention
+    metrics.setdefault("Read Retention", f"{retention:.2f}%")
+    metrics.setdefault("Read Loss", f"{loss:.2f}%")
+
+
+def _first_numeric_metric(metrics: dict[str, str], *keys: str) -> float | None:
+    normalized = {_metric_key(key): value for key, value in metrics.items()}
+    for key in keys:
+        value = normalized.get(_metric_key(key))
+        if value is None:
+            continue
+        try:
+            return float(str(value).replace(",", ""))
+        except ValueError:
+            continue
+    return None
+
+
+def _metric_key(key: str) -> str:
+    return str(key).strip().lower().replace(" ", "_").replace("-", "_")
+
+
 def _read_coverage_rows(path: Path, max_rows: int = 100) -> list[dict[str, str]]:
     text = path.read_text(encoding="utf-8-sig")
     sample = text[:4096]
@@ -537,6 +566,7 @@ class QCDashboardNode(BaseNode):
         if variant_stats is not None:
             metrics.update(_parse_variant_metrics(variant_stats))
         metrics.update(_parse_custom_metrics(str(kwargs.get("custom_metrics", "") or "")))
+        _add_read_retention_metrics(metrics)
 
         coverage_rows = _read_coverage_rows(coverage_stats) if coverage_stats is not None else []
         max_count = max((int(float(row["count"])) for row in coverage_rows), default=0)
