@@ -454,8 +454,8 @@ const es = {
   },
   workflowStats: {
     categoryFallback: 'Otros',
-    expandTitle: 'Expandir estadisticas de workflow y sistema',
-    collapseAria: 'Colapsar estadisticas de workflow',
+    expandTitle: 'Expandir estadisticas de flujo de trabajo y sistema',
+    collapseAria: 'Colapsar estadisticas de flujo de trabajo',
     collapseTitle: 'Colapsar',
     nodesLabel: 'nodos',
     edgesLabel: 'enlaces',

@@ -121,7 +121,8 @@ describe('WorkflowStatsOverlay i18n', () => {
 
     await waitFor(() => expect(screen.getByText('NVIDIA Test')).toBeInTheDocument());
 
-    expect(screen.getByRole('button', { name: 'Colapsar estadisticas de workflow' })).toHaveAttribute('title', 'Colapsar');
+    expect(screen.getByRole('button', { name: 'Colapsar estadisticas de flujo de trabajo' })).toHaveAttribute('title', 'Colapsar');
+    expect(screen.queryByRole('button', { name: 'Colapsar estadisticas de workflow' })).not.toBeInTheDocument();
     expect(screen.getByText('nodos')).toBeInTheDocument();
     expect(screen.getByText('enlaces')).toBeInTheDocument();
     expect(screen.getByText('grupos')).toBeInTheDocument();
@@ -136,9 +137,10 @@ describe('WorkflowStatsOverlay i18n', () => {
     expect(screen.getByText('VRAM')).toBeInTheDocument();
     expect(screen.getAllByText('Temp')).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Colapsar estadisticas de workflow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Colapsar estadisticas de flujo de trabajo' }));
 
-    expect(screen.getByTitle('Expandir estadisticas de workflow y sistema')).toHaveTextContent('3n - 1e');
+    expect(screen.getByTitle('Expandir estadisticas de flujo de trabajo y sistema')).toHaveTextContent('3n - 1e');
+    expect(screen.queryByTitle('Expandir estadisticas de workflow y sistema')).not.toBeInTheDocument();
   });
 
   it('keeps WorkflowStatsOverlay labels behind i18n keys', () => {
