@@ -265,10 +265,12 @@ describe('HelpWikiPanel node documentation search', () => {
 
     expect(screen.getByRole('heading', { name: 'Funciones del lienzo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Navegacion' })).toBeInTheDocument();
-    expect(screen.getByText(/El lienzo es un espacio de trabajo 2D infinito/)).toBeInTheDocument();
+    expect(screen.getByText(/donde construyes flujos de trabajo colocando y conectando nodos/)).toBeInTheDocument();
     expect(screen.getByText('Resaltado de ranura')).toBeInTheDocument();
-    expect(screen.getByText(/Los nodos de nota amarillos permiten agregar descripciones/)).toBeInTheDocument();
+    expect(screen.getByText(/Los nodos de nota amarillos permiten agregar descripciones de texto al flujo de trabajo/)).toBeInTheDocument();
     expect(screen.queryByText('Canvas Features')).not.toBeInTheDocument();
+    expect(screen.queryByText(/construyes workflows/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/texto al workflow/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Hover de ranura/)).not.toBeInTheDocument();
     expect(screen.queryByText(/nodos Note amarillos/)).not.toBeInTheDocument();
   });

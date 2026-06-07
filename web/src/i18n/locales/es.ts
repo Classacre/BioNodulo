@@ -1424,7 +1424,7 @@ const es = {
 `,
       canvasFeatures: `
 <h3>Funciones del lienzo</h3>
-<p>El lienzo es un espacio de trabajo 2D infinito donde construyes workflows colocando y conectando nodos.</p>
+<p>El lienzo es un espacio de trabajo 2D infinito donde construyes flujos de trabajo colocando y conectando nodos.</p>
 
 <h4>Navegacion</h4>
 <table>
@@ -1467,7 +1467,7 @@ const es = {
 </ul>
 
 <h4>Nodos de nota</h4>
-<p>Los nodos de nota amarillos permiten agregar descripciones de texto al workflow. No tienen entradas ni salidas y ajustan automaticamente su tamano al contenido.</p>
+<p>Los nodos de nota amarillos permiten agregar descripciones de texto al flujo de trabajo. No tienen entradas ni salidas y ajustan automaticamente su tamano al contenido.</p>
 
 <h4>Deshacer / Rehacer</h4>
 <p>Usa <kbd>Ctrl+Z</kbd> y <kbd>Ctrl+Y</kbd> o <kbd>Ctrl+Shift+Z</kbd> para deshacer y rehacer acciones. El historial conserva hasta 50 estados.</p>
