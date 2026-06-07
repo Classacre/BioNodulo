@@ -7,6 +7,7 @@ import { createWorkflowDoc, workflowToDoc, docToWorkflow } from './yjsDoc';
 import { useAwareness } from './useAwareness';
 import { getToken } from './auth';
 import { apiGet, apiPost } from '../api/client';
+import { logError } from '../state/logging';
 import { appWebSocketUrl } from '../utils/appBase';
 import type { CollabUser, AwarenessState } from './types';
 
@@ -204,7 +205,10 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       .then(data => {
         setIsShared(Array.isArray(data?.shares) && data.shares.length > 0);
       })
-      .catch(() => setIsShared(false));
+      .catch(err => {
+        logError('collab.useCollab.shares', err);
+        setIsShared(false);
+      });
   }, [workflowId]);
 
   const shareWorkflow = useCallback(async (userId: string, role: string) => {
@@ -214,7 +218,8 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     try {
       await apiPost('/api/collab/share', { workflow_id: workflowId, user_id: userId, role });
       setIsShared(true);
-    } catch {
+    } catch (err) {
+      logError('collab.useCollab.share', err);
       throw new Error('Failed to share workflow');
     }
   }, [workflowId]);
