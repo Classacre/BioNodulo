@@ -449,7 +449,7 @@ const es = {
     untitledLower: 'sin titulo',
   },
   workflowThumbnail: {
-    emptyWorkflow: '(workflow vacio)',
+    emptyWorkflow: '(flujo de trabajo vacio)',
     nodeFallback: 'Nodo',
   },
   workflowStats: {

@@ -79,7 +79,8 @@ describe('workflow thumbnail copy i18n', () => {
 
     renderWorkflowThumbnail(emptyWorkflow);
 
-    expect(fillText).toHaveBeenCalledWith('(workflow vacio)', 16, 24);
+    expect(fillText).toHaveBeenCalledWith('(flujo de trabajo vacio)', 16, 24);
+    expect(fillText).not.toHaveBeenCalledWith('(workflow vacio)', 16, 24);
     expect(fillText).not.toHaveBeenCalledWith('(empty workflow)', 16, 24);
   });
 
