@@ -69,6 +69,7 @@ describe('App inline history workflow parameters', () => {
     expect(appSource).toContain("level: 'info'");
     expect(appSource).toContain("message: t('console.actions.dryRunPreviewLog'");
     expect(appSource).toContain('detail: JSON.stringify(redactSecrets({');
+    expect(appSource).toContain('workflow_parameters: preview.workflow_parameters ?? {}');
     expect(appSource).toContain('continue;');
     expect(appSource).toContain('dryRunPreview={dryRunPreview}');
     expect(appSource).toContain('onDryRunPreviewChange={setDryRunPreview}');

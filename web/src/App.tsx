@@ -1401,6 +1401,7 @@ export default function App() {
             execution_order?: string[];
             nodes?: Record<string, unknown>;
             resume_checkpoint?: unknown;
+            workflow_parameters?: Record<string, unknown>;
           };
           const executionOrder = Array.isArray(preview.execution_order)
             ? preview.execution_order
@@ -1421,6 +1422,7 @@ export default function App() {
             detail: JSON.stringify(redactSecrets({
               execution_order: executionOrder,
               nodes: preview.nodes ?? {},
+              workflow_parameters: preview.workflow_parameters ?? {},
               resume_checkpoint: preview.resume_checkpoint ?? null,
             }), null, 2),
             timestamp: new Date().toISOString(),
