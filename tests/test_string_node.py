@@ -260,7 +260,7 @@ async def test_string_db_image_downloads_network_png_and_records_path(
         "species": 9606,
         "caller_identity": "BioNodulo",
         "required_score": 700,
-        "add_nodes": 2,
+        "add_white_nodes": 2,
         "network_flavor": "confidence",
     }
     assert calls == [{"endpoint": "image/network", "params": metadata["image_params"]}]

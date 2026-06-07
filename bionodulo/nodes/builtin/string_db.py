@@ -163,7 +163,7 @@ def _params_for(
         return "tsv/get_string_ids", base
     base.update({
         "required_score": required_score,
-        "add_nodes": add_nodes,
+        "add_white_nodes": add_nodes,
         "network_flavor": network_flavor,
     })
     return "image/network", base
