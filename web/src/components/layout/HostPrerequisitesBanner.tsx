@@ -30,7 +30,7 @@ export default function HostPrerequisitesBanner({ status, onDismiss, onOpenConso
         setInstallMsg(data.already_installed ? t('hostStatus.alreadyInstalled') : t('hostStatus.installedSuccessfully'));
         setInstallMsgKind('success');
       } else {
-        setInstallMsg(t('hostStatus.installFailed', { message: data.message || t('hostStatus.unknownError') }));
+        setInstallMsg(t('hostStatus.installFailed'));
         setInstallMsgKind('error');
       }
     } catch (err) {

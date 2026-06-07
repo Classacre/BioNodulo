@@ -2394,7 +2394,7 @@ class MyToolNode(CommandNode):
     autoInstallPixi: 'Auto Install Pixi',
     alreadyInstalled: 'Already installed',
     installedSuccessfully: 'Installed successfully - reload the page to activate.',
-    installFailed: 'Install failed: {{message}}',
+    installFailed: 'Installation failed - check server logs.',
     unknownError: 'unknown error',
     installRequestFailed: 'Install request failed - check server logs.',
     hostChecks: 'Host Checks',

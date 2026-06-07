@@ -731,6 +731,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Newly-created empty workflows now use the active locale's untitled fallback instead of hard-coded `Untitled`, including new tabs.
 - WorkflowCanvas hover-card category metadata now displays through the shared localized node-category label mapping while keeping graph metadata canonical.
 - Collaboration Yjs document creation and unnamed workflow round-trips now use the active locale's untitled workflow-name fallback while preserving stable workflow ids.
+- HostPrerequisitesBanner Pixi install failures now show localized generic guidance instead of interpolating raw backend failure text into Spanish UI.
 - Dynamic Add Node command-palette entries now keep the canonical `Add Node` group identity while rendering the localized heading through `nodePalette.addNode`, avoiding locale-dependent command grouping for future extension registrations.
 - Runtime Artifacts now localizes workflow trigger type/status and submitted-run status metadata while preserving canonical unknown values and run-submission reasons.
 

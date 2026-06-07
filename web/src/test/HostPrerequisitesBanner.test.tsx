@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostStatus } from '../types';
 
@@ -122,6 +122,33 @@ describe('HostPrerequisitesBanner i18n', () => {
     await waitFor(() => expect(screen.getByText('Instalado correctamente - recarga la pagina para activar.')).toBeInTheDocument());
     expect(onOpenConsole).toHaveBeenCalledTimes(1);
     expect(onRecheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps backend Pixi install failure details out of localized feedback', async () => {
+    const { apiPost } = await import('../api/client');
+    const { default: HostPrerequisitesBanner } = await import('../components/layout/HostPrerequisitesBanner');
+    const { setLanguage } = await import('../i18n');
+    const rawBackendMessage = 'pixi installation failed. Check server logs for details.';
+    vi.mocked(apiPost).mockResolvedValueOnce({ success: false, message: rawBackendMessage });
+
+    await setLanguage('es');
+
+    const { container } = render(
+      <HostPrerequisitesBanner
+        status={hostStatus()}
+        onDismiss={() => undefined}
+        onOpenConsole={() => undefined}
+        onRecheck={() => undefined}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Instalar Pixi automaticamente/ }));
+    });
+
+    await waitFor(() => expect(screen.getByText('La instalacion fallo - revisa los registros del servidor.')).toBeInTheDocument());
+    expect(container).not.toHaveTextContent(rawBackendMessage);
+    expect(container).not.toHaveTextContent(`Instalacion fallida: ${rawBackendMessage}`);
   });
 
   it('logs Pixi install request failures while preserving localized feedback', async () => {
