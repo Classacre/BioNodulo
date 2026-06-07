@@ -12,4 +12,23 @@ describe('App queue and history API validation', () => {
     expect(appSource).toContain('const queueRuns = validatedQueue?.ok ? validatedQueue.value : [];');
     expect(appSource).toContain('const historyRuns = validatedHistory?.ok ? validatedHistory.value : [];');
   });
+
+  it('logs user-triggered queue and history action failures with stable scopes', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    const expectedScopes = [
+      'app.queue.cancel',
+      'app.run.loadWorkflow',
+      'app.run.retry',
+      'app.queue.reorder',
+      'app.queue.clear',
+      'app.history.clear',
+      'app.history.delete',
+      'app.template.save',
+    ];
+
+    for (const scope of expectedScopes) {
+      expect(appSource).toContain(`logError('${scope}', err);`);
+    }
+  });
 });

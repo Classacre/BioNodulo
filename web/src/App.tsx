@@ -1792,6 +1792,7 @@ export default function App() {
       updateRun(run.run_id, { status: 'cancelled', end_time: new Date().toISOString() });
       toast.warning(consoleActionCopy.toast.runCancelled, { message: run.workflow_name || run.run_id });
     } catch (err) {
+      logError('app.queue.cancel', err);
       toast.error(consoleActionCopy.error.couldNotCancelRun, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [consoleActionCopy, updateRun]);
@@ -1815,6 +1816,7 @@ export default function App() {
         requestAnimationFrame(() => canvasRef.current?.fitView());
       });
     } catch (err) {
+      logError('app.run.loadWorkflow', err);
       toast.error(consoleActionCopy.error.couldNotLoadWorkflow, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [addWorkflow, consoleActionCopy]);
@@ -1839,6 +1841,7 @@ export default function App() {
       setRailTab('console');
       toast.success(consoleActionCopy.toast.retryQueued, { message: data.run_id });
     } catch (err) {
+      logError('app.run.retry', err);
       toast.error(consoleActionCopy.error.couldNotRetryRun, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [addRun, consoleActionCopy, setRailTab]);
@@ -1862,6 +1865,7 @@ export default function App() {
         return next;
       });
     } catch (err) {
+      logError('app.queue.reorder', err);
       toast.error(consoleActionCopy.error.couldNotReorderQueue, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [consoleActionCopy, queuedRuns, setRuns]);
@@ -1874,6 +1878,7 @@ export default function App() {
       setRuns(prev => prev.filter(run => run.status !== 'pending'));
       toast.success(consoleActionCopy.toast.queueCleared);
     } catch (err) {
+      logError('app.queue.clear', err);
       toast.error(consoleActionCopy.error.couldNotClearQueue, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [consoleActionCopy, setRuns]);
@@ -1886,6 +1891,7 @@ export default function App() {
       setRuns(prev => prev.filter(run => run.status === 'pending' || run.status === 'running'));
       toast.success(consoleActionCopy.toast.historyCleared);
     } catch (err) {
+      logError('app.history.clear', err);
       toast.error(consoleActionCopy.error.couldNotClearHistory, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [consoleActionCopy, setRuns]);
@@ -1895,6 +1901,7 @@ export default function App() {
       await apiDelete(`/history/${encodeURIComponent(run.run_id)}`);
       setRuns(prev => prev.filter(r => r.run_id !== run.run_id));
     } catch (err) {
+      logError('app.history.delete', err);
       const detail = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);
       toast.error(consoleActionCopy.error.couldNotDeleteRun, { message: detail });
     }
@@ -1918,6 +1925,7 @@ export default function App() {
       });
       toast.success(appCollabCopy.toast.templateSaved, { message: draft.name });
     } catch (err) {
+      logError('app.template.save', err);
       toast.error(appCollabCopy.error.saveTemplateFailed, { message: err instanceof Error ? err.message : String(err) });
     }
   }, [activeWorkflow, activeWorkflowId, appCollabCopy, collabSessionActive, publishCollabWorkflowSnapshot]);

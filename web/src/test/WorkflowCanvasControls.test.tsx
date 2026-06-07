@@ -1,6 +1,29 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ObjectInfo } from '../types';
+
+const apiMocks = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+}));
+
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+const notificationMocks = vi.hoisted(() => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
+
+vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
+vi.mock('../components/ui', async importOriginal => ({
+  ...(await importOriginal<typeof import('../components/ui')>()),
+  toast: notificationMocks.toast,
+}));
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -52,6 +75,12 @@ describe('WorkflowCanvas controls i18n', () => {
   beforeEach(() => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
+    apiMocks.apiGet.mockReset();
+    apiMocks.apiGet.mockResolvedValue({});
+    apiMocks.apiPost.mockReset();
+    loggingMock.logError.mockReset();
+    notificationMocks.toast.error.mockReset();
+    notificationMocks.toast.success.mockReset();
   });
 
   afterEach(async () => {
@@ -185,5 +214,66 @@ describe('WorkflowCanvas controls i18n', () => {
       expect(fillText).toHaveBeenCalledWith('Nodo', expect.any(Number), expect.any(Number));
     });
     expect(fillText).not.toHaveBeenCalledWith('Node', expect.any(Number), expect.any(Number));
+  });
+
+  it('logs media paste upload failures while keeping the failure toast', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    const uploadError = new Error('upload unavailable');
+    apiMocks.apiPost.mockRejectedValueOnce(uploadError);
+    const getType = vi.fn().mockResolvedValue(new Blob(['image-data'], { type: 'image/png' }));
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        read: vi.fn().mockResolvedValue([
+          {
+            types: ['image/png'],
+            getType,
+          },
+        ]),
+        readText: vi.fn(),
+      },
+    });
+
+    render(
+      <WorkflowCanvas
+        nodes={[]}
+        edges={[]}
+        groups={[]}
+        objectInfo={{
+          input_file: {
+            id: 'input_file',
+            display_name: 'Input File',
+            category: 'Inputs',
+            return_types: [],
+          },
+        } satisfies ObjectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'v',
+        ctrlKey: true,
+        bubbles: true,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(loggingMock.logError).toHaveBeenCalledWith('workflow.canvas.uploadMedia', uploadError);
+    });
+    expect(notificationMocks.toast.error).toHaveBeenCalledWith('Upload failed', { message: 'upload unavailable' });
+    expect(notificationMocks.toast.success).not.toHaveBeenCalled();
   });
 });

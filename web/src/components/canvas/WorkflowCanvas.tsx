@@ -11,6 +11,7 @@ import Icon from '../ui/Icon';
 import { promptDialog, toast } from '../ui';
 import { saveBlueprint } from '../../state/subgraphLibrary';
 import { apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 import NodePalette from '../nodes/NodePalette';
 import NodeContextMenu from '../nodes/NodeContextMenu';
 import NodeEditor from '../nodes/NodeEditor';
@@ -1708,6 +1709,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                   onNodesChangeRef.current(updated);
                   toast.success(translate('canvas.mediaPasteImported'), { message: name });
                 } catch (err) {
+                  logError('workflow.canvas.uploadMedia', err);
                   const message = err instanceof Error ? err.message : translate('workspace.uploadFailed');
                   toast.error(translate('workspace.uploadFailed'), { message });
                 }

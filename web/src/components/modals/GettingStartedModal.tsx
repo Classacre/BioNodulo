@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
+import { logError } from '../../state/logging';
 import { useFocusTrap } from '../../hooks/ui';
 
 interface GettingStartedModalProps {
@@ -190,9 +191,10 @@ export default function GettingStartedModal({
         setLiveReleases(releases);
         persistCachedReleases(releases);
       })
-      .catch((err: Error) => {
-        if (err.name === 'AbortError') return;
-        setReleasesError(err.message);
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        logError('gettingStarted.releases.fetch', err);
+        setReleasesError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setReleasesLoading(false));
     return () => controller.abort();

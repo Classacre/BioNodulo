@@ -4,6 +4,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const storage = new Map<string, string>();
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const localStorageStub: Storage = {
   get length() {
     return storage.size;
@@ -22,6 +28,7 @@ const localStorageStub: Storage = {
 describe('GettingStartedModal i18n', () => {
   beforeEach(() => {
     storage.clear();
+    loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -186,7 +193,8 @@ describe('GettingStartedModal i18n', () => {
     const { default: i18n, setLanguage } = await import('../i18n');
 
     await setLanguage('es');
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    const releaseError = new TypeError('offline');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(releaseError));
 
     render(
       <GettingStartedModal
@@ -199,6 +207,7 @@ describe('GettingStartedModal i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
 
     expect(await screen.findByText('Modo sin conexion - mostrando changelog incluido')).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('gettingStarted.releases.fetch', releaseError);
     expect(i18n.t('gettingStarted.changelog.v2.items.commandPalette')).toBe('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo');
     expect(i18n.t('gettingStarted.changelog.v2.items.templates')).toBe('Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del flujo de trabajo');
     expect(i18n.t('gettingStarted.changelog.alpha15.items.isolatedEnvironments')).toBe('Entornos aislados por flujo de trabajo con entornos direccionados por contenido');
