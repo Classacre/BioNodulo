@@ -13,7 +13,7 @@ export const supportedLanguages = [
 export type SupportedLanguage = typeof supportedLanguages[number]['code'];
 
 function getInitialLanguage(): SupportedLanguage {
-  if (typeof localStorage !== 'undefined') {
+  if (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function') {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'en' || stored === 'es') return stored;
   }
@@ -45,7 +45,9 @@ if (!i18n.isInitialized) {
 
 export function setLanguage(language: SupportedLanguage) {
   try {
-    localStorage.setItem(STORAGE_KEY, language);
+    if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+      localStorage.setItem(STORAGE_KEY, language);
+    }
   } catch {
     /* ignore */
   }

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import i18n from '../i18n';
 import type { PromptDialogOptions } from '../state/dialogs';
 import type { WorkflowParameter } from '../types';
 
@@ -20,6 +21,18 @@ function booleanFromString(value: string): boolean {
   throw new Error('Expected true or false');
 }
 
+type ParameterErrorKey =
+  | 'integerRequired'
+  | 'numberRequired'
+  | 'booleanRequired'
+  | 'jsonRequired'
+  | 'validJsonRequired'
+  | 'parameterRequired';
+
+function parameterError(parameter: WorkflowParameter, key: ParameterErrorKey): string {
+  return String(i18n.t(`parameters.${key}`, { name: parameter.name }));
+}
+
 export function workflowParameterInitialValue(parameter: WorkflowParameter): string {
   const value = parameterValue(parameter);
   if (value === undefined || value === null) return '';
@@ -33,41 +46,41 @@ export function coerceWorkflowParameterInput(parameter: WorkflowParameter, rawVa
   const type = normalizedType(parameter);
 
   if (type === 'INT' || type === 'INTEGER') {
-    if (value === '') throw new Error(`Parameter '${parameter.name}' requires an integer`);
+    if (value === '') throw new Error(parameterError(parameter, 'integerRequired'));
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || String(parsed) !== value) {
-      throw new Error(`Parameter '${parameter.name}' requires an integer`);
+      throw new Error(parameterError(parameter, 'integerRequired'));
     }
     return parsed;
   }
   if (type === 'FLOAT' || type === 'NUMBER') {
-    if (value === '') throw new Error(`Parameter '${parameter.name}' requires a number`);
+    if (value === '') throw new Error(parameterError(parameter, 'numberRequired'));
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) {
-      throw new Error(`Parameter '${parameter.name}' requires a number`);
+      throw new Error(parameterError(parameter, 'numberRequired'));
     }
     return parsed;
   }
   if (type === 'BOOLEAN' || type === 'BOOL') {
-    if (value === '') throw new Error(`Parameter '${parameter.name}' requires true or false`);
+    if (value === '') throw new Error(parameterError(parameter, 'booleanRequired'));
     try {
       return booleanFromString(value);
     } catch (err) {
       void err;
-      throw new Error(`Parameter '${parameter.name}' requires true or false`);
+      throw new Error(parameterError(parameter, 'booleanRequired'));
     }
   }
   if (type === 'JSON') {
-    if (value === '') throw new Error(`Parameter '${parameter.name}' requires JSON`);
+    if (value === '') throw new Error(parameterError(parameter, 'jsonRequired'));
     try {
       return JSON.parse(value);
     } catch (err) {
       void err;
-      throw new Error(`Parameter '${parameter.name}' requires valid JSON`);
+      throw new Error(parameterError(parameter, 'validJsonRequired'));
     }
   }
   if (value === '' && parameter.required) {
-    throw new Error(`Parameter '${parameter.name}' is required`);
+    throw new Error(parameterError(parameter, 'parameterRequired'));
   }
   return rawValue;
 }
@@ -85,13 +98,13 @@ export async function promptWorkflowRunParameters(
   const overrides: Record<string, unknown> = {};
   for (const parameter of parameters ?? []) {
     const response = await prompt({
-      title: copy.title ?? 'Workflow parameter',
+      title: copy.title ?? i18n.t('parameters.runParameterPromptTitle'),
       message: copy.message?.(parameter) ?? `${parameter.name} (${normalizedType(parameter)})`,
       inputLabel: parameter.name,
       defaultValue: workflowParameterInitialValue(parameter),
       placeholder: parameter.description,
-      confirmLabel: copy.confirmLabel ?? 'Use value',
-      cancelLabel: copy.cancelLabel ?? 'Cancel run',
+      confirmLabel: copy.confirmLabel ?? i18n.t('parameters.runPromptConfirm'),
+      cancelLabel: copy.cancelLabel ?? i18n.t('parameters.runPromptCancel'),
     });
     if (response === null) return null;
     const value = coerceWorkflowParameterInput(parameter, response);
