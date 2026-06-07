@@ -53,6 +53,10 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
     expect(i18n.t('canvas.applyPresetMessage', { labels: '1. Default' })).toBe('Elige un preset por numero:\n1. Default');
     expect(i18n.t('canvas.presetNumberInput')).toBe('Numero');
     expect(i18n.t('canvas.presetApplied')).toBe('Preset aplicado');
+    expect(i18n.t('canvas.mediaPasteFailed')).toBe('No se pudo pegar');
+    expect(i18n.t('canvas.mediaPasteInputFileMissing')).toBe('El nodo input_file no esta registrado');
+    expect(i18n.t('canvas.mediaPasteImported')).toBe('Importado');
+    expect(i18n.t('workspace.uploadFailed')).toBe('Upload failed');
   });
 
   it('keeps WorkflowCanvas prompt and toast strings behind i18n keys', () => {
@@ -75,6 +79,10 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
       'Apply preset',
       'Pick a preset by number:',
       'Preset applied',
+      'Paste failed',
+      'input_file node not registered',
+      "'Imported'",
+      "'Upload failed'",
     ].forEach(text => expect(source).not.toContain(text));
   });
 });

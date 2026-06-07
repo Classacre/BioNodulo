@@ -572,6 +572,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   onPromoteWidgets,
 }, ref) {
   const { t } = useTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
   const nodeProgressRecord = useAtomValue(canvasNodeRunProgressAtom);
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1673,9 +1675,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               }
             }
             if (mediaBlobs.length > 0) {
+              const translate = tRef.current;
               const meta = objectInfo.input_file;
               if (!meta) {
-                toast.error('Paste failed', { message: 'input_file node not registered' });
+                toast.error(translate('canvas.mediaPasteFailed'), { message: translate('canvas.mediaPasteInputFileMissing') });
                 return;
               }
               // Anchor first paste at viewport centre; subsequent ones cascade.
@@ -1700,10 +1703,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                       : n,
                   );
                   onNodesChangeRef.current(updated);
-                  toast.success('Imported', { message: name });
+                  toast.success(translate('canvas.mediaPasteImported'), { message: name });
                 } catch (err) {
-                  const message = err instanceof Error ? err.message : 'Upload failed';
-                  toast.error('Upload failed', { message });
+                  const message = err instanceof Error ? err.message : translate('workspace.uploadFailed');
+                  toast.error(translate('workspace.uploadFailed'), { message });
                 }
               }
               onPushHistoryRef.current();
