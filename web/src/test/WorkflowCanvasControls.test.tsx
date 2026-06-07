@@ -146,4 +146,44 @@ describe('WorkflowCanvas controls i18n', () => {
     });
     expect(fillText).not.toHaveBeenCalledWith('samples: 3 items', expect.any(Number), expect.any(Number));
   });
+
+  it('draws missing node titles from the active locale', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    const { setLanguage } = await import('../i18n');
+    const fillText = vi.fn();
+    stubCanvasContext(fillText);
+
+    await setLanguage('es');
+
+    render(
+      <WorkflowCanvas
+        nodes={[{
+          id: 'fallback-node',
+          type: '',
+          position: [100, 100],
+          params: {},
+        }]}
+        edges={[]}
+        groups={[]}
+        objectInfo={{} satisfies ObjectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fillText).toHaveBeenCalledWith('Nodo', expect.any(Number), expect.any(Number));
+    });
+    expect(fillText).not.toHaveBeenCalledWith('Node', expect.any(Number), expect.any(Number));
+  });
 });

@@ -1938,6 +1938,8 @@ class MyToolNode(CommandNode):
     nodeErrorDismissHint: 'Edita los parametros del nodo para descartarlo.',
     itemCount: '{{count}} elemento',
     itemCount_other: '{{count}} elementos',
+    unknownNodeDisplayName: 'Desconocido',
+    nodeFallbackTitle: 'Nodo',
     autoLayout: 'Auto-layout',
     flashUndo: 'Deshacer',
     flashRedo: 'Rehacer',

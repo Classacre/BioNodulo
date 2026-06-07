@@ -1932,6 +1932,8 @@ class MyToolNode(CommandNode):
     nodeErrorDismissHint: "Edit the node's parameters to dismiss.",
     itemCount: '{{count}} item',
     itemCount_other: '{{count}} items',
+    unknownNodeDisplayName: 'Unknown',
+    nodeFallbackTitle: 'Node',
     autoLayout: 'Auto-layout',
     flashUndo: 'Undo',
     flashRedo: 'Redo',

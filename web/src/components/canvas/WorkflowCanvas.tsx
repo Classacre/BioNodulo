@@ -770,7 +770,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         return {
           id: wn.id,
           type: wn.type,
-          display_name: meta?.display_name || wn.type || 'Unknown',
+          display_name: meta?.display_name || wn.type || t('canvas.unknownNodeDisplayName'),
           category: meta?.category || 'Utility',
           x: wn.position[0],
           y: wn.position[1],
@@ -797,13 +797,13 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           collapsed,
           pinned: wn.ui?.pinned || false,
           shape: wn.ui?.shape || (isNote ? 'card' : 'round'),
-          title: wn.ui?.title || meta?.display_name || wn.type || 'Node',
+          title: wn.ui?.title || meta?.display_name || wn.type || t('canvas.nodeFallbackTitle'),
           status: existing?.status,
           visualOnly,
         };
       });
     });
-  }, [nodes, edges, objectInfo]);
+  }, [nodes, edges, objectInfo, t]);
 
   // Update node statuses separately so parent re-renders don't stomp drag positions
   useEffect(() => {
