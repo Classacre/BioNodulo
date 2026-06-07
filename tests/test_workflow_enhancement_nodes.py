@@ -221,6 +221,39 @@ async def test_data_validator_reports_failures_without_raising_when_configured(t
 
 
 @pytest.mark.asyncio
+async def test_data_validator_accepts_gzipped_fastq_and_vcf(tmp_path: Path) -> None:
+    reads = tmp_path / "reads.fastq.gz"
+    with gzip.open(reads, "wt", encoding="utf-8") as handle:
+        handle.write("@read1\nACGT\n+\n!!!!\n@read2\nTGCA\n+\n!!!!\n")
+
+    variants = tmp_path / "variants.vcf.gz"
+    with gzip.open(variants, "wt", encoding="utf-8") as handle:
+        handle.write("##fileformat=VCFv4.3\n#CHROM\tPOS\tID\tREF\tALT\nchr1\t42\t.\tA\tG\n")
+
+    _, fastq_passed, fastq_report, _ = await _node_class("data_validator")().run(
+        input=str(reads),
+        expected_format="auto",
+        min_records=2,
+        context=_context(tmp_path, "validator-fastq-gz"),
+    )
+    _, vcf_passed, vcf_report, _ = await _node_class("data_validator")().run(
+        input=str(variants),
+        expected_format="auto",
+        min_records=1,
+        context=_context(tmp_path, "validator-vcf-gz"),
+    )
+
+    parsed_fastq = json.loads(fastq_report)
+    parsed_vcf = json.loads(vcf_report)
+    assert fastq_passed is True
+    assert parsed_fastq["checks"]["detected_format"] == "fastq"
+    assert parsed_fastq["checks"]["record_count"] == 2
+    assert vcf_passed is True
+    assert parsed_vcf["checks"]["detected_format"] == "vcf"
+    assert parsed_vcf["checks"]["variant_count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -> None:
     read1 = tmp_path / "sample_R1.fastq"
     read2 = tmp_path / "sample_R2.fastq"

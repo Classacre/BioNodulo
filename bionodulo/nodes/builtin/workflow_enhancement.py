@@ -513,11 +513,18 @@ class DataValidatorNode(BaseNode):
         report["checks"]["format_valid"] = True
         return True
 
+    @staticmethod
+    def _read_text_lines(path: Path) -> list[str]:
+        if path.suffix.lower() == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8", errors="replace") as handle:
+                return handle.read().splitlines()
+        return path.read_text(encoding="utf-8", errors="replace").splitlines()
+
     def _validate_fasta(self, path: Path, report: dict[str, Any]) -> bool:
         records = 0
         saw_sequence = False
         try:
-            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            for line in self._read_text_lines(path):
                 if line.startswith(">"):
                     records += 1
                     saw_sequence = False
@@ -534,7 +541,7 @@ class DataValidatorNode(BaseNode):
             return False
 
     def _validate_fastq(self, path: Path, report: dict[str, Any]) -> bool:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = self._read_text_lines(path)
         if len(lines) == 0 or len(lines) % 4 != 0:
             report["errors"].append(f"FASTQ: line count {len(lines)} is not divisible by 4")
             return False
@@ -549,7 +556,7 @@ class DataValidatorNode(BaseNode):
     def _validate_vcf(self, path: Path, report: dict[str, Any]) -> bool:
         header_lines = 0
         variant_count = 0
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        for line in self._read_text_lines(path):
             if line.startswith("#"):
                 header_lines += 1
             elif line.strip():
@@ -623,8 +630,7 @@ class DataValidatorNode(BaseNode):
         return True
 
     def _validate_text(self, path: Path, report: dict[str, Any]) -> bool:
-        text = path.read_text(encoding="utf-8", errors="replace")
-        report["checks"]["line_count"] = len(text.splitlines())
+        report["checks"]["line_count"] = len(self._read_text_lines(path))
         report["checks"]["format_valid"] = True
         return True
 
