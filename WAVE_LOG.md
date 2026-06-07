@@ -501,6 +501,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Bottom console history load-workflow action now avoids English `workflow` wording in Spanish render coverage.
 - Import modal title and dialog label now avoid English `workflow` wording in Spanish render coverage.
 - Export modal title and dialog label now avoid English `workflow` wording in Spanish render coverage.
+- Export modal PNG option and embedded-workflow help copy now avoid English `workflow` wording in Spanish render coverage.
 - Design token documentation now covers the complete 66-token palette contract from `ALL_PALETTE_TOKENS`, derived-token behavior, semantic token groups, current built-in canvas pattern mappings, and custom palette authoring guidance. The palette test suite now guards `docs/DESIGN_TOKENS.md` against missing CSS custom properties or stale built-in pattern rows.
 - ForEach executor body runs now inject declared hidden loop runtime inputs (`_loop_state`, `_iteration`) into body nodes while still filtering undeclared internal `_` metadata. `counter_accumulator` can now maintain shared accumulator state across real foreach iterations instead of only in direct node-level calls, with executor coverage for accumulating `["S1", "S2", "S3"]` through the loop body.
 - TypeScript strictness now has a config-contract test that guards `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`, and `verbatimModuleSyntax` in `web/tsconfig.json`, so the strict-flag gap cannot silently regress.

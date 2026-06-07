@@ -2531,14 +2531,14 @@ class MyToolNode(CommandNode):
   exportModal: {
     title: 'Exportar flujo de trabajo',
     formats: {
-      png: 'PNG (workflow incrustado)',
+      png: 'PNG (flujo de trabajo incrustado)',
       json: 'JSON de BioNodulo',
       snakemake: 'SnakeMake',
       nextflow: 'NextFlow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
     },
-    pngHelp: 'El PNG lleva el JSON completo del workflow en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.',
+    pngHelp: 'El PNG lleva el JSON completo del flujo de trabajo en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.',
     transparentBackground: 'Fondo transparente',
     resolution: 'Resolucion',
     jsonOnly: 'Solo JSON (omitir contenedor PNG)',

@@ -91,8 +91,10 @@ describe('ExportModal i18n', () => {
     expect(screen.getByText('Exportar flujo de trabajo')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Exportar workflow' })).not.toBeInTheDocument();
     expect(screen.queryByText('Exportar workflow')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'PNG (workflow incrustado)' })).toHaveClass('active');
-    expect(screen.getByText('El PNG lleva el JSON completo del workflow en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PNG (flujo de trabajo incrustado)' })).toHaveClass('active');
+    expect(screen.queryByRole('button', { name: 'PNG (workflow incrustado)' })).not.toBeInTheDocument();
+    expect(screen.getByText('El PNG lleva el JSON completo del flujo de trabajo en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).toBeInTheDocument();
+    expect(screen.queryByText('El PNG lleva el JSON completo del workflow en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Fondo transparente')).toBeInTheDocument();
     expect(screen.getByText('Resolucion')).toBeInTheDocument();
     expect(screen.getByLabelText('Solo JSON (omitir contenedor PNG)')).toBeInTheDocument();
