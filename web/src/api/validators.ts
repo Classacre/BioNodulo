@@ -348,6 +348,265 @@ export const safeValidateRunsList = (value: unknown): ValidationResult<Validated
   safe(() => validateRunsList(value));
 
 // ---------------------------------------------------------------------------
+// Runtime-artifact validators. These endpoints power the runtime artifacts
+// panel; top-level contracts must be stable, but malformed individual records
+// should not blank the whole panel.
+// ---------------------------------------------------------------------------
+
+export type RuntimeArtifactRecord = Record<string, unknown>;
+
+export interface ValidatedCheckpointManifestResponse {
+  exists: boolean;
+  manifest_path: string;
+  manifest: Record<string, unknown>;
+  resume_manifest_supported?: boolean;
+  resume_supported?: boolean;
+  resume_note?: string;
+}
+
+export interface ValidatedResolveCheckpointResponse {
+  found: boolean;
+  manifest_path: string;
+  checkpoint: RuntimeArtifactRecord | null;
+  resume_manifest_supported?: boolean;
+  resume_supported?: boolean;
+  resume_note?: string;
+}
+
+export interface ValidatedPauseRequestsResponse {
+  pause_requests_dir: string;
+  pause_requests: RuntimeArtifactRecord[];
+  count: number;
+  errors: Record<string, string>[];
+  review_decision_supported?: boolean;
+  engine_pause_supported?: boolean;
+  pause_note?: string;
+}
+
+export interface ValidatedResolvePauseRequestResponse {
+  pause_request: RuntimeArtifactRecord;
+}
+
+export interface ValidatedWorkflowTriggersResponse {
+  trigger_dir: string;
+  triggers: RuntimeArtifactRecord[];
+  count: number;
+  errors: Record<string, string>[];
+  scheduler_runner_contract_supported?: boolean;
+  file_watch_runner_contract_supported?: boolean;
+  durable_scheduler_supported?: boolean;
+  polling_file_watcher_supported?: boolean;
+  run_submission_supported?: boolean;
+  workflow_trigger_note?: string;
+}
+
+export interface ValidatedWorkflowTriggerEvaluationResponse {
+  trigger_dir?: string;
+  due_schedule_triggers: RuntimeArtifactRecord[];
+  due_schedule_count: number;
+  due_file_watch_triggers: RuntimeArtifactRecord[];
+  due_file_watch_count: number;
+  submitted_runs: RuntimeArtifactRecord[];
+  submitted_run_count: number;
+  errors: Record<string, string>[];
+  scheduler_runner_contract_supported?: boolean;
+  file_watch_runner_contract_supported?: boolean;
+  durable_scheduler_supported?: boolean;
+  polling_file_watcher_supported?: boolean;
+  run_submission_supported?: boolean;
+  workflow_trigger_note?: string;
+}
+
+function optionalBoolean(value: unknown, path: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') throw new ApiValidationError(path, 'boolean | undefined', value);
+  return value;
+}
+
+function objectList(value: unknown, path: string): RuntimeArtifactRecord[] {
+  return requireArray(value, path)
+    .filter((item): item is RuntimeArtifactRecord => isObject(item))
+    .map(item => ({ ...item }));
+}
+
+function stringRecordList(value: unknown, path: string): Record<string, string>[] {
+  return requireArray(value, path).flatMap((item): Record<string, string>[] => {
+    if (!isObject(item)) return [];
+    const out: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(item)) {
+      if (typeof raw === 'string') out[key] = raw;
+    }
+    return Object.keys(out).length > 0 ? [out] : [];
+  });
+}
+
+export function validateCheckpointManifestResponse(value: unknown): ValidatedCheckpointManifestResponse {
+  const obj = requireObject(value, 'checkpoint_manifest');
+  return {
+    exists: requireBoolean(obj.exists, 'checkpoint_manifest.exists'),
+    manifest_path: requireString(obj.manifest_path, 'checkpoint_manifest.manifest_path'),
+    manifest: requireObject(obj.manifest, 'checkpoint_manifest.manifest'),
+    resume_manifest_supported: optionalBoolean(
+      obj.resume_manifest_supported,
+      'checkpoint_manifest.resume_manifest_supported',
+    ),
+    resume_supported: optionalBoolean(obj.resume_supported, 'checkpoint_manifest.resume_supported'),
+    resume_note: optionalString(obj.resume_note, 'checkpoint_manifest.resume_note'),
+  };
+}
+
+export function validateResolveCheckpointResponse(value: unknown): ValidatedResolveCheckpointResponse {
+  const obj = requireObject(value, 'resolve_checkpoint');
+  const rawCheckpoint = obj.checkpoint;
+  const checkpoint = rawCheckpoint === null
+    ? null
+    : requireObject(rawCheckpoint, 'resolve_checkpoint.checkpoint');
+  return {
+    found: requireBoolean(obj.found, 'resolve_checkpoint.found'),
+    manifest_path: requireString(obj.manifest_path, 'resolve_checkpoint.manifest_path'),
+    checkpoint,
+    resume_manifest_supported: optionalBoolean(
+      obj.resume_manifest_supported,
+      'resolve_checkpoint.resume_manifest_supported',
+    ),
+    resume_supported: optionalBoolean(obj.resume_supported, 'resolve_checkpoint.resume_supported'),
+    resume_note: optionalString(obj.resume_note, 'resolve_checkpoint.resume_note'),
+  };
+}
+
+export function validatePauseRequestsResponse(value: unknown): ValidatedPauseRequestsResponse {
+  const obj = requireObject(value, 'pause_requests');
+  const pauseRequests = objectList(obj.pause_requests, 'pause_requests.pause_requests');
+  return {
+    pause_requests_dir: requireString(obj.pause_requests_dir, 'pause_requests.pause_requests_dir'),
+    pause_requests: pauseRequests,
+    count: pauseRequests.length,
+    errors: stringRecordList(obj.errors, 'pause_requests.errors'),
+    review_decision_supported: optionalBoolean(
+      obj.review_decision_supported,
+      'pause_requests.review_decision_supported',
+    ),
+    engine_pause_supported: optionalBoolean(obj.engine_pause_supported, 'pause_requests.engine_pause_supported'),
+    pause_note: optionalString(obj.pause_note, 'pause_requests.pause_note'),
+  };
+}
+
+export function validateResolvePauseRequestResponse(value: unknown): ValidatedResolvePauseRequestResponse {
+  const obj = requireObject(value, 'resolve_pause_request');
+  return {
+    pause_request: requireObject(obj.pause_request, 'resolve_pause_request.pause_request'),
+  };
+}
+
+export function validateWorkflowTriggersResponse(value: unknown): ValidatedWorkflowTriggersResponse {
+  const obj = requireObject(value, 'workflow_triggers');
+  const triggers = objectList(obj.triggers, 'workflow_triggers.triggers');
+  return {
+    trigger_dir: requireString(obj.trigger_dir, 'workflow_triggers.trigger_dir'),
+    triggers,
+    count: triggers.length,
+    errors: stringRecordList(obj.errors, 'workflow_triggers.errors'),
+    scheduler_runner_contract_supported: optionalBoolean(
+      obj.scheduler_runner_contract_supported,
+      'workflow_triggers.scheduler_runner_contract_supported',
+    ),
+    file_watch_runner_contract_supported: optionalBoolean(
+      obj.file_watch_runner_contract_supported,
+      'workflow_triggers.file_watch_runner_contract_supported',
+    ),
+    durable_scheduler_supported: optionalBoolean(
+      obj.durable_scheduler_supported,
+      'workflow_triggers.durable_scheduler_supported',
+    ),
+    polling_file_watcher_supported: optionalBoolean(
+      obj.polling_file_watcher_supported,
+      'workflow_triggers.polling_file_watcher_supported',
+    ),
+    run_submission_supported: optionalBoolean(obj.run_submission_supported, 'workflow_triggers.run_submission_supported'),
+    workflow_trigger_note: optionalString(obj.workflow_trigger_note, 'workflow_triggers.workflow_trigger_note'),
+  };
+}
+
+export function validateWorkflowTriggerEvaluationResponse(
+  value: unknown,
+): ValidatedWorkflowTriggerEvaluationResponse {
+  const obj = requireObject(value, 'workflow_trigger_evaluation');
+  const dueScheduleTriggers = objectList(
+    obj.due_schedule_triggers,
+    'workflow_trigger_evaluation.due_schedule_triggers',
+  );
+  const dueFileWatchTriggers = objectList(
+    obj.due_file_watch_triggers,
+    'workflow_trigger_evaluation.due_file_watch_triggers',
+  );
+  const submittedRuns = objectList(obj.submitted_runs, 'workflow_trigger_evaluation.submitted_runs');
+  return {
+    trigger_dir: optionalString(obj.trigger_dir, 'workflow_trigger_evaluation.trigger_dir'),
+    due_schedule_triggers: dueScheduleTriggers,
+    due_schedule_count: dueScheduleTriggers.length,
+    due_file_watch_triggers: dueFileWatchTriggers,
+    due_file_watch_count: dueFileWatchTriggers.length,
+    submitted_runs: submittedRuns,
+    submitted_run_count: submittedRuns.filter(run => run.status === 'submitted').length,
+    errors: stringRecordList(obj.errors, 'workflow_trigger_evaluation.errors'),
+    scheduler_runner_contract_supported: optionalBoolean(
+      obj.scheduler_runner_contract_supported,
+      'workflow_trigger_evaluation.scheduler_runner_contract_supported',
+    ),
+    file_watch_runner_contract_supported: optionalBoolean(
+      obj.file_watch_runner_contract_supported,
+      'workflow_trigger_evaluation.file_watch_runner_contract_supported',
+    ),
+    durable_scheduler_supported: optionalBoolean(
+      obj.durable_scheduler_supported,
+      'workflow_trigger_evaluation.durable_scheduler_supported',
+    ),
+    polling_file_watcher_supported: optionalBoolean(
+      obj.polling_file_watcher_supported,
+      'workflow_trigger_evaluation.polling_file_watcher_supported',
+    ),
+    run_submission_supported: optionalBoolean(
+      obj.run_submission_supported,
+      'workflow_trigger_evaluation.run_submission_supported',
+    ),
+    workflow_trigger_note: optionalString(
+      obj.workflow_trigger_note,
+      'workflow_trigger_evaluation.workflow_trigger_note',
+    ),
+  };
+}
+
+export const safeValidateCheckpointManifestResponse = (
+  value: unknown,
+): ValidationResult<ValidatedCheckpointManifestResponse> =>
+  safe(() => validateCheckpointManifestResponse(value));
+
+export const safeValidateResolveCheckpointResponse = (
+  value: unknown,
+): ValidationResult<ValidatedResolveCheckpointResponse> =>
+  safe(() => validateResolveCheckpointResponse(value));
+
+export const safeValidatePauseRequestsResponse = (
+  value: unknown,
+): ValidationResult<ValidatedPauseRequestsResponse> =>
+  safe(() => validatePauseRequestsResponse(value));
+
+export const safeValidateResolvePauseRequestResponse = (
+  value: unknown,
+): ValidationResult<ValidatedResolvePauseRequestResponse> =>
+  safe(() => validateResolvePauseRequestResponse(value));
+
+export const safeValidateWorkflowTriggersResponse = (
+  value: unknown,
+): ValidationResult<ValidatedWorkflowTriggersResponse> =>
+  safe(() => validateWorkflowTriggersResponse(value));
+
+export const safeValidateWorkflowTriggerEvaluationResponse = (
+  value: unknown,
+): ValidationResult<ValidatedWorkflowTriggerEvaluationResponse> =>
+  safe(() => validateWorkflowTriggerEvaluationResponse(value));
+
+// ---------------------------------------------------------------------------
 // Manager registry validator. The /api/manager/registry endpoint drives
 // custom-node discovery/install surfaces, so callers need stable registry,
 // compatibility, and installed-package arrays even when optional manifest

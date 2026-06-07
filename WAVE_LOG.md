@@ -661,6 +661,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Legacy and imported frontend workflows now normalize missing or malformed workflow-parameter collections to `parameters: []`, keeping parameter-aware UI paths on a stable array contract.
 - Workflow Doctor now reports structural graph issues for duplicate node IDs, dangling edges, and unknown node types before users reach backend validation or execution.
 - Startup queue/history hydration now uses the shared run-list API validator, covering the backend `{ pending, running }` and `{ history }` shapes plus timestamp aliases before mapping records into the console.
+- Runtime artifact APIs now validate checkpoint manifests, pause requests, workflow triggers, trigger evaluation results, and resolve responses at the hook boundary, skipping malformed list rows while rejecting broken top-level payloads.
 
 ---
 

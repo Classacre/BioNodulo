@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../api/client';
+import {
+  safeValidateCheckpointManifestResponse,
+  safeValidatePauseRequestsResponse,
+  safeValidateResolveCheckpointResponse,
+  safeValidateResolvePauseRequestResponse,
+  safeValidateWorkflowTriggerEvaluationResponse,
+  safeValidateWorkflowTriggersResponse,
+  type ValidationResult,
+} from '../../api/validators';
 
 export interface CheckpointManifestResponse {
   exists: boolean;
@@ -132,6 +141,11 @@ export interface ResolvePauseRequestResponse {
   pause_request: PauseRequestRecord;
 }
 
+function unwrapValidated<T>(result: ValidationResult<T>): T {
+  if (result.ok) return result.value;
+  throw result.error;
+}
+
 export function useWorkflowRuntimeArtifacts() {
   const [checkpointManifest, setCheckpointManifest] = useState<CheckpointManifestResponse | null>(null);
   const [pauseRequests, setPauseRequests] = useState<PauseRequestsResponse | null>(null);
@@ -147,13 +161,13 @@ export function useWorkflowRuntimeArtifacts() {
     setError(null);
     try {
       const [checkpointData, pauseData, triggerData] = await Promise.all([
-        apiGet<CheckpointManifestResponse>('/checkpoints/manifest'),
-        apiGet<PauseRequestsResponse>('/pause_requests'),
-        apiGet<WorkflowTriggersResponse>('/workflow_triggers'),
+        apiGet<unknown>('/checkpoints/manifest'),
+        apiGet<unknown>('/pause_requests'),
+        apiGet<unknown>('/workflow_triggers'),
       ]);
-      setCheckpointManifest(checkpointData);
-      setPauseRequests(pauseData);
-      setWorkflowTriggers(triggerData);
+      setCheckpointManifest(unwrapValidated(safeValidateCheckpointManifestResponse(checkpointData)));
+      setPauseRequests(unwrapValidated(safeValidatePauseRequestsResponse(pauseData)));
+      setWorkflowTriggers(unwrapValidated(safeValidateWorkflowTriggersResponse(triggerData)));
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
@@ -165,7 +179,8 @@ export function useWorkflowRuntimeArtifacts() {
     const body: Record<string, unknown> = {};
     if (now) body.now = now;
     if (options?.submitRuns) body.submit_runs = true;
-    const data = await apiPost<WorkflowTriggerEvaluationResponse>('/workflow_triggers/evaluate', body);
+    const rawData = await apiPost<unknown>('/workflow_triggers/evaluate', body);
+    const data = unwrapValidated(safeValidateWorkflowTriggerEvaluationResponse(rawData));
     setTriggerEvaluation(data);
     return data;
   }, []);
@@ -176,13 +191,15 @@ export function useWorkflowRuntimeArtifacts() {
     if (input.node_id) params.set('node_id', input.node_id);
     if (input.checkpoint_name) params.set('checkpoint_name', input.checkpoint_name);
     const query = params.toString();
-    const data = await apiGet<ResolveCheckpointResponse>(`/checkpoints/resolve${query ? `?${query}` : ''}`);
+    const rawData = await apiGet<unknown>(`/checkpoints/resolve${query ? `?${query}` : ''}`);
+    const data = unwrapValidated(safeValidateResolveCheckpointResponse(rawData));
     setLastResolvedCheckpoint(data);
     return data;
   }, []);
 
   const resolvePauseRequest = useCallback(async (input: ResolvePauseRequestInput) => {
-    const data = await apiPost<ResolvePauseRequestResponse>('/pause_requests/resolve', input);
+    const rawData = await apiPost<unknown>('/pause_requests/resolve', input);
+    const data = unwrapValidated(safeValidateResolvePauseRequestResponse(rawData));
     setLastResolvedPauseRequest(data.pause_request);
     await refresh();
     return data.pause_request;

@@ -2,14 +2,21 @@ import { describe, it, expect } from 'vitest';
 import {
   ApiValidationError,
   safeValidateHostStatus,
+  safeValidateCheckpointManifestResponse,
   safeValidateHpcStatus,
   safeValidateRunRecord,
   safeValidateRunsList,
   safeValidateWorkflow,
+  validateCheckpointManifestResponse,
   validateHostStatus,
   validateHpcStatus,
+  validatePauseRequestsResponse,
+  validateResolveCheckpointResponse,
+  validateResolvePauseRequestResponse,
   validateRunRecord,
   validateRunsList,
+  validateWorkflowTriggerEvaluationResponse,
+  validateWorkflowTriggersResponse,
 } from '../api/validators';
 
 describe('validateHostStatus', () => {
@@ -146,6 +153,92 @@ describe('validateRunRecord', () => {
   it('throws on missing run_id', () => {
     const result = safeValidateRunRecord({ status: 'pending' });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('runtime artifact API validators', () => {
+  it('preserves a checkpoint manifest payload and rejects malformed top-level fields', () => {
+    const payload = {
+      exists: true,
+      manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+      manifest: { version: '1.0', checkpoints: { after_qc: { checkpoint_name: 'after_qc' } } },
+      resume_manifest_supported: true,
+      resume_supported: true,
+      resume_note: 'Executor resume is available.',
+    };
+
+    expect(validateCheckpointManifestResponse(payload)).toEqual(payload);
+
+    const result = safeValidateCheckpointManifestResponse({
+      exists: 'yes',
+      manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+      manifest: {},
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('normalises runtime artifact list payloads while skipping malformed rows', () => {
+    const pauseRequests = validatePauseRequestsResponse({
+      pause_requests_dir: '/workspace/pause_requests',
+      pause_requests: [
+        { node_id: 'pause-node', status: 'waiting' },
+        'bad-row',
+      ],
+      count: 'wrong',
+      errors: [{ pause_file: '/workspace/pause_requests/bad.json', error: 'bad json' }, 'bad-error'],
+      review_decision_supported: true,
+    });
+
+    expect(pauseRequests.count).toBe(1);
+    expect(pauseRequests.pause_requests).toEqual([{ node_id: 'pause-node', status: 'waiting' }]);
+    expect(pauseRequests.errors).toEqual([{ pause_file: '/workspace/pause_requests/bad.json', error: 'bad json' }]);
+
+    const triggers = validateWorkflowTriggersResponse({
+      trigger_dir: '/workspace/workflow_triggers',
+      triggers: [
+        { trigger_type: 'schedule', target_workflow: 'weekly-qc' },
+        null,
+      ],
+      count: 2,
+      errors: [],
+      run_submission_supported: false,
+    });
+
+    expect(triggers.count).toBe(1);
+    expect(triggers.triggers).toEqual([{ trigger_type: 'schedule', target_workflow: 'weekly-qc' }]);
+  });
+
+  it('validates runtime artifact action responses', () => {
+    const resolvedCheckpoint = validateResolveCheckpointResponse({
+      found: true,
+      manifest_path: '/workspace/checkpoints/checkpoint_manifest.json',
+      checkpoint: {
+        checkpoint_name: 'after_qc',
+        checkpoint_path: '/workspace/checkpoints/after_qc.json',
+      },
+    });
+
+    expect(resolvedCheckpoint.checkpoint?.checkpoint_name).toBe('after_qc');
+
+    const triggerEvaluation = validateWorkflowTriggerEvaluationResponse({
+      due_schedule_triggers: [{ target_workflow: 'weekly-qc' }],
+      due_schedule_count: 'wrong',
+      due_file_watch_triggers: [],
+      due_file_watch_count: 0,
+      submitted_runs: [{ run_id: 'weekly-qc-run', status: 'submitted' }],
+      submitted_run_count: 3,
+      errors: [],
+    });
+
+    expect(triggerEvaluation.due_schedule_count).toBe(1);
+    expect(triggerEvaluation.submitted_run_count).toBe(1);
+
+    const pauseResolution = validateResolvePauseRequestResponse({
+      pause_request: { node_id: 'pause-node', status: 'approved', approved: true },
+    });
+
+    expect(pauseResolution.pause_request.status).toBe('approved');
   });
 });
 
