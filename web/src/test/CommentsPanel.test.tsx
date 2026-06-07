@@ -209,6 +209,8 @@ describe('CommentsPanel i18n', () => {
 
   it('keeps comment polling failures out of structured logging to avoid repeated noise', async () => {
     const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
     const loadError = new Error('comments unavailable');
 
     apiMocks.apiGet.mockRejectedValueOnce(loadError);
@@ -224,7 +226,8 @@ describe('CommentsPanel i18n', () => {
       </Provider>,
     );
 
-    await waitFor(() => expect(screen.getByText('comments unavailable')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('No se pudieron cargar los comentarios')).toBeInTheDocument());
+    expect(screen.queryByText('comments unavailable')).not.toBeInTheDocument();
     expect(loggingMock.logError).not.toHaveBeenCalled();
   });
 

@@ -92,8 +92,8 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       setWorkflowNames(data.workflow_names ?? {});
       onWorkflowNamesChange?.(data.workflow_names ?? {});
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('collab.commentsLoadError'));
+    } catch {
+      setError(t('collab.commentsLoadError'));
     }
   }, [workflowId, selectedNodeId, showAll, onCommentsChange, onWorkflowNamesChange, t]);
 
