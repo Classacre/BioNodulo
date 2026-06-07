@@ -1,11 +1,12 @@
 // Auto-naming heuristic for workflows.
 //
-// When a workflow is "Untitled" (or empty), look at the dominant tools and
+// When a workflow is untitled (or empty), look at the dominant tools and
 // categories in the node graph to produce a short, recognisable name such as
-// "BWA + samtools alignment" instead of forcing the user to think one up.
+// BWA plus samtools alignment instead of forcing the user to think one up.
 // Used by Save / Save-as / template-save flows that need a default; callers
 // remain free to override.
 
+import i18n from '../i18n';
 import type { Workflow, WorkflowNode } from '../types';
 
 const UNTITLED = new Set(['', 'untitled', 'untitled workflow', 'new workflow']);
@@ -29,20 +30,12 @@ function topKeys<T>(map: Map<T, number>, n: number): T[] {
   return Array.from(map.entries()).sort(([, a], [, b]) => b - a).slice(0, n).map(([k]) => k);
 }
 
-const CATEGORY_VERBS: Record<string, string> = {
-  Alignment: 'alignment',
-  'Variant Calling': 'variant call',
-  'Read Preprocessing': 'preprocessing',
-  'Quality Control': 'QC',
-  Assembly: 'assembly',
-  Annotation: 'annotation',
-  'RNA-Seq': 'RNA-seq',
-  Metagenomics: 'metagenomics',
-  'ChIP-Seq': 'ChIP-seq',
-  'Single Cell': 'single-cell',
-  Phylogenetics: 'phylogenetics',
-  Utility: 'pipeline',
-};
+function translatedCategoryName(category: string): string {
+  const translated = i18n.t(`workflowNaming.categories.${category}`);
+  return translated === `workflowNaming.categories.${category}`
+    ? category.toLowerCase()
+    : String(translated);
+}
 
 /**
  * Pick a name for a workflow based on the tools / categories used. Returns
@@ -54,10 +47,10 @@ export function suggestWorkflowName(workflow: Workflow): string {
   const { tools, categories } = tally(nodes);
   const topTools = topKeys(tools, 2);
   const topCategory = topKeys(categories, 1)[0];
-  const verb = topCategory ? (CATEGORY_VERBS[topCategory] || topCategory.toLowerCase()) : 'workflow';
+  const verb = topCategory ? translatedCategoryName(topCategory) : i18n.t('workflowNaming.fallbackCategory');
 
   if (topTools.length === 0) {
-    return topCategory ? `${topCategory} workflow` : '';
+    return topCategory ? i18n.t('workflowNaming.categoryWorkflow', { category: translatedCategoryName(topCategory) }) : '';
   }
   if (topTools.length === 1) {
     return `${topTools[0]} ${verb}`.replace(/\s+/g, ' ').trim();
@@ -74,5 +67,5 @@ export function resolveWorkflowName(workflow: Workflow): string {
   const current = (workflow.name || '').trim();
   if (current && !UNTITLED.has(current.toLowerCase())) return current;
   const suggested = suggestWorkflowName(workflow);
-  return suggested || current || 'Untitled workflow';
+  return suggested || current || i18n.t('workflowNaming.untitledWorkflow');
 }

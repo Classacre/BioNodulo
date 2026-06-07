@@ -233,6 +233,23 @@ const en = {
   },
   workflowNaming: {
     selectionSuffix: 'selection',
+    fallbackCategory: 'workflow',
+    categoryWorkflow: '{{category}} workflow',
+    untitledWorkflow: 'Untitled workflow',
+    categories: {
+      Alignment: 'alignment',
+      'Variant Calling': 'variant call',
+      'Read Preprocessing': 'preprocessing',
+      'Quality Control': 'QC',
+      Assembly: 'assembly',
+      Annotation: 'annotation',
+      'RNA-Seq': 'RNA-seq',
+      Metagenomics: 'metagenomics',
+      'ChIP-Seq': 'ChIP-seq',
+      'Single Cell': 'single-cell',
+      Phylogenetics: 'phylogenetics',
+      Utility: 'pipeline',
+    },
     toast: {
       needsNodes: 'Add a few real nodes before auto-naming',
       renamed: 'Workflow renamed',
