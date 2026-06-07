@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Workflow, RunRecord, ResolveReport } from '../../types';
 import { apiPost, apiRequest } from '../../api/client';
 import i18n from '../../i18n';
+import { logError } from '../../state/logging';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -148,7 +149,7 @@ export function useWorkflow() {
       }
       return data;
     } catch (err) {
-      void err;
+      logError('workflow.resolve', err);
     }
     if (requestId === resolveRequestIdRef.current) {
       setResolveReport(null);

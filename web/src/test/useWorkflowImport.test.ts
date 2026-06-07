@@ -25,6 +25,16 @@ vi.mock('../api/client', () => ({
   apiRequest: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
+beforeEach(() => {
+  loggingMock.logError.mockReset();
+});
+
 describe('useWorkflow importWorkflow', () => {
   beforeEach(() => {
     storage.clear();
@@ -115,6 +125,46 @@ describe('useWorkflow exportWorkflow', () => {
       workflow,
       format: 'snakemake',
     });
+  });
+});
+
+describe('useWorkflow resolve', () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.stubGlobal('localStorage', localStorageStub);
+    vi.mocked(apiPost).mockReset();
+  });
+
+  afterEach(() => {
+    storage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('logs swallowed manager resolve failures with a stable scope', async () => {
+    const workflow = {
+      id: 'wf-resolve',
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'Resolve workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+    } as Workflow;
+    const resolveError = new Error('resolve unavailable');
+    vi.mocked(apiPost).mockRejectedValueOnce(resolveError);
+    const { result } = renderHook(() => useWorkflow());
+
+    let report: Awaited<ReturnType<typeof result.current.resolve>> | undefined;
+    await act(async () => {
+      report = await result.current.resolve(workflow);
+    });
+
+    expect(report).toBeNull();
+    expect(result.current.resolveReport).toBeNull();
+    expect(apiPost).toHaveBeenCalledWith('/manager/resolve', { workflow });
+    expect(loggingMock.logError).toHaveBeenCalledWith('workflow.resolve', resolveError);
   });
 });
 
