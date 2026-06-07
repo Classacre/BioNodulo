@@ -75,7 +75,7 @@ describe('VersionDiff i18n', () => {
       />,
     );
 
-    expect(screen.getByText('Diff de versiones')).toBeInTheDocument();
+    expect(screen.getByText('Diferencias de versiones')).toBeInTheDocument();
     expect(screen.getByTitle('Cerrar')).toBeInTheDocument();
     expect(screen.getAllByText('(7 cambiados)')).toHaveLength(2);
     expect(screen.getByText('+ Nodo agregado')).toBeInTheDocument();
@@ -87,8 +87,8 @@ describe('VersionDiff i18n', () => {
     expect(screen.getByText('+ Grupo agregado')).toBeInTheDocument();
     expect(screen.getByText('- Grupo eliminado')).toBeInTheDocument();
     expect(screen.getAllByText('~ Grupo modificado')).toHaveLength(2);
-    expect(screen.getByText('~ Meta: name (antes)')).toBeInTheDocument();
-    expect(screen.getByText('~ Meta: name (despues)')).toBeInTheDocument();
+    expect(screen.getByText('~ Metadatos: name (antes)')).toBeInTheDocument();
+    expect(screen.getByText('~ Metadatos: name (despues)')).toBeInTheDocument();
     expect(screen.getByText('3 agregados')).toBeInTheDocument();
     expect(screen.getByText('3 eliminados')).toBeInTheDocument();
     expect(screen.getByText('4 modificados')).toBeInTheDocument();
@@ -104,5 +104,7 @@ describe('VersionDiff i18n', () => {
     );
 
     expect(screen.getByText('Sin diferencias entre estas versiones.')).toBeInTheDocument();
+    expect(screen.queryByText('Diff de versiones')).not.toBeInTheDocument();
+    expect(screen.queryByText(/~ Meta:/)).not.toBeInTheDocument();
   });
 });

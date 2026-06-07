@@ -236,11 +236,13 @@ describe('VersionHistory i18n', () => {
 
     await waitFor(() => expect(screen.getByText('Guardado automatico #2')).toBeInTheDocument());
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Diff' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Diferencias' }));
     });
 
-    await waitFor(() => expect(screen.getByText('Diff de versiones')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Diferencias de versiones')).toBeInTheDocument());
     expect(screen.getAllByText(/Guardado automatico/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('button', { name: 'Diff' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Diff de versiones')).not.toBeInTheDocument();
     expect(screen.queryAllByText(/Auto-save/)).toHaveLength(0);
   });
 });
