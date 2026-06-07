@@ -1367,9 +1367,10 @@ export default function App() {
       }
       const count = dryRunPreview ? 1 : Math.max(1, Math.min(99, batchCount));
       for (let index = 0; index < count; index += 1) {
+        const workflowFallbackName = activeWorkflow.name || t('common.untitled');
         const batchName = count > 1
-          ? `${activeWorkflow.name || 'Untitled'} (${index + 1}/${count})`
-          : activeWorkflow.name || 'Untitled';
+          ? `${workflowFallbackName} (${index + 1}/${count})`
+          : workflowFallbackName;
         const result = await submitRun(activeWorkflow, {
           no_cache: !cacheEnabled,
           name: batchName,
@@ -1390,7 +1391,15 @@ export default function App() {
             run_id: result.run_id,
             node_id: 'engine',
             level: 'info',
-            message: `Dry run preview: ${executionOrder.length} node${executionOrder.length === 1 ? '' : 's'} planned`,
+            message: t('console.actions.dryRunPreviewLog', {
+              count: executionOrder.length,
+              nodeWord: t(executionOrder.length === 1 ? 'console.nodesCount' : 'console.nodesCount_plural', {
+                count: executionOrder.length,
+              }),
+              plannedWord: t(executionOrder.length === 1
+                ? 'console.actions.dryRunPreviewPlannedOne'
+                : 'console.actions.dryRunPreviewPlannedMany'),
+            }),
             detail: JSON.stringify(redactSecrets({
               execution_order: executionOrder,
               nodes: preview.nodes ?? {},
@@ -1415,9 +1424,13 @@ export default function App() {
         });
       }
       if (dryRunPreview) {
-        toast.info('Dry run preview generated', { message: 'Open the console to inspect the execution plan.' });
+        toast.info(t('console.actions.dryRunPreviewGenerated'), {
+          message: t('console.actions.dryRunPreviewMessage'),
+        });
       } else {
-        toast.success(count > 1 ? `${count} runs queued` : 'Run queued');
+        toast.success(count > 1
+          ? t('console.actions.runsQueued', { count })
+          : t('console.actions.runQueued'));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1425,7 +1438,7 @@ export default function App() {
         run_id: 'workflow',
         node_id: 'engine',
         level: 'error',
-        message: `Run failed: ${msg}`,
+        message: t('console.actions.runFailedLog', { message: msg }),
         timestamp: new Date().toISOString(),
       });
       // Auto-open console so the user sees the error
@@ -1458,23 +1471,23 @@ export default function App() {
           start_time: new Date().toISOString(),
         });
       }
-      toast.success(`${runs.length} runs queued from sample sheet`);
+      toast.success(t('console.actions.sampleSheetRunsQueued', { count: runs.length }));
       setConsoleVisible(true);
       setRailTab('console');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error('Sample sheet batch failed', { message: msg });
+      toast.error(t('console.actions.sampleSheetBatchFailed'), { message: msg });
       addLog({
         run_id: 'workflow',
         node_id: 'engine',
         level: 'error',
-        message: `Sample sheet batch failed: ${msg}`,
+        message: t('console.actions.sampleSheetBatchFailedLog', { message: msg }),
         timestamp: new Date().toISOString(),
       });
     } finally {
       setIsRunning(false);
     }
-  }, [activeWorkflow, addLog, addRun, cacheEnabled, setRailTab, submitRun, validate]);
+  }, [activeWorkflow, addLog, addRun, cacheEnabled, setRailTab, submitRun, t, validate]);
 
   const handleRunSelected = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
@@ -1512,13 +1525,13 @@ export default function App() {
       const result = await submitRun(activeWorkflow, {
         no_cache: !cacheEnabled,
         target_nodes: nodeIds,
-        name: `${activeWorkflow.name || 'Untitled'} (selection)`,
+        name: `${activeWorkflow.name || t('common.untitled')} (${t('workflowNaming.selectionSuffix')})`,
         parameters: parameterOverrides,
       });
       addRun({
         run_id: result.run_id,
         status: 'pending',
-        workflow_name: result.workflow_name || `${activeWorkflow.name || 'Untitled'} (selection)`,
+        workflow_name: result.workflow_name || `${activeWorkflow.name || t('common.untitled')} (${t('workflowNaming.selectionSuffix')})`,
         node_statuses: [],
         node_outputs: {},
         execution_plan: nodeIds,
