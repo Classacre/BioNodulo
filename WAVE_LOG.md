@@ -604,6 +604,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Ensembl Gene Lookup now exposes the planned `gene_symbol` input and preserves `query` as a backward-compatible advanced alias.
 - UniProt Retrieve now exposes the planned `uniprot_ids` and `format` inputs while preserving `accession` / `include_fasta` compatibility.
 - InterProScan now accepts FASTA file paths through the existing `sequence` input and submits cleaned sequence content to EBI.
+- SRA Download now accepts singular `accession` and planning-style `format` aliases while preserving `accessions` / `output_format` behavior.
 
 ---
 

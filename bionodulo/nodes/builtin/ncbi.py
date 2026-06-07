@@ -860,17 +860,26 @@ class SRADownloadNode(BaseNode):
                 ),
             },
             "optional": {
+                "accession": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Backward-compatible singular SRR/ERR/DRR accession",
+                    },
+                ),
                 "split_files": ("BOOLEAN", {"default": True, "description": "Split paired-end reads into separate files"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 32}),
                 "skip_technical": ("BOOLEAN", {"default": True}),
                 "output_format": (list(SRA_OUTPUT_FORMATS), {"default": "fastq"}),
+                "format": ("STRING", {"default": "fastq", "options": ["fastq", "fasta"], "advanced": True}),
             },
             "hidden": {},
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        accessions = _coerce_ids(kwargs.get("accessions", ""))
+        accessions = _coerce_ids(kwargs.get("accessions", "") or kwargs.get("accession", ""))
         if not accessions:
             raise ValueError("SRA Download requires at least one accession")
 
@@ -879,7 +888,7 @@ class SRADownloadNode(BaseNode):
         threads = int(kwargs.get("threads", 4) or 4)
         if threads < 1:
             raise ValueError("threads must be at least 1")
-        output_format = str(kwargs.get("output_format", "fastq") or "fastq").lower()
+        output_format = str(kwargs.get("output_format", "") or kwargs.get("format", "fastq") or "fastq").lower()
         if output_format not in SRA_OUTPUT_FORMATS:
             raise ValueError(f"Unsupported SRA output_format: {output_format}")
 

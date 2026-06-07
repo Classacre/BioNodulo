@@ -48,6 +48,18 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["sra_download"]["category"] == "databases"
     assert info["sra_download"]["output_name"] == ["fastq_files", "download_report"]
     assert info["sra_download"]["required_executables"] == ["prefetch", "fasterq-dump"]
+    assert info["sra_download"]["input"]["optional"]["accession"] == (
+        "STRING",
+        {
+            "default": "",
+            "advanced": True,
+            "description": "Backward-compatible singular SRR/ERR/DRR accession",
+        },
+    )
+    assert info["sra_download"]["input"]["optional"]["format"] == (
+        "STRING",
+        {"default": "fastq", "options": ["fastq", "fasta"], "advanced": True},
+    )
     assert registry.get("sra_download").REQUIRES_EXTERNAL_TOOLS is True
     assert info["sra_fetch"]["display_name"] == "SRA Fetch"
     assert info["sra_fetch"]["category"] == "databases"
@@ -896,6 +908,42 @@ async def test_sra_download_prefetches_dumps_and_reports_fastq_files(tmp_path: P
             ],
             "cwd": str(out_dir),
         },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sra_download_accepts_singular_accession_and_format_aliases(tmp_path: Path) -> None:
+    node_class = _node_class("sra_download")
+    commands: list[list[str]] = []
+
+    async def fake_run_command(cmd: list[str], cwd: str) -> dict[str, Any]:
+        commands.append(list(cmd))
+        if cmd[0] == "fasterq-dump":
+            Path(cwd, f"{cmd[-1]}.fasta").write_text(">read\nACGT\n", encoding="utf-8")
+        return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await node_class().run(
+        accession="SRR000001",
+        format="fasta",
+        split_files=False,
+        skip_technical=False,
+        threads=2,
+        context=SimpleNamespace(node_dir=tmp_path, run_command=fake_run_command),
+    )
+
+    out_dir = tmp_path / "sra_download"
+    assert [Path(path).name for path in result["outputs"]["fastq_files"]] == ["SRR000001.fasta"]
+    assert commands == [
+        ["prefetch", "-O", str(out_dir), "SRR000001"],
+        [
+            "fasterq-dump",
+            "--outdir",
+            str(out_dir),
+            "--threads",
+            "2",
+            "--fasta",
+            "SRR000001",
+        ],
     ]
 
 
