@@ -142,6 +142,8 @@ const en = {
         extractSelectionDescription: 'Open selected nodes as a new workflow tab',
         doctor: 'Run workflow doctor',
         doctorDescription: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints',
+        autoName: 'Suggest workflow name',
+        autoNameDescription: 'Rename the current tab based on the dominant tools in the workflow',
       },
     },
     groups: {
@@ -155,6 +157,12 @@ const en = {
     copyUrlTooLargeMessage: 'Some chat tools may truncate. Consider exporting instead.',
     copyUrlCopied: 'Share URL copied',
     copyUrlDialogTitle: 'Share URL',
+  },
+  workflowNaming: {
+    toast: {
+      needsNodes: 'Add a few real nodes before auto-naming',
+      renamed: 'Workflow renamed',
+    },
   },
   shortcuts: {
     title: 'Keyboard shortcuts',

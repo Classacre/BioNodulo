@@ -2094,17 +2094,18 @@ export default function App() {
       },
       {
         id: 'workflow.autoName',
-        label: 'Suggest workflow name',
-        description: 'Rename the current tab based on the dominant tools in the workflow',
+        label: t('commandPalette.commands.workflow.autoName'),
+        description: t('commandPalette.commands.workflow.autoNameDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => {
           const suggestion = suggestWorkflowName(activeWorkflow);
           if (!suggestion) {
-            toast.info('Add a few real nodes before auto-naming');
+            toast.info(t('workflowNaming.toast.needsNodes'));
             return;
           }
           handleRenameTab(activeIndex, suggestion);
-          toast.success('Workflow renamed', { message: suggestion });
+          toast.success(t('workflowNaming.toast.renamed'), { message: suggestion });
         },
       },
       {

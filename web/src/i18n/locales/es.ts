@@ -145,6 +145,8 @@ const es = {
         extractSelectionDescription: 'Abrir nodos seleccionados como nueva pestana de workflow',
         doctor: 'Ejecutar doctor de workflow',
         doctorDescription: 'Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias',
+        autoName: 'Sugerir nombre de workflow',
+        autoNameDescription: 'Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow',
       },
     },
     groups: {
@@ -158,6 +160,12 @@ const es = {
     copyUrlTooLargeMessage: 'Algunas herramientas de chat pueden truncarla. Considera exportar en su lugar.',
     copyUrlCopied: 'URL compartible copiada',
     copyUrlDialogTitle: 'URL compartible',
+  },
+  workflowNaming: {
+    toast: {
+      needsNodes: 'Agrega algunos nodos reales antes de nombrar automaticamente',
+      renamed: 'Workflow renombrado',
+    },
   },
   shortcuts: {
     title: 'Atajos de teclado',
