@@ -36,17 +36,27 @@ describe('App workflow command copy i18n', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('commandPalette.groups.workflow')).toBe('Workflow');
-    expect(i18n.t('commandPalette.commands.workflow.run')).toBe('Ejecutar workflow');
-    expect(i18n.t('commandPalette.commands.workflow.currentWorkflow')).toBe('Workflow actual');
+    expect(i18n.t('commandPalette.groups.workflow')).toBe('Flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.run')).toBe('Ejecutar flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.currentWorkflow')).toBe('Flujo de trabajo actual');
     expect(i18n.t('commandPalette.commands.workflow.runSelected')).toBe('Ejecutar nodos seleccionados');
     expect(i18n.t('commandPalette.commands.workflow.runSelectedDescription')).toBe('Ejecutar nodos seleccionados y sus dependencias');
     expect(i18n.t('commandPalette.commands.workflow.extractSelection')).toBe('Crear subgrafo desde seleccion');
-    expect(i18n.t('commandPalette.commands.workflow.extractSelectionDescription')).toBe('Abrir nodos seleccionados como nueva pestana de workflow');
-    expect(i18n.t('commandPalette.commands.workflow.doctor')).toBe('Ejecutar doctor de workflow');
-    expect(i18n.t('commandPalette.commands.workflow.doctorDescription')).toBe('Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias');
+    expect(i18n.t('commandPalette.commands.workflow.extractSelectionDescription')).toBe('Abrir nodos seleccionados como nueva pestana de flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.doctor')).toBe('Ejecutar doctor de flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.doctorDescription')).toBe('Analizar el flujo de trabajo actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias');
     expect(i18n.t('nodePalette.addNode')).toBe('Agregar nodo');
     expect(i18n.t('nodePalette.addNodeTitle', { name: 'FastQC' })).toBe('Agregar FastQC');
+
+    const workflowCommandCopy = i18n.t('commandPalette.commands.workflow', { returnObjects: true }) as Record<string, string>;
+
+    [
+      'Ejecutar workflow',
+      'Workflow actual',
+      'Abrir nodos seleccionados como nueva pestana de workflow',
+      'Ejecutar doctor de workflow',
+      'Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias',
+    ].forEach(text => expect(Object.values(workflowCommandCopy)).not.toContain(text));
   });
 
   it('keeps App workflow command copy behind i18n keys', () => {
