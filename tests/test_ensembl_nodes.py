@@ -29,6 +29,18 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_gene_lookup"]["display_name"] == "Ensembl Gene Lookup"
     assert info["ensembl_gene_lookup"]["category"] == "databases"
     assert info["ensembl_gene_lookup"]["output_name"] == ["gene_info", "transcripts"]
+    assert info["ensembl_gene_lookup"]["input"]["required"]["gene_symbol"] == (
+        "STRING",
+        {"default": "", "description": "Gene symbol or Ensembl stable ID"},
+    )
+    assert info["ensembl_gene_lookup"]["input"]["optional"]["query"] == (
+        "STRING",
+        {
+            "default": "",
+            "advanced": True,
+            "description": "Backward-compatible gene symbol or stable ID input",
+        },
+    )
     assert info["ensembl_gene_lookup"]["input"]["optional"]["fetch_homologs"] == (
         "BOOLEAN",
         {"default": False, "advanced": True},
@@ -160,6 +172,35 @@ async def test_ensembl_gene_lookup_uses_symbol_endpoint(monkeypatch: pytest.Monk
         "ENST00000380152",
         "ENST00000544455",
     ]
+    assert calls == [
+        {
+            "resource": "lookup/symbol/homo_sapiens/BRCA2",
+            "params": {"expand": 1},
+            "base_url": "https://rest.ensembl.org",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ensembl_gene_lookup_accepts_plan_gene_symbol_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ensembl_gene_lookup")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(resource: str, params: dict[str, Any] | None = None, base_url: str | None = None, **_: Any) -> dict[str, Any]:
+        calls.append({"resource": resource, "params": dict(params or {}), "base_url": base_url})
+        return {
+            "id": "ENSG00000139618",
+            "display_name": "BRCA2",
+            "species": "homo_sapiens",
+            "object_type": "Gene",
+        }
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(gene_symbol="BRCA2", species="homo_sapiens", expand=True, assembly="current")
+
+    assert result["outputs"]["gene_info"]["id"] == "ENSG00000139618"
     assert calls == [
         {
             "resource": "lookup/symbol/homo_sapiens/BRCA2",

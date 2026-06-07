@@ -240,10 +240,18 @@ class EnsemblGeneLookupNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "query": ("STRING", {"default": "", "description": "Gene symbol or Ensembl stable ID"}),
+                "gene_symbol": ("STRING", {"default": "", "description": "Gene symbol or Ensembl stable ID"}),
                 "species": ("STRING", {"default": "homo_sapiens"}),
             },
             "optional": {
+                "query": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Backward-compatible gene symbol or stable ID input",
+                    },
+                ),
                 "expand": ("BOOLEAN", {"default": True, "description": "Include transcripts when available"}),
                 "assembly": ("STRING", {"default": "current", "options": ["current", "GRCh37"]}),
                 "fetch_homologs": ("BOOLEAN", {"default": False, "advanced": True}),
@@ -254,9 +262,9 @@ class EnsemblGeneLookupNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         kwargs.pop("context", None)
-        query = str(kwargs.get("query", "")).strip()
+        query = str(kwargs.get("gene_symbol", "") or kwargs.get("query", "")).strip()
         if not query:
-            raise ValueError("Ensembl Gene Lookup requires a non-empty query")
+            raise ValueError("Ensembl Gene Lookup requires a non-empty gene_symbol")
         species = str(kwargs.get("species", "homo_sapiens")).strip() or "homo_sapiens"
         expand = bool(kwargs.get("expand", True))
         base_url = _base_url_for_assembly(str(kwargs.get("assembly", "current")))
