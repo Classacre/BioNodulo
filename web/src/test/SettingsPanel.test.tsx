@@ -98,6 +98,8 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Conservar vista')).toBeInTheDocument();
     expect(screen.getByText('Recordar posicion del lienzo')).toBeInTheDocument();
     expect(screen.getByText('Guardado automatico')).toBeInTheDocument();
+    expect(screen.getByText('Guardar flujos de trabajo automaticamente')).toBeInTheDocument();
+    expect(screen.queryByText('Guardar workflows automaticamente')).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Desactivado' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Cada 30 s' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Cada minuto' })).toBeInTheDocument();

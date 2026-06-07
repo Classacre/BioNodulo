@@ -1232,7 +1232,7 @@ const es = {
       lockViewportDescription: 'Impedir desplazamiento/zoom del lienzo',
       preserveView: 'Conservar vista',
       preserveViewDescription: 'Recordar posicion del lienzo',
-      autoSaveDescription: 'Guardar workflows automaticamente',
+      autoSaveDescription: 'Guardar flujos de trabajo automaticamente',
       autoSaveOff: 'Desactivado',
       autoSaveEvery30s: 'Cada 30 s',
       autoSaveEveryMinute: 'Cada minuto',
