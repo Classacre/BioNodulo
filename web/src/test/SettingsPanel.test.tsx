@@ -144,12 +144,12 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Cursores de presencia')).toBeInTheDocument();
     expect(screen.getByText('Mostrar colaboradores en el lienzo')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cache' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Almacenamiento' }));
 
-    expect(screen.getByText('Activar cache')).toBeInTheDocument();
-    expect(screen.getByText('Cachear resultados de nodos de workflow entre ejecuciones')).toBeInTheDocument();
-    expect(screen.getByText('Limpiar cache')).toBeInTheDocument();
-    expect(screen.getByText('Eliminar todos los resultados de ejecucion cacheados')).toBeInTheDocument();
+    expect(screen.getByText('Activar almacenamiento temporal')).toBeInTheDocument();
+    expect(screen.getByText('Guardar resultados de nodos de flujo de trabajo entre ejecuciones')).toBeInTheDocument();
+    expect(screen.getByText('Limpiar almacenamiento temporal')).toBeInTheDocument();
+    expect(screen.getByText('Eliminar todos los resultados de ejecucion guardados temporalmente')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Ejecucion' }));
@@ -197,8 +197,8 @@ describe('SettingsPanel shell i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Telemetria' }));
 
     expect(screen.getByText('Registrar eventos de diagnostico')).toBeInTheDocument();
-    expect(screen.getByText('Captura un buffer circular local de eventos de UI para depuracion. Nunca sale de tu maquina.')).toBeInTheDocument();
-    expect(screen.getByText('Buffer')).toBeInTheDocument();
+    expect(screen.getByText('Captura un registro circular local de eventos de interfaz para depuracion. Nunca sale de tu maquina.')).toBeInTheDocument();
+    expect(screen.getByText('Registro')).toBeInTheDocument();
     expect(screen.getByText('0 eventos almacenados (limite 200)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limpiar' })).toBeInTheDocument();
