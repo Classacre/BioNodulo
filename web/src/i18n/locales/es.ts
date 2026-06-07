@@ -129,6 +129,10 @@ const es = {
     openRecentWorkflow: 'Abrir reciente: {{name}}',
     recentWorkflowFallback: 'workflow reciente',
     commands: {
+      edit: {
+        bulkParams: 'Editar parametros en masa (seleccion)...',
+        bulkParamsDescription: 'Editar parametros compartidos por todos los nodos seleccionados a la vez',
+      },
       palette: {
         use: 'Usar paleta {{name}}',
       },
@@ -151,6 +155,7 @@ const es = {
     },
     groups: {
       appearance: 'Apariencia',
+      edit: 'Editar',
       workflow: 'Workflow',
     },
   },
@@ -2172,6 +2177,7 @@ class MyToolNode(CommandNode):
     selectedNode_other: 'nodos seleccionados',
     noCommonInline: 'Ningun parametro es comun a todos los nodos seleccionados.',
     noCommonBody: 'Los nodos seleccionados no comparten claves de parametros. Elige nodos del mismo tipo o un subconjunto compatible para editarlos en bloque.',
+    selectAtLeastTwo: 'Selecciona 2+ nodos para editar en masa sus parametros compartidos',
     chooseField: 'Choose a field to edit',
     multipleValues: 'Varios valores',
     applyToAll: 'Aplicar a todos los seleccionados',

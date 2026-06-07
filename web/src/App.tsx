@@ -2110,13 +2110,14 @@ export default function App() {
       },
       {
         id: 'edit.bulkParams',
-        label: 'Bulk edit parameters (selection)…',
-        description: 'Edit parameters shared across all selected nodes at once',
+        label: t('commandPalette.commands.edit.bulkParams'),
+        description: t('commandPalette.commands.edit.bulkParamsDescription'),
         group: 'Edit',
+        groupLabelKey: 'commandPalette.groups.edit',
         onSelect: () => {
           const selected = canvasRef.current?.getSelectedNodeIds() ?? [];
           if (selected.length < 2) {
-            toast.info('Select 2+ nodes to bulk-edit their shared parameters');
+            toast.info(t('paramBulk.selectAtLeastTwo'));
             return;
           }
           setShowBulkParam(true);

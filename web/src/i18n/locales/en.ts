@@ -126,6 +126,10 @@ const en = {
     openRecentWorkflow: 'Open recent: {{name}}',
     recentWorkflowFallback: 'recent workflow',
     commands: {
+      edit: {
+        bulkParams: 'Bulk edit parameters (selection)...',
+        bulkParamsDescription: 'Edit parameters shared across all selected nodes at once',
+      },
       palette: {
         use: 'Use {{name}} palette',
       },
@@ -148,6 +152,7 @@ const en = {
     },
     groups: {
       appearance: 'Appearance',
+      edit: 'Edit',
       workflow: 'Workflow',
     },
   },
@@ -2167,6 +2172,7 @@ class MyToolNode(CommandNode):
     selectedNode_other: 'selected nodes',
     noCommonInline: 'No parameters are common to every selected node.',
     noCommonBody: "The selected nodes don't share any parameter keys. Pick nodes of the same type (or a compatible subset) to bulk-edit.",
+    selectAtLeastTwo: 'Select 2+ nodes to bulk-edit their shared parameters',
     chooseField: 'Choose a field to edit',
     multipleValues: 'Multiple values',
     applyToAll: 'Apply to all selected',
