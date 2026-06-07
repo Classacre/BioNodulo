@@ -213,13 +213,17 @@ describe('HelpWikiPanel node documentation search', () => {
 
     expect(screen.getByRole('heading', { name: 'Bienvenido a BioNodulo v2' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Inicio rapido' })).toBeInTheDocument();
-    expect(screen.getByText(/BioNodulo es un entorno visual/)).toBeInTheDocument();
+    expect(screen.getByText(/BioNodulo es un entorno visual de flujos de trabajo/)).toBeInTheDocument();
     expect(screen.getByText((_, node) => (
       node?.tagName === 'LI'
       && node.textContent?.includes('boton Ejecutar de la barra superior')
+      && node.textContent.includes('ejecutar tu flujo de trabajo')
     ) ?? false)).toBeInTheDocument();
-    expect(screen.getByText(/Agrega nodos de nota amarillos/)).toBeInTheDocument();
+    expect(screen.getByText(/Agrega nodos de nota amarillos para documentar tu flujo de trabajo/)).toBeInTheDocument();
     expect(screen.queryByText('Welcome to BioNodulo v2')).not.toBeInTheDocument();
+    expect(screen.queryByText(/entorno visual de workflows/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ejecutar tu workflow/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/documentar tu workflow/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Run/)).not.toBeInTheDocument();
     expect(screen.queryByText(/nodos Note amarillos/)).not.toBeInTheDocument();
   });

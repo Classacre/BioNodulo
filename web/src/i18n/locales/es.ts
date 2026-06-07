@@ -1390,15 +1390,15 @@ const es = {
     content: {
       gettingStarted: `
 <h3>Bienvenido a BioNodulo v2</h3>
-<p>BioNodulo es un entorno visual de workflows de bioinformatica. Construye pipelines conectando nodos en un lienzo infinito.</p>
+<p>BioNodulo es un entorno visual de flujos de trabajo de bioinformatica. Construye pipelines conectando nodos en un lienzo infinito.</p>
 
 <h4>Inicio rapido</h4>
 <ol>
 <li><strong>Agrega nodos:</strong> Haz doble clic en un area vacia del lienzo o pulsa <kbd>Ctrl+F</kbd> para abrir la paleta de nodos.</li>
 <li><strong>Conecta nodos:</strong> Arrastra desde una ranura de salida (lado derecho) hacia una ranura de entrada (lado izquierdo).</li>
 <li><strong>Configura:</strong> Haz doble clic en un nodo para editar sus parametros.</li>
-<li><strong>Ejecuta:</strong> Haz clic en el boton <strong>Ejecutar</strong> de la barra superior para ejecutar tu workflow.</li>
-<li><strong>Nodos de nota:</strong> Agrega nodos de nota amarillos para documentar tu workflow.</li>
+<li><strong>Ejecuta:</strong> Haz clic en el boton <strong>Ejecutar</strong> de la barra superior para ejecutar tu flujo de trabajo.</li>
+<li><strong>Nodos de nota:</strong> Agrega nodos de nota amarillos para documentar tu flujo de trabajo.</li>
 </ol>
 
 <h4>Categorias de nodos</h4>
