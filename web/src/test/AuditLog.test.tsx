@@ -96,6 +96,8 @@ describe('AuditLog i18n', () => {
 
   it('logs swallowed audit API failures with stable scopes', async () => {
     const { default: AuditLog } = await import('../collab/AuditLog');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
     const loadError = new Error('audit load failed');
     const exportError = new Error('audit export failed');
 
@@ -109,7 +111,8 @@ describe('AuditLog i18n', () => {
     );
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.audit.load', loadError));
-    expect(screen.getByText('audit load failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudo cargar el registro de auditoria')).toBeInTheDocument();
+    expect(screen.queryByText('audit load failed')).not.toBeInTheDocument();
     loadView.unmount();
 
     apiMocks.apiGet.mockResolvedValueOnce({ entries: [], count: 0 });
@@ -123,10 +126,11 @@ describe('AuditLog i18n', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByText('No audit entries found.')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
+    await waitFor(() => expect(screen.getByText('No se encontraron entradas de auditoria.')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar CSV' }));
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.audit.export', exportError));
-    expect(screen.getByText('audit export failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudo exportar')).toBeInTheDocument();
+    expect(screen.queryByText('audit export failed')).not.toBeInTheDocument();
   });
 });

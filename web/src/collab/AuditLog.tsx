@@ -68,7 +68,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       setPage(1);
     } catch (err) {
       logError('collab.audit.load', err);
-      setError(err instanceof Error ? err.message : t('collab.auditLoadError'));
+      setError(t('collab.auditLoadError'));
     } finally {
       setLoading(false);
     }
@@ -133,7 +133,7 @@ export default function AuditLog({ workflowId, isOpen, onClose }: AuditLogProps)
       URL.revokeObjectURL(url);
     } catch (err) {
       logError('collab.audit.export', err);
-      setError(err instanceof Error ? err.message : t('collab.auditExportError'));
+      setError(t('collab.auditExportError'));
     }
   };
 
