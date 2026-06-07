@@ -1,3 +1,10 @@
+export interface DynamicOutputSpec {
+  prefix?: string;
+  count_input: string;
+  default_output?: string;
+  type?: string;
+}
+
 export interface InputSpec {
   type: string;
   default?: unknown;
@@ -18,6 +25,7 @@ export interface InputSpec {
   displayOptions?: {
     show?: Record<string, unknown | unknown[]>;
   };
+  dynamic_outputs?: DynamicOutputSpec;
 }
 
 export interface NodeMetadata {

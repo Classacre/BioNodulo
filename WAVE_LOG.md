@@ -15,6 +15,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - `http_request` now exposes `displayOptions` metadata for body/auth fields, and the frontend shares one visibility helper across node editor rows and canvas widgets/ports.
 - Workspace file-management locale coverage now keeps secondary file action copy in Spanish, including new-folder, reveal/copy/delete prompts, empty-state text, and file/folder plural counts.
 - Read-only node docs now honor the same conditional input visibility rules as the editor and canvas: Node Info filters with current node params, and Help Wiki receives selected-node params while registry docs fall back to metadata defaults.
+- Switch-node canvas ports now honor the backend `dynamic_outputs` metadata contract, so `num_branches` expands selectable/drawable branch outputs beyond the static registry fallback.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

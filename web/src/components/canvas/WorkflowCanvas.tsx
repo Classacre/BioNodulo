@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus, WorkflowParameter } from '../../types';
+import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus, WorkflowParameter, InputSpec, DynamicOutputSpec } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { useSettings } from '../../hooks/settings';
@@ -262,6 +262,79 @@ function countInteractiveWidgets(meta: NodeMetadata | null, params?: Record<stri
   return count;
 }
 
+interface ResolvedNodeOutput {
+  name: string;
+  type: string;
+}
+
+function getInputSpec(meta: NodeMetadata | null | undefined, name: string): InputSpec | undefined {
+  return (
+    meta?.input_types?.required?.[name]
+    ?? meta?.input_types?.optional?.[name]
+    ?? meta?.input_types?.hidden?.[name]
+  );
+}
+
+function findDynamicOutputSpec(meta: NodeMetadata | null | undefined): { spec: InputSpec; dynamic: DynamicOutputSpec } | null {
+  const sections = [
+    meta?.input_types?.required,
+    meta?.input_types?.optional,
+    meta?.input_types?.hidden,
+  ];
+  for (const section of sections) {
+    for (const spec of Object.values(section || {})) {
+      if (spec.dynamic_outputs) {
+        return { spec, dynamic: spec.dynamic_outputs };
+      }
+    }
+  }
+  return null;
+}
+
+function integerParam(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return Math.trunc(parsed);
+  }
+  return null;
+}
+
+function staticNodeOutputs(meta: NodeMetadata | null): ResolvedNodeOutput[] {
+  return (meta?.return_types || []).map((type, index) => ({
+    name: meta?.return_names?.[index] || type,
+    type,
+  }));
+}
+
+function resolveNodeOutputs(meta: NodeMetadata | null, params: Record<string, unknown> = {}): ResolvedNodeOutput[] {
+  if (!meta) return [];
+  const dynamicConfig = findDynamicOutputSpec(meta);
+  if (!dynamicConfig) return staticNodeOutputs(meta);
+
+  const { dynamic, spec } = dynamicConfig;
+  const countSpec = getInputSpec(meta, dynamic.count_input) || spec;
+  const rawCount = Object.prototype.hasOwnProperty.call(params, dynamic.count_input)
+    ? params[dynamic.count_input]
+    : countSpec.default;
+  let count = integerParam(rawCount);
+  if (count === null) return staticNodeOutputs(meta);
+  if (typeof countSpec.min === 'number') count = Math.max(countSpec.min, count);
+  if (typeof countSpec.max === 'number') count = Math.min(countSpec.max, count);
+  count = Math.max(0, count);
+
+  const prefix = dynamic.prefix ?? 'output_';
+  const outputType = dynamic.type ?? meta.return_types?.[0] ?? 'ANY';
+  const outputs = Array.from({ length: count }, (_, index) => ({
+    name: `${prefix}${index + 1}`,
+    type: outputType,
+  }));
+  if (dynamic.default_output) {
+    outputs.push({ name: dynamic.default_output, type: outputType });
+  }
+  return outputs;
+}
+
 const WIDGET_ROW_H = 24;
 const WIDGET_BLOCK_PAD = 8;
 type CanvasPalette = {
@@ -289,7 +362,7 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
   }
   const visibleInputs = getVisibleInputSpecs(meta, params);
   const ins = Object.keys(visibleInputs.required).length + Object.keys(visibleInputs.optional).length;
-  const outs = (meta?.return_types || []).length;
+  const outs = resolveNodeOutputs(meta, params).length;
   const ioHeight = Math.max(ins, outs, 1) * NODE_PIN_H;
   const widgetCount = countInteractiveWidgets(meta, params);
   const widgetHeight = widgetCount > 0 ? widgetCount * WIDGET_ROW_H + WIDGET_BLOCK_PAD : 0;
@@ -787,8 +860,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
             })),
           ] : [],
-          outputs: (meta && !visualOnly) ? (meta.return_types || []).map((t, i) => ({
-            name: meta.return_names?.[i] || t, type: t,
+          outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
+            name: output.name, type: output.type,
             connected: edges.some(e => e.from.node === wn.id),
           })) : [],
           params: wn.params || {},

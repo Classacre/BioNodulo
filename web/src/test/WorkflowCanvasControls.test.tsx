@@ -176,6 +176,73 @@ describe('WorkflowCanvas controls i18n', () => {
     expect(fillText).not.toHaveBeenCalledWith('samples: 3 items', expect.any(Number), expect.any(Number));
   });
 
+  it('draws dynamic switch outputs from the branch count parameter', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    const fillText = vi.fn();
+    stubCanvasContext(fillText);
+    const objectInfo = {
+      switch: {
+        id: 'switch',
+        display_name: 'Switch',
+        category: 'flow_control',
+        input_types: {
+          required: {
+            value: { type: 'ANY' },
+            cases: { type: 'STRING', default: '' },
+          },
+          optional: {
+            num_branches: {
+              type: 'INT',
+              default: 4,
+              min: 1,
+              max: 32,
+              dynamic_outputs: {
+                prefix: 'output_',
+                count_input: 'num_branches',
+                default_output: 'default',
+                type: 'ANY',
+              },
+            },
+          },
+        },
+        return_types: ['ANY', 'ANY', 'ANY', 'ANY', 'ANY'],
+        return_names: ['output_1', 'output_2', 'output_3', 'output_4', 'default'],
+      },
+    } satisfies ObjectInfo;
+
+    render(
+      <WorkflowCanvas
+        nodes={[{
+          id: 'switch-1',
+          type: 'switch',
+          position: [100, 100],
+          params: { num_branches: 6 },
+        }]}
+        edges={[]}
+        groups={[]}
+        objectInfo={objectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fillText).toHaveBeenCalledWith('output_5', expect.any(Number), expect.any(Number));
+      expect(fillText).toHaveBeenCalledWith('output_6', expect.any(Number), expect.any(Number));
+      expect(fillText).toHaveBeenCalledWith('default', expect.any(Number), expect.any(Number));
+    });
+  });
+
   it('draws missing node titles from the active locale', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
     const { setLanguage } = await import('../i18n');
