@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
@@ -79,14 +79,37 @@ export default function TopBar({
   // Split-button menu next to Run: queue mode radios + sheet action.
   const [runMenuOpen, setRunMenuOpen] = useState(false);
   const runMenuRef = useRef<HTMLDivElement | null>(null);
+  const runToggleRef = useRef<HTMLButtonElement | null>(null);
+  const pendingRunMenuFocusRef = useRef<'first' | 'last' | null>(null);
+
+  const focusRunMenuControl = (position: 'first' | 'last') => {
+    const menu = runMenuRef.current?.querySelector<HTMLElement>('.run-split-menu');
+    if (!menu) return;
+    const controls = Array.from(menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+    const target = position === 'first' ? controls[0] : controls[controls.length - 1];
+    target?.focus();
+  };
+
+  const closeRunMenu = (restoreFocus = false) => {
+    pendingRunMenuFocusRef.current = null;
+    setRunMenuOpen(false);
+    if (restoreFocus) runToggleRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!runMenuOpen || !pendingRunMenuFocusRef.current) return;
+    focusRunMenuControl(pendingRunMenuFocusRef.current);
+    pendingRunMenuFocusRef.current = null;
+  }, [runMenuOpen]);
+
   useEffect(() => {
     if (!runMenuOpen) return;
     const onDocClick = (event: MouseEvent) => {
       if (!runMenuRef.current) return;
-      if (!runMenuRef.current.contains(event.target as Node)) setRunMenuOpen(false);
+      if (!runMenuRef.current.contains(event.target as Node)) closeRunMenu();
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setRunMenuOpen(false);
+      if (event.key === 'Escape') closeRunMenu(true);
     };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
@@ -95,6 +118,21 @@ export default function TopBar({
       document.removeEventListener('keydown', onKey);
     };
   }, [runMenuOpen]);
+
+  const openRunMenuFromKeyboard = (position: 'first' | 'last') => {
+    pendingRunMenuFocusRef.current = position;
+    setRunMenuOpen(true);
+  };
+
+  const handleRunToggleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      openRunMenuFromKeyboard('first');
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      openRunMenuFromKeyboard('last');
+    }
+  };
 
   const hpcBadgeClass =
     hpcStatus === 'on' ? 'hpc-badge hpc-on' :
@@ -160,9 +198,11 @@ export default function TopBar({
               : <><Icon name="play" size={14} /> {t('topbar.run')}</>}
           </button>
           <button
+            ref={runToggleRef}
             type="button"
             className={`btn btn-primary btn-sm run-split-toggle ${runMenuOpen ? 'is-open' : ''}`}
             onClick={() => setRunMenuOpen(open => !open)}
+            onKeyDown={handleRunToggleKeyDown}
             aria-haspopup="menu"
             aria-expanded={runMenuOpen}
             aria-label={t('topbar.runOptions')}

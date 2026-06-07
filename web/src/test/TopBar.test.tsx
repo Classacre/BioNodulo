@@ -116,4 +116,64 @@ describe('TopBar i18n', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Clear resume checkpoint/ }));
     expect(onResumeCheckpointClear).toHaveBeenCalledTimes(1);
   });
+
+  it('opens run options with ArrowDown and focuses the first enabled menu control', async () => {
+    const { default: TopBar } = await import('../components/layout/TopBar');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('en');
+
+    render(
+      <TopBar
+        validationValid
+        validationErrors={[]}
+        onRun={() => undefined}
+        hpcStatus="off"
+        queueCount={0}
+        queueMode="manual"
+        onQueueModeChange={() => undefined}
+        onToggleQueue={() => undefined}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', { name: 'Run options' });
+    toggle.focus();
+
+    fireEvent.keyDown(toggle, { key: 'ArrowDown' });
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Increase batch count' })).toHaveFocus();
+  });
+
+  it('closes run options with Escape and restores focus to the toggle', async () => {
+    const { default: TopBar } = await import('../components/layout/TopBar');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('en');
+
+    render(
+      <TopBar
+        validationValid
+        validationErrors={[]}
+        onRun={() => undefined}
+        hpcStatus="off"
+        queueCount={0}
+        queueMode="manual"
+        onQueueModeChange={() => undefined}
+        onToggleQueue={() => undefined}
+        onDryRunPreviewChange={() => undefined}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', { name: 'Run options' });
+    fireEvent.click(toggle);
+
+    const dryRunItem = screen.getByRole('menuitemcheckbox', { name: /Dry run preview/ });
+    dryRunItem.focus();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(toggle).toHaveFocus();
+  });
 });
