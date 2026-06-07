@@ -12,6 +12,21 @@ import { apiGet } from '../../api/client';
 import { toast } from '../../state/notifications';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
 
+function workflowStatusLabel(t: (key: string) => string, status: unknown): string {
+  switch (status) {
+    case 'completed':
+      return t('console.actions.workflowStatusCompleted');
+    case 'failed':
+      return t('console.actions.workflowStatusFailed');
+    case 'cancelled':
+      return t('console.actions.workflowStatusCancelled');
+    case 'error':
+      return t('console.actions.workflowStatusError');
+    default:
+      return String(status || '');
+  }
+}
+
 export interface UseWorkflowMessagesArgs {
   onMessage: (handler: (msg: unknown) => void) => () => void;
   addLog: (entry: LogEntry) => void;
@@ -81,11 +96,15 @@ export function useWorkflowMessages({
       // --- Execution lifecycle events ---
       const runId = String(payload.run_id || data.source || 'workflow');
       if (data.type === 'start') {
+        const totalNodes = Number(payload.total_nodes || 0);
         addLog({
           run_id: runId,
           node_id: 'engine',
           level: 'info',
-          message: `Workflow started (${payload.total_nodes} nodes)`,
+          message: t('console.actions.workflowStartedLog', {
+            count: totalNodes,
+            nodeWord: t(totalNodes === 1 ? 'console.nodesCount' : 'console.nodesCount_plural'),
+          }),
           timestamp: ts,
         });
       } else if (data.type === 'node_start') {
@@ -95,7 +114,10 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'info',
-          message: `Node start [${payload.progress}] ${payload.node_type}`,
+          message: t('console.actions.nodeStartedLog', {
+            progress: payload.progress,
+            type: payload.node_type,
+          }),
           timestamp: ts,
         });
       } else if (data.type === 'node_complete') {
@@ -105,7 +127,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'success',
-          message: `Node completed`,
+          message: t('console.actions.nodeCompletedLog'),
           timestamp: ts,
         });
       } else if (data.type === 'node_error') {
@@ -120,7 +142,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'error',
-          message: `Node error: ${payload.error}`,
+          message: t('console.actions.nodeErrorLog', { message: payload.error }),
           timestamp: ts,
         });
       } else if (data.type === 'node_skip') {
@@ -130,7 +152,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'warn',
-          message: `Node skipped (${payload.reason})`,
+          message: t('console.actions.nodeSkippedLog', { reason: payload.reason }),
           timestamp: ts,
         });
       } else if (data.type === 'node_bypass') {
@@ -140,7 +162,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'warn',
-          message: `Node bypassed`,
+          message: t('console.actions.nodeBypassedLog'),
           timestamp: ts,
         });
       } else if (data.type === 'node_cache_hit') {
@@ -150,7 +172,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id),
           level: 'info',
-          message: `Cache hit — skipping execution`,
+          message: t('console.actions.nodeCacheHitLog'),
           timestamp: ts,
         });
       } else if (data.type === 'complete') {
@@ -158,7 +180,9 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: 'engine',
           level: payload.status === 'completed' ? 'success' : 'error',
-          message: `Workflow ${payload.status}`,
+          message: t('console.actions.workflowCompletedLog', {
+            status: workflowStatusLabel(t, payload.status),
+          }),
           timestamp: ts,
         });
       } else if (data.type === 'error') {
@@ -166,7 +190,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: 'engine',
           level: 'error',
-          message: `Workflow error: ${payload.message}`,
+          message: t('console.actions.workflowErrorLog', { message: payload.message }),
           timestamp: ts,
         });
       } else if (data.type === 'cancelled') {
@@ -174,7 +198,7 @@ export function useWorkflowMessages({
           run_id: runId,
           node_id: String(payload.node_id || 'engine'),
           level: 'warn',
-          message: `Workflow cancelled`,
+          message: t('console.actions.workflowCancelledLog'),
           timestamp: ts,
         });
       }
@@ -200,7 +224,7 @@ export function useWorkflowMessages({
           run_id: String(payload.run_id),
           node_id: 'queue',
           level: 'info',
-          message: `Run submitted`,
+          message: t('console.actions.queueRunSubmittedLog'),
           timestamp: ts,
         });
       } else if (data.type === 'queue_start') {
@@ -208,7 +232,7 @@ export function useWorkflowMessages({
           run_id: String(payload.run_id),
           node_id: 'queue',
           level: 'info',
-          message: `Run started`,
+          message: t('console.actions.queueRunStartedLog'),
           timestamp: ts,
         });
         updateRun(String(payload.run_id), { status: 'running', start_time: ts });
@@ -217,7 +241,9 @@ export function useWorkflowMessages({
           run_id: String(payload.run_id),
           node_id: 'queue',
           level: 'success',
-          message: `Run finished (${payload.status})`,
+          message: t('console.actions.queueRunFinishedLog', {
+            status: workflowStatusLabel(t, payload.status),
+          }),
           timestamp: ts,
         });
         const finalStatus =

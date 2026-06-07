@@ -124,6 +124,184 @@ describe('Workflow message copy i18n', () => {
     expect(setRuns).toHaveBeenCalled();
   });
 
+  it('logs workflow lifecycle events from the active locale', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { useWorkflowMessages } = await import('../hooks/workflow/useWorkflowMessages');
+    const logs: LogEntry[] = [];
+    let handler: ((msg: unknown) => void) | undefined;
+
+    await setLanguage('es');
+    apiMocks.apiGet.mockResolvedValue({});
+
+    renderHook(() => useWorkflowMessages({
+      onMessage: next => {
+        handler = next;
+        return () => {
+          handler = undefined;
+        };
+      },
+      addLog: entry => logs.push(entry),
+      runs: [{
+        run_id: 'run-1',
+        status: 'running',
+        workflow_name: 'RNA-seq',
+        node_statuses: [],
+        node_outputs: {},
+        execution_plan: [],
+        previews: {},
+        artifacts: {},
+      } as RunRecord],
+      updateRun: vi.fn(),
+      setRuns: vi.fn(),
+      updateNodeRunStatus: vi.fn(),
+      recordNodeStart: vi.fn(),
+      clearNodeRunProgress: vi.fn(),
+    }));
+
+    expect(handler).toBeDefined();
+
+    act(() => {
+      handler?.({
+        type: 'start',
+        data: {
+          run_id: 'run-1',
+          total_nodes: 3,
+          timestamp: '2026-06-07T05:00:00.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_start',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-1',
+          progress: '1/3',
+          node_type: 'CsvReader',
+          timestamp: '2026-06-07T05:00:01.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_complete',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-1',
+          timestamp: '2026-06-07T05:00:02.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_error',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-2',
+          error: 'boom',
+          timestamp: '2026-06-07T05:00:03.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_skip',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-3',
+          reason: 'upstream failed',
+          timestamp: '2026-06-07T05:00:04.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_bypass',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-4',
+          timestamp: '2026-06-07T05:00:05.000Z',
+        },
+      });
+      handler?.({
+        type: 'node_cache_hit',
+        data: {
+          run_id: 'run-1',
+          node_id: 'node-5',
+          timestamp: '2026-06-07T05:00:06.000Z',
+        },
+      });
+      handler?.({
+        type: 'complete',
+        data: {
+          run_id: 'run-1',
+          status: 'completed',
+          timestamp: '2026-06-07T05:00:07.000Z',
+        },
+      });
+      handler?.({
+        type: 'error',
+        data: {
+          run_id: 'run-1',
+          message: 'engine stopped',
+          timestamp: '2026-06-07T05:00:08.000Z',
+        },
+      });
+      handler?.({
+        type: 'cancelled',
+        data: {
+          run_id: 'run-1',
+          timestamp: '2026-06-07T05:00:09.000Z',
+        },
+      });
+      handler?.({
+        type: 'queue_submit',
+        data: {
+          run_id: 'run-1',
+          timestamp: '2026-06-07T05:00:10.000Z',
+        },
+      });
+      handler?.({
+        type: 'queue_start',
+        data: {
+          run_id: 'run-1',
+          timestamp: '2026-06-07T05:00:11.000Z',
+        },
+      });
+      handler?.({
+        type: 'queue_finish',
+        data: {
+          run_id: 'run-1',
+          status: 'completed',
+          timestamp: '2026-06-07T05:00:12.000Z',
+        },
+      });
+    });
+
+    expect(logs.map(log => log.message)).toEqual(expect.arrayContaining([
+      'Workflow iniciado (3 nodos)',
+      'Nodo iniciado [1/3] CsvReader',
+      'Nodo completado',
+      'Error de nodo: boom',
+      'Nodo omitido (upstream failed)',
+      'Nodo omitido por bypass',
+      'Resultado en cache - omitiendo ejecucion',
+      'Workflow completado',
+      'Error de workflow: engine stopped',
+      'Workflow cancelado',
+      'Ejecucion enviada',
+      'Ejecucion iniciada',
+      'Ejecucion terminada (completado)',
+    ]));
+    [
+      'Workflow started (3 nodes)',
+      'Node start [1/3] CsvReader',
+      'Node completed',
+      'Node error: boom',
+      'Node skipped (upstream failed)',
+      'Node bypassed',
+      'Cache hit - skipping execution',
+      'Workflow completed',
+      'Workflow error: engine stopped',
+      'Workflow cancelled',
+      'Run submitted',
+      'Run started',
+      'Run finished (completed)',
+    ].forEach(message => {
+      expect(logs.map(log => log.message)).not.toContain(message);
+    });
+  });
+
   it('keeps workflow failure toast copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../hooks/workflow/useWorkflowMessages.ts'), 'utf8');
 
