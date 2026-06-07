@@ -436,7 +436,7 @@ async def test_uniprot_search_accepts_planned_tsv_format(
     format_input = node_class.INPUT_TYPES()["optional"]["format"]
     assert format_input == (
         "STRING",
-        {"default": "json", "options": ["json", "tsv"], "advanced": True},
+        {"default": "json", "options": ["json", "tsv", "xml", "fasta", "rdf", "gff"], "advanced": True},
     )
 
     result = await node_class().run(
@@ -462,6 +462,52 @@ async def test_uniprot_search_accepts_planned_tsv_format(
             {
                 "query": "gene:TP53",
                 "format": "tsv",
+                "fields": "accession,id,gene_names,organism_name,protein_name,length",
+                "size": 25,
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_search_accepts_planned_raw_text_formats(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+
+    async def fake_text(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> str:
+        calls.append((resource, params))
+        return "<uniprot><entry dataset=\"Swiss-Prot\" /></uniprot>\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        query="gene:TP53",
+        format="xml",
+        output_name="tp53_search",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    raw_path = Path(result["outputs"]["results_table"])
+    assert raw_path.name == "tp53_search.xml"
+    assert raw_path.read_text(encoding="utf-8") == "<uniprot><entry dataset=\"Swiss-Prot\" /></uniprot>\n"
+    assert result["outputs"]["results_data"] == {
+        "query": "gene:TP53",
+        "effective_query": "gene:TP53",
+        "database": "uniprotkb",
+        "format": "xml",
+        "record_count": None,
+        "raw_path": str(raw_path),
+    }
+    assert calls == [
+        (
+            "uniprotkb/search",
+            {
+                "query": "gene:TP53",
+                "format": "xml",
                 "fields": "accession,id,gene_names,organism_name,protein_name,length",
                 "size": 25,
             },

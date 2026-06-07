@@ -24,6 +24,8 @@ _UNIPROT_CACHE = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
 _UNIPROT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
 UNIPROT_SEARCH_DATABASES = ("uniprotkb", "uniref", "uniparc")
+UNIPROT_SEARCH_FORMATS = ("json", "tsv", "xml", "fasta", "rdf", "gff")
+UNIPROT_STRUCTURED_SEARCH_FORMATS = {"json", "tsv"}
 UNIPROT_SUMMARY_COLUMNS = (
     "accession",
     "entry_name",
@@ -262,7 +264,7 @@ class UniProtSearchNode(BaseNode):
                 "database": ("STRING", {"default": "uniprotkb", "options": list(UNIPROT_SEARCH_DATABASES)}),
                 "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
                 "size": ("INT", {"default": 25, "min": 1, "max": 500, "advanced": True}),
-                "format": ("STRING", {"default": "json", "options": ["json", "tsv"], "advanced": True}),
+                "format": ("STRING", {"default": "json", "options": list(UNIPROT_SEARCH_FORMATS), "advanced": True}),
                 "reviewed_only": ("BOOLEAN", {"default": False}),
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "fields": ("STRING", {"default": UNIPROT_SEARCH_FIELDS, "advanced": True}),
@@ -284,8 +286,9 @@ class UniProtSearchNode(BaseNode):
             allowed = ", ".join(UNIPROT_SEARCH_DATABASES)
             raise ValueError(f"UniProt Search database must be one of: {allowed}")
         output_format = str(kwargs.get("format", "json") or "json").strip().lower()
-        if output_format not in {"json", "tsv"}:
-            raise ValueError("UniProt Search format must be one of: json, tsv")
+        if output_format not in UNIPROT_SEARCH_FORMATS:
+            allowed_formats = ", ".join(UNIPROT_SEARCH_FORMATS)
+            raise ValueError(f"UniProt Search format must be one of: {allowed_formats}")
 
         effective_query = f"({query}) AND reviewed:true" if bool(kwargs.get("reviewed_only", False)) else query
         fields = str(kwargs.get("fields", "") or UNIPROT_SEARCH_FIELDS).strip()
@@ -314,6 +317,24 @@ class UniProtSearchNode(BaseNode):
                         "database": database,
                         "format": output_format,
                         "record_count": _count_tsv_records(tsv_text),
+                    },
+                }
+            }
+
+        if output_format not in UNIPROT_STRUCTURED_SEARCH_FORMATS:
+            raw_text = await _request_text(f"{database}/search", params=params)
+            raw_path = table_path.with_suffix(f".{output_format}")
+            raw_path.write_text(raw_text, encoding="utf-8")
+            return {
+                "outputs": {
+                    "results_table": str(raw_path),
+                    "results_data": {
+                        "query": query,
+                        "effective_query": effective_query,
+                        "database": database,
+                        "format": output_format,
+                        "record_count": None,
+                        "raw_path": str(raw_path),
                     },
                 }
             }
