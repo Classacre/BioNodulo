@@ -179,6 +179,28 @@ describe('CommentsPanel i18n', () => {
     ))).not.toBeInTheDocument();
   });
 
+  it('renders join-required comment errors from the active locale', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    localStorage.removeItem('bionodulo_auth_token');
+
+    render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Unete a la colaboracion antes de usar comentarios de flujo de trabajo.')).toBeInTheDocument());
+    expect(screen.queryByText('Unete a la colaboracion antes de usar comentarios de workflow.')).not.toBeInTheDocument();
+  });
+
   it('keeps comment workflow fallback copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../collab/CommentsPanel.tsx'), 'utf8');
 

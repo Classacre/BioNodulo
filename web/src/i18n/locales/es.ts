@@ -2195,7 +2195,7 @@ class MyToolNode(CommandNode):
     presenceCursor: '{{name}} esta editando',
     presenceIdle: '{{name}} esta inactivo',
     commentsTitle: 'Comentarios',
-    commentsJoinRequired: 'Unete a la colaboracion antes de usar comentarios de workflow.',
+    commentsJoinRequired: 'Unete a la colaboracion antes de usar comentarios de flujo de trabajo.',
     commentsPostJoinRequired: 'Unete a la colaboracion antes de publicar comentarios.',
     commentsLoadError: 'No se pudieron cargar los comentarios',
     commentsPostError: 'No se pudo publicar el comentario',
