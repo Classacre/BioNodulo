@@ -1094,3 +1094,65 @@ async def test_deduplicate_keep_none_removes_all_rows_with_duplicate_keys(tmp_pa
         {"gene": "A", "count": "10"},
         {"gene": "A", "count": "12"},
     ]
+
+
+def test_set_fields_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node_info = registry.object_info()["set_fields"]
+
+    assert node_info["display_name"] == "Set Fields"
+    assert node_info["category"] == "data_transform"
+    assert node_info["output_name"] == ["updated_table"]
+    assert "field mapping" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["assignments"][0] == "STRING"
+
+
+@pytest.mark.asyncio
+async def test_set_fields_adds_constants_and_templates_per_row(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "condition": "tumor", "depth": "40"},
+        {"sample": "S2", "condition": "control", "depth": "12"},
+    ])
+
+    result = await _node_class("set_fields")().run(
+        table=str(table),
+        assignments='{"qc_status": "review", "label": "{sample}:{condition}", "depth": "{depth}x"}',
+        delimiter="tsv",
+        output_type="TSV",
+        context=_context(tmp_path, "set-fields"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "samples.set.tsv"
+    assert _read_table(output_path) == [
+        {"sample": "S1", "condition": "tumor", "depth": "40x", "qc_status": "review", "label": "S1:tumor"},
+        {"sample": "S2", "condition": "control", "depth": "12x", "qc_status": "review", "label": "S2:control"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_fields_can_keep_only_selected_fields_and_preserve_csv(tmp_path: Path) -> None:
+    table = tmp_path / "samples.csv"
+    _write_table(table, [
+        {"sample": "S1", "condition": "tumor", "depth": "40"},
+        {"sample": "S2", "condition": "control", "depth": "12"},
+    ], delimiter=",")
+
+    result = await _node_class("set_fields")().run(
+        table=str(table),
+        assignments='{"label": "{sample}-{condition}", "batch": "A"}',
+        keep_only_set=True,
+        field_order="label,batch",
+        delimiter="auto",
+        output_type="AUTO",
+        context=_context(tmp_path, "set-fields-keep"),
+    )
+
+    output_path = Path(result[0])
+    assert output_path.name == "samples.set.csv"
+    assert _read_table(output_path, delimiter=",") == [
+        {"label": "S1-tumor", "batch": "A"},
+        {"label": "S2-control", "batch": "A"},
+    ]

@@ -1163,6 +1163,144 @@ class FormatConverterNode(BaseNode):
         return any(input_format in group and output_format in group for group in groups)
 
 
+class SetFieldsNode(BaseNode):
+    """Add or update table fields using constant values or row templates."""
+
+    NODE_ID = "set_fields"
+    DISPLAY_NAME = "Set Fields"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Add, update, or keep selected CSV/TSV fields using JSON field assignments."
+    SEARCH_ALIASES = [
+        "set",
+        "fields",
+        "field mapping",
+        "assign",
+        "update columns",
+        "add columns",
+        "data mapping",
+        "table transform",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("updated_table",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "table": ("FILE", {"description": "CSV or TSV table with a header row"}),
+                "assignments": (
+                    "STRING",
+                    {
+                        "default": "{}",
+                        "multiline": True,
+                        "description": 'JSON object mapping output fields to constants or "{column}" templates',
+                    },
+                ),
+            },
+            "optional": {
+                "keep_only_set": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Only emit fields listed in assignments or field_order"},
+                ),
+                "field_order": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated output field order override"},
+                ),
+                "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
+                "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        context = kwargs.pop("context", None)
+        input_path = Path(str(kwargs["table"]))
+        input_delim = _delimiter(str(kwargs.get("delimiter", "auto")), input_path)
+        fieldnames, rows = _read_table(input_path, input_delim)
+        assignments = self._parse_assignments(str(kwargs.get("assignments", "{}") or "{}"))
+        if not assignments:
+            raise ValueError("assignments must include at least one field")
+
+        updated_rows = [
+            self._apply_assignments(row, assignments)
+            for row in rows
+        ]
+        output_fields = self._output_fields(
+            fieldnames,
+            assignments,
+            str(kwargs.get("field_order", "") or ""),
+            bool(kwargs.get("keep_only_set", False)),
+        )
+        output_delim, extension = self._output_format(str(kwargs.get("output_type", "AUTO") or "AUTO"), input_path)
+        output_path = _node_output_dir(self, context) / f"{input_path.stem}.set{extension}"
+        _write_table(output_path, output_fields, updated_rows, output_delim)
+        return (str(output_path),)
+
+    @staticmethod
+    def _parse_assignments(value: str) -> OrderedDict[str, Any]:
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"assignments must be a JSON object: {exc.msg}") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("assignments must be a JSON object")
+        assignments: OrderedDict[str, Any] = OrderedDict()
+        for key, assigned_value in parsed.items():
+            field = str(key).strip()
+            if not field:
+                raise ValueError("assignment field names must be non-empty")
+            assignments[field] = assigned_value
+        return assignments
+
+    @classmethod
+    def _apply_assignments(cls, row: dict[str, str], assignments: OrderedDict[str, Any]) -> dict[str, Any]:
+        output: dict[str, Any] = dict(row)
+        for field, value in assignments.items():
+            output[field] = cls._render_value(value, row)
+        return output
+
+    @staticmethod
+    def _render_value(value: Any, row: dict[str, str]) -> Any:
+        if not isinstance(value, str):
+            return value
+        try:
+            return value.format_map(row)
+        except KeyError as exc:
+            missing = str(exc.args[0])
+            raise ValueError(f"Unknown template field: {missing}") from exc
+
+    @staticmethod
+    def _output_fields(
+        fieldnames: list[str],
+        assignments: OrderedDict[str, Any],
+        field_order: str,
+        keep_only_set: bool,
+    ) -> list[str]:
+        explicit_order = _split_csv(field_order)
+        if explicit_order:
+            unknown = [field for field in explicit_order if field not in fieldnames and field not in assignments]
+            if unknown:
+                raise ValueError(f"field_order includes unknown field(s): {', '.join(unknown)}")
+            return explicit_order
+        if keep_only_set:
+            return list(assignments.keys())
+        output_fields = list(fieldnames)
+        output_fields.extend(field for field in assignments if field not in fieldnames)
+        return output_fields
+
+    @staticmethod
+    def _output_format(output_type: str, input_path: Path) -> tuple[str, str]:
+        normalized = output_type.upper()
+        if normalized == "CSV":
+            return ",", ".csv"
+        if normalized == "TSV":
+            return "\t", ".tsv"
+        if normalized == "AUTO":
+            return (",", ".csv") if input_path.suffix.lower() == ".csv" else ("\t", ".tsv")
+        raise ValueError(f"Unsupported output_type: {output_type}")
+
+
 class TransposeTableNode(BaseNode):
     """Transpose rows and columns of a CSV/TSV table."""
 
