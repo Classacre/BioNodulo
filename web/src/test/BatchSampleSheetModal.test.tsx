@@ -128,9 +128,12 @@ describe('BatchSampleSheetModal i18n', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it('logs submit failures while preserving inline batch errors', async () => {
+  it('localizes submit failures while logging the raw batch error', async () => {
     const { default: BatchSampleSheetModal } = await import('../components/modals/BatchSampleSheetModal');
+    const { setLanguage } = await import('../i18n');
     const submitError = new Error('queue unavailable');
+
+    await setLanguage('es');
 
     render(
       <BatchSampleSheetModal
@@ -149,14 +152,15 @@ describe('BatchSampleSheetModal i18n', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText(/sample,fastq_in,threads/), {
+    fireEvent.change(screen.getByPlaceholderText(/muestra,fastq_in,threads/), {
       target: {
         value: 'sample,fastq_in,threads\nctrl_01,/data/c1.fastq.gz,8',
       },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Queue 1 run/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Encolar 1 ejecucion/ }));
 
-    await waitFor(() => expect(screen.getByText('queue unavailable')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Lote de hoja de muestras fallido')).toBeInTheDocument());
+    expect(screen.queryByText('queue unavailable')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('batchSampleSheet.submit', submitError);
   });
 

@@ -266,7 +266,7 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
       onClose();
     } catch (err) {
       logError('batchSampleSheet.submit', err);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(t('console.actions.sampleSheetBatchFailed'));
     } finally {
       setSubmitting(false);
     }
