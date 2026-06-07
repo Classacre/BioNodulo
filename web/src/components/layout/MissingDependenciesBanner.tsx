@@ -13,6 +13,38 @@ interface Props {
   onResolve: () => void;
 }
 
+function installProgressMessage(message: string, t: (key: string, values?: Record<string, unknown>) => string): string {
+  const trimmed = message.trim();
+  if (!trimmed) return '';
+  const resolvedMatch = /^Resolved (\d+) packages for env (.+)$/.exec(trimmed);
+  if (resolvedMatch) {
+    return t('resolveReport.installMessages.resolvedPackages', {
+      count: Number(resolvedMatch[1]),
+      env: resolvedMatch[2],
+    });
+  }
+  if (trimmed === 'Generating pixi.toml manifest...') {
+    return t('resolveReport.installMessages.generatingManifest');
+  }
+  if (trimmed === 'Locking dependencies with pixi (this may take a moment)...') {
+    return t('resolveReport.installMessages.lockingDependencies');
+  }
+  if (trimmed === 'Installing packages into environment...') {
+    return t('resolveReport.installMessages.installingPackages');
+  }
+  const readyMatch = /^Environment (.+) ready with (\d+) packages$/.exec(trimmed);
+  if (readyMatch) {
+    return t('resolveReport.installMessages.environmentReady', {
+      env: readyMatch[1],
+      count: Number(readyMatch[2]),
+    });
+  }
+  if (trimmed === 'Installation cancelled') {
+    return t('resolveReport.installMessages.installationCancelled');
+  }
+  return trimmed;
+}
+
 export default function MissingDependenciesBanner({ report, workflow, onDismiss, onOpenConsole, onResolve }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -114,7 +146,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
       {installing && jobStatus && (
         <div className="dep-banner-details" style={{ borderTop: '1px solid var(--border)' }}>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            <Icon name="spinner" size={12} /> {jobStatus.current_step || t('resolveReport.installing')} {jobStatus.message}
+            <Icon name="spinner" size={12} /> {jobStatus.current_step || t('resolveReport.installing')} {installProgressMessage(jobStatus.message, t)}
           </span>
         </div>
       )}

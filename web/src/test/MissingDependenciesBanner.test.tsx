@@ -179,4 +179,46 @@ describe('MissingDependenciesBanner i18n', () => {
     });
     expect(loggingMock.logError.mock.calls.filter(([scope]) => scope === 'dependencies.install.status')).toHaveLength(1);
   });
+
+  it('localizes known installer progress messages from the active locale', async () => {
+    vi.useFakeTimers();
+    const { default: MissingDependenciesBanner } = await import('../components/layout/MissingDependenciesBanner');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    apiMocks.apiPost.mockResolvedValueOnce({ job_id: 'job-1' });
+    apiMocks.apiGet.mockResolvedValueOnce({
+      job_id: 'job-1',
+      status: 'running',
+      total_steps: 0,
+      completed_steps: 0,
+      current_step: '',
+      message: 'Generating pixi.toml manifest...',
+      errors: [],
+      percent: 0,
+    });
+
+    render(
+      <MissingDependenciesBanner
+        report={report()}
+        workflow={workflow()}
+        onDismiss={() => undefined}
+        onOpenConsole={() => undefined}
+        onResolve={() => undefined}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Instalar entorno/ }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(screen.getByText(/Generando manifiesto pixi\.toml/)).toBeInTheDocument();
+    expect(screen.queryByText(/Generating pixi\.toml manifest/)).not.toBeInTheDocument();
+  });
 });

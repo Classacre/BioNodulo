@@ -691,6 +691,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - EnvironmentPanel action failures now keep backend API details behind localized rename/delete/duplicate/remove labels instead of showing raw detail text as the whole message.
 - UserList share refresh, role-change, and remove-user failures now report structured `logError` scopes while preserving existing empty-share and localized error fallbacks.
 - MissingDependenciesBanner install-start and first status-poll failures now report structured `logError` scopes while preserving existing install fallback behavior and avoiding repeated poll log spam.
+- MissingDependenciesBanner now localizes known workflow-environment installer progress messages while preserving raw fallback text for unknown backend messages.
 - `useWorkflow.resolve` manager failures now report a structured `workflow.resolve` log entry while preserving the existing null resolve-report fallback.
 - NodeCommentPopover post-comment and resolve-comment failures now show localized inline fallback copy instead of raw action exception messages, while preserving structured diagnostics for each action.
 - AuditLog load and CSV-export failures now show localized inline fallback copy instead of raw API exception messages, while preserving structured diagnostics for each action.
