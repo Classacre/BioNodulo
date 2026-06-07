@@ -255,6 +255,7 @@ describe('BottomConsole i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }));
 
     expect(screen.getByText('mayo')).toBeInTheDocument();
+    expect(screen.getByText(new Date(historyRun.end_time!).toLocaleString('es'))).toBeInTheDocument();
     expect(screen.queryByText('May')).not.toBeInTheDocument();
   });
 });

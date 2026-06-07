@@ -381,12 +381,13 @@ function QueueRunCard({
   );
 }
 
-function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEntry, t }: {
+function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEntry, t, locale }: {
   run: RunRecord;
   onRetryRun?: (run: RunRecord) => void;
   onLoadRunWorkflow?: (run: RunRecord) => void;
   onDeleteHistoryEntry?: (run: RunRecord) => void;
   t: TFunction;
+  locale?: string;
 }) {
   const progress = progressForRun(run);
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
@@ -400,7 +401,7 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
         </div>
         <RunProgressBar progress={progress} status={run.status} t={t} />
         <div className="queue-run-meta">
-          <span>{run.end_time ? new Date(run.end_time).toLocaleString() : t('console.inProgress')}</span>
+          <span>{run.end_time ? new Date(run.end_time).toLocaleString(locale) : t('console.inProgress')}</span>
           <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
         </div>
       </div>
@@ -997,6 +998,7 @@ export default function BottomConsole({
                                   onLoadRunWorkflow={onLoadRunWorkflow}
                                   onDeleteHistoryEntry={onDeleteHistoryEntry}
                                   t={t}
+                                  locale={i18n.language}
                                 />
                               ))}
                             </div>
