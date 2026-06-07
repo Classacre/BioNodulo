@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -69,7 +70,10 @@ async def test_file_info_reports_metadata_for_existing_and_missing_paths(tmp_pat
     sample = tmp_path / "sample.fastq"
     sample.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
 
-    info_json, size_bytes, size_mb, exists = await _node_class("file_info")().run(file=str(sample))
+    info_json, size_bytes, size_mb, exists = await _node_class("file_info")().run(
+        file=str(sample),
+        checksum_algo="sha256",
+    )
     info = json.loads(info_json)
 
     assert exists is True
@@ -83,6 +87,11 @@ async def test_file_info_reports_metadata_for_existing_and_missing_paths(tmp_pat
     assert info["is_dir"] is False
     assert info["size_bytes"] == size_bytes
     assert info["size_mb"] == pytest.approx(size_mb)
+    assert info["line_count"] == 4
+    assert info["checksum_algo"] == "sha256"
+    assert info["checksum"] == hashlib.sha256(sample.read_bytes()).hexdigest()
+    assert isinstance(info["modified_time"], str)
+    assert info["modified_time"]
 
     missing_json, missing_size, missing_mb, missing_exists = await _node_class("file_info")().run(file=str(tmp_path / "missing.txt"))
     missing_info = json.loads(missing_json)

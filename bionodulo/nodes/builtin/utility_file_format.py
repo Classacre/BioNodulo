@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -265,8 +267,8 @@ class FileInfoNode(BaseNode):
     NODE_ID = "file_info"
     DISPLAY_NAME = "File Info"
     CATEGORY = "utils"
-    DESCRIPTION = "Get file metadata including path, name, extension, size, and existence"
-    SEARCH_ALIASES = ["file info", "metadata", "file size", "path", "stat", "exists"]
+    DESCRIPTION = "Get file metadata including path, name, extension, size, line count, checksum, and existence"
+    SEARCH_ALIASES = ["file info", "metadata", "file size", "path", "stat", "exists", "checksum", "md5", "lines"]
     RETURN_TYPES = ("STRING", "INT", "FLOAT", "BOOLEAN")
     RETURN_NAMES = ("info_json", "size_bytes", "size_mb", "exists")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -277,7 +279,12 @@ class FileInfoNode(BaseNode):
             "required": {
                 "file": ("FILE", {"description": "File or directory path to inspect"}),
             },
-            "optional": {},
+            "optional": {
+                "checksum_algo": (
+                    ["md5", "sha1", "sha256"],
+                    {"default": "md5", "description": "Hash algorithm for file checksum"},
+                ),
+            },
             "hidden": {},
         }
 
@@ -285,14 +292,33 @@ class FileInfoNode(BaseNode):
         file_value = str(kwargs.get("file", "") or "")
         if not file_value:
             raise ValueError("file is required")
+        checksum_algo = str(kwargs.get("checksum_algo", "md5") or "md5").lower()
+        if checksum_algo not in {"md5", "sha1", "sha256"}:
+            raise ValueError(f"Unsupported checksum algorithm: {checksum_algo}")
 
         path = Path(file_value)
         exists = path.exists()
         is_file = path.is_file()
         is_dir = path.is_dir()
-        size_bytes = path.stat().st_size if exists else 0
+        stat = path.stat() if exists else None
+        size_bytes = stat.st_size if stat else 0
         size_mb = size_bytes / (1024 * 1024)
         resolved = path.resolve() if exists else path.absolute()
+        modified_time = (
+            datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+            if stat is not None
+            else ""
+        )
+        line_count = 0
+        checksum = ""
+        if is_file:
+            with path.open("rb") as handle:
+                line_count = sum(1 for _ in handle)
+            hasher = hashlib.new(checksum_algo)
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    hasher.update(chunk)
+            checksum = hasher.hexdigest()
         info = {
             "path": str(resolved),
             "name": path.name,
@@ -302,6 +328,10 @@ class FileInfoNode(BaseNode):
             "exists": exists,
             "is_file": is_file,
             "is_dir": is_dir,
+            "line_count": line_count,
+            "checksum_algo": checksum_algo,
+            "checksum": checksum,
+            "modified_time": modified_time,
         }
         return (json.dumps(info, sort_keys=True), size_bytes, size_mb, exists)
 

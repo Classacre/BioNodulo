@@ -634,6 +634,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UniProt Search now exposes planned raw passthrough formats (`xml`, `fasta`, `rdf`, `gff`) and writes those responses directly to matching artifacts while preserving structured JSON/TSV behavior.
 - UniProt Search now summarizes UniRef JSON search hits using cluster IDs, representative accessions, taxon names, sequence lengths, and member counts instead of producing blank TSV rows.
 - UniProt Search now summarizes UniParc JSON search hits using UniParc IDs, linked UniProtKB accessions, biological taxon names, sequence lengths, and cross-reference counts instead of blank TSV rows.
+- File Info now enriches `info_json` with planned checksum, checksum algorithm, line count, and UTC modification time metadata while preserving the existing size/path/existence outputs.
 
 ---
 
