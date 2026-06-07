@@ -443,6 +443,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Modal shell lazy-loading labels and bulk-parameter success toasts now read from `outputDiff`, `doctor`, and `paramBulk` i18n keys with Spanish unit coverage and a static wiring guard.
 - Workflow canvas node rename, subgraph-library, and parameter-preset prompts/toasts now read from `canvas` i18n keys with Spanish unit coverage and a static wiring guard.
 - Workflow canvas hover-card metadata plus canvas/link context-menu labels now read from `canvas` i18n keys with Spanish coverage and a static wiring guard.
+- Workflow canvas generated group and reroute fallback names now read from `canvas` i18n keys, so newly created groups and reroute nodes use the active locale instead of embedding raw English defaults.
 - Workflow canvas widget-copy hints and node-error popover labels now read from `canvas`/`errors` i18n keys with Spanish coverage and a static wiring guard.
 - Workflow stats overlay labels, fallback category, collapse/expand titles, and compact pill units now read from `workflowStats` i18n keys with Spanish render coverage and a static wiring guard.
 - Workflow stats overlay category chips now reuse the shared node-category label mapping, so registered categories such as `Input` and `Quality Control` render as `Entrada` and `Control de calidad` under Spanish while unknown categories still use the localized fallback.

@@ -1893,6 +1893,7 @@ class MyToolNode(CommandNode):
     renameGroupMessage: 'Choose a group name.',
     groupNameInput: 'Group name',
     groupFallbackName: 'Group',
+    rerouteFallbackName: 'Reroute',
     groupColorBack: '← Back',
     setGroupColor: 'Set color',
     fitGroupToNodes: 'Fit to nodes',

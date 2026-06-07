@@ -515,7 +515,7 @@ function exportThumbnailDataURL(graphNodes: GraphNode[], edges: WorkflowEdge[], 
   return c.toDataURL('image/png');
 }
 
-function createGroupFromNodes(nodes: GraphNode[]): WorkflowGroup {
+function createGroupFromNodes(nodes: GraphNode[], fallbackName: string): WorkflowGroup {
   const minX = Math.min(...nodes.map(n => n.x));
   const minY = Math.min(...nodes.map(n => n.y));
   const maxX = Math.max(...nodes.map(n => n.x + n.width));
@@ -523,7 +523,7 @@ function createGroupFromNodes(nodes: GraphNode[]): WorkflowGroup {
   const padding = 20;
   return {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `group_${Date.now()}`,
-    name: 'Group',
+    name: fallbackName,
     position: [minX - padding, minY - padding] as [number, number],
     width: maxX - minX + padding * 2,
     height: maxY - minY + padding * 2,
@@ -1919,7 +1919,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         const currentGroups = groupsRef.current;
         const selected = currentGraphNodes.filter(n => n.selected);
         if (selected.length > 0) {
-          const newGroup = createGroupFromNodes(selected);
+          const newGroup = createGroupFromNodes(selected, tRef.current('canvas.groupFallbackName'));
           onGroupsChangeRef.current([...currentGroups, newGroup]);
           onPushHistoryRef.current();
         }
@@ -2982,7 +2982,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       const idsToGroup = selectedIds.length > 0 ? selectedIds : [nodeId];
       const nodesToGroup = graphNodes.filter(n => idsToGroup.includes(n.id));
       if (nodesToGroup.length > 0) {
-        const newGroup = createGroupFromNodes(nodesToGroup);
+        const newGroup = createGroupFromNodes(nodesToGroup, t('canvas.groupFallbackName'));
         onGroupsChange([...groups, newGroup]);
       }
     } else if (action === 'subgraph') {
@@ -3236,7 +3236,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       params: defaultsFor(rerouteMeta),
       node_info: rerouteMeta,
       ...(parent ? { parentId: parent.id } : {}),
-      ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
+      ui: { title: t('canvas.rerouteFallbackName'), color: nodeColor(rerouteMeta), shape: 'round' },
     };
     const nextEdges: WorkflowEdge[] = edges
       .filter(candidate => candidate.id !== edgeId)
@@ -3257,7 +3257,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     pendingSelectionRef.current = new Set([id]);
     onPushHistory();
     setLinkContextMenu(null);
-  }, [edges, graphNodes, nodes, objectInfo, onEdgesChange, onNodesChange, onPushHistory]);
+  }, [edges, graphNodes, nodes, objectInfo, onEdgesChange, onNodesChange, onPushHistory, t]);
 
   return (
     <div ref={hostRef} className="workflow-canvas-host" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -3783,7 +3783,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                   params: defaultsFor(rerouteMeta),
                   node_info: rerouteMeta,
                   ...(parent ? { parentId: parent.id } : {}),
-                  ui: { title: 'Reroute', color: nodeColor(rerouteMeta), shape: 'round' },
+                  ui: { title: t('canvas.rerouteFallbackName'), color: nodeColor(rerouteMeta), shape: 'round' },
                 };
                 onNodesChange([...nodes, newNode]);
                 pendingSelectionRef.current = new Set([id]);
@@ -3796,7 +3796,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             <div className="context-menu-item" onClick={() => {
               const selected = graphNodes.filter(n => n.selected);
               if (selected.length > 0) {
-                const newGroup = createGroupFromNodes(selected);
+                const newGroup = createGroupFromNodes(selected, t('canvas.groupFallbackName'));
                 onGroupsChange([...groups, newGroup]);
                 onPushHistory();
               }

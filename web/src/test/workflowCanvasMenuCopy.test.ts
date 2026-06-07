@@ -49,6 +49,8 @@ describe('WorkflowCanvas menu and hover copy i18n', () => {
     expect(i18n.t('canvas.clearWorkflow')).toBe('Limpiar workflow');
     expect(i18n.t('canvas.insertReroute')).toBe('Insertar redireccion');
     expect(i18n.t('canvas.deleteLink')).toBe('Eliminar enlace');
+    expect(i18n.t('canvas.groupFallbackName')).toBe('Grupo');
+    expect(i18n.t('canvas.rerouteFallbackName')).toBe('Redireccion');
   });
 
   it('keeps WorkflowCanvas hover-card and context menu labels behind i18n keys', () => {
@@ -68,6 +70,8 @@ describe('WorkflowCanvas menu and hover copy i18n', () => {
       'canvas.clearWorkflow',
       'canvas.insertReroute',
       'canvas.deleteLink',
+      'canvas.groupFallbackName',
+      'canvas.rerouteFallbackName',
     ].forEach(key => expect(source).toContain(key));
 
     [
@@ -85,5 +89,8 @@ describe('WorkflowCanvas menu and hover copy i18n', () => {
       '>Insert Reroute<',
       '>Delete Link<',
     ].forEach(text => expect(source).not.toContain(text));
+
+    expect(source).not.toMatch(/name:\s*['"]Group['"]/);
+    expect(source).not.toMatch(/title:\s*['"]Reroute['"]/);
   });
 });
