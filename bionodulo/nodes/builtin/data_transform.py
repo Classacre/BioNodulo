@@ -1578,12 +1578,12 @@ class SortFileNode(BaseNode):
 
 
 class DeduplicateNode(BaseNode):
-    """Remove duplicate rows from CSV/TSV tables."""
+    """Remove duplicate rows from CSV/TSV tables or duplicate FASTA sequences."""
 
     NODE_ID = "deduplicate"
     DISPLAY_NAME = "Deduplicate"
     CATEGORY = "data_transform"
-    DESCRIPTION = "Remove duplicate table rows based on all columns or selected key columns."
+    DESCRIPTION = "Remove duplicate table rows or FASTA records based on selected key columns or sequence content."
     SEARCH_ALIASES = [
         "deduplicate",
         "remove duplicates",
@@ -1592,6 +1592,8 @@ class DeduplicateNode(BaseNode):
         "drop duplicates",
         "dedup",
         "unique rows",
+        "fasta dedup",
+        "sequence dedup",
     ]
     RETURN_TYPES = ("CSV", "CSV")
     RETURN_NAMES = ("deduplicated", "duplicates")
@@ -1617,6 +1619,17 @@ class DeduplicateNode(BaseNode):
     async def run(self, **kwargs: Any) -> tuple[str, str]:
         context = kwargs.pop("context", None)
         input_path = Path(str(kwargs["table"]))
+        keep = str(kwargs.get("keep", "first") or "first").lower()
+        if keep not in {"first", "last", "none"}:
+            raise ValueError(f"Unsupported keep strategy: {keep}")
+        if self._is_fasta(input_path):
+            return self._deduplicate_fasta(
+                input_path,
+                keep,
+                bool(kwargs.get("report_dups", False)),
+                context,
+            )
+
         input_delim = _delimiter(str(kwargs.get("delimiter", "auto")), input_path)
         fieldnames, rows = _read_table(input_path, input_delim)
         subset_columns = _split_csv(str(kwargs.get("subset_columns", "")))
@@ -1624,10 +1637,6 @@ class DeduplicateNode(BaseNode):
         missing = [name for name in key_columns if name not in fieldnames]
         if missing:
             raise ValueError(f"Column(s) not found: {', '.join(missing)}")
-
-        keep = str(kwargs.get("keep", "first") or "first").lower()
-        if keep not in {"first", "last", "none"}:
-            raise ValueError(f"Unsupported keep strategy: {keep}")
 
         working_rows = list(rows)
         if bool(kwargs.get("sort_before", False)):
@@ -1683,6 +1692,94 @@ class DeduplicateNode(BaseNode):
             [row for index, row in enumerate(rows) if index in keep_indexes],
             [row for index, row in enumerate(rows) if index in duplicate_indexes],
         )
+
+    @classmethod
+    def _deduplicate_fasta(cls, input_path: Path, keep: str, report_dups: bool, context: Any) -> tuple[str, str]:
+        records = cls._read_fasta(input_path)
+        kept, duplicates = cls._deduplicate_fasta_records(records, keep)
+        base = Path(getattr(context, "node_dir", ".") if context else ".")
+        output_dir = base / cls.NODE_ID
+        output_dir.mkdir(parents=True, exist_ok=True)
+        deduplicated_path = output_dir / f"{input_path.stem}.deduplicated.fasta"
+        duplicates_path = output_dir / f"{input_path.stem}.duplicates.fasta"
+
+        cls._write_fasta(deduplicated_path, kept)
+        if report_dups:
+            cls._write_fasta(duplicates_path, duplicates)
+        else:
+            duplicates_path = deduplicated_path
+        return (str(deduplicated_path), str(duplicates_path))
+
+    @staticmethod
+    def _is_fasta(path: Path) -> bool:
+        return "".join(path.suffixes).lower() in {
+            ".fa",
+            ".fna",
+            ".faa",
+            ".fasta",
+        }
+
+    @staticmethod
+    def _read_fasta(path: Path) -> list[tuple[str, str]]:
+        records: list[tuple[str, str]] = []
+        header = ""
+        seq_parts: list[str] = []
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                if header:
+                    records.append((header, "".join(seq_parts).upper()))
+                header = line
+                seq_parts = []
+            else:
+                seq_parts.append(line)
+        if header:
+            records.append((header, "".join(seq_parts).upper()))
+        if not records:
+            raise ValueError(f"FASTA file has no records: {path}")
+        return records
+
+    @classmethod
+    def _deduplicate_fasta_records(
+        cls,
+        records: list[tuple[str, str]],
+        keep: str,
+    ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        if keep == "none":
+            counts: OrderedDict[str, int] = OrderedDict()
+            for _header, sequence in records:
+                counts[sequence] = counts.get(sequence, 0) + 1
+            return (
+                [record for record in records if counts[record[1]] == 1],
+                [record for record in records if counts[record[1]] > 1],
+            )
+
+        kept_indexes: set[int] = set()
+        duplicate_indexes: set[int] = set()
+        seen: set[str] = set()
+        row_range = range(len(records)) if keep == "first" else range(len(records) - 1, -1, -1)
+        for index in row_range:
+            sequence = records[index][1]
+            if sequence in seen:
+                duplicate_indexes.add(index)
+            else:
+                seen.add(sequence)
+                kept_indexes.add(index)
+        return (
+            [record for index, record in enumerate(records) if index in kept_indexes],
+            [record for index, record in enumerate(records) if index in duplicate_indexes],
+        )
+
+    @staticmethod
+    def _write_fasta(path: Path, records: list[tuple[str, str]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as fh:
+            for header, sequence in records:
+                fh.write(f"{header}\n")
+                for line in _wrap_sequence(sequence, 60):
+                    fh.write(f"{line}\n")
 
     @staticmethod
     def _output_format(output_type: str, input_path: Path) -> tuple[str, str]:

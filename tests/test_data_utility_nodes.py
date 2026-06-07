@@ -1096,6 +1096,41 @@ async def test_deduplicate_keep_none_removes_all_rows_with_duplicate_keys(tmp_pa
     ]
 
 
+@pytest.mark.asyncio
+async def test_deduplicate_fasta_keeps_first_sequence_and_reports_duplicates(tmp_path: Path) -> None:
+    fasta = tmp_path / "contigs.fasta"
+    fasta.write_text(
+        ">contig1 sample=A\n"
+        "ACGTACGT\n"
+        ">contig2 sample=B\n"
+        "TTTT\n"
+        ">contig3 duplicate_of_1\n"
+        "ACGT\n"
+        "ACGT\n",
+        encoding="utf-8",
+    )
+
+    deduplicated, duplicates = await _node_class("deduplicate")().run(
+        table=str(fasta),
+        keep="first",
+        report_dups=True,
+        context=_context(tmp_path, "dedupe-fasta"),
+    )
+
+    assert Path(deduplicated).name == "contigs.deduplicated.fasta"
+    assert Path(duplicates).name == "contigs.duplicates.fasta"
+    assert Path(deduplicated).read_text(encoding="utf-8") == (
+        ">contig1 sample=A\n"
+        "ACGTACGT\n"
+        ">contig2 sample=B\n"
+        "TTTT\n"
+    )
+    assert Path(duplicates).read_text(encoding="utf-8") == (
+        ">contig3 duplicate_of_1\n"
+        "ACGTACGT\n"
+    )
+
+
 def test_set_fields_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()

@@ -580,6 +580,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Runtime Artifacts panel coverage now exercises active Spanish render paths for checkpoint, pause, trigger-evaluation, resume, loading, and action copy; Spanish trigger labels consistently use `activador` wording and the overlay source guards regenerated locale output.
 - JSON/YAML Operations now expose the documented `pretty_print` and `stringify` operation aliases through `object_info`; YAML `set` also parses structured JSON/YAML values before scalar fallback so nested list/object config updates stay structured.
 - Date / Time `format` now formats a supplied `date_string` when present, preserving deterministic timestamp/ISO outputs for workflow filenames while keeping the existing "format current time" fallback when the field is blank.
+- Deduplicate now handles uncompressed FASTA inputs by sequence content as planned: `keep=first|last|none` works for sequence records, deduplicated output stays FASTA, and duplicate-record reporting writes a sibling FASTA when requested.
 
 ---
 
