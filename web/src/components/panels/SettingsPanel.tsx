@@ -122,6 +122,7 @@ export default function SettingsPanel({
       setPalette(palette.id);
       toast.success(t('settings.appearance.paletteImported'), { message: palette.name });
     } catch (err) {
+      logError('settings.palette.import', err);
       toast.error(t('settings.appearance.paletteImportFailed'), { message: err instanceof Error ? err.message : String(err) });
     }
   };

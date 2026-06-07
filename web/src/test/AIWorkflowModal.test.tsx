@@ -495,6 +495,29 @@ describe('AIWorkflowModal i18n', () => {
     );
   });
 
+  it('logs unexpected chat fallback failures while preserving the local response', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const thrownValue = 'unexpected-chat-failure';
+
+    vi.mocked(apiPost).mockRejectedValueOnce(thrownValue);
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'rna workflow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByText(/For RNA-Seq, I recommend/)).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat.fallback', thrownValue);
+  });
+
   it('renders the missing model fallback from the active locale', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');

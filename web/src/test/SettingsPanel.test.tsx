@@ -239,6 +239,7 @@ describe('SettingsPanel shell i18n', () => {
       fireEvent.change(fileInput!, { target: { files: [invalidPalette] } });
 
       await waitFor(() => expect(getNotificationsSnapshot().at(0)?.title).toBe('No se pudo importar la paleta'));
+      expect(loggingMock.logError).toHaveBeenCalledWith('settings.palette.import', expect.any(Error));
     } finally {
       createObjectURL.mockRestore();
       revokeObjectURL.mockRestore();

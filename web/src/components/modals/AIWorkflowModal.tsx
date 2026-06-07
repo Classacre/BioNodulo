@@ -321,7 +321,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           throw err;
         }
       }
-    } catch {
+    } catch (err) {
+      logError('aiWorkflow.chat.fallback', err);
       setSessions(prev =>
         prev.map(s =>
           s.id === activeSessionId
