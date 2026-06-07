@@ -2078,6 +2078,7 @@ export default function App() {
         label: t('snippets.savePromptTitle'),
         description: t('snippets.saveCommandDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => handleSaveSnippet(),
       },
       {
@@ -2085,6 +2086,7 @@ export default function App() {
         label: t('snippets.insertCommandLabel'),
         description: t('snippets.insertCommandDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => handleInsertSnippet(),
       },
       {
@@ -2529,6 +2531,7 @@ export default function App() {
           label: t('commandPalette.openRecentWorkflow', { name: entry.name }),
           description: entry.filename || t('commandPalette.recentWorkflowFallback'),
           group: 'Workflow',
+          groupLabelKey: 'commandPalette.groups.workflow',
           onSelect: async () => {
             if (entry.filename) {
               const template = { id: entry.id, name: entry.name, filename: entry.filename, category: '', tags: [], tools: [], description: '', node_count: 0 } as TemplateInfo;

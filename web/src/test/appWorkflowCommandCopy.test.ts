@@ -79,4 +79,18 @@ describe('App workflow command copy i18n', () => {
       "label: `Add: ${meta.display_name}`",
     ].forEach(text => expect(appSource).not.toContain(text));
   });
+
+  it('pairs workflow command group fallbacks with the workflow group i18n key', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const appLines = appSource.split('\n');
+
+    appLines.forEach((line, index) => {
+      if (!line.includes("group: 'Workflow'")) return;
+
+      expect(
+        appLines[index + 1],
+        `Workflow command group at App.tsx:${index + 1} should use commandPalette.groups.workflow`,
+      ).toContain("groupLabelKey: 'commandPalette.groups.workflow'");
+    });
+  });
 });
