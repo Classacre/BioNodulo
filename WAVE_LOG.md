@@ -592,6 +592,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
 - AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.
 - PDB Download now advertises the planning-style `format` input as a `STRING` with RCSB format options, preserving runtime validation while exposing the expected frontend/API contract.
+- STRING DB image queries now download the planned `string_network.png` artifact and record `image_path` metadata while preserving the existing TSV/JSON output contract.
 
 ---
 

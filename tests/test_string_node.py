@@ -206,6 +206,59 @@ async def test_string_db_enrichment_writes_tsv_and_parsed_rows(
 
 
 @pytest.mark.asyncio
+async def test_string_db_image_downloads_network_png_and_records_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("string_db")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_response(endpoint: str, params: dict[str, Any], **_: Any) -> httpx.Response:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        request = httpx.Request(
+            "GET",
+            f"{module.STRING_BASE_URL}/{endpoint}",
+            params=params,
+            headers={"User-Agent": module.STRING_USER_AGENT},
+        )
+        return httpx.Response(200, content=b"\x89PNG\r\n\x1a\nstring-image", request=request)
+
+    monkeypatch.setattr(module, "_request", fake_response)
+
+    result = await node_class().run(
+        protein_ids="TP53, MDM2",
+        species=9606,
+        query_type="image",
+        required_score=700,
+        network_flavor="confidence",
+        add_nodes=2,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    tsv_path = Path(result["outputs"]["interaction_network"])
+    metadata_path = Path(result["outputs"]["network_metadata"])
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    image_path = Path(metadata["image_path"])
+
+    assert tsv_path.name == "interaction_network.tsv"
+    assert tsv_path.read_text(encoding="utf-8") == "# STRING network image written to string_network.png\n"
+    assert image_path == tmp_path / "string_db" / "string_network.png"
+    assert image_path.read_bytes() == b"\x89PNG\r\n\x1a\nstring-image"
+    assert metadata["query_type"] == "image"
+    assert metadata["image_url"] == f"{module.STRING_BASE_URL}/image/network"
+    assert metadata["image_params"] == {
+        "identifiers": "TP53\rMDM2",
+        "species": 9606,
+        "caller_identity": "BioNodulo",
+        "required_score": 700,
+        "add_nodes": 2,
+        "network_flavor": "confidence",
+    }
+    assert calls == [{"endpoint": "image/network", "params": metadata["image_params"]}]
+
+
+@pytest.mark.asyncio
 async def test_string_db_reads_identifiers_from_table_column(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

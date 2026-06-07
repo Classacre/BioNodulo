@@ -230,17 +230,24 @@ class STRINGDBNode(BaseNode):
             add_nodes=add_nodes,
         )
 
+        out_dir = _node_output_dir(self, context)
         if query_type == "image":
             image_url = f"{STRING_BASE_URL}/{endpoint}"
+            image_path = out_dir / "string_network.png"
+            response = await _request(endpoint, params=params, retries=MAX_RETRIES, timeout=REQUEST_TIMEOUT_S)
+            image_path.write_bytes(response.content)
             rows: list[dict[str, str]] = []
-            text = "# STRING network image URL is stored in network_metadata.json\n"
-            metadata_extra: dict[str, Any] = {"image_url": image_url, "image_params": params}
+            text = "# STRING network image written to string_network.png\n"
+            metadata_extra: dict[str, Any] = {
+                "image_url": image_url,
+                "image_path": str(image_path),
+                "image_params": params,
+            }
         else:
             text = await _request_text(endpoint, params)
             rows = _parse_tsv(text)
             metadata_extra = {}
 
-        out_dir = _node_output_dir(self, context)
         tsv_path = out_dir / "interaction_network.tsv"
         metadata_path = out_dir / "network_metadata.json"
         tsv_path.write_text(text, encoding="utf-8")
