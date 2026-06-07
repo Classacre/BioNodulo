@@ -1455,10 +1455,11 @@ class ParallelForNode(BaseNode):
     CATEGORY = "flow_control"
     DESCRIPTION = "Scatter items across parallel branches, then gather results with all, any, first, or sorted strategies."
     SEARCH_ALIASES = ["parallel", "scatter", "gather", "fanout", "fanin", "concurrent", "map_reduce"]
-    RETURN_TYPES = ("ANY", "INT", "BOOLEAN")
-    RETURN_NAMES = ("results", "completed_count", "all_succeeded")
+    RETURN_TYPES = ("ANY", "INT", "BOOLEAN", "ANY")
+    RETURN_NAMES = ("results", "completed_count", "all_succeeded", "iteration")
     REQUIRES_EXTERNAL_TOOLS = False
     ROUTES_FLOW = True
+    EXECUTES_LOOP_BODY = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -1492,11 +1493,12 @@ class ParallelForNode(BaseNode):
             chunks = [items[index:index + chunk_size] for index in range(0, len(items), chunk_size)]
             return {
                 "outputs": {
+                    "iteration": None,
                     "results": [],
                     "completed_count": 0,
                     "all_succeeded": False,
                 },
-                "inactive_outputs": ["results", "completed_count", "all_succeeded"],
+                "inactive_outputs": ["iteration", "results", "completed_count", "all_succeeded"],
                 "flow_control": {
                     "type": "parallel_for",
                     "phase": "scatter",
@@ -1513,11 +1515,12 @@ class ParallelForNode(BaseNode):
         gathered = self._gather_results(completed, results, gather, first_n, sort_key)
         return {
             "outputs": {
+                "iteration": None,
                 "results": gathered,
                 "completed_count": len(completed),
                 "all_succeeded": len(completed) == len(results),
             },
-            "inactive_outputs": [],
+            "inactive_outputs": ["iteration"],
             "flow_control": {
                 "type": "parallel_for",
                 "phase": "gather",

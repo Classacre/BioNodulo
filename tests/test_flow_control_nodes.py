@@ -71,8 +71,8 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["counter_accumulator"]["output"] == ["ANY", "INT", "ANY"]
     assert info["parallel_for"]["display_name"] == "Parallel For"
     assert info["parallel_for"]["category"] == "flow_control"
-    assert info["parallel_for"]["output_name"] == ["results", "completed_count", "all_succeeded"]
-    assert info["parallel_for"]["output"] == ["ANY", "INT", "BOOLEAN"]
+    assert info["parallel_for"]["output_name"] == ["results", "completed_count", "all_succeeded", "iteration"]
+    assert info["parallel_for"]["output"] == ["ANY", "INT", "BOOLEAN", "ANY"]
     assert info["while_loop"]["display_name"] == "While Loop"
     assert info["while_loop"]["category"] == "flow_control"
     assert info["while_loop"]["output_name"] == ["results", "iterations", "converged"]
@@ -1433,8 +1433,8 @@ async def test_parallel_for_scatter_chunks_items() -> None:
         gather="all",
     )
 
-    assert result["outputs"] == {"results": [], "completed_count": 0, "all_succeeded": False}
-    assert result["inactive_outputs"] == ["results", "completed_count", "all_succeeded"]
+    assert result["outputs"] == {"iteration": None, "results": [], "completed_count": 0, "all_succeeded": False}
+    assert result["inactive_outputs"] == ["iteration", "results", "completed_count", "all_succeeded"]
     assert result["flow_control"] == {
         "type": "parallel_for",
         "phase": "scatter",
@@ -1458,9 +1458,19 @@ async def test_parallel_for_gathers_first_non_null_results() -> None:
         _parallel_results=["one", None, "two", "three"],
     )
 
-    assert any_result["outputs"] == {"results": "ready", "completed_count": 2, "all_succeeded": False}
-    assert any_result["inactive_outputs"] == []
-    assert first_result["outputs"] == {"results": ["one", "two"], "completed_count": 3, "all_succeeded": False}
+    assert any_result["outputs"] == {
+        "iteration": None,
+        "results": "ready",
+        "completed_count": 2,
+        "all_succeeded": False,
+    }
+    assert any_result["inactive_outputs"] == ["iteration"]
+    assert first_result["outputs"] == {
+        "iteration": None,
+        "results": ["one", "two"],
+        "completed_count": 3,
+        "all_succeeded": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -1479,6 +1489,7 @@ async def test_parallel_for_sorts_dict_results_by_key() -> None:
     )
 
     assert result["outputs"] == {
+        "iteration": None,
         "results": [
             {"sample": "S1", "vcf": "s1.vcf"},
             {"sample": "S2", "vcf": "s2.vcf"},
@@ -1997,6 +2008,98 @@ async def test_executor_runs_foreach_body_subgraph_for_each_item(tmp_path: Path)
     assert result["outputs"]["loop"]["all_succeeded"] is True
     assert CollectorNode.calls == [expected_results]
     assert result["outputs"]["after_loop"] == {"out": expected_results}
+
+
+@pytest.mark.asyncio
+async def test_executor_runs_parallel_for_body_subgraph_and_gathers_results(tmp_path: Path) -> None:
+    parallel_for_node = _node_class("parallel_for")
+
+    class BodyNode:
+        NODE_ID = "body"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[tuple[str, Any]] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append((context.node_id, value))
+            return {"outputs": {"out": f"{context.node_id}:{value}"}}
+
+    class CollectorNode:
+        NODE_ID = "collector"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[Any] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(value)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "parallel_for": parallel_for_node,
+                "body": BodyNode,
+                "collector": CollectorNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "fanout",
+                "type": "parallel_for",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3"]},
+                    "chunk_size": {"value": 1},
+                    "max_concurrency": {"value": 2},
+                    "gather": {"value": "all"},
+                },
+                "outputs": {"iteration": {}, "results": {}, "completed_count": {}, "all_succeeded": {}},
+            },
+            {"id": "step_a", "type": "body", "outputs": {"out": {}}},
+            {"id": "step_b", "type": "body", "outputs": {"out": {}}},
+            {"id": "after_fanout", "type": "collector", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "fanout", "target_node": "step_a", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "step_a", "target_node": "step_b", "source_output": "out", "target_input": "value"},
+            {"source_node": "step_b", "target_node": "fanout", "source_output": "out", "target_input": "_parallel_results"},
+            {"source_node": "fanout", "target_node": "after_fanout", "source_output": "results", "target_input": "value"},
+        ],
+    }
+    BodyNode.calls = []
+    CollectorNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("parallel-for-body", workflow, force=True)
+
+    expected_results = [
+        "step_b:step_a:S1",
+        "step_b:step_a:S2",
+        "step_b:step_a:S3",
+    ]
+    assert result["status"] == "completed"
+    assert BodyNode.calls == [
+        ("step_a", "S1"),
+        ("step_b", "step_a:S1"),
+        ("step_a", "S2"),
+        ("step_b", "step_a:S2"),
+        ("step_a", "S3"),
+        ("step_b", "step_a:S3"),
+    ]
+    assert result["outputs"]["fanout"]["iteration"] is None
+    assert result["outputs"]["fanout"]["results"] == expected_results
+    assert result["outputs"]["fanout"]["completed_count"] == 3
+    assert result["outputs"]["fanout"]["all_succeeded"] is True
+    assert CollectorNode.calls == [expected_results]
+    assert result["outputs"]["after_fanout"] == {"out": expected_results}
 
 
 @pytest.mark.asyncio
