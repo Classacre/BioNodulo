@@ -87,7 +87,8 @@ describe('UserList i18n', () => {
     expect(screen.getByTitle('Cerrar')).toBeInTheDocument();
     expect(screen.getByText('Administrador')).toBeInTheDocument();
     expect(screen.getByText('Lector')).toBeInTheDocument();
-    expect(screen.getAllByText('Workflow workflow-1')).toHaveLength(2);
+    expect(screen.getAllByText('Flujo de trabajo workflow-1')).toHaveLength(2);
+    expect(screen.queryByText('Workflow workflow-1')).not.toBeInTheDocument();
     const manageAccess = screen.getByTitle('Gestionar acceso');
     expect(manageAccess).toBeInTheDocument();
 

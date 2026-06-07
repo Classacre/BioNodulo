@@ -2050,7 +2050,7 @@ class MyToolNode(CommandNode):
     userListActiveUsers: 'Usuarios activos',
     userListNoLiveSessions: 'No hay sesiones de colaboracion activas',
     userListYouSuffix: '(Tu)',
-    userListWorkflowFallback: 'Workflow {{id}}',
+    userListWorkflowFallback: 'Flujo de trabajo {{id}}',
     commentsWorkflowFallback: 'Flujo de trabajo {{id}}',
     userListManageAccess: 'Gestionar acceso',
     userListMakeRole: 'Hacer {{role}}',
