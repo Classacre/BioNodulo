@@ -266,6 +266,7 @@ const en = {
     conflictSummary: '{{count}} shortcut conflict detected',
     conflictSummary_plural: '{{count}} shortcut conflicts detected',
     empty: 'No shortcuts found',
+    unassigned: 'No shortcut assigned',
     pressTwoKeys: 'Press two keys to bind',
     bindingFor: 'Binding for {{action}}',
     cleared: 'Shortcut cleared',

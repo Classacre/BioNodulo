@@ -73,4 +73,18 @@ describe('KeyboardShortcutsModal i18n', () => {
     expect(screen.getByRole('button', { name: 'Restablecer todo' })).toBeInTheDocument();
     expect(screen.getByText('1 conflicto de atajo detectado')).toBeInTheDocument();
   });
+
+  it('renders unassigned shortcut fallback from the active locale', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { KeyboardShortcutsModal } = await import('../components/ui/KeyboardShortcutsModal');
+    const { setKeybinding } = await import('../state/keybindings');
+
+    await setLanguage('es');
+    setKeybinding('workflow.export', '');
+
+    render(<KeyboardShortcutsModal open onOpenChange={() => undefined} />);
+
+    expect(screen.getByText('Sin atajo asignado')).toBeInTheDocument();
+    expect(screen.queryByText('-')).not.toBeInTheDocument();
+  });
 });

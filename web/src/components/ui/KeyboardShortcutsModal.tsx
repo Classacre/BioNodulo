@@ -16,8 +16,8 @@ export interface KeyboardShortcutsModalProps {
 
 const CATEGORY_ORDER: KeybindingCategory[] = ['global', 'workflow', 'canvas', 'panels'];
 
-function ShortcutKeys({ binding }: { binding: string }) {
-  if (!binding) return <span>-</span>;
+function ShortcutKeys({ binding, unassignedLabel }: { binding: string; unassignedLabel: string }) {
+  if (!binding) return <span>{unassignedLabel}</span>;
   return (
     <span className="bn-ui-kbd-list" aria-label={binding}>
       {binding.split('+').map(part => <kbd key={part}>{part}</kbd>)}
@@ -184,7 +184,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange, title }: KeyboardSh
                     >
                       {recordingId === binding.id
                         ? t('shortcuts.recording')
-                        : <ShortcutKeys binding={binding.binding} />}
+                        : <ShortcutKeys binding={binding.binding} unassignedLabel={t('shortcuts.unassigned')} />}
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {hasConflict(binding.id) ? (

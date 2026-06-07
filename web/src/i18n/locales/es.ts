@@ -269,6 +269,7 @@ const es = {
     conflictSummary: '{{count}} conflicto de atajo detectado',
     conflictSummary_plural: '{{count}} conflictos de atajos detectados',
     empty: 'No se encontraron atajos',
+    unassigned: 'Sin atajo asignado',
     pressTwoKeys: 'Presiona dos teclas para asignar',
     bindingFor: 'Atajo para {{action}}',
     cleared: 'Atajo eliminado',

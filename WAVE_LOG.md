@@ -647,6 +647,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - The `/api/docs/{page}` route now serves repo-backed Getting Started help content when workspace docs are absent.
 - Node Info now localizes missing-default parameter copy instead of rendering a raw placeholder symbol.
 - Custom-node package listing now reports malformed manifests as invalid package records instead of breaking the whole manager registry response.
+- Keyboard Shortcuts now localizes unassigned shortcut fallback copy instead of showing a bare dash.
 
 ---
 
