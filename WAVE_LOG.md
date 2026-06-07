@@ -600,6 +600,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI E-utilities API-key resolution now honors the planned `BIONODULO_NCBI_API_KEY` environment fallback while preserving explicit and credential-based overrides.
 - NCBI EFetch now exposes the planned `accessions` input and accepts it at runtime while preserving `id_list` as a backward-compatible advanced alias.
 - Ensembl VEP now exposes the planned `maf` toggle and forwards the corresponding `MAF=yes/no` request parameter.
+- Ensembl Gene Lookup now exposes optional homolog controls and fetches `homology/id/{gene_id}` orthologue data when requested.
 
 ---
 

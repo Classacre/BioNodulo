@@ -246,6 +246,8 @@ class EnsemblGeneLookupNode(BaseNode):
             "optional": {
                 "expand": ("BOOLEAN", {"default": True, "description": "Include transcripts when available"}),
                 "assembly": ("STRING", {"default": "current", "options": ["current", "GRCh37"]}),
+                "fetch_homologs": ("BOOLEAN", {"default": False, "advanced": True}),
+                "homolog_species": ("STRING", {"default": "", "advanced": True, "description": "Optional target species for homology lookup"}),
             },
             "hidden": {},
         }
@@ -259,6 +261,8 @@ class EnsemblGeneLookupNode(BaseNode):
         expand = bool(kwargs.get("expand", True))
         base_url = _base_url_for_assembly(str(kwargs.get("assembly", "current")))
         params = {"expand": 1 if expand else 0}
+        fetch_homologs = bool(kwargs.get("fetch_homologs", False))
+        homolog_species = str(kwargs.get("homolog_species", "") or "").strip()
 
         if _is_stable_id(query):
             resource = f"lookup/id/{quote(query, safe='')}"
@@ -270,6 +274,16 @@ class EnsemblGeneLookupNode(BaseNode):
         if not isinstance(transcripts, list):
             transcripts = []
         gene_info = dict(payload)
+        gene_id = str(payload.get("id", "") or "").strip()
+        if fetch_homologs and gene_id:
+            homolog_params: dict[str, Any] = {"type": "orthologues"}
+            if homolog_species:
+                homolog_params["target_species"] = homolog_species
+            gene_info["homologs"] = await _request_json(
+                f"homology/id/{quote(gene_id, safe='')}",
+                params=homolog_params,
+                base_url=base_url,
+            )
         gene_info["summary"] = _summary(payload)
         return {
             "outputs": {

@@ -29,6 +29,14 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     assert info["ensembl_gene_lookup"]["display_name"] == "Ensembl Gene Lookup"
     assert info["ensembl_gene_lookup"]["category"] == "databases"
     assert info["ensembl_gene_lookup"]["output_name"] == ["gene_info", "transcripts"]
+    assert info["ensembl_gene_lookup"]["input"]["optional"]["fetch_homologs"] == (
+        "BOOLEAN",
+        {"default": False, "advanced": True},
+    )
+    assert info["ensembl_gene_lookup"]["input"]["optional"]["homolog_species"] == (
+        "STRING",
+        {"default": "", "advanced": True, "description": "Optional target species for homology lookup"},
+    )
     assert info["ensembl_vep"]["display_name"] == "Ensembl VEP"
     assert info["ensembl_vep"]["category"] == "databases"
     assert info["ensembl_vep"]["output_name"] == ["vep_json", "annotation_table"]
@@ -193,6 +201,67 @@ async def test_ensembl_gene_lookup_uses_stable_id_endpoint(monkeypatch: pytest.M
             "params": {"expand": 0},
             "base_url": "https://grch37.rest.ensembl.org",
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ensembl_gene_lookup_fetches_homologs_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ensembl_gene_lookup")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(resource: str, params: dict[str, Any] | None = None, base_url: str | None = None, **_: Any) -> dict[str, Any]:
+        calls.append({"resource": resource, "params": dict(params or {}), "base_url": base_url})
+        if resource == "lookup/symbol/homo_sapiens/TP53":
+            return {
+                "id": "ENSG00000141510",
+                "display_name": "TP53",
+                "species": "homo_sapiens",
+                "object_type": "Gene",
+                "Transcript": [{"id": "ENST00000269305"}],
+            }
+        if resource == "homology/id/ENSG00000141510":
+            return {
+                "data": [
+                    {
+                        "id": "ENSG00000141510",
+                        "homologies": [
+                            {
+                                "type": "ortholog_one2one",
+                                "target": {"species": "mus_musculus", "id": "ENSMUSG00000059552"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        raise AssertionError(f"unexpected resource: {resource}")
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        query="TP53",
+        species="homo_sapiens",
+        expand=True,
+        assembly="current",
+        fetch_homologs=True,
+        homolog_species="mus_musculus",
+    )
+
+    assert result["outputs"]["gene_info"]["homologs"]["data"][0]["homologies"][0]["target"]["id"] == (
+        "ENSMUSG00000059552"
+    )
+    assert result["outputs"]["transcripts"] == [{"id": "ENST00000269305"}]
+    assert calls == [
+        {
+            "resource": "lookup/symbol/homo_sapiens/TP53",
+            "params": {"expand": 1},
+            "base_url": "https://rest.ensembl.org",
+        },
+        {
+            "resource": "homology/id/ENSG00000141510",
+            "params": {"type": "orthologues", "target_species": "mus_musculus"},
+            "base_url": "https://rest.ensembl.org",
+        },
     ]
 
 
