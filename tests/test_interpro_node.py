@@ -27,11 +27,11 @@ def test_interpro_scan_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     assert info["interpro_scan"]["display_name"] == "InterProScan"
-    assert info["interpro_scan"]["category"] == "databases"
+    assert info["interpro_scan"]["category"] == "api"
     assert info["interpro_scan"]["output_name"] == ["domain_annotations", "domains_tsv"]
     assert info["interpro_scan"]["output"] == ["JSON", "TSV"]
     assert info["interpro"]["display_name"] == "InterPro"
-    assert info["interpro"]["category"] == "databases"
+    assert info["interpro"]["category"] == "api"
     assert info["interpro"]["output_name"] == ["domain_annotations", "domains_tsv"]
     assert info["interpro"]["output"] == ["JSON", "TSV"]
     assert issubclass(registry.get("interpro"), registry.get("interpro_scan"))

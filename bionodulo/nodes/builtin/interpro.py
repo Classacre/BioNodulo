@@ -155,7 +155,7 @@ class InterProScanNode(BaseNode):
 
     NODE_ID = "interpro_scan"
     DISPLAY_NAME = "InterProScan"
-    CATEGORY = "databases"
+    CATEGORY = "api"
     DESCRIPTION = "Submit protein sequences to InterProScan and return domain annotations."
     SEARCH_ALIASES = ["interpro", "domain", "family", "protein", "pfam", "smart", "gene3d", "scan"]
     RETURN_TYPES = ("JSON", "TSV")
