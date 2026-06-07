@@ -222,7 +222,7 @@ describe('ImportModal i18n', () => {
     expect(loggingMock.logError).not.toHaveBeenCalled();
   });
 
-  it('logs PNG workflow extraction failures while preserving the alert', async () => {
+  it('logs PNG workflow extraction failures while showing the generic alert', async () => {
     const { default: ImportModal } = await import('../components/modals/ImportModal');
     const extractionError = new Error('bad png metadata');
     pngMetadataMocks.extractWorkflowFromPng.mockImplementationOnce(() => {
@@ -237,6 +237,32 @@ describe('ImportModal i18n', () => {
 
     await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith({
       title: 'PNG read failed',
+      message: 'Could not read the workflow PNG. Export the workflow again or import the JSON file instead.',
+    }));
+    expect(loggingMock.logError).toHaveBeenCalledWith('importModal.pngRead', extractionError);
+  });
+
+  it('localizes PNG workflow extraction failures from the active locale', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const { setLanguage } = await import('../i18n');
+    const extractionError = new Error('bad png metadata');
+    pngMetadataMocks.extractWorkflowFromPng.mockImplementationOnce(() => {
+      throw extractionError;
+    });
+
+    await setLanguage('es');
+
+    const { container } = render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([0, 1, 2, 3])], 'workflow.png', { type: 'image/png' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith({
+      title: 'No se pudo leer el PNG',
+      message: 'No se pudo leer el PNG del flujo de trabajo. Exporta el flujo de trabajo de nuevo o importa el archivo JSON.',
+    }));
+    expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(expect.objectContaining({
       message: 'bad png metadata',
     }));
     expect(loggingMock.logError).toHaveBeenCalledWith('importModal.pngRead', extractionError);

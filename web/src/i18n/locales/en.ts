@@ -2558,6 +2558,7 @@ class MyToolNode(CommandNode):
       noPngWorkflowTitle: 'No workflow found',
       noPngWorkflowMessage: 'This PNG does not contain a BioNodulo workflow tEXt chunk. Export with the "PNG (workflow embedded)" option to produce one.',
       pngReadFailedTitle: 'PNG read failed',
+      pngReadFailedMessage: 'Could not read the workflow PNG. Export the workflow again or import the JSON file instead.',
     },
   },
   exportModal: {

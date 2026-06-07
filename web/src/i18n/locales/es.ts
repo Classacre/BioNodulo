@@ -2568,6 +2568,7 @@ class MyToolNode(CommandNode):
       noPngWorkflowTitle: 'No se encontro ningun flujo de trabajo',
       noPngWorkflowMessage: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG (flujo de trabajo incrustado)" para generar uno.',
       pngReadFailedTitle: 'No se pudo leer el PNG',
+      pngReadFailedMessage: 'No se pudo leer el PNG del flujo de trabajo. Exporta el flujo de trabajo de nuevo o importa el archivo JSON.',
     },
   },
   exportModal: {

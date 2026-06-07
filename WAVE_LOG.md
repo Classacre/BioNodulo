@@ -563,6 +563,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Batch sample-sheet workflow-parameter option labels now avoid English `workflow` wording in Spanish modal coverage.
 - Bundled Getting Started changelog items now avoid English `workflow` / `workflows` wording in Spanish release-note coverage.
 - Import modal parse and PNG-without-workflow alerts now avoid English `workflow` wording in Spanish modal coverage.
+- Import modal PNG read failures now show localized generic recovery copy instead of leaking raw parser errors, while preserving structured PNG diagnostics.
 - Export modal thumbnail alt text now avoids English `workflow` wording in Spanish modal coverage.
 - Export modal PNG thumbnail render failures now show localized fallback copy instead of leaking raw canvas errors into Spanish UI, while preserving structured logging for diagnostics.
 - Design token documentation now covers the complete 66-token palette contract from `ALL_PALETTE_TOKENS`, derived-token behavior, semantic token groups, current built-in canvas pattern mappings, and custom palette authoring guidance. The palette test suite now guards `docs/DESIGN_TOKENS.md` against missing CSS custom properties or stale built-in pattern rows.

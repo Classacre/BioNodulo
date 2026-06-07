@@ -166,7 +166,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
                     logError('importModal.pngRead', err);
                     await alertDialog({
                       title: t('importModal.errors.pngReadFailedTitle'),
-                      message: err instanceof Error ? err.message : String(err),
+                      message: t('importModal.errors.pngReadFailedMessage'),
                     });
                   }
                   return;
