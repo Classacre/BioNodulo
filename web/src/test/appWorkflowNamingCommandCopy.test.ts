@@ -36,10 +36,20 @@ describe('App workflow naming command copy i18n', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('commandPalette.commands.workflow.autoName')).toBe('Sugerir nombre de workflow');
-    expect(i18n.t('commandPalette.commands.workflow.autoNameDescription')).toBe('Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow');
+    expect(i18n.t('commandPalette.commands.workflow.autoName')).toBe('Sugerir nombre de flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.autoNameDescription')).toBe('Cambiar el nombre de la pestana actual segun las herramientas dominantes del flujo de trabajo');
     expect(i18n.t('workflowNaming.toast.needsNodes')).toBe('Agrega algunos nodos reales antes de nombrar automaticamente');
-    expect(i18n.t('workflowNaming.toast.renamed')).toBe('Workflow renombrado');
+    expect(i18n.t('workflowNaming.toast.renamed')).toBe('Flujo de trabajo renombrado');
+
+    [
+      'Sugerir nombre de workflow',
+      'Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow',
+      'Workflow renombrado',
+    ].forEach(text => {
+      expect(i18n.t('commandPalette.commands.workflow.autoName')).not.toBe(text);
+      expect(i18n.t('commandPalette.commands.workflow.autoNameDescription')).not.toBe(text);
+      expect(i18n.t('workflowNaming.toast.renamed')).not.toBe(text);
+    });
   });
 
   it('keeps App workflow auto-name command copy behind i18n keys', () => {

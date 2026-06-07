@@ -208,8 +208,8 @@ const es = {
         extractSelectionDescription: 'Abrir nodos seleccionados como nueva pestana de flujo de trabajo',
         doctor: 'Ejecutar doctor de flujo de trabajo',
         doctorDescription: 'Analizar el flujo de trabajo actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias',
-        autoName: 'Sugerir nombre de workflow',
-        autoNameDescription: 'Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow',
+        autoName: 'Sugerir nombre de flujo de trabajo',
+        autoNameDescription: 'Cambiar el nombre de la pestana actual segun las herramientas dominantes del flujo de trabajo',
         export: 'Exportar workflow',
         import: 'Importar workflow',
         newTab: 'Nueva pestana de workflow',
@@ -255,7 +255,7 @@ const es = {
     },
     toast: {
       needsNodes: 'Agrega algunos nodos reales antes de nombrar automaticamente',
-      renamed: 'Workflow renombrado',
+      renamed: 'Flujo de trabajo renombrado',
     },
   },
   shortcuts: {
