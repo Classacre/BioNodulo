@@ -1355,7 +1355,7 @@ const es = {
       templatesGuide: 'Guia de plantillas',
       customNodes: 'Nodos personalizados',
       hpcIntegration: 'Integracion HPC',
-      workflowConverters: 'Conversores de workflow',
+      workflowConverters: 'Conversores de flujos de trabajo',
       keyboardShortcuts: 'Atajos de teclado',
     },
     search: {
@@ -1592,8 +1592,8 @@ class MyToolNode(CommandNode):
 <p>Especifica modulos para cargar, por ejemplo <code>bioinfo/BWA/0.7.17</code>, en la configuracion HPC. Se cargan mediante <code>module load</code> antes de ejecutar el workflow.</p>
 `,
       workflowConverters: `
-<h3>Conversores de workflow</h3>
-<p>Importa y exporta workflows entre BioNodulo y otros formatos de workflow.</p>
+<h3>Conversores de flujos de trabajo</h3>
+<p>Importa y exporta flujos de trabajo entre BioNodulo y otros formatos de flujo de trabajo.</p>
 
 <h4>Formatos soportados</h4>
 <table>
@@ -1609,7 +1609,7 @@ class MyToolNode(CommandNode):
 <p>Haz clic en el boton Exportar de la barra superior, selecciona el formato destino y descarga el archivo generado. Para SnakeMake y NextFlow, BioNodulo genera reglas/procesos para cada nodo con conexiones correctas de entrada/salida.</p>
 
 <h4>Importacion</h4>
-<p>Haz clic en el boton Importar, pega el codigo del workflow o sube un archivo, y BioNodulo lo convertira en un grafo de nodos. Las herramientas reconocidas se mapean a nodos integrados; los pasos no reconocidos se convierten en nodos <code>Comando generico</code>.</p>
+<p>Haz clic en el boton Importar, pega el codigo del flujo de trabajo o sube un archivo, y BioNodulo lo convertira en un grafo de nodos. Las herramientas reconocidas se mapean a nodos integrados; los pasos no reconocidos se convierten en nodos <code>Comando generico</code>.</p>
 
 <h4>Limitaciones</h4>
 <ul>

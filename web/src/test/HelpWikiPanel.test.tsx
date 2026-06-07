@@ -478,15 +478,19 @@ describe('HelpWikiPanel node documentation search', () => {
 
     render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Conversores de workflow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversores de flujos de trabajo' }));
 
-    expect(screen.getByRole('heading', { name: 'Conversores de workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Conversores de flujos de trabajo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Formatos soportados' })).toBeInTheDocument();
-    expect(screen.getByText(/Importa y exporta workflows/)).toBeInTheDocument();
+    expect(screen.getByText(/Importa y exporta flujos de trabajo/)).toBeInTheDocument();
+    expect(screen.getByText(/codigo del flujo de trabajo/)).toBeInTheDocument();
     expect(screen.getByText('Snakefile')).toBeInTheDocument();
     expect(screen.getByText(/boton Exportar/)).toBeInTheDocument();
     expect(screen.getByText(/boton Importar/)).toBeInTheDocument();
     expect(screen.getAllByText('Comando generico').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Conversores de workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Importa y exporta workflows/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/codigo del workflow/)).not.toBeInTheDocument();
     expect(screen.queryByText('Workflow Converters')).not.toBeInTheDocument();
     expect(screen.queryByText(/boton Export\b/)).not.toBeInTheDocument();
     expect(screen.queryByText(/boton Import\b/)).not.toBeInTheDocument();
@@ -502,11 +506,12 @@ describe('HelpWikiPanel node documentation search', () => {
     render(<HelpWikiPanel onClose={vi.fn()} objectInfo={objectInfo} />);
 
     fireEvent.change(screen.getByPlaceholderText('Buscar ayuda...'), {
-      target: { value: 'formatos soportados' },
+      target: { value: 'flujos de trabajo' },
     });
 
     expect(screen.getByText('Paginas wiki')).toBeInTheDocument();
-    expect(screen.getByText('Conversores de workflow')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Conversores de flujos de trabajo')).toBeInTheDocument();
+    expect(screen.queryByText('Conversores de workflow')).not.toBeInTheDocument();
   });
 
   it('keeps workflow-converters wiki article content behind i18n keys', () => {
