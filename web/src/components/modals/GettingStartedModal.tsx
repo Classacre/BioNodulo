@@ -23,52 +23,58 @@ const TABS: { id: TabId; labelKey: string }[] = [
   { id: 'resources', labelKey: 'gettingStarted.tabs.resources' },
 ];
 
-const CHANGELOG = [
+interface BundledReleaseNote {
+  version: string;
+  date: string;
+  itemKeys: string[];
+}
+
+const CHANGELOG: BundledReleaseNote[] = [
   {
     version: '2.0',
     date: '2026-05',
-    items: [
-      'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',
-      'Resizable/floating side panels with improved dock controls',
-      'Template gallery redesign with previews, search ranking, tags, and workflow step summaries',
-      'Canvas upgrades for node badges, hover details, reroute workflows, selected execution, and subgraph extraction',
-      'Queue controls for cancel, retry, reorder, clear, progress tracking, and batch execution',
-      'Collaboration, autosave, i18n, theme palette, and performance mode refinements',
+    itemKeys: [
+      'gettingStarted.changelog.v2.items.commandPalette',
+      'gettingStarted.changelog.v2.items.panels',
+      'gettingStarted.changelog.v2.items.templates',
+      'gettingStarted.changelog.v2.items.canvas',
+      'gettingStarted.changelog.v2.items.queue',
+      'gettingStarted.changelog.v2.items.collaboration',
     ],
   },
   {
     version: 'Alpha 1.5',
     date: '2025-05',
-    items: [
-      'Visual-only notes and node minimization support',
-      'Console log grouping by run_id with expand/collapse',
-      'Complete environment panel rework with pixi migration',
-      'BioPython pipeline fixes (BLAST, translation, SeqIO)',
-      'Per-workflow isolated environments with content-addressed envs',
-      'HPC backend support (SLURM, PBS, SGE)',
-      'Getting Started modal with public dataset downloads',
+    itemKeys: [
+      'gettingStarted.changelog.alpha15.items.visualNotes',
+      'gettingStarted.changelog.alpha15.items.consoleGrouping',
+      'gettingStarted.changelog.alpha15.items.environmentPanel',
+      'gettingStarted.changelog.alpha15.items.biopythonFixes',
+      'gettingStarted.changelog.alpha15.items.isolatedEnvironments',
+      'gettingStarted.changelog.alpha15.items.hpcSupport',
+      'gettingStarted.changelog.alpha15.items.gettingStartedData',
     ],
   },
   {
     version: 'Alpha 1.1',
     date: '2025-04',
-    items: [
-      'AI assistant with tool-calling for workflow building',
-      'Workflow export to Snakemake, NextFlow, CWL, Galaxy',
-      'Node registry with bioinformatics tool metadata',
-      'Real-time WebSocket execution logs',
-      'Hardware monitor overlay',
+    itemKeys: [
+      'gettingStarted.changelog.alpha11.items.aiAssistant',
+      'gettingStarted.changelog.alpha11.items.workflowExport',
+      'gettingStarted.changelog.alpha11.items.nodeRegistry',
+      'gettingStarted.changelog.alpha11.items.websocketLogs',
+      'gettingStarted.changelog.alpha11.items.hardwareMonitor',
     ],
   },
   {
     version: 'Alpha 1.0',
     date: '2025-03',
-    items: [
-      'Initial BioNodulo v2 release',
-      'Workflow canvas with custom bioinformatics nodes',
-      '14 built-in pipeline templates',
-      'Pixi-based package management',
-      'Result caching and queue-based execution',
+    itemKeys: [
+      'gettingStarted.changelog.alpha10.items.initialRelease',
+      'gettingStarted.changelog.alpha10.items.workflowCanvas',
+      'gettingStarted.changelog.alpha10.items.templates',
+      'gettingStarted.changelog.alpha10.items.pixiPackages',
+      'gettingStarted.changelog.alpha10.items.resultCaching',
     ],
   },
 ];
@@ -79,6 +85,13 @@ interface ReleaseNote {
   url?: string;
   body?: string;
   items?: string[];
+}
+
+type NewsEntry = ReleaseNote | BundledReleaseNote;
+
+function releaseNoteItems(entry: NewsEntry, t: TFunction): string[] {
+  if ('itemKeys' in entry) return entry.itemKeys.map(key => t(key));
+  return entry.items ?? [];
 }
 
 const RELEASES_CACHE_KEY = 'bionodulo.releases.cache';
@@ -416,7 +429,7 @@ export default function GettingStartedModal({
                 )}
               </div>
               {(liveReleases && liveReleases.length > 0 ? liveReleases : CHANGELOG).map(entry => {
-                const items = 'items' in entry && entry.items ? entry.items : [];
+                const items = releaseNoteItems(entry, t);
                 const liveUrl = 'url' in entry ? entry.url : undefined;
                 return (
                   <div key={entry.version} style={{ marginBottom: 16 }}>

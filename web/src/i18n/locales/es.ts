@@ -507,6 +507,47 @@ const es = {
     newsBundled: 'Mostrando changelog incluido',
     newsRefetchTitle: 'Volver a cargar release notes',
     newsViewOnGitHub: 'Ver en GitHub',
+    changelog: {
+      v2: {
+        items: {
+          commandPalette: 'Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo',
+          panels: 'Paneles laterales redimensionables y flotantes con controles de acoplamiento mejorados',
+          templates: 'Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del workflow',
+          canvas: 'Mejoras del lienzo para insignias de nodos, detalles al pasar el cursor, reroutes, ejecucion seleccionada y extraccion de subgrafos',
+          queue: 'Controles de cola para cancelar, reintentar, reordenar, limpiar, seguir progreso y ejecutar lotes',
+          collaboration: 'Mejoras de colaboracion, autoguardado, i18n, paleta de temas y modo de rendimiento',
+        },
+      },
+      alpha15: {
+        items: {
+          visualNotes: 'Notas solo visuales y soporte para minimizar nodos',
+          consoleGrouping: 'Agrupacion de registros de consola por run_id con expandir y contraer',
+          environmentPanel: 'Rework completo del panel de entornos con migracion a pixi',
+          biopythonFixes: 'Correcciones de pipelines BioPython (BLAST, traduccion, SeqIO)',
+          isolatedEnvironments: 'Entornos aislados por workflow con entornos direccionados por contenido',
+          hpcSupport: 'Soporte backend HPC (SLURM, PBS, SGE)',
+          gettingStartedData: 'Modal Primeros pasos con descargas de datasets publicos',
+        },
+      },
+      alpha11: {
+        items: {
+          aiAssistant: 'Asistente de IA con llamadas a herramientas para construir workflows',
+          workflowExport: 'Exportacion de workflows a Snakemake, NextFlow, CWL y Galaxy',
+          nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
+          websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
+          hardwareMonitor: 'Overlay de monitor de hardware',
+        },
+      },
+      alpha10: {
+        items: {
+          initialRelease: 'Version inicial de BioNodulo v2',
+          workflowCanvas: 'Lienzo de workflows con nodos bioinformaticos personalizados',
+          templates: '14 plantillas de pipelines integradas',
+          pixiPackages: 'Gestion de paquetes basada en Pixi',
+          resultCaching: 'Cache de resultados y ejecucion basada en cola',
+        },
+      },
+    },
     resources: {
       wikiTitle: 'Wiki y documentacion',
       wikiDescription: 'Aprende a crear workflows y usar nodos',

@@ -503,6 +503,47 @@ const en = {
     newsBundled: 'Showing bundled changelog',
     newsRefetchTitle: 'Refetch release notes',
     newsViewOnGitHub: 'View on GitHub',
+    changelog: {
+      v2: {
+        items: {
+          commandPalette: 'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',
+          panels: 'Resizable/floating side panels with improved dock controls',
+          templates: 'Template gallery redesign with previews, search ranking, tags, and workflow step summaries',
+          canvas: 'Canvas upgrades for node badges, hover details, reroute workflows, selected execution, and subgraph extraction',
+          queue: 'Queue controls for cancel, retry, reorder, clear, progress tracking, and batch execution',
+          collaboration: 'Collaboration, autosave, i18n, theme palette, and performance mode refinements',
+        },
+      },
+      alpha15: {
+        items: {
+          visualNotes: 'Visual-only notes and node minimization support',
+          consoleGrouping: 'Console log grouping by run_id with expand/collapse',
+          environmentPanel: 'Complete environment panel rework with pixi migration',
+          biopythonFixes: 'BioPython pipeline fixes (BLAST, translation, SeqIO)',
+          isolatedEnvironments: 'Per-workflow isolated environments with content-addressed envs',
+          hpcSupport: 'HPC backend support (SLURM, PBS, SGE)',
+          gettingStartedData: 'Getting Started modal with public dataset downloads',
+        },
+      },
+      alpha11: {
+        items: {
+          aiAssistant: 'AI assistant with tool-calling for workflow building',
+          workflowExport: 'Workflow export to Snakemake, NextFlow, CWL, Galaxy',
+          nodeRegistry: 'Node registry with bioinformatics tool metadata',
+          websocketLogs: 'Real-time WebSocket execution logs',
+          hardwareMonitor: 'Hardware monitor overlay',
+        },
+      },
+      alpha10: {
+        items: {
+          initialRelease: 'Initial BioNodulo v2 release',
+          workflowCanvas: 'Workflow canvas with custom bioinformatics nodes',
+          templates: '14 built-in pipeline templates',
+          pixiPackages: 'Pixi-based package management',
+          resultCaching: 'Result caching and queue-based execution',
+        },
+      },
+    },
     resources: {
       wikiTitle: 'Wiki & Documentation',
       wikiDescription: 'Learn how to build workflows and use nodes',

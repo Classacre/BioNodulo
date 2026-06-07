@@ -161,6 +161,30 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByText('Cached release item')).toBeInTheDocument();
   });
 
+  it('renders bundled release notes from the active locale when live releases fail', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+
+    render(
+      <GettingStartedModal
+        onClose={() => undefined}
+        onDontShowAgain={() => undefined}
+        showOnStartup
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
+
+    expect(await screen.findByText('Modo sin conexion - mostrando changelog incluido')).toBeInTheDocument();
+    expect(i18n.t('gettingStarted.changelog.v2.items.commandPalette')).toBe('Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo');
+    expect(screen.getByText('Paleta de comandos, atajos, toasts, dialogos y flujo de paneles de BioNodulo')).toBeInTheDocument();
+    expect(screen.getByText('Version inicial de BioNodulo v2')).toBeInTheDocument();
+    expect(screen.queryByText('BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow')).not.toBeInTheDocument();
+  });
+
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
@@ -200,6 +224,8 @@ describe('GettingStartedModal i18n', () => {
       'gettingStarted.newsBundled',
       'gettingStarted.newsRefetchTitle',
       'gettingStarted.newsViewOnGitHub',
+      'gettingStarted.changelog.v2.items.commandPalette',
+      'gettingStarted.changelog.alpha10.items.initialRelease',
       'gettingStarted.resources.wikiTitle',
       'gettingStarted.resources.githubDescription',
       'gettingStarted.resources.issueTitle',
@@ -234,6 +260,10 @@ describe('GettingStartedModal i18n', () => {
       'Fetching latest releases',
       'Offline mode',
       'Showing bundled changelog',
+      'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',
+      'Resizable/floating side panels with improved dock controls',
+      'AI assistant with tool-calling for workflow building',
+      'Initial BioNodulo v2 release',
       'title="Refetch release notes"',
       '>Refresh<',
       '>View on GitHub<',
