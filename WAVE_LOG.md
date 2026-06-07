@@ -681,6 +681,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - OutputDiffModal left and right run fetch failures now report structured `logError` scopes while preserving inline comparison errors and skipping cancelled fetches.
 - RuntimeArtifactsPanel trigger evaluation, submit-due, pause resolution, and checkpoint resolution failures now report structured `logError` scopes while preserving inline action errors.
 - HostPrerequisitesBanner Pixi install request failures now report a structured `logError` scope while preserving localized install feedback and the recheck flow.
+- ExportModal workflow export generation failures now report a structured `logError` scope while preserving inline export errors and suppressing fallback downloads.
 
 ---
 

@@ -21,6 +21,12 @@ const apiMocks = {
 
 vi.mock('../api/client', () => apiMocks);
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+
 const utilsMocks = vi.hoisted(() => ({
   saveToFile: vi.fn(),
 }));
@@ -74,6 +80,7 @@ describe('ExportModal i18n', () => {
   beforeEach(() => {
     storage.clear();
     apiMocks.apiPost.mockReset();
+    loggingMock.logError.mockReset();
     utilsMocks.saveToFile.mockReset();
     thumbnailMocks.renderWorkflowThumbnail.mockClear();
     vi.stubGlobal('localStorage', localStorageStub);
@@ -146,11 +153,10 @@ describe('ExportModal i18n', () => {
 
   it('shows export API errors without generating fallback downloadable content', async () => {
     const { default: ExportModal } = await import('../components/modals/ExportModal');
-    apiMocks.apiPost.mockRejectedValueOnce(
-      new apiMocks.ApiError('HTTP 500 Server Error (/api/workflow/export)', 500, 'Server Error', {
-        detail: 'Converter for snakemake is unavailable',
-      }),
-    );
+    const exportError = new apiMocks.ApiError('HTTP 500 Server Error (/api/workflow/export)', 500, 'Server Error', {
+      detail: 'Converter for snakemake is unavailable',
+    });
+    apiMocks.apiPost.mockRejectedValueOnce(exportError);
 
     render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
 
@@ -160,6 +166,7 @@ describe('ExportModal i18n', () => {
     await waitFor(() => {
       expect(screen.getByText('HTTP 500 Server Error (/api/workflow/export)')).toBeInTheDocument();
     });
+    expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.generate', exportError);
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy to clipboard' })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(/"version": "2.0"/)).not.toBeInTheDocument();

@@ -6,6 +6,7 @@ import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
 import { useFocusTrap } from '../../hooks/ui';
 import { apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 
 interface ExportModalProps {
   workflow: Workflow;
@@ -80,6 +81,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         setPngPreview(null);
       }
     } catch (err) {
+      logError('exportModal.generate', err);
       setError(err instanceof Error ? err.message : String(err));
       setContent('');
       setPngPreview(null);
