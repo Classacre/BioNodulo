@@ -37,7 +37,8 @@ describe('App share URL command copy i18n', () => {
     await setLanguage('es');
 
     expect(i18n.t('commandPalette.commands.share.copyUrl')).toBe('Copiar URL compartible');
-    expect(i18n.t('commandPalette.commands.share.copyUrlDescription')).toBe('Codificar el workflow actual en un hash de URL y copiarlo al portapapeles');
+    expect(i18n.t('commandPalette.commands.share.copyUrlDescription')).toBe('Codificar el flujo de trabajo actual en un hash de URL y copiarlo al portapapeles');
+    expect(i18n.t('commandPalette.commands.share.copyUrlDescription')).not.toBe('Codificar el workflow actual en un hash de URL y copiarlo al portapapeles');
     expect(i18n.t('workflowShare.copyUrlBuildError')).toBe('No se pudo crear la URL compartible');
     expect(i18n.t('workflowShare.copyUrlTooLarge')).toBe('La URL supera 32 KB');
     expect(i18n.t('workflowShare.copyUrlTooLargeMessage')).toBe('Algunas herramientas de chat pueden truncarla. Considera exportar en su lugar.');

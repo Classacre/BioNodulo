@@ -181,7 +181,7 @@ const es = {
       },
       share: {
         copyUrl: 'Copiar URL compartible',
-        copyUrlDescription: 'Codificar el workflow actual en un hash de URL y copiarlo al portapapeles',
+        copyUrlDescription: 'Codificar el flujo de trabajo actual en un hash de URL y copiarlo al portapapeles',
       },
       shortcuts: {
         open: 'Atajos de teclado',
