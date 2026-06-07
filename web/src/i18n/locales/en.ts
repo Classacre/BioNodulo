@@ -1728,6 +1728,7 @@ class MyToolNode(CommandNode):
     previewImageTitle: 'Double-click to view fullscreen',
     previewImageAlt: 'Preview {{node}}',
     previewHtmlTitle: 'Click to open HTML report',
+    previewHtmlBadge: 'HTML',
     previewFrameTitle: 'Preview {{node}}',
     status: {
       all: 'All',

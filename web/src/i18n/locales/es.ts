@@ -1733,6 +1733,7 @@ class MyToolNode(CommandNode):
     previewImageTitle: 'Doble clic para ver en pantalla completa',
     previewImageAlt: 'Previsualizacion {{node}}',
     previewHtmlTitle: 'Clic para abrir informe HTML',
+    previewHtmlBadge: 'Informe HTML',
     previewFrameTitle: 'Previsualizacion {{node}}',
     status: {
       all: 'Todas',

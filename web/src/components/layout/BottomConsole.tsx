@@ -1085,7 +1085,7 @@ export default function BottomConsole({
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Icon name="file" size={10} /> {htmlItem.filename}
                       </span>
-                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>HTML</span>
+                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('console.previewHtmlBadge')}</span>
                     </div>
                   </div>
                 ))}

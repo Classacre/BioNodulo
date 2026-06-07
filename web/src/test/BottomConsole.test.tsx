@@ -81,7 +81,7 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
   });
 
-  it('renders preview image alt text from the active locale', async () => {
+  it('renders preview image and HTML labels from the active locale', async () => {
     const { default: BottomConsole } = await import('../components/layout/BottomConsole');
     const { setLanguage } = await import('../i18n');
 
@@ -93,12 +93,18 @@ describe('BottomConsole i18n', () => {
       workflow_name: 'Preview workflow',
       previews: { plot_node: '/runs/history-run-1/plot_node/plot.png' },
     });
+    const htmlRun = runRecord({
+      run_id: 'history-run-2',
+      status: 'completed',
+      workflow_name: 'HTML workflow',
+      previews: { report_node: '/runs/history-run-2/report_node/report.html' },
+    });
 
     render(
       <Provider>
         <BottomConsole
           queue={[]}
-          history={[historyRun]}
+          history={[historyRun, htmlRun]}
           onClose={() => undefined}
         />
       </Provider>,
@@ -108,6 +114,8 @@ describe('BottomConsole i18n', () => {
 
     expect(screen.getByRole('img', { name: 'Previsualizacion plot_node' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Preview plot_node' })).not.toBeInTheDocument();
+    expect(screen.getByText('Informe HTML')).toBeInTheDocument();
+    expect(screen.queryByText('HTML')).not.toBeInTheDocument();
   });
 
   it('renders missing log run and node labels from the active locale', async () => {
