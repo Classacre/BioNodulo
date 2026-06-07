@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ObjectInfo } from '../types';
 
@@ -18,6 +18,36 @@ const localStorageStub: Storage = {
   },
 };
 
+function stubCanvasContext(fillText: ReturnType<typeof vi.fn>) {
+  const gradient = { addColorStop: vi.fn() };
+  const context = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    bezierCurveTo: vi.fn(),
+    clearRect: vi.fn(),
+    closePath: vi.fn(),
+    createLinearGradient: vi.fn(() => gradient),
+    fill: vi.fn(),
+    fillRect: vi.fn(),
+    fillText,
+    lineTo: vi.fn(),
+    measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
+    moveTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    restore: vi.fn(),
+    rotate: vi.fn(),
+    save: vi.fn(),
+    scale: vi.fn(),
+    setLineDash: vi.fn(),
+    setTransform: vi.fn(),
+    stroke: vi.fn(),
+    strokeRect: vi.fn(),
+    translate: vi.fn(),
+  };
+
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => context as unknown as CanvasRenderingContext2D);
+}
+
 describe('WorkflowCanvas controls i18n', () => {
   beforeEach(() => {
     storage.clear();
@@ -28,6 +58,7 @@ describe('WorkflowCanvas controls i18n', () => {
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -65,5 +96,54 @@ describe('WorkflowCanvas controls i18n', () => {
     expect(screen.getByTitle('Alternar minimapa')).toBeInTheDocument();
     expect(screen.getByTitle('Alternar enlaces')).toBeInTheDocument();
     expect(screen.getByTitle('Autoordenar nodos')).toBeInTheDocument();
+  });
+
+  it('draws array parameter summaries from the active locale', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    const { setLanguage } = await import('../i18n');
+    const fillText = vi.fn();
+    stubCanvasContext(fillText);
+
+    await setLanguage('es');
+
+    render(
+      <WorkflowCanvas
+        nodes={[{
+          id: 'array-node',
+          type: 'array_node',
+          position: [100, 100],
+          params: {
+            samples: ['S1', 'S2', 'S3'],
+          },
+        }]}
+        edges={[]}
+        groups={[]}
+        objectInfo={{
+          array_node: {
+            id: 'array_node',
+            display_name: 'Array Node',
+            category: 'Utility',
+            return_types: [],
+          },
+        } satisfies ObjectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fillText).toHaveBeenCalledWith('samples: 3 elementos', expect.any(Number), expect.any(Number));
+    });
+    expect(fillText).not.toHaveBeenCalledWith('samples: 3 items', expect.any(Number), expect.any(Number));
   });
 });

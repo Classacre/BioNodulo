@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
@@ -296,11 +297,11 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
   return base;
 }
 
-function formatNodeParamValue(value: unknown): string {
+function formatNodeParamValue(value: unknown, t: TFunction): string {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/\.?0+$/, '');
-  if (Array.isArray(value)) return `${value.length} items`;
+  if (Array.isArray(value)) return t('canvas.itemCount', { count: value.length });
   if (typeof value === 'object') return '{...}';
   const text = String(value);
   return text.length > 24 ? `${text.slice(0, 21)}...` : text;
@@ -1385,7 +1386,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               ctx.font = '9px Inter, sans-serif';
               for (const [key, value] of paramEntries) {
                 const label = key.replace(/_/g, ' ');
-                const brief = `${label}: ${formatNodeParamValue(value)}`;
+                const brief = `${label}: ${formatNodeParamValue(value, tRef.current)}`;
                 ctx.fillStyle = isDark ? '#334155' : '#f1f5f9';
                 roundRect(ctx, wx, summaryY - 2, ww, 13, 5);
                 ctx.fill();

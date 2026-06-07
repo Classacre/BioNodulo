@@ -1930,6 +1930,8 @@ class MyToolNode(CommandNode):
     nodeErrorAria: 'Error: {{message}}',
     nodeErrorTitle: 'Node error',
     nodeErrorDismissHint: "Edit the node's parameters to dismiss.",
+    itemCount: '{{count}} item',
+    itemCount_other: '{{count}} items',
     autoLayout: 'Auto-layout',
     flashUndo: 'Undo',
     flashRedo: 'Redo',
