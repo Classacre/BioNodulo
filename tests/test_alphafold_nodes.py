@@ -566,3 +566,45 @@ async def test_alphafold_db_accepts_format_alias_for_structure_format(
     assert download_calls == [
         ("https://alphafold.example/P04637.pdb", tmp_path / "alphafold_db" / "P04637.pdb"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_alphafold_db_prefers_planned_format_over_structure_format(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("alphafold_db")
+    module = importlib.import_module(node_class.__module__)
+    download_calls: list[tuple[str, Path]] = []
+
+    async def fake_json(resource: str, **_: Any) -> Any:
+        return [
+            {
+                "entryId": "AF-P04637-F1",
+                "uniprotAccession": "P04637",
+                "uniprotId": "P53_HUMAN",
+                "cifUrl": "https://alphafold.example/P04637.cif",
+                "pdbUrl": "https://alphafold.example/P04637.pdb",
+                "latestVersion": 4,
+            }
+        ]
+
+    async def fake_download(url: str, path: Path, **_: Any) -> None:
+        download_calls.append((url, path))
+        path.write_text(f"downloaded from {url}\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    monkeypatch.setattr(module, "_download_file", fake_download)
+
+    result = await node_class().run(
+        uniprot_ids="P04637",
+        structure_format="mmcif",
+        format="pdb",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    structure_path = Path(result["outputs"]["structure_mmcif"])
+    assert structure_path.name == "P04637.pdb"
+    assert download_calls == [
+        ("https://alphafold.example/P04637.pdb", tmp_path / "alphafold_db" / "P04637.pdb"),
+    ]
