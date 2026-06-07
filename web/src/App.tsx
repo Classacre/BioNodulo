@@ -2508,7 +2508,7 @@ export default function App() {
         id: `addNode.${meta.id}`,
         label: t('nodePalette.addNodeTitle', { name: meta.display_name }),
         description: meta.description || meta.category,
-        group: t('nodePalette.addNode'),
+        group: 'Add Node',
         groupLabelKey: 'nodePalette.addNode',
         keywords: [meta.id, meta.category, ...(meta.search_aliases || []), ...(meta.requires_external_tools || [])],
         onSelect: () => {

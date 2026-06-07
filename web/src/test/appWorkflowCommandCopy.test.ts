@@ -85,9 +85,16 @@ describe('App workflow command copy i18n', () => {
       "description: 'Open selected nodes as a new workflow tab'",
       "label: 'Run workflow doctor'",
       "description: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints'",
-      "group: 'Add Node'",
       "label: `Add: ${meta.display_name}`",
     ].forEach(text => expect(appSource).not.toContain(text));
+  });
+
+  it('keeps add-node command group identity canonical while localizing the heading', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).not.toContain("group: t('nodePalette.addNode')");
+    expect(appSource).toContain("group: 'Add Node'");
+    expect(appSource).toContain("groupLabelKey: 'nodePalette.addNode'");
   });
 
   it('pairs workflow command group fallbacks with the workflow group i18n key', () => {
