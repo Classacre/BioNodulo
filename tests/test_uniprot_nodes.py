@@ -28,6 +28,9 @@ def test_uniprot_retrieve_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_retrieve"]["display_name"] == "UniProt Retrieve"
     assert info["uniprot_retrieve"]["category"] == "databases"
     assert info["uniprot_retrieve"]["output_name"] == ["protein_data", "sequence"]
+    assert set(info["uniprot_retrieve"]["search_aliases"]).issuperset(
+        {"retrieve", "fetch", "sequence", "annotation"}
+    )
     assert info["uniprot_retrieve"]["input"]["required"]["uniprot_ids"] == (
         "STRING",
         {"default": "", "description": "UniProt accession(s), comma-separated"},
@@ -55,6 +58,7 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_search"]["display_name"] == "UniProt Search"
     assert info["uniprot_search"]["category"] == "databases"
     assert info["uniprot_search"]["output_name"] == ["results_table", "results_data"]
+    assert "query" in info["uniprot_search"]["search_aliases"]
     assert info["uniprot_search"]["input"]["optional"]["database"] == (
         "STRING",
         {"default": "uniprotkb", "options": ["uniprotkb", "uniref", "uniparc"]},

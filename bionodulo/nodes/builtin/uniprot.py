@@ -197,7 +197,7 @@ class UniProtSearchNode(BaseNode):
     DISPLAY_NAME = "UniProt Search"
     CATEGORY = "databases"
     DESCRIPTION = "Search UniProtKB and return matching protein entries as JSON plus a TSV summary."
-    SEARCH_ALIASES = ["uniprot", "protein", "swissprot", "trembl", "search", "database"]
+    SEARCH_ALIASES = ["uniprot", "protein", "search", "query", "swissprot", "trembl", "database"]
     RETURN_TYPES = ("TSV", "JSON")
     RETURN_NAMES = ("results_table", "results_data")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -277,7 +277,18 @@ class UniProtRetrieveNode(BaseNode):
     DISPLAY_NAME = "UniProt Retrieve"
     CATEGORY = "databases"
     DESCRIPTION = "Retrieve UniProtKB protein entries and optional FASTA sequences by accession."
-    SEARCH_ALIASES = ["uniprot", "protein", "swissprot", "trembl", "fasta", "database"]
+    SEARCH_ALIASES = [
+        "uniprot",
+        "protein",
+        "retrieve",
+        "fetch",
+        "sequence",
+        "fasta",
+        "annotation",
+        "swissprot",
+        "trembl",
+        "database",
+    ]
     RETURN_TYPES = ("JSON", "FASTA")
     RETURN_NAMES = ("protein_data", "sequence")
     REQUIRES_EXTERNAL_TOOLS = False

@@ -620,6 +620,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI EFetch now exposes the planned return-type selector options for FASTA, GenBank, feature table, XML, accession, SeqID, and docsum fetches.
 - NCBI EFetch now exposes the planned `nucleotide` database alias and normalizes it to NCBI's `nuccore` request parameter.
 - UniProt Search now accepts the planned `size` input alias while preserving `max_results` compatibility.
+- UniProt Search and Retrieve now advertise the planned discovery aliases such as `query`, `retrieve`, `fetch`, `sequence`, and `annotation`.
 
 ---
 
