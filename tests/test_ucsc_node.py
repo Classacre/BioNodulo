@@ -27,9 +27,24 @@ def test_ucsc_genome_browser_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     assert info["ucsc_genome_browser"]["display_name"] == "UCSC Genome Browser"
-    assert info["ucsc_genome_browser"]["category"] == "databases"
+    assert info["ucsc_genome_browser"]["category"] == "api"
     assert info["ucsc_genome_browser"]["output_name"] == ["sequence_fasta", "annotations_json"]
     assert info["ucsc_genome_browser"]["output"] == ["FASTA", "JSON"]
+    assert info["ucsc_genome_browser"]["input"]["required"]["genome"] == (
+        "STRING",
+        {
+            "default": "hg38",
+            "options": ["hg38", "hg19", "mm39", "mm10", "rn7", "rn6", "danRer11", "dm6", "ce11", "sacCer3"],
+        },
+    )
+    assert info["ucsc_genome_browser"]["input"]["optional"]["query_type"] == (
+        "STRING",
+        {"default": "sequence", "options": ["sequence", "genes_in_region", "dna_sequence", "tracks"]},
+    )
+    assert info["ucsc_genome_browser"]["input"]["optional"]["track"] == (
+        "STRING",
+        {"default": "knownGene", "options": ["knownGene", "refGene", "ensGene", "ncbiRefSeq", "snp"]},
+    )
 
 
 @pytest.mark.asyncio
@@ -153,7 +168,7 @@ async def test_ucsc_dna_sequence_alias_uses_sequence_endpoint(
 
     monkeypatch.setattr(module, "_request_json", fake_json)
 
-    assert "dna_sequence" in node_class.INPUT_TYPES()["optional"]["query_type"][0]
+    assert "dna_sequence" in node_class.INPUT_TYPES()["optional"]["query_type"][1]["options"]
 
     result = await node_class().run(
         coordinates="chr17:43044295-43044300",

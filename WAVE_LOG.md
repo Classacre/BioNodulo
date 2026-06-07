@@ -596,6 +596,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - InterProScan REST nodes now advertise the planned `api` category for `interpro_scan` and its compatibility wrapper.
 - STRING DB now advertises the planned `api` category and exposes `query_type` / `network_flavor` as `STRING` controls with explicit option lists.
 - KEGG Pathway now advertises the planned REST `api` category and exposes `query_type` as a `STRING` control with explicit KEGG query options.
+- UCSC Genome Browser now advertises the planned `api` category and exposes genome, query type, and track selectors as `STRING` controls with explicit option lists.
 
 ---
 

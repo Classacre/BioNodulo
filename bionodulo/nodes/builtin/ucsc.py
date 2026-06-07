@@ -110,7 +110,7 @@ class UCSCGenomeBrowserNode(BaseNode):
 
     NODE_ID = "ucsc_genome_browser"
     DISPLAY_NAME = "UCSC Genome Browser"
-    CATEGORY = "databases"
+    CATEGORY = "api"
     DESCRIPTION = "Fetch genome sequence and region annotations from the UCSC Genome Browser API."
     SEARCH_ALIASES = [
         "ucsc",
@@ -133,11 +133,11 @@ class UCSCGenomeBrowserNode(BaseNode):
         return {
             "required": {
                 "coordinates": ("STRING", {"default": "", "description": "Genomic coordinates, e.g. chr17:43044295-43125364"}),
-                "genome": (list(UCSC_GENOMES), {"default": "hg38"}),
+                "genome": ("STRING", {"default": "hg38", "options": list(UCSC_GENOMES)}),
             },
             "optional": {
-                "query_type": (list(UCSC_QUERY_TYPES), {"default": "sequence"}),
-                "track": (list(UCSC_TRACKS), {"default": "knownGene"}),
+                "query_type": ("STRING", {"default": "sequence", "options": list(UCSC_QUERY_TYPES)}),
+                "track": ("STRING", {"default": "knownGene", "options": list(UCSC_TRACKS)}),
                 "max_items": ("INT", {"default": 1000, "min": 1, "max": 100000, "advanced": True}),
             },
             "hidden": {},
