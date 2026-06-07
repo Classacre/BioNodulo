@@ -49,6 +49,24 @@ describe('App file action copy i18n', () => {
     expect(i18n.t('workspace.uploadSuccess', { name: 'reads.fastq' })).toBe('reads.fastq subido');
   });
 
+  it('returns workspace file management labels from the active locale', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    expect(i18n.t('workspace.newFolder')).toBe('Nueva carpeta');
+    expect(i18n.t('workspace.newFolderName')).toBe('Nombre de carpeta');
+    expect(i18n.t('workspace.pathCopied')).toBe('Ruta copiada');
+    expect(i18n.t('workspace.revealInExplorer')).toBe('Mostrar en el gestor de archivos');
+    expect(i18n.t('workspace.deletePromptTitle')).toBe('Eliminar archivo?');
+    expect(i18n.t('workspace.deletePromptBody', { name: 'reads.fastq' })).toBe('Eliminar reads.fastq permanentemente?');
+    expect(i18n.t('workspace.fileEmpty')).toBe('Espacio de trabajo vacio; arrastra archivos para empezar');
+    expect(i18n.t('workspace.fileCount', { count: 1 })).toBe('1 archivo');
+    expect(i18n.t('workspace.fileCount', { count: 4 })).toBe('4 archivos');
+    expect(i18n.t('workspace.folderCount', { count: 1 })).toBe('1 carpeta');
+    expect(i18n.t('workspace.folderCount', { count: 3 })).toBe('3 carpetas');
+  });
+
   it('keeps App pasted and dropped file feedback behind i18n helpers', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
