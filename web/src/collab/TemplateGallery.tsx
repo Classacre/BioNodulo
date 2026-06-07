@@ -5,6 +5,7 @@ import type { Workflow } from '../types';
 import Icon from '../components/ui/Icon';
 import { promptDialog } from '../components/ui';
 import { apiGet, apiPost } from '../api/client';
+import { logError } from '../state/logging';
 
 const API_BASE = 'api/collab';
 
@@ -46,6 +47,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       setTemplates(data.templates ?? []);
       setError(null);
     } catch (err) {
+      logError('collab.templateGallery.load', err);
       setError(err instanceof Error ? err.message : t('collab.templateGalleryLoadError'));
     } finally {
       setLoading(false);
@@ -77,6 +79,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       }
       onClose();
     } catch (err) {
+      logError('collab.templateGallery.fork', err);
       setError(err instanceof Error ? err.message : t('collab.templateGalleryForkError'));
     } finally {
       setForkingId(null);
@@ -119,6 +122,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       });
       fetchTemplates();
     } catch (err) {
+      logError('collab.templateGallery.save', err);
       setError(err instanceof Error ? err.message : t('collab.templateGallerySaveError'));
     } finally {
       setSavingWorkflowId(null);

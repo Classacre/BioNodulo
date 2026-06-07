@@ -10,8 +10,13 @@ const dialogMocks = vi.hoisted(() => ({
   promptDialog: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
 vi.mock('../components/ui', () => dialogMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -36,6 +41,7 @@ describe('TemplateGallery i18n', () => {
     apiMocks.apiGet.mockReset();
     apiMocks.apiPost.mockReset();
     dialogMocks.promptDialog.mockReset();
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -195,5 +201,78 @@ describe('TemplateGallery i18n', () => {
     });
 
     await waitFor(() => expect(screen.getByText('No se pudo bifurcar')).toBeInTheDocument());
+  });
+
+  it('logs swallowed template API failures with stable scopes', async () => {
+    const { default: TemplateGallery } = await import('../collab/TemplateGallery');
+    const loadError = new Error('templates unavailable');
+    const forkError = new Error('fork unavailable');
+    const saveError = new Error('save unavailable');
+
+    apiMocks.apiGet.mockRejectedValueOnce(loadError);
+
+    const { rerender } = render(
+      <TemplateGallery
+        isOpen
+        currentWorkflowId="workflow-1"
+        onClose={() => undefined}
+        onFork={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.load', loadError));
+
+    apiMocks.apiGet.mockResolvedValueOnce({
+      templates: [
+        {
+          id: 'template-1',
+          workflow_id: 'workflow-1',
+          user_id: 'user-abc123',
+          title: 'RNA QC',
+          description: 'Quality control for reads',
+          tags: 'rna, qc',
+          is_public: true,
+          fork_count: 4,
+          created_at: new Date().toISOString(),
+        },
+      ],
+      count: 1,
+    });
+    apiMocks.apiPost.mockRejectedValueOnce(forkError);
+
+    rerender(
+      <TemplateGallery
+        isOpen={false}
+        currentWorkflowId="workflow-1"
+        onClose={() => undefined}
+        onFork={() => undefined}
+      />,
+    );
+    rerender(
+      <TemplateGallery
+        isOpen
+        currentWorkflowId="workflow-1"
+        onClose={() => undefined}
+        onFork={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Fork' }));
+    });
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.fork', forkError));
+
+    apiMocks.apiPost.mockRejectedValueOnce(saveError);
+    dialogMocks.promptDialog
+      .mockResolvedValueOnce('Candidate template')
+      .mockResolvedValueOnce('Short description')
+      .mockResolvedValueOnce('rna, qc');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '+ Save' }));
+    });
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.save', saveError));
   });
 });
