@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet, apiPost } from '../../api/client';
+import { logError } from '../../state/logging';
 import {
   safeValidateCheckpointManifestResponse,
   safeValidatePauseRequestsResponse,
@@ -169,7 +170,9 @@ export function useWorkflowRuntimeArtifacts() {
       setPauseRequests(unwrapValidated(safeValidatePauseRequestsResponse(pauseData)));
       setWorkflowTriggers(unwrapValidated(safeValidateWorkflowTriggersResponse(triggerData)));
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      logError('runtimeArtifacts.refresh', error);
+      setError(error);
     } finally {
       setLoading(false);
     }

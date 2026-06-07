@@ -8,12 +8,18 @@ const apiMocks = vi.hoisted(() => ({
   apiPost: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 describe('useWorkflowRuntimeArtifacts', () => {
   beforeEach(() => {
     vi.mocked(apiGet).mockReset();
     vi.mocked(apiPost).mockReset();
+    loggingMock.logError.mockReset();
   });
 
   it('loads checkpoint, pause request, and workflow trigger state on refresh', async () => {
@@ -106,6 +112,7 @@ describe('useWorkflowRuntimeArtifacts', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error?.name).toBe('ApiValidationError');
+    expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.refresh', result.current.error);
     expect(result.current.checkpointManifest).toBeNull();
     expect(result.current.pauseRequests).toBeNull();
     expect(result.current.workflowTriggers).toBeNull();
