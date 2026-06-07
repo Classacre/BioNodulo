@@ -55,6 +55,10 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_search"]["display_name"] == "UniProt Search"
     assert info["uniprot_search"]["category"] == "databases"
     assert info["uniprot_search"]["output_name"] == ["results_table", "results_data"]
+    assert info["uniprot_search"]["input"]["optional"]["database"] == (
+        "STRING",
+        {"default": "uniprotkb", "options": ["uniprotkb", "uniref", "uniparc"]},
+    )
 
 
 @pytest.mark.asyncio
@@ -254,6 +258,33 @@ async def test_uniprot_retrieve_supports_comma_separated_accessions(
     )
     assert json_calls == ["uniprotkb/P04637.json", "uniprotkb/Q9Y6K9.json"]
     assert fasta_calls == ["uniprotkb/P04637.fasta", "uniprotkb/Q9Y6K9.fasta"]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_search_database_option_selects_search_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[str] = []
+
+    async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
+        calls.append(resource)
+        return {"results": []}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+    context = SimpleNamespace(node_dir=tmp_path)
+
+    database_input = node_class.INPUT_TYPES()["optional"]["database"]
+    assert database_input == (
+        "STRING",
+        {"default": "uniprotkb", "options": ["uniprotkb", "uniref", "uniparc"]},
+    )
+
+    await node_class().run(query="identity:0.9", database="uniref", context=context)
+
+    assert calls == ["uniref/search"]
 
 
 @pytest.mark.asyncio

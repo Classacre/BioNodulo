@@ -23,6 +23,7 @@ UNIPROT_RATE_LIMIT_PER_SECOND = 5.0
 _UNIPROT_CACHE = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
 _UNIPROT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
+UNIPROT_SEARCH_DATABASES = ("uniprotkb", "uniref", "uniparc")
 UNIPROT_SUMMARY_COLUMNS = (
     "accession",
     "entry_name",
@@ -210,6 +211,7 @@ class UniProtSearchNode(BaseNode):
                 "query": ("STRING", {"default": "", "description": "UniProt query, e.g. gene:TP53 AND organism_id:9606"}),
             },
             "optional": {
+                "database": ("STRING", {"default": "uniprotkb", "options": list(UNIPROT_SEARCH_DATABASES)}),
                 "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
                 "reviewed_only": ("BOOLEAN", {"default": False}),
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
@@ -227,6 +229,10 @@ class UniProtSearchNode(BaseNode):
         max_results = int(kwargs.get("max_results", 25))
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
+        database = str(kwargs.get("database", "uniprotkb") or "uniprotkb").strip().lower()
+        if database not in UNIPROT_SEARCH_DATABASES:
+            allowed = ", ".join(UNIPROT_SEARCH_DATABASES)
+            raise ValueError(f"UniProt Search database must be one of: {allowed}")
 
         effective_query = f"({query}) AND reviewed:true" if bool(kwargs.get("reviewed_only", False)) else query
         fields = str(kwargs.get("fields", "") or UNIPROT_SEARCH_FIELDS).strip()
@@ -239,7 +245,7 @@ class UniProtSearchNode(BaseNode):
         if bool(kwargs.get("include_isoform", False)):
             params["includeIsoform"] = "true"
 
-        payload = await _request_json("uniprotkb/search", params=params)
+        payload = await _request_json(f"{database}/search", params=params)
         raw_entries = payload.get("results", [])
         if not isinstance(raw_entries, list):
             raw_entries = []
