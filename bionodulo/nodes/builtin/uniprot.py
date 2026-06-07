@@ -145,6 +145,23 @@ def _gene_names(payload: dict[str, Any]) -> list[str]:
 
 
 def _with_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    if isinstance(payload.get("representativeMember"), dict):
+        representative = payload["representativeMember"]
+        common_taxon = payload.get("commonTaxon") if isinstance(payload.get("commonTaxon"), dict) else {}
+        accessions = representative.get("accessions") if isinstance(representative.get("accessions"), list) else []
+        sequence = representative.get("sequence") if isinstance(representative.get("sequence"), dict) else {}
+        enriched = dict(payload)
+        enriched["summary"] = {
+            "accession": str(accessions[0] if accessions else representative.get("memberId", "")),
+            "entry_name": str(payload.get("id", "")),
+            "protein_name": str(representative.get("proteinName") or payload.get("name", "")).removeprefix("Cluster: "),
+            "organism": str(common_taxon.get("scientificName", "")),
+            "gene_names": [],
+            "sequence_length": representative.get("sequenceLength") or sequence.get("length"),
+            "member_count": payload.get("memberCount"),
+        }
+        return enriched
+
     sequence = payload.get("sequence") if isinstance(payload.get("sequence"), dict) else {}
     organism = payload.get("organism") if isinstance(payload.get("organism"), dict) else {}
     enriched = dict(payload)

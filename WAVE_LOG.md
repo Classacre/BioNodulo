@@ -622,6 +622,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UniProt Search now accepts the planned `size` input alias while preserving `max_results` compatibility.
 - UniProt Search and Retrieve now advertise the planned discovery aliases such as `query`, `retrieve`, `fetch`, `sequence`, and `annotation`.
 - UniProt Search now accepts the planned `format` input for direct TSV search responses while preserving JSON-default summary behavior.
+- UniProt Search now summarizes UniRef JSON search hits using cluster IDs, representative accessions, taxon names, sequence lengths, and member counts instead of producing blank TSV rows.
 
 ---
 

@@ -296,6 +296,53 @@ async def test_uniprot_search_database_option_selects_search_endpoint(
 
 
 @pytest.mark.asyncio
+async def test_uniprot_search_summarizes_uniref_json_results(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+
+    async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
+        assert resource == "uniref/search"
+        return {
+            "results": [
+                {
+                    "id": "UniRef90_P04637",
+                    "name": "Cluster: Cellular tumor antigen p53",
+                    "commonTaxon": {"scientificName": "Homo sapiens"},
+                    "memberCount": 12,
+                    "representativeMember": {
+                        "memberId": "P53_HUMAN",
+                        "proteinName": "Cellular tumor antigen p53",
+                        "sequenceLength": 393,
+                        "accessions": ["P04637"],
+                    },
+                }
+            ]
+        }
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        query="identity:0.9",
+        database="uniref",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    table_path = Path(result["outputs"]["results_table"])
+    assert table_path.read_text(encoding="utf-8") == (
+        "accession\tentry_name\tprotein_name\torganism\tgene_names\tsequence_length\n"
+        "P04637\tUniRef90_P04637\tCellular tumor antigen p53\tHomo sapiens\t\t393\n"
+    )
+    summary = result["outputs"]["results_data"]["entries"][0]["summary"]
+    assert summary["accession"] == "P04637"
+    assert summary["entry_name"] == "UniRef90_P04637"
+    assert summary["organism"] == "Homo sapiens"
+    assert summary["member_count"] == 12
+
+
+@pytest.mark.asyncio
 async def test_uniprot_search_accepts_planned_size_alias(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
