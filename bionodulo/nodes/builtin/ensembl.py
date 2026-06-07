@@ -286,7 +286,7 @@ class EnsemblVEPNode(BaseNode):
     DISPLAY_NAME = "Ensembl VEP"
     CATEGORY = "databases"
     DESCRIPTION = "Annotate VCF variant records with Ensembl VEP via Ensembl REST."
-    SEARCH_ALIASES = ["ensembl", "vep", "variant", "annotation", "vcf", "database"]
+    SEARCH_ALIASES = ["ensembl", "vep", "variant", "annotation", "vcf", "sift", "polyphen", "database"]
     RETURN_TYPES = ("JSON", "TSV")
     RETURN_NAMES = ("vep_json", "annotation_table")
     REQUIRES_EXTERNAL_TOOLS = False
@@ -306,6 +306,8 @@ class EnsemblVEPNode(BaseNode):
                 "domains": ("BOOLEAN", {"default": False}),
                 "gene_phenotype": ("BOOLEAN", {"default": False}),
                 "variant_class": ("BOOLEAN", {"default": True}),
+                "sift": ("BOOLEAN", {"default": True, "advanced": True}),
+                "polyphen": ("BOOLEAN", {"default": True, "advanced": True}),
             },
             "hidden": {},
         }
@@ -323,6 +325,8 @@ class EnsemblVEPNode(BaseNode):
             "domains": 1 if bool(kwargs.get("domains", False)) else 0,
             "gene_phenotype": 1 if bool(kwargs.get("gene_phenotype", False)) else 0,
             "variant_class": 1 if bool(kwargs.get("variant_class", True)) else 0,
+            "SiftPrediction": "yes" if bool(kwargs.get("sift", True)) else "no",
+            "PolyPhen": "yes" if bool(kwargs.get("polyphen", True)) else "no",
         }
         payload = await _post_json(
             f"vep/{quote(species, safe='')}/region",

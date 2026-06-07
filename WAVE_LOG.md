@@ -586,6 +586,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI EFetch now batches long ID lists, includes `tool=bionodulo` plus a configurable/default contact email on every E-utilities request, and reports batch size/count metadata while keeping mocked request coverage network-free.
 - NCBI ESearch now supports Entrez pagination via `retstart` and can optionally convert returned UIDs into accessions through a follow-up `efetch.fcgi` request while preserving the existing UID output contract by default.
 - UniProt Search and Retrieve now expose `include_isoform` and forward UniProt's `includeIsoform=true` parameter for search, JSON retrieve, and FASTA retrieve requests when enabled.
+- Ensembl VEP now exposes REST SIFT and PolyPhen prediction toggles, advertises them in search aliases, and forwards `SiftPrediction` / `PolyPhen` request params with covered on/off behavior.
 
 ---
 
