@@ -1890,6 +1890,7 @@ class MyToolNode(CommandNode):
     pinGroupNodes: 'Fijar todo',
     unpinGroupNodes: 'Desfijar todo',
     deleteGroup: 'Eliminar grupo',
+    htmlPreviewTitle: 'Vista previa HTML para {{id}}',
     renameNodeTitle: 'Renombrar nodo',
     renameNodeMessage: 'Elige un nombre visible para este nodo.',
     nodeNameInput: 'Nombre del nodo',

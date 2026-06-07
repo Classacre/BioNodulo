@@ -3396,7 +3396,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           >
             <iframe
               src={previewUrl}
-              title={`HTML preview for ${node.id}`}
+              title={t('canvas.htmlPreviewTitle', { id: node.id })}
               sandbox="allow-scripts"
               referrerPolicy="no-referrer"
               loading="lazy"

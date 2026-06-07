@@ -1885,6 +1885,7 @@ class MyToolNode(CommandNode):
     pinGroupNodes: 'Pin all',
     unpinGroupNodes: 'Unpin all',
     deleteGroup: 'Delete group',
+    htmlPreviewTitle: 'HTML preview for {{id}}',
     renameNodeTitle: 'Rename node',
     renameNodeMessage: 'Choose a display name for this node.',
     nodeNameInput: 'Node name',
