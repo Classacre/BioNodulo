@@ -615,6 +615,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - InterProScan now accepts FASTA file paths through the existing `sequence` input and submits cleaned sequence content to EBI.
 - SRA Download now accepts singular `accession` and planning-style `format` aliases while preserving `accessions` / `output_format` behavior.
 - GEO Query now accepts `query` and `dataset_type` aliases while preserving `search_query` / `query_type` behavior.
+- GEO Query now preserves the total ESearch result count in output metadata separately from returned summary count.
 - PDB Retrieve now accepts a singular `pdb_id` alias while preserving existing `pdb_ids` behavior.
 - NCBI BLAST now accepts FASTA file paths through `query_sequence` and submits the file contents instead of the path string.
 - Ensembl VEP now accepts HGVS `variants` input via `variant_format=hgvs` while preserving VCF-file annotation.

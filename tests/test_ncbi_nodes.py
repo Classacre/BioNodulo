@@ -1036,6 +1036,7 @@ async def test_geo_query_search_writes_metadata_and_sample_table(
     assert metadata["query"] == "breast cancer RNA-seq"
     assert metadata["query_type"] == "search"
     assert metadata["uids"] == ["200001", "200002"]
+    assert metadata["total_count"] == 2
     assert metadata["record_count"] == 2
     assert [entry["accession"] for entry in metadata["summaries"]] == ["GSE100001", "GSE100002"]
     assert table_path.read_text(encoding="utf-8") == (

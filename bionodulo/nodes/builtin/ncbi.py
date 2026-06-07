@@ -790,6 +790,7 @@ class GEOQueryNode(BaseNode):
         search_payload = await _request_json("esearch.fcgi", search_params)
         search_result = search_payload.get("esearchresult", {})
         uids = [str(uid) for uid in search_result.get("idlist", [])]
+        total_count = int(search_result.get("count", 0))
 
         summaries: list[dict[str, Any]] = []
         if uids:
@@ -809,6 +810,7 @@ class GEOQueryNode(BaseNode):
             "query": term,
             "query_type": query_type,
             "uids": uids,
+            "total_count": total_count,
             "record_count": len(summaries),
             "summaries": summaries,
         }
