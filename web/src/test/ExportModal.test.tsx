@@ -87,8 +87,10 @@ describe('ExportModal i18n', () => {
 
     render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
 
-    expect(screen.getByRole('dialog', { name: 'Exportar workflow' })).toBeInTheDocument();
-    expect(screen.getByText('Exportar workflow')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Exportar flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.getByText('Exportar flujo de trabajo')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Exportar workflow' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Exportar workflow')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'PNG (workflow incrustado)' })).toHaveClass('active');
     expect(screen.getByText('El PNG lleva el JSON completo del workflow en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).toBeInTheDocument();
     expect(screen.getByLabelText('Fondo transparente')).toBeInTheDocument();

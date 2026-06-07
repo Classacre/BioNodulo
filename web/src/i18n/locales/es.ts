@@ -2529,7 +2529,7 @@ class MyToolNode(CommandNode):
     },
   },
   exportModal: {
-    title: 'Exportar workflow',
+    title: 'Exportar flujo de trabajo',
     formats: {
       png: 'PNG (workflow incrustado)',
       json: 'JSON de BioNodulo',
