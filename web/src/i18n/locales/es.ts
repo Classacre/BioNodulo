@@ -507,6 +507,7 @@ const es = {
     newsBundled: 'Mostrando changelog incluido',
     newsRefetchTitle: 'Volver a cargar release notes',
     newsViewOnGitHub: 'Ver en GitHub',
+    newsUnreleased: 'Sin release',
     changelog: {
       v2: {
         items: {

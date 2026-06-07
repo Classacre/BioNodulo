@@ -185,6 +185,33 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.queryByText('BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow')).not.toBeInTheDocument();
   });
 
+  it('renders missing GitHub release names from the active locale', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{
+        published_at: '2026-02-01T00:00:00Z',
+        body: '- Release body item',
+      }]),
+    }));
+
+    render(
+      <GettingStartedModal
+        onClose={() => undefined}
+        onDontShowAgain={() => undefined}
+        showOnStartup
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Novedades' }));
+
+    expect(await screen.findByText('Sin release')).toBeInTheDocument();
+    expect(screen.queryByText('unreleased')).not.toBeInTheDocument();
+  });
+
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
@@ -224,6 +251,7 @@ describe('GettingStartedModal i18n', () => {
       'gettingStarted.newsBundled',
       'gettingStarted.newsRefetchTitle',
       'gettingStarted.newsViewOnGitHub',
+      'gettingStarted.newsUnreleased',
       'gettingStarted.changelog.v2.items.commandPalette',
       'gettingStarted.changelog.alpha10.items.initialRelease',
       'gettingStarted.resources.wikiTitle',
@@ -260,6 +288,7 @@ describe('GettingStartedModal i18n', () => {
       'Fetching latest releases',
       'Offline mode',
       'Showing bundled changelog',
+      "|| 'unreleased'",
       'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',
       'Resizable/floating side panels with improved dock controls',
       'AI assistant with tool-calling for workflow building',

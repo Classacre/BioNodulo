@@ -503,6 +503,7 @@ const en = {
     newsBundled: 'Showing bundled changelog',
     newsRefetchTitle: 'Refetch release notes',
     newsViewOnGitHub: 'View on GitHub',
+    newsUnreleased: 'Unreleased',
     changelog: {
       v2: {
         items: {

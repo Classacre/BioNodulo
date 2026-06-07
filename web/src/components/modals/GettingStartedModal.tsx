@@ -89,9 +89,15 @@ interface ReleaseNote {
 
 type NewsEntry = ReleaseNote | BundledReleaseNote;
 
+const UNNAMED_RELEASE_VERSION = '__bionodulo_unnamed_release__';
+
 function releaseNoteItems(entry: NewsEntry, t: TFunction): string[] {
   if ('itemKeys' in entry) return entry.itemKeys.map(key => t(key));
   return entry.items ?? [];
+}
+
+function releaseNoteVersion(entry: NewsEntry, t: TFunction): string {
+  return entry.version === UNNAMED_RELEASE_VERSION ? t('gettingStarted.newsUnreleased') : entry.version;
 }
 
 const RELEASES_CACHE_KEY = 'bionodulo.releases.cache';
@@ -175,7 +181,7 @@ export default function GettingStartedModal({
       })
       .then(items => {
         const releases: ReleaseNote[] = items.map(item => ({
-          version: item.name || item.tag_name || 'unreleased',
+          version: item.name || item.tag_name || UNNAMED_RELEASE_VERSION,
           date: item.published_at ? item.published_at.slice(0, 10) : '',
           url: item.html_url,
           body: item.body || '',
@@ -430,11 +436,12 @@ export default function GettingStartedModal({
               </div>
               {(liveReleases && liveReleases.length > 0 ? liveReleases : CHANGELOG).map(entry => {
                 const items = releaseNoteItems(entry, t);
+                const version = releaseNoteVersion(entry, t);
                 const liveUrl = 'url' in entry ? entry.url : undefined;
                 return (
                   <div key={entry.version} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{entry.version}</span>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{version}</span>
                       <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.date}</span>
                       {liveUrl && (
                         <a
