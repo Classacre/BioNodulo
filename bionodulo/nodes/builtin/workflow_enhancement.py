@@ -572,8 +572,12 @@ class DataValidatorNode(BaseNode):
     def _validate_bam(self, path: Path, report: dict[str, Any]) -> bool:
         with path.open("rb") as handle:
             magic = handle.read(4)
-        if magic != b"BAM\1":
-            report["warnings"].append("BAM: file does not start with uncompressed BAM magic; compressed BAM cannot be deeply validated here")
+        if magic == b"BAM\1":
+            report["checks"]["bam_container"] = "uncompressed"
+        elif magic.startswith(b"\x1f\x8b"):
+            report["checks"]["bam_container"] = "bgzf_or_gzip"
+        else:
+            report["warnings"].append("BAM: file does not start with recognized BAM or BGZF magic; cannot deeply validate here")
         report["checks"]["format_valid"] = True
         return True
 

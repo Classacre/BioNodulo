@@ -254,6 +254,24 @@ async def test_data_validator_accepts_gzipped_fastq_and_vcf(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_data_validator_accepts_bgzf_bam_magic_without_warning(tmp_path: Path) -> None:
+    source = tmp_path / "aligned.bam"
+    source.write_bytes(b"\x1f\x8b\x08\x04BGZF")
+
+    _, passed, report, _ = await _node_class("data_validator")().run(
+        input=str(source),
+        expected_format="bam",
+        context=_context(tmp_path, "validator-bam"),
+    )
+
+    parsed = json.loads(report)
+    assert passed is True
+    assert parsed["checks"]["detected_format"] == "bam"
+    assert parsed["checks"]["format_valid"] is True
+    assert parsed["warnings"] == []
+
+
+@pytest.mark.asyncio
 async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -> None:
     read1 = tmp_path / "sample_R1.fastq"
     read2 = tmp_path / "sample_R2.fastq"

@@ -636,6 +636,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UniProt Search now summarizes UniParc JSON search hits using UniParc IDs, linked UniProtKB accessions, biological taxon names, sequence lengths, and cross-reference counts instead of blank TSV rows.
 - File Info now enriches `info_json` with planned checksum, checksum algorithm, line count, and UTC modification time metadata while preserving the existing size/path/existence outputs.
 - Data Validator now reads gzipped FASTQ, FASTA, VCF, and text inputs through a gzip-aware text reader, so common `.fastq.gz` and `.vcf.gz` files validate without manual decompression.
+- Data Validator now recognizes BGZF/gzip BAM container magic during shallow BAM validation, avoiding misleading compressed-BAM warnings for normal `.bam` files.
 
 ---
 
