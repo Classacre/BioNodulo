@@ -681,6 +681,7 @@ const es = {
     deleteBlueprint: 'Eliminar blueprint',
     resetUsageFrequency: 'Restablecer frecuencia de uso',
     reset: 'Restablecer',
+    otherCategory: 'Otro',
     emptyQuery: 'Ningun nodo coincide con "{{query}}"',
     categories: {
       bio: 'Bio',

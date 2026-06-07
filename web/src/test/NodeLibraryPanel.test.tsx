@@ -41,6 +41,17 @@ const objectInfo: ObjectInfo = {
   },
 };
 
+const objectInfoWithFallbackCategory: ObjectInfo = {
+  mystery: {
+    id: 'mystery',
+    display_name: 'Mystery Tool',
+    category: '',
+    description: 'No category metadata',
+    input_types: { required: { input: { type: 'FILE' } } },
+    return_types: ['FILE'],
+  },
+};
+
 describe('NodeLibraryPanel i18n', () => {
   let originalLocalStorage: Storage;
 
@@ -94,5 +105,23 @@ describe('NodeLibraryPanel i18n', () => {
 
     expect(screen.getByText('0 coincidencias')).toBeInTheDocument();
     expect(screen.getByText('Ningun nodo coincide con "zz"')).toBeInTheDocument();
+  });
+
+  it('localizes the fallback category label for uncategorized nodes', async () => {
+    const { default: NodeLibraryPanel } = await import('../components/panels/NodeLibraryPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <NodeLibraryPanel
+        objectInfo={objectInfoWithFallbackCategory}
+        onAddNode={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getAllByText('Otro').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Other')).not.toBeInTheDocument();
   });
 });

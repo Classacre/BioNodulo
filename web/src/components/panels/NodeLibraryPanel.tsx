@@ -85,6 +85,10 @@ function buildGroups(
 
 interface PortPreview { name: string; type: string }
 
+function displayCategoryLabel(label: string, otherLabel: string): string {
+  return label === 'Other' ? otherLabel : label;
+}
+
 function collectPorts(meta: NodeMetadata): { inputs: PortPreview[]; outputs: PortPreview[] } {
   const inputsMap = {
     ...(meta.input_types?.required || {}),
@@ -123,6 +127,7 @@ function NodeLibraryResult({
   const { t } = useTranslation();
   const tools = meta.requires_external_tools || [];
   const subtitle = meta.description || meta.id;
+  const categoryLabel = meta.category || t('nodeLibrary.otherCategory');
   const [showPreview, setShowPreview] = useState(false);
   const hoverTimer = useRef<number | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -172,7 +177,7 @@ function NodeLibraryResult({
         </span>
         <span className="node-search-result-desc">{subtitle}</span>
         <span className="node-search-result-meta">
-          {meta.category || 'Other'}
+          {categoryLabel}
           {tools.length > 0 && ` - ${tools.slice(0, 2).join(', ')}`}
         </span>
       </span>
@@ -279,6 +284,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
     if (categoryFilters.size === 0) return all;
     return all.filter(meta => categoryFilters.has(meta.category || 'Other'));
   }, [searchResults, categoryFilters]);
+  const categoryDisplayLabel = (label: string) => displayCategoryLabel(label, t('nodeLibrary.otherCategory'));
   const hasQuery = query.trim().length > 0;
   const groups = useMemo(
     () => buildGroups(
@@ -408,9 +414,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                 type="button"
                 className="node-filter-chip"
                 onClick={() => toggleCategoryFilter(label)}
-                title={t('nodeLibrary.removeFilterTitle', { label })}
+                title={t('nodeLibrary.removeFilterTitle', { label: categoryDisplayLabel(label) })}
               >
-                <span>{label}</span>
+                <span>{categoryDisplayLabel(label)}</span>
                 <Icon name="close" size={10} />
               </button>
             ))}
@@ -493,12 +499,13 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
             const isHeuristic = group.recent || group.frequent;
             const expandedGroup = isHeuristic || hasQuery || expanded.has(group.label);
             const sectionKey = group.frequent ? '__frequent' : group.recent ? '__recent' : group.label;
+            const groupLabel = categoryDisplayLabel(group.label);
             return (
               <section key={sectionKey} className={`node-search-group ${group.recent ? 'is-recent' : ''} ${group.frequent ? 'is-frequent' : ''}`}>
                 {isHeuristic ? (
                   <div className="node-search-group-label">
                     <Icon name={group.frequent ? 'star' : 'clock'} size={12} />
-                    <span>{group.label}</span>
+                    <span>{groupLabel}</span>
                     {group.frequent && (
                       <button
                         type="button"
@@ -518,11 +525,11 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                       className="node-category-toggle"
                       onClick={() => toggle(group.label)}
                       title={expandedGroup
-                        ? t('nodeLibrary.collapseGroup', { label: group.label })
-                        : t('nodeLibrary.expandGroup', { label: group.label })}
+                        ? t('nodeLibrary.collapseGroup', { label: groupLabel })
+                        : t('nodeLibrary.expandGroup', { label: groupLabel })}
                     >
                       <Icon name={expandedGroup ? 'chevronDown' : 'chevronRight'} size={12} />
-                      <span>{group.label}</span>
+                      <span>{groupLabel}</span>
                       <span className="node-category-count">{group.nodes.length}</span>
                     </button>
                     <button
@@ -530,8 +537,8 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
                       className={`node-category-filter ${categoryFilters.has(group.label) ? 'is-active' : ''}`}
                       onClick={(event) => { event.stopPropagation(); toggleCategoryFilter(group.label); }}
                       title={categoryFilters.has(group.label)
-                        ? t('nodeLibrary.removeCategoryFilter', { label: group.label })
-                        : t('nodeLibrary.filterTo', { label: group.label })}
+                        ? t('nodeLibrary.removeCategoryFilter', { label: groupLabel })
+                        : t('nodeLibrary.filterTo', { label: groupLabel })}
                       aria-pressed={categoryFilters.has(group.label)}
                     >
                       <Icon name={categoryFilters.has(group.label) ? 'check' : 'plus'} size={10} />
