@@ -36,10 +36,10 @@ describe('App runtime command copy i18n', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('commandPalette.groups.workflow')).toBe('Workflow');
+    expect(i18n.t('commandPalette.groups.workflow')).toBe('Flujo de trabajo');
     expect(i18n.t('commandPalette.groups.tools')).toBe('Herramientas');
-    expect(i18n.t('commandPalette.commands.cache.toggle')).toBe('Alternar cache de ejecucion');
-    expect(i18n.t('commandPalette.commands.cache.clear')).toBe('Limpiar cache de ejecucion');
+    expect(i18n.t('commandPalette.commands.cache.toggle')).toBe('Alternar almacenamiento temporal de ejecucion');
+    expect(i18n.t('commandPalette.commands.cache.clear')).toBe('Limpiar almacenamiento temporal de ejecucion');
     expect(i18n.t('settings.cache.clearedTitle')).toBe('Almacenamiento temporal limpiado');
     expect(i18n.t('settings.cache.entriesDeleted', { count: 1 })).toBe('1 entrada eliminada');
     expect(i18n.t('settings.cache.clearFailed')).toBe('No se pudo limpiar el almacenamiento temporal');

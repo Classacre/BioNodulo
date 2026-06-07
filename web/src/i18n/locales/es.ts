@@ -134,8 +134,8 @@ const es = {
         open: 'Abrir constructor de workflows con IA',
       },
       cache: {
-        toggle: 'Alternar cache de ejecucion',
-        clear: 'Limpiar cache de ejecucion',
+        toggle: 'Alternar almacenamiento temporal de ejecucion',
+        clear: 'Limpiar almacenamiento temporal de ejecucion',
       },
       console: {
         toggle: 'Alternar consola',
@@ -224,7 +224,7 @@ const es = {
       panels: 'Paneles',
       tools: 'Herramientas',
       view: 'Vista',
-      workflow: 'Workflow',
+      workflow: 'Flujo de trabajo',
     },
   },
   workflowShare: {
