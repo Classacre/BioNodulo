@@ -123,6 +123,7 @@ bionodulo-v2/
 │   ├── differential_expression.json
 │   ├── fastq_qc_pipeline.json
 │   ├── long_read_ont_pipeline.json
+│   ├── metabolomics_lcms_pipeline.json
 │   ├── metagenomics_pipeline.json
 │   ├── phylogenetics_pipeline.json
 │   ├── pangenomics_graph_pipeline.json
@@ -283,8 +284,9 @@ Settings stored per-user in `bionodulo.settings.json`:
 16. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
 17. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
 18. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
-19. **HPC** - SLURM submit, PBS submit, SGE submit
-20. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+19. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
+20. **HPC** - SLURM submit, PBS submit, SGE submit
+21. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel
