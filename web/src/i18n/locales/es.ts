@@ -286,9 +286,9 @@ const es = {
         search: 'Abrir busqueda de nodos',
       },
       workflow: {
-        run: 'Ejecutar workflow',
-        export: 'Exportar workflow',
-        import: 'Importar workflow',
+        run: 'Ejecutar flujo de trabajo',
+        export: 'Exportar flujo de trabajo',
+        import: 'Importar flujo de trabajo',
       },
       settings: {
         toggle: 'Alternar configuracion',
@@ -323,7 +323,7 @@ const es = {
     },
     categories: {
       global: 'Global',
-      workflow: 'Workflow',
+      workflow: 'Flujo de trabajo',
       canvas: 'Lienzo',
       panels: 'Paneles',
       navigation: 'Navegacion',

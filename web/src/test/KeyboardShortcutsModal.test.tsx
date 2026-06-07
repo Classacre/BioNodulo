@@ -43,6 +43,10 @@ describe('KeyboardShortcutsModal i18n', () => {
 
     expect(screen.getByText('Abrir paleta de comandos')).toBeInTheDocument();
     expect(screen.queryByText('Open command palette')).not.toBeInTheDocument();
+    expect(screen.getByText('Flujo de trabajo')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow')).not.toBeInTheDocument();
+    expect(screen.getByText('Ejecutar flujo de trabajo')).toBeInTheDocument();
+    expect(screen.queryByText('Ejecutar workflow')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'Eliminar nodos' },
