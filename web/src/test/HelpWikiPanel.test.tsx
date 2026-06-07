@@ -58,6 +58,35 @@ const httpRequestMeta: NodeMetadata = {
   return_names: ['response_json'],
 };
 
+const switchMeta: NodeMetadata = {
+  id: 'switch',
+  display_name: 'Switch',
+  category: 'flow_control',
+  description: 'Route data to one of several outputs.',
+  input_types: {
+    required: {
+      value: { type: 'ANY' },
+      cases: { type: 'STRING', default: '' },
+    },
+    optional: {
+      num_branches: {
+        type: 'INT',
+        default: 4,
+        min: 1,
+        max: 32,
+        dynamic_outputs: {
+          prefix: 'output_',
+          count_input: 'num_branches',
+          default_output: 'default',
+          type: 'ANY',
+        },
+      },
+    },
+  },
+  return_types: ['ANY', 'ANY', 'ANY', 'ANY', 'ANY'],
+  return_names: ['output_1', 'output_2', 'output_3', 'output_4', 'default'],
+};
+
 const objectInfo: ObjectInfo = {
   diann: {
     id: 'diann',
@@ -112,6 +141,7 @@ const objectInfo: ObjectInfo = {
     },
   },
   http_request: httpRequestMeta,
+  switch: switchMeta,
 };
 
 describe('HelpWikiPanel node documentation search', () => {
@@ -206,6 +236,29 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('username')).toBeInTheDocument();
     expect(screen.getByText('password')).toBeInTheDocument();
     expect(screen.queryByText('bearer_token')).not.toBeInTheDocument();
+  });
+
+  it('renders dynamic outputs in selected-node documentation', async () => {
+    await import('../i18n');
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+
+    render(
+      <HelpWikiPanel
+        onClose={vi.fn()}
+        objectInfo={objectInfo}
+        selectedNode={{
+          id: 'switch-1',
+          type: 'switch',
+          title: 'Switch',
+          meta: switchMeta,
+          params: { num_branches: 6 },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('output_5')).toBeInTheDocument();
+    expect(screen.getByText('output_6')).toBeInTheDocument();
+    expect(screen.getByText('default')).toBeInTheDocument();
   });
 
   it('surfaces lifecycle and migration metadata in node docs and search', async () => {

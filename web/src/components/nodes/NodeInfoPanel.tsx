@@ -3,6 +3,7 @@ import Icon from '../ui/Icon';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
+import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 
 interface NodeInfoPanelProps {
   node?: GraphNode;
@@ -14,6 +15,7 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
   if (!node) return null;
   const meta = node.meta;
   const { required, optional } = getVisibleInputSpecs(meta, node.params);
+  const outputs = resolveNodeOutputs(meta, node.params);
   const categoryLabel = nodeCategoryDisplayLabel(meta?.category, t, t('nodeLibrary.otherCategory'));
   // const hidden = meta?.input_types?.hidden || {};
 
@@ -69,12 +71,12 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
         )}
 
         {/* Outputs */}
-        {meta?.return_types && meta.return_types.length > 0 && (
+        {outputs.length > 0 && (
           <InfoSection title={t('nodeDetails.outputs')}>
-            {meta.return_types.map((t, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
-                <span style={{ color: 'var(--text)' }}>{meta.return_names?.[i] || t}</span>
-                <span style={{ color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{t}</span>
+            {outputs.map(output => (
+              <div key={output.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--text)' }}>{output.name}</span>
+                <span style={{ color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{output.type}</span>
               </div>
             ))}
           </InfoSection>

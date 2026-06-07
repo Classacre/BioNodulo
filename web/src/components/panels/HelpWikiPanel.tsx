@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import Icon from '../ui/Icon';
 import type { NodeMetadata, ObjectInfo } from '../../types';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
+import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 
 interface HelpWikiPanelProps {
   onClose: () => void;
@@ -38,8 +39,7 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const category = meta?.category || t('helpWiki.nodeDocs.uncategorised');
   const tools = meta?.requires_external_tools || [];
   const { required, optional } = getVisibleInputSpecs(meta, node.params);
-  const outputs = meta?.return_types || [];
-  const outputNames = meta?.return_names || [];
+  const outputs = resolveNodeOutputs(meta, node.params);
   const lifecycleStatus = meta?.lifecycle?.status || (meta?.deprecated ? 'deprecated' : '');
   const deprecationMessage = meta?.lifecycle?.deprecation_message || meta?.deprecation_message || '';
   const replacedBy = meta?.lifecycle?.replaced_by || meta?.replaced_by || '';
@@ -58,10 +58,10 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
     ...Object.entries(optional).map(([name, spec]) => renderInputRow(name, spec as { type?: string; tooltip?: string; description?: string; default?: unknown })),
   ].join('');
 
-  const outputRows = outputs.map((type, idx) => `
+  const outputRows = outputs.map(output => `
     <tr>
-      <td><code>${escapeHtml(outputNames[idx] || `out_${idx}`)}</code></td>
-      <td><span class="help-port-type">${escapeHtml(type)}</span></td>
+      <td><code>${escapeHtml(output.name)}</code></td>
+      <td><span class="help-port-type">${escapeHtml(output.type)}</span></td>
     </tr>`).join('');
   const migrationRows = migrations.map(migration => {
     const fromVersion = migration.from_version || '';
@@ -182,8 +182,7 @@ function nodeSearchText(meta: NodeMetadata): string {
     ]),
     ...(meta.search_aliases || []),
     ...(meta.requires_external_tools || []),
-    ...(meta.return_types || []),
-    ...(meta.return_names || []),
+    ...resolveNodeOutputs(meta).flatMap(output => [output.name, output.type]),
     ...inputTexts,
   ];
   return values.filter(Boolean).join(' ');
@@ -207,8 +206,7 @@ function nodeSearchSnippet(meta: NodeMetadata, query: string): string {
     ]),
     ...(meta.search_aliases || []),
     ...(meta.requires_external_tools || []),
-    ...(meta.return_names || []),
-    ...(meta.return_types || []),
+    ...resolveNodeOutputs(meta).flatMap(output => [output.name, output.type]),
     ...Object.values(meta.input_types || {}).flatMap(section =>
       Object.entries(section || {}).flatMap(([name, spec]) => [
         name,

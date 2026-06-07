@@ -137,6 +137,47 @@ function httpRequestNode(params: Record<string, unknown> = { body_format: 'none'
   };
 }
 
+function switchNode(params: Record<string, unknown> = { num_branches: 6 }): GraphNode {
+  return {
+    ...graphNode(),
+    id: 'switch-1',
+    type: 'switch',
+    display_name: 'Switch',
+    category: 'flow_control',
+    inputs: [],
+    outputs: [],
+    params,
+    meta: {
+      id: 'switch',
+      display_name: 'Switch',
+      category: 'flow_control',
+      input_types: {
+        required: {
+          value: { type: 'ANY' },
+          cases: { type: 'STRING', default: '' },
+        },
+        optional: {
+          num_branches: {
+            type: 'INT',
+            default: 4,
+            min: 1,
+            max: 32,
+            dynamic_outputs: {
+              prefix: 'output_',
+              count_input: 'num_branches',
+              default_output: 'default',
+              type: 'ANY',
+            },
+          },
+        },
+      },
+      return_types: ['ANY', 'ANY', 'ANY', 'ANY', 'ANY'],
+      return_names: ['output_1', 'output_2', 'output_3', 'output_4', 'default'],
+    },
+    title: 'Switch node',
+  };
+}
+
 describe('Node editor and info panel i18n', () => {
   beforeEach(() => {
     storage.clear();
@@ -255,6 +296,16 @@ describe('Node editor and info panel i18n', () => {
     expect(screen.getByText('Username')).toBeInTheDocument();
     expect(screen.getByText('Password')).toBeInTheDocument();
     expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+  });
+
+  it('renders dynamic outputs in read-only node information', async () => {
+    const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
+
+    render(<NodeInfoPanel node={switchNode()} onClose={() => undefined} />);
+
+    expect(screen.getByText('output_5')).toBeInTheDocument();
+    expect(screen.getByText('output_6')).toBeInTheDocument();
+    expect(screen.getByText('default')).toBeInTheDocument();
   });
 
   it('renders read-only node information from the active locale', async () => {
