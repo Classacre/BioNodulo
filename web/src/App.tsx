@@ -2253,28 +2253,33 @@ export default function App() {
       // --- View / canvas ----------------------------------------------------
       {
         id: 'view.focusMode',
-        label: focusMode ? 'Exit focus mode' : 'Enter focus mode',
-        description: 'Hide chrome and maximize the canvas',
-        group: 'View',
+        label: focusMode
+          ? t('commandPalette.commands.view.exitFocusMode')
+          : t('commandPalette.commands.view.enterFocusMode'),
+        description: t('commandPalette.commands.view.focusModeDescription'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         shortcut: getBinding('view.focusMode') ?? undefined,
         onSelect: toggleFocusMode,
       },
       {
         id: 'view.fitAll',
-        label: 'Fit all nodes',
-        description: 'Frame every node in the current workflow',
-        group: 'View',
+        label: t('commandPalette.commands.view.fitAll'),
+        description: t('commandPalette.commands.view.fitAllDescription'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => canvasRef.current?.fitView(),
       },
       {
         id: 'view.fitSelection',
-        label: 'Fit selection',
-        description: 'Frame only selected nodes',
-        group: 'View',
+        label: t('commandPalette.commands.view.fitSelection'),
+        description: t('commandPalette.commands.view.fitSelectionDescription'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => {
           const ids = canvasRef.current?.getSelectedNodeIds() ?? [];
           if (ids.length === 0) {
-            toast.info('Select a node first');
+            toast.info(t('canvas.selectNodeFirst'));
             return;
           }
           canvasRef.current?.focusNode(ids[0]);
@@ -2282,26 +2287,30 @@ export default function App() {
       },
       {
         id: 'view.toggleMinimap',
-        label: 'Toggle minimap',
-        group: 'View',
+        label: t('commandPalette.commands.view.toggleMinimap'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap')),
       },
       {
         id: 'view.toggleLinks',
-        label: 'Toggle link visibility',
-        group: 'View',
+        label: t('commandPalette.commands.view.toggleLinks'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden')),
       },
       {
         id: 'view.toggleSnapGrid',
-        label: 'Toggle snap-to-grid',
-        group: 'View',
+        label: t('commandPalette.commands.view.toggleSnapGrid'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => set('bionodulo.snapToGrid', !getBool('bionodulo.snapToGrid')),
       },
       {
         id: 'view.toggleLockViewport',
-        label: 'Toggle viewport lock',
-        group: 'View',
+        label: t('commandPalette.commands.view.toggleLockViewport'),
+        group: t('commandPalette.groups.view'),
+        groupLabelKey: 'commandPalette.groups.view',
         onSelect: () => set('bionodulo.viewportLocked', !getBool('bionodulo.viewportLocked')),
       },
       // --- History ----------------------------------------------------------
