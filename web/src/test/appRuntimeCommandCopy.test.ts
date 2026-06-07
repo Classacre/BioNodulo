@@ -78,4 +78,10 @@ describe('App runtime command copy i18n', () => {
       "label: 'Open keyboard shortcuts (alias)'",
     ].forEach(text => expect(appSource).not.toContain(text));
   });
+
+  it('logs command-palette cache clear failures with a stable scope', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain("logError('app.cache.clear', err);");
+  });
 });

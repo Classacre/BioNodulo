@@ -2418,6 +2418,7 @@ export default function App() {
               message: t('settings.cache.entriesDeleted', { count: data.entries_deleted || 0 }),
             });
           } catch (err) {
+            logError('app.cache.clear', err);
             toast.error(t('settings.cache.clearFailed'), { message: err instanceof Error ? err.message : String(err) });
           }
         },

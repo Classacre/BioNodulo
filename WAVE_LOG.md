@@ -695,6 +695,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - BatchSampleSheetModal submit failures now report a structured `logError` scope while preserving inline batch submission errors.
 - useWorkflow backend import failures now report a structured `logError` scope while preserving the existing local JSON fallback.
 - App queue/history/template user-action failures now report structured `logError` scopes while preserving the existing toast, confirmation, and local state fallback behavior.
+- App command-palette cache-clear failures now report a structured `logError` scope while preserving the existing localized error toast.
 - WorkflowCanvas pasted-media upload failures now report a structured `logError` scope while preserving the existing localized upload-failed toast and leaving clipboard capability fallthrough unlogged.
 - GettingStartedModal release-fetch failures now report a structured `logError` scope while preserving the bundled changelog fallback and skipping abort noise.
 
