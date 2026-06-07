@@ -53,6 +53,7 @@ import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
+import { nodeCategoryDisplayLabel } from './utils/nodeCategories';
 import { redactSecrets } from './utils/redaction';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { makeAppFileActionCopy } from './utils/appFileActionCopy';
@@ -2507,7 +2508,7 @@ export default function App() {
       items.push({
         id: `addNode.${meta.id}`,
         label: t('nodePalette.addNodeTitle', { name: meta.display_name }),
-        description: meta.description || meta.category,
+        description: meta.description || nodeCategoryDisplayLabel(meta.category, t, t('nodePalette.otherCategory')),
         group: 'Add Node',
         groupLabelKey: 'nodePalette.addNode',
         keywords: [meta.id, meta.category, ...(meta.search_aliases || []), ...(meta.requires_external_tools || [])],

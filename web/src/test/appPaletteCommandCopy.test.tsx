@@ -86,6 +86,19 @@ describe('App palette command copy i18n', () => {
     expect(appSource).not.toContain('Use ${palette.name} palette');
   });
 
+  it('keeps dynamic add-node command category descriptions localized for display', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    await setLanguage('es');
+
+    expect(i18n.t('nodeCategories.utility')).toBe('Utilidad');
+    expect(i18n.t('nodePalette.otherCategory')).toBe('Otro');
+    expect(appSource).toContain('nodeCategoryDisplayLabel');
+    expect(appSource).toContain("t('nodePalette.otherCategory')");
+    expect(appSource).not.toContain('description: meta.description || meta.category');
+  });
+
   it('keeps the command palette escape key hint behind an i18n key', async () => {
     const { default: i18n, setLanguage } = await import('../i18n');
     const commandPaletteSource = readFileSync(resolve(__dirname, '../components/ui/CommandPalette.tsx'), 'utf8');
