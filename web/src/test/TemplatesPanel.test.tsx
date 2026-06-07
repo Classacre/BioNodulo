@@ -191,4 +191,39 @@ describe('TemplatesPanel i18n', () => {
     expect(screen.getByText('Uncategorized template')).toBeInTheDocument();
     expect(screen.getByText('1 de 1 plantillas')).toBeInTheDocument();
   });
+
+  it('localizes template preview-step summaries from the active locale', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const { setLanguage } = await import('../i18n');
+
+    templatesPayload = {
+      templates: [
+        {
+          id: 'step-summary',
+          name: 'Step summary template',
+          description: '',
+          category: 'RNA-Seq',
+          tags: [],
+          tools: [],
+          node_count: 2,
+          filename: 'step_summary.json',
+          preview_steps: ['fastqc', 'multiqc'],
+        },
+      ],
+    };
+
+    await setLanguage('es');
+
+    render(
+      <TemplatesPanel
+        onClose={() => undefined}
+        onLoadTemplate={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Step summary template')).toBeInTheDocument());
+
+    expect(screen.getByText('Flujo de trabajo de RNA-Seq: fastqc -> multiqc')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow de RNA-Seq: fastqc -> multiqc')).not.toBeInTheDocument();
+  });
 });

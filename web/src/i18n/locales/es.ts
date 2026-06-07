@@ -1014,7 +1014,7 @@ const es = {
     loadedBeforeTitle: 'Ya cargaste esta plantilla antes',
     usedCount: '{{count}}x usado',
     noSearchMatches: 'Ninguna plantilla coincide con tu busqueda.',
-    workflowStepsSummary: 'Workflow de {{category}}: {{steps}}',
+    workflowStepsSummary: 'Flujo de trabajo de {{category}}: {{steps}}',
     workflowTemplateSummary: 'Plantilla de flujo de trabajo de {{category}}',
   },
   environment: {
