@@ -115,16 +115,23 @@ bionodulo-v2/
 │       ├── hpc-integration.html
 │       └── workflow-converters.html
 ├── templates/                       # Workflow templates
-│   ├── fastq_qc_pipeline.json
-│   ├── rna_seq_pipeline.json
-│   ├── variant_calling_pipeline.json
-│   ├── metagenomics_pipeline.json
 │   ├── assembly_pipeline.json
-│   ├── phylogenetics_pipeline.json
+│   ├── biopython_analysis_pipeline.json
 │   ├── chip_seq_pipeline.json
+│   ├── deseq2_differential_expression.json
 │   ├── differential_expression.json
+│   ├── fastq_qc_pipeline.json
+│   ├── long_read_ont_pipeline.json
+│   ├── metagenomics_pipeline.json
+│   ├── phylogenetics_pipeline.json
+│   ├── proteomics_sage_percolator_pipeline.json
+│   ├── r_visualization_pipeline.json
+│   ├── rna_seq_pipeline.json
+│   ├── single_cell_pipeline.json
+│   ├── variant_calling_pipeline.json
+│   ├── wgbs_methylation_pipeline.json
 │   ├── wgs_variant_pipeline.json
-│   └── single_cell_pipeline.json
+│   └── ...
 ├── web/                             # Frontend (React + Vite)
 │   ├── index.html
 │   ├── package.json
@@ -269,8 +276,11 @@ Settings stored per-user in `bionodulo.settings.json`:
 11. **Metagenomics** - Kraken2, Bracken, MetaPhlAn, HUMAnN, MaxBin
 12. **ChIP-Seq** - MACS2, Homer, DeepTools
 13. **Single Cell** - Cell Ranger, Seurat (via R)
-14. **HPC** - SLURM submit, PBS submit, SGE submit
-15. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+14. **Long Read** - Dorado, Chopper, NanoPlot, Modkit, Medaka
+15. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
+16. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
+17. **HPC** - SLURM submit, PBS submit, SGE submit
+18. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel

@@ -13,7 +13,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 - **Visual Node Editor** — Drag-and-drop canvas for building workflows with ~90 built-in bioinformatics nodes
 - **90+ Bioinformatics Nodes** — Covering QC, alignment, variant calling, assembly, RNA-Seq, metagenomics, phylogenetics, ChIP-Seq, single-cell analysis, BioPython integration, R scripting, and more
-- **10 Pre-built Templates** — FASTQ QC, RNA-Seq, Variant Calling, Metagenomics, Assembly, Phylogenetics, ChIP-Seq, Differential Expression, WGS Variant, Single Cell
+- **16 Pre-built Templates** — FASTQ QC Pipeline, RNA-Seq Pipeline, Variant Calling Pipeline, WGS Variant Pipeline, Genome Assembly, Metagenomics Profiling, Phylogenetics Pipeline, ChIP-Seq Pipeline, Single Cell RNA-Seq, DESeq2 Differential Expression, Transcript Quantification, Biopython Analysis Pipeline, R Visualization Pipeline, ONT Long-Read Sequencing, Proteomics Sage-Percolator Search, WGBS Methylation Profiling
 - **HPC Integration** — Submit workflows to SLURM, PBS/Torque, or SGE clusters with a single toggle
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
 - **Settings System** — Per-user settings with categories for appearance, canvas, execution, LLM, and files
@@ -152,7 +152,7 @@ bionodulo-v2/
 │   ├── provenance/            # Workflow embedding, reports
 │   └── ai/                    # AI assistant
 ├── custom_nodes/              # Your custom nodes
-├── templates/                 # 10 pre-built workflow templates
+├── templates/                 # 16 pre-built workflow templates
 ├── envs/                      # Generated per-workflow environments (ignored)
 ├── examples/workflows/        # Example workflows
 ├── cache/                     # Runtime cache
@@ -188,6 +188,9 @@ BioNodulo runs locally with no external services. For larger deployments you can
 | Metagenomics | Kraken2, Bracken, MetaPhlAn, HUMAnN, MaxBin, CheckM | Microbial profiling |
 | ChIP-Seq | MACS2, BEDTools, deepTools | Peak calling and coverage |
 | Single Cell | Cell Ranger | scRNA-seq analysis |
+| Long Read | Dorado, Chopper, NanoPlot, Modkit | ONT long-read basecalling, demultiplexing, QC, and modified-base calls |
+| Proteomics | Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS | Mass-spectrometry search and FDR analysis |
+| Epigenomics | Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling | WGBS methylation, DMR, coverage, and chromatin-contact analysis |
 | HPC | Job Submit, Status Check | Cluster job submission |
 | BioPython | SeqIO, BLAST, MSA, Sequence Stats | Python bioinformatics tools |
 | R Integration | R Script, R Plot, DataFrame Builder | R statistical computing |
