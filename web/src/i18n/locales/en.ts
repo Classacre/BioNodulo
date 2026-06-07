@@ -306,6 +306,9 @@ const en = {
     loadedFromUrl: 'Loaded workflow from URL',
     untitledLower: 'untitled',
   },
+  workflowThumbnail: {
+    emptyWorkflow: '(empty workflow)',
+  },
   workflowStats: {
     categoryFallback: 'Other',
     expandTitle: 'Expand workflow + system stats',

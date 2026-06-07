@@ -3,6 +3,7 @@
 // the WorkflowCanvas being mounted on a particular tab.
 
 import type { Workflow, WorkflowNode } from '../types';
+import i18n from '../i18n';
 
 const NODE_WIDTH = 220;
 const NODE_HEADER_H = 32;
@@ -153,7 +154,7 @@ export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptio
   if (nodes.length === 0) {
     ctx.fillStyle = '#94a3b8';
     ctx.font = '14px Inter, sans-serif';
-    ctx.fillText('(empty workflow)', 16, 24);
+    ctx.fillText(i18n.t('workflowThumbnail.emptyWorkflow'), 16, 24);
     return format === 'jpeg'
       ? canvas.toDataURL('image/jpeg', quality)
       : canvas.toDataURL('image/png');
