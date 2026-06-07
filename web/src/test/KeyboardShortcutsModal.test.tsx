@@ -51,4 +51,22 @@ describe('KeyboardShortcutsModal i18n', () => {
     expect(screen.getByText('Eliminar nodos seleccionados')).toBeInTheDocument();
     expect(screen.queryByText('Abrir paleta de comandos')).not.toBeInTheDocument();
   });
+
+  it('renders shortcut modal shell controls and conflict summary from the active locale', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { KeyboardShortcutsModal } = await import('../components/ui/KeyboardShortcutsModal');
+    const { setKeybinding } = await import('../state/keybindings');
+
+    await setLanguage('es');
+    setKeybinding('workflow.run', 'Ctrl+K');
+
+    render(<KeyboardShortcutsModal open onOpenChange={() => undefined} />);
+
+    expect(screen.getByRole('textbox', { name: 'Buscar atajos de teclado' })).toHaveAttribute(
+      'placeholder',
+      'Buscar atajos...',
+    );
+    expect(screen.getByRole('button', { name: 'Restablecer todo' })).toBeInTheDocument();
+    expect(screen.getByText('1 conflicto de atajo detectado')).toBeInTheDocument();
+  });
 });
