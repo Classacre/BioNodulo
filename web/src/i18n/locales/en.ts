@@ -2023,6 +2023,7 @@ class MyToolNode(CommandNode):
     userListNoLiveSessions: 'No live collaboration sessions',
     userListYouSuffix: '(You)',
     userListWorkflowFallback: 'Workflow {{id}}',
+    commentsWorkflowFallback: 'Workflow {{id}}',
     userListManageAccess: 'Manage access',
     userListMakeRole: 'Make {{role}}',
     userListKickUser: 'Kick user',

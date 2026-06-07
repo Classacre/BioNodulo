@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const apiMocks = vi.hoisted(() => ({
   apiDelete: vi.fn(),
@@ -99,5 +101,55 @@ describe('CommentsPanel i18n', () => {
     expect(screen.getByRole('button', { name: 'Responder' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nuevo comentario... Usa @nombre para mencionar')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publicar comentario' })).toBeDisabled();
+  });
+
+  it('renders missing workflow-name fallbacks from the active locale', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    apiMocks.apiGet.mockResolvedValue({
+      comments: [
+        {
+          id: 'comment-1',
+          workflow_id: 'workflow-abcdef1234567890',
+          node_id: null,
+          user_id: 'user-1',
+          user_name: 'Mika',
+          user_color: '#0d9488',
+          content: 'Comentario sin nombre de workflow',
+          parent_id: null,
+          resolved: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          replies: [],
+        },
+      ],
+      count: 1,
+      workflow_names: {},
+    });
+
+    render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-abcdef1234567890"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Comentario sin nombre de workflow')).toBeInTheDocument());
+
+    expect(i18n.t('collab.commentsWorkflowFallback', { id: 'workflow-abc' })).toBe('Workflow workflow-abc');
+    expect(screen.getByText('Workflow workflow-abc')).toBeInTheDocument();
+  });
+
+  it('keeps comment workflow fallback copy behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../collab/CommentsPanel.tsx'), 'utf8');
+
+    expect(source).toContain('collab.commentsWorkflowFallback');
+    expect(source).not.toContain('`Workflow ${comment.workflow_id.slice(0, 12)}`');
   });
 });

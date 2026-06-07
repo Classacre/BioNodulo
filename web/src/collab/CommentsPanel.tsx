@@ -240,7 +240,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
               </button>
             )}
             <div title={comment.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 32, marginBottom: 4 }}>
-              {workflowNames[comment.workflow_id] || `Workflow ${comment.workflow_id.slice(0, 12)}`}
+              {workflowNames[comment.workflow_id] || t('collab.commentsWorkflowFallback', { id: comment.workflow_id.slice(0, 12) })}
             </div>
             {/* Content */}
             <div style={{ fontSize: 12, lineHeight: 1.5, paddingLeft: 32, whiteSpace: 'pre-wrap' }}>
