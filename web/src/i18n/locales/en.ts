@@ -194,6 +194,10 @@ const en = {
         autoNameDescription: 'Rename the current tab based on the dominant tools in the workflow',
         export: 'Export workflow',
         import: 'Import workflow',
+        newTab: 'New workflow tab',
+        closeTab: 'Close current workflow tab',
+        batchSheet: 'Batch from sample sheet...',
+        batchSheetDescription: 'Queue one run per CSV/TSV row',
       },
     },
     groups: {

@@ -197,6 +197,10 @@ const es = {
         autoNameDescription: 'Cambiar el nombre de la pestana actual segun las herramientas dominantes del workflow',
         export: 'Exportar workflow',
         import: 'Importar workflow',
+        newTab: 'Nueva pestana de workflow',
+        closeTab: 'Cerrar pestana de workflow actual',
+        batchSheet: 'Lote desde hoja de muestras...',
+        batchSheetDescription: 'Encolar una ejecucion por cada fila CSV/TSV',
       },
     },
     groups: {
