@@ -146,6 +146,21 @@ const objectInfo = {
     output: ['TSV', 'JSON', 'FILE'],
     output_name: ['results_tsv', 'results_json', 'config_json'],
   },
+  fragpipe: {
+    name: 'fragpipe',
+    display_name: 'FragPipe Workflow',
+    category: 'proteomics',
+    description: 'Run FragPipe headless workflows for end-to-end proteomics processing.',
+    search_aliases: ['fragpipe', 'headless', 'msfragger', 'proteomics', 'proteomics workflow'],
+    input: {
+      required: {
+        workflow_file: { type: 'FILE' },
+        manifest_file: { type: 'FILE' },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['results_dir'],
+  },
   llm_prompt: {
     name: 'llm_prompt',
     display_name: 'LLM Prompt',
@@ -219,7 +234,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('12 nodes available')).toBeVisible();
+  await expect(page.getByText('13 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -233,6 +248,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
     { query: 'nanopore', name: 'Clair3', category: 'variant' },
     { query: 'sage-proteomics', name: 'Sage Search', category: 'proteomics' },
+    { query: 'proteomics workflow', name: 'FragPipe Workflow', category: 'proteomics' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
   ];

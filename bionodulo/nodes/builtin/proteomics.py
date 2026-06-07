@@ -192,6 +192,73 @@ class MSFraggerNode(CommandNode):
         }
 
 
+class FragPipeWorkflowNode(CommandNode):
+    """Run a FragPipe headless proteomics workflow."""
+
+    NODE_ID = "fragpipe"
+    DISPLAY_NAME = "FragPipe Workflow"
+    CATEGORY = "proteomics"
+    DESCRIPTION = "Run FragPipe headless workflows for end-to-end proteomics processing."
+    SEARCH_ALIASES = ["fragpipe", "headless", "msfragger", "proteomics", "proteomics workflow", "peptide identification"]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("results_dir",)
+    REQUIRED_EXECUTABLES = ["fragpipe"]
+    REQUIRED_CONDA_PACKAGES = ["fragpipe"]
+    DOCUMENTATION_URL = "https://fragpipe.nesvilab.org/"
+    VERSION = "24.0"
+    SHELL = True
+    EXPERIMENTAL = True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not str(inputs.get("workflow_file", "")).strip():
+            return "FragPipe Workflow requires a workflow file."
+        if not str(inputs.get("manifest_file", "")).strip():
+            return "FragPipe Workflow requires a manifest file."
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        out_dir = Path(str(inputs.get("output", ".")))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return [
+            "fragpipe",
+            "--headless",
+            "--workflow",
+            str(inputs.get("workflow_file", "")),
+            "--manifest",
+            str(inputs.get("manifest_file", "")),
+            "--workdir",
+            str(out_dir),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "workflow_file": ("FILE", {"description": "FragPipe workflow file (.workflow)"}),
+                "manifest_file": ("FILE", {"description": "FragPipe manifest file (.fp-manifest)"}),
+            },
+            "optional": {},
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+
 class SageSearchNode(CommandNode):
     """Run Sage for fast peptide-spectrum matching."""
 

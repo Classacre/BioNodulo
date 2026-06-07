@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.builtin.proteomics import DIANNNode
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -207,6 +208,82 @@ def test_msfragger_plans_pepxml_output() -> None:
 def test_msfragger_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["msfragger"] == "msfragger"
     assert PACKAGE_MIN_VERSIONS["msfragger"] == ">=4.0"
+
+
+def test_fragpipe_workflow_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["fragpipe"]
+    assert node_info["display_name"] == "FragPipe Workflow"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"].startswith("Run FragPipe headless workflows")
+    assert node_info["output"] == ["DIRECTORY"]
+    assert node_info["output_name"] == ["results_dir"]
+    assert node_info["required_executables"] == ["fragpipe"]
+    assert node_info["required_conda_packages"] == ["fragpipe"]
+    assert "fragpipe" in node_info["search_aliases"]
+    assert "headless" in node_info["search_aliases"]
+    assert "msfragger" in node_info["search_aliases"]
+    assert "proteomics" in node_info["search_aliases"]
+
+    inputs = node_info["input"]
+    assert set(inputs["required"]) == {"workflow_file", "manifest_file"}
+    assert set(inputs["optional"]) == set()
+
+
+def test_fragpipe_workflow_renders_headless_command(tmp_path: Path) -> None:
+    node_class = _node_class("fragpipe")
+    output_dir = tmp_path / "fragpipe"
+
+    cmd = node_class.render_command({
+        "workflow_file": "lfq.workflow",
+        "manifest_file": "samples.fp-manifest",
+        "output": str(output_dir),
+    })
+
+    assert cmd == [
+        "fragpipe",
+        "--headless",
+        "--workflow",
+        "lfq.workflow",
+        "--manifest",
+        "samples.fp-manifest",
+        "--workdir",
+        str(output_dir),
+    ]
+    assert output_dir.exists()
+
+
+def test_fragpipe_workflow_plans_results_directory() -> None:
+    node_class = _node_class("fragpipe")
+
+    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+
+    assert [str(path) for path in outputs] == ["/tmp/run/fragpipe"]
+
+
+def test_fragpipe_workflow_rejects_empty_required_paths() -> None:
+    node_class = _node_class("fragpipe")
+
+    assert node_class.VALIDATE_INPUTS({
+        "workflow_file": "",
+        "manifest_file": "samples.fp-manifest",
+    }) == "FragPipe Workflow requires a workflow file."
+    assert node_class.VALIDATE_INPUTS({
+        "workflow_file": "lfq.workflow",
+        "manifest_file": " ",
+    }) == "FragPipe Workflow requires a manifest file."
+
+
+def test_fragpipe_workflow_environment_metadata_is_declared() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["fragpipe"] == "fragpipe"
+    assert PACKAGE_MIN_VERSIONS["fragpipe"] == ">=24.0"
+    assert workflow_to_packages({"nodes": [{"id": "fragpipe", "type": "fragpipe"}]}, registry) == ["fragpipe"]
 
 
 def test_sage_is_registered_for_frontend_discovery() -> None:
