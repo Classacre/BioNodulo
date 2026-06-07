@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { toast } from '../components/ui';
+import Dialog from '../components/ui/Dialog';
 
 interface ShareDialogProps {
   workflowId: string | null;
@@ -107,26 +108,14 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.4)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 300,
-    }} onClick={onClose}>
-      <div className="modal" style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        width: 420,
-        maxWidth: '90vw',
-        padding: 20,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-      }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('collab.shareDialogTitle')}</h3>
-
+    <Dialog
+      title={t('collab.shareDialogTitle')}
+      onClose={onClose}
+      width={420}
+      maxHeight="90vh"
+      style={{ maxWidth: '90vw' }}
+      footer={<button className="btn btn-sm" onClick={onClose}>{t('common.close')}</button>}
+    >
         {!collabEnabled && (
           <div style={{
             padding: '9px 10px',
@@ -250,12 +239,7 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
             ))}
           </div>
         )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-sm" onClick={onClose}>{t('common.close')}</button>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 };
 

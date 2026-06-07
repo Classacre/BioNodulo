@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({
@@ -72,8 +74,8 @@ describe('ShareDialog i18n', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Compartir flujo de trabajo' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Compartir workflow' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Compartir flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Compartir workflow' })).not.toBeInTheDocument();
     expect(screen.getByText('La colaboracion esta sin conexion. Crea una sala temporal antes de compartir este flujo de trabajo.')).toBeInTheDocument();
     expect(screen.queryByText('La colaboracion esta sin conexion. Crea una sala temporal antes de compartir este workflow.')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Usuario o email')).toBeDisabled();
@@ -83,6 +85,38 @@ describe('ShareDialog i18n', () => {
     expect(screen.getByText('Crea una sala temporal de colaboracion para generar un enlace compartible.')).toBeInTheDocument();
     expect(screen.getByText('Este enlace local solo funciona en esta maquina o LAN. Usa un tunel Cloudflare/ngrok o una URL alojada para colaboradores externos.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Sin compartidos todavia')).toBeInTheDocument());
+  });
+
+  it('uses the shared dialog primitive dismissal behavior', async () => {
+    const { default: ShareDialog } = await import('../collab/ShareDialog');
+    const onClose = vi.fn();
+
+    apiMocks.apiGet.mockResolvedValue({ shares: [] });
+
+    const { rerender } = render(
+      <ShareDialog
+        workflowId="workflow-1"
+        isOpen
+        onClose={onClose}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Share workflow' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ShareDialog
+        workflowId="workflow-1"
+        isOpen
+        onClose={onClose}
+      />,
+    );
+
+    fireEvent.click(dialog.parentElement as HTMLElement);
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 
   it('renders active shares and copy feedback from the active locale', async () => {
@@ -118,5 +152,13 @@ describe('ShareDialog i18n', () => {
 
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Enlace de colaboracion copiado'));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://bionodulo.example/invite');
+  });
+
+  it('keeps ShareDialog on the shared Dialog primitive', () => {
+    const source = readFileSync(resolve(__dirname, '../collab/ShareDialog.tsx'), 'utf8');
+
+    expect(source).toContain("import Dialog from '../components/ui/Dialog';");
+    expect(source).toContain('<Dialog');
+    expect(source).not.toContain('<div className="modal-overlay"');
   });
 });
