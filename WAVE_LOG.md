@@ -613,6 +613,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - PDB Retrieve now accepts a singular `pdb_id` alias while preserving existing `pdb_ids` behavior.
 - NCBI BLAST now accepts FASTA file paths through `query_sequence` and submits the file contents instead of the path string.
 - Ensembl VEP now accepts HGVS `variants` input via `variant_format=hgvs` while preserving VCF-file annotation.
+- Ensembl VEP now accepts inline Ensembl region-format `variants` via `variant_format=ensembl` and posts them to the region endpoint.
 - UniProt Search now exposes a `database` selector for `uniprotkb`, `uniref`, and `uniparc` search endpoints.
 - NCBI BLAST now accepts the planned `XML` and `Tabular` output-format labels while preserving `XML2`, `CSV`, `Text`, and `SAM` compatibility.
 - NCBI EFetch now exposes the planned return-type selector options for FASTA, GenBank, feature table, XML, accession, SeqID, and docsum fetches.

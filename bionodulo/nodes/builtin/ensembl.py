@@ -323,7 +323,7 @@ class EnsemblVEPNode(BaseNode):
                 "species": ("STRING", {"default": "homo_sapiens"}),
             },
             "optional": {
-                "variant_format": ("STRING", {"default": "hgvs", "options": ["hgvs", "vcf"]}),
+                "variant_format": ("STRING", {"default": "hgvs", "options": ["hgvs", "vcf", "ensembl"]}),
                 "vcf_file": (
                     "VCF",
                     {
@@ -349,7 +349,7 @@ class EnsemblVEPNode(BaseNode):
         vcf_file = str(kwargs.get("vcf_file", "") or "").strip()
         variants_text = str(kwargs.get("variants", "") or "").strip()
         variant_format = str(kwargs.get("variant_format", "") or ("vcf" if vcf_file and not variants_text else "hgvs")).lower()
-        if variant_format not in {"hgvs", "vcf"}:
+        if variant_format not in {"hgvs", "vcf", "ensembl"}:
             raise ValueError(f"Unsupported Ensembl VEP variant_format: {variant_format}")
 
         species = str(kwargs.get("species", "homo_sapiens")).strip() or "homo_sapiens"
@@ -368,10 +368,15 @@ class EnsemblVEPNode(BaseNode):
             if not variants:
                 raise ValueError("Ensembl VEP requires at least one HGVS variant")
             resource = f"vep/{quote(species, safe='')}/hgvs"
-        else:
+        elif variant_format == "vcf":
             if not vcf_file:
                 raise ValueError("Ensembl VEP requires a VCF file")
             variants = _vcf_variants(vcf_file)
+            resource = f"vep/{quote(species, safe='')}/region"
+        else:
+            variants = [line.strip() for line in variants_text.splitlines() if line.strip()]
+            if not variants:
+                raise ValueError("Ensembl VEP requires at least one Ensembl region variant")
             resource = f"vep/{quote(species, safe='')}/region"
 
         payload = await _post_json(

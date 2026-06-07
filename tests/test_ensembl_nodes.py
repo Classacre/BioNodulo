@@ -58,7 +58,7 @@ def test_ensembl_gene_lookup_is_registered_for_frontend_discovery() -> None:
     )
     assert info["ensembl_vep"]["input"]["optional"]["variant_format"] == (
         "STRING",
-        {"default": "hgvs", "options": ["hgvs", "vcf"]},
+        {"default": "hgvs", "options": ["hgvs", "vcf", "ensembl"]},
     )
     assert info["ensembl_vep"]["input"]["optional"]["vcf_file"] == (
         "VCF",
@@ -495,6 +495,93 @@ async def test_ensembl_vep_accepts_hgvs_variants_input(
                 "gene_phenotype": 0,
                 "variant_class": 0,
                 "SiftPrediction": "no",
+                "PolyPhen": "yes",
+                "MAF": "no",
+            },
+            "base_url": "https://rest.ensembl.org",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ensembl_vep_accepts_inline_ensembl_region_variants(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ensembl_vep")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+    payload = [
+        {
+            "input": "13 32316461 . A G . . .",
+            "transcript_consequences": [
+                {
+                    "gene_symbol": "BRCA2",
+                    "gene_id": "ENSG00000139618",
+                    "transcript_id": "ENST00000380152",
+                    "consequence_terms": ["missense_variant"],
+                    "impact": "MODERATE",
+                }
+            ],
+        }
+    ]
+
+    async def fake_post_json(
+        resource: str,
+        json_body: dict[str, Any],
+        params: dict[str, Any] | None = None,
+        base_url: str | None = None,
+        **_: Any,
+    ) -> list[dict[str, Any]]:
+        calls.append({
+            "resource": resource,
+            "json_body": dict(json_body),
+            "params": dict(params or {}),
+            "base_url": base_url,
+        })
+        return payload
+
+    monkeypatch.setattr(module, "_post_json", fake_post_json)
+
+    result = await node_class().run(
+        variants="13 32316461 . A G . . .",
+        variant_format="ensembl",
+        species="homo_sapiens",
+        assembly="current",
+        canonical=False,
+        domains=False,
+        gene_phenotype=False,
+        variant_class=True,
+        sift=True,
+        polyphen=True,
+        maf=False,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    table_path = Path(result["outputs"]["annotation_table"])
+    with table_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+
+    assert rows == [
+        {
+            "input": "13 32316461 . A G . . .",
+            "gene_symbol": "BRCA2",
+            "gene_id": "ENSG00000139618",
+            "transcript_id": "ENST00000380152",
+            "consequence_terms": "missense_variant",
+            "impact": "MODERATE",
+        }
+    ]
+    assert calls == [
+        {
+            "resource": "vep/homo_sapiens/region",
+            "json_body": {"variants": ["13 32316461 . A G . . ."]},
+            "params": {
+                "canonical": 0,
+                "domains": 0,
+                "gene_phenotype": 0,
+                "variant_class": 1,
+                "SiftPrediction": "yes",
                 "PolyPhen": "yes",
                 "MAF": "no",
             },
