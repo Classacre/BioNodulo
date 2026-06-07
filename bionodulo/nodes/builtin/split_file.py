@@ -97,8 +97,10 @@ class SplitFileNode(BaseNode):
             self._split_by_record_count(
                 input_path,
                 output_dir,
+                separator,
                 extension,
                 int(kwargs.get("records_per_chunk", 1000) or 1000),
+                bool(kwargs.get("has_header", True)),
             )
         else:
             raise ValueError(f"Unsupported split_mode: {split_mode}")
@@ -222,10 +224,29 @@ class SplitFileNode(BaseNode):
                 out_fh.close()
 
     @staticmethod
-    def _split_by_record_count(input_path: Path, output_dir: Path, extension: str, records_per_chunk: int) -> None:
+    def _split_by_record_count(
+        input_path: Path,
+        output_dir: Path,
+        output_separator: str,
+        extension: str,
+        records_per_chunk: int,
+        has_header: bool,
+    ) -> None:
         if records_per_chunk < 1:
             raise ValueError("records_per_chunk must be at least 1")
-        lines_per_record = 4 if input_path.suffix.lower() in {".fq", ".fastq"} else None
+        suffix = input_path.suffix.lower()
+        if output_separator in {",", "\t"} and suffix not in {".fa", ".fasta", ".fna", ".fq", ".fastq"}:
+            SplitFileNode()._split_by_line_count(
+                input_path,
+                output_dir,
+                output_separator,
+                extension,
+                records_per_chunk,
+                has_header,
+            )
+            return
+
+        lines_per_record = 4 if suffix in {".fq", ".fastq"} else None
         if lines_per_record is None:
             SplitFileNode._split_fasta_records(input_path, output_dir, extension, records_per_chunk)
             return

@@ -96,3 +96,34 @@ async def test_split_file_splits_tsv_by_column_value(tmp_path: Path) -> None:
         "samples.case.tsv": "sample\tcondition\nS1\tcase\nS3\tcase\n",
         "samples.control.tsv": "sample\tcondition\nS2\tcontrol\n",
     }
+
+
+@pytest.mark.asyncio
+async def test_split_file_splits_tsv_by_record_count_preserving_header(tmp_path: Path) -> None:
+    table = tmp_path / "samples.tsv"
+    _write_table(table, [
+        {"sample": "S1", "condition": "case"},
+        {"sample": "S2", "condition": "case"},
+        {"sample": "S3", "condition": "control"},
+    ])
+
+    result = await _node_class("split_file")().run(
+        file=str(table),
+        split_mode="by_record_count",
+        records_per_chunk=2,
+        has_header=True,
+        output_type="TSV",
+        context=_context(tmp_path, "split-records-table"),
+    )
+
+    chunks = sorted(Path(result[0]).glob("samples.chunk_*.tsv"))
+    assert [path.name for path in chunks] == ["samples.chunk_001.tsv", "samples.chunk_002.tsv"]
+    assert chunks[0].read_text(encoding="utf-8") == (
+        "sample\tcondition\n"
+        "S1\tcase\n"
+        "S2\tcase\n"
+    )
+    assert chunks[1].read_text(encoding="utf-8") == (
+        "sample\tcondition\n"
+        "S3\tcontrol\n"
+    )
