@@ -192,7 +192,8 @@ describe('BottomConsole i18n', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cola (1)' }));
 
     expect(screen.getAllByText('pendiente').length).toBeGreaterThan(0);
-    expect(screen.getByText('Workflow sin titulo')).toBeInTheDocument();
+    expect(screen.getByText('Flujo de trabajo sin titulo')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow sin titulo')).not.toBeInTheDocument();
     expect(screen.getByText('0/2 nodos')).toBeInTheDocument();
     expect(screen.getByText('1 ejecutando')).toBeInTheDocument();
     expect(screen.getByText('1 pendiente')).toBeInTheDocument();

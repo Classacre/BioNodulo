@@ -55,7 +55,8 @@ describe('Workflow message copy i18n', () => {
     await setLanguage('es');
 
     expect(i18n.t('console.actions.runFailedTitle')).toBe('Ejecucion fallida');
-    expect(i18n.t('console.actions.workflowFallback')).toBe('Workflow');
+    expect(i18n.t('console.actions.workflowFallback')).toBe('Flujo de trabajo');
+    expect(i18n.t('console.actions.workflowFallback')).not.toBe('Workflow');
     expect(i18n.t('console.actions.consoleDetailsFallback')).toBe('consulta la consola para mas detalles');
     expect(i18n.t('console.actions.runFailedMessage', {
       name: 'RNA-seq',
@@ -269,16 +270,16 @@ describe('Workflow message copy i18n', () => {
     });
 
     expect(logs.map(log => log.message)).toEqual(expect.arrayContaining([
-      'Workflow iniciado (3 nodos)',
+      'Flujo de trabajo iniciado (3 nodos)',
       'Nodo iniciado [1/3] CsvReader',
       'Nodo completado',
       'Error de nodo: boom',
       'Nodo omitido (upstream failed)',
       'Nodo omitido por bypass',
       'Resultado en cache - omitiendo ejecucion',
-      'Workflow completado',
-      'Error de workflow: engine stopped',
-      'Workflow cancelado',
+      'Flujo de trabajo completado',
+      'Error de flujo de trabajo: engine stopped',
+      'Flujo de trabajo cancelado',
       'Ejecucion enviada',
       'Ejecucion iniciada',
       'Ejecucion terminada (completado)',
@@ -294,6 +295,10 @@ describe('Workflow message copy i18n', () => {
       'Workflow completed',
       'Workflow error: engine stopped',
       'Workflow cancelled',
+      'Workflow iniciado (3 nodos)',
+      'Workflow completado',
+      'Error de workflow: engine stopped',
+      'Workflow cancelado',
       'Run submitted',
       'Run started',
       'Run finished (completed)',

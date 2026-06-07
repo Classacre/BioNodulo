@@ -72,9 +72,12 @@ describe('console action copy i18n', () => {
       confirmLabel: 'Limpiar historial',
       tone: 'warning',
     });
-    expect(copy.retryWorkflowName(unnamedRun)).toBe('Workflow sin titulo (reintento)');
+    expect(copy.retryWorkflowName(unnamedRun)).toBe('Flujo de trabajo sin titulo (reintento)');
+    expect(copy.retryWorkflowName(unnamedRun)).not.toBe('Workflow sin titulo (reintento)');
     expect(copy.loadedRunWorkflowName(namedRun)).toBe('RNA-seq run-1');
     expect(copy.loadedRunWorkflowName(unnamedRun)).toBe('Ejecucion run-2');
+    expect(copy.toast.workflowLoadedFromRun).toBe('Flujo de trabajo cargado desde la ejecucion');
+    expect(copy.toast.workflowLoadedFromRun).not.toBe('Workflow cargado desde la ejecucion');
     expect(copy.toast.retryQueued).toBe('Reintento en cola');
     expect(copy.toast.queueCleared).toBe('Cola limpiada');
     expect(copy.toast.historyCleared).toBe('Historial limpiado');
