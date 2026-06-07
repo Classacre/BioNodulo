@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { toast } from '../components/ui';
 import Dialog from '../components/ui/Dialog';
+import { logError } from '../state/logging';
 
 interface ShareDialogProps {
   workflowId: string | null;
@@ -51,7 +52,8 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
     try {
       const data = await apiGet<{ shares?: ShareEntry[] }>(`/api/collab/shares/${id}`);
       setShares(Array.isArray(data.shares) ? data.shares : []);
-    } catch {
+    } catch (err) {
+      logError('collab.shareDialog.refresh', err);
       setShares([]);
     }
   }, []);
@@ -68,7 +70,9 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
       await apiPost('/api/collab/share', { workflow_id: workflowId, user_id: userId.trim(), role });
       setUserId('');
       await refreshShares(workflowId);
-    } catch { /* surfaced via dialog state */ }
+    } catch (err) {
+      logError('collab.shareDialog.create', err);
+    }
   }, [workflowId, userId, role, refreshShares]);
 
   const handleRevoke = useCallback(async (shareId: string) => {
@@ -76,7 +80,9 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
     try {
       await apiDelete(`/api/collab/share/${shareId}`);
       setShares(prev => prev.filter(s => s.id !== shareId));
-    } catch { /* surfaced via dialog state */ }
+    } catch (err) {
+      logError('collab.shareDialog.revoke', err);
+    }
   }, [workflowId]);
 
   const roomLink = shareLink || (workflowId

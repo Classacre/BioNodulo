@@ -663,6 +663,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Startup queue/history hydration now uses the shared run-list API validator, covering the backend `{ pending, running }` and `{ history }` shapes plus timestamp aliases before mapping records into the console.
 - Runtime artifact APIs now validate checkpoint manifests, pause requests, workflow triggers, trigger evaluation results, and resolve responses at the hook boundary, skipping malformed list rows while rejecting broken top-level payloads.
 - ShareDialog now uses the shared Dialog primitive, inheriting accessible dialog semantics, Escape/backdrop dismissal, and stack-aware modal behavior while preserving collaboration share/link actions.
+- ShareDialog share-list, invite, and revoke failure paths now report swallowed API errors through structured `logError` scopes while preserving the existing fallback UI behavior.
 
 ---
 

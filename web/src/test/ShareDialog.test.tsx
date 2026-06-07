@@ -14,10 +14,15 @@ const toastMock = vi.hoisted(() => ({
   success: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
 vi.mock('../components/ui', () => ({
   toast: toastMock,
 }));
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -48,6 +53,7 @@ describe('ShareDialog i18n', () => {
     apiMocks.apiDelete.mockReset();
     apiMocks.apiGet.mockReset();
     apiMocks.apiPost.mockReset();
+    loggingMock.logError.mockReset();
     toastMock.info.mockReset();
     toastMock.success.mockReset();
   });
@@ -154,10 +160,54 @@ describe('ShareDialog i18n', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://bionodulo.example/invite');
   });
 
+  it('logs swallowed share API failures with stable scopes', async () => {
+    const { default: ShareDialog } = await import('../collab/ShareDialog');
+    const refreshError = new Error('shares unavailable');
+    const shareError = new Error('share failed');
+    const revokeError = new Error('revoke failed');
+
+    apiMocks.apiGet
+      .mockRejectedValueOnce(refreshError)
+      .mockResolvedValueOnce({ shares: [{ id: 'share-1', user_id: 'user-1', name: 'Mika', role: 'viewer' }] })
+      .mockResolvedValueOnce({ shares: [{ id: 'share-1', user_id: 'user-1', name: 'Mika', role: 'viewer' }] });
+    apiMocks.apiPost.mockRejectedValueOnce(shareError);
+    apiMocks.apiDelete.mockRejectedValueOnce(revokeError);
+
+    const { rerender } = render(
+      <ShareDialog
+        workflowId="workflow-1"
+        isOpen
+        onClose={() => undefined}
+        collabEnabled
+      />,
+    );
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.shareDialog.refresh', refreshError));
+
+    rerender(
+      <ShareDialog
+        workflowId="workflow-2"
+        isOpen
+        onClose={() => undefined}
+        collabEnabled
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Mika')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('User ID or email'), { target: { value: 'new-user' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Invite' }));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.shareDialog.create', shareError));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.shareDialog.revoke', revokeError));
+  });
+
   it('keeps ShareDialog on the shared Dialog primitive', () => {
     const source = readFileSync(resolve(__dirname, '../collab/ShareDialog.tsx'), 'utf8');
 
     expect(source).toContain("import Dialog from '../components/ui/Dialog';");
+    expect(source).toContain("import { logError } from '../state/logging';");
     expect(source).toContain('<Dialog');
     expect(source).not.toContain('<div className="modal-overlay"');
   });
