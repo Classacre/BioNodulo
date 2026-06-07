@@ -112,6 +112,17 @@ const EMPTY_STRING_ARRAY: string[] = [];
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
 const CENTER_MENU_TABS = new Set<OpenPanelTab>(['settings', 'templates']);
 const isCenterMenuTab = (tab: OpenPanelTab): boolean => CENTER_MENU_TABS.has(tab);
+const PANEL_LABEL_KEYS: Partial<Record<OpenPanelTab, string>> = {
+  data: 'panels.workspace',
+  nodes: 'panels.nodes',
+  inspector: 'panels.inspector',
+  templates: 'panels.templates',
+  environments: 'panels.environment',
+  runtimeArtifacts: 'panels.runtimeArtifacts',
+  help: 'panels.helpWiki',
+  settings: 'panels.settings',
+  hpc: 'panels.hpc',
+};
 type AppHistorySnapshot = {
   nodes: WorkflowNode[];
   edges: Workflow['edges'];
@@ -2758,6 +2769,12 @@ export default function App() {
     setRailTabState(prev => (prev === tab ? null : prev));
   }, []);
 
+  const getPanelLabel = useCallback((tab: OpenPanelTab) => {
+    const key = PANEL_LABEL_KEYS[tab];
+    if (key) return t(key);
+    return registeredPanels.find(panel => panel.id === tab)?.title || String(tab);
+  }, [registeredPanels, t]);
+
   const renderPanelContent = (tab: OpenPanelTab) => {
     const wrap = (name: string, node: ReactNode): ReactNode => (
       <ErrorBoundary name={name} variant="inline" resetKeys={[tab]}>{node}</ErrorBoundary>
@@ -2905,11 +2922,11 @@ export default function App() {
         <>
           <div className={`panel-dropzone panel-dropzone-left ${panelDropZone === 'left' ? 'is-active' : ''}`}>
             <Icon name="dockPanel" size={18} />
-            <span>Dock left</span>
+            <span>{t('panels.dockLeftDropzone')}</span>
           </div>
           <div className={`panel-dropzone panel-dropzone-right ${panelDropZone === 'right' ? 'is-active' : ''}`}>
             <Icon name="dockPanel" size={18} />
-            <span>Dock right</span>
+            <span>{t('panels.dockRightDropzone')}</span>
           </div>
         </>
       )}
@@ -3184,6 +3201,7 @@ export default function App() {
             const width = panelWidths[tab] ?? 340;
             const floating = floatingPanels[tab];
             const isRight = side === 'right';
+            const panelLabel = getPanelLabel(tab);
             const style = floating
               ? { left: floating.x, top: floating.y, width }
               : isRight
@@ -3206,14 +3224,14 @@ export default function App() {
                     float / dock buttons no longer flash onscreen before the
                     lazy panel chunk has resolved. The fallback covers the
                     full panel area until the real UI is ready. */}
-                <Suspense fallback={<div className="panel-suspense-fallback"><Spinner size="lg" label={`Loading ${tab}…`} /></div>}>
+                <Suspense fallback={<div className="panel-suspense-fallback"><Spinner size="lg" label={t('panels.loadingPanel', { name: panelLabel })} /></div>}>
                   <div className="rail-panel-toolbar">
                     {!floating && (
                       <button
                         className="rail-panel-dock-side"
                         onClick={() => toggleRightDocked(tab)}
-                        title={isRight ? 'Dock to left side' : 'Dock to right side'}
-                        aria-label={isRight ? 'Move panel to left side' : 'Move panel to right side'}
+                        title={isRight ? t('panels.dockToLeftSide') : t('panels.dockToRightSide')}
+                        aria-label={isRight ? t('panels.moveToLeftSide') : t('panels.moveToRightSide')}
                         type="button"
                       >
                         <Icon name={isRight ? 'chevronLeft' : 'chevronRight'} size={13} />
@@ -3222,7 +3240,7 @@ export default function App() {
                     <button
                       className="rail-panel-float"
                       onClick={() => toggleFloatingPanel(tab, index)}
-                      title={floating ? 'Dock panel' : 'Float panel'}
+                      title={floating ? t('panels.dockPanel') : t('panels.floatPanel')}
                       type="button"
                     >
                       <Icon name={floating ? 'dockPanel' : 'floatPanel'} size={13} />
@@ -3233,7 +3251,7 @@ export default function App() {
                 <div
                   className={`rail-panel-resizer ${isRight ? 'on-left' : ''}`}
                   role="separator"
-                  aria-label={`Resize ${tab} panel`}
+                  aria-label={t('panels.resizePanel', { name: panelLabel })}
                   aria-orientation="vertical"
                   aria-valuenow={width}
                   aria-valuemin={280}
@@ -3262,7 +3280,7 @@ export default function App() {
         })()}
 
         {openPanelTabs.filter(isCenterMenuTab).map(tab => (
-          <Suspense key={`center-menu-${tab}`} fallback={<div className="modal-overlay"><Spinner size="lg" label={`Loading ${tab}...`} /></div>}>
+          <Suspense key={`center-menu-${tab}`} fallback={<div className="modal-overlay"><Spinner size="lg" label={t('panels.loadingPanel', { name: getPanelLabel(tab) })} /></div>}>
             {renderPanelContent(tab)}
           </Suspense>
         ))}
