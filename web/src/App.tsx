@@ -2499,7 +2499,8 @@ export default function App() {
         id: `addNode.${meta.id}`,
         label: `Add: ${meta.display_name}`,
         description: meta.description || meta.category,
-        group: 'Add Node',
+        group: t('nodePalette.addNode'),
+        groupLabelKey: 'nodePalette.addNode',
         keywords: [meta.id, meta.category, ...(meta.search_aliases || []), ...(meta.requires_external_tools || [])],
         onSelect: () => {
           const vp = canvasRef.current?.getViewport();
