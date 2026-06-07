@@ -127,6 +127,7 @@ bionodulo-v2/
 │   ├── metagenomics_pipeline.json
 │   ├── phylogenetics_pipeline.json
 │   ├── pangenomics_graph_pipeline.json
+│   ├── protein_structure_database_workflow.json
 │   ├── proteomics_sage_percolator_pipeline.json
 │   ├── r_visualization_pipeline.json
 │   ├── rna_seq_pipeline.json
@@ -284,13 +285,14 @@ Settings stored per-user in `bionodulo.settings.json`:
 14. **Spatial Transcriptomics** - Space Ranger, Squidpy, Scanpy, Seurat, Cell2location, Baysor
 15. **Long Read** - Dorado, Chopper, NanoPlot, Modkit, Medaka
 16. **Proteomics** - Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS
-17. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
-18. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
-19. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
-20. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
-21. **Synthetic Biology** - SBOL, COPASI, iBioSim, Cello
-22. **HPC** - SLURM submit, PBS submit, SGE submit
-23. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
+17. **Protein Structure** - UniProt, AlphaFold DB, RCSB PDB
+18. **Epigenomics** - Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling
+19. **CRISPR** - Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK
+20. **Pangenomics** - PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo
+21. **Metabolomics** - XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL
+22. **Synthetic Biology** - SBOL, COPASI, iBioSim, Cello
+23. **HPC** - SLURM submit, PBS submit, SGE submit
+24. **Utility** - Generic Command, View Text, Collect Files, Merge VCF
 
 ## HPC Integration
 - Toggle in settings panel
