@@ -34,12 +34,15 @@ type MessageTone = 'ok' | 'err';
 
 function apiErrorMessage(err: unknown, fallback: string, networkFallback: string): string {
   if (!(err instanceof ApiError)) return networkFallback;
+  let detailMessage = '';
   if (err.body && typeof err.body === 'object' && 'detail' in err.body) {
     const detail = (err.body as { detail?: unknown }).detail;
-    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (typeof detail === 'string' && detail.trim()) detailMessage = detail.trim();
   }
-  if (typeof err.body === 'string' && err.body.trim()) return err.body;
-  return fallback;
+  if (!detailMessage && typeof err.body === 'string' && err.body.trim()) {
+    detailMessage = err.body.trim();
+  }
+  return detailMessage ? `${fallback}: ${detailMessage}` : fallback;
 }
 
 export default function EnvironmentPanel({ onClose }: EnvironmentPanelProps) {

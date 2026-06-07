@@ -687,6 +687,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - WorkspacePanel root loading, file listing, root-change, and file-preview failures now report structured `logError` scopes while preserving existing empty-state and inline error fallbacks.
 - TemplateGallery load, fork, and save-template failures now show localized inline fallback copy instead of raw API exception messages, while preserving structured diagnostics for each action.
 - EnvironmentPanel list, rename, delete, duplicate, and package-removal failures now report structured `logError` scopes while preserving existing inline error fallbacks.
+- EnvironmentPanel action failures now keep backend API details behind localized rename/delete/duplicate/remove labels instead of showing raw detail text as the whole message.
 - UserList share refresh, role-change, and remove-user failures now report structured `logError` scopes while preserving existing empty-share and localized error fallbacks.
 - MissingDependenciesBanner install-start and first status-poll failures now report structured `logError` scopes while preserving existing install fallback behavior and avoiding repeated poll log spam.
 - `useWorkflow.resolve` manager failures now report a structured `workflow.resolve` log entry while preserving the existing null resolve-report fallback.

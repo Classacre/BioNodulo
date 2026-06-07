@@ -237,4 +237,90 @@ describe('EnvironmentPanel i18n', () => {
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('environment.package.remove', packageError));
     packageView.unmount();
   });
+
+  it('keeps environment API detail errors behind localized action labels', async () => {
+    const { default: EnvironmentPanel } = await import('../components/panels/EnvironmentPanel');
+    const { setLanguage } = await import('../i18n');
+
+    const queueApiDetailFailure = (failure: { method: string; path: string; detail: string }) => {
+      fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        const method = init?.method || 'GET';
+        if (method === failure.method && url.includes(failure.path)) {
+          return new Response(JSON.stringify({ detail: failure.detail }), {
+            status: 409,
+            statusText: 'Conflict',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (url.includes('/api/manager/environments') && method === 'GET') {
+          return new Response(JSON.stringify(environmentsResponse), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ detail: 'unexpected request' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+    };
+
+    await setLanguage('es');
+
+    queueApiDetailFailure({
+      method: 'POST',
+      path: '/api/manager/environments/env-alpha-001/rename',
+      detail: 'backend rename detail',
+    });
+    const renameView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Opciones'));
+    fireEvent.click(screen.getByText('Renombrar'));
+    await waitFor(() => expect(screen.getByDisplayValue('rna env')).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue('rna env'), { target: { value: 'renamed env' } });
+    fireEvent.keyDown(screen.getByDisplayValue('renamed env'), { key: 'Enter' });
+    await waitFor(() => expect(screen.getByText('No se pudo renombrar: backend rename detail')).toBeInTheDocument());
+    expect(screen.queryByText('backend rename detail')).not.toBeInTheDocument();
+    renameView.unmount();
+
+    queueApiDetailFailure({
+      method: 'DELETE',
+      path: '/api/manager/environments/env-alpha-001',
+      detail: 'backend delete detail',
+    });
+    const deleteView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Opciones'));
+    fireEvent.click(screen.getByText('Eliminar'));
+    await waitFor(() => expect(screen.getByText('No se pudo eliminar: backend delete detail')).toBeInTheDocument());
+    expect(screen.queryByText('backend delete detail')).not.toBeInTheDocument();
+    deleteView.unmount();
+
+    queueApiDetailFailure({
+      method: 'POST',
+      path: '/api/manager/environments/env-alpha-001/duplicate',
+      detail: 'backend duplicate detail',
+    });
+    const duplicateView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Opciones'));
+    fireEvent.click(screen.getByText('Duplicar'));
+    await waitFor(() => expect(screen.getByText('No se pudo duplicar: backend duplicate detail')).toBeInTheDocument());
+    expect(screen.queryByText('backend duplicate detail')).not.toBeInTheDocument();
+    duplicateView.unmount();
+
+    queueApiDetailFailure({
+      method: 'POST',
+      path: '/api/manager/environments/env-alpha-001/packages/fastqc/remove',
+      detail: 'backend package detail',
+    });
+    const packageView = render(<EnvironmentPanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('rna env')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Mostrar paquetes'));
+    fireEvent.click(screen.getByTitle('Eliminar fastqc'));
+    await waitFor(() => expect(screen.getByText('No se pudo eliminar: backend package detail')).toBeInTheDocument());
+    expect(screen.queryByText('backend package detail')).not.toBeInTheDocument();
+    packageView.unmount();
+  });
 });
