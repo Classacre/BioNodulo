@@ -250,6 +250,43 @@ async def test_ncbi_esearch_resolves_api_key_credential_reference(monkeypatch: p
 
 
 @pytest.mark.asyncio
+async def test_ncbi_esearch_resolves_api_key_from_bionodulo_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    node_class = _node_class("ncbi_esearch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"esearchresult": {"count": "0", "idlist": [], "querytranslation": "BRCA1[All Fields]"}}
+
+    monkeypatch.setenv("BIONODULO_NCBI_API_KEY", "env-ncbi-key")
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    await node_class().run(
+        query="BRCA1",
+        database="gene",
+        max_results=1,
+        sort="relevance",
+        api_key="",
+        context=SimpleNamespace(resolve_secret=lambda _key: None),
+    )
+
+    assert calls == [
+        {
+            "endpoint": "esearch.fcgi",
+            "params": {
+                "db": "gene",
+                "term": "BRCA1",
+                "retmode": "json",
+                "retmax": 1,
+                "sort": "relevance",
+                "api_key": "env-ncbi-key",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ncbi_esearch_supports_retstart_and_accession_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("ncbi_esearch")
     module = importlib.import_module(node_class.__module__)

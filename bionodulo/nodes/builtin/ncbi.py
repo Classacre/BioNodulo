@@ -55,7 +55,14 @@ NCBI_API_KEY_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=NCBI_API_KEY_
 
 
 def _resolve_api_key(explicit: Any, context: Any) -> str:
-    return resolve_secret_value(explicit, context, "ncbi_api_key", "NCBI_API_KEY")
+    return resolve_secret_value(
+        explicit,
+        context,
+        "ncbi_api_key",
+        "BIONODULO_NCBI_API_KEY",
+        "NCBI_API_KEY",
+        default=os.environ.get("BIONODULO_NCBI_API_KEY", "") or os.environ.get("NCBI_API_KEY", ""),
+    )
 
 
 def _clean_params(params: dict[str, Any]) -> dict[str, Any]:
