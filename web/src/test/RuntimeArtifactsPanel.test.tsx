@@ -117,32 +117,32 @@ describe('RuntimeArtifactsPanel', () => {
   it('renders runtime artifacts and exposes trigger and pause actions', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Runtime artifacts')).toBeInTheDocument();
-    expect(screen.getByText('2 checkpoints')).toBeInTheDocument();
+    expect(screen.getByText('Artefactos de ejecucion')).toBeInTheDocument();
+    expect(screen.getByText('2 puntos de control')).toBeInTheDocument();
     expect(screen.getByText('after_qc')).toBeInTheDocument();
     expect(screen.getByText('Review sample QC')).toBeInTheDocument();
     expect(screen.getByText('weekly-qc')).toBeInTheDocument();
-    expect(screen.getByText('1 schedule trigger due')).toBeInTheDocument();
-    expect(screen.getByText('1 file-watch trigger due')).toBeInTheDocument();
+    expect(screen.getByText('1 activador programado pendiente')).toBeInTheDocument();
+    expect(screen.getByText('1 activador de archivo pendiente')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Evaluate triggers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluar activadores' }));
     await waitFor(() => expect(evaluateWorkflowTriggers).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve after_qc' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolver after_qc' }));
     await waitFor(() => expect(resolveCheckpoint).toHaveBeenCalledWith({ checkpoint_name: 'after_qc' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve pause-node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar pause-node' }));
     await waitFor(() => expect(resolvePauseRequest).toHaveBeenCalledWith({
       action: 'approve',
       node_id: 'pause-node',
       pause_file: '/workspace/pause_requests/pause-node.json',
     }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reject pause-node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rechazar pause-node' }));
     await waitFor(() => expect(resolvePauseRequest).toHaveBeenLastCalledWith({
       action: 'reject',
       node_id: 'pause-node',
@@ -191,7 +191,7 @@ describe('RuntimeArtifactsPanel', () => {
   it('renders loading and error states', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: null,
@@ -210,7 +210,7 @@ describe('RuntimeArtifactsPanel', () => {
 
     const { rerender } = render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando...')).toBeInTheDocument();
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: null,
@@ -230,14 +230,14 @@ describe('RuntimeArtifactsPanel', () => {
     rerender(<RuntimeArtifactsPanel onClose={onClose} />);
 
     expect(screen.getByText('backend unavailable')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('surfaces the latest resolved checkpoint', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: {
@@ -268,7 +268,7 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Resolved checkpoint')).toBeInTheDocument();
+    expect(screen.getByText('Punto de control resuelto')).toBeInTheDocument();
     expect(screen.getByText('after_annotation')).toBeInTheDocument();
     expect(screen.getByText('/workspace/checkpoints/after_annotation.json')).toBeInTheDocument();
   });
@@ -276,7 +276,7 @@ describe('RuntimeArtifactsPanel', () => {
   it('labels checkpoints as manifest-only when executor resume is unavailable', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: {
@@ -321,14 +321,14 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Manifest only')).toBeInTheDocument();
-    expect(screen.getAllByText('Executor resume unavailable')).toHaveLength(2);
+    expect(screen.getByText('Solo manifiesto')).toBeInTheDocument();
+    expect(screen.getAllByText('Reanudacion por ejecutor no disponible')).toHaveLength(2);
   });
 
   it('labels pause requests when blocking pause is available', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
@@ -363,13 +363,13 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Blocking pause available')).toBeInTheDocument();
+    expect(screen.getByText('Pausa bloqueante disponible')).toBeInTheDocument();
   });
 
   it('labels workflow triggers as pollable metadata when run submission is unavailable', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
@@ -397,15 +397,15 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('Pollable metadata only')).toBeInTheDocument();
-    expect(screen.getByText('Run submission unavailable')).toBeInTheDocument();
-    expect(screen.getByText('Does not submit workflow runs')).toBeInTheDocument();
+    expect(screen.getByText('Solo metadatos consultables')).toBeInTheDocument();
+    expect(screen.getByText('Envio de ejecuciones no disponible')).toBeInTheDocument();
+    expect(screen.getByText('No envia ejecuciones de flujo de trabajo')).toBeInTheDocument();
   });
 
   it('submits due workflow triggers and renders submission results', async () => {
     const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
     const { setLanguage } = await import('../i18n');
-    await setLanguage('en');
+    await setLanguage('es');
 
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
@@ -447,11 +447,11 @@ describe('RuntimeArtifactsPanel', () => {
 
     render(<RuntimeArtifactsPanel onClose={onClose} />);
 
-    expect(screen.getByText('1 workflow run submitted')).toBeInTheDocument();
+    expect(screen.getByText('1 ejecucion de flujo de trabajo enviada')).toBeInTheDocument();
     expect(screen.getByText('weekly-qc-run')).toBeInTheDocument();
     expect(screen.getByText('already_submitted')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit due triggers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar activadores pendientes' }));
     await waitFor(() => expect(evaluateWorkflowTriggers).toHaveBeenCalledWith(undefined, { submitRuns: true }));
   });
 

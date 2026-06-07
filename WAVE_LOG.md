@@ -577,6 +577,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - IGV Snapshot now supports interactive HTML output through Plotly: variant and annotation tracks render against a shared genomic coordinate axis while preserving the existing `snapshot_image` output name and PNG/SVG defaults. The generated HTML artifact was browser-checked with Playwright.
 - Notification workflow nodes now support real SMTP email delivery when SMTP host/from/to settings are supplied directly or through `BIONODULO_SMTP_*` environment variables, while missing SMTP configuration still skips safely and delivery metadata redacts credentials.
 - Set Fields now fills the n8n-style field-mapping gap for table workflows: CSV/TSV rows can add or update fields from JSON assignments, render per-row `{column}` templates, optionally keep only selected output fields, and preserve CSV/TSV output format for frontend discovery.
+- Runtime Artifacts panel coverage now exercises active Spanish render paths for checkpoint, pause, trigger-evaluation, resume, loading, and action copy; Spanish trigger labels consistently use `activador` wording and the overlay source guards regenerated locale output.
 
 ---
 
