@@ -1,6 +1,7 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkflowParameter } from '../../types';
+import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
@@ -16,8 +17,7 @@ export default function NodeEditor({ node, workflowParameters = [], onParamChang
   const [showAdvanced, setShowAdvanced] = useState(false);
   if (!node) return null;
   const meta = node.meta;
-  const required = meta?.input_types?.required || {};
-  const optional = meta?.input_types?.optional || {};
+  const { required, optional } = getVisibleInputSpecs(meta, node.params);
 
   const hasAdvanced = Object.values(optional).some((s: any) => s?.advanced);
 

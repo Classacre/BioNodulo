@@ -32,6 +32,26 @@ def test_http_request_is_registered_for_frontend_discovery() -> None:
     assert "rate_limit_per_second" in info["http_request"]["input"]["optional"]
 
 
+def test_http_request_exposes_conditional_input_visibility_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    optional = registry.object_info()["http_request"]["input"]["optional"]
+
+    assert optional["body"][1]["displayOptions"] == {
+        "show": {"body_format": ["json", "text", "form"]},
+    }
+    assert optional["bearer_token"][1]["displayOptions"] == {
+        "show": {"auth_mode": ["bearer"]},
+    }
+    assert optional["username"][1]["displayOptions"] == {
+        "show": {"auth_mode": ["basic"]},
+    }
+    assert optional["password"][1]["displayOptions"] == {
+        "show": {"auth_mode": ["basic"]},
+    }
+
+
 @pytest.mark.asyncio
 async def test_http_request_posts_json_and_writes_response_outputs(
     monkeypatch: pytest.MonkeyPatch,

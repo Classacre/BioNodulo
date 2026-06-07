@@ -15,6 +15,9 @@ export interface InputSpec {
   display?: 'number' | 'slider' | 'default';
   accept?: string;
   directory?: boolean;
+  displayOptions?: {
+    show?: Record<string, unknown | unknown[]>;
+  };
 }
 
 export interface NodeMetadata {

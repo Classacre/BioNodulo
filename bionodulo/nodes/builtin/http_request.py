@@ -151,11 +151,39 @@ class HTTPRequestNode(BaseNode):
                 "query_params": ("STRING", {"default": "{}", "multiline": True, "description": "JSON object of query parameters"}),
                 "headers": ("STRING", {"default": "{}", "multiline": True, "description": "JSON object of request headers"}),
                 "body_format": ("STRING", {"default": "none", "options": ["none", "json", "text", "form"]}),
-                "body": ("STRING", {"default": "", "multiline": True}),
+                "body": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "displayOptions": {"show": {"body_format": ["json", "text", "form"]}},
+                    },
+                ),
                 "auth_mode": ("STRING", {"default": "none", "options": ["none", "bearer", "basic"]}),
-                "bearer_token": ("STRING", {"default": "", "advanced": True}),
-                "username": ("STRING", {"default": "", "advanced": True}),
-                "password": ("STRING", {"default": "", "advanced": True}),
+                "bearer_token": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "displayOptions": {"show": {"auth_mode": ["bearer"]}},
+                    },
+                ),
+                "username": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "displayOptions": {"show": {"auth_mode": ["basic"]}},
+                    },
+                ),
+                "password": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "displayOptions": {"show": {"auth_mode": ["basic"]}},
+                    },
+                ),
                 "timeout": ("FLOAT", {"default": REQUEST_TIMEOUT_S, "min": 1}),
                 "follow_redirects": ("BOOLEAN", {"default": True}),
                 "cache_ttl": ("FLOAT", {"default": 0, "min": 0, "description": "Cache GET/HEAD responses for N seconds; 0 disables cache"}),

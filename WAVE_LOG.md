@@ -12,6 +12,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 ## Protobionodulo engine slices
 
 - `parallel_for` now honors `max_concurrency` by running body chunks through an async semaphore, while preserving gathered result order and `all_succeeded` reporting.
+- `http_request` now exposes `displayOptions` metadata for body/auth fields, and the frontend shares one visibility helper across node editor rows and canvas widgets/ports.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

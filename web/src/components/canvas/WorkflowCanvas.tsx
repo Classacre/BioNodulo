@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, ObjectInfo, NodeMetadata, NodeStatus, WorkflowParameter } from '../../types';
 import { edgeColorForSource, defaultsFor } from '../../utils';
+import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
@@ -251,8 +252,9 @@ function isInteractiveWidgetSpec(spec: unknown): boolean {
   return false;
 }
 
-function countInteractiveWidgets(meta: NodeMetadata | null): number {
-  const all = { ...meta?.input_types?.required, ...meta?.input_types?.optional };
+function countInteractiveWidgets(meta: NodeMetadata | null, params?: Record<string, unknown>): number {
+  const visibleInputs = getVisibleInputSpecs(meta, params);
+  const all = { ...visibleInputs.required, ...visibleInputs.optional };
   let count = 0;
   for (const [, spec] of Object.entries(all)) {
     if (isInteractiveWidgetSpec(spec)) count += 1;
@@ -285,10 +287,11 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
     const text = String(params?.text || '');
     return calcNoteHeight(text, width || NODE_NOTE_WIDTH);
   }
-  const ins = Object.keys(meta?.input_types?.required || {}).length + Object.keys(meta?.input_types?.optional || {}).length;
+  const visibleInputs = getVisibleInputSpecs(meta, params);
+  const ins = Object.keys(visibleInputs.required).length + Object.keys(visibleInputs.optional).length;
   const outs = (meta?.return_types || []).length;
   const ioHeight = Math.max(ins, outs, 1) * NODE_PIN_H;
-  const widgetCount = countInteractiveWidgets(meta);
+  const widgetCount = countInteractiveWidgets(meta, params);
   const widgetHeight = widgetCount > 0 ? widgetCount * WIDGET_ROW_H + WIDGET_BLOCK_PAD : 0;
   const visibleParamCount = Object.keys(params || {}).filter(key => key !== 'text').length;
   const summaryHeight = widgetCount === 0 && visibleParamCount > 0 ? Math.min(3, visibleParamCount) * 15 + 10 : 0;
@@ -389,12 +392,8 @@ function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Arr
     if (n.collapsed) {
       return { width, height: NODE_HEADER_H + 8 };
     }
-    const widgetSpecs = n.meta
-      ? {
-        ...(n.meta.input_types?.required || {}),
-        ...(n.meta.input_types?.optional || {}),
-      }
-      : {};
+    const visibleInputs = getVisibleInputSpecs(n.meta, n.params);
+    const widgetSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
     const widgetCount = Object.keys(widgetSpecs).length;
     const portRows = Math.max(n.inputs?.length || 0, n.outputs?.length || 0, 1);
     const measuredH = n.height && n.height > 0
@@ -770,6 +769,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           // the node clip its DOM-widget overlays.
           nodeHeight = storedHeight ? Math.max(storedHeight, minHeight) : minHeight;
         }
+        const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
         return {
           id: wn.id,
           type: wn.type,
@@ -780,10 +780,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           width: nodeWidth,
           height: nodeHeight,
           inputs: (meta && !visualOnly) ? [
-            ...Object.entries(meta.input_types?.required || {}).map(([name, spec]) => ({
+            ...Object.entries(visibleInputs.required).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
             })),
-            ...Object.entries(meta.input_types?.optional || {}).map(([name, spec]) => ({
+            ...Object.entries(visibleInputs.optional).map(([name, spec]) => ({
               name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
             })),
           ] : [],
@@ -1355,10 +1355,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           // Track widget hit areas (kept for legacy slider/select drag handlers).
           // Visible rendering happens entirely via the DOM overlay below, so the
           // canvas itself no longer draws toggles/sliders/combos/etc.
-          const nodeMeta = node.meta;
-          const metaRequired = nodeMeta?.input_types?.required || {};
-          const metaOptional = nodeMeta?.input_types?.optional || {};
-          const allSpecs = { ...metaRequired, ...metaOptional };
+          const visibleInputs = getVisibleInputSpecs(node.meta, node.params);
+          const allSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
           const widgetY0 = node.y + NODE_HEADER_H + Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H + 6;
           let wy = widgetY0;
           const widgetH = 18;
@@ -2096,7 +2094,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             handleNodeParamChange(clicked.id, w.name, newVal);
             onPushHistory();
           } else if (w.type === 'combo') {
-            const spec = clicked.meta?.input_types?.required?.[w.name] || clicked.meta?.input_types?.optional?.[w.name];
+            const visibleInputs = getVisibleInputSpecs(clicked.meta, clicked.params);
+            const spec = visibleInputs.required[w.name] || visibleInputs.optional[w.name];
             const options = (spec as any)?.options || [];
             const currentIdx = options.indexOf(String(clicked.params[w.name] ?? options[0]));
             const nextIdx = (currentIdx + 1) % options.length;
@@ -2362,9 +2361,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       const widgets = widgetsRef.current.get(node.id) || [];
       const w = widgets.find(ww => ww.name === aw.name);
       if (!w || w.type !== 'slider') { setActiveWidget(null); return; }
-      const metaRequired = node.meta?.input_types?.required || {};
-      const metaOptional = node.meta?.input_types?.optional || {};
-      const s = (metaRequired[aw.name] || metaOptional[aw.name]) as any;
+      const visibleInputs = getVisibleInputSpecs(node.meta, node.params);
+      const s = (visibleInputs.required[aw.name] || visibleInputs.optional[aw.name]) as any;
       const min = s?.min ?? 0;
       const max = s?.max ?? 100;
       const step = s?.step ?? 1;
@@ -3419,10 +3417,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         && !node.visualOnly
         && node.type !== 'reroute'
       )).flatMap(node => {
-        const allSpecs = {
-          ...(node.meta?.input_types?.required || {}),
-          ...(node.meta?.input_types?.optional || {}),
-        };
+        const visibleInputs = getVisibleInputSpecs(node.meta, node.params);
+        const allSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
         const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
         let top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 6) * scale;
         const left = node.x * scale + offset.x + 8 * scale;
@@ -3736,10 +3732,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           onSelect={(meta) => {
             const created = addNode(meta, palettePos.x, palettePos.y);
             if (pendingLinkPickup && created) {
-              const inputs = {
-                ...(meta.input_types?.required || {}),
-                ...(meta.input_types?.optional || {}),
-              };
+              const visibleInputs = getVisibleInputSpecs(meta, defaultsFor(meta));
+              const inputs = { ...visibleInputs.required, ...visibleInputs.optional };
               // Prefer a slot whose type exactly matches the dragged link's
               // output type. Fall back to '*' / 'ANY', then the first input.
               const entries = Object.entries(inputs);

@@ -216,6 +216,105 @@ describe('WorkflowCanvas controls i18n', () => {
     expect(fillText).not.toHaveBeenCalledWith('Node', expect.any(Number), expect.any(Number));
   });
 
+  it('hides conditional canvas widgets until their controlling parameter matches', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    stubCanvasContext(vi.fn());
+    const objectInfo = {
+      http_request: {
+        id: 'http_request',
+        display_name: 'HTTP Request',
+        category: 'API',
+        input_types: {
+          required: {
+            url: { type: 'STRING', label: 'URL', default: '' },
+          },
+          optional: {
+            body_format: { type: 'STRING', label: 'Body format', default: 'none', options: ['none', 'json', 'text', 'form'] },
+            body: {
+              type: 'STRING',
+              label: 'Body',
+              displayOptions: { show: { body_format: ['json', 'text', 'form'] } },
+            },
+            auth_mode: { type: 'STRING', label: 'Auth mode', default: 'none', options: ['none', 'bearer', 'basic'] },
+            bearer_token: {
+              type: 'STRING',
+              label: 'Bearer token',
+              displayOptions: { show: { auth_mode: ['bearer'] } },
+            },
+            username: {
+              type: 'STRING',
+              label: 'Username',
+              displayOptions: { show: { auth_mode: ['basic'] } },
+            },
+            password: {
+              type: 'STRING',
+              label: 'Password',
+              displayOptions: { show: { auth_mode: ['basic'] } },
+            },
+          },
+        },
+        return_types: [],
+      },
+    } satisfies ObjectInfo;
+    const baseProps = {
+      edges: [],
+      groups: [],
+      objectInfo,
+      onNodesChange: () => undefined,
+      onEdgesChange: () => undefined,
+      onGroupsChange: () => undefined,
+      onPushHistory: () => undefined,
+      onUndo: () => undefined,
+      onRedo: () => undefined,
+      snapToGrid: false,
+      showMinimap: false,
+      viewportLocked: false,
+      linksHidden: false,
+      onToggleMinimap: () => undefined,
+      onToggleLinksHidden: () => undefined,
+    };
+
+    const { rerender } = render(
+      <WorkflowCanvas
+        {...baseProps}
+        nodes={[{
+          id: 'http-1',
+          type: 'http_request',
+          position: [100, 100],
+          params: { body_format: 'none', auth_mode: 'none' },
+        }]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Body format')).toBeInTheDocument();
+      expect(screen.getByText('Auth mode')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Body')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+    expect(screen.queryByText('Username')).not.toBeInTheDocument();
+    expect(screen.queryByText('Password')).not.toBeInTheDocument();
+
+    rerender(
+      <WorkflowCanvas
+        {...baseProps}
+        nodes={[{
+          id: 'http-1',
+          type: 'http_request',
+          position: [100, 100],
+          params: { body_format: 'json', auth_mode: 'basic' },
+        }]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Body')).toBeInTheDocument();
+      expect(screen.getByText('Username')).toBeInTheDocument();
+      expect(screen.getByText('Password')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+  });
+
   it('logs media paste upload failures while keeping the failure toast', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
     const uploadError = new Error('upload unavailable');
