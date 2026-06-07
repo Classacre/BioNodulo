@@ -3356,7 +3356,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           >
             <img
               src={previewUrl}
-              alt="Preview"
+              alt={t('common.preview')}
               style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />

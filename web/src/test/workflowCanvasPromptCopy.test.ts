@@ -57,6 +57,7 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
     expect(i18n.t('canvas.mediaPasteInputFileMissing')).toBe('El nodo input_file no esta registrado');
     expect(i18n.t('canvas.mediaPasteImported')).toBe('Importado');
     expect(i18n.t('workspace.uploadFailed')).toBe('Upload failed');
+    expect(i18n.t('common.preview')).toBe('Vista previa');
   });
 
   it('keeps WorkflowCanvas prompt and toast strings behind i18n keys', () => {
@@ -83,6 +84,7 @@ describe('WorkflowCanvas prompt and toast copy i18n', () => {
       'input_file node not registered',
       "'Imported'",
       "'Upload failed'",
+      'alt="Preview"',
     ].forEach(text => expect(source).not.toContain(text));
   });
 });

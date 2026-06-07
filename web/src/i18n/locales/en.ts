@@ -50,6 +50,7 @@ const en = {
     no: 'No',
     untitled: 'Untitled',
     loading: 'Loading...',
+    preview: 'Preview',
     empty: 'Empty',
     error: 'Error',
     warning: 'Warning',

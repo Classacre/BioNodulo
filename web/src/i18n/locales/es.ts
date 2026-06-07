@@ -50,6 +50,7 @@ const es = {
     no: 'No',
     untitled: 'Sin titulo',
     loading: 'Cargando...',
+    preview: 'Vista previa',
     empty: 'Vacio',
     error: 'Error',
     warning: 'Advertencia',
