@@ -9,7 +9,12 @@ const authMocks = vi.hoisted(() => ({
   setAuthSession: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../collab/auth', () => authMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -35,6 +40,7 @@ describe('AuthDialog i18n', () => {
     authMocks.generateGuestName.mockReturnValue('Guest User');
     authMocks.isAuthTokenError.mockImplementation((err: unknown) => Boolean(err && typeof err === 'object' && 'code' in err));
     authMocks.setAuthSession.mockReset();
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -107,5 +113,40 @@ describe('AuthDialog i18n', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Unirse' }));
 
     expect(await screen.findByText('La respuesta de autenticacion no incluyo token')).toBeInTheDocument();
+  });
+
+  it('logs swallowed auth join failures with stable scopes', async () => {
+    const { default: AuthDialog } = await import('../collab/AuthDialog');
+    const joinError = new Error('join failed');
+    const guestError = new Error('guest failed');
+
+    authMocks.fetchToken.mockRejectedValueOnce(joinError);
+    const joinView = render(
+      <AuthDialog
+        isOpen
+        onLogin={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Join' }));
+
+    expect(await screen.findByText('join failed')).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.auth.join', joinError);
+    joinView.unmount();
+
+    authMocks.fetchToken.mockRejectedValueOnce(guestError);
+    render(
+      <AuthDialog
+        isOpen
+        onLogin={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue as Guest' }));
+
+    expect(await screen.findByText('guest failed')).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.auth.guest', guestError);
   });
 });

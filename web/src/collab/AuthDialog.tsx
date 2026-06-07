@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { fetchToken, setAuthSession, generateGuestName, isAuthTokenError } from './auth';
+import { logError } from '../state/logging';
 
 interface AuthDialogProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(displayName);
     } catch (err) {
+      logError('collab.auth.join', err);
       setError(authTokenErrorMessage(err, 'collab.authJoinError', t));
     } finally {
       setIsLoading(false);
@@ -57,6 +59,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
       setAuthSession(session);
       onLogin(guestName);
     } catch (err) {
+      logError('collab.auth.guest', err);
       setError(authTokenErrorMessage(err, 'collab.authGuestJoinError', t));
     } finally {
       setIsLoading(false);

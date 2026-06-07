@@ -673,6 +673,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NodeCommentPopover post-comment and resolve-comment failures now report structured `logError` scopes while preserving existing inline error messages.
 - AuditLog load and CSV-export failures now report structured `logError` scopes while preserving existing inline error messages.
 - CommentsPanel post, reply, resolve, and delete action failures now report structured `logError` scopes while the recurring comment polling failure path stays intentionally unlogged to avoid repeated offline-noise.
+- AuthDialog named-join and guest-join failures now report structured `logError` scopes while preserving existing localized authentication error messages.
 
 ---
 
