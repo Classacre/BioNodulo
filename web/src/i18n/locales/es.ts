@@ -1729,6 +1729,7 @@ class MyToolNode(CommandNode):
     loadingReport: 'Cargando informe de procedencia...',
     runReportTitle: 'Informe de ejecucion',
     previewImageTitle: 'Doble clic para ver en pantalla completa',
+    previewImageAlt: 'Previsualizacion {{node}}',
     previewHtmlTitle: 'Clic para abrir informe HTML',
     previewFrameTitle: 'Previsualizacion {{node}}',
     status: {

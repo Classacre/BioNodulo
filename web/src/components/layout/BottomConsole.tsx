@@ -224,7 +224,7 @@ function groupLogsByNode(logs: LogEntry[]): Map<string, LogEntry[]> {
   return nodeGroups;
 }
 
-function derivePreviews(history: RunRecord[]): {
+function derivePreviews(history: RunRecord[], t: TFunction): {
   imagePreviews: { src: string; alt: string; filename: string; runId: string; nodeId: string }[];
   htmlPreviews: { src: string; filename: string; runId: string; nodeId: string }[];
 } {
@@ -237,7 +237,7 @@ function derivePreviews(history: RunRecord[]): {
         const filename = path.split('/').pop() || `${nodeId}.png`;
         imagePreviews.push({
           src: appPath(`/api/previews/${run.run_id}/${nodeId}?path=${encodeURIComponent(path)}`),
-          alt: `Preview ${nodeId}`,
+          alt: t('console.previewImageAlt', { node: nodeId }),
           filename,
           runId: run.run_id,
           nodeId,
@@ -715,7 +715,7 @@ export default function BottomConsole({
     userScrolledUpRef.current = !isNearBottom;
   };
 
-  const { imagePreviews, htmlPreviews } = useMemo(() => derivePreviews(history), [history]);
+  const { imagePreviews, htmlPreviews } = useMemo(() => derivePreviews(history, t), [history, t]);
 
   const handleDoubleClick = (idx: number) => {
     openLightbox({

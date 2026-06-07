@@ -81,6 +81,35 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
   });
 
+  it('renders preview image alt text from the active locale', async () => {
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    const historyRun = runRecord({
+      run_id: 'history-run-1',
+      status: 'completed',
+      workflow_name: 'Preview workflow',
+      previews: { plot_node: '/runs/history-run-1/plot_node/plot.png' },
+    });
+
+    render(
+      <Provider>
+        <BottomConsole
+          queue={[]}
+          history={[historyRun]}
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Previsualizaciones/ }));
+
+    expect(screen.getByRole('img', { name: 'Previsualizacion plot_node' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Preview plot_node' })).not.toBeInTheDocument();
+  });
+
   it('renders queue and history controls from the active locale', async () => {
     const { default: BottomConsole } = await import('../components/layout/BottomConsole');
     const { setLanguage } = await import('../i18n');

@@ -1724,6 +1724,7 @@ class MyToolNode(CommandNode):
     loadingReport: 'Loading provenance report...',
     runReportTitle: 'Run report',
     previewImageTitle: 'Double-click to view fullscreen',
+    previewImageAlt: 'Preview {{node}}',
     previewHtmlTitle: 'Click to open HTML report',
     previewFrameTitle: 'Preview {{node}}',
     status: {
