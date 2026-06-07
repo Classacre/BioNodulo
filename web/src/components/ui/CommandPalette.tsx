@@ -1,6 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import Icon from './Icon';
@@ -22,11 +23,17 @@ export interface CommandPaletteProps {
   footer?: ReactNode;
 }
 
-function itemSearchText(item: CommandItem) {
+function commandGroupLabel(item: CommandItem, t: TFunction) {
+  if (item.groupLabelKey) return t(item.groupLabelKey, { defaultValue: item.groupLabel ?? item.group ?? '' });
+  return item.groupLabel ?? item.group;
+}
+
+function itemSearchText(item: CommandItem, t: TFunction) {
   return [
     item.label,
     item.description,
     item.group,
+    commandGroupLabel(item, t),
     ...(item.keywords ?? []),
   ].filter(Boolean).join(' ').toLowerCase();
 }
@@ -59,18 +66,23 @@ export function CommandPalette({
   const filteredItems = useMemo(() => {
     const normalized = deferredQuery;
     if (!normalized) return items;
-    return items.filter(item => itemSearchText(item).includes(normalized));
-  }, [deferredQuery, items]);
+    return items.filter(item => itemSearchText(item, t).includes(normalized));
+  }, [deferredQuery, items, t]);
 
   const groupedItems = useMemo(() => {
-    const groups = new Map<string, CommandItem[]>();
+    const groups = new Map<string, { label: string; items: CommandItem[] }>();
     filteredItems.forEach(item => {
       const group = item.group || t('commandPalette.defaultGroup');
-      groups.set(group, [...(groups.get(group) ?? []), item]);
+      const label = commandGroupLabel(item, t) || group;
+      const existing = groups.get(group);
+      groups.set(group, {
+        label: existing?.label ?? label,
+        items: [...(existing?.items ?? []), item],
+      });
     });
     return Array.from(groups.entries()).sort(([a], [b]) => compareCommandGroups(a, b));
   }, [filteredItems, t]);
-  const visibleItems = useMemo(() => groupedItems.flatMap(([, groupItems]) => groupItems), [groupedItems]);
+  const visibleItems = useMemo(() => groupedItems.flatMap(([, group]) => group.items), [groupedItems]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,10 +160,10 @@ export function CommandPalette({
           <kbd>Esc</kbd>
         </div>
         <div className="bn-ui-command-list" ref={listRef} role="listbox">
-          {filteredItems.length ? groupedItems.map(([group, groupItems]) => (
+          {filteredItems.length ? groupedItems.map(([group, groupData]) => (
             <div key={group}>
-              <div className="bn-ui-command-group">{group}</div>
-              {groupItems.map(item => {
+              <div className="bn-ui-command-group">{groupData.label}</div>
+              {groupData.items.map(item => {
                 const currentIndex = itemIndex;
                 itemIndex += 1;
                 return (

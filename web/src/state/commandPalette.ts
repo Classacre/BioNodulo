@@ -48,6 +48,8 @@ export interface CommandItem {
   description?: string;
   /** Accepts CommandGroup for typed registration; free-form strings still work. */
   group?: CommandGroup | string;
+  groupLabel?: string;
+  groupLabelKey?: string;
   keywords?: string[];
   shortcut?: string;
   icon?: ReactNode;

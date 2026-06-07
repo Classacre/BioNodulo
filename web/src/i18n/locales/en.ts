@@ -125,6 +125,14 @@ const en = {
     runShortcut: 'Run',
     openRecentWorkflow: 'Open recent: {{name}}',
     recentWorkflowFallback: 'recent workflow',
+    commands: {
+      palette: {
+        use: 'Use {{name}} palette',
+      },
+    },
+    groups: {
+      appearance: 'Appearance',
+    },
   },
   shortcuts: {
     title: 'Keyboard shortcuts',

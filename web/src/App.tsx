@@ -2379,9 +2379,12 @@ export default function App() {
 
     const paletteCommands = palettes.map(palette => ({
       id: `palette.${palette.id}`,
-      label: `Use ${palette.name} palette`,
-      description: palette.description,
+      label: t('commandPalette.commands.palette.use', { name: palette.name }),
+      description: palette.descriptionKey
+        ? t(palette.descriptionKey, { defaultValue: palette.description })
+        : palette.description,
       group: 'Appearance',
+      groupLabelKey: 'commandPalette.groups.appearance',
       onSelect: () => setPalette(palette.id),
     }));
 

@@ -125,6 +125,14 @@ const es = {
     runShortcut: 'Ejecutar',
     openRecentWorkflow: 'Abrir reciente: {{name}}',
     recentWorkflowFallback: 'workflow reciente',
+    commands: {
+      palette: {
+        use: 'Usar paleta {{name}}',
+      },
+    },
+    groups: {
+      appearance: 'Apariencia',
+    },
   },
   shortcuts: {
     title: 'Atajos de teclado',
