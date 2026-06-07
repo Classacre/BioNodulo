@@ -595,6 +595,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.
 - AlphaFold DB now gives the planning-style `format` input precedence when both `format` and legacy `structure_format` are supplied.
 - PDB Download now advertises the planning-style `format` input as a `STRING` with RCSB format options, preserving runtime validation while exposing the expected frontend/API contract.
+- PDB Download now accepts `mmcif` as an alias for the canonical RCSB CIF download path, exposing the familiar mmCIF label while keeping `.cif` artifacts and metadata stable.
 - STRING DB image queries now download the planned `string_network.png` artifact and record `image_path` metadata while preserving the existing TSV/JSON output contract.
 - STRING DB image queries now send the planned `add_white_nodes` parameter for neighborhood expansion while preserving `add_nodes` for TSV network queries.
 - InterProScan REST nodes now advertise the planned `api` category for `interpro_scan` and its compatibility wrapper.

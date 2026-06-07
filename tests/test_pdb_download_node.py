@@ -46,10 +46,10 @@ def test_pdb_download_advertises_format_as_string_options() -> None:
     assert node_class is not None
 
     format_spec = node_class.INPUT_TYPES()["required"]["format"]
-    assert format_spec == ("STRING", {"default": "cif", "options": ["cif", "pdb", "xml", "sf"]})
+    assert format_spec == ("STRING", {"default": "cif", "options": ["cif", "mmcif", "pdb", "xml", "sf"]})
 
     frontend_format = registry.object_info()["pdb_download"]["input"]["required"]["format"]
-    assert frontend_format == ("STRING", {"default": "cif", "options": ["cif", "pdb", "xml", "sf"]})
+    assert frontend_format == ("STRING", {"default": "cif", "options": ["cif", "mmcif", "pdb", "xml", "sf"]})
 
 
 @pytest.mark.asyncio
@@ -226,6 +226,42 @@ async def test_pdb_download_writes_structure_density_and_metadata(
         ("https://maps.rcsb.org/x-ray/4hhb/cell/", tmp_path / "pdb_download" / "4HHB_density.bcif"),
         ("https://files.rcsb.org/download/1MBN.cif", tmp_path / "pdb_download" / "1MBN.cif"),
         ("https://maps.rcsb.org/x-ray/1mbn/cell/", tmp_path / "pdb_download" / "1MBN_density.bcif"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pdb_download_accepts_mmcif_format_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("pdb_download")
+    module = importlib.import_module(node_class.__module__)
+    download_calls: list[tuple[str, Path]] = []
+
+    async def fake_download(url: str, path: Path, **_: Any) -> None:
+        download_calls.append((url, path))
+        path.write_text(f"downloaded from {url}\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_download_file", fake_download)
+
+    format_input = node_class.INPUT_TYPES()["required"]["format"]
+    assert "mmcif" in format_input[1]["options"]
+
+    result = await node_class().run(
+        pdb_ids="4hhb",
+        format="mmcif",
+        fetch_metadata=False,
+        download_density=False,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    structure_path = Path(result["outputs"]["structure_file"])
+    metadata = json.loads(Path(result["outputs"]["pdb_metadata"]).read_text(encoding="utf-8"))
+
+    assert structure_path == tmp_path / "pdb_download" / "4HHB.cif"
+    assert metadata["structures"][0]["format"] == "cif"
+    assert download_calls == [
+        ("https://files.rcsb.org/download/4HHB.cif", tmp_path / "pdb_download" / "4HHB.cif")
     ]
 
 

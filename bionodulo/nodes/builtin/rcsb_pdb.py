@@ -26,7 +26,8 @@ RCSB_CACHE_TTL_S = 300.0
 RCSB_RATE_LIMIT_PER_SECOND = 3.0
 RCSB_API_CACHE = APICache(ttl_seconds=RCSB_CACHE_TTL_S)
 RCSB_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=RCSB_RATE_LIMIT_PER_SECOND, burst=1)
-PDB_FORMATS = ("cif", "pdb", "xml", "sf")
+PDB_FORMATS = ("cif", "mmcif", "pdb", "xml", "sf")
+PDB_FORMAT_ALIASES = {"mmcif": "cif"}
 
 
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
@@ -61,6 +62,11 @@ def _format_suffix(fmt: str) -> str:
     if fmt == "sf":
         return "-sf.cif"
     return f".{fmt}"
+
+
+def _normalise_pdb_format(fmt: Any) -> str:
+    value = str(fmt or "cif").lower()
+    return PDB_FORMAT_ALIASES.get(value, value)
 
 
 async def _request_json(
@@ -155,9 +161,10 @@ class PDBDownloadNode(BaseNode):
         pdb_ids = _coerce_ids(kwargs.get("pdb_ids", ""))
         if not pdb_ids:
             raise ValueError("PDB Download requires at least one PDB ID")
-        fmt = str(kwargs.get("format", "cif") or "cif").lower()
-        if fmt not in PDB_FORMATS:
-            raise ValueError(f"Unsupported PDB format: {fmt}")
+        requested_format = str(kwargs.get("format", "cif") or "cif").lower()
+        if requested_format not in PDB_FORMATS:
+            raise ValueError(f"Unsupported PDB format: {requested_format}")
+        fmt = _normalise_pdb_format(requested_format)
         fetch_metadata = bool(kwargs.get("fetch_metadata", True))
         download_density = bool(kwargs.get("download_density", False))
 
