@@ -213,6 +213,7 @@ class UniProtSearchNode(BaseNode):
             "optional": {
                 "database": ("STRING", {"default": "uniprotkb", "options": list(UNIPROT_SEARCH_DATABASES)}),
                 "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
+                "size": ("INT", {"default": 25, "min": 1, "max": 500, "advanced": True}),
                 "reviewed_only": ("BOOLEAN", {"default": False}),
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "fields": ("STRING", {"default": UNIPROT_SEARCH_FIELDS, "advanced": True}),
@@ -226,7 +227,7 @@ class UniProtSearchNode(BaseNode):
         query = str(kwargs.get("query", "") or "").strip()
         if not query:
             raise ValueError("UniProt Search requires a non-empty query")
-        max_results = int(kwargs.get("max_results", 25))
+        max_results = int(kwargs.get("size") or kwargs.get("max_results", 25))
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
         database = str(kwargs.get("database", "uniprotkb") or "uniprotkb").strip().lower()

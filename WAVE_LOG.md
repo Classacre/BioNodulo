@@ -613,6 +613,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - NCBI BLAST now accepts the planned `XML` and `Tabular` output-format labels while preserving `XML2`, `CSV`, `Text`, and `SAM` compatibility.
 - NCBI EFetch now exposes the planned return-type selector options for FASTA, GenBank, feature table, XML, accession, SeqID, and docsum fetches.
 - NCBI EFetch now exposes the planned `nucleotide` database alias and normalizes it to NCBI's `nuccore` request parameter.
+- UniProt Search now accepts the planned `size` input alias while preserving `max_results` compatibility.
 
 ---
 

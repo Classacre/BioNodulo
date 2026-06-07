@@ -59,6 +59,10 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
         "STRING",
         {"default": "uniprotkb", "options": ["uniprotkb", "uniref", "uniparc"]},
     )
+    assert info["uniprot_search"]["input"]["optional"]["size"] == (
+        "INT",
+        {"default": 25, "min": 1, "max": 500, "advanced": True},
+    )
 
 
 @pytest.mark.asyncio
@@ -285,6 +289,37 @@ async def test_uniprot_search_database_option_selects_search_endpoint(
     await node_class().run(query="identity:0.9", database="uniref", context=context)
 
     assert calls == ["uniref/search"]
+
+
+@pytest.mark.asyncio
+async def test_uniprot_search_accepts_planned_size_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("uniprot_search")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any] | None] = []
+
+    async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
+        calls.append(params)
+        return {"results": []}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    await node_class().run(
+        query="gene:TP53",
+        size=7,
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    assert calls == [
+        {
+            "query": "gene:TP53",
+            "format": "json",
+            "fields": "accession,id,gene_names,organism_name,protein_name,length",
+            "size": 7,
+        }
+    ]
 
 
 @pytest.mark.asyncio
