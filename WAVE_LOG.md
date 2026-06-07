@@ -578,6 +578,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Notification workflow nodes now support real SMTP email delivery when SMTP host/from/to settings are supplied directly or through `BIONODULO_SMTP_*` environment variables, while missing SMTP configuration still skips safely and delivery metadata redacts credentials.
 - Set Fields now fills the n8n-style field-mapping gap for table workflows: CSV/TSV rows can add or update fields from JSON assignments, render per-row `{column}` templates, optionally keep only selected output fields, and preserve CSV/TSV output format for frontend discovery.
 - Runtime Artifacts panel coverage now exercises active Spanish render paths for checkpoint, pause, trigger-evaluation, resume, loading, and action copy; Spanish trigger labels consistently use `activador` wording and the overlay source guards regenerated locale output.
+- JSON/YAML Operations now expose the documented `pretty_print` and `stringify` operation aliases through `object_info`; YAML `set` also parses structured JSON/YAML values before scalar fallback so nested list/object config updates stay structured.
 
 ---
 

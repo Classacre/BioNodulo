@@ -55,6 +55,25 @@ def _parse_scalar(value: str) -> Any:
         return stripped
 
 
+def _parse_structured_or_scalar(value: str) -> Any:
+    stripped = value.strip()
+    if not stripped:
+        return _parse_scalar(value)
+
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+
+    if stripped[0] in {"[", "{"} or "\n" in stripped:
+        try:
+            return _load_yaml(stripped)
+        except ValueError:
+            pass
+
+    return _parse_scalar(value)
+
+
 def _get_path(data: Any, key_path: str) -> Any:
     current = data
     for key in key_path.split("."):
@@ -501,7 +520,10 @@ class JSONOperationsNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "operation": (["get", "set", "delete", "keys", "pretty", "minify", "validate", "parse"], {"default": "pretty", "description": "JSON operation"}),
+                "operation": (
+                    ["get", "set", "delete", "keys", "pretty", "pretty_print", "minify", "validate", "parse", "stringify"],
+                    {"default": "pretty", "description": "JSON operation"},
+                ),
                 "json_input": ("STRING", {"default": "{}", "multiline": True, "description": "JSON string or path to JSON file"}),
             },
             "optional": {
@@ -526,7 +548,7 @@ class JSONOperationsNode(BaseNode):
 
         if operation == "validate":
             return (json_text, "", True)
-        if operation in {"pretty", "parse", "pretty_print"}:
+        if operation in {"pretty", "parse", "pretty_print", "stringify"}:
             return (json.dumps(data, indent=indent), "", True)
         if operation == "minify":
             return (json.dumps(data, separators=(",", ":")), "", True)
@@ -582,7 +604,10 @@ class YMLOperationsNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "operation": (["get", "set", "keys", "to_json", "validate", "parse", "pretty"], {"default": "parse", "description": "YAML operation"}),
+                "operation": (
+                    ["get", "set", "keys", "to_json", "validate", "parse", "pretty", "pretty_print", "stringify"],
+                    {"default": "parse", "description": "YAML operation"},
+                ),
                 "yaml_input": ("STRING", {"default": "", "multiline": True, "description": "YAML string or path to YAML file"}),
             },
             "optional": {
@@ -612,7 +637,7 @@ class YMLOperationsNode(BaseNode):
 
         if operation == "validate":
             return (yaml_text, "", True)
-        if operation in {"parse", "pretty", "pretty_print"}:
+        if operation in {"parse", "pretty", "pretty_print", "stringify"}:
             return (_dump_yaml(data), "", True)
         if operation == "to_json":
             return (json.dumps(data, sort_keys=True), "", True)
@@ -634,7 +659,7 @@ class YMLOperationsNode(BaseNode):
             if not key:
                 raise ValueError("key is required for set operation")
             raw_value = str(kwargs.get("value", ""))
-            parsed_value = _parse_scalar(raw_value)
+            parsed_value = _parse_structured_or_scalar(raw_value)
             return (_dump_yaml(_set_path(data, key, parsed_value)), raw_value, True)
 
         raise ValueError(f"Unsupported YAML operation: {operation}")

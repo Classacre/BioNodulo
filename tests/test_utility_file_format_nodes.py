@@ -52,6 +52,18 @@ def test_file_format_utility_nodes_are_registered_for_frontend_discovery() -> No
     }
 
 
+def test_json_and_yaml_operation_metadata_exposes_planned_aliases() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    json_operations = set(info["json_operations"]["input"]["required"]["operation"][1]["options"])
+    yaml_operations = set(info["yaml_operations"]["input"]["required"]["operation"][1]["options"])
+
+    assert {"stringify", "pretty_print"}.issubset(json_operations)
+    assert {"stringify", "pretty_print"}.issubset(yaml_operations)
+
+
 @pytest.mark.asyncio
 async def test_file_info_reports_metadata_for_existing_and_missing_paths(tmp_path: Path) -> None:
     sample = tmp_path / "sample.fastq"
@@ -230,6 +242,24 @@ async def test_yaml_operations_support_flat_yaml_and_json_conversion(tmp_path: P
 
     with pytest.raises(ValueError, match="key is required"):
         await node.run(operation="get", yaml_input=yaml_text)
+
+
+@pytest.mark.asyncio
+async def test_yaml_operations_set_preserves_structured_values() -> None:
+    node = _node_class("yaml_operations")()
+
+    result_yaml, value, valid = await node.run(
+        operation="set",
+        yaml_input="sample: S1\n",
+        key="metrics",
+        value='{"depth": 24, "flags": ["pass", "review"]}',
+    )
+
+    result_json, _, _ = await node.run(operation="to_json", yaml_input=result_yaml)
+    result = json.loads(result_json)
+    assert result["metrics"] == {"depth": 24, "flags": ["pass", "review"]}
+    assert value == '{"depth": 24, "flags": ["pass", "review"]}'
+    assert valid is True
 
 
 @pytest.mark.asyncio
