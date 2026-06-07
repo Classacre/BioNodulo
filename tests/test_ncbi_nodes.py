@@ -42,6 +42,24 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
         "STRING",
         {"default": "fasta", "options": ["fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum"]},
     )
+    assert info["ncbi_efetch"]["input"]["required"]["database"] == (
+        "STRING",
+        {
+            "default": "nuccore",
+            "options": [
+                "pubmed",
+                "gene",
+                "snp",
+                "sra",
+                "nuccore",
+                "nucleotide",
+                "protein",
+                "assembly",
+                "gds",
+                "taxonomy",
+            ],
+        },
+    )
     assert info["ncbi_blast"]["display_name"] == "NCBI BLAST"
     assert info["ncbi_blast"]["category"] == "databases"
     assert info["ncbi_blast"]["output_name"] == ["blast_results", "blast_summary"]
@@ -474,6 +492,46 @@ async def test_ncbi_efetch_accepts_planned_accessions_alias(
             "params": {
                 "db": "nuccore",
                 "id": "NM_000546.6,NM_001126112.3",
+                "rettype": "fasta",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ncbi_efetch_accepts_planned_nucleotide_database_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ncbi_efetch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return ">NM_000546.6 TP53\nATGC\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        accessions="NM_000546.6",
+        database="nucleotide",
+        rettype="fasta",
+        retmode="text",
+        output_name="tp53_nucleotide.fasta",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    assert result["outputs"]["metadata"]["database"] == "nuccore"
+    assert calls == [
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "NM_000546.6",
                 "rettype": "fasta",
                 "retmode": "text",
                 "tool": "bionodulo",

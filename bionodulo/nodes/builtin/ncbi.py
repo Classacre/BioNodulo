@@ -46,6 +46,7 @@ GEO_ENTRY_TYPES = {
 }
 SRA_OUTPUT_FORMATS = ("fastq", "fasta")
 NCBI_EFETCH_RETTYPES = ("fasta", "gb", "gbwithparts", "gbc", "ft", "xml", "acc", "seqid", "docsum")
+NCBI_EFETCH_DATABASES = ("pubmed", "gene", "snp", "sra", "nuccore", "nucleotide", "protein", "assembly", "gds", "taxonomy")
 SRA_FILE_SUFFIXES = {
     "fastq": (".fastq", ".fq", ".fastq.gz", ".fq.gz"),
     "fasta": (".fasta", ".fa", ".fna", ".fasta.gz", ".fa.gz", ".fna.gz"),
@@ -208,6 +209,11 @@ def _default_extension(rettype: str, retmode: str) -> str:
 
 def _default_ncbi_email() -> str:
     return os.environ.get("BIONODULO_EMAIL", "bionodulo@example.com")
+
+
+def _normalise_ncbi_database(database: Any) -> str:
+    value = str(database or "nuccore")
+    return "nuccore" if value == "nucleotide" else value
 
 
 def _normalise_blast_query(query: Any) -> str:
@@ -487,17 +493,7 @@ class NCBIEFetchNode(BaseNode):
         return {
             "required": {
                 "accessions": ("STRING", {"default": "", "description": "Record IDs or accessions as a list, JSON list, or comma-separated string"}),
-                "database": ([
-                    "pubmed",
-                    "gene",
-                    "snp",
-                    "sra",
-                    "nuccore",
-                    "protein",
-                    "assembly",
-                    "gds",
-                    "taxonomy",
-                ], {"default": "nuccore"}),
+                "database": (list(NCBI_EFETCH_DATABASES), {"default": "nuccore"}),
             },
             "optional": {
                 "rettype": ("STRING", {"default": "fasta", "options": list(NCBI_EFETCH_RETTYPES)}),
@@ -516,7 +512,7 @@ class NCBIEFetchNode(BaseNode):
         ids = _coerce_ids(kwargs.get("accessions", "") or kwargs.get("id_list", ""))
         if not ids:
             raise ValueError("NCBI EFetch requires at least one ID")
-        database = str(kwargs.get("database", "nuccore"))
+        database = _normalise_ncbi_database(kwargs.get("database", "nuccore"))
         rettype = str(kwargs.get("rettype", "fasta"))
         retmode = str(kwargs.get("retmode", "text"))
         batch_size = int(kwargs.get("batch_size", 100) or 100)
