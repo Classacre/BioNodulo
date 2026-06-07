@@ -337,6 +337,7 @@ describe('GettingStartedModal i18n', () => {
       'Live from GitHub releases',
       'Fetching latest releases',
       'Offline mode',
+      'setReleasesError(err instanceof Error ? err.message : String(err))',
       'Showing bundled changelog',
       "|| 'unreleased'",
       'BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow',

@@ -715,7 +715,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - App queue/history/template user-action failures now report structured `logError` scopes while preserving the existing toast, confirmation, and local state fallback behavior.
 - App command-palette cache-clear failures now report a structured `logError` scope while preserving the existing localized error toast.
 - WorkflowCanvas pasted-media upload failures now report a structured `logError` scope while preserving the existing localized upload-failed toast and leaving clipboard capability fallthrough unlogged.
-- GettingStartedModal release-fetch failures now report a structured `logError` scope while preserving the bundled changelog fallback and skipping abort noise.
+- GettingStartedModal release-fetch failures now keep raw exceptions in structured diagnostics only, using a boolean offline fallback state so bundled changelog copy stays localized and abort noise is skipped.
 - CWL export now routes core table transforms `filter_rows` and `merge_tables` through the builtin node runner, with exported command smoke tests covering filtered and merged table outputs.
 - While-loop body execution now honors `break_continue` signals, stopping on break and skipping the rest of the current iteration on continue just like `foreach`.
 - HPC backend dropdown option labels now read from `hpc.backends` i18n keys, with Spanish render coverage and a static guard against reintroducing literal option copy.

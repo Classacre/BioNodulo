@@ -161,7 +161,7 @@ export default function GettingStartedModal({
   const [tagDraft, setTagDraft] = useState('');
   const [liveReleases, setLiveReleases] = useState<ReleaseNote[] | null>(() => loadCachedReleases());
   const [releasesLoading, setReleasesLoading] = useState(false);
-  const [releasesError, setReleasesError] = useState<string | null>(null);
+  const [releaseFetchFailed, setReleaseFetchFailed] = useState(false);
 
   // Fetch live release notes when the News tab opens. Cached for 6 hours so
   // repeated opens don't hammer the GitHub API and offline users still see
@@ -171,7 +171,7 @@ export default function GettingStartedModal({
     if (liveReleases && liveReleases.length > 0) return;
     const controller = new AbortController();
     setReleasesLoading(true);
-    setReleasesError(null);
+    setReleaseFetchFailed(false);
     fetch('https://api.github.com/repos/Classacre/BioNodulo/releases?per_page=10', {
       signal: controller.signal,
       headers: { Accept: 'application/vnd.github+json' },
@@ -194,7 +194,7 @@ export default function GettingStartedModal({
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
         logError('gettingStarted.releases.fetch', err);
-        setReleasesError(err instanceof Error ? err.message : String(err));
+        setReleaseFetchFailed(true);
       })
       .finally(() => setReleasesLoading(false));
     return () => controller.abort();
@@ -421,7 +421,7 @@ export default function GettingStartedModal({
                     ? t('gettingStarted.newsLiveStatus', { count: liveReleases.length })
                     : releasesLoading
                       ? t('gettingStarted.newsFetching')
-                      : releasesError
+                      : releaseFetchFailed
                         ? t('gettingStarted.newsOffline')
                         : t('gettingStarted.newsBundled')}
                 </div>
