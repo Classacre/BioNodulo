@@ -71,6 +71,9 @@ describe('BatchSampleSheetModal i18n', () => {
     render(
       <BatchSampleSheetModal
         workflow={workflow({
+          parameters: [
+            { name: 'genome', type: 'STRING', required: false },
+          ],
           nodes: [
             node({
               id: 'align',
@@ -103,6 +106,8 @@ describe('BatchSampleSheetModal i18n', () => {
     expect(screen.getByText('ctrl_02')).toBeInTheDocument();
     expect(screen.getAllByText('Omitir').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Usar como nombre de ejecucion').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('option', { name: 'Parametro de flujo de trabajo -> genome' })).toHaveLength(3);
+    expect(screen.queryAllByRole('option', { name: 'Parametro de workflow -> genome' })).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: /Encolar 2 ejecuciones/ }));
 
