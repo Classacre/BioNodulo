@@ -44,6 +44,14 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["geo_query"]["display_name"] == "GEO Query"
     assert info["geo_query"]["category"] == "databases"
     assert info["geo_query"]["output_name"] == ["geo_metadata", "sample_table"]
+    assert info["geo_query"]["input"]["optional"]["query"] == (
+        "STRING",
+        {"default": "", "advanced": True, "description": "Backward-compatible GEO search query"},
+    )
+    assert info["geo_query"]["input"]["optional"]["dataset_type"] == (
+        "STRING",
+        {"default": "", "options": ["search", "series", "sample", "platform"], "advanced": True},
+    )
     assert info["sra_download"]["display_name"] == "SRA Download"
     assert info["sra_download"]["category"] == "databases"
     assert info["sra_download"]["output_name"] == ["fastq_files", "download_report"]
@@ -765,6 +773,57 @@ async def test_geo_query_search_writes_metadata_and_sample_table(
             },
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_geo_query_accepts_query_and_dataset_type_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("geo_query")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        if endpoint == "esearch.fcgi":
+            return {"esearchresult": {"count": "1", "idlist": ["200001"]}}
+        return {
+            "result": {
+                "uids": ["200001"],
+                "200001": {
+                    "uid": "200001",
+                    "accession": "GSE100001",
+                    "title": "Breast cancer RNA-seq cohort",
+                    "entryType": "GSE",
+                },
+            }
+        }
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    result = await node_class().run(
+        query="breast cancer RNA-seq",
+        dataset_type="search",
+        max_results=1,
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    metadata = json.loads(Path(result["outputs"]["geo_metadata"]).read_text(encoding="utf-8"))
+    assert metadata["query"] == "breast cancer RNA-seq"
+    assert metadata["query_type"] == "search"
+    assert [entry["accession"] for entry in metadata["summaries"]] == ["GSE100001"]
+    assert calls[0] == {
+        "endpoint": "esearch.fcgi",
+        "params": {
+            "db": "gds",
+            "term": "breast cancer RNA-seq",
+            "retmode": "json",
+            "retmax": 1,
+            "tool": "bionodulo",
+            "email": "bionodulo@example.com",
+        },
+    }
 
 
 @pytest.mark.asyncio

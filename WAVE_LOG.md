@@ -605,6 +605,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - UniProt Retrieve now exposes the planned `uniprot_ids` and `format` inputs while preserving `accession` / `include_fasta` compatibility.
 - InterProScan now accepts FASTA file paths through the existing `sequence` input and submits cleaned sequence content to EBI.
 - SRA Download now accepts singular `accession` and planning-style `format` aliases while preserving `accessions` / `output_format` behavior.
+- GEO Query now accepts `query` and `dataset_type` aliases while preserving `search_query` / `query_type` behavior.
 
 ---
 

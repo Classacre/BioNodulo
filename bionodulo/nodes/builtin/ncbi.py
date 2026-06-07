@@ -741,6 +741,11 @@ class GEOQueryNode(BaseNode):
             "optional": {
                 "query_type": (list(GEO_QUERY_TYPES), {"default": "series"}),
                 "search_query": ("STRING", {"default": "", "description": "Used when query_type=search"}),
+                "query": ("STRING", {"default": "", "advanced": True, "description": "Backward-compatible GEO search query"}),
+                "dataset_type": (
+                    "STRING",
+                    {"default": "", "options": list(GEO_QUERY_TYPES), "advanced": True},
+                ),
                 "max_results": ("INT", {"default": 10, "min": 1, "max": 500}),
                 "api_key": ("STRING", {"default": "", "advanced": True}),
             },
@@ -749,11 +754,12 @@ class GEOQueryNode(BaseNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         context = kwargs.pop("context", None)
-        accession = str(kwargs.get("accession", "") or "").strip()
-        query_type = str(kwargs.get("query_type", "series") or "series").lower()
+        query_type = str(kwargs.get("query_type", "") or kwargs.get("dataset_type", "") or "series").lower()
         if query_type not in GEO_QUERY_TYPES:
             raise ValueError(f"Unsupported GEO query_type: {query_type}")
-        search_query = str(kwargs.get("search_query", "") or "").strip()
+        query_alias = str(kwargs.get("query", "") or "").strip()
+        accession = str(kwargs.get("accession", "") or (query_alias if query_type != "search" else "")).strip()
+        search_query = str(kwargs.get("search_query", "") or (query_alias if query_type == "search" else "")).strip()
         max_results = int(kwargs.get("max_results", 10) or 10)
         if max_results < 1:
             raise ValueError("max_results must be at least 1")
