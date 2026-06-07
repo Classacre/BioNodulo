@@ -46,7 +46,8 @@ describe('WorkflowCanvas menu and hover copy i18n', () => {
     expect(i18n.t('canvas.selectAll')).toBe('Seleccionar todo');
     expect(i18n.t('canvas.arrangeNodes')).toBe('Organizar nodos');
     expect(i18n.t('canvas.exportThumbnail')).toBe('Exportar miniatura');
-    expect(i18n.t('canvas.clearWorkflow')).toBe('Limpiar workflow');
+    expect(i18n.t('canvas.clearWorkflow')).toBe('Limpiar flujo de trabajo');
+    expect(i18n.t('canvas.clearWorkflow')).not.toBe('Limpiar workflow');
     expect(i18n.t('canvas.insertReroute')).toBe('Insertar redireccion');
     expect(i18n.t('canvas.deleteLink')).toBe('Eliminar enlace');
     expect(i18n.t('canvas.groupFallbackName')).toBe('Grupo');

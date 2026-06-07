@@ -1950,7 +1950,7 @@ class MyToolNode(CommandNode):
     selectAll: 'Seleccionar todo',
     arrangeNodes: 'Organizar nodos',
     exportThumbnail: 'Exportar miniatura',
-    clearWorkflow: 'Limpiar workflow',
+    clearWorkflow: 'Limpiar flujo de trabajo',
     insertReroute: 'Insertar redireccion',
     deleteLink: 'Eliminar enlace',
     copyWidgetValueHint: 'Clic derecho para copiar este valor a los nodos seleccionados',
