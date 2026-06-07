@@ -434,10 +434,15 @@ describe('HelpWikiPanel node documentation search', () => {
 
     expect(screen.getByRole('heading', { name: 'Integracion HPC' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Planificadores soportados' })).toBeInTheDocument();
-    expect(screen.getByText(/clusters de High Performance Computing/)).toBeInTheDocument();
+    expect(screen.getByText(/clusters de computacion de alto rendimiento/)).toBeInTheDocument();
+    expect(screen.getByText(/Ajustes > HPC/)).toBeInTheDocument();
+    expect(screen.getByText(/hacer clic en Ejecutar generara un script de trabajo por lotes/)).toBeInTheDocument();
     expect(screen.getByText('sbatch, squeue, scancel')).toBeInTheDocument();
     expect(screen.getByText('module load')).toBeInTheDocument();
     expect(screen.queryByText('HPC Integration')).not.toBeInTheDocument();
+    expect(screen.queryByText(/High Performance Computing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Settings > HPC/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hacer clic en Run/)).not.toBeInTheDocument();
   });
 
   it('searches hpc-integration article content from the active locale', async () => {
@@ -479,8 +484,13 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByRole('heading', { name: 'Formatos soportados' })).toBeInTheDocument();
     expect(screen.getByText(/Importa y exporta workflows/)).toBeInTheDocument();
     expect(screen.getByText('Snakefile')).toBeInTheDocument();
-    expect(screen.getAllByText('Generic Command').length).toBeGreaterThan(0);
+    expect(screen.getByText(/boton Exportar/)).toBeInTheDocument();
+    expect(screen.getByText(/boton Importar/)).toBeInTheDocument();
+    expect(screen.getAllByText('Comando generico').length).toBeGreaterThan(0);
     expect(screen.queryByText('Workflow Converters')).not.toBeInTheDocument();
+    expect(screen.queryByText(/boton Export\b/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/boton Import\b/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Generic Command')).not.toBeInTheDocument();
   });
 
   it('searches workflow-converters article content from the active locale', async () => {

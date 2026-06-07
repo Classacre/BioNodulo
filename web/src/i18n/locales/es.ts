@@ -1566,7 +1566,7 @@ class MyToolNode(CommandNode):
 `,
       hpcIntegration: `
 <h3>Integracion HPC</h3>
-<p>BioNodulo puede enviar workflows a clusters de High Performance Computing mediante planificadores de jobs.</p>
+<p>BioNodulo puede enviar workflows a clusters de computacion de alto rendimiento mediante planificadores de trabajos.</p>
 
 <h4>Planificadores soportados</h4>
 <table>
@@ -1578,7 +1578,7 @@ class MyToolNode(CommandNode):
 
 <h4>Configuracion</h4>
 <ol>
-<li>Habilita HPC en Settings > HPC o haz clic en el interruptor HPC de la barra superior</li>
+<li>Habilita HPC en Ajustes > HPC o haz clic en el interruptor HPC de la barra superior</li>
 <li>Selecciona el backend del planificador</li>
 <li>Define particion/cuenta si es necesario</li>
 <li>Configura los modulos que se cargaran antes de la ejecucion</li>
@@ -1586,7 +1586,7 @@ class MyToolNode(CommandNode):
 </ol>
 
 <h4>Ejecucion en HPC</h4>
-<p>Cuando el modo HPC esta habilitado, hacer clic en Run generara un script de job por lotes y lo enviara al planificador. Monitorea el estado del job en el panel HPC.</p>
+<p>Cuando el modo HPC esta habilitado, hacer clic en Ejecutar generara un script de trabajo por lotes y lo enviara al planificador. Monitorea el estado del trabajo en el panel HPC.</p>
 
 <h4>Modulos de entorno</h4>
 <p>Especifica modulos para cargar, por ejemplo <code>bioinfo/BWA/0.7.17</code>, en la configuracion HPC. Se cargan mediante <code>module load</code> antes de ejecutar el workflow.</p>
@@ -1606,15 +1606,15 @@ class MyToolNode(CommandNode):
 </table>
 
 <h4>Exportacion</h4>
-<p>Haz clic en el boton Export de la barra superior, selecciona el formato destino y descarga el archivo generado. Para SnakeMake y NextFlow, BioNodulo genera reglas/procesos para cada nodo con conexiones correctas de entrada/salida.</p>
+<p>Haz clic en el boton Exportar de la barra superior, selecciona el formato destino y descarga el archivo generado. Para SnakeMake y NextFlow, BioNodulo genera reglas/procesos para cada nodo con conexiones correctas de entrada/salida.</p>
 
 <h4>Importacion</h4>
-<p>Haz clic en el boton Import, pega el codigo del workflow o sube un archivo, y BioNodulo lo convertira en un grafo de nodos. Las herramientas reconocidas se mapean a nodos integrados; los pasos no reconocidos se convierten en nodos <code>Generic Command</code>.</p>
+<p>Haz clic en el boton Importar, pega el codigo del workflow o sube un archivo, y BioNodulo lo convertira en un grafo de nodos. Las herramientas reconocidas se mapean a nodos integrados; los pasos no reconocidos se convierten en nodos <code>Comando generico</code>.</p>
 
 <h4>Limitaciones</h4>
 <ul>
 <li>El flujo de control complejo, como bucles y condicionales, puede simplificarse</li>
-<li>Los scripts personalizados pueden convertirse en nodos <code>Generic Command</code></li>
+<li>Los scripts personalizados pueden convertirse en nodos <code>Comando generico</code></li>
 <li>Las directivas de contenedor se convierten en especificaciones de entorno</li>
 </ul>
 `,
