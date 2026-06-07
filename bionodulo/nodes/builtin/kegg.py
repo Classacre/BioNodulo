@@ -28,6 +28,8 @@ QUERY_TYPES = (
     "list_pathways",
     "gene_info",
     "find_genes",
+    "compound_info",
+    "find_compounds",
     "link_kegg",
 )
 KEGG_ORGANISMS = ("hsa", "mmu", "rno", "dre", "cel", "dme", "sce", "ath", "eco")
@@ -127,6 +129,14 @@ def _resource_for(query: str, query_type: str, organism: str) -> tuple[str, str]
     if query_type == "find_genes":
         term = str(query or "").strip().replace(" ", "+")
         return f"find/{organism}/{term}", term
+    if query_type == "compound_info":
+        compound_id = str(query or "").strip()
+        if compound_id and not compound_id.startswith("cpd:"):
+            compound_id = f"cpd:{compound_id}"
+        return f"get/{compound_id}", compound_id
+    if query_type == "find_compounds":
+        term = str(query or "").strip().replace(" ", "+")
+        return f"find/compound/{term}", term
     if query_type == "link_kegg":
         source = str(query or "").strip().replace(",", "+").replace(" ", "+")
         return f"link/pathway/{source}", source
@@ -189,7 +199,7 @@ def _parse_flat_file(text: str) -> list[dict[str, Any]]:
 
 
 def _parse_kegg_text(text: str, query_type: str) -> dict[str, Any]:
-    if query_type in {"pathway_genes", "list_pathways", "link_kegg", "find_genes"}:
+    if query_type in {"pathway_genes", "list_pathways", "link_kegg", "find_genes", "find_compounds"}:
         entries: list[dict[str, Any]] = _parse_table(text)
     else:
         entries = _parse_flat_file(text)
@@ -203,7 +213,7 @@ def _kegg_to_tsv(data: dict[str, Any], query_type: str) -> str:
     entries = data.get("entries", [])
     if not isinstance(entries, list) or not entries:
         return "# No entries found\n"
-    if query_type in {"pathway_genes", "list_pathways", "link_kegg", "find_genes"}:
+    if query_type in {"pathway_genes", "list_pathways", "link_kegg", "find_genes", "find_compounds"}:
         lines = ["id\tvalue"]
         for entry in entries:
             if isinstance(entry, dict):

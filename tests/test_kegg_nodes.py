@@ -40,6 +40,8 @@ def test_kegg_pathway_is_registered_for_frontend_discovery() -> None:
                 "list_pathways",
                 "gene_info",
                 "find_genes",
+                "compound_info",
+                "find_compounds",
                 "link_kegg",
             ],
         },
@@ -217,3 +219,69 @@ async def test_kegg_downloads_pathway_image_when_requested(
     assert download_calls == [
         ("https://www.kegg.jp/kegg/pathway/hsa/hsa04110.png", image_path),
     ]
+
+
+@pytest.mark.asyncio
+async def test_kegg_compound_info_uses_compound_resource(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("kegg_pathway")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[str] = []
+
+    async def fake_text(resource: str, **_: Any) -> str:
+        calls.append(resource)
+        return "ENTRY       C00031                      Compound\nNAME        D-Glucose\n///\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    assert "compound_info" in node_class.INPUT_TYPES()["required"]["query_type"][1]["options"]
+
+    result = await node_class().run(
+        query="C00031",
+        query_type="compound_info",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads(Path(result["outputs"]["pathway_data"]).read_text(encoding="utf-8"))
+    tsv_path = Path(result["outputs"]["gene_list_tsv"])
+
+    assert payload["query_type"] == "compound_info"
+    assert payload["effective_query"] == "cpd:C00031"
+    assert payload["entries"][0]["ENTRY"] == "C00031                      Compound"
+    assert "D-Glucose" in tsv_path.read_text(encoding="utf-8")
+    assert calls == ["get/cpd:C00031"]
+
+
+@pytest.mark.asyncio
+async def test_kegg_find_compounds_uses_compound_find_resource(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("kegg_pathway")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[str] = []
+
+    async def fake_text(resource: str, **_: Any) -> str:
+        calls.append(resource)
+        return "cpd:C00031\tD-Glucose; Grape sugar\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    assert "find_compounds" in node_class.INPUT_TYPES()["required"]["query_type"][1]["options"]
+
+    result = await node_class().run(
+        query="D Glucose",
+        query_type="find_compounds",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads(Path(result["outputs"]["pathway_data"]).read_text(encoding="utf-8"))
+    tsv_path = Path(result["outputs"]["gene_list_tsv"])
+
+    assert payload["query_type"] == "find_compounds"
+    assert payload["effective_query"] == "D+Glucose"
+    assert payload["entries"] == [{"id": "cpd:C00031", "value": "D-Glucose; Grape sugar"}]
+    assert tsv_path.read_text(encoding="utf-8") == "id\tvalue\ncpd:C00031\tD-Glucose; Grape sugar\n"
+    assert calls == ["find/compound/D+Glucose"]

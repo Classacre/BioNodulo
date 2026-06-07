@@ -590,6 +590,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Pause / Resume now includes structured preview data in the emitted `pause_requested` runtime event, matching the persisted pause record and giving UI clients immediate review context.
 - KEGG Pathway now supports the planned `pathway_image` query type and `download_image` option, downloading pathway PNG maps and recording image path/URL metadata alongside existing JSON/TSV outputs.
 - KEGG Pathway now exposes the planned organism selector options while preserving non-human resource formation such as `mmu04110`.
+- KEGG Pathway now supports compound lookups and compound searches through `compound_info` and `find_compounds`, routing to KEGG `get/cpd:*` and `find/compound/*` resources.
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
 - UCSC Genome Browser now exposes the planned empty/default and `ucscGenes` annotation-track choices while preserving track pass-through to `getData/track`.
 - UCSC Genome Browser now allows genome-level `tracks` queries without requiring region coordinates, preserving coordinate validation for sequence and region annotation queries.
