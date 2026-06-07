@@ -97,6 +97,18 @@ class TimerNode(BaseNode):
         if context is not None and hasattr(context, "run_metadata"):
             timers = context.run_metadata.setdefault("timers", [])
             timers.append({"node_id": getattr(context, "node_id", self.NODE_ID), "label": label, "start": start, "end": end})
+        _ctx_emit(
+            context,
+            "timer_elapsed",
+            {
+                "run_id": getattr(context, "run_id", ""),
+                "node_id": getattr(context, "node_id", self.NODE_ID),
+                "label": label,
+                "elapsed_ms": round(elapsed * 1000, 3),
+                "start_time": start_info["iso"],
+                "end_time": end_info["iso"],
+            },
+        )
         _ctx_log(context, log_level, f"Timer '{label}' recorded {elapsed:.6f}s")
         return (data, elapsed, _json_text(start_info), _json_text(end_info))
 

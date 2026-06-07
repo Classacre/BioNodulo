@@ -120,6 +120,11 @@ async def test_timer_passes_value_and_records_timing_metadata(tmp_path: Path) ->
     assert end["timestamp"] >= start["timestamp"]
     assert context.run_metadata["timers"][0]["label"] == "qc phase"
     assert context.logs[0][0] == "info"
+    assert context.events[0][0] == "timer_elapsed"
+    assert context.events[0][1]["run_id"] == "run-1"
+    assert context.events[0][1]["node_id"] == "timer-node"
+    assert context.events[0][1]["label"] == "qc phase"
+    assert context.events[0][1]["elapsed_ms"] >= 0
 
 
 @pytest.mark.asyncio
