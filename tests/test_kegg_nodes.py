@@ -44,6 +44,10 @@ def test_kegg_pathway_is_registered_for_frontend_discovery() -> None:
             ],
         },
     )
+    assert info["kegg_pathway"]["input"]["optional"]["organism"] == (
+        "STRING",
+        {"default": "hsa", "options": ["hsa", "mmu", "rno", "dre", "cel", "dme", "sce", "ath", "eco"]},
+    )
 
 
 @pytest.mark.asyncio
@@ -138,6 +142,34 @@ async def test_kegg_pathway_genes_writes_json_and_tsv(
         "path:hsa04110\thsa:51343\n"
     )
     assert calls == ["link/genes/hsa04110"]
+
+
+@pytest.mark.asyncio
+async def test_kegg_pathway_uses_non_human_organism_option(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("kegg_pathway")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[str] = []
+
+    async def fake_text(resource: str, **_: Any) -> str:
+        calls.append(resource)
+        return "path:mmu04110\tmmu:12566\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        query="04110",
+        query_type="pathway_genes",
+        organism="mmu",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    payload = json.loads(Path(result["outputs"]["pathway_data"]).read_text(encoding="utf-8"))
+    assert payload["organism"] == "mmu"
+    assert payload["effective_query"] == "mmu04110"
+    assert calls == ["link/genes/mmu04110"]
 
 
 @pytest.mark.asyncio

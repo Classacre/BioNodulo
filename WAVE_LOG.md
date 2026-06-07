@@ -589,6 +589,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Ensembl VEP now exposes REST SIFT and PolyPhen prediction toggles, advertises them in search aliases, and forwards `SiftPrediction` / `PolyPhen` request params with covered on/off behavior.
 - Pause / Resume now includes structured preview data in the emitted `pause_requested` runtime event, matching the persisted pause record and giving UI clients immediate review context.
 - KEGG Pathway now supports the planned `pathway_image` query type and `download_image` option, downloading pathway PNG maps and recording image path/URL metadata alongside existing JSON/TSV outputs.
+- KEGG Pathway now exposes the planned organism selector options while preserving non-human resource formation such as `mmu04110`.
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
 - UCSC Genome Browser now exposes the planned empty/default and `ucscGenes` annotation-track choices while preserving track pass-through to `getData/track`.
 - AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.

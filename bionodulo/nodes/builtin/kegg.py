@@ -30,6 +30,7 @@ QUERY_TYPES = (
     "find_genes",
     "link_kegg",
 )
+KEGG_ORGANISMS = ("hsa", "mmu", "rno", "dre", "cel", "dme", "sce", "ath", "eco")
 
 
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
@@ -246,7 +247,7 @@ class KEGGPathwayNode(BaseNode):
                 "query_type": ("STRING", {"default": "pathway_info", "options": list(QUERY_TYPES)}),
             },
             "optional": {
-                "organism": ("STRING", {"default": "hsa", "description": "KEGG organism code, e.g. hsa, mmu, eco"}),
+                "organism": ("STRING", {"default": "hsa", "options": list(KEGG_ORGANISMS)}),
                 "download_image": ("BOOLEAN", {"default": False}),
                 "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
             },
