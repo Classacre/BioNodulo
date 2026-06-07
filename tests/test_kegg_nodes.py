@@ -27,8 +27,23 @@ def test_kegg_pathway_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     assert info["kegg_pathway"]["display_name"] == "KEGG Pathway"
-    assert info["kegg_pathway"]["category"] == "databases"
+    assert info["kegg_pathway"]["category"] == "api"
     assert info["kegg_pathway"]["output_name"] == ["pathway_data", "gene_list_tsv"]
+    assert info["kegg_pathway"]["input"]["required"]["query_type"] == (
+        "STRING",
+        {
+            "default": "pathway_info",
+            "options": [
+                "pathway_info",
+                "pathway_genes",
+                "pathway_image",
+                "list_pathways",
+                "gene_info",
+                "find_genes",
+                "link_kegg",
+            ],
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -147,7 +162,7 @@ async def test_kegg_downloads_pathway_image_when_requested(
     monkeypatch.setattr(module, "_download_file", fake_download)
     context = SimpleNamespace(node_dir=tmp_path)
 
-    assert "pathway_image" in node_class.INPUT_TYPES()["required"]["query_type"][0]
+    assert "pathway_image" in node_class.INPUT_TYPES()["required"]["query_type"][1]["options"]
     assert node_class.INPUT_TYPES()["optional"]["download_image"][0] == "BOOLEAN"
 
     result = await node_class().run(

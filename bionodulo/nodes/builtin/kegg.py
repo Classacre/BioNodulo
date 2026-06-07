@@ -229,7 +229,7 @@ class KEGGPathwayNode(BaseNode):
 
     NODE_ID = "kegg_pathway"
     DISPLAY_NAME = "KEGG Pathway"
-    CATEGORY = "databases"
+    CATEGORY = "api"
     DESCRIPTION = "Query KEGG pathways, gene lists, and pathway maps."
     SEARCH_ALIASES = ["kegg", "pathway", "metabolism", "gene", "orthology", "ko", "map"]
     RETURN_TYPES = ("JSON", "TSV")
@@ -243,7 +243,7 @@ class KEGGPathwayNode(BaseNode):
         return {
             "required": {
                 "query": ("STRING", {"default": "", "description": "Pathway ID, gene ID, keyword, or KEGG ID list"}),
-                "query_type": (list(QUERY_TYPES), {"default": "pathway_info"}),
+                "query_type": ("STRING", {"default": "pathway_info", "options": list(QUERY_TYPES)}),
             },
             "optional": {
                 "organism": ("STRING", {"default": "hsa", "description": "KEGG organism code, e.g. hsa, mmu, eco"}),
