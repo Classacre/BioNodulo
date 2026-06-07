@@ -656,6 +656,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - The Inspector now authors workflow parameter definitions directly: add, rename, retag type, toggle required, edit defaults/descriptions, and remove entries, with changes flowing through active workflow state/history.
 - Workflow validation now reports unknown `{{parameter}}` references in execution-bound node params/inputs/widgets, while allowing node-local templates and prompts to keep their own placeholder syntax.
 - Node editors now expose a workflow-parameter insert control for text-like node fields, appending `{{parameter}}` references from both the Inspector and floating canvas editor paths.
+- Workflow Doctor now surfaces unknown workflow-parameter placeholders client-side for execution-bound node values, matching backend validation while ignoring node-local template and prompt placeholders.
 
 ---
 

@@ -29,10 +29,21 @@ interface Finding {
   nodeId?: string;
 }
 
+const WORKFLOW_PARAMETER_REFERENCE_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g;
+const NODE_LOCAL_TEMPLATE_FIELDS = new Set([
+  'custom_prompt',
+  'custom_script',
+  'prompt',
+  'system_prompt',
+  'template',
+  'workflow_template',
+]);
+
 function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
   const findings: Finding[] = [];
   const nodes = workflow.nodes || [];
   const edges = workflow.edges || [];
+  const parameterNames = new Set((workflow.parameters || []).map(parameter => parameter.name));
 
   // Per-node checks.
   const incomingByNode = new Map<string, Set<string>>();
@@ -96,6 +107,56 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
         nodeId: node.id,
       });
     }
+
+    const executionValues = node as typeof node & { inputs?: unknown; widgets?: unknown };
+    for (const [path, parameter] of iterWorkflowParameterReferences(executionValues.params, 'params')) {
+      if (!parameterNames.has(parameter)) {
+        findings.push({
+          id: `unknown-parameter-${node.id}-${path}-${parameter}`,
+          severity: 'error',
+          titleKey: 'unknownWorkflowParameterTitle',
+          titleValues: {
+            node: node.ui?.title || node.type,
+            parameter,
+            path,
+          },
+          detailKey: 'unknownWorkflowParameterDetail',
+          nodeId: node.id,
+        });
+      }
+    }
+    for (const [path, parameter] of iterWorkflowParameterReferences(executionValues.inputs, 'inputs')) {
+      if (!parameterNames.has(parameter)) {
+        findings.push({
+          id: `unknown-parameter-${node.id}-${path}-${parameter}`,
+          severity: 'error',
+          titleKey: 'unknownWorkflowParameterTitle',
+          titleValues: {
+            node: node.ui?.title || node.type,
+            parameter,
+            path,
+          },
+          detailKey: 'unknownWorkflowParameterDetail',
+          nodeId: node.id,
+        });
+      }
+    }
+    for (const [path, parameter] of iterWorkflowParameterReferences(executionValues.widgets, 'widgets')) {
+      if (!parameterNames.has(parameter)) {
+        findings.push({
+          id: `unknown-parameter-${node.id}-${path}-${parameter}`,
+          severity: 'error',
+          titleKey: 'unknownWorkflowParameterTitle',
+          titleValues: {
+            node: node.ui?.title || node.type,
+            parameter,
+            path,
+          },
+          detailKey: 'unknownWorkflowParameterDetail',
+          nodeId: node.id,
+        });
+      }
+    }
   }
 
   // Graph-level checks.
@@ -119,6 +180,30 @@ function diagnose(workflow: Workflow, objectInfo: ObjectInfo): Finding[] {
   // Sort errors first, then warnings, then info.
   const order: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
   return findings.sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
+function iterWorkflowParameterReferences(value: unknown, path: string): Array<[string, string]> {
+  const references: Array<[string, string]> = [];
+  if (value === null || value === undefined) return references;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      references.push(...iterWorkflowParameterReferences(item, `${path}[${index}]`));
+    });
+    return references;
+  }
+  if (typeof value === 'object') {
+    Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+      if (NODE_LOCAL_TEMPLATE_FIELDS.has(key)) return;
+      references.push(...iterWorkflowParameterReferences(item, `${path}.${key}`));
+    });
+    return references;
+  }
+  if (typeof value !== 'string') return references;
+
+  for (const match of value.matchAll(WORKFLOW_PARAMETER_REFERENCE_RE)) {
+    references.push([path, match[1]]);
+  }
+  return references;
 }
 
 function severityIcon(s: Severity): string {

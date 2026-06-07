@@ -2446,6 +2446,8 @@ class MyToolNode(CommandNode):
       unusedOutputsTitle: '{{node}} has unused outputs',
       unusedOutputsDetail: 'Connect to a downstream node, or remove if intentional.',
       externalToolsTitle: '{{node}} requires: {{tools}}',
+      unknownWorkflowParameterTitle: '{{node}} references unknown workflow parameter "{{parameter}}" in {{path}}',
+      unknownWorkflowParameterDetail: 'Declare this workflow parameter or update the placeholder name before running.',
       emptyGraphTitle: 'Workflow is empty',
       emptyGraphDetail: 'Drop a template, drag a file from the workspace, or open the node library to start.',
       noEdgesTitle: 'No connections between nodes',

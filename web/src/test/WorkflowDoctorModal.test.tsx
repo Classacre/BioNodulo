@@ -42,6 +42,7 @@ function workflow(partial: Partial<Workflow>): Workflow {
     outputs: partial.outputs ?? {},
     environment: partial.environment,
     dependencies: partial.dependencies,
+    parameters: partial.parameters,
   };
 }
 
@@ -163,5 +164,44 @@ describe('WorkflowDoctorModal i18n', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Ir' })[0]);
 
     expect(onJumpToNode).toHaveBeenCalledWith('align');
+  });
+
+  it('reports unknown workflow parameter references in node parameters', async () => {
+    const { default: WorkflowDoctorModal } = await import('../components/modals/WorkflowDoctorModal');
+
+    render(
+      <WorkflowDoctorModal
+        workflow={workflow({
+          nodes: [
+            node({
+              id: 'input',
+              type: 'input_fastq',
+              ui: { title: 'FASTQ input' },
+              params: {
+                reads: 'sample-{{sample_typo}}.fastq.gz',
+                template: 'local {{sample}} placeholder',
+              },
+            }),
+          ],
+          parameters: [{ name: 'sample_id', type: 'STRING' }],
+        })}
+        objectInfo={{
+          input_fastq: {
+            id: 'input_fastq',
+            display_name: 'FASTQ input',
+            category: 'Input',
+            input_types: { required: { reads: { type: 'FASTQ' } } },
+            output_node: true,
+          },
+        }}
+        onClose={() => undefined}
+        onJumpToNode={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('1 error')).toBeInTheDocument();
+    expect(screen.getByText('FASTQ input references unknown workflow parameter "sample_typo" in params.reads')).toBeInTheDocument();
+    expect(screen.getByText('Declare this workflow parameter or update the placeholder name before running.')).toBeInTheDocument();
+    expect(screen.queryByText(/sample" in params.template/)).not.toBeInTheDocument();
   });
 });

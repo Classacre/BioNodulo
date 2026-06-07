@@ -2452,6 +2452,8 @@ class MyToolNode(CommandNode):
       unusedOutputsTitle: '{{node}} tiene salidas sin usar',
       unusedOutputsDetail: 'Conecta a un nodo posterior o elimina si es intencional.',
       externalToolsTitle: '{{node}} requiere: {{tools}}',
+      unknownWorkflowParameterTitle: '{{node}} referencia un parametro de flujo desconocido "{{parameter}}" en {{path}}',
+      unknownWorkflowParameterDetail: 'Declara este parametro de flujo o actualiza el nombre del marcador antes de ejecutar.',
       emptyGraphTitle: 'El flujo de trabajo esta vacio',
       emptyGraphDetail: 'Suelta una plantilla, arrastra un archivo desde el espacio de trabajo o abre la biblioteca de nodos para empezar.',
       noEdgesTitle: 'No hay conexiones entre nodos',
