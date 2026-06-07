@@ -1342,10 +1342,10 @@ export default function App() {
         const nodeIds = new Set(activeWorkflow.nodes.map(n => n.id));
         const tokens = firstError.match(/[A-Za-z0-9_-]+/g) || [];
         const targetId = tokens.find(token => nodeIds.has(token));
-        toast.error(`Validation failed (${v.errors.length})`, {
+        toast.error(t('console.actions.validationFailed', { count: v.errors.length }), {
           message: firstError,
           actions: targetId
-            ? [{ label: 'Jump to node', onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
+            ? [{ label: t('console.actions.jumpToNode'), onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
             : undefined,
         });
         setIsRunning(false);
@@ -1499,10 +1499,10 @@ export default function App() {
         const knownIds = new Set(activeWorkflow.nodes.map(n => n.id));
         const tokens = firstError.match(/[A-Za-z0-9_-]+/g) || [];
         const targetId = tokens.find(token => knownIds.has(token));
-        toast.error(`Validation failed (${v.errors.length})`, {
+        toast.error(t('console.actions.validationFailed', { count: v.errors.length }), {
           message: firstError,
           actions: targetId
-            ? [{ label: 'Jump to node', onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
+            ? [{ label: t('console.actions.jumpToNode'), onClick: () => canvasRef.current?.focusNode(targetId), dismiss: true }]
             : undefined,
         });
         setIsRunning(false);
@@ -1547,7 +1547,7 @@ export default function App() {
         run_id: 'workflow',
         node_id: 'engine',
         level: 'error',
-        message: `Selected run failed: ${msg}`,
+        message: t('console.actions.selectedRunFailedLog', { message: msg }),
         timestamp: new Date().toISOString(),
       });
       setConsoleVisible(true);
