@@ -1,6 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const dialogMocks = vi.hoisted(() => ({
+  alertDialog: vi.fn(),
+}));
+
+vi.mock('../components/ui', () => dialogMocks);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -48,6 +54,12 @@ describe('WorkspacePanel i18n', () => {
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/workspace/file')) {
+        return new Response('{not valid json', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain' },
         });
       }
       return new Response('{}', {
@@ -105,5 +117,15 @@ describe('WorkspacePanel i18n', () => {
     fireEvent.click(screen.getByText('workflow.json'));
 
     expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
+
+    fireEvent.doubleClick(screen.getByText('workflow.json'));
+
+    expect(await screen.findByRole('button', { name: 'Cargar como flujo de trabajo' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cargar como workflow' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar como flujo de trabajo' }));
+
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith('JSON de flujo de trabajo no valido'));
+    expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith('JSON de workflow no valido');
   });
 });
