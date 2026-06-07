@@ -104,8 +104,9 @@ describe('VersionHistory i18n', () => {
     const { setLanguage } = await import('../i18n');
 
     await setLanguage('es');
+    const saveError = new Error('version save failed');
     apiMocks.apiGet.mockResolvedValue({ versions: [], count: 0 });
-    apiMocks.apiPost.mockRejectedValue('network-failed');
+    apiMocks.apiPost.mockRejectedValue(saveError);
     dialogMocks.promptDialog.mockResolvedValue('Version candidata');
 
     render(
@@ -130,7 +131,8 @@ describe('VersionHistory i18n', () => {
       confirmLabel: 'Guardar version',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo guardar la version')).toBeInTheDocument());
-    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.save', 'network-failed');
+    expect(screen.queryByText('version save failed')).not.toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.save', saveError);
   });
 
   it('uses localized restore and delete confirmations with fallback errors', async () => {
@@ -138,6 +140,8 @@ describe('VersionHistory i18n', () => {
     const { setLanguage } = await import('../i18n');
 
     await setLanguage('es');
+    const restoreError = new Error('version restore failed');
+    const deleteError = new Error('version delete failed');
     apiMocks.apiGet.mockResolvedValue({
       versions: [
         {
@@ -154,8 +158,8 @@ describe('VersionHistory i18n', () => {
       ],
       count: 1,
     });
-    apiMocks.apiPost.mockRejectedValue('restore-failed');
-    apiMocks.apiDelete.mockRejectedValue('delete-failed');
+    apiMocks.apiPost.mockRejectedValue(restoreError);
+    apiMocks.apiDelete.mockRejectedValue(deleteError);
     dialogMocks.confirmDialog.mockResolvedValue(true);
 
     render(
@@ -179,7 +183,8 @@ describe('VersionHistory i18n', () => {
       tone: 'warning',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo restaurar la version')).toBeInTheDocument());
-    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.restore', 'restore-failed');
+    expect(screen.queryByText('version restore failed')).not.toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.restore', restoreError);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
@@ -191,11 +196,15 @@ describe('VersionHistory i18n', () => {
       tone: 'danger',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo eliminar la version')).toBeInTheDocument());
-    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.delete', 'delete-failed');
+    expect(screen.queryByText('version delete failed')).not.toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.delete', deleteError);
   });
 
   it('logs swallowed version-history load and diff failures with stable scopes', async () => {
     const { default: VersionHistory } = await import('../collab/VersionHistory');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
     const loadError = new Error('version load failed');
     const diffError = new Error('diff failed');
 
@@ -210,7 +219,8 @@ describe('VersionHistory i18n', () => {
     );
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.load', loadError));
-    expect(screen.getByText('version load failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudieron cargar las versiones')).toBeInTheDocument();
+    expect(screen.queryByText('version load failed')).not.toBeInTheDocument();
     loadView.unmount();
 
     apiMocks.apiGet
@@ -254,11 +264,12 @@ describe('VersionHistory i18n', () => {
 
     await waitFor(() => expect(screen.getByText('New')).toBeInTheDocument());
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Diff' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Diferencias' }));
     });
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.diff', diffError));
-    expect(screen.getByText('diff failed')).toBeInTheDocument();
+    expect(screen.getByText('No se pudieron cargar las diferencias')).toBeInTheDocument();
+    expect(screen.queryByText('diff failed')).not.toBeInTheDocument();
   });
 
   it('uses a localized auto-save fallback name in the diff modal', async () => {

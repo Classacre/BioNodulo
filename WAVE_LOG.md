@@ -691,7 +691,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - AuditLog load and CSV-export failures now show localized inline fallback copy instead of raw API exception messages, while preserving structured diagnostics for each action.
 - CommentsPanel post, reply, resolve, and delete action failures now report structured `logError` scopes while the recurring comment polling failure path stays intentionally unlogged to avoid repeated offline-noise.
 - AuthDialog named-join and guest-join failures now report structured `logError` scopes while preserving existing localized authentication error messages.
-- VersionHistory load, save, restore, delete, and diff failures now report structured `logError` scopes while preserving existing localized inline error messages.
+- VersionHistory load, save, restore, delete, and diff failures now show localized inline fallback copy instead of raw API exception messages, while preserving structured diagnostics for each action.
 - BottomConsole report fetch failures now report a structured `logError` scope while preserving the inline report-panel error and skipping cancelled fetches.
 - useCollab share-state load and share-action failures now report structured `logError` scopes while preserving the unshared fallback and generic share error.
 - `useCollab.shareWorkflow` sign-in and share-failure exceptions now read from `collab` i18n keys with Spanish hook coverage and a static guard against reintroducing literal English fallback errors.

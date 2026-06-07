@@ -43,7 +43,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       setError(null);
     } catch (err) {
       logError('collab.versionHistory.load', err);
-      setError(err instanceof Error ? err.message : t('collab.versionHistoryLoadError'));
+      setError(t('collab.versionHistoryLoadError'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       fetchVersions();
     } catch (err) {
       logError('collab.versionHistory.save', err);
-      setError(err instanceof Error ? err.message : t('collab.versionHistorySaveError'));
+      setError(t('collab.versionHistorySaveError'));
     } finally {
       setSaving(false);
     }
@@ -89,7 +89,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       onClose();
     } catch (err) {
       logError('collab.versionHistory.restore', err);
-      setError(err instanceof Error ? err.message : t('collab.versionHistoryRestoreError'));
+      setError(t('collab.versionHistoryRestoreError'));
     }
   };
 
@@ -106,7 +106,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       fetchVersions();
     } catch (err) {
       logError('collab.versionHistory.delete', err);
-      setError(err instanceof Error ? err.message : t('collab.versionHistoryDeleteError'));
+      setError(t('collab.versionHistoryDeleteError'));
     }
   };
 
@@ -116,7 +116,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       setDiffData({ a, b, diff });
     } catch (err) {
       logError('collab.versionHistory.diff', err);
-      setError(err instanceof Error ? err.message : t('collab.versionHistoryDiffLoadError'));
+      setError(t('collab.versionHistoryDiffLoadError'));
     }
   };
 
