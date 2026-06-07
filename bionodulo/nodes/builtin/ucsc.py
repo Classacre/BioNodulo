@@ -21,7 +21,7 @@ UCSC_CACHE_TTL_S = 300.0
 UCSC_RATE_LIMIT_PER_SECOND = 3.0
 UCSC_API_CACHE = APICache(ttl_seconds=UCSC_CACHE_TTL_S)
 UCSC_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UCSC_RATE_LIMIT_PER_SECOND, burst=1)
-UCSC_QUERY_TYPES = ("sequence", "genes_in_region", "tracks")
+UCSC_QUERY_TYPES = ("sequence", "genes_in_region", "dna_sequence", "tracks")
 UCSC_GENOMES = (
     "hg38",
     "hg19",
@@ -155,7 +155,7 @@ class UCSCGenomeBrowserNode(BaseNode):
         out_dir = _node_output_dir(self, context)
         fasta_path = out_dir / "sequence.fasta"
 
-        if query_type == "sequence":
+        if query_type in {"sequence", "dna_sequence"}:
             payload = await _request_json(
                 "getData/sequence",
                 {

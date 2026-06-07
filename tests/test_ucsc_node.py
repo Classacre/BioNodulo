@@ -139,6 +139,50 @@ async def test_ucsc_sequence_query_writes_fasta_and_metadata(
 
 
 @pytest.mark.asyncio
+async def test_ucsc_dna_sequence_alias_uses_sequence_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("ucsc_genome_browser")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return {"dna": "ttagc"}
+
+    monkeypatch.setattr(module, "_request_json", fake_json)
+
+    assert "dna_sequence" in node_class.INPUT_TYPES()["optional"]["query_type"][0]
+
+    result = await node_class().run(
+        coordinates="chr17:43044295-43044300",
+        genome="hg38",
+        query_type="dna_sequence",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    fasta_path = Path(result["outputs"]["sequence_fasta"])
+    json_path = Path(result["outputs"]["annotations_json"])
+    metadata = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert fasta_path.read_text(encoding="utf-8") == ">hg38:chr17:43044295-43044300\nTTAGC\n"
+    assert metadata["query_type"] == "dna_sequence"
+    assert metadata["sequence_length"] == 5
+    assert calls == [
+        {
+            "endpoint": "getData/sequence",
+            "params": {
+                "genome": "hg38",
+                "chrom": "chr17",
+                "start": 43044295,
+                "end": 43044300,
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_ucsc_genes_in_region_query_writes_annotation_json(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
