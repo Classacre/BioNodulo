@@ -12,8 +12,13 @@ const dialogMocks = vi.hoisted(() => ({
   promptDialog: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
 vi.mock('../components/ui', () => dialogMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -40,6 +45,7 @@ describe('VersionHistory i18n', () => {
     apiMocks.apiPost.mockReset();
     dialogMocks.confirmDialog.mockReset();
     dialogMocks.promptDialog.mockReset();
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -124,6 +130,7 @@ describe('VersionHistory i18n', () => {
       confirmLabel: 'Guardar version',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo guardar la version')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.save', 'network-failed');
   });
 
   it('uses localized restore and delete confirmations with fallback errors', async () => {
@@ -172,6 +179,7 @@ describe('VersionHistory i18n', () => {
       tone: 'warning',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo restaurar la version')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.restore', 'restore-failed');
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
@@ -183,6 +191,74 @@ describe('VersionHistory i18n', () => {
       tone: 'danger',
     }));
     await waitFor(() => expect(screen.getByText('No se pudo eliminar la version')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.delete', 'delete-failed');
+  });
+
+  it('logs swallowed version-history load and diff failures with stable scopes', async () => {
+    const { default: VersionHistory } = await import('../collab/VersionHistory');
+    const loadError = new Error('version load failed');
+    const diffError = new Error('diff failed');
+
+    apiMocks.apiGet.mockRejectedValueOnce(loadError);
+    const loadView = render(
+      <VersionHistory
+        workflowId="workflow-1"
+        isOpen
+        onClose={() => undefined}
+        onRestore={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.load', loadError));
+    expect(screen.getByText('version load failed')).toBeInTheDocument();
+    loadView.unmount();
+
+    apiMocks.apiGet
+      .mockResolvedValueOnce({
+        versions: [
+          {
+            id: 'version-new',
+            workflow_id: 'workflow-1',
+            user_id: 'user-1',
+            user_name: 'Mika',
+            name: 'New',
+            auto_save: false,
+            node_count: 2,
+            edge_count: 3,
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: 'version-old',
+            workflow_id: 'workflow-1',
+            user_id: 'user-1',
+            user_name: 'Mika',
+            name: 'Old',
+            auto_save: false,
+            node_count: 1,
+            edge_count: 2,
+            created_at: new Date(Date.now() - 60_000).toISOString(),
+          },
+        ],
+        count: 2,
+      })
+      .mockRejectedValueOnce(diffError);
+
+    render(
+      <VersionHistory
+        workflowId="workflow-1"
+        isOpen
+        onClose={() => undefined}
+        onRestore={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('New')).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Diff' }));
+    });
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.versionHistory.diff', diffError));
+    expect(screen.getByText('diff failed')).toBeInTheDocument();
   });
 
   it('uses a localized auto-save fallback name in the diff modal', async () => {

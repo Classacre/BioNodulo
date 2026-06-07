@@ -5,6 +5,7 @@ import VersionDiff from './VersionDiff';
 import Icon from '../components/ui/Icon';
 import { confirmDialog, promptDialog } from '../components/ui';
 import { apiDelete, apiGet, apiPost } from '../api/client';
+import { logError } from '../state/logging';
 
 const API_BASE = 'api/collab';
 
@@ -41,6 +42,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       setVersions(data.versions ?? []);
       setError(null);
     } catch (err) {
+      logError('collab.versionHistory.load', err);
       setError(err instanceof Error ? err.message : t('collab.versionHistoryLoadError'));
     } finally {
       setLoading(false);
@@ -66,6 +68,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       await apiPost(`${API_BASE}/workflows/${workflowId}/versions`, { name: name || null });
       fetchVersions();
     } catch (err) {
+      logError('collab.versionHistory.save', err);
       setError(err instanceof Error ? err.message : t('collab.versionHistorySaveError'));
     } finally {
       setSaving(false);
@@ -85,6 +88,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       onRestore(data.snapshot);
       onClose();
     } catch (err) {
+      logError('collab.versionHistory.restore', err);
       setError(err instanceof Error ? err.message : t('collab.versionHistoryRestoreError'));
     }
   };
@@ -101,6 +105,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       await apiDelete(`${API_BASE}/versions/${versionId}`);
       fetchVersions();
     } catch (err) {
+      logError('collab.versionHistory.delete', err);
       setError(err instanceof Error ? err.message : t('collab.versionHistoryDeleteError'));
     }
   };
@@ -110,6 +115,7 @@ export default function VersionHistory({ workflowId, isOpen, onClose, onRestore 
       const diff = await apiGet<VersionDiffResult>(`${API_BASE}/versions/${a.id}/diff/${b.id}`);
       setDiffData({ a, b, diff });
     } catch (err) {
+      logError('collab.versionHistory.diff', err);
       setError(err instanceof Error ? err.message : t('collab.versionHistoryDiffLoadError'));
     }
   };
