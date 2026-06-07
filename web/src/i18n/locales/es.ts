@@ -2149,7 +2149,7 @@ class MyToolNode(CommandNode):
       group: 'Grupo',
       comment: 'Comentario',
       version: 'Version',
-      workflow: 'Workflow',
+      workflow: 'Flujo de trabajo',
       share: 'Compartido',
     },
     shareDialogTitle: 'Compartir flujo de trabajo',

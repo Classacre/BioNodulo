@@ -51,8 +51,8 @@ describe('AuditLog i18n', () => {
           user_id: 'user-1',
           user_name: 'Mika',
           action: 'node_create',
-          target_type: 'node',
-          target_id: 'node-1234567890abcdef',
+          target_type: 'workflow',
+          target_id: 'workflow-1234567890abcdef',
           metadata: {},
           performed_at: '2026-06-04T15:00:00Z',
         },
@@ -84,6 +84,7 @@ describe('AuditLog i18n', () => {
     expect(screen.getByText('Usuario')).toBeInTheDocument();
     expect(screen.getByText('Accion')).toBeInTheDocument();
     expect(screen.getByText('Destino')).toBeInTheDocument();
-    expect(screen.getByText('Nodo:node-1234567')).toBeInTheDocument();
+    expect(screen.getByText('Flujo de trabajo:workflow-123')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow:workflow-123')).not.toBeInTheDocument();
   });
 });
