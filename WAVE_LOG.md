@@ -579,6 +579,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Set Fields now fills the n8n-style field-mapping gap for table workflows: CSV/TSV rows can add or update fields from JSON assignments, render per-row `{column}` templates, optionally keep only selected output fields, and preserve CSV/TSV output format for frontend discovery.
 - Runtime Artifacts panel coverage now exercises active Spanish render paths for checkpoint, pause, trigger-evaluation, resume, loading, and action copy; Spanish trigger labels consistently use `activador` wording and the overlay source guards regenerated locale output.
 - JSON/YAML Operations now expose the documented `pretty_print` and `stringify` operation aliases through `object_info`; YAML `set` also parses structured JSON/YAML values before scalar fallback so nested list/object config updates stay structured.
+- Date / Time `format` now formats a supplied `date_string` when present, preserving deterministic timestamp/ISO outputs for workflow filenames while keeping the existing "format current time" fallback when the field is blank.
 
 ---
 

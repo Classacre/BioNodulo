@@ -86,6 +86,20 @@ async def test_datetime_node_parses_and_formats_fixed_dates() -> None:
 
 
 @pytest.mark.asyncio
+async def test_datetime_format_uses_date_string_when_provided() -> None:
+    formatted, timestamp, iso = await _node_class("datetime")().run(
+        operation="format",
+        date_string="2026-06-03T14:30:00Z",
+        format_string="%Y%m%d-%H%M",
+        timezone="UTC",
+    )
+
+    assert formatted == "20260603-1430"
+    assert timestamp == 1_780_497_000
+    assert iso == "2026-06-03T14:30:00+00:00"
+
+
+@pytest.mark.asyncio
 async def test_type_cast_node_converts_scalars_and_file_content(tmp_path: Path) -> None:
     node = _node_class("type_cast")()
 

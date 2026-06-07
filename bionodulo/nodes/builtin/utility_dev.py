@@ -174,7 +174,15 @@ class DateTimeNode(BaseNode):
         tz = timezone.utc if str(kwargs.get("timezone", "local")).lower() == "utc" else None
         now = datetime.now(tz)
 
-        if operation in {"now", "format"}:
+        if operation == "now":
+            return self._render(now, format_string)
+        if operation == "format":
+            date_string = str(kwargs.get("date_string", "") or "")
+            if date_string.strip():
+                parsed = self._parse_date(date_string)
+                if tz is not None and parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=tz)
+                return self._render(parsed, format_string)
             return self._render(now, format_string)
         if operation == "timestamp":
             return (str(int(now.timestamp())), int(now.timestamp()), now.isoformat())
