@@ -9,6 +9,7 @@ import { listLocalTemplates } from '../../localTemplates';
 import { getTemplateUsageMap, recordTemplateUse, subscribeTemplateUsage } from '../../state/templateUsage';
 import { getOrRenderTemplateThumbnail } from '../../state/templateThumbnails';
 import { apiGet, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 
 export type TemplateSortMode = 'ranked' | 'name' | 'category' | 'node_count' | 'recent';
 
@@ -240,6 +241,7 @@ export default function TemplatesPanel({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        logError('templates.load', err);
         const localTemplates = listLocalTemplates() as TemplateCardInfo[];
         setTemplates(localTemplates);
         const message = err instanceof ApiError ? `${err.status} ${err.statusText}` : err instanceof Error ? err.message : String(err);

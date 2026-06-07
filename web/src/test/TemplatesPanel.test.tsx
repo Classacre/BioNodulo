@@ -1,6 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
+const localTemplateMocks = vi.hoisted(() => ({
+  listLocalTemplates: vi.fn(),
+}));
+
+vi.mock('../state/logging', () => loggingMock);
+vi.mock('../localTemplates', () => localTemplateMocks);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -44,6 +55,21 @@ describe('TemplatesPanel i18n', () => {
     templatesPayload = {
       templates: defaultTemplatesPayload.templates.map(template => ({ ...template })),
     };
+    loggingMock.logError.mockReset();
+    localTemplateMocks.listLocalTemplates.mockReset();
+    localTemplateMocks.listLocalTemplates.mockReturnValue([
+      {
+        id: 'local-fallback',
+        name: 'Local fallback',
+        description: 'Bundled fallback template',
+        category: 'Quality Control',
+        tags: ['local'],
+        tools: ['fastqc'],
+        node_count: 1,
+        filename: 'local_fallback.json',
+        preview_steps: ['fastqc'],
+      },
+    ]);
     originalLocalStorage = window.localStorage;
     vi.stubGlobal('localStorage', localStorageStub);
     Object.defineProperty(window, 'localStorage', {
@@ -225,5 +251,22 @@ describe('TemplatesPanel i18n', () => {
 
     expect(screen.getByText('Flujo de trabajo de RNA-Seq: fastqc -> multiqc')).toBeInTheDocument();
     expect(screen.queryByText('Workflow de RNA-Seq: fastqc -> multiqc')).not.toBeInTheDocument();
+  });
+
+  it('logs remote template load failures while preserving the local fallback', async () => {
+    const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
+    const loadError = new Error('template index unavailable');
+    fetchSpy.mockRejectedValueOnce(loadError);
+
+    render(
+      <TemplatesPanel
+        onClose={() => undefined}
+        onLoadTemplate={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Local fallback')).toBeInTheDocument());
+    expect(localTemplateMocks.listLocalTemplates).toHaveBeenCalledTimes(1);
+    expect(loggingMock.logError).toHaveBeenCalledWith('templates.load', loadError);
   });
 });
