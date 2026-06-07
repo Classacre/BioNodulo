@@ -194,7 +194,8 @@ export function useWorkflow() {
     try {
       const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source: format, content: source });
       return data.workflow ?? null;
-    } catch {
+    } catch (err) {
+      logError('workflow.import', err);
       // Try parsing as JSON directly
       try { return JSON.parse(source) as Workflow; } catch { /* not JSON */ }
     }

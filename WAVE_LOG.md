@@ -688,6 +688,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - TemplatesPanel remote template index load failures now report a structured `logError` scope while preserving the bundled local-template fallback.
 - useWorkflowRuntimeArtifacts refresh failures now report a structured `logError` scope while preserving the existing hook error state.
 - BatchSampleSheetModal submit failures now report a structured `logError` scope while preserving inline batch submission errors.
+- useWorkflow backend import failures now report a structured `logError` scope while preserving the existing local JSON fallback.
 
 ---
 

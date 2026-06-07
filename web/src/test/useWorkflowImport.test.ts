@@ -68,6 +68,30 @@ describe('useWorkflow importWorkflow', () => {
     });
     expect(imported).toBe(importedWorkflow);
   });
+
+  it('logs backend import failures before falling back to local JSON parsing', async () => {
+    const fallbackWorkflow = {
+      version: '2.0',
+      app: 'bionodulo',
+      name: 'Fallback JSON Workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      groups: [],
+      outputs: {},
+    } as Workflow;
+    const importError = new Error('converter unavailable');
+    vi.mocked(apiPost).mockRejectedValueOnce(importError);
+    const { result } = renderHook(() => useWorkflow());
+
+    let imported: Workflow | null = null;
+    await act(async () => {
+      imported = await result.current.importWorkflow(JSON.stringify(fallbackWorkflow), 'nextflow');
+    });
+
+    expect(imported?.name).toBe('Fallback JSON Workflow');
+    expect(loggingMock.logError).toHaveBeenCalledWith('workflow.import', importError);
+  });
 });
 
 describe('useWorkflow normalization', () => {
