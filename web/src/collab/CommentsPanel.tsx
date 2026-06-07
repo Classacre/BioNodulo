@@ -120,7 +120,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       fetchComments();
     } catch (err) {
       logError('collab.commentsPanel.post', err);
-      setError(err instanceof Error ? err.message : t('collab.commentsPostError'));
+      setError(t('collab.commentsPostError'));
     }
   };
 
@@ -139,7 +139,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       fetchComments();
     } catch (err) {
       logError('collab.commentsPanel.reply', err);
-      setError(err instanceof Error ? err.message : t('collab.commentsReplyError'));
+      setError(t('collab.commentsReplyError'));
     }
   };
 
@@ -155,7 +155,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       fetchComments();
     } catch (err) {
       logError('collab.commentsPanel.resolve', err);
-      setError(err instanceof Error ? err.message : t('collab.commentsResolveError'));
+      setError(t('collab.commentsResolveError'));
     }
   };
 
@@ -172,7 +172,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       fetchComments();
     } catch (err) {
       logError('collab.commentsPanel.delete', err);
-      setError(err instanceof Error ? err.message : t('collab.commentsDeleteError'));
+      setError(t('collab.commentsDeleteError'));
     }
   };
 
