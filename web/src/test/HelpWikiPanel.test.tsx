@@ -550,8 +550,14 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByRole('heading', { name: 'Atajos de teclado' })).toBeInTheDocument();
     expect(screen.getByText('Accion')).toBeInTheDocument();
     expect(screen.getByText('Abrir paleta de nodos / busqueda')).toBeInTheDocument();
+    expect(screen.getByText('Ejecutar flujo de trabajo')).toBeInTheDocument();
+    expect(screen.getByText('Exportar flujo de trabajo')).toBeInTheDocument();
+    expect(screen.getByText('Importar flujo de trabajo')).toBeInTheDocument();
     expect(screen.getByText('Alternar paneles del riel izquierdo')).toBeInTheDocument();
     expect(screen.getByText('Menu contextual del grupo')).toBeInTheDocument();
+    expect(screen.queryByText('Ejecutar workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText('Exportar workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText('Importar workflow')).not.toBeInTheDocument();
     expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
   });
 

@@ -1623,9 +1623,9 @@ class MyToolNode(CommandNode):
 <table>
 <tr><th>Atajo</th><th>Accion</th></tr>
 <tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Abrir paleta de nodos / busqueda</td></tr>
-<tr><td><kbd>Ctrl</kbd> + <kbd>R</kbd></td><td>Ejecutar workflow</td></tr>
-<tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Exportar workflow</td></tr>
-<tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Importar workflow</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>R</kbd></td><td>Ejecutar flujo de trabajo</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>Exportar flujo de trabajo</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Importar flujo de trabajo</td></tr>
 <tr><td><kbd>Ctrl</kbd> + <kbd>A</kbd></td><td>Seleccionar todos los nodos</td></tr>
 <tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd></td><td>Copiar nodos seleccionados</td></tr>
 <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Pegar nodos</td></tr>
