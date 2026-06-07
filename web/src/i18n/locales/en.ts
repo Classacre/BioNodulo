@@ -446,6 +446,7 @@ const en = {
   },
   workflowThumbnail: {
     emptyWorkflow: '(empty workflow)',
+    nodeFallback: 'Node',
   },
   workflowStats: {
     categoryFallback: 'Other',

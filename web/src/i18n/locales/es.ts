@@ -450,6 +450,7 @@ const es = {
   },
   workflowThumbnail: {
     emptyWorkflow: '(workflow vacio)',
+    nodeFallback: 'Nodo',
   },
   workflowStats: {
     categoryFallback: 'Otros',

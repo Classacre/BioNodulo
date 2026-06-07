@@ -238,7 +238,7 @@ export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptio
     }
     ctx.fillStyle = '#ffffff';
     ctx.font = `600 ${Math.max(9, 11 * scale)}px Inter, sans-serif`;
-    const label = ui.title || node.type || 'node';
+    const label = ui.title || node.type || i18n.t('workflowThumbnail.nodeFallback');
     const maxChars = Math.max(6, Math.floor((nw - 12) * scale / 6));
     const text = label.length > maxChars ? label.slice(0, maxChars - 1) + '…' : label;
     ctx.fillText(text, x0 + 6, y0 + Math.max(10, NODE_HEADER_H * scale * 0.65));

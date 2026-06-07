@@ -30,9 +30,18 @@ const emptyWorkflow: Workflow = {
 
 function stubCanvas(fillText: ReturnType<typeof vi.fn>) {
   const context = {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    bezierCurveTo: vi.fn(),
+    closePath: vi.fn(),
     clearRect: vi.fn(),
+    fill: vi.fn(),
     fillRect: vi.fn(),
     fillText,
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    stroke: vi.fn(),
   };
 
   vi.spyOn(document, 'createElement').mockImplementation(((tagName: string) => {
@@ -72,5 +81,28 @@ describe('workflow thumbnail copy i18n', () => {
 
     expect(fillText).toHaveBeenCalledWith('(workflow vacio)', 16, 24);
     expect(fillText).not.toHaveBeenCalledWith('(empty workflow)', 16, 24);
+  });
+
+  it('draws the node fallback label from the active locale', async () => {
+    const { setLanguage } = await import('../i18n');
+    const { renderWorkflowThumbnail } = await import('../utils/workflowThumbnail');
+    const fillText = vi.fn();
+    stubCanvas(fillText);
+
+    await setLanguage('es');
+
+    renderWorkflowThumbnail({
+      ...emptyWorkflow,
+      nodes: [{
+        id: 'node-1',
+        type: '',
+        position: [0, 0],
+        params: {},
+        ui: {},
+      }],
+    });
+
+    expect(fillText).toHaveBeenCalledWith('Nodo', expect.any(Number), expect.any(Number));
+    expect(fillText).not.toHaveBeenCalledWith('node', expect.any(Number), expect.any(Number));
   });
 });

@@ -122,6 +122,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 ## Wave G — `227210a` — Thumbnails, ranking, diffs, dialogs, help, telemetry
 
 - Recents thumbnails: `renderRecentThumbnail` (240×150 JPEG) on import/load; autosave updates in place via `refreshRecentThumbnail`.
+- Workflow thumbnail node fallback labels now read from `workflowThumbnail` i18n keys, so exported/recent thumbnails render `Nodo` under Spanish when a node lacks both title and type metadata.
 - Client-side template ranking: `state/templateUsage.ts` count+lastUsed; layered into Fuse score; "N× used" pill on cards.
 - Link colour modes: `type` / `gradient` / `uniform` setting; gradient highlights type changes through reroutes.
 - Output diff modal: `OutputDiffModal` fetches `/runs/{id}` for two runs; amber row highlight on differences; wired into history toolbar.
