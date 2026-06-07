@@ -167,7 +167,7 @@ describe('VersionHistory i18n', () => {
     });
     await waitFor(() => expect(dialogMocks.confirmDialog).toHaveBeenCalledWith({
       title: 'Restaurar version?',
-      message: 'Restaurar esta version? Esto creara una nueva rama del workflow actual.',
+      message: 'Restaurar esta version? Esto creara una nueva rama del flujo de trabajo actual.',
       confirmLabel: 'Restaurar',
       tone: 'warning',
     }));

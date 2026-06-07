@@ -2286,7 +2286,7 @@ class MyToolNode(CommandNode):
     versionHistorySavePromptConfirm: 'Guardar version',
     versionHistorySaveError: 'No se pudo guardar la version',
     versionHistoryRestoreConfirmTitle: 'Restaurar version?',
-    versionHistoryRestoreConfirmMessage: 'Restaurar esta version? Esto creara una nueva rama del workflow actual.',
+    versionHistoryRestoreConfirmMessage: 'Restaurar esta version? Esto creara una nueva rama del flujo de trabajo actual.',
     versionHistoryRestoreError: 'No se pudo restaurar la version',
     versionHistoryDeleteConfirmTitle: 'Eliminar version?',
     versionHistoryDeleteConfirmMessage: 'Eliminar esta version?',
