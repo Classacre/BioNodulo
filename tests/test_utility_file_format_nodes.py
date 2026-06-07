@@ -44,6 +44,7 @@ def test_file_format_utility_nodes_are_registered_for_frontend_discovery() -> No
 
     csv_to_json_inputs = info["csv_to_json"]["input"]
     assert set(csv_to_json_inputs["required"]) == {"csv_file"}
+    assert set(csv_to_json_inputs["optional"]["delimiter"][1]["options"]) >= {"auto", "csv", "tsv", "pipe", "semicolon"}
     assert set(csv_to_json_inputs["optional"]) == {
         "delimiter",
         "key_column",
@@ -287,6 +288,25 @@ async def test_csv_to_json_writes_array_output_and_preview(tmp_path: Path) -> No
     assert output.name == "samples.json"
     assert record_count == 2
     assert json.loads(output.read_text(encoding="utf-8")) == [
+        {"sample": "S1", "depth": "12", "status": "pass"},
+        {"sample": "S2", "depth": "8", "status": "warn"},
+    ]
+    assert json.loads(preview_json) == [{"sample": "S1", "depth": "12", "status": "pass"}]
+
+
+@pytest.mark.asyncio
+async def test_csv_to_json_supports_named_pipe_delimiter(tmp_path: Path) -> None:
+    table = tmp_path / "samples.psv"
+    table.write_text("sample|depth|status\nS1|12|pass\nS2|8|warn\n", encoding="utf-8")
+
+    json_path, preview_json, record_count = await _node_class("csv_to_json")().run(
+        csv_file=str(table),
+        delimiter="pipe",
+        context=type("Context", (), {"node_dir": tmp_path})(),
+    )
+
+    assert record_count == 2
+    assert json.loads(Path(json_path).read_text(encoding="utf-8")) == [
         {"sample": "S1", "depth": "12", "status": "pass"},
         {"sample": "S2", "depth": "8", "status": "warn"},
     ]

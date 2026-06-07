@@ -235,6 +235,10 @@ def _csv_delimiter(path: Path, delimiter: str) -> str:
         return ","
     if normalized == "tsv":
         return "\t"
+    if normalized == "pipe":
+        return "|"
+    if normalized == "semicolon":
+        return ";"
     if delimiter == r"\t":
         return "\t"
     if len(delimiter) == 1:
@@ -714,7 +718,10 @@ class CSVToJSONNode(BaseNode):
                 "csv_file": ("FILE", {"description": "CSV or TSV file with a header row"}),
             },
             "optional": {
-                "delimiter": ("STRING", {"default": "auto", "options": ["auto", "csv", "tsv"], "description": "Input delimiter"}),
+                "delimiter": (
+                    "STRING",
+                    {"default": "auto", "options": ["auto", "csv", "tsv", "pipe", "semicolon"], "description": "Input delimiter"},
+                ),
                 "key_column": ("STRING", {"default": "", "description": "Optional column to key the JSON object by"}),
                 "nest_separator": ("STRING", {"default": "", "description": "Column-name separator for nested JSON keys"}),
                 "output_name": ("STRING", {"default": "", "description": "Optional output filename stem"}),
