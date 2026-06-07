@@ -2588,6 +2588,7 @@ class MyToolNode(CommandNode):
     defaultFilename: 'workflow',
     thumbnailAlt: 'Workflow thumbnail preview',
     thumbnailRenderFailed: 'Could not render the workflow thumbnail',
+    pngMetadataEmbedFailed: 'Could not embed workflow metadata in the PNG',
     downloadPng: 'Download PNG',
     copyToClipboard: 'Copy to Clipboard',
     regenerate: 'Regenerate',

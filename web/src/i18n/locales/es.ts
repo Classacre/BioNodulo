@@ -2598,6 +2598,7 @@ class MyToolNode(CommandNode):
     defaultFilename: 'workflow-sin-titulo',
     thumbnailAlt: 'Vista previa de miniatura del flujo de trabajo',
     thumbnailRenderFailed: 'No se pudo renderizar la miniatura del flujo de trabajo',
+    pngMetadataEmbedFailed: 'No se pudieron incrustar los metadatos del flujo de trabajo en el PNG',
     downloadPng: 'Descargar PNG',
     copyToClipboard: 'Copiar al portapapeles',
     regenerate: 'Regenerar',

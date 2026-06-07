@@ -202,19 +202,23 @@ describe('ExportModal i18n', () => {
 
   it('logs PNG download embedding failures while preserving the inline error', async () => {
     const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const { setLanguage } = await import('../i18n');
     const downloadError = new Error('metadata write failed');
     pngMetadataMocks.embedWorkflowInPngDataUrl.mockImplementationOnce(() => {
       throw downloadError;
     });
 
+    await setLanguage('es');
+
     render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Render thumbnail' }));
-    await waitFor(() => expect(screen.getByRole('img', { name: 'Workflow thumbnail preview' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Renderizar miniatura' }));
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Vista previa de miniatura del flujo de trabajo' })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar PNG' }));
 
-    expect(await screen.findByText('metadata write failed')).toBeInTheDocument();
+    expect(await screen.findByText('No se pudieron incrustar los metadatos del flujo de trabajo en el PNG')).toBeInTheDocument();
+    expect(screen.queryByText('metadata write failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.downloadPng', downloadError);
   });
 });

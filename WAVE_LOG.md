@@ -700,7 +700,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - RuntimeArtifactsPanel trigger evaluation, submit-due, pause resolution, and checkpoint resolution failures now report structured `logError` scopes while preserving inline action errors.
 - HostPrerequisitesBanner Pixi install request failures now report a structured `logError` scope while preserving localized install feedback and the recheck flow.
 - ExportModal workflow export generation failures now report a structured `logError` scope while preserving inline export errors and suppressing fallback downloads.
-- ExportModal PNG download embedding failures now report a structured `logError` scope while preserving the inline download error.
+- ExportModal PNG download embedding failures now show localized inline fallback copy instead of raw metadata exception messages, while preserving structured diagnostics for the failed embed action.
 - SettingsPanel cache-clear failures now report a structured `logError` scope while preserving the existing error toast behavior.
 - SettingsPanel palette-import failures now report a structured `logError` scope while preserving the existing localized import-failed toast.
 - ImportModal backend converter failures now report a structured `logError` scope while preserving the existing local JSON fallback and localized parse dialogs.

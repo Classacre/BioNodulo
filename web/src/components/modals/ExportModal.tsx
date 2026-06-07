@@ -128,7 +128,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         triggerDownload(blob, `${baseName}.png`);
       } catch (err) {
         logError('exportModal.downloadPng', err);
-        setError(err instanceof Error ? err.message : String(err));
+        setError(t('exportModal.pngMetadataEmbedFailed'));
       }
       return;
     }
