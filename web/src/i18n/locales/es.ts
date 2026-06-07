@@ -1811,6 +1811,12 @@ class MyToolNode(CommandNode):
       emptyOption: '- elige una ejecucion -',
       optionLabel: '{{name}} - {{status}} - {{runId}}',
     },
+    status: {
+      completed: 'completada',
+      error: 'error',
+      cancelled: 'cancelada',
+      running: 'en ejecucion',
+    },
     errors: {
       title: 'Errores',
       messageLabel: 'mensaje',

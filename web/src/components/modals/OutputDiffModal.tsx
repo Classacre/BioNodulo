@@ -5,6 +5,7 @@
 // and artifacts of two run records and flagging the differences.
 
 import { useEffect, useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '../ui/Dialog';
 import { apiGet, ApiError } from '../../api/client';
@@ -46,6 +47,16 @@ function statusChip(status: string): string {
     case 'cancelled': return 'diff-status diff-status-warn';
     case 'running': return 'diff-status diff-status-run';
     default: return 'diff-status';
+  }
+}
+
+function statusLabel(status: string, t: TFunction): string {
+  switch (status) {
+    case 'completed': return t('outputDiff.status.completed');
+    case 'error': return t('outputDiff.status.error');
+    case 'cancelled': return t('outputDiff.status.cancelled');
+    case 'running': return t('outputDiff.status.running');
+    default: return status;
   }
 }
 
@@ -153,7 +164,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
   const nodeStatusFor = (record: RunRecord | null, nodeId: string): string => {
     const status = record?.node_statuses?.find(s => s.node_id === nodeId);
     if (!status) return '';
-    return String(status.status);
+    return statusLabel(String(status.status), t);
   };
 
   const summaryMeta = (summary: RunSummary) => {
@@ -167,7 +178,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
 
   const runOptionLabel = (run: RunRecord) => t('outputDiff.picker.optionLabel', {
     name: (run.workflow_name || t('common.untitled')).slice(0, 30),
-    status: run.status,
+    status: statusLabel(run.status, t),
     runId: run.run_id.slice(0, 8),
   });
 
@@ -211,7 +222,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
           {leftSummary ? (
             <>
               <div className="diff-summary-title">{leftSummary.workflowName}</div>
-              <div className={statusChip(leftSummary.status)}>{leftSummary.status}</div>
+              <div className={statusChip(leftSummary.status)}>{statusLabel(leftSummary.status, t)}</div>
               <div className="diff-summary-meta">
                 {summaryMeta(leftSummary)}
               </div>
@@ -222,7 +233,7 @@ export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRu
           {rightSummary ? (
             <>
               <div className="diff-summary-title">{rightSummary.workflowName}</div>
-              <div className={statusChip(rightSummary.status)}>{rightSummary.status}</div>
+              <div className={statusChip(rightSummary.status)}>{statusLabel(rightSummary.status, t)}</div>
               <div className="diff-summary-meta">
                 {summaryMeta(rightSummary)}
               </div>

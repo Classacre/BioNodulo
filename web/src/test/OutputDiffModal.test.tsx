@@ -98,6 +98,8 @@ describe('OutputDiffModal i18n', () => {
     expect(screen.getByRole('dialog', { name: 'Comparar ejecuciones' })).toBeInTheDocument();
     expect(screen.getByText(/Ejecucion A \(cargando...\)/)).toBeInTheDocument();
     expect(screen.getByText(/Ejecucion B \(cargando...\)/)).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: /completada - left-run/ })).toHaveLength(2);
+    expect(screen.getAllByRole('option', { name: /error - right-ru/ })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Cerrar' }).length).toBeGreaterThan(0);
 
     await act(async () => {
@@ -107,13 +109,16 @@ describe('OutputDiffModal i18n', () => {
     await waitFor(() => expect(screen.getByText('Sin titulo')).toBeInTheDocument());
 
     expect(screen.getByText('Variant workflow')).toBeInTheDocument();
+    expect(screen.getAllByText('completada').length).toBeGreaterThan(0);
     expect(screen.getByText(/1 nodo - 1 artefacto/)).toBeInTheDocument();
     expect(screen.getByText(/1 nodo - 0 artefactos/)).toBeInTheDocument();
     expect(screen.getAllByText(/iniciada/).length).toBeGreaterThan(0);
     expect(screen.getByText('Estado por nodo (1)')).toBeInTheDocument();
+    expect(screen.getAllByText((_, node) => node?.textContent === 'aligncompletadaerror').length).toBeGreaterThan(0);
     expect(screen.getByText('Artefactos (1)')).toBeInTheDocument();
     expect(screen.getByText('Errores')).toBeInTheDocument();
     expect(screen.getByText('mensaje')).toBeInTheDocument();
+    expect(screen.queryByText('completed')).not.toBeInTheDocument();
   });
 
   it('renders empty comparison states from the active locale', async () => {
