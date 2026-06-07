@@ -15,6 +15,13 @@
 //     subset the UI relies on — so an additive backend change won't break
 //     the frontend.
 
+import type {
+  CustomNodePackage,
+  CustomNodeRegistryCompatibility,
+  CustomNodeRegistryEntry,
+  ManagerRegistryResponse,
+} from '../types';
+
 export class ApiValidationError extends Error {
   readonly path: string;
   readonly received: unknown;
@@ -56,6 +63,25 @@ function requireObject(value: unknown, path: string): Record<string, unknown> {
 function requireArray(value: unknown, path: string): unknown[] {
   if (!Array.isArray(value)) throw new ApiValidationError(path, 'array', value);
   return value;
+}
+
+function requireBoolean(value: unknown, path: string): boolean {
+  if (typeof value !== 'boolean') throw new ApiValidationError(path, 'boolean', value);
+  return value;
+}
+
+function stringArray(value: unknown, path: string): string[] {
+  if (value === undefined || value === null) return [];
+  return requireArray(value, path).filter((item): item is string => typeof item === 'string');
+}
+
+function stringRecord(value: unknown, path: string): Record<string, string> {
+  const obj = requireObject(value, path);
+  const result: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(obj)) {
+    if (typeof raw === 'string') result[key] = raw;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,3 +325,73 @@ export function validateRunsList(value: unknown): ValidatedRunRecord[] {
 
 export const safeValidateRunsList = (value: unknown): ValidationResult<ValidatedRunRecord[]> =>
   safe(() => validateRunsList(value));
+
+// ---------------------------------------------------------------------------
+// Manager registry validator. The /api/manager/registry endpoint drives
+// custom-node discovery/install surfaces, so callers need stable registry,
+// compatibility, and installed-package arrays even when optional manifest
+// fields are absent.
+// ---------------------------------------------------------------------------
+
+function validateCustomNodePackage(value: unknown, path: string): CustomNodePackage {
+  const obj = requireObject(value, path);
+  return {
+    name: requireString(obj.name, `${path}.name`),
+    version: requireString(obj.version, `${path}.version`),
+    description: typeof obj.description === 'string' ? obj.description : '',
+    repository: typeof obj.repository === 'string' ? obj.repository : '',
+    entrypoints: stringArray(obj.entrypoints, `${path}.entrypoints`),
+    requirements: stringArray(obj.requirements, `${path}.requirements`),
+    directory: requireString(obj.directory, `${path}.directory`),
+    manifest_path: typeof obj.manifest_path === 'string' ? obj.manifest_path : '',
+    manifest_present: typeof obj.manifest_present === 'boolean' ? obj.manifest_present : false,
+    valid: typeof obj.valid === 'boolean' ? obj.valid : true,
+    errors: stringArray(obj.errors, `${path}.errors`),
+  };
+}
+
+function validateRegistryCompatibility(value: unknown, path: string): CustomNodeRegistryCompatibility {
+  const obj = requireObject(value, path);
+  return {
+    manifest_required: requireBoolean(obj.manifest_required, `${path}.manifest_required`),
+    supported_manifest: requireString(obj.supported_manifest, `${path}.supported_manifest`),
+  };
+}
+
+function validateCustomNodeRegistryEntry(value: unknown, path: string): CustomNodeRegistryEntry {
+  const obj = requireObject(value, path);
+  return {
+    name: requireString(obj.name, `${path}.name`),
+    url: requireString(obj.url, `${path}.url`),
+    description: typeof obj.description === 'string' ? obj.description : '',
+    installed: requireBoolean(obj.installed, `${path}.installed`),
+    install_status: requireString(obj.install_status, `${path}.install_status`),
+    installed_package: obj.installed_package === undefined || obj.installed_package === null
+      ? null
+      : validateCustomNodePackage(obj.installed_package, `${path}.installed_package`),
+    verified: typeof obj.verified === 'boolean' ? obj.verified : false,
+    compatibility: validateRegistryCompatibility(obj.compatibility, `${path}.compatibility`),
+  };
+}
+
+export function validateManagerRegistry(value: unknown): ManagerRegistryResponse {
+  const obj = requireObject(value, 'manager_registry');
+  const rawRegistries = requireObject(obj.custom_node_registries, 'manager_registry.custom_node_registries');
+  const customNodeRegistries: Record<string, CustomNodeRegistryEntry> = {};
+  for (const [name, raw] of Object.entries(rawRegistries)) {
+    customNodeRegistries[name] = validateCustomNodeRegistryEntry(
+      raw,
+      `manager_registry.custom_node_registries.${name}`,
+    );
+  }
+  return {
+    registries: stringRecord(obj.registries, 'manager_registry.registries'),
+    tool_paths: stringRecord(obj.tool_paths, 'manager_registry.tool_paths'),
+    custom_node_registries: customNodeRegistries,
+    installed_packages: requireArray(obj.installed_packages, 'manager_registry.installed_packages')
+      .map((raw, index) => validateCustomNodePackage(raw, `manager_registry.installed_packages[${index}]`)),
+  };
+}
+
+export const safeValidateManagerRegistry = (value: unknown): ValidationResult<ManagerRegistryResponse> =>
+  safe(() => validateManagerRegistry(value));

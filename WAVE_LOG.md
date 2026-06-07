@@ -650,6 +650,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Keyboard Shortcuts now localizes unassigned shortcut fallback copy instead of showing a bare dash.
 - Command Palette now localizes the escape-key hint instead of rendering a hard-coded `Esc` label.
 - Dialog and Tooltip primitives now have focused contract coverage, and Dialog stacking updates immediately after mount so only the top dialog handles Escape/backdrop dismissal.
+- The frontend now documents and validates the `/api/manager/registry` contract, including custom-node registry compatibility metadata and installed-package manifest records.
 
 ---
 

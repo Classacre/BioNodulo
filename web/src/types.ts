@@ -184,6 +184,43 @@ export interface ManagerInstalledNode {
   builtin: boolean;
 }
 
+export interface ManagerRegistryResponse {
+  registries: Record<string, string>;
+  tool_paths: Record<string, string>;
+  custom_node_registries: Record<string, CustomNodeRegistryEntry>;
+  installed_packages: CustomNodePackage[];
+}
+
+export interface CustomNodeRegistryEntry {
+  name: string;
+  url: string;
+  description: string;
+  installed: boolean;
+  install_status: 'installed' | 'available' | string;
+  installed_package?: CustomNodePackage | null;
+  verified: boolean;
+  compatibility: CustomNodeRegistryCompatibility;
+}
+
+export interface CustomNodeRegistryCompatibility {
+  manifest_required: boolean;
+  supported_manifest: string;
+}
+
+export interface CustomNodePackage {
+  name: string;
+  version: string;
+  description: string;
+  repository: string;
+  entrypoints: string[];
+  requirements: string[];
+  directory: string;
+  manifest_path: string;
+  manifest_present: boolean;
+  valid: boolean;
+  errors: string[];
+}
+
 export interface EnvironmentSpec {
   type: 'pixi' | 'docker' | 'apptainer' | 'singularity' | 'none';
   name?: string;
