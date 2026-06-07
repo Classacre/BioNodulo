@@ -129,9 +129,20 @@ const en = {
       palette: {
         use: 'Use {{name}} palette',
       },
+      workflow: {
+        run: 'Run workflow',
+        currentWorkflow: 'Current workflow',
+        runSelected: 'Run selected nodes',
+        runSelectedDescription: 'Execute selected nodes and their dependencies',
+        extractSelection: 'Create subgraph from selection',
+        extractSelectionDescription: 'Open selected nodes as a new workflow tab',
+        doctor: 'Run workflow doctor',
+        doctorDescription: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints',
+      },
     },
     groups: {
       appearance: 'Appearance',
+      workflow: 'Workflow',
     },
   },
   shortcuts: {

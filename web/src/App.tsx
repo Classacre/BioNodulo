@@ -2025,24 +2025,27 @@ export default function App() {
     const baseCommands: CommandItem[] = [
       {
         id: 'workflow.run',
-        label: 'Run workflow',
-        description: activeWorkflow.name || 'Current workflow',
+        label: t('commandPalette.commands.workflow.run'),
+        description: activeWorkflow.name || t('commandPalette.commands.workflow.currentWorkflow'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         shortcut: getBinding('workflow.run') ?? undefined,
         onSelect: () => void handleRun(),
       },
       {
         id: 'workflow.runSelected',
-        label: 'Run selected nodes',
-        description: 'Execute selected nodes and their dependencies',
+        label: t('commandPalette.commands.workflow.runSelected'),
+        description: t('commandPalette.commands.workflow.runSelectedDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => canvasRef.current?.executeSelected(),
       },
       {
         id: 'workflow.extractSelection',
-        label: 'Create subgraph from selection',
-        description: 'Open selected nodes as a new workflow tab',
+        label: t('commandPalette.commands.workflow.extractSelection'),
+        description: t('commandPalette.commands.workflow.extractSelectionDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => canvasRef.current?.createSubgraphFromSelection(),
       },
       {
@@ -2061,9 +2064,10 @@ export default function App() {
       },
       {
         id: 'workflow.doctor',
-        label: 'Run workflow doctor',
-        description: 'Scan the current workflow for missing inputs, unused outputs, and dependency hints',
+        label: t('commandPalette.commands.workflow.doctor'),
+        description: t('commandPalette.commands.workflow.doctorDescription'),
         group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => setShowDoctor(true),
       },
       {

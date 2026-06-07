@@ -132,9 +132,20 @@ const es = {
       palette: {
         use: 'Usar paleta {{name}}',
       },
+      workflow: {
+        run: 'Ejecutar workflow',
+        currentWorkflow: 'Workflow actual',
+        runSelected: 'Ejecutar nodos seleccionados',
+        runSelectedDescription: 'Ejecutar nodos seleccionados y sus dependencias',
+        extractSelection: 'Crear subgrafo desde seleccion',
+        extractSelectionDescription: 'Abrir nodos seleccionados como nueva pestana de workflow',
+        doctor: 'Ejecutar doctor de workflow',
+        doctorDescription: 'Analizar el workflow actual en busca de entradas faltantes, salidas sin usar y pistas de dependencias',
+      },
     },
     groups: {
       appearance: 'Apariencia',
+      workflow: 'Workflow',
     },
   },
   shortcuts: {
