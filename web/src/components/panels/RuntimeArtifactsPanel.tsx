@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkflowRuntimeArtifacts } from '../../hooks/workflow/useWorkflowRuntimeArtifacts';
+import { logError } from '../../state/logging';
 import type {
   CheckpointManifestResponse,
   CheckpointRecord,
@@ -221,6 +222,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
     try {
       await evaluateWorkflowTriggers();
     } catch (err) {
+      logError('runtimeArtifacts.workflowTriggers.evaluate', err);
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setEvaluating(false);
@@ -233,6 +235,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
     try {
       await evaluateWorkflowTriggers(undefined, { submitRuns: true });
     } catch (err) {
+      logError('runtimeArtifacts.workflowTriggers.submitDue', err);
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setSubmittingTriggers(false);
@@ -250,6 +253,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
         pause_file: valueAsString(request.pause_file),
       });
     } catch (err) {
+      logError('runtimeArtifacts.pauseRequests.resolve', err);
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setResolvingPauseKey(null);
@@ -268,6 +272,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
         });
       }
     } catch (err) {
+      logError('runtimeArtifacts.checkpoints.resolve', err);
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setResolvingCheckpointKey(null);

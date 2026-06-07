@@ -23,7 +23,12 @@ const runtimeMocks = vi.hoisted(() => ({
   useWorkflowRuntimeArtifacts: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../hooks/workflow/useWorkflowRuntimeArtifacts', () => runtimeMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 describe('RuntimeArtifactsPanel', () => {
   const evaluateWorkflowTriggers = vi.fn();
@@ -44,6 +49,7 @@ describe('RuntimeArtifactsPanel', () => {
     refresh.mockReset();
     onClose.mockReset();
     onResumeCheckpointSelect.mockReset();
+    loggingMock.logError.mockReset();
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReset();
     runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
       checkpointManifest: {
@@ -148,6 +154,41 @@ describe('RuntimeArtifactsPanel', () => {
       node_id: 'pause-node',
       pause_file: '/workspace/pause_requests/pause-node.json',
     }));
+  });
+
+  it('logs runtime artifact action failures while preserving inline errors', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('en');
+
+    const evaluateError = new Error('evaluation failed');
+    const submitError = new Error('submission failed');
+    const pauseError = new Error('pause resolve failed');
+    const checkpointError = new Error('checkpoint resolve failed');
+
+    evaluateWorkflowTriggers
+      .mockRejectedValueOnce(evaluateError)
+      .mockRejectedValueOnce(submitError);
+    resolvePauseRequest.mockRejectedValueOnce(pauseError);
+    resolveCheckpoint.mockRejectedValueOnce(checkpointError);
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluate triggers' }));
+    await waitFor(() => expect(screen.getByText('evaluation failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.workflowTriggers.evaluate', evaluateError);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit due triggers' }));
+    await waitFor(() => expect(screen.getByText('submission failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.workflowTriggers.submitDue', submitError);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve pause-node' }));
+    await waitFor(() => expect(screen.getByText('pause resolve failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.pauseRequests.resolve', pauseError);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve after_qc' }));
+    await waitFor(() => expect(screen.getByText('checkpoint resolve failed')).toBeInTheDocument());
+    expect(loggingMock.logError).toHaveBeenCalledWith('runtimeArtifacts.checkpoints.resolve', checkpointError);
   });
 
   it('selects a resolved checkpoint for run resume options', async () => {
