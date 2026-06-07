@@ -133,4 +133,45 @@ describe('NodeLibraryPanel i18n', () => {
     expect(screen.getAllByText('Otro').length).toBeGreaterThan(0);
     expect(screen.queryByText('Other')).not.toBeInTheDocument();
   });
+
+  it('renders saved subgraph actions from the active locale', async () => {
+    const { default: NodeLibraryPanel } = await import('../components/panels/NodeLibraryPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    window.localStorage.setItem('bionodulo.subgraphLibrary', JSON.stringify([
+      {
+        id: 'bp-qc',
+        name: 'Subgrafo guardado',
+        createdAt: 10,
+        workflow: {
+          version: '2.0',
+          app: 'BioNodulo',
+          name: 'Subgrafo QC',
+          description: '',
+          nodes: [],
+          edges: [],
+          groups: [],
+          outputs: {},
+        },
+        inputPorts: [],
+        outputPorts: [],
+      },
+    ]));
+
+    render(
+      <NodeLibraryPanel
+        objectInfo={objectInfo}
+        onAddNode={() => undefined}
+        onAddBlueprint={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Subgrafos')).toBeInTheDocument();
+    expect(screen.getByText('Subgrafo guardado')).toBeInTheDocument();
+    expect(screen.getByTitle('Eliminar plano')).toBeInTheDocument();
+    expect(screen.queryByTitle('Eliminar blueprint')).not.toBeInTheDocument();
+  });
 });

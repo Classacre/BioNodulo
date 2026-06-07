@@ -739,7 +739,7 @@ const es = {
     outputs: 'Salidas',
     tools: 'Herramientas',
     blueprintPorts: '{{nodes}} nodos - {{inputs}} entradas / {{outputs}} salidas',
-    deleteBlueprint: 'Eliminar blueprint',
+    deleteBlueprint: 'Eliminar plano',
     resetUsageFrequency: 'Restablecer frecuencia de uso',
     reset: 'Restablecer',
     otherCategory: 'Otro',
