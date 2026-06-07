@@ -9,6 +9,10 @@ For full diffs, see the branch history for `bionodulo-collab`.
 
 ---
 
+## Protobionodulo engine slices
+
+- `parallel_for` now honors `max_concurrency` by running body chunks through an async semaphore, while preserving gathered result order and `all_succeeded` reporting.
+
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
 - Extracted six App-owned behaviours into focused hooks: auto-save snapshot publishing, panel layout persistence, HPC polling, WebSocket workflow message dispatch, queue-mode effects, and collaboration comments/presence polling.

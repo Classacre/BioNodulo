@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -2290,6 +2291,70 @@ async def test_executor_runs_parallel_for_body_subgraph_and_gathers_results(tmp_
     assert result["outputs"]["fanout"]["all_succeeded"] is True
     assert CollectorNode.calls == [expected_results]
     assert result["outputs"]["after_fanout"] == {"out": expected_results}
+
+
+@pytest.mark.asyncio
+async def test_executor_parallel_for_honors_max_concurrency_and_preserves_result_order(tmp_path: Path) -> None:
+    parallel_for_node = _node_class("parallel_for")
+
+    class SlowBodyNode:
+        NODE_ID = "slow_body"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        active = 0
+        max_active = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            type(self).active += 1
+            type(self).max_active = max(type(self).max_active, type(self).active)
+            try:
+                await asyncio.sleep(0.02)
+                return {"outputs": {"out": f"done:{value}"}}
+            finally:
+                type(self).active -= 1
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {
+                "parallel_for": parallel_for_node,
+                "slow_body": SlowBodyNode,
+            }.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "fanout",
+                "type": "parallel_for",
+                "inputs": {
+                    "items": {"value": ["S1", "S2", "S3", "S4"]},
+                    "chunk_size": {"value": 1},
+                    "max_concurrency": {"value": 2},
+                    "gather": {"value": "all"},
+                },
+                "outputs": {"iteration": {}, "results": {}, "completed_count": {}, "all_succeeded": {}},
+            },
+            {"id": "body", "type": "slow_body", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "fanout", "target_node": "body", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "body", "target_node": "fanout", "source_output": "out", "target_input": "_parallel_results"},
+        ],
+    }
+    SlowBodyNode.active = 0
+    SlowBodyNode.max_active = 0
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("parallel-for-concurrency", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert SlowBodyNode.max_active == 2
+    assert result["outputs"]["fanout"]["results"] == ["done:S1", "done:S2", "done:S3", "done:S4"]
+    assert result["outputs"]["fanout"]["completed_count"] == 4
+    assert result["outputs"]["fanout"]["all_succeeded"] is True
 
 
 @pytest.mark.asyncio

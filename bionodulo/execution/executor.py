@@ -2026,147 +2026,163 @@ class WorkflowExecutor:
         chunks = flow_control.get("chunks", []) if isinstance(flow_control, dict) else []
         if not isinstance(chunks, list):
             chunks = []
+        max_concurrency = 1
+        if isinstance(flow_control, dict):
+            try:
+                max_concurrency = max(1, int(flow_control.get("max_concurrency", 1) or 1))
+            except (TypeError, ValueError):
+                max_concurrency = 1
 
         body_nodes = {node_id: all_nodes[node_id] for node_id in body_node_ids if node_id in all_nodes}
         body_edge_map = self._loop_body_edge_map(ctx.node_id, body_node_ids, edges)
         body_order = self._loop_body_order(body_nodes, edges)
-        parallel_results: list[Any] = []
-        all_succeeded = True
         loop_state: dict[str, Any] = {}
+        semaphore = asyncio.Semaphore(max_concurrency)
 
-        for chunk_index, chunk in enumerate(chunks):
-            if ctx.cancel_event.is_set():
-                raise RuntimeError(f"Parallel loop {ctx.node_id} cancelled")
+        async def run_chunk(chunk_index: int, chunk: Any) -> tuple[int, Any, bool]:
+            async with semaphore:
+                if ctx.cancel_event.is_set():
+                    raise RuntimeError(f"Parallel loop {ctx.node_id} cancelled")
 
-            visible_iteration = chunk_index + 1
-            iteration_value: Any = chunk[0] if isinstance(chunk, list) and len(chunk) == 1 else chunk
-            local_outputs: dict[str, dict[str, Any]] = {
-                ctx.node_id: {"iteration": iteration_value},
-            }
-            local_inactive_outputs: dict[str, set[str]] = {}
-            local_skipped_nodes: set[str] = set()
+                visible_iteration = chunk_index + 1
+                iteration_value: Any = chunk[0] if isinstance(chunk, list) and len(chunk) == 1 else chunk
+                local_outputs: dict[str, dict[str, Any]] = {
+                    ctx.node_id: {"iteration": iteration_value},
+                }
+                local_inactive_outputs: dict[str, set[str]] = {}
+                local_skipped_nodes: set[str] = set()
 
-            try:
-                for body_node_id in body_order:
-                    body_node = body_nodes[body_node_id]
-                    body_type = str(body_node.get("type", "unknown"))
-                    body_class = self._node_class_for(body_node)
-                    emit(
-                        "node_start",
-                        {
-                            "run_id": ctx.run_id,
-                            "node_id": body_node_id,
-                            "node_type": body_type,
-                            "loop_parent": ctx.node_id,
-                            "iteration": visible_iteration,
-                        },
-                    )
-
-                    inactive_upstream = self._inactive_upstream(
-                        body_node_id,
-                        body_edge_map,
-                        local_skipped_nodes,
-                        local_inactive_outputs,
-                        body_class,
-                    )
-                    if inactive_upstream is not None:
-                        local_skipped_nodes.add(body_node_id)
+                try:
+                    for body_node_id in body_order:
+                        body_node = body_nodes[body_node_id]
+                        body_type = str(body_node.get("type", "unknown"))
+                        body_class = self._node_class_for(body_node)
                         emit(
-                            "node_skip",
+                            "node_start",
                             {
                                 "run_id": ctx.run_id,
                                 "node_id": body_node_id,
-                                "reason": "inactive_branch",
-                                "upstream": inactive_upstream,
+                                "node_type": body_type,
                                 "loop_parent": ctx.node_id,
                                 "iteration": visible_iteration,
                             },
                         )
-                        continue
 
-                    combined_outputs = {**node_outputs, **local_outputs}
-                    body_inputs = self._resolve_inputs(
-                        body_node_id,
-                        body_node,
-                        body_edge_map,
-                        combined_outputs,
-                        ctx.run_metadata.get("workflow_parameters", {}),
+                        inactive_upstream = self._inactive_upstream(
+                            body_node_id,
+                            body_edge_map,
+                            local_skipped_nodes,
+                            local_inactive_outputs,
+                            body_class,
+                        )
+                        if inactive_upstream is not None:
+                            local_skipped_nodes.add(body_node_id)
+                            emit(
+                                "node_skip",
+                                {
+                                    "run_id": ctx.run_id,
+                                    "node_id": body_node_id,
+                                    "reason": "inactive_branch",
+                                    "upstream": inactive_upstream,
+                                    "loop_parent": ctx.node_id,
+                                    "iteration": visible_iteration,
+                                },
+                            )
+                            continue
+
+                        combined_outputs = {**node_outputs, **local_outputs}
+                        body_inputs = self._resolve_inputs(
+                            body_node_id,
+                            body_node,
+                            body_edge_map,
+                            combined_outputs,
+                            ctx.run_metadata.get("workflow_parameters", {}),
+                        )
+                        body_params = self._with_defaults(
+                            body_node,
+                            body_inputs,
+                            body_class,
+                            ctx.run_metadata.get("workflow_parameters", {}),
+                        )
+                        hidden_inputs = self._declared_hidden_inputs(body_class)
+                        if "_loop_state" in hidden_inputs:
+                            body_params["_loop_state"] = loop_state
+                        if "_iteration" in hidden_inputs:
+                            body_params["_iteration"] = chunk_index
+                        body_dir = (
+                            self.workspace_dir
+                            / "runs"
+                            / ctx.run_id
+                            / ctx.node_id
+                            / "parallel"
+                            / f"{visible_iteration:04d}"
+                            / body_node_id
+                        )
+                        body_dir.mkdir(parents=True, exist_ok=True)
+                        body_ctx = ExecutionContext(
+                            run_id=ctx.run_id,
+                            node_id=body_node_id,
+                            node_type=body_type,
+                            node_dir=body_dir,
+                            workspace_dir=self.workspace_dir,
+                            params=body_params,
+                            api_secrets=self._api_secrets_for_options(options),
+                            emit=emit,
+                            cancel_event=ctx.cancel_event,
+                            env_prefix=self._env_prefix_for_node(body_node, workflow),
+                            run_metadata=ctx.run_metadata,
+                            executor=ctx.executor or self,
+                            registry=ctx.registry if ctx.registry is not None else self.registry,
+                        )
+                        body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+                        outputs = body_result.get("outputs", {})
+                        inactive_outputs = self._inactive_output_ports(
+                            body_result,
+                            outputs,
+                            body_class,
+                        )
+                        if inactive_outputs:
+                            local_inactive_outputs[body_node_id] = inactive_outputs
+                        local_outputs[body_node_id] = outputs
+                        emit(
+                            "node_complete",
+                            {
+                                "run_id": ctx.run_id,
+                                "node_id": body_node_id,
+                                "outputs": outputs,
+                                "loop_parent": ctx.node_id,
+                                "iteration": visible_iteration,
+                            },
+                        )
+
+                    return (
+                        chunk_index,
+                        self._loop_feedback_value(
+                            ctx.node_id,
+                            "_parallel_results",
+                            edges,
+                            local_outputs,
+                            fallback=self._loop_body_result(ctx.node_id, edges, local_outputs, body_order),
+                        ),
+                        True,
                     )
-                    body_params = self._with_defaults(
-                        body_node,
-                        body_inputs,
-                        body_class,
-                        ctx.run_metadata.get("workflow_parameters", {}),
-                    )
-                    hidden_inputs = self._declared_hidden_inputs(body_class)
-                    if "_loop_state" in hidden_inputs:
-                        body_params["_loop_state"] = loop_state
-                    if "_iteration" in hidden_inputs:
-                        body_params["_iteration"] = chunk_index
-                    body_dir = (
-                        self.workspace_dir
-                        / "runs"
-                        / ctx.run_id
-                        / ctx.node_id
-                        / "parallel"
-                        / f"{visible_iteration:04d}"
-                        / body_node_id
-                    )
-                    body_dir.mkdir(parents=True, exist_ok=True)
-                    body_ctx = ExecutionContext(
-                        run_id=ctx.run_id,
-                        node_id=body_node_id,
-                        node_type=body_type,
-                        node_dir=body_dir,
-                        workspace_dir=self.workspace_dir,
-                        params=body_params,
-                        api_secrets=self._api_secrets_for_options(options),
-                        emit=emit,
-                        cancel_event=ctx.cancel_event,
-                        env_prefix=self._env_prefix_for_node(body_node, workflow),
-                        run_metadata=ctx.run_metadata,
-                        executor=ctx.executor or self,
-                        registry=ctx.registry if ctx.registry is not None else self.registry,
-                    )
-                    body_result = await self._execute_node(body_ctx, body_node, body_inputs)
-                    outputs = body_result.get("outputs", {})
-                    inactive_outputs = self._inactive_output_ports(
-                        body_result,
-                        outputs,
-                        body_class,
-                    )
-                    if inactive_outputs:
-                        local_inactive_outputs[body_node_id] = inactive_outputs
-                    local_outputs[body_node_id] = outputs
+                except Exception as exc:
                     emit(
-                        "node_complete",
+                        "node_error",
                         {
                             "run_id": ctx.run_id,
-                            "node_id": body_node_id,
-                            "outputs": outputs,
-                            "loop_parent": ctx.node_id,
-                            "iteration": visible_iteration,
+                            "node_id": ctx.node_id,
+                            "error": f"Parallel loop iteration {visible_iteration} failed: {exc}",
                         },
                     )
+                    return chunk_index, None, False
 
-                parallel_results.append(self._loop_feedback_value(
-                    ctx.node_id,
-                    "_parallel_results",
-                    edges,
-                    local_outputs,
-                    fallback=self._loop_body_result(ctx.node_id, edges, local_outputs, body_order),
-                ))
-            except Exception as exc:
-                all_succeeded = False
-                emit(
-                    "node_error",
-                    {
-                        "run_id": ctx.run_id,
-                        "node_id": ctx.node_id,
-                        "error": f"Parallel loop iteration {visible_iteration} failed: {exc}",
-                    },
-                )
-                parallel_results.append(None)
+        chunk_results = await asyncio.gather(
+            *(run_chunk(chunk_index, chunk) for chunk_index, chunk in enumerate(chunks)),
+        )
+        chunk_results.sort(key=lambda item: item[0])
+        parallel_results = [result for _chunk_index, result, _succeeded in chunk_results]
+        all_succeeded = all(succeeded for _chunk_index, _result, succeeded in chunk_results)
 
         loop_inputs = {**inputs, "_parallel_results": parallel_results}
         loop_ctx = replace(ctx, params={**ctx.params, **loop_inputs})
