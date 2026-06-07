@@ -142,8 +142,9 @@ describe('CommentsPanel i18n', () => {
 
     await waitFor(() => expect(screen.getByText('Comentario sin nombre de workflow')).toBeInTheDocument());
 
-    expect(i18n.t('collab.commentsWorkflowFallback', { id: 'workflow-abc' })).toBe('Workflow workflow-abc');
-    expect(screen.getByText('Workflow workflow-abc')).toBeInTheDocument();
+    expect(i18n.t('collab.commentsWorkflowFallback', { id: 'workflow-abc' })).toBe('Flujo de trabajo workflow-abc');
+    expect(screen.getByText('Flujo de trabajo workflow-abc')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow workflow-abc')).not.toBeInTheDocument();
   });
 
   it('keeps comment workflow fallback copy behind i18n keys', () => {
