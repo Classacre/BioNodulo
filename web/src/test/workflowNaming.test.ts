@@ -73,7 +73,15 @@ describe('workflow naming i18n', () => {
         node('samtools', 'Alignment', ['samtools']),
       ],
     }))).toBe('BWA + samtools alineacion');
-    expect(resolveWorkflowName(workflow({ name: '', nodes: [] }))).toBe('Workflow sin titulo');
+    expect(suggestWorkflowName(workflow({
+      nodes: [
+        node('custom', 'Custom', []),
+      ],
+    }))).toBe('flujo de trabajo de custom');
+    expect(resolveWorkflowName(workflow({ name: '', nodes: [] }))).toBe('Flujo de trabajo sin titulo');
+    expect(resolveWorkflowName(workflow({ name: '', nodes: [] }))).not.toBe('Workflow sin titulo');
+    expect(i18n.t('workflowNaming.fallbackCategory')).toBe('flujo de trabajo');
+    expect(i18n.t('workflowNaming.categoryWorkflow', { category: 'custom' })).toBe('flujo de trabajo de custom');
   });
 
   it('keeps workflow naming fragments behind i18n keys', () => {

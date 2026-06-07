@@ -236,9 +236,9 @@ const es = {
   },
   workflowNaming: {
     selectionSuffix: 'seleccion',
-    fallbackCategory: 'workflow',
-    categoryWorkflow: 'workflow de {{category}}',
-    untitledWorkflow: 'Workflow sin titulo',
+    fallbackCategory: 'flujo de trabajo',
+    categoryWorkflow: 'flujo de trabajo de {{category}}',
+    untitledWorkflow: 'Flujo de trabajo sin titulo',
     categories: {
       Alignment: 'alineacion',
       'Variant Calling': 'llamado de variantes',
