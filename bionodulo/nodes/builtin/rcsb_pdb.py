@@ -141,7 +141,7 @@ class PDBDownloadNode(BaseNode):
         return {
             "required": {
                 "pdb_ids": ("STRING", {"default": "", "description": "PDB ID(s), comma-separated"}),
-                "format": (list(PDB_FORMATS), {"default": "cif"}),
+                "format": ("STRING", {"default": "cif", "options": list(PDB_FORMATS)}),
             },
             "optional": {
                 "fetch_metadata": ("BOOLEAN", {"default": True}),

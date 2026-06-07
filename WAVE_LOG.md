@@ -591,6 +591,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - KEGG Pathway now supports the planned `pathway_image` query type and `download_image` option, downloading pathway PNG maps and recording image path/URL metadata alongside existing JSON/TSV outputs.
 - UCSC Genome Browser now accepts the planned `dna_sequence` query type as a sequence retrieval alias, exposing it in node metadata and preserving the supplied query type in output metadata.
 - AlphaFold DB now accepts the planning-style `format` input as a compatibility alias for `structure_format`, so `format=pdb` selects PDB downloads while preserving the existing `structure_format` option.
+- PDB Download now advertises the planning-style `format` input as a `STRING` with RCSB format options, preserving runtime validation while exposing the expected frontend/API contract.
 
 ---
 
@@ -614,5 +615,5 @@ Items from the gap analysis that haven't landed yet:
 ## Operating notes
 
 - Commits attributed only to `classacre <nieuwenhuyzenmikamartin@gmail.com>`.
-- Each wave: implement → build green → commit → push to `bionodulo-collab` on `Classacre/BioNodulo`.
+- Each wave: implement → build green → commit → push to `protobionodulo` on `Classacre/BioNodulo`.
 - "Next wave" from the user starts a fresh batch; mid-wave "commit and push" confirms the partial scope.

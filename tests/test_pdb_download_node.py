@@ -35,6 +35,19 @@ def test_pdb_download_is_registered_for_frontend_discovery() -> None:
     assert issubclass(registry.get("pdb_retrieve"), registry.get("pdb_download"))
 
 
+def test_pdb_download_advertises_format_as_string_options() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node_class = registry.get("pdb_download")
+    assert node_class is not None
+
+    format_spec = node_class.INPUT_TYPES()["required"]["format"]
+    assert format_spec == ("STRING", {"default": "cif", "options": ["cif", "pdb", "xml", "sf"]})
+
+    frontend_format = registry.object_info()["pdb_download"]["input"]["required"]["format"]
+    assert frontend_format == ("STRING", {"default": "cif", "options": ["cif", "pdb", "xml", "sf"]})
+
+
 @pytest.mark.asyncio
 async def test_rcsb_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
     node_class = _node_class("pdb_download")
