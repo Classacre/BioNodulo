@@ -95,7 +95,8 @@ describe('TemplatesPanel i18n', () => {
     await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
 
     expect(screen.getByRole('dialog', { name: 'Plantillas' })).toBeInTheDocument();
-    expect(screen.getByTitle('Guardar workflow como plantilla')).toBeInTheDocument();
+    expect(screen.getByTitle('Guardar flujo de trabajo como plantilla')).toBeInTheDocument();
+    expect(screen.queryByTitle('Guardar workflow como plantilla')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Guardar$/ }));
 
     expect(screen.getByPlaceholderText('Nombre de plantilla')).toBeInTheDocument();
@@ -111,7 +112,8 @@ describe('TemplatesPanel i18n', () => {
     expect(screen.getByText('1 de 1 plantillas')).toBeInTheDocument();
     expect(screen.getByTitle('Cargar RNA QC')).toBeInTheDocument();
     expect(screen.getByTitle('Ranking de coincidencia de plantilla')).toBeInTheDocument();
-    expect(screen.getByLabelText('Pasos de vista previa del workflow')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pasos de vista previa del flujo de trabajo')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pasos de vista previa del workflow')).not.toBeInTheDocument();
     expect(screen.getByText('4 nodos')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Buscar plantillas' }), {
@@ -141,7 +143,7 @@ describe('TemplatesPanel i18n', () => {
 
     await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTitle('Guardar workflow como plantilla'));
+    fireEvent.click(screen.getByTitle('Guardar flujo de trabajo como plantilla'));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar plantilla' }));
 
     await waitFor(() => expect(onSaveTemplate).toHaveBeenCalledWith(expect.objectContaining({
@@ -180,7 +182,8 @@ describe('TemplatesPanel i18n', () => {
     await waitFor(() => expect(screen.getByText('Uncategorized template')).toBeInTheDocument());
 
     expect(screen.getByRole('button', { name: 'Otro' })).toHaveAttribute('title', 'Mostrar plantillas de Otro');
-    expect(screen.getByText('Plantilla de workflow de Otro')).toBeInTheDocument();
+    expect(screen.getByText('Plantilla de flujo de trabajo de Otro')).toBeInTheDocument();
+    expect(screen.queryByText('Plantilla de workflow de Otro')).not.toBeInTheDocument();
     expect(screen.queryByText('Other')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Otro' }));
