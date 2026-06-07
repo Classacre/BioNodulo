@@ -583,6 +583,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Deduplicate now handles uncompressed FASTA inputs by sequence content as planned: `keep=first|last|none` works for sequence records, deduplicated output stays FASTA, and duplicate-record reporting writes a sibling FASTA when requested.
 - Split File `by_record_count` now handles CSV/TSV tables as table records instead of falling through to FASTA parsing, preserving headers in each chunk while keeping FASTQ/FASTA record splitting intact.
 - Timer now emits the planned `timer_elapsed` runtime event with run id, node id, label, elapsed milliseconds, and start/end ISO timestamps while preserving pass-through timing metadata.
+- NCBI EFetch now batches long ID lists, includes `tool=bionodulo` plus a configurable/default contact email on every E-utilities request, and reports batch size/count metadata while keeping mocked request coverage network-free.
 
 ---
 

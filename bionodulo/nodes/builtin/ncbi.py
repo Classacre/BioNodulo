@@ -166,6 +166,12 @@ def _coerce_ids(value: Any) -> list[str]:
     return [part for part in re.split(r"[\s,;]+", text) if part]
 
 
+def _chunked(values: list[str], size: int) -> list[list[str]]:
+    if size < 1:
+        raise ValueError("batch_size must be at least 1")
+    return [values[index:index + size] for index in range(0, len(values), size)]
+
+
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
     base = Path(getattr(context, "node_dir", ".") if context else ".")
     out_dir = base / node.NODE_ID
@@ -458,6 +464,8 @@ class NCBIEFetchNode(BaseNode):
                 "rettype": ("STRING", {"default": "fasta"}),
                 "retmode": ("STRING", {"default": "text", "options": ["text", "xml", "json"]}),
                 "api_key": ("STRING", {"default": "", "advanced": True}),
+                "batch_size": ("INT", {"default": 100, "min": 1, "max": 500}),
+                "email": ("STRING", {"default": "", "advanced": True}),
                 "output_name": ("STRING", {"default": ""}),
             },
             "hidden": {},
@@ -471,17 +479,26 @@ class NCBIEFetchNode(BaseNode):
         database = str(kwargs.get("database", "nuccore"))
         rettype = str(kwargs.get("rettype", "fasta"))
         retmode = str(kwargs.get("retmode", "text"))
-        params: dict[str, Any] = {
-            "db": database,
-            "id": ",".join(ids),
-            "rettype": rettype,
-            "retmode": retmode,
-        }
+        batch_size = int(kwargs.get("batch_size", 100) or 100)
         api_key = _resolve_api_key(kwargs.get("api_key", ""), context)
-        if api_key:
-            params["api_key"] = api_key
+        email = str(kwargs.get("email", "") or _default_ncbi_email())
 
-        records = await _request_text("efetch.fcgi", params)
+        batches = _chunked(ids, batch_size)
+        record_parts: list[str] = []
+        for batch in batches:
+            params: dict[str, Any] = {
+                "db": database,
+                "id": ",".join(batch),
+                "rettype": rettype,
+                "retmode": retmode,
+                "tool": "bionodulo",
+                "email": email,
+            }
+            if api_key:
+                params["api_key"] = api_key
+            record_parts.append(await _request_text("efetch.fcgi", params))
+
+        records = "\n".join(part.rstrip("\n") for part in record_parts if part) + ("\n" if record_parts else "")
         output_name = str(kwargs.get("output_name", "")).strip()
         if output_name:
             filename = _safe_filename(output_name)
@@ -500,6 +517,8 @@ class NCBIEFetchNode(BaseNode):
                     "rettype": rettype,
                     "retmode": retmode,
                     "record_count": len(ids),
+                    "batch_size": batch_size,
+                    "batch_count": len(batches),
                     "records_path": str(out_path),
                 },
             }

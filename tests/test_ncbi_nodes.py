@@ -283,6 +283,8 @@ async def test_ncbi_efetch_writes_records_and_returns_metadata(
         "rettype": "fasta",
         "retmode": "text",
         "record_count": 1,
+        "batch_size": 100,
+        "batch_count": 1,
         "records_path": str(records_path),
     }
     assert calls == [
@@ -293,9 +295,63 @@ async def test_ncbi_efetch_writes_records_and_returns_metadata(
                 "id": "NM_000546.6",
                 "rettype": "fasta",
                 "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
                 "api_key": "explicit-key",
             },
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ncbi_efetch_batches_ids_and_combines_records(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    node_class = _node_class("ncbi_efetch")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_text(endpoint: str, params: dict[str, Any], **_: Any) -> str:
+        calls.append({"endpoint": endpoint, "params": dict(params)})
+        return f">{params['id']}\nATGC\n"
+
+    monkeypatch.setattr(module, "_request_text", fake_text)
+
+    result = await node_class().run(
+        id_list=["NM_000001", "NM_000002", "NM_000003"],
+        database="nuccore",
+        rettype="fasta",
+        retmode="text",
+        batch_size=2,
+        output_name="batch.fasta",
+        context=SimpleNamespace(node_dir=tmp_path, resolve_secret=lambda _key: None),
+    )
+
+    records_path = Path(result["outputs"]["records"])
+    assert records_path.read_text(encoding="utf-8") == ">NM_000001,NM_000002\nATGC\n>NM_000003\nATGC\n"
+    assert result["outputs"]["metadata"]["batch_size"] == 2
+    assert result["outputs"]["metadata"]["batch_count"] == 2
+    assert calls == [
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "NM_000001,NM_000002",
+                "rettype": "fasta",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+            },
+        },
+        {
+            "endpoint": "efetch.fcgi",
+            "params": {
+                "db": "nuccore",
+                "id": "NM_000003",
+                "rettype": "fasta",
+                "retmode": "text",
+                "tool": "bionodulo",
+                "email": "bionodulo@example.com",
+            },
+        },
     ]
 
 
