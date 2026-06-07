@@ -2255,7 +2255,7 @@ class MyToolNode(CommandNode):
     templateGalleryForkError: 'No se pudo bifurcar',
     templateGalleryNoActiveWorkflow: 'No hay workflow activo para guardar como plantilla',
     templateGallerySavePromptTitle: 'Guardar plantilla',
-    templateGallerySavePromptMessage: 'Nombra esta plantilla compartida de workflow.',
+    templateGallerySavePromptMessage: 'Nombra esta plantilla compartida de flujo de trabajo.',
     templateGallerySavePromptInputLabel: 'Titulo de plantilla',
     templateGalleryDescriptionPromptTitle: 'Descripcion de plantilla',
     templateGalleryDescriptionPromptMessage: 'Agrega una descripcion breve para esta plantilla.',

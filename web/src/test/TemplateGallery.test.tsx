@@ -116,7 +116,7 @@ describe('TemplateGallery i18n', () => {
 
     await waitFor(() => expect(dialogMocks.promptDialog).toHaveBeenNthCalledWith(1, {
       title: 'Guardar plantilla',
-      message: 'Nombra esta plantilla compartida de workflow.',
+      message: 'Nombra esta plantilla compartida de flujo de trabajo.',
       inputLabel: 'Titulo de plantilla',
       confirmLabel: 'Siguiente',
     }));
