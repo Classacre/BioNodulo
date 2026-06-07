@@ -5,7 +5,12 @@ const apiMocks = vi.hoisted(() => ({
   apiPost: vi.fn(),
 }));
 
+const loggingMock = vi.hoisted(() => ({
+  logError: vi.fn(),
+}));
+
 vi.mock('../api/client', () => apiMocks);
+vi.mock('../state/logging', () => loggingMock);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -28,6 +33,7 @@ describe('NodeCommentPopover i18n', () => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
     apiMocks.apiPost.mockReset();
+    loggingMock.logError.mockReset();
   });
 
   afterEach(async () => {
@@ -94,5 +100,67 @@ describe('NodeCommentPopover i18n', () => {
         node_id: 'node-1',
       },
     ));
+  });
+
+  it('logs swallowed comment post and resolve failures with stable scopes', async () => {
+    const { default: NodeCommentPopover } = await import('../collab/NodeCommentPopover');
+    const postError = new Error('comment post failed');
+    const resolveError = new Error('comment resolve failed');
+
+    apiMocks.apiPost.mockRejectedValueOnce(postError);
+    const postView = render(
+      <NodeCommentPopover
+        workflowId="workflow-1"
+        nodeId="node-1"
+        currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+        comments={[]}
+        x={0}
+        y={0}
+        compose
+        onChanged={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Mika, add a node comment...'), { target: { value: 'Please check this' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.nodeComment.post', postError));
+    expect(screen.getByText('comment post failed')).toBeInTheDocument();
+    postView.unmount();
+
+    apiMocks.apiPost.mockRejectedValueOnce(resolveError);
+    render(
+      <NodeCommentPopover
+        workflowId="workflow-1"
+        nodeId="node-1"
+        currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+        comments={[
+          {
+            id: 'comment-1',
+            workflow_id: 'workflow-1',
+            node_id: 'node-1',
+            user_id: 'user-2',
+            user_name: 'Ada',
+            user_color: '#7c3aed',
+            content: 'Check this node',
+            resolved: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            replies: [],
+          },
+        ]}
+        x={0}
+        y={0}
+        compose
+        onChanged={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Resolve/ }));
+
+    await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.nodeComment.resolve', resolveError));
+    expect(screen.getByText('comment resolve failed')).toBeInTheDocument();
   });
 });

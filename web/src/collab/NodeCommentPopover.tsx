@@ -5,6 +5,7 @@ import Icon from '../components/ui/Icon';
 import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
 import { apiPost } from '../api/client';
+import { logError } from '../state/logging';
 
 interface NodeCommentPopoverProps {
   workflowId: string;
@@ -63,6 +64,7 @@ export default function NodeCommentPopover({
       setError(null);
       onChanged();
     } catch (err) {
+      logError('collab.nodeComment.post', err);
       setError(err instanceof Error ? err.message : t('collab.couldNotPostComment'));
     }
   };
@@ -73,6 +75,7 @@ export default function NodeCommentPopover({
       setError(null);
       onChanged();
     } catch (err) {
+      logError('collab.nodeComment.resolve', err);
       setError(err instanceof Error ? err.message : t('collab.couldNotResolveComment'));
     }
   };
