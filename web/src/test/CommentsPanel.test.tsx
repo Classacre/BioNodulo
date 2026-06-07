@@ -147,6 +147,38 @@ describe('CommentsPanel i18n', () => {
     expect(screen.queryByText('Workflow workflow-abc')).not.toBeInTheDocument();
   });
 
+  it('renders empty all-comments copy from the active locale', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    apiMocks.apiGet.mockResolvedValue({
+      comments: [],
+      count: 0,
+      workflow_names: {},
+    });
+
+    render(
+      <Provider>
+        <CommentsPanel
+          workflowId="workflow-1"
+          currentUser={{ id: 'user-1', name: 'Mika', color: '#0d9488' }}
+          isOpen
+          onClose={() => undefined}
+        />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(screen.getByText((_, node) => (
+      node?.textContent === 'Aun no hay comentarios en tus flujos de trabajo.\nInicia la conversacion!'
+      && node.children.length === 0
+    ))).toBeInTheDocument());
+    expect(screen.queryByText((_, node) => (
+      node?.textContent === 'Aun no hay comentarios en tus workflows.\nInicia la conversacion!'
+      && node.children.length === 0
+    ))).not.toBeInTheDocument();
+  });
+
   it('keeps comment workflow fallback copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../collab/CommentsPanel.tsx'), 'utf8');
 

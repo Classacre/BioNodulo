@@ -2208,7 +2208,7 @@ class MyToolNode(CommandNode):
     commentsShowAll: 'Mostrar todo',
     commentsLoading: 'Cargando comentarios...',
     commentsEmptyNode: 'No hay comentarios para este nodo.\nHaz clic en "{{showAll}}" para ver todos los comentarios.',
-    commentsEmptyAll: 'Aun no hay comentarios en tus workflows.\nInicia la conversacion!',
+    commentsEmptyAll: 'Aun no hay comentarios en tus flujos de trabajo.\nInicia la conversacion!',
     commentsFocusNodeTitle: 'Centrar este nodo en el lienzo',
     commentsGoToNode: 'Ir al nodo',
     commentsWriteReplyPlaceholder: 'Escribe una respuesta...',
