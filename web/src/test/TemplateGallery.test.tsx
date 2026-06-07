@@ -205,6 +205,9 @@ describe('TemplateGallery i18n', () => {
 
   it('logs swallowed template API failures with stable scopes', async () => {
     const { default: TemplateGallery } = await import('../collab/TemplateGallery');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
     const loadError = new Error('templates unavailable');
     const forkError = new Error('fork unavailable');
     const saveError = new Error('save unavailable');
@@ -221,6 +224,8 @@ describe('TemplateGallery i18n', () => {
     );
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.load', loadError));
+    expect(screen.getByText('No se pudieron cargar las plantillas')).toBeInTheDocument();
+    expect(screen.queryByText('templates unavailable')).not.toBeInTheDocument();
 
     apiMocks.apiGet.mockResolvedValueOnce({
       templates: [
@@ -259,20 +264,24 @@ describe('TemplateGallery i18n', () => {
 
     await waitFor(() => expect(screen.getByText('RNA QC')).toBeInTheDocument());
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Fork' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Bifurcar' }));
     });
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.fork', forkError));
+    expect(screen.getByText('No se pudo bifurcar')).toBeInTheDocument();
+    expect(screen.queryByText('fork unavailable')).not.toBeInTheDocument();
 
     apiMocks.apiPost.mockRejectedValueOnce(saveError);
     dialogMocks.promptDialog
-      .mockResolvedValueOnce('Candidate template')
-      .mockResolvedValueOnce('Short description')
+      .mockResolvedValueOnce('Plantilla candidata')
+      .mockResolvedValueOnce('Descripcion corta')
       .mockResolvedValueOnce('rna, qc');
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '+ Save' }));
+      fireEvent.click(screen.getByRole('button', { name: '+ Guardar' }));
     });
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('collab.templateGallery.save', saveError));
+    expect(screen.getByText('No se pudo guardar la plantilla')).toBeInTheDocument();
+    expect(screen.queryByText('save unavailable')).not.toBeInTheDocument();
   });
 });

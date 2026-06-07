@@ -48,7 +48,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       setError(null);
     } catch (err) {
       logError('collab.templateGallery.load', err);
-      setError(err instanceof Error ? err.message : t('collab.templateGalleryLoadError'));
+      setError(t('collab.templateGalleryLoadError'));
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       onClose();
     } catch (err) {
       logError('collab.templateGallery.fork', err);
-      setError(err instanceof Error ? err.message : t('collab.templateGalleryForkError'));
+      setError(t('collab.templateGalleryForkError'));
     } finally {
       setForkingId(null);
     }
@@ -123,7 +123,7 @@ export default function TemplateGallery({ isOpen, currentWorkflowId, onClose, on
       fetchTemplates();
     } catch (err) {
       logError('collab.templateGallery.save', err);
-      setError(err instanceof Error ? err.message : t('collab.templateGallerySaveError'));
+      setError(t('collab.templateGallerySaveError'));
     } finally {
       setSavingWorkflowId(null);
     }
