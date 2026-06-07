@@ -439,6 +439,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - App-level shared-template save unavailable alert, success toast, and fallback error now read from `collab` i18n keys with Spanish helper coverage and an App wiring guard.
 - App-level pasted and dropped workspace file feedback now reads from `workspace` i18n keys with Spanish unit coverage and an App wiring guard.
 - Workspace upload-failure feedback now has a Spanish translation for the existing `workspace.uploadFailed` key instead of falling back to the English "Upload failed" toast copy.
+- Workspace upload labels, drop hints, progress copy, and success copy now have Spanish translations under the existing `workspace` i18n keys.
 - App-level snippet save/insert prompts, default names, command labels, and toasts now read from `snippets` i18n keys with Spanish unit coverage and an App wiring guard.
 - App-level workflow duplicate, close-unsaved, import, URL-load, and recent-command fallbacks now read from `workflowTabs`, `workflowImport`, and `commandPalette` i18n keys with Spanish unit coverage and an App wiring guard.
 - Comment pins and selection toolbox action tooltips now read from `collab` and `canvas` i18n keys with Spanish component coverage and static wiring guards.

@@ -43,6 +43,10 @@ describe('App file action copy i18n', () => {
     expect(i18n.t('workspace.missingInputFileForDrop')).toBe('No hay nodo input_file registrado; no se puede crear un nodo para el archivo soltado');
     expect(i18n.t('workspace.fileTypeFallback')).toBe('archivo');
     expect(i18n.t('workspace.uploadResponseMissingPath')).toBe('La respuesta de subida no incluyo ruta');
+    expect(i18n.t('workspace.upload')).toBe('Subir archivos');
+    expect(i18n.t('workspace.uploadDrop')).toBe('Suelta archivos para subirlos');
+    expect(i18n.t('workspace.uploadProgress', { name: 'reads.fastq' })).toBe('Subiendo reads.fastq...');
+    expect(i18n.t('workspace.uploadSuccess', { name: 'reads.fastq' })).toBe('reads.fastq subido');
   });
 
   it('keeps App pasted and dropped file feedback behind i18n helpers', () => {
