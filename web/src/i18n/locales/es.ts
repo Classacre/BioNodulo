@@ -2489,6 +2489,7 @@ class MyToolNode(CommandNode):
     generating: 'Generando...',
     renderThumbnail: 'Renderizar miniatura',
     generate: 'Generar',
+    defaultFilename: 'workflow-sin-titulo',
     thumbnailAlt: 'Vista previa de miniatura del workflow',
     downloadPng: 'Descargar PNG',
     copyToClipboard: 'Copiar al portapapeles',

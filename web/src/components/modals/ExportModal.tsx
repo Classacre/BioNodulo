@@ -117,7 +117,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
 
   const download = () => {
     const fmt = FORMATS.find(f => f.id === format);
-    const baseName = workflow.name?.trim() || 'workflow';
+    const baseName = workflow.name?.trim() || t('exportModal.defaultFilename');
     if (format === 'png' && !pngJsonOnly && pngPreview) {
       try {
         const blob = embedWorkflowInPngDataUrl(pngPreview, workflow);

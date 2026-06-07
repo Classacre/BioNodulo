@@ -21,6 +21,18 @@ const apiMocks = {
 
 vi.mock('../api/client', () => apiMocks);
 
+const utilsMocks = vi.hoisted(() => ({
+  saveToFile: vi.fn(),
+}));
+
+vi.mock('../utils', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils')>();
+  return {
+    ...actual,
+    saveToFile: utilsMocks.saveToFile,
+  };
+});
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -56,6 +68,7 @@ describe('ExportModal i18n', () => {
   beforeEach(() => {
     storage.clear();
     apiMocks.apiPost.mockReset();
+    utilsMocks.saveToFile.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -92,6 +105,28 @@ describe('ExportModal i18n', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Copiar al portapapeles' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Regenerar' })).toBeInTheDocument();
+  });
+
+  it('uses the active locale for unnamed workflow download filenames', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<ExportModal workflow={workflow({ name: '' })} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON de BioNodulo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generar' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar' }));
+
+    expect(utilsMocks.saveToFile).toHaveBeenCalledWith(
+      expect.stringContaining('"version": "2.0"'),
+      'workflow-sin-titulo.json',
+      'text/plain',
+    );
   });
 
   it('shows export API errors without generating fallback downloadable content', async () => {

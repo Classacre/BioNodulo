@@ -2483,6 +2483,7 @@ class MyToolNode(CommandNode):
     generating: 'Generating...',
     renderThumbnail: 'Render thumbnail',
     generate: 'Generate',
+    defaultFilename: 'workflow',
     thumbnailAlt: 'Workflow thumbnail preview',
     downloadPng: 'Download PNG',
     copyToClipboard: 'Copy to Clipboard',
