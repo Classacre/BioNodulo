@@ -37,17 +37,33 @@ describe('App workflow fallback copy i18n', () => {
     await setLanguage('es');
 
     expect(i18n.t('workflowTabs.duplicateName', { name: i18n.t('common.untitled') })).toBe('Sin titulo (copia)');
-    expect(i18n.t('workflowTabs.duplicateCurrent')).toBe('Duplicar pestana de workflow actual');
-    expect(i18n.t('workflowTabs.thisWorkflow')).toBe('este workflow');
+    expect(i18n.t('workflowTabs.duplicateCurrent')).toBe('Duplicar pestana del flujo de trabajo actual');
+    expect(i18n.t('workflowTabs.thisWorkflow')).toBe('este flujo de trabajo');
     expect(i18n.t('workflowTabs.closeUnsavedTitle')).toBe('Cerrar pestana con cambios sin guardar?');
     expect(i18n.t('workflowTabs.closeUnsavedMessage', { name: 'RNA-seq' })).toBe('RNA-seq tiene cambios sin guardar. Cerrar de todos modos?');
-    expect(i18n.t('workflowImport.importedFallbackName')).toBe('Workflow importado');
-    expect(i18n.t('workflowImport.loadedFromUrl')).toBe('Workflow cargado desde URL');
+    expect(i18n.t('workflowImport.importedFallbackName')).toBe('Flujo de trabajo importado');
+    expect(i18n.t('workflowImport.loadedFromUrl')).toBe('Flujo de trabajo cargado desde URL');
     expect(i18n.t('workflowImport.untitledLower')).toBe('sin titulo');
     expect(i18n.t('commandPalette.openRecentWorkflow', { name: 'QC' })).toBe('Abrir reciente: QC');
-    expect(i18n.t('commandPalette.recentWorkflowFallback')).toBe('workflow reciente');
-    expect(i18n.t('console.untitledWorkflow')).toBe('Workflow sin titulo');
+    expect(i18n.t('commandPalette.recentWorkflowFallback')).toBe('flujo de trabajo reciente');
+    expect(i18n.t('console.untitledWorkflow')).toBe('Flujo de trabajo sin titulo');
     expect(i18n.t('common.untitled')).toBe('Sin titulo');
+
+    [
+      'Duplicar pestana de workflow actual',
+      'este workflow',
+      'Workflow importado',
+      'Workflow cargado desde URL',
+      'workflow reciente',
+      'Workflow sin titulo',
+    ].forEach(text => {
+      expect(i18n.t('workflowTabs.duplicateCurrent')).not.toBe(text);
+      expect(i18n.t('workflowTabs.thisWorkflow')).not.toBe(text);
+      expect(i18n.t('workflowImport.importedFallbackName')).not.toBe(text);
+      expect(i18n.t('workflowImport.loadedFromUrl')).not.toBe(text);
+      expect(i18n.t('commandPalette.recentWorkflowFallback')).not.toBe(text);
+      expect(i18n.t('console.untitledWorkflow')).not.toBe(text);
+    });
   });
 
   it('keeps App workflow fallback strings behind i18n keys', () => {

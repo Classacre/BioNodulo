@@ -36,12 +36,22 @@ describe('App workflow tab command copy i18n', () => {
 
     await setLanguage('es');
 
-    expect(i18n.t('commandPalette.groups.workflow')).toBe('Workflow');
-    expect(i18n.t('commandPalette.commands.workflow.newTab')).toBe('Nueva pestana de workflow');
-    expect(i18n.t('commandPalette.commands.workflow.closeTab')).toBe('Cerrar pestana de workflow actual');
-    expect(i18n.t('workflowTabs.duplicateCurrent')).toBe('Duplicar pestana de workflow actual');
+    expect(i18n.t('commandPalette.groups.workflow')).toBe('Flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.newTab')).toBe('Nueva pestana de flujo de trabajo');
+    expect(i18n.t('commandPalette.commands.workflow.closeTab')).toBe('Cerrar pestana de flujo de trabajo actual');
+    expect(i18n.t('workflowTabs.duplicateCurrent')).toBe('Duplicar pestana del flujo de trabajo actual');
     expect(i18n.t('commandPalette.commands.workflow.batchSheet')).toBe('Lote desde hoja de muestras...');
     expect(i18n.t('commandPalette.commands.workflow.batchSheetDescription')).toBe('Encolar una ejecucion por cada fila CSV/TSV');
+
+    [
+      'Nueva pestana de workflow',
+      'Cerrar pestana de workflow actual',
+      'Duplicar pestana de workflow actual',
+    ].forEach(text => {
+      expect(i18n.t('commandPalette.commands.workflow.newTab')).not.toBe(text);
+      expect(i18n.t('commandPalette.commands.workflow.closeTab')).not.toBe(text);
+      expect(i18n.t('workflowTabs.duplicateCurrent')).not.toBe(text);
+    });
   });
 
   it('keeps App workflow tab command copy behind i18n keys', () => {
