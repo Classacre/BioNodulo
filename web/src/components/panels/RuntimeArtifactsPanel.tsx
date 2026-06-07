@@ -114,23 +114,33 @@ function pauseStatus(record: PauseRequestRecord): string {
   return 'waiting';
 }
 
-function pauseTitle(record: PauseRequestRecord): string {
-  return valueAsString(record.message) || valueAsString(record.node_id) || valueAsString(record.pause_file) || 'pause request';
+function pauseStatusLabel(status: string, t: (key: string) => string): string {
+  if (status === 'approved') return t('runtimeArtifacts.status.approved');
+  if (status === 'rejected') return t('runtimeArtifacts.status.rejected');
+  if (status === 'waiting') return t('runtimeArtifacts.status.waiting');
+  return status;
 }
 
-function triggerTitle(record: WorkflowTriggerRecord): string {
+function pauseTitle(record: PauseRequestRecord, t: (key: string) => string): string {
+  return valueAsString(record.message)
+    || valueAsString(record.node_id)
+    || valueAsString(record.pause_file)
+    || t('runtimeArtifacts.pauseRequestFallback');
+}
+
+function triggerTitle(record: WorkflowTriggerRecord, t: (key: string) => string): string {
   return valueAsString(record.target_workflow)
     || valueAsString(record.trigger_type)
     || valueAsString(record.trigger_file)
-    || 'trigger';
+    || t('runtimeArtifacts.triggerFallback');
 }
 
-function submittedRunTitle(record: SubmittedWorkflowTriggerRun): string {
+function submittedRunTitle(record: SubmittedWorkflowTriggerRun, t: (key: string) => string): string {
   return valueAsString(record.run_id)
     || valueAsString(record.target_workflow)
     || valueAsString(record.trigger_file)
     || valueAsString(record.status)
-    || 'workflow trigger run';
+    || t('runtimeArtifacts.workflowTriggerRunFallback');
 }
 
 function submittedRunMeta(record: SubmittedWorkflowTriggerRun): string {
@@ -147,10 +157,10 @@ function checkpointResolveInput(checkpoint: CheckpointSummary): ResolveCheckpoin
   return { checkpoint_name: checkpoint.name };
 }
 
-function resumeCheckpointLabel(checkpoint: CheckpointRecord): string {
+function resumeCheckpointLabel(checkpoint: CheckpointRecord, t: (key: string) => string): string {
   const name = valueAsString(checkpoint.checkpoint_name)
     || valueAsString(checkpoint.checkpoint_path)?.split(/[\\/]/).filter(Boolean).pop()
-    || 'checkpoint';
+    || t('runtimeArtifacts.checkpointFallback');
   const nodeId = valueAsString(checkpoint.node_id);
   return nodeId ? `${name} / ${nodeId}` : name;
 }
@@ -253,7 +263,7 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
       const resolved = await resolveCheckpoint(checkpointResolveInput(checkpoint));
       if (resolved.checkpoint && onResumeCheckpointSelect) {
         onResumeCheckpointSelect({
-          label: resumeCheckpointLabel(resolved.checkpoint),
+          label: resumeCheckpointLabel(resolved.checkpoint, t),
           checkpoint: resolved.checkpoint,
         });
       }
@@ -377,8 +387,8 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
                     <div className="runtime-artifact-main">
                       <Icon name={status === 'waiting' ? 'clock' : 'check'} size={14} />
                       <div>
-                        <div className="runtime-artifact-title">{pauseTitle(request)}</div>
-                        <div className="runtime-artifact-meta">{nodeId} · {status}</div>
+                        <div className="runtime-artifact-title">{pauseTitle(request, t)}</div>
+                        <div className="runtime-artifact-meta">{nodeId} · {pauseStatusLabel(status, t)}</div>
                         {pauseRuntimeBadges(
                           t,
                           typeof request.review_decision_supported === 'boolean'
@@ -440,14 +450,14 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
               {submittedRuns.map((run, index) => {
                 const key = valueAsString(run.run_id)
                   || valueAsString(run.trigger_file)
-                  || `${submittedRunTitle(run)}-${index}`;
+                  || `${submittedRunTitle(run, t)}-${index}`;
                 const meta = submittedRunMeta(run);
                 const reason = valueAsString(run.reason);
                 return (
                   <div className="runtime-artifact-row" key={key}>
                     <Icon name={run.status === 'submitted' ? 'check' : 'clock'} size={14} />
                     <div>
-                      <div className="runtime-artifact-title">{submittedRunTitle(run)}</div>
+                      <div className="runtime-artifact-title">{submittedRunTitle(run, t)}</div>
                       {meta && <div className="runtime-artifact-meta">{meta}</div>}
                       {reason && <div className="runtime-artifact-meta">{reason}</div>}
                     </div>
@@ -466,12 +476,12 @@ export default function RuntimeArtifactsPanel({ onClose, onResumeCheckpointSelec
           {triggerList.length > 0 ? (
             <div className="runtime-artifacts-list">
               {triggerList.map((trigger, index) => {
-                const key = valueAsString(trigger.trigger_file) || `${triggerTitle(trigger)}-${index}`;
+                const key = valueAsString(trigger.trigger_file) || `${triggerTitle(trigger, t)}-${index}`;
                 return (
                   <div className="runtime-artifact-row" key={key}>
                     <Icon name={trigger.trigger_type === 'schedule' ? 'clock' : 'target'} size={14} />
                     <div>
-                      <div className="runtime-artifact-title">{triggerTitle(trigger)}</div>
+                      <div className="runtime-artifact-title">{triggerTitle(trigger, t)}</div>
                       <div className="runtime-artifact-meta">
                         {[trigger.trigger_type, trigger.status].filter(Boolean).join(' · ')}
                       </div>

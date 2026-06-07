@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -451,5 +453,70 @@ describe('RuntimeArtifactsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit due triggers' }));
     await waitFor(() => expect(evaluateWorkflowTriggers).toHaveBeenCalledWith(undefined, { submitRuns: true }));
+  });
+
+  it('renders sparse runtime artifact fallbacks from the active locale', async () => {
+    const { default: RuntimeArtifactsPanel } = await import('../components/panels/RuntimeArtifactsPanel');
+    const { setLanguage } = await import('../i18n');
+    await setLanguage('es');
+
+    runtimeMocks.useWorkflowRuntimeArtifacts.mockReturnValue({
+      checkpointManifest: { exists: false, manifest_path: '/workspace/checkpoints/checkpoint_manifest.json', manifest: {} },
+      pauseRequests: {
+        pause_requests_dir: '/workspace/pause_requests',
+        count: 1,
+        pause_requests: [{ approved: false }],
+        errors: [],
+      },
+      workflowTriggers: {
+        trigger_dir: '/workspace/workflow_triggers',
+        count: 1,
+        triggers: [{}],
+        errors: [],
+      },
+      triggerEvaluation: {
+        due_schedule_triggers: [],
+        due_schedule_count: 0,
+        due_file_watch_triggers: [],
+        due_file_watch_count: 0,
+        submitted_runs: [{}],
+        submitted_run_count: 0,
+        errors: [],
+      },
+      lastResolvedCheckpoint: null,
+      lastResolvedPauseRequest: null,
+      loading: false,
+      error: null,
+      refresh,
+      evaluateWorkflowTriggers,
+      resolveCheckpoint,
+      resolvePauseRequest,
+    });
+
+    render(<RuntimeArtifactsPanel onClose={onClose} />);
+
+    expect(screen.getByText('Solicitud de pausa')).toBeInTheDocument();
+    expect(screen.getByText('1 · rechazado')).toBeInTheDocument();
+    expect(screen.getByText('Trigger de workflow')).toBeInTheDocument();
+    expect(screen.getByText('Ejecucion de trigger de workflow')).toBeInTheDocument();
+    expect(screen.queryByText('pause request')).not.toBeInTheDocument();
+    expect(screen.queryByText('workflow trigger run')).not.toBeInTheDocument();
+  });
+
+  it('keeps runtime artifact fallback copy behind i18n keys', () => {
+    const source = readFileSync(resolve(__dirname, '../components/panels/RuntimeArtifactsPanel.tsx'), 'utf8');
+
+    [
+      'runtimeArtifacts.pauseRequestFallback',
+      'runtimeArtifacts.triggerFallback',
+      'runtimeArtifacts.workflowTriggerRunFallback',
+      'runtimeArtifacts.status.rejected',
+    ].forEach(key => expect(source).toContain(key));
+
+    [
+      "'pause request'",
+      "'trigger'",
+      "'workflow trigger run'",
+    ].forEach(raw => expect(source).not.toContain(raw));
   });
 });
