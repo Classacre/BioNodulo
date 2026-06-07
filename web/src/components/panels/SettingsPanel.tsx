@@ -130,6 +130,9 @@ export default function SettingsPanel({
   const isSectionVisible = (id: SettingsSectionId) => Boolean(trimmedQuery) || activeSection === id;
   const sectionTitle = (id: SettingsSectionId) => t(SETTINGS_SECTION_TITLE_KEYS[id]);
   const st = (key: string) => t(`settings.${key}`);
+  const paletteDescription = (palette: ThemePalette) => palette.descriptionKey
+    ? t(palette.descriptionKey, { defaultValue: palette.description })
+    : palette.description;
   const collabStatusLabel = collabEnabled
     ? collabConnected
       ? st('collaboration.statusLive')
@@ -239,7 +242,7 @@ export default function SettingsPanel({
                 className={`palette-preview-card ${paletteId === palette.id ? 'active' : ''}`}
                 key={palette.id}
                 onClick={() => setPalette(palette.id)}
-                title={palette.description}
+                title={paletteDescription(palette)}
                 type="button"
               >
                 <span>{palette.name}</span>

@@ -212,6 +212,12 @@ const es = {
     sunset: 'Sunset',
     twilight: 'Twilight',
     daylight: 'Daylight',
+    descriptions: {
+      bionodulo: 'Paleta predeterminada de banco de trabajo en verde azulado.',
+      clinical: 'Tema clinico de alto contraste para estacion de trabajo.',
+      field: 'Paleta verde para investigacion de campo.',
+      contrast: 'Tema de accesibilidad de maximo contraste.',
+    },
   },
   topbar: {
     title: 'BioNodulo',

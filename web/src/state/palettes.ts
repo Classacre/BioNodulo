@@ -114,6 +114,7 @@ export interface ThemePalette {
   id: string;
   name: string;
   description: string;
+  descriptionKey?: string;
   preview: string[];
   light: PaletteTokens;
   dark: PaletteTokens;
@@ -130,6 +131,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'bionodulo',
     name: 'BioNodulo',
     description: 'Default teal workbench palette.',
+    descriptionKey: 'palettes.descriptions.bionodulo',
     canvasPattern: 'dots',
     preview: ['#0d9488', '#eef3f4', '#1d2930'],
     light: {
@@ -153,6 +155,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'clinical',
     name: 'Clinical',
     description: 'High-contrast clinical workstation theme.',
+    descriptionKey: 'palettes.descriptions.clinical',
     canvasPattern: 'grid',
     preview: ['#0369a1', '#f8fafc', '#0f172a'],
     light: {
@@ -176,6 +179,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'field',
     name: 'Field Station',
     description: 'Outdoor / field-research green palette.',
+    descriptionKey: 'palettes.descriptions.field',
     canvasPattern: 'mesh',
     preview: ['#15803d', '#fefce8', '#1c1917'],
     light: {
@@ -199,6 +203,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     id: 'contrast',
     name: 'High Contrast',
     description: 'Maximum-contrast accessibility theme.',
+    descriptionKey: 'palettes.descriptions.contrast',
     canvasPattern: 'grid',
     preview: ['#facc15', '#000000', '#ffffff'],
     light: {
@@ -415,12 +420,13 @@ function deriveTokens(base: PaletteTokens, mode: PaletteMode, fallback?: Palette
   return out;
 }
 
-export function completePalette(palette: ThemePalette): { id: string; name: string; description: string; preview: string[]; light: Record<PaletteToken, string>; dark: Record<PaletteToken, string>; canvasPattern: CanvasPattern } {
+export function completePalette(palette: ThemePalette): { id: string; name: string; description: string; descriptionKey?: string; preview: string[]; light: Record<PaletteToken, string>; dark: Record<PaletteToken, string>; canvasPattern: CanvasPattern } {
   const base = BUILT_IN_PALETTES[0];
   return {
     id: palette.id,
     name: palette.name,
     description: palette.description,
+    descriptionKey: palette.descriptionKey,
     preview: palette.preview,
     light: deriveTokens(palette.light, 'light', base?.light),
     dark: deriveTokens(palette.dark, 'dark', base?.dark),

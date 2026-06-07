@@ -212,6 +212,12 @@ const en = {
     sunset: 'Sunset',
     twilight: 'Twilight',
     daylight: 'Daylight',
+    descriptions: {
+      bionodulo: 'Default teal workbench palette.',
+      clinical: 'High-contrast clinical workstation theme.',
+      field: 'Outdoor / field-research green palette.',
+      contrast: 'Maximum-contrast accessibility theme.',
+    },
   },
   topbar: {
     title: 'BioNodulo',

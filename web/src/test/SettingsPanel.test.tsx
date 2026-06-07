@@ -235,6 +235,24 @@ describe('SettingsPanel shell i18n', () => {
     }
   });
 
+  it('uses the active locale for built-in palette preview descriptions', async () => {
+    const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(<SettingsPanel onClose={() => undefined} />);
+
+    expect(screen.getByRole('button', { name: 'Clinical' })).toHaveAttribute(
+      'title',
+      'Tema clinico de alto contraste para estacion de trabajo.',
+    );
+    expect(screen.getByRole('button', { name: 'Clinical' })).not.toHaveAttribute(
+      'title',
+      'High-contrast clinical workstation theme.',
+    );
+  });
+
   it('renders feature flags from optional locale keys', async () => {
     const { default: SettingsPanel } = await import('../components/panels/SettingsPanel');
     const { setLanguage } = await import('../i18n');
