@@ -46,12 +46,16 @@ describe('App workflow fallback copy i18n', () => {
     expect(i18n.t('workflowImport.untitledLower')).toBe('sin titulo');
     expect(i18n.t('commandPalette.openRecentWorkflow', { name: 'QC' })).toBe('Abrir reciente: QC');
     expect(i18n.t('commandPalette.recentWorkflowFallback')).toBe('workflow reciente');
+    expect(i18n.t('console.untitledWorkflow')).toBe('Workflow sin titulo');
+    expect(i18n.t('common.untitled')).toBe('Sin titulo');
   });
 
   it('keeps App workflow fallback strings behind i18n keys', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
     expect(appSource).toContain('workflowTabs.duplicateName');
+    expect(appSource).toContain('console.untitledWorkflow');
+    expect(appSource).toContain('common.untitled');
     [
       'Imported workflow',
       'Loaded workflow from URL',
@@ -61,6 +65,10 @@ describe('App workflow fallback copy i18n', () => {
       'this workflow',
       'Close tab with unsaved changes?',
       'has unsaved changes. Close anyway?',
+      "workflow_name: String(h.workflow_name || 'Untitled')",
+      "name: wf.name || template.name || 'Untitled'",
+      "workflows.map(w => w.name || 'Untitled')",
+      "[workflow.id!, workflow.name || 'Untitled']",
     ].forEach(text => {
       expect(appSource).not.toContain(text);
     });

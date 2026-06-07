@@ -776,7 +776,7 @@ export default function App() {
           const run: RunRecord = {
             run_id: String(h.run_id),
             status: String(h.status) as RunRecord['status'],
-            workflow_name: String(h.workflow_name || 'Untitled'),
+            workflow_name: String(h.workflow_name || t('console.untitledWorkflow')),
             node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
             node_outputs: {},
             execution_plan: [],
@@ -798,7 +798,7 @@ export default function App() {
           allRuns.push({
             run_id: runId,
             status: String(h.status) as RunRecord['status'],
-            workflow_name: String(h.workflow_name || 'Untitled'),
+            workflow_name: String(h.workflow_name || t('console.untitledWorkflow')),
             node_statuses: Array.isArray(h.node_statuses) ? h.node_statuses as NodeStatus[] : [],
             node_outputs: {},
             execution_plan: [],
@@ -831,7 +831,7 @@ export default function App() {
           .catch(() => { /* ignore */ });
       }
     }).catch(() => { /* offline */ });
-  }, [setRuns, addLog, setLogs]);
+  }, [setRuns, addLog, setLogs, t]);
 
   // History stack for undo/redo
   const canvasRef = useRef<WorkflowCanvasRef>(null);
@@ -1958,7 +1958,7 @@ export default function App() {
     }
     rememberRecentWorkflow({
       id: wf.id || activeWorkflowId,
-      name: wf.name || template.name || 'Untitled',
+      name: wf.name || template.name || t('common.untitled'),
       source: 'template',
       filename: template.filename,
       thumbnailUrl: (template as { thumbnail_url?: string }).thumbnail_url || renderRecentThumbnail(wf),
@@ -1969,7 +1969,7 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, t, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
@@ -2644,7 +2644,7 @@ export default function App() {
   }, [activeIndex, clearResolveReport]);
 
   const workflowNamesKey = useMemo(() => workflowNameSignature(workflows), [workflows]);
-  const tabNames = useMemo(() => workflows.map(w => w.name || 'Untitled'), [workflowNamesKey]);
+  const tabNames = useMemo(() => workflows.map(w => w.name || t('common.untitled')), [workflowNamesKey, t]);
   const activeNodeTypeKey = useMemo(() => nodeTypeSignature(activeWorkflow.nodes), [activeWorkflow.nodes]);
   const activeEdgeTopologyKey = useMemo(() => edgeTopologySignature(activeWorkflow.edges), [activeWorkflow.edges]);
   const missingTypesKey = useMemo(() => {
@@ -2733,9 +2733,9 @@ export default function App() {
   }, [workflowCommentsKey]);
   const liveWorkflowNamesKey = useMemo(() => recordSignature(workflowNames), [workflowNames]);
   const knownWorkflowNames = useMemo(() => ({
-    ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || 'Untitled'])),
+    ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || t('common.untitled')])),
     ...workflowNames,
-  }), [liveWorkflowNamesKey, workflowNamesKey]);
+  }), [liveWorkflowNamesKey, t, workflowNamesKey]);
   const canvasCollabUsers = useMemo(
     () => (collabSessionActive && collabPresenceEnabled ? collabActiveUsers : EMPTY_COLLAB_USERS),
     [collabActiveUsers, collabPresenceEnabled, collabSessionActive],
