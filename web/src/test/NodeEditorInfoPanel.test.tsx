@@ -138,6 +138,8 @@ describe('Node editor and info panel i18n', () => {
 
     render(<NodeInfoPanel node={graphNode()} onClose={() => undefined} />);
 
+    expect(screen.getByText('Control de calidad · fastqc')).toBeInTheDocument();
+    expect(screen.queryByText('Quality Control · fastqc')).not.toBeInTheDocument();
     expect(screen.getByText('Entradas obligatorias')).toBeInTheDocument();
     expect(screen.getByText('Entradas opcionales')).toBeInTheDocument();
     expect(screen.getByText('Salidas')).toBeInTheDocument();

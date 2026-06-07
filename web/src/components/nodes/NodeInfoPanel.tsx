@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
+import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 
 interface NodeInfoPanelProps {
   node?: GraphNode;
@@ -13,6 +14,7 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
   const meta = node.meta;
   const required = meta?.input_types?.required || {};
   const optional = meta?.input_types?.optional || {};
+  const categoryLabel = nodeCategoryDisplayLabel(meta?.category, t, t('nodeLibrary.otherCategory'));
   // const hidden = meta?.input_types?.hidden || {};
 
   return (
@@ -33,7 +35,7 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
           <div style={{ fontWeight: 700, fontSize: 14 }}>{node.title}</div>
           {meta?.category && (
             <div style={{ fontSize: 10, opacity: 0.85, marginTop: 2 }}>
-              {meta.category} · {meta.id}
+              {categoryLabel} · {meta.id}
             </div>
           )}
         </div>
