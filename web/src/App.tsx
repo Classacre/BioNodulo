@@ -3272,9 +3272,9 @@ export default function App() {
             type="button"
             className="focus-mode-exit"
             onClick={toggleFocusMode}
-            title="Exit focus mode"
+            title={t('commandPalette.commands.view.exitFocusMode')}
           >
-            Exit focus mode <kbd>{getBinding('view.focusMode') ?? 'Ctrl+.'}</kbd>
+            {t('commandPalette.commands.view.exitFocusMode')} <kbd>{getBinding('view.focusMode') ?? 'Ctrl+.'}</kbd>
           </button>
         )}
         {(consoleVisible || railTab === 'console') && (
