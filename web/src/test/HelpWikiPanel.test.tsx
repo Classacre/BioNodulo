@@ -287,6 +287,30 @@ describe('HelpWikiPanel node documentation search', () => {
     expect(screen.getByText('Rename threshold to min_quality before execution.')).toBeInTheDocument();
   });
 
+  it('localizes known lifecycle status labels in selected-node docs', async () => {
+    const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    render(
+      <HelpWikiPanel
+        onClose={vi.fn()}
+        objectInfo={objectInfo}
+        selectedNode={{
+          id: 'legacy-filter-1',
+          type: 'legacy_filter',
+          title: 'Legacy Variant Filter',
+          meta: objectInfo.legacy_filter,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/Ciclo de vida:/)).toBeInTheDocument();
+    expect(screen.getByText('obsoleto')).toBeInTheDocument();
+    expect(screen.queryByText('deprecated')).not.toBeInTheDocument();
+  });
+
   it('renders panel chrome, page navigation, search labels, and node docs from the active locale', async () => {
     const { default: HelpWikiPanel } = await import('../components/panels/HelpWikiPanel');
     const { setLanguage } = await import('../i18n');

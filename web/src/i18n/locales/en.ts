@@ -1398,6 +1398,9 @@ const en = {
       type: 'Type',
       notes: 'Notes',
       lifecycleStatus: 'Lifecycle:',
+      lifecycleStatuses: {
+        deprecated: 'deprecated',
+      },
       replacement: 'Replacement:',
       previousVersions: 'Previous versions:',
       migrations: 'Migrations',

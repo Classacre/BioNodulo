@@ -1407,6 +1407,9 @@ const es = {
       type: 'Tipo',
       notes: 'Notas',
       lifecycleStatus: 'Ciclo de vida:',
+      lifecycleStatuses: {
+        deprecated: 'obsoleto',
+      },
       replacement: 'Reemplazo:',
       previousVersions: 'Versiones anteriores:',
       migrations: 'Migraciones',

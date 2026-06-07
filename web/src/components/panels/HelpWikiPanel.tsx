@@ -31,6 +31,15 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function lifecycleStatusLabel(status: string, t: TFunction): string {
+  switch (status) {
+    case 'deprecated':
+      return t('helpWiki.nodeDocs.lifecycleStatuses.deprecated');
+    default:
+      return status;
+  }
+}
+
 function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const meta = node.meta;
   const title = node.title || meta?.display_name || node.type;
@@ -77,7 +86,7 @@ function renderNodeHelp(node: HelpNode, t: TFunction): string {
   const lifecycleHtml = lifecycleStatus || deprecationMessage || replacedBy || previousVersions.length > 0 || migrationRows
     ? `
       <div class="help-node-versioning">
-        ${lifecycleStatus ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.lifecycleStatus'))}</strong> <span class="help-meta-pill">${escapeHtml(lifecycleStatus)}</span></p>` : ''}
+        ${lifecycleStatus ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.lifecycleStatus'))}</strong> <span class="help-meta-pill">${escapeHtml(lifecycleStatusLabel(lifecycleStatus, t))}</span></p>` : ''}
         ${deprecationMessage ? `<p>${escapeHtml(deprecationMessage)}</p>` : ''}
         ${replacedBy ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.replacement'))}</strong> <code>${escapeHtml(replacedBy)}</code></p>` : ''}
         ${previousVersions.length > 0 ? `<p><strong>${escapeHtml(t('helpWiki.nodeDocs.previousVersions'))}</strong> ${escapeHtml(previousVersions.join(', '))}</p>` : ''}
