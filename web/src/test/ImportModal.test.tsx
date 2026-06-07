@@ -21,6 +21,12 @@ const apiMocks = {
 
 vi.mock('../api/client', () => apiMocks);
 
+const dialogMocks = vi.hoisted(() => ({
+  alertDialog: vi.fn(),
+}));
+
+vi.mock('../components/ui', () => dialogMocks);
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -54,6 +60,7 @@ describe('ImportModal i18n', () => {
   beforeEach(() => {
     storage.clear();
     apiMocks.apiPost.mockReset();
+    dialogMocks.alertDialog.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -154,5 +161,50 @@ describe('ImportModal i18n', () => {
       content: snakefile,
     });
     expect(onImport).toHaveBeenCalledWith(importedWorkflow);
+  });
+
+  it('uses localized parse-format errors from the active locale', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+    apiMocks.apiPost.mockRejectedValueOnce(
+      new apiMocks.ApiError('converter unavailable', 503, 'Unavailable', null),
+    );
+
+    render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.change(screen.getByPlaceholderText(/regla ejemplo/), {
+      target: { value: 'not valid snakemake or json' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Importar' }));
+
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith(
+      'No se pudo analizar el flujo de trabajo. Asegurate de que el formato sea correcto.',
+    ));
+    expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(
+      'No se pudo analizar el workflow. Asegurate de que el formato sea correcto.',
+    );
+  });
+
+  it('uses localized PNG-without-workflow errors from the active locale', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const { setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    const { container } = render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([0, 1, 2, 3])], 'thumbnail.png', { type: 'image/png' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith({
+      title: 'No se encontro ningun flujo de trabajo',
+      message: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG (flujo de trabajo incrustado)" para generar uno.',
+    }));
+    expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(expect.objectContaining({
+      title: 'No se encontro ningun workflow',
+    }));
   });
 });
