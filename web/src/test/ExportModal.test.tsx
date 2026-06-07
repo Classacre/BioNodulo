@@ -25,6 +25,10 @@ const utilsMocks = vi.hoisted(() => ({
   saveToFile: vi.fn(),
 }));
 
+const thumbnailMocks = vi.hoisted(() => ({
+  renderWorkflowThumbnail: vi.fn(() => 'data:image/png;base64,dGh1bWI='),
+}));
+
 vi.mock('../utils', async importOriginal => {
   const actual = await importOriginal<typeof import('../utils')>();
   return {
@@ -32,6 +36,8 @@ vi.mock('../utils', async importOriginal => {
     saveToFile: utilsMocks.saveToFile,
   };
 });
+
+vi.mock('../utils/workflowThumbnail', () => thumbnailMocks);
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -69,6 +75,7 @@ describe('ExportModal i18n', () => {
     storage.clear();
     apiMocks.apiPost.mockReset();
     utilsMocks.saveToFile.mockReset();
+    thumbnailMocks.renderWorkflowThumbnail.mockClear();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
@@ -100,6 +107,10 @@ describe('ExportModal i18n', () => {
     expect(screen.getByLabelText('Solo JSON (omitir contenedor PNG)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Renderizar miniatura' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerrar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Renderizar miniatura' }));
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Vista previa de miniatura del flujo de trabajo' })).toBeInTheDocument());
+    expect(screen.queryByRole('img', { name: 'Vista previa de miniatura del workflow' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'JSON de BioNodulo' }));
     expect(screen.getByRole('button', { name: 'Generar' })).toBeInTheDocument();
