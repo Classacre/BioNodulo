@@ -48,6 +48,29 @@ describe('App panel chrome copy i18n', () => {
     expect(i18n.t('panels.resizePanel', { name: i18n.t('panels.nodes') })).toBe('Redimensionar panel Nodos');
   });
 
+  it('returns workflow search, notes, accessibility, and toast chrome from the active locale', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    expect(i18n.t('search.workflowSearch')).toBe('Buscar en flujo de trabajo');
+    expect(i18n.t('search.workflowSearchPlaceholder')).toBe('Buscar nodo por nombre, tipo o parametro');
+    expect(i18n.t('search.noResults')).toBe('No hay nodos coincidentes');
+    expect(i18n.t('search.matchCount', { count: 1 })).toBe('1 coincidencia');
+    expect(i18n.t('search.matchCount', { count: 3 })).toBe('3 coincidencias');
+    expect(i18n.t('search.nextMatch')).toBe('Siguiente coincidencia');
+    expect(i18n.t('search.previousMatch')).toBe('Coincidencia anterior');
+    expect(i18n.t('drawerNotes.placeholder')).toBe('Agregar notas sobre este flujo de trabajo...');
+    expect(i18n.t('drawerNotes.saveHint')).toBe('Las notas se guardan con el flujo de trabajo');
+    expect(i18n.t('ariaLabels.closeDialog')).toBe('Cerrar dialogo');
+    expect(i18n.t('ariaLabels.filterColumn')).toBe('Filtrar columna');
+    expect(i18n.t('ariaLabels.chooseColor')).toBe('Elegir color');
+    expect(i18n.t('toasts.workflowSaved')).toBe('Flujo de trabajo guardado');
+    expect(i18n.t('toasts.workflowSaveFailed')).toBe('No se pudo guardar el flujo de trabajo');
+    expect(i18n.t('toasts.copiedToClipboard')).toBe('Copiado al portapapeles');
+    expect(i18n.t('toasts.snapshotRestored')).toBe('Instantanea restaurada');
+  });
+
   it('keeps App panel chrome copy behind i18n keys', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
