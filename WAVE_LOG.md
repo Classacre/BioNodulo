@@ -43,6 +43,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Shared API HTTP caching now supports optional disk-backed persistence through `cache_dir` or `BIONODULO_API_CACHE_DIR`, while preserving the default in-memory cache behavior and TTL expiry semantics.
 - Public API node cache singletons now initialize through `APICache.from_environment`, so `BIONODULO_API_CACHE_DIR` and `BIONODULO_API_CACHE_TTL` apply consistently to NCBI, UniProt, Ensembl, AlphaFold, RCSB, OpenTargets, KEGG, STRING, UCSC, InterProScan, and phylogeny API nodes.
 - AI Embedding now supports an explicit `api` backend for `text_embedding`, routing batches through LiteLLM/OpenAI-compatible embeddings with metadata marked as remote API output and deterministic/local behavior unchanged.
+- Fine-Tune LLM local backend now packages a runnable LoRA training script plus command metadata when local training dependencies are available, while keeping actual model training as an explicit user-run step.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

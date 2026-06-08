@@ -1355,6 +1355,7 @@ class FineTuneLLMNode(BaseNode):
         validation_examples_path = model_dir / "validation_examples.jsonl"
         readme_path = model_dir / "README.md"
         adapter_config_path = model_dir / "adapter_config.json"
+        training_script_path = model_dir / "train_lora.py"
 
         config_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         _write_fine_tune_examples(train_examples_path, train_examples)
@@ -1363,6 +1364,16 @@ class FineTuneLLMNode(BaseNode):
             json.dumps(_fine_tune_adapter_config(config), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        local_training: dict[str, Any] | None = None
+        if training_backend == "local":
+            training_script_path.write_text(_fine_tune_training_script(), encoding="utf-8")
+            local_training = {
+                "status": "script_ready",
+                "training_executed": False,
+                "script": str(training_script_path),
+                "command": "python train_lora.py --config training_config.json",
+                "note": "Local backend dependencies are available; run the generated script in the model directory to train the adapter.",
+            }
         readme_path.write_text(_fine_tune_readme(config, len(train_examples), len(validation_examples)), encoding="utf-8")
 
         metrics = _fine_tune_metrics(
@@ -1376,6 +1387,8 @@ class FineTuneLLMNode(BaseNode):
             validation_examples_path=validation_examples_path,
             adapter_config_path=adapter_config_path,
             readme_path=readme_path,
+            training_script_path=training_script_path if training_backend == "local" else None,
+            local_training=local_training,
         )
         metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return {"outputs": {"model_path": str(model_dir), "metrics_json": str(metrics_path)}}
@@ -2454,7 +2467,7 @@ def _fine_tune_adapter_config(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fine_tune_readme(config: dict[str, Any], train_count: int, validation_count: int) -> str:
-    return (
+    text = (
         f"# {config['output_adapter_name']}\n\n"
         "This directory contains a reproducible BioNodulo fine-tuning package.\n\n"
         f"- Base model: `{config['base_model']}`\n"
@@ -2465,6 +2478,13 @@ def _fine_tune_readme(config: dict[str, Any], train_count: int, validation_count
         f"- Batch size: {config['batch_size']}\n"
         f"- Learning rate: {config['learning_rate']}\n"
     )
+    if config["training_backend"] == "local":
+        text += (
+            "\n## Local Training\n\n"
+            "Run `python train_lora.py --config training_config.json` from this directory to train the LoRA adapter.\n"
+            "The workflow node prepares artifacts and does not execute model training automatically.\n"
+        )
+    return text
 
 
 def _fine_tune_metrics(
@@ -2479,13 +2499,15 @@ def _fine_tune_metrics(
     validation_examples_path: Path,
     adapter_config_path: Path,
     readme_path: Path,
+    training_script_path: Path | None = None,
+    local_training: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     train_chars = sum(int(example.get("char_count", 0)) for example in train_examples)
     validation_chars = sum(int(example.get("char_count", 0)) for example in validation_examples)
     steps_per_epoch = (len(train_examples) + config["batch_size"] - 1) // config["batch_size"]
     estimated_steps = steps_per_epoch * config["epochs"] if train_examples else 0
     estimated_loss = _deterministic_fine_tune_loss(train_examples, config)
-    return {
+    metrics = {
         "backend": config["training_backend"],
         "base_model": config["base_model"],
         "training_format": config["training_format"],
@@ -2510,6 +2532,11 @@ def _fine_tune_metrics(
             "readme": str(readme_path),
         },
     }
+    if training_script_path is not None:
+        metrics["artifacts"]["training_script"] = str(training_script_path)
+    if local_training is not None:
+        metrics["local_training"] = local_training
+    return metrics
 
 
 def _deterministic_fine_tune_loss(examples: list[dict[str, Any]], config: dict[str, Any]) -> float:
@@ -2537,7 +2564,99 @@ def _ensure_local_fine_tune_backend() -> None:
             "local fine-tuning requires torch, transformers, datasets, peft, and accelerate; "
             f"missing: {', '.join(missing)}"
         )
-    raise RuntimeError("local fine-tuning is not yet implemented; use training_backend='dry_run'")
+
+
+def _fine_tune_training_script() -> str:
+    return '''#!/usr/bin/env python
+"""Train a LoRA adapter from BioNodulo fine-tuning artifacts."""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from datasets import Dataset
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train a BioNodulo LoRA adapter")
+    parser.add_argument("--config", default="training_config.json")
+    args = parser.parse_args()
+
+    root = Path(args.config).resolve().parent
+    config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    train_rows = _load_jsonl(root / "training_examples.jsonl")
+    validation_rows = _load_jsonl(root / "validation_examples.jsonl")
+    if not train_rows:
+        raise SystemExit("training_examples.jsonl is empty")
+
+    tokenizer = AutoTokenizer.from_pretrained(config["base_model"])
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = AutoModelForCausalLM.from_pretrained(config["base_model"])
+    lora = config["lora"]
+    model = get_peft_model(
+        model,
+        LoraConfig(
+            r=int(lora["rank"]),
+            lora_alpha=int(lora["alpha"]),
+            lora_dropout=float(lora["dropout"]),
+            bias="none",
+            task_type="CAUSAL_LM",
+        ),
+    )
+
+    def tokenize(batch: dict) -> dict:
+        return tokenizer(
+            batch["text"],
+            truncation=True,
+            max_length=int(config["max_length"]),
+            padding="max_length",
+        )
+
+    train_dataset = Dataset.from_list(train_rows).map(tokenize, batched=True, remove_columns=list(train_rows[0]))
+    eval_dataset = None
+    if validation_rows:
+        eval_dataset = Dataset.from_list(validation_rows).map(tokenize, batched=True, remove_columns=list(validation_rows[0]))
+
+    training_args = TrainingArguments(
+        output_dir=str(root / "trainer_output"),
+        num_train_epochs=int(config["epochs"]),
+        per_device_train_batch_size=int(config["batch_size"]),
+        learning_rate=float(config["learning_rate"]),
+        logging_steps=1,
+        save_strategy="epoch",
+        report_to=[],
+    )
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        data_collator=DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False),
+    )
+    trainer.train()
+    model.save_pretrained(root / "adapter")
+    tokenizer.save_pretrained(root / "adapter")
+    print(f"Saved LoRA adapter to {root / 'adapter'}")
+
+
+if __name__ == "__main__":
+    main()
+'''
 
 
 _EXTRACTION_SCHEMAS: dict[str, dict[str, Any]] = {

@@ -2047,3 +2047,40 @@ async def test_fine_tune_llm_local_backend_requires_training_dependencies(
             training_backend="local",
             context=SimpleNamespace(node_dir=tmp_path),
         )
+
+
+@pytest.mark.asyncio
+async def test_fine_tune_llm_local_backend_writes_runnable_training_script(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    node_class = _node_class("fine_tune_llm")
+    training_path = tmp_path / "training.txt"
+    training_path.write_text("A compact fine-tuning example.\n", encoding="utf-8")
+
+    monkeypatch.setattr("bionodulo.nodes.builtin.llm.importlib.import_module", lambda _name: object())
+
+    result = await node_class().run(
+        training_data=str(training_path),
+        base_model="local/small-model",
+        epochs=1,
+        output_adapter_name="local_adapter",
+        training_backend="local",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    model_dir = tmp_path / "fine_tune_llm" / "local_adapter"
+    metrics_path = tmp_path / "fine_tune_llm" / "metrics.json"
+    training_script = model_dir / "train_lora.py"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    readme = (model_dir / "README.md").read_text(encoding="utf-8")
+
+    assert result == {"outputs": {"model_path": str(model_dir), "metrics_json": str(metrics_path)}}
+    assert training_script.exists()
+    assert "get_peft_model" in training_script.read_text(encoding="utf-8")
+    assert metrics["backend"] == "local"
+    assert metrics["local_training"]["status"] == "script_ready"
+    assert metrics["local_training"]["training_executed"] is False
+    assert metrics["local_training"]["script"] == str(training_script)
+    assert "python train_lora.py" in metrics["local_training"]["command"]
+    assert "python train_lora.py" in readme
