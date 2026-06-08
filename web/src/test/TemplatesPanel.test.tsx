@@ -150,6 +150,31 @@ describe('TemplatesPanel i18n', () => {
     expect(screen.getByText('Ninguna plantilla coincide con tu busqueda.')).toBeInTheDocument();
   });
 
+  it('returns template library metadata labels from the active locale', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    expect(i18n.t('templates.empty')).toBe('Aun no hay plantillas');
+    expect(i18n.t('templates.createFromWorkflow')).toBe('Guardar flujo de trabajo actual como plantilla');
+    expect(i18n.t('templates.publish')).toBe('Publicar plantilla');
+    expect(i18n.t('templates.unpublish')).toBe('Retirar plantilla');
+    expect(i18n.t('templates.public')).toBe('Publica');
+    expect(i18n.t('templates.private')).toBe('Privada');
+    expect(i18n.t('templates.category')).toBe('Categoria');
+    expect(i18n.t('templates.tags')).toBe('Etiquetas');
+    expect(i18n.t('templates.instantiate')).toBe('Instanciar');
+    expect(i18n.t('templates.titleLabel')).toBe('Titulo de plantilla');
+    expect(i18n.t('templates.publishedBy')).toBe('Publicado por');
+    expect(i18n.t('templates.rating')).toBe('Valoracion');
+    expect(i18n.t('templates.ratingCount', { count: 1 })).toBe('1 valoracion');
+    expect(i18n.t('templates.ratingCount', { count: 3 })).toBe('3 valoraciones');
+    expect(i18n.t('templates.bookmark')).toBe('Agregar marcador');
+    expect(i18n.t('templates.unbookmark')).toBe('Quitar marcador');
+    expect(i18n.t('templates.starred')).toBe('Marcada');
+    expect(i18n.t('templates.unstar')).toBe('Quitar estrella');
+  });
+
   it('keeps saved template category data stable when the UI is localized', async () => {
     const { default: TemplatesPanel } = await import('../components/panels/TemplatesPanel');
     const { setLanguage } = await import('../i18n');

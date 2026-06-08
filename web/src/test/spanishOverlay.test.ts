@@ -19,6 +19,22 @@ describe('Spanish locale overlay', () => {
       "'Queue is empty': 'La cola esta vacia'",
       "'Filter logs...': 'Filtrar registros...'",
       "'Save logs to file': 'Guardar registros en archivo'",
+      "'No templates yet': 'Aun no hay plantillas'",
+      "'Save current workflow as template': 'Guardar flujo de trabajo actual como plantilla'",
+      "'Publish template': 'Publicar plantilla'",
+      "'Unpublish template': 'Retirar plantilla'",
+      "'Public': 'Publica'",
+      "'Private': 'Privada'",
+      "'Category': 'Categoria'",
+      "'Instantiate': 'Instanciar'",
+      "'Published by': 'Publicado por'",
+      "'Rating': 'Valoracion'",
+      "'{{count}} rating': '{{count}} valoracion'",
+      "'{{count}} ratings': '{{count}} valoraciones'",
+      "'Bookmark': 'Agregar marcador'",
+      "'Remove bookmark': 'Quitar marcador'",
+      "'Starred': 'Marcada'",
+      "'Remove star': 'Quitar estrella'",
     ].forEach(entry => expect(source).toContain(entry));
   });
 });
