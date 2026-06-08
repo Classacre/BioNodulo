@@ -9,10 +9,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin.api.http import APIHttpClient
+
+APIHttpClient: type[Any] | None = None
+
+
+def _api_http_client_class() -> type[Any]:
+    global APIHttpClient
+    if APIHttpClient is None:
+        from bionodulo.nodes.builtin.api.http import APIHttpClient as imported_client
+
+        APIHttpClient = imported_client
+    return APIHttpClient
 
 
 def _bool_value(value: Any) -> bool:
@@ -1104,10 +1112,22 @@ class DelayWaitNode(BaseNode):
         if not url:
             return False
         try:
-            response = await APIHttpClient().request("GET", url, timeout=2.0, retries=1, cache_ttl=None)
-            return 200 <= int(response.status_code) < 400
-        except (httpx.HTTPError, ValueError):
+            client_class = _api_http_client_class()
+        except ImportError:
             return False
+        try:
+            response = await client_class().request("GET", url, timeout=2.0, retries=1, cache_ttl=None)
+            return 200 <= int(response.status_code) < 400
+        except ValueError:
+            return False
+        except Exception as exc:
+            try:
+                from httpx import HTTPError
+            except ImportError:
+                raise
+            if isinstance(exc, HTTPError):
+                return False
+            raise
 
 
 class SleepNode(BaseNode):

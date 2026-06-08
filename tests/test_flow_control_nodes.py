@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
+import importlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +110,47 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     }.issubset(if_condition_inputs["optional"])
     assert if_condition_inputs["optional"]["combinator"][1]["options"] == ["and", "or"]
     assert if_condition_inputs["optional"]["output_mode"][1]["options"] == ["route", "signal"]
+
+
+def test_flow_control_nodes_register_without_http_extras(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_import = builtins.__import__
+    module_names = [
+        "bionodulo.nodes.builtin.flow_control",
+        "bionodulo.nodes.builtin.api.http",
+        "httpx",
+    ]
+    original_modules = {name: sys.modules.get(name) for name in module_names}
+    builtin_pkg = sys.modules.get("bionodulo.nodes.builtin")
+    original_flow_control_attr = getattr(builtin_pkg, "flow_control", None) if builtin_pkg is not None else None
+    had_flow_control_attr = builtin_pkg is not None and hasattr(builtin_pkg, "flow_control")
+
+    def import_without_httpx(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "httpx" or name.startswith("httpx."):
+            raise ModuleNotFoundError("No module named 'httpx'")
+        return original_import(name, *args, **kwargs)
+
+    for name in module_names:
+        sys.modules.pop(name, None)
+    monkeypatch.setattr(builtins, "__import__", import_without_httpx)
+
+    try:
+        module = importlib.import_module("bionodulo.nodes.builtin.flow_control")
+        registry = NodeRegistry.create_isolated()
+        registry.register_from_module(module)
+
+        assert registry.has("if_condition")
+        assert registry.has("switch")
+        assert registry.has("delay_wait")
+    finally:
+        for name in module_names:
+            sys.modules.pop(name, None)
+            if original_modules[name] is not None:
+                sys.modules[name] = original_modules[name]
+        if builtin_pkg is not None:
+            if had_flow_control_attr:
+                setattr(builtin_pkg, "flow_control", original_flow_control_attr)
+            else:
+                delattr(builtin_pkg, "flow_control")
 
 
 def test_switch_frontend_metadata_exposes_dynamic_branch_contract() -> None:
