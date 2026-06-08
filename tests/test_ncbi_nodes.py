@@ -120,6 +120,25 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert issubclass(registry.get("sra_fetch"), registry.get("sra_download"))
 
 
+def test_ncbi_api_cache_uses_environment_on_module_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIONODULO_API_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_API_CACHE_TTL", "42")
+
+    module = importlib.import_module("bionodulo.nodes.builtin.ncbi")
+    reloaded = importlib.reload(module)
+
+    try:
+        assert reloaded.NCBI_API_CACHE.cache_dir == tmp_path
+        assert reloaded.NCBI_API_CACHE.ttl_seconds == 42
+    finally:
+        monkeypatch.delenv("BIONODULO_API_CACHE_DIR")
+        monkeypatch.delenv("BIONODULO_API_CACHE_TTL")
+        importlib.reload(reloaded)
+
+
 @pytest.mark.asyncio
 async def test_ncbi_request_uses_shared_http_client_with_api_key_rate_limit(
     monkeypatch: pytest.MonkeyPatch,

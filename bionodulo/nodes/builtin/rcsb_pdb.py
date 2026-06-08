@@ -24,7 +24,7 @@ RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 60.0
 RCSB_CACHE_TTL_S = 300.0
 RCSB_RATE_LIMIT_PER_SECOND = 3.0
-RCSB_API_CACHE = APICache(ttl_seconds=RCSB_CACHE_TTL_S)
+RCSB_API_CACHE = APICache.from_environment(default_ttl_seconds=RCSB_CACHE_TTL_S)
 RCSB_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=RCSB_RATE_LIMIT_PER_SECOND, burst=1)
 PDB_FORMATS = ("cif", "mmcif", "pdb", "xml", "sf")
 PDB_FORMAT_ALIASES = {"mmcif": "cif"}

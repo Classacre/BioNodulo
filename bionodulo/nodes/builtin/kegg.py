@@ -19,7 +19,7 @@ RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
 KEGG_CACHE_TTL_S = 300.0
 KEGG_RATE_LIMIT_PER_SECOND = 3.0
-KEGG_API_CACHE = APICache(ttl_seconds=KEGG_CACHE_TTL_S)
+KEGG_API_CACHE = APICache.from_environment(default_ttl_seconds=KEGG_CACHE_TTL_S)
 KEGG_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=KEGG_RATE_LIMIT_PER_SECOND, burst=1)
 QUERY_TYPES = (
     "pathway_info",

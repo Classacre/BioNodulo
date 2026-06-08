@@ -27,7 +27,7 @@ EBI_CLUSTALO_BASE_URL = "https://www.ebi.ac.uk/Tools/services/rest/clustalo"
 EBI_CLUSTALO_USER_AGENT = "BioNodulo/2.0 (workflow node; EMBL-EBI Clustal Omega)"
 EBI_CLUSTALO_CACHE_TTL_S = 300.0
 EBI_CLUSTALO_RATE_LIMIT_PER_SECOND = 1.0
-EBI_CLUSTALO_API_CACHE = APICache(ttl_seconds=EBI_CLUSTALO_CACHE_TTL_S)
+EBI_CLUSTALO_API_CACHE = APICache.from_environment(default_ttl_seconds=EBI_CLUSTALO_CACHE_TTL_S)
 EBI_CLUSTALO_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=EBI_CLUSTALO_RATE_LIMIT_PER_SECOND, burst=1)
 EBI_CLUSTALO_SEQUENCE_TYPES = ("protein", "dna", "rna")
 EBI_CLUSTALO_OUTPUT_FORMATS = ("fa", "clustal", "clustal_num", "msf", "nexus", "phylip", "selex", "stockholm", "vienna")
@@ -49,7 +49,7 @@ PHYLOT_BASE_URL = "https://phylot.biobyte.de"
 PHYLOT_USER_AGENT = "BioNodulo/2.0 (workflow node; PhyloT)"
 PHYLOT_CACHE_TTL_S = 300.0
 PHYLOT_RATE_LIMIT_PER_SECOND = 1.0
-PHYLOT_API_CACHE = APICache(ttl_seconds=PHYLOT_CACHE_TTL_S)
+PHYLOT_API_CACHE = APICache.from_environment(default_ttl_seconds=PHYLOT_CACHE_TTL_S)
 PHYLOT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=PHYLOT_RATE_LIMIT_PER_SECOND, burst=1)
 PHYLOT_OUTPUT_FORMATS = ("newick", "nexus", "phyloxml")
 PHYLOT_FORMAT_EXTENSIONS = {

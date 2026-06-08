@@ -41,6 +41,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Merge Tables now supports Stage 2 cross joins plus explicit `suffix_a` / `suffix_b` handling for overlapping non-key columns, while keeping legacy `right_suffix` output names for existing workflows.
 - Added an NCBI BLAST Parse node that converts saved BLAST JSON2 or XML results into top-hit TSV/JSON outputs with query, subject, percent identity, e-value, bit score, and coordinate fields.
 - Shared API HTTP caching now supports optional disk-backed persistence through `cache_dir` or `BIONODULO_API_CACHE_DIR`, while preserving the default in-memory cache behavior and TTL expiry semantics.
+- Public API node cache singletons now initialize through `APICache.from_environment`, so `BIONODULO_API_CACHE_DIR` and `BIONODULO_API_CACHE_TTL` apply consistently to NCBI, UniProt, Ensembl, AlphaFold, RCSB, OpenTargets, KEGG, STRING, UCSC, InterProScan, and phylogeny API nodes.
 - AI Embedding now supports an explicit `api` backend for `text_embedding`, routing batches through LiteLLM/OpenAI-compatible embeddings with metadata marked as remote API output and deterministic/local behavior unchanged.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms

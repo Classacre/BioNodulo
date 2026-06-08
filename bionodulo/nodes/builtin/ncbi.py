@@ -73,7 +73,7 @@ SRA_FILE_SUFFIXES = {
 }
 
 logger = logging.getLogger(__name__)
-NCBI_API_CACHE = APICache(ttl_seconds=NCBI_CACHE_TTL_S)
+NCBI_API_CACHE = APICache.from_environment(default_ttl_seconds=NCBI_CACHE_TTL_S)
 NCBI_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=NCBI_RATE_LIMIT_PER_SECOND, burst=1)
 NCBI_API_KEY_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=NCBI_API_KEY_RATE_LIMIT_PER_SECOND, burst=1)
 

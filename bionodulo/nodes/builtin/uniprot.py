@@ -20,7 +20,7 @@ RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
 UNIPROT_CACHE_TTL_S = 300.0
 UNIPROT_RATE_LIMIT_PER_SECOND = 5.0
-_UNIPROT_CACHE = APICache(ttl_seconds=UNIPROT_CACHE_TTL_S)
+_UNIPROT_CACHE = APICache.from_environment(default_ttl_seconds=UNIPROT_CACHE_TTL_S)
 _UNIPROT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
 UNIPROT_SEARCH_DATABASES = ("uniprotkb", "uniref", "uniparc")

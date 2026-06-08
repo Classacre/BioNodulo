@@ -44,7 +44,7 @@ COMMON_ENSEMBL_SPECIES_OPTIONS = (
     "caenorhabditis_elegans",
     "saccharomyces_cerevisiae",
 )
-ENSEMBL_API_CACHE = APICache(ttl_seconds=ENSEMBL_CACHE_TTL_S)
+ENSEMBL_API_CACHE = APICache.from_environment(default_ttl_seconds=ENSEMBL_CACHE_TTL_S)
 ENSEMBL_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=ENSEMBL_RATE_LIMIT_PER_SECOND, burst=1)
 
 

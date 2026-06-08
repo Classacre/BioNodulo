@@ -19,7 +19,7 @@ RETRY_DELAY_S = 1.0
 REQUEST_TIMEOUT_S = 30.0
 UCSC_CACHE_TTL_S = 300.0
 UCSC_RATE_LIMIT_PER_SECOND = 3.0
-UCSC_API_CACHE = APICache(ttl_seconds=UCSC_CACHE_TTL_S)
+UCSC_API_CACHE = APICache.from_environment(default_ttl_seconds=UCSC_CACHE_TTL_S)
 UCSC_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UCSC_RATE_LIMIT_PER_SECOND, burst=1)
 UCSC_QUERY_TYPES = ("sequence", "genes_in_region", "dna_sequence", "tracks")
 UCSC_GENOMES = (
