@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolveReport, Workflow } from '../types';
 
@@ -83,6 +85,18 @@ describe('MissingDependenciesBanner i18n', () => {
     storage.clear();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('centralizes known installer progress protocol messages', () => {
+    const source = readFileSync(resolve(__dirname, '../components/layout/MissingDependenciesBanner.tsx'), 'utf8');
+
+    expect(source).toContain('INSTALL_PROGRESS_MESSAGE_KEYS');
+    [
+      "trimmed === 'Generating pixi.toml manifest...'",
+      "trimmed === 'Locking dependencies with pixi (this may take a moment)...'",
+      "trimmed === 'Installing packages into environment...'",
+      "trimmed === 'Installation cancelled'",
+    ].forEach(text => expect(source).not.toContain(text));
   });
 
   it('renders dependency summary and expanded report sections from the active locale', async () => {

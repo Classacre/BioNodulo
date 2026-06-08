@@ -13,6 +13,13 @@ interface Props {
   onResolve: () => void;
 }
 
+const INSTALL_PROGRESS_MESSAGE_KEYS: Record<string, string> = {
+  'Generating pixi.toml manifest...': 'resolveReport.installMessages.generatingManifest',
+  'Locking dependencies with pixi (this may take a moment)...': 'resolveReport.installMessages.lockingDependencies',
+  'Installing packages into environment...': 'resolveReport.installMessages.installingPackages',
+  'Installation cancelled': 'resolveReport.installMessages.installationCancelled',
+};
+
 function installProgressMessage(message: string, t: (key: string, values?: Record<string, unknown>) => string): string {
   const trimmed = message.trim();
   if (!trimmed) return '';
@@ -23,24 +30,14 @@ function installProgressMessage(message: string, t: (key: string, values?: Recor
       env: resolvedMatch[2],
     });
   }
-  if (trimmed === 'Generating pixi.toml manifest...') {
-    return t('resolveReport.installMessages.generatingManifest');
-  }
-  if (trimmed === 'Locking dependencies with pixi (this may take a moment)...') {
-    return t('resolveReport.installMessages.lockingDependencies');
-  }
-  if (trimmed === 'Installing packages into environment...') {
-    return t('resolveReport.installMessages.installingPackages');
-  }
+  const knownMessageKey = INSTALL_PROGRESS_MESSAGE_KEYS[trimmed];
+  if (knownMessageKey) return t(knownMessageKey);
   const readyMatch = /^Environment (.+) ready with (\d+) packages$/.exec(trimmed);
   if (readyMatch) {
     return t('resolveReport.installMessages.environmentReady', {
       env: readyMatch[1],
       count: Number(readyMatch[2]),
     });
-  }
-  if (trimmed === 'Installation cancelled') {
-    return t('resolveReport.installMessages.installationCancelled');
   }
   return trimmed;
 }
