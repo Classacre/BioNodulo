@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
@@ -19,7 +20,7 @@ interface WorkspacePanelProps {
 }
 
 export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkflow }: WorkspacePanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [path, setPath] = useState('/');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -181,6 +182,8 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     return t('workspace.inputFileTitle');
   };
 
+  const formatFileSize = (bytes: number) => formatBytes(bytes, t, i18n.language);
+
   return (
     <div className="rail-panel">
       <div className="rail-panel-header">
@@ -267,7 +270,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                   </span>
                   <span className="workspace-file-name">{file.name}</span>
                   {file.size !== undefined && file.type === 'file' && (
-                    <span className="workspace-file-size">{formatBytes(file.size)}</span>
+                    <span className="workspace-file-size">{formatFileSize(file.size)}</span>
                   )}
                 </div>
               );
@@ -319,9 +322,17 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   );
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+function formatBytes(bytes: number, t: TFunction, language: string): string {
+  const whole = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
+  const decimal = new Intl.NumberFormat(language, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  });
+
+  if (bytes < 1024) return t('workspace.sizeBytes', { size: whole.format(bytes) });
+  if (bytes < 1024 * 1024) return t('workspace.sizeKB', { size: decimal.format(bytes / 1024) });
+  if (bytes < 1024 * 1024 * 1024) {
+    return t('workspace.sizeMB', { size: decimal.format(bytes / (1024 * 1024)) });
+  }
+  return t('workspace.sizeGB', { size: decimal.format(bytes / (1024 * 1024 * 1024)) });
 }

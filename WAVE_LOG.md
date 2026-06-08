@@ -23,6 +23,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Manifest-loaded custom nodes now expose compact package provenance through `object_info` and the frontend object-info normalizer, giving extension tooling a stable join between registered nodes and their `bionodulo.toml` package.
 - Custom-node reloads now unregister stale custom nodes from the configured root before rescanning, so removed packages disappear from `object_info` without clearing built-in registrations.
 - Help/Wiki node documentation now localizes known node category labels in selected-node docs and node-search subtitles while preserving canonical category values for filtering/search.
+- Workspace file sizes now format through existing locale keys and active-language number formatting, so Spanish file rows render decimal sizes such as `2,0 KB` instead of hard-coded English decimals.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

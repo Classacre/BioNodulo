@@ -106,6 +106,8 @@ describe('WorkspacePanel i18n', () => {
     expect(screen.getByText('Espacio de trabajo')).toBeInTheDocument();
     expect(screen.getByText('Raiz del espacio de trabajo')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('/ruta/al/espacio')).toBeInTheDocument();
+    expect(screen.getByText('2,0 KB')).toBeInTheDocument();
+    expect(screen.queryByText('2.0 KB')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Definir' })).toHaveAttribute('title', 'Definir raiz del espacio de trabajo');
     expect(screen.getByRole('button', { name: 'Predeterminado' })).toHaveAttribute('title', 'Recargar raiz actual');
     expect(screen.getByTitle('Abrir ajustes')).toBeInTheDocument();
