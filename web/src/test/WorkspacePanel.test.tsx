@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dialogMocks = vi.hoisted(() => ({
@@ -213,6 +213,24 @@ describe('WorkspacePanel i18n', () => {
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.file.preview', expect.any(Error)));
     expect(screen.getByDisplayValue('Error loading file: 404')).toBeInTheDocument();
+  });
+
+  it('renders file previews through the shared dialog primitive', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+
+    await waitFor(() => expect(screen.getByText('sample.fastq')).toBeInTheDocument());
+
+    fireEvent.doubleClick(screen.getByText('sample.fastq'));
+
+    const dialog = await screen.findByRole('dialog', { name: 'sample.fastq' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'sample.fastq' })).not.toBeInTheDocument());
   });
 
   it('keeps workspace root API detail errors behind the localized change label', async () => {

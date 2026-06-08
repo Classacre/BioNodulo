@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
+import Dialog from '../ui/Dialog';
 import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
 
@@ -281,21 +282,14 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
 
       {/* Preview modal */}
       {previewFile && (
-        <div className="modal-overlay" onClick={() => setPreviewFile(null)}>
-          <div className="modal-content" style={{ width: 700, maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">{previewFile}</div>
-            <div className="modal-body">
-              {previewLoading ? (
-                <div>{t('common.loading')}</div>
-              ) : (
-                <textarea
-                  readOnly
-                  value={previewContent}
-                  style={{ width: '100%', minHeight: 300, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', resize: 'vertical' }}
-                />
-              )}
-            </div>
-            <div className="modal-footer">
+        <Dialog
+          title={previewFile}
+          onClose={() => setPreviewFile(null)}
+          width={700}
+          maxHeight="80vh"
+          hideCloseButton
+          footer={(
+            <>
               {previewFile.endsWith('.json') && onImportWorkflow && (
                 <button
                   className="btn btn-primary"
@@ -314,9 +308,19 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
               )}
               <button className="btn" onClick={() => navigator.clipboard.writeText(previewContent)}>{t('common.copy')}</button>
               <button className="btn" onClick={() => setPreviewFile(null)}>{t('common.close')}</button>
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        >
+          {previewLoading ? (
+            <div>{t('common.loading')}</div>
+          ) : (
+            <textarea
+              readOnly
+              value={previewContent}
+              style={{ width: '100%', minHeight: 300, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', resize: 'vertical' }}
+            />
+          )}
+        </Dialog>
       )}
     </div>
   );
