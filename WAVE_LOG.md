@@ -532,6 +532,7 @@ Bundles the remaining outstanding sections from the implementation review into o
 - Settings cache and telemetry labels now use Spanish storage/registro wording with SettingsPanel and runtime-command copy coverage.
 - Settings appearance/canvas copy now avoids English `Tooltips`, `cache`, and raw status terms in Spanish UI coverage.
 - Settings AI base-URL and API-key placeholder examples now read from `settings.ai` i18n keys while preserving the existing example values.
+- Residual Settings dictionary labels for grid size, edge style, workspace/cache locations, telemetry, crash reports, debug logging, and experimental hints now have Spanish coverage plus overlay guards for regenerated locale output.
 - Command palette workflow group and execution-cache commands now use Spanish `flujo de trabajo` and storage wording with runtime-command copy coverage.
 - Help Wiki getting-started and canvas-feature articles now avoid English `Run`, `Note`, and `Hover` action wording in Spanish render coverage.
 - Help Wiki HPC and workflow-converter articles now avoid English HPC action, settings, import/export, and generic-command wording in Spanish render coverage.

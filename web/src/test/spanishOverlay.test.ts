@@ -35,6 +35,20 @@ describe('Spanish locale overlay', () => {
       "'Remove bookmark': 'Quitar marcador'",
       "'Starred': 'Marcada'",
       "'Remove star': 'Quitar estrella'",
+      "'Grid size': 'Tamano de cuadricula'",
+      "'Edge style': 'Estilo de enlace'",
+      "'Step': 'Escalonado'",
+      "'Orthogonal': 'Ortogonal'",
+      "'Straight': 'Recto'",
+      "'Workspace root': 'Raiz del espacio de trabajo'",
+      "'Cache location': 'Ubicacion de cache'",
+      "'Cleared {{count}} cache entry': '{{count}} entrada de cache borrada'",
+      "'Cleared {{count}} cache entries': '{{count}} entradas de cache borradas'",
+      "'Anonymous telemetry': 'Telemetria anonima'",
+      "'Crash reports': 'Informes de fallos'",
+      "'Debug logging': 'Registro de depuracion'",
+      "'Experimental features': 'Funciones experimentales'",
+      "'Off by default — may be unstable': 'Desactivadas por defecto; pueden ser inestables'",
     ].forEach(entry => expect(source).toContain(entry));
   });
 });

@@ -326,4 +326,26 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Proveedor')).toBeInTheDocument();
     expect(screen.getByText('Proveedor de API LLM')).toBeInTheDocument();
   });
+
+  it('keeps residual settings labels in the Spanish locale dictionary', async () => {
+    const { default: es } = await import('../i18n/locales/es');
+
+    expect(es.settings.gridSize).toBe('Tamano de cuadricula');
+    expect(es.settings.edgeStyle).toBe('Estilo de enlace');
+    expect(es.settings.edgeStyles).toEqual({
+      bezier: 'Bezier',
+      step: 'Escalonado',
+      orthogonal: 'Ortogonal',
+      straight: 'Recto',
+    });
+    expect(es.settings.workspaceRoot).toBe('Raiz del espacio de trabajo');
+    expect(es.settings.cacheLocation).toBe('Ubicacion de cache');
+    expect(es.settings.clearCacheBody).toBe('{{count}} entrada de cache borrada');
+    expect(es.settings.clearCacheBody_plural).toBe('{{count}} entradas de cache borradas');
+    expect(es.settings.telemetry).toBe('Telemetria anonima');
+    expect(es.settings.crashReports).toBe('Informes de fallos');
+    expect(es.settings.debugLogging).toBe('Registro de depuracion');
+    expect(es.settings.experimentalLabel).toBe('Funciones experimentales');
+    expect(es.settings.experimentalHint).toBe('Desactivadas por defecto; pueden ser inestables');
+  });
 });
