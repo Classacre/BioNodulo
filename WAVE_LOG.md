@@ -13,6 +13,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 
 - `parallel_for` now honors `max_concurrency` by running body chunks through an async semaphore, while preserving gathered result order and `all_succeeded` reporting.
 - Workflow execution now accepts planned `_branch_meta.inactive_ports` metadata for flow-routing nodes, preserving existing `inactive_outputs` behavior while allowing branch pruning even when inactive ports carry diagnostic values.
+- Workflow execution also derives inactive flow-routing ports from `_branch_meta.active_ports` when explicit inactive ports are omitted, covering the complete planned branch metadata routing contract without changing existing flow nodes.
 - `http_request` now exposes `displayOptions` metadata for body/auth fields, and the frontend shares one visibility helper across node editor rows and canvas widgets/ports.
 - Workspace file-management locale coverage now keeps secondary file action copy in Spanish, including new-folder, reveal/copy/delete prompts, empty-state text, and file/folder plural counts.
 - Read-only node docs now honor the same conditional input visibility rules as the editor and canvas: Node Info filters with current node params, and Help Wiki receives selected-node params while registry docs fall back to metadata defaults.

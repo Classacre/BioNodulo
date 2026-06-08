@@ -953,6 +953,9 @@ class WorkflowExecutor:
             raw = branch_meta.get("inactive_ports")
             if raw is not None:
                 return {str(port) for port in raw}
+            active_ports = branch_meta.get("active_ports")
+            if active_ports is not None:
+                return set(outputs) - {str(port) for port in active_ports}
         return {str(port) for port, value in outputs.items() if value is None}
 
     @staticmethod
