@@ -39,6 +39,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Flow-control nodes no longer import the shared HTTP stack at module load time, so core branch/loop/wait nodes still register in lightweight environments where `httpx` extras are unavailable; URL polling resolves the HTTP client lazily when used.
 - Merge Tables now accepts Stage 2 `key_column_a` / `key_column_b` inputs and auto-detects a shared key when no key is provided, while preserving the existing `join_key` contract and CWL runner compatibility.
 - Merge Tables now supports Stage 2 cross joins plus explicit `suffix_a` / `suffix_b` handling for overlapping non-key columns, while keeping legacy `right_suffix` output names for existing workflows.
+- Added an NCBI BLAST Parse node that converts saved BLAST JSON2 or XML results into top-hit TSV/JSON outputs with query, subject, percent identity, e-value, bit score, and coordinate fields.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

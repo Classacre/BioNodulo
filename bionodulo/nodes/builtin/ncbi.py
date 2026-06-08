@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import os
 import re
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,22 @@ NCBI_API_KEY_RATE_LIMIT_PER_SECOND = 10.0
 BLAST_PROGRAMS = ("blastn", "blastp", "blastx", "tblastn", "tblastx", "megablast")
 BLAST_DATABASES = ("nt", "nr", "refseq_rna", "refseq_protein", "pdb", "est", "gss", "pat", "env_nr")
 BLAST_OUTPUT_FORMATS = ("JSON2", "XML", "Tabular", "Text", "XML2", "CSV", "SAM")
+BLAST_PARSE_INPUT_FORMATS = ("auto", "JSON2", "XML")
+BLAST_PARSE_OUTPUT_FORMATS = ("TSV", "JSON")
+BLAST_HIT_FIELDS = [
+    "query",
+    "subject_id",
+    "subject_title",
+    "scientific_name",
+    "percent_identity",
+    "evalue",
+    "bit_score",
+    "alignment_length",
+    "query_from",
+    "query_to",
+    "subject_from",
+    "subject_to",
+]
 BLAST_EXTENSIONS = {
     "JSON2": ".json",
     "XML": ".xml",
@@ -276,6 +294,145 @@ def _blast_result_summary(raw_results: str, output_format: str) -> dict[str, Any
     if isinstance(search.get("stat"), dict):
         summary["stat"] = search.get("stat")
     return summary
+
+
+def _blast_parse_format(path: Path, requested: str) -> str:
+    value = str(requested or "auto")
+    if value != "auto":
+        if value not in {"JSON2", "XML"}:
+            raise ValueError(f"Unsupported BLAST parse input_format: {requested}")
+        return value
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        return "JSON2"
+    if suffix == ".xml":
+        return "XML"
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("<"):
+        return "XML"
+    return "JSON2"
+
+
+def _blast_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _blast_int(value: Any) -> int | str:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return ""
+
+
+def _blast_percent_identity(identity: Any, alignment_length: Any) -> float:
+    length = _blast_float(alignment_length)
+    if length <= 0:
+        return 0.0
+    return round((_blast_float(identity) / length) * 100.0, 2)
+
+
+def _clean_blast_text(value: Any) -> str:
+    return str(value or "").replace("\t", " ").replace("\n", " ").strip()
+
+
+def _json2_value(mapping: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in mapping and mapping[key] not in (None, ""):
+            return mapping[key]
+    return ""
+
+
+def _parse_blast_json2_hits(raw_results: str) -> list[dict[str, Any]]:
+    payload = json.loads(raw_results)
+    output = payload.get("BlastOutput2") if isinstance(payload, dict) else payload
+    if not isinstance(output, list):
+        raise ValueError("BLAST JSON2 results must contain a BlastOutput2 list")
+
+    rows: list[dict[str, Any]] = []
+    for record in output:
+        if not isinstance(record, dict):
+            continue
+        report = record.get("report", {})
+        if not isinstance(report, dict):
+            continue
+        search = report.get("results", {}).get("search", {})
+        if not isinstance(search, dict):
+            continue
+        query = _clean_blast_text(search.get("query_title") or search.get("query_id") or search.get("query"))
+        hits = search.get("hits", [])
+        if not isinstance(hits, list):
+            continue
+        for hit in hits:
+            if not isinstance(hit, dict):
+                continue
+            descriptions = hit.get("description", [])
+            description = descriptions[0] if descriptions and isinstance(descriptions[0], dict) else {}
+            hsps = hit.get("hsps", [])
+            hsp = hsps[0] if hsps and isinstance(hsps[0], dict) else {}
+            alignment_length = _blast_int(_json2_value(hsp, "align_len", "align-len", "alignment_length"))
+            rows.append({
+                "query": query,
+                "subject_id": _clean_blast_text(description.get("id") or hit.get("id")),
+                "subject_title": _clean_blast_text(description.get("title") or hit.get("title")),
+                "scientific_name": _clean_blast_text(description.get("sciname") or description.get("scientific_name")),
+                "percent_identity": _blast_percent_identity(_json2_value(hsp, "identity"), alignment_length),
+                "evalue": _json2_value(hsp, "evalue"),
+                "bit_score": _json2_value(hsp, "bit_score", "bit-score"),
+                "alignment_length": alignment_length,
+                "query_from": _blast_int(_json2_value(hsp, "query_from", "query-from")),
+                "query_to": _blast_int(_json2_value(hsp, "query_to", "query-to")),
+                "subject_from": _blast_int(_json2_value(hsp, "hit_from", "hit-from")),
+                "subject_to": _blast_int(_json2_value(hsp, "hit_to", "hit-to")),
+            })
+    return rows
+
+
+def _xml_text(element: ET.Element, path: str) -> str:
+    return _clean_blast_text(element.findtext(path, default=""))
+
+
+def _parse_blast_xml_hits(raw_results: str) -> list[dict[str, Any]]:
+    root = ET.fromstring(raw_results)
+    rows: list[dict[str, Any]] = []
+    for iteration in root.findall(".//Iteration"):
+        query = _xml_text(iteration, "Iteration_query-def") or _xml_text(iteration, "Iteration_query-ID")
+        for hit in iteration.findall("./Iteration_hits/Hit"):
+            hsp = hit.find("./Hit_hsps/Hsp")
+            alignment_length = _blast_int(_xml_text(hsp, "Hsp_align-len")) if hsp is not None else ""
+            rows.append({
+                "query": query,
+                "subject_id": _xml_text(hit, "Hit_id"),
+                "subject_title": _xml_text(hit, "Hit_def"),
+                "scientific_name": "",
+                "percent_identity": _blast_percent_identity(_xml_text(hsp, "Hsp_identity"), alignment_length)
+                if hsp is not None
+                else 0.0,
+                "evalue": _xml_text(hsp, "Hsp_evalue") if hsp is not None else "",
+                "bit_score": _blast_float(_xml_text(hsp, "Hsp_bit-score")) if hsp is not None else 0.0,
+                "alignment_length": alignment_length,
+                "query_from": _blast_int(_xml_text(hsp, "Hsp_query-from")) if hsp is not None else "",
+                "query_to": _blast_int(_xml_text(hsp, "Hsp_query-to")) if hsp is not None else "",
+                "subject_from": _blast_int(_xml_text(hsp, "Hsp_hit-from")) if hsp is not None else "",
+                "subject_to": _blast_int(_xml_text(hsp, "Hsp_hit-to")) if hsp is not None else "",
+            })
+    return rows
+
+
+def _format_blast_tsv_value(field: str, value: Any) -> str:
+    if field == "percent_identity":
+        return f"{_blast_float(value):.2f}"
+    return _clean_blast_text(value)
+
+
+def _write_blast_hits_tsv(path: Path, hits: list[dict[str, Any]]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=BLAST_HIT_FIELDS, delimiter="\t", extrasaction="ignore")
+        writer.writeheader()
+        for hit in hits:
+            writer.writerow({field: _format_blast_tsv_value(field, hit.get(field, "")) for field in BLAST_HIT_FIELDS})
 
 
 def _geo_summaries_from_esummary(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -715,6 +872,80 @@ class NCBIBLASTNode(BaseNode):
             "outputs": {
                 "blast_results": str(result_path),
                 "blast_summary": str(summary_path),
+            }
+        }
+
+
+class NCBIBLASTParseNode(BaseNode):
+    """Parse saved NCBI BLAST JSON2 or XML result files into tabular top-hit records."""
+
+    NODE_ID = "ncbi_blast_parse"
+    DISPLAY_NAME = "NCBI BLAST Parse"
+    CATEGORY = "databases"
+    DESCRIPTION = "Parse saved NCBI BLAST JSON2 or XML output into top-hit TSV or JSON records."
+    SEARCH_ALIASES = ["ncbi", "blast", "parse", "hits", "alignment", "top hits", "json2", "xml"]
+    RETURN_TYPES = ("FILE", "JSON")
+    RETURN_NAMES = ("parsed_hits", "parse_summary")
+    REQUIRES_EXTERNAL_TOOLS = False
+    DOCUMENTATION_URL = "https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "blast_results": ("FILE", {"description": "Saved BLAST JSON2 or XML result file"}),
+            },
+            "optional": {
+                "input_format": ("STRING", {"default": "auto", "options": list(BLAST_PARSE_INPUT_FORMATS)}),
+                "output_format": ("STRING", {"default": "TSV", "options": list(BLAST_PARSE_OUTPUT_FORMATS)}),
+                "max_hits": ("INT", {"default": 50, "min": 1, "max": 100000}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        context = kwargs.pop("context", None)
+        blast_results = Path(str(kwargs["blast_results"])).expanduser()
+        if not blast_results.is_file():
+            raise ValueError(f"BLAST results file does not exist: {blast_results}")
+        input_format = _blast_parse_format(blast_results, str(kwargs.get("input_format", "auto") or "auto"))
+        output_format = str(kwargs.get("output_format", "TSV") or "TSV").upper()
+        if output_format not in BLAST_PARSE_OUTPUT_FORMATS:
+            raise ValueError(f"Unsupported BLAST parse output_format: {output_format}")
+        max_hits = max(1, int(kwargs.get("max_hits", 50) or 50))
+        raw_results = blast_results.read_text(encoding="utf-8")
+
+        if input_format == "JSON2":
+            all_hits = _parse_blast_json2_hits(raw_results)
+        elif input_format == "XML":
+            all_hits = _parse_blast_xml_hits(raw_results)
+        else:
+            raise ValueError(f"Unsupported BLAST parse input_format: {input_format}")
+
+        parsed_hits = all_hits[:max_hits]
+        out_dir = _node_output_dir(self, context)
+        hits_path = out_dir / ("blast_hits.json" if output_format == "JSON" else "blast_hits.tsv")
+        if output_format == "JSON":
+            hits_path.write_text(json.dumps(parsed_hits, indent=2), encoding="utf-8")
+        else:
+            _write_blast_hits_tsv(hits_path, parsed_hits)
+
+        summary = {
+            "input_format": input_format,
+            "output_format": output_format,
+            "source_path": str(blast_results),
+            "parsed_hits_path": str(hits_path),
+            "parsed_hit_count": len(parsed_hits),
+            "available_hit_count": len(all_hits),
+            "queries": sorted({str(hit.get("query", "")) for hit in all_hits if hit.get("query")}),
+        }
+        summary_path = out_dir / "blast_parse_summary.json"
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+        return {
+            "outputs": {
+                "parsed_hits": str(hits_path),
+                "parse_summary": str(summary_path),
             }
         }
 

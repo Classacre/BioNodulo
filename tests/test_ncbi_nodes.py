@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import importlib
 import json
 from pathlib import Path
@@ -18,6 +19,11 @@ def _node_class(node_id: str) -> type:
     node_class = registry.get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+def _read_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
 
 
 def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
@@ -66,6 +72,17 @@ def test_ncbi_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["ncbi_blast"]["input"]["optional"]["output_format"] == (
         "STRING",
         {"default": "JSON2", "options": ["JSON2", "XML", "Tabular", "Text", "XML2", "CSV", "SAM"]},
+    )
+    assert info["ncbi_blast_parse"]["display_name"] == "NCBI BLAST Parse"
+    assert info["ncbi_blast_parse"]["category"] == "databases"
+    assert info["ncbi_blast_parse"]["output_name"] == ["parsed_hits", "parse_summary"]
+    assert info["ncbi_blast_parse"]["input"]["optional"]["input_format"] == (
+        "STRING",
+        {"default": "auto", "options": ["auto", "JSON2", "XML"]},
+    )
+    assert info["ncbi_blast_parse"]["input"]["optional"]["output_format"] == (
+        "STRING",
+        {"default": "TSV", "options": ["TSV", "JSON"]},
     )
     assert info["geo_query"]["display_name"] == "GEO Query"
     assert info["geo_query"]["category"] == "databases"
@@ -1007,6 +1024,163 @@ async def test_ncbi_blast_rejects_invalid_program() -> None:
 
     with pytest.raises(ValueError, match="Unsupported BLAST program"):
         await node_class().run(query_sequence="ATGC", program="diamond", database="nt")
+
+
+@pytest.mark.asyncio
+async def test_ncbi_blast_parse_writes_json2_hits_to_tsv(tmp_path: Path) -> None:
+    node_class = _node_class("ncbi_blast_parse")
+    blast_json = tmp_path / "blast_results.json"
+    blast_json.write_text(json.dumps({
+        "BlastOutput2": [
+            {
+                "report": {
+                    "results": {
+                        "search": {
+                            "query_title": "query_alpha",
+                            "query_len": 100,
+                            "hits": [
+                                {
+                                    "description": [
+                                        {
+                                            "id": "ref|NM_001|",
+                                            "title": "Subject alpha transcript",
+                                            "sciname": "Homo sapiens",
+                                        }
+                                    ],
+                                    "len": 900,
+                                    "hsps": [
+                                        {
+                                            "identity": 97,
+                                            "align_len": 100,
+                                            "evalue": 1e-50,
+                                            "bit_score": 180.5,
+                                            "query_from": 1,
+                                            "query_to": 100,
+                                            "hit_from": 5,
+                                            "hit_to": 104,
+                                        }
+                                    ],
+                                },
+                                {
+                                    "description": [{"id": "ref|NM_002|", "title": "Subject beta transcript"}],
+                                    "len": 750,
+                                    "hsps": [
+                                        {
+                                            "identity": 45,
+                                            "align_len": 90,
+                                            "evalue": 2e-10,
+                                            "bit_score": 88.0,
+                                        }
+                                    ],
+                                },
+                            ],
+                        }
+                    }
+                }
+            }
+        ]
+    }), encoding="utf-8")
+
+    result = await node_class().run(
+        blast_results=str(blast_json),
+        input_format="JSON2",
+        output_format="TSV",
+        max_hits=1,
+        context=SimpleNamespace(node_dir=tmp_path / "parse-json"),
+    )
+
+    hits_path = Path(result["outputs"]["parsed_hits"])
+    summary = json.loads(Path(result["outputs"]["parse_summary"]).read_text(encoding="utf-8"))
+
+    assert hits_path.name == "blast_hits.tsv"
+    assert _read_tsv(hits_path) == [
+        {
+            "query": "query_alpha",
+            "subject_id": "ref|NM_001|",
+            "subject_title": "Subject alpha transcript",
+            "scientific_name": "Homo sapiens",
+            "percent_identity": "97.00",
+            "evalue": "1e-50",
+            "bit_score": "180.5",
+            "alignment_length": "100",
+            "query_from": "1",
+            "query_to": "100",
+            "subject_from": "5",
+            "subject_to": "104",
+        }
+    ]
+    assert summary["input_format"] == "JSON2"
+    assert summary["parsed_hit_count"] == 1
+    assert summary["available_hit_count"] == 2
+    assert summary["queries"] == ["query_alpha"]
+
+
+@pytest.mark.asyncio
+async def test_ncbi_blast_parse_writes_xml_hits_to_json(tmp_path: Path) -> None:
+    node_class = _node_class("ncbi_blast_parse")
+    blast_xml = tmp_path / "blast_results.xml"
+    blast_xml.write_text(
+        """
+<BlastOutput>
+  <BlastOutput_iterations>
+    <Iteration>
+      <Iteration_query-def>query_beta</Iteration_query-def>
+      <Iteration_query-len>80</Iteration_query-len>
+      <Iteration_hits>
+        <Hit>
+          <Hit_id>sp|P12345|</Hit_id>
+          <Hit_def>Protein subject</Hit_def>
+          <Hit_len>420</Hit_len>
+          <Hit_hsps>
+            <Hsp>
+              <Hsp_identity>40</Hsp_identity>
+              <Hsp_align-len>50</Hsp_align-len>
+              <Hsp_evalue>3e-20</Hsp_evalue>
+              <Hsp_bit-score>99.1</Hsp_bit-score>
+              <Hsp_query-from>2</Hsp_query-from>
+              <Hsp_query-to>51</Hsp_query-to>
+              <Hsp_hit-from>10</Hsp_hit-from>
+              <Hsp_hit-to>59</Hsp_hit-to>
+            </Hsp>
+          </Hit_hsps>
+        </Hit>
+      </Iteration_hits>
+    </Iteration>
+  </BlastOutput_iterations>
+</BlastOutput>
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = await node_class().run(
+        blast_results=str(blast_xml),
+        input_format="XML",
+        output_format="JSON",
+        context=SimpleNamespace(node_dir=tmp_path / "parse-xml"),
+    )
+
+    hits = json.loads(Path(result["outputs"]["parsed_hits"]).read_text(encoding="utf-8"))
+    summary = json.loads(Path(result["outputs"]["parse_summary"]).read_text(encoding="utf-8"))
+
+    assert hits == [
+        {
+            "query": "query_beta",
+            "subject_id": "sp|P12345|",
+            "subject_title": "Protein subject",
+            "scientific_name": "",
+            "percent_identity": 80.0,
+            "evalue": "3e-20",
+            "bit_score": 99.1,
+            "alignment_length": 50,
+            "query_from": 2,
+            "query_to": 51,
+            "subject_from": 10,
+            "subject_to": 59,
+        }
+    ]
+    assert summary["input_format"] == "XML"
+    assert summary["parsed_hit_count"] == 1
+    assert summary["available_hit_count"] == 1
 
 
 @pytest.mark.asyncio
