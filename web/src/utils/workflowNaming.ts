@@ -11,6 +11,10 @@ import type { Workflow, WorkflowNode } from '../types';
 
 const UNTITLED = new Set(['', 'untitled', 'untitled workflow', 'new workflow']);
 
+export function isUntitledWorkflowName(name: string): boolean {
+  return UNTITLED.has(name.trim().toLowerCase());
+}
+
 function tally(nodes: WorkflowNode[]): { tools: Map<string, number>; categories: Map<string, number> } {
   const tools = new Map<string, number>();
   const categories = new Map<string, number>();
@@ -65,7 +69,7 @@ export function suggestWorkflowName(workflow: Workflow): string {
  */
 export function resolveWorkflowName(workflow: Workflow): string {
   const current = (workflow.name || '').trim();
-  if (current && !UNTITLED.has(current.toLowerCase())) return current;
+  if (current && !isUntitledWorkflowName(current)) return current;
   const suggested = suggestWorkflowName(workflow);
   return suggested || current || i18n.t('workflowNaming.untitledWorkflow');
 }

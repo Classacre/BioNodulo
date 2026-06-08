@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
+import { isUntitledWorkflowName } from '../../utils/workflowNaming';
 
 interface WorkflowTabsProps {
   tabs: string[];
@@ -111,7 +112,7 @@ export default function WorkflowTabs({ tabs, active, onChange, onClose, onAdd, o
     setDragOverIndex(null);
   };
 
-  const displayName = (name: string) => (!name || name === 'Untitled' ? t('common.untitled') : name);
+  const displayName = (name: string) => (isUntitledWorkflowName(name) ? t('common.untitled') : name);
 
   return (
     <div className="workflow-tabs" ref={stripRef}>

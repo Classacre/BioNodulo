@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storage = new Map<string, string>();
@@ -33,6 +35,13 @@ describe('WorkflowTabs i18n', () => {
     await setLanguage('en');
     storage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it('keeps untitled workflow sentinels out of the tab component', () => {
+    const source = readFileSync(resolve(__dirname, '../components/layout/WorkflowTabs.tsx'), 'utf8');
+
+    expect(source).toContain('isUntitledWorkflowName');
+    expect(source).not.toContain("name === 'Untitled'");
   });
 
   it('renders fallback names, actions, and context menu labels from the active locale', async () => {

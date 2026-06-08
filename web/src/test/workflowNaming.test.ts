@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Workflow, WorkflowNode } from '../types';
-import { resolveWorkflowName, suggestWorkflowName } from '../utils/workflowNaming';
+import { isUntitledWorkflowName, resolveWorkflowName, suggestWorkflowName } from '../utils/workflowNaming';
 
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
@@ -82,6 +82,14 @@ describe('workflow naming i18n', () => {
     expect(resolveWorkflowName(workflow({ name: '', nodes: [] }))).not.toBe('Workflow sin titulo');
     expect(i18n.t('workflowNaming.fallbackCategory')).toBe('flujo de trabajo');
     expect(i18n.t('workflowNaming.categoryWorkflow', { category: 'custom' })).toBe('flujo de trabajo de custom');
+  });
+
+  it('recognizes canonical untitled workflow names for display fallbacks', () => {
+    expect(isUntitledWorkflowName('')).toBe(true);
+    expect(isUntitledWorkflowName('Untitled')).toBe(true);
+    expect(isUntitledWorkflowName('Untitled Workflow')).toBe(true);
+    expect(isUntitledWorkflowName('new workflow')).toBe(true);
+    expect(isUntitledWorkflowName('RNA-seq QC')).toBe(false);
   });
 
   it('keeps workflow naming fragments behind i18n keys', () => {

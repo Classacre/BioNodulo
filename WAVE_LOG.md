@@ -35,6 +35,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Getting Started now uses the shared Dialog primitive, keeping its release notes, recents, resources, and startup toggle behavior while removing its duplicated modal shell.
 - BottomConsole history buckets now use stable locale-neutral ids internally while preserving localized Today, Yesterday, Past Week, Earlier, month, and year headings.
 - Missing-dependency install progress messages now route known backend protocol strings through a centralized locale-key map, preserving localized installer status copy without scattered English comparisons.
+- Workflow tabs now use the shared workflow-naming helper for untitled-name detection, keeping English fallback sentinels out of the tab component while preserving localized tab labels.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
