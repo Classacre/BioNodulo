@@ -201,6 +201,7 @@ name = "manifest-pkg"
 version = "0.1.0"
 repository = "https://example.test/manifest-pkg.git"
 entrypoints = ["nodes"]
+requirements = ["pandas>=2", "numpy"]
 """.strip(),
         encoding="utf-8",
     )
@@ -233,6 +234,7 @@ class ManifestEntrypointNode(BaseNode):
         "repository": "https://example.test/manifest-pkg.git",
         "directory": "manifest_pkg",
         "entrypoint": "nodes",
+        "requirements": ["pandas>=2", "numpy"],
         "manifest_present": True,
     }
 
@@ -395,6 +397,9 @@ def test_resolver_uses_cached_node_info_for_missing_custom_node_source(tmp_path:
                     "git_commit": "abc123",
                     "required_executables": [],
                     "required_r_packages": [],
+                    "custom_node_package": {
+                        "requirements": ["pandas>=2", "numpy"],
+                    },
                     "builtin": False,
                 },
             }
@@ -409,4 +414,5 @@ def test_resolver_uses_cached_node_info_for_missing_custom_node_source(tmp_path:
     assert missing.node_type == "custom_qc"
     assert missing.git_url == "https://example.test/custom-qc.git"
     assert missing.git_commit == "abc123"
+    assert missing.requirements == ["pandas>=2", "numpy"]
     assert "https://example.test/custom-qc.git" in missing.message

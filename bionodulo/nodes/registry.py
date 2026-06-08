@@ -325,6 +325,7 @@ class NodeRegistry:
                     "repository": manifest.repository,
                     "directory": manifest.directory,
                     "entrypoint": entrypoint,
+                    "requirements": list(manifest.requirements),
                     "manifest_present": manifest.manifest_present,
                 }
                 count += self.register_from_module(

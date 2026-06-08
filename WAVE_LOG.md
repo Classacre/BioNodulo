@@ -23,6 +23,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Manifest-loaded custom nodes now expose compact package provenance through `object_info` and the frontend object-info normalizer, giving extension tooling a stable join between registered nodes and their `bionodulo.toml` package.
 - Custom-node reloads now unregister stale custom nodes from the configured root before rescanning, so removed packages disappear from `object_info` without clearing built-in registrations.
 - Workflow dependency resolution now falls back to saved per-node `node_info` when `node_manifest` is absent, so missing custom nodes with cached `git_url` metadata remain installable.
+- Manifest package requirements now flow into custom-node `object_info` provenance and missing-node resolution reports, so extension recovery can surface package-level Python requirements from `bionodulo.toml`.
 - Help/Wiki node documentation now localizes known node category labels in selected-node docs and node-search subtitles while preserving canonical category values for filtering/search.
 - Workspace file sizes now format through existing locale keys and active-language number formatting, so Spanish file rows render decimal sizes such as `2,0 KB` instead of hard-coded English decimals.
 - Workflow stats RAM/VRAM sizes now use workflowStats locale keys plus active-language number formatting, so Spanish system overlays render values such as `8,0 GB / 16,0 GB`.

@@ -86,6 +86,13 @@ def build_node_manifest(
                     entry["versioning"] = node_info.get("versioning", {})
                     entry["git_url"] = node_info.get("git_url", "")
                     entry["git_commit"] = node_info.get("git_commit", "")
+                    package_info = node_info.get("custom_node_package", {})
+                    if isinstance(package_info, dict):
+                        entry["requirements"] = [
+                            str(req)
+                            for req in package_info.get("requirements", [])
+                            if req
+                        ]
                     entry["required_executables"] = node_info.get(
                         "required_executables", []
                     )
@@ -257,6 +264,9 @@ async def _resolve_node_type(
         manifest_entry = manifest.get(node_type, {})
         git_url = manifest_entry.get("git_url", "")
         git_commit = manifest_entry.get("git_commit", "")
+        requirements = manifest_entry.get("requirements", [])
+        if not isinstance(requirements, list):
+            requirements = []
 
         if git_url:
             msg = f"Custom node '{node_type}' is not installed. Source: {git_url}"
@@ -271,6 +281,7 @@ async def _resolve_node_type(
                 node_type=node_type,
                 git_url=git_url,
                 git_commit=git_commit,
+                requirements=[str(req) for req in requirements if req],
                 message=msg,
             )
         )
