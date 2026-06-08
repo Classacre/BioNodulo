@@ -46,6 +46,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Fine-Tune LLM local backend now packages a runnable LoRA training script plus command metadata when local training dependencies are available, while keeping actual model training as an explicit user-run step.
 - Spanish workflow chrome copy now covers the workflow search, notes drawer, shared accessibility labels, and app toast locale keys, with a focused i18n guard against English fallback text in those surfaces.
 - Spanish run history, queue, and console copy now covers status labels, run actions, queue controls, console tabs, log controls, and manifest/artifact labels, with BottomConsole i18n coverage for those locale keys.
+- The Spanish locale overlay now preserves the workflow chrome, run history, queue, and console translations when `es.ts` is regenerated from the English source map.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
