@@ -792,7 +792,7 @@ class AIEmbeddingNode(BaseNode):
                 "layer": ("INT", {"default": -1, "min": -33, "max": 36}),
                 "normalize": ("BOOLEAN", {"default": True}),
                 "compute_device": ("STRING", {"default": "auto", "options": ["auto", "cpu", "cuda", "mps"]}),
-                "fallback_backend": ("STRING", {"default": "auto", "options": ["auto", "deterministic", "local"]}),
+                "fallback_backend": ("STRING", {"default": "auto", "options": ["auto", "deterministic", "local", "api"]}),
             },
             "hidden": {
                 "context": ("CONTEXT", {}),
@@ -833,7 +833,7 @@ class AIEmbeddingNode(BaseNode):
                 backend="empty",
             )
         else:
-            embeddings, backend, model_name, device = _generate_embeddings(
+            embeddings, backend, model_name, device = await _generate_embeddings(
                 [record["sequence"] for record in records],
                 embedding_model=embedding_model,
                 batch_size=batch_size,
@@ -1719,7 +1719,7 @@ def _plain_embedding_records(content: str, *, id_prefix: str, max_length: int) -
     return records
 
 
-def _generate_embeddings(
+async def _generate_embeddings(
     sequences: list[str],
     *,
     embedding_model: str,
@@ -1732,6 +1732,13 @@ def _generate_embeddings(
     fallback_backend: str,
 ) -> tuple[Any, str, str, str]:
     model_name = _EMBEDDING_MODEL_REGISTRY.get(embedding_model, embedding_model)
+    if fallback_backend == "api":
+        if embedding_model != "text_embedding":
+            raise ValueError("The API embedding backend is only supported for text_embedding")
+        embeddings, provider = await _api_text_embeddings(sequences, model_name=model_name, batch_size=batch_size)
+        if normalize:
+            embeddings = _normalize_embeddings(embeddings)
+        return embeddings, f"api:{provider}", model_name, "remote"
     if fallback_backend != "deterministic":
         try:
             embeddings, device = _local_transformer_embeddings(
@@ -1755,6 +1762,31 @@ def _generate_embeddings(
         embeddings = _normalize_embeddings(embeddings)
     device = "cpu" if compute_device == "auto" else compute_device
     return embeddings, "deterministic", model_name, device
+
+
+async def _api_text_embeddings(
+    sequences: list[str],
+    *,
+    model_name: str,
+    batch_size: int,
+) -> tuple[Any, str]:
+    try:
+        import litellm
+    except ImportError as exc:
+        raise RuntimeError("litellm is required for API text embeddings") from exc
+
+    np = _numpy()
+    vectors: list[list[float]] = []
+    for offset in range(0, len(sequences), max(1, batch_size)):
+        batch = sequences[offset: offset + max(1, batch_size)]
+        response = await litellm.aembedding(model=model_name, input=batch)
+        data = response.get("data", []) if isinstance(response, dict) else getattr(response, "data", [])
+        for item in data:
+            embedding = item.get("embedding") if isinstance(item, dict) else getattr(item, "embedding", None)
+            if embedding is None:
+                raise RuntimeError("Embedding API response did not include an embedding vector")
+            vectors.append([float(value) for value in embedding])
+    return np.asarray(vectors, dtype="float32"), "litellm"
 
 
 def _local_transformer_embeddings(

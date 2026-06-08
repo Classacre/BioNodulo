@@ -1406,6 +1406,51 @@ async def test_ai_embedding_reads_raw_text_without_normalization(
 
 
 @pytest.mark.asyncio
+async def test_ai_embedding_text_model_can_use_api_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    node_class = _node_class("ai_embedding")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_api_embeddings(sequences: list[str], *, model_name: str, batch_size: int) -> tuple[Any, str]:
+        calls.append({"sequences": sequences, "model_name": model_name, "batch_size": batch_size})
+        return np.array([[1.0, 2.0, 2.0], [0.0, 3.0, 4.0]], dtype="float32"), "litellm"
+
+    monkeypatch.setattr(module, "_api_text_embeddings", fake_api_embeddings)
+
+    result = await node_class().run(
+        input_data="BRCA1 regulates DNA repair.\nTP53 responds to DNA damage.",
+        embedding_model="text_embedding",
+        molecule_type="text",
+        batch_size=2,
+        normalize=True,
+        fallback_backend="api",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    npy_path = tmp_path / "ai_embedding" / "embeddings.npy"
+    metadata_path = tmp_path / "ai_embedding" / "metadata.json"
+    embeddings = np.load(npy_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    assert result == {"outputs": {"embeddings_npy": str(npy_path), "metadata_json": str(metadata_path)}}
+    assert calls == [
+        {
+            "sequences": ["BRCA1 regulates DNA repair.", "TP53 responds to DNA damage."],
+            "model_name": "text-embedding-3-small",
+            "batch_size": 2,
+        }
+    ]
+    assert embeddings.shape == (2, 3)
+    assert np.allclose(np.linalg.norm(embeddings, axis=1), 1.0)
+    assert metadata["backend"] == "api:litellm"
+    assert metadata["model_name"] == "text-embedding-3-small"
+    assert metadata["device"] == "remote"
+
+
+@pytest.mark.asyncio
 async def test_ai_embedding_empty_input_writes_empty_outputs(
     tmp_path: Any,
 ) -> None:
