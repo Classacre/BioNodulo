@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -126,6 +127,61 @@ async def test_api_cache_keys_include_request_headers() -> None:
     assert calls == 2
     assert first.text == "payload-1"
     assert second.text == "payload-2"
+
+
+@pytest.mark.asyncio
+async def test_api_cache_persists_get_responses_to_disk(tmp_path: Path) -> None:
+    calls = 0
+
+    async def fake_send(**kwargs: Any) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return _response(200, text=f"payload-{calls}", headers={"x-cache-test": "disk"})
+
+    first_client = APIHttpClient(send=fake_send, cache=APICache(ttl_seconds=60, cache_dir=tmp_path))
+    second_client = APIHttpClient(send=fake_send, cache=APICache(ttl_seconds=60, cache_dir=tmp_path))
+
+    first = await first_client.request("GET", "https://api.example.test/resource", cache_ttl=60)
+    second = await second_client.request("GET", "https://api.example.test/resource", cache_ttl=60)
+
+    assert calls == 1
+    assert first.text == "payload-1"
+    assert second.text == "payload-1"
+    assert second.headers["x-cache-test"] == "disk"
+
+
+@pytest.mark.asyncio
+async def test_api_disk_cache_ignores_expired_entries(tmp_path: Path) -> None:
+    now = 100.0
+    calls = 0
+
+    async def fake_send(**kwargs: Any) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return _response(200, text=f"payload-{calls}")
+
+    first_client = APIHttpClient(send=fake_send, cache=APICache(ttl_seconds=1, cache_dir=tmp_path, clock=lambda: now))
+    await first_client.request("GET", "https://api.example.test/resource", cache_ttl=1)
+
+    now = 102.0
+    second_client = APIHttpClient(send=fake_send, cache=APICache(ttl_seconds=1, cache_dir=tmp_path, clock=lambda: now))
+    second = await second_client.request("GET", "https://api.example.test/resource", cache_ttl=1)
+
+    assert calls == 2
+    assert second.text == "payload-2"
+
+
+def test_api_cache_from_environment_uses_disk_dir_and_ttl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIONODULO_API_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_API_CACHE_TTL", "42")
+
+    cache = APICache.from_environment(default_ttl_seconds=5)
+
+    assert cache.ttl_seconds == 42
+    assert cache.cache_dir == tmp_path
 
 
 @pytest.mark.asyncio

@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 import hashlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 import httpx
@@ -26,14 +28,39 @@ class _CacheEntry:
 
 
 class APICache:
-    """Small in-memory response cache for idempotent API requests."""
+    """Small response cache for idempotent API requests.
 
-    def __init__(self, ttl_seconds: float = 300.0, *, clock: Clock | None = None) -> None:
+    Defaults to in-memory storage. Supplying ``cache_dir`` enables a disk-backed
+    cache that can be shared across cache instances and process restarts.
+    """
+
+    def __init__(
+        self,
+        ttl_seconds: float = 300.0,
+        *,
+        cache_dir: str | Path | None = None,
+        clock: Clock | None = None,
+    ) -> None:
         self.ttl_seconds = float(ttl_seconds)
         self._clock = clock or time.monotonic
         self._entries: dict[str, _CacheEntry] = {}
+        self.cache_dir = Path(cache_dir) if cache_dir is not None else None
+        if self.cache_dir is not None:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def from_environment(cls, *, default_ttl_seconds: float = 300.0, clock: Clock | None = None) -> APICache:
+        raw_ttl = os.environ.get("BIONODULO_API_CACHE_TTL", "")
+        try:
+            ttl = float(raw_ttl) if raw_ttl else float(default_ttl_seconds)
+        except ValueError:
+            ttl = float(default_ttl_seconds)
+        cache_dir = os.environ.get("BIONODULO_API_CACHE_DIR", "") or None
+        return cls(ttl_seconds=ttl, cache_dir=cache_dir, clock=clock)
 
     def get(self, key: str) -> httpx.Response | None:
+        if self.cache_dir is not None:
+            return self._get_disk(key)
         entry = self._entries.get(key)
         if entry is None:
             return None
@@ -52,13 +79,60 @@ class APICache:
         ttl = self.ttl_seconds if ttl_seconds is None else float(ttl_seconds)
         if ttl <= 0:
             return
-        self._entries[key] = _CacheEntry(
+        entry = _CacheEntry(
             expires_at=self._clock() + ttl,
             status_code=response.status_code,
             headers=dict(response.headers),
             text=response.text,
             url=str(response.url),
         )
+        if self.cache_dir is not None:
+            self._set_disk(key, entry)
+            return
+        self._entries[key] = entry
+
+    def _cache_path(self, key: str) -> Path:
+        assert self.cache_dir is not None
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        return self.cache_dir / f"{digest}.json"
+
+    def _get_disk(self, key: str) -> httpx.Response | None:
+        path = self._cache_path(key)
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            entry = _CacheEntry(
+                expires_at=float(payload["expires_at"]),
+                status_code=int(payload["status_code"]),
+                headers={str(k): str(v) for k, v in dict(payload.get("headers", {})).items()},
+                text=str(payload.get("text", "")),
+                url=str(payload["url"]),
+            )
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            path.unlink(missing_ok=True)
+            return None
+        if entry.expires_at <= self._clock():
+            path.unlink(missing_ok=True)
+            return None
+        request = httpx.Request("GET", entry.url)
+        return httpx.Response(
+            entry.status_code,
+            text=entry.text,
+            headers=entry.headers,
+            request=request,
+        )
+
+    def _set_disk(self, key: str, entry: _CacheEntry) -> None:
+        path = self._cache_path(key)
+        payload = {
+            "expires_at": entry.expires_at,
+            "status_code": entry.status_code,
+            "headers": entry.headers,
+            "text": entry.text,
+            "url": entry.url,
+        }
+        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 class TokenBucketRateLimiter:
