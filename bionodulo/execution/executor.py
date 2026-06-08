@@ -382,6 +382,9 @@ class WorkflowExecutor:
                     "cancelled_at": node_id,
                 }
 
+            if node_id in skipped_nodes and node_id in node_results:
+                continue
+
             node = nodes[node_id]
             node_type = node.get("type", "unknown")
             node_meta = node.get("meta", {})
@@ -538,6 +541,16 @@ class WorkflowExecutor:
                 )
                 if inactive_outputs:
                     node_inactive_outputs[node_id] = inactive_outputs
+                self._apply_skip_downstream(
+                    run_id,
+                    node_id,
+                    marker or {},
+                    _node_class,
+                    nodes,
+                    node_results,
+                    skipped_nodes,
+                    emit,
+                )
                 emit(
                     "node_cache_hit",
                     {
@@ -642,6 +655,16 @@ class WorkflowExecutor:
                 )
                 if inactive_outputs:
                     node_inactive_outputs[node_id] = inactive_outputs
+                skip_downstream = self._apply_skip_downstream(
+                    run_id,
+                    node_id,
+                    result,
+                    _node_class,
+                    nodes,
+                    node_results,
+                    skipped_nodes,
+                    emit,
+                )
                 node_results[node_id] = {
                     "status": "completed",
                     "outputs": outputs,
@@ -659,6 +682,7 @@ class WorkflowExecutor:
                         inputs=resolved_inputs,
                         upstream_keys=upstream_keys,
                         inactive_outputs=sorted(inactive_outputs) if inactive_outputs else None,
+                        skip_downstream=sorted(skip_downstream) if skip_downstream else None,
                     )
 
                 # Collect previews
@@ -957,6 +981,66 @@ class WorkflowExecutor:
             if active_ports is not None:
                 return set(outputs) - {str(port) for port in active_ports}
         return {str(port) for port, value in outputs.items() if value is None}
+
+    def _apply_skip_downstream(
+        self,
+        run_id: str,
+        source_node_id: str,
+        result: dict[str, Any],
+        node_class: Any,
+        nodes: dict[str, dict[str, Any]],
+        node_results: dict[str, dict[str, Any]],
+        skipped_nodes: set[str],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> set[str]:
+        """Mark branch-meta skip_downstream nodes as skipped before they run."""
+        skipped = self._skip_downstream_node_ids(result, node_class, nodes)
+        skipped.discard(source_node_id)
+        applied: set[str] = set()
+        for node_id in sorted(skipped):
+            if node_id in node_results:
+                continue
+            node_results[node_id] = {
+                "status": "skipped",
+                "reason": "skip_downstream",
+                "upstream": {"source_node": source_node_id},
+            }
+            skipped_nodes.add(node_id)
+            applied.add(node_id)
+            emit(
+                "node_skip",
+                {
+                    "run_id": run_id,
+                    "node_id": node_id,
+                    "reason": "skip_downstream",
+                    "upstream": {"source_node": source_node_id},
+                },
+            )
+        return applied
+
+    def _skip_downstream_node_ids(
+        self,
+        result: dict[str, Any],
+        node_class: Any,
+        nodes: dict[str, dict[str, Any]],
+    ) -> set[str]:
+        """Extract known downstream node IDs from flow-control skip metadata."""
+        if not self._routes_flow(node_class):
+            return set()
+        raw = result.get("skip_downstream")
+        branch_meta = result.get("_branch_meta")
+        if raw is None and isinstance(branch_meta, dict):
+            raw = branch_meta.get("skip_downstream")
+        if raw is None:
+            return set()
+        if isinstance(raw, str):
+            candidates = [raw]
+        else:
+            try:
+                candidates = list(raw)
+            except TypeError:
+                candidates = [raw]
+        return {str(node_id) for node_id in candidates if str(node_id) in nodes}
 
     @staticmethod
     def _routes_flow(node_class: Any) -> bool:

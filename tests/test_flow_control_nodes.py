@@ -2063,6 +2063,77 @@ async def test_executor_derives_inactive_branch_from_branch_meta_active_ports(tm
 
 
 @pytest.mark.asyncio
+async def test_executor_skips_nodes_listed_in_branch_meta_skip_downstream(tmp_path: Path) -> None:
+    class SkipDownstreamRouterNode:
+        NODE_ID = "skip_downstream_router"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        ROUTES_FLOW = True
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any) -> dict[str, Any]:
+            return {
+                "outputs": {"out": "ALLOW"},
+                "_branch_meta": {
+                    "type": "test_router",
+                    "skip_downstream": ["blocked_branch"],
+                },
+            }
+
+    class RecordingNode:
+        NODE_ID = "record"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"skip_downstream_router": SkipDownstreamRouterNode, "record": RecordingNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "router", "type": "skip_downstream_router", "outputs": {"out": {}}},
+            {"id": "allowed_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "blocked_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "blocked_descendant", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "router", "target_node": "allowed_branch", "source_output": "out", "target_input": "value"},
+            {"source_node": "router", "target_node": "blocked_branch", "source_output": "out", "target_input": "value"},
+            {
+                "source_node": "blocked_branch",
+                "target_node": "blocked_descendant",
+                "source_output": "out",
+                "target_input": "value",
+            },
+        ],
+    }
+    RecordingNode.calls = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("branch-meta-skip-downstream", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert RecordingNode.calls == ["allowed_branch"]
+    assert result["node_results"]["blocked_branch"]["status"] == "skipped"
+    assert result["node_results"]["blocked_branch"]["reason"] == "skip_downstream"
+    assert result["node_results"]["blocked_descendant"]["status"] == "skipped"
+    assert result["node_results"]["blocked_descendant"]["reason"] == "inactive_branch"
+    assert set(result["outputs"]) == {"router", "allowed_branch"}
+
+
+@pytest.mark.asyncio
 async def test_executor_skips_inactive_switch_outputs(tmp_path: Path) -> None:
     switch_node = _node_class("switch")
 
@@ -2241,6 +2312,79 @@ async def test_cached_flow_control_preserves_inactive_outputs(tmp_path: Path) ->
     assert second["node_results"]["true_branch"]["status"] == "cached"
     assert second["node_results"]["false_branch"]["status"] == "skipped"
     assert second["outputs"]["true_branch"] == {"out": "ready"}
+    assert RecordingNode.calls == []
+
+
+@pytest.mark.asyncio
+async def test_cached_flow_control_preserves_skip_downstream(tmp_path: Path) -> None:
+    class SkipDownstreamRouterNode:
+        NODE_ID = "skip_downstream_router"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        ROUTES_FLOW = True
+        calls = 0
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any) -> dict[str, Any]:
+            type(self).calls += 1
+            return {
+                "outputs": {"out": "ALLOW"},
+                "_branch_meta": {
+                    "type": "test_router",
+                    "skip_downstream": ["blocked_branch"],
+                },
+            }
+
+    class RecordingNode:
+        NODE_ID = "record"
+        RETURN_NAMES = ("out",)
+        RETURN_TYPES = ("ANY",)
+        calls: list[str] = []
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, value: Any) -> dict[str, Any]:
+            self.calls.append(context.node_id)
+            return {"outputs": {"out": value}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"skip_downstream_router": SkipDownstreamRouterNode, "record": RecordingNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "router", "type": "skip_downstream_router", "outputs": {"out": {}}},
+            {"id": "allowed_branch", "type": "record", "outputs": {"out": {}}},
+            {"id": "blocked_branch", "type": "record", "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "router", "target_node": "allowed_branch", "source_output": "out", "target_input": "value"},
+            {"source_node": "router", "target_node": "blocked_branch", "source_output": "out", "target_input": "value"},
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    SkipDownstreamRouterNode.calls = 0
+    RecordingNode.calls = []
+    first = await executor.execute("first", workflow)
+    assert first["status"] == "completed"
+    assert SkipDownstreamRouterNode.calls == 1
+    assert RecordingNode.calls == ["allowed_branch"]
+
+    RecordingNode.calls = []
+    second = await executor.execute("second", workflow)
+
+    assert second["status"] == "completed"
+    assert second["node_results"]["router"]["status"] == "cached"
+    assert second["node_results"]["allowed_branch"]["status"] == "cached"
+    assert second["node_results"]["blocked_branch"]["status"] == "skipped"
+    assert second["node_results"]["blocked_branch"]["reason"] == "skip_downstream"
+    assert SkipDownstreamRouterNode.calls == 1
     assert RecordingNode.calls == []
 
 

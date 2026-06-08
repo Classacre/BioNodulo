@@ -151,6 +151,7 @@ class CacheStore:
         inputs: dict[str, Any] | None = None,
         upstream_keys: dict[str, str | None] | None = None,
         inactive_outputs: list[str] | None = None,
+        skip_downstream: list[str] | None = None,
     ) -> None:
         """Write metadata marker for a successful node execution.
 
@@ -161,6 +162,7 @@ class CacheStore:
             inputs: Resolved inputs (stored for provenance).
             upstream_keys: Upstream cache keys (stored for provenance).
             inactive_outputs: Flow-control output ports that should not execute downstream branches.
+            skip_downstream: Downstream node IDs that should be skipped when this cached result is reused.
         """
         marker = {
             "cache_key": cache_key,
@@ -171,6 +173,8 @@ class CacheStore:
         }
         if inactive_outputs is not None:
             marker["inactive_outputs"] = inactive_outputs
+        if skip_downstream is not None:
+            marker["skip_downstream"] = skip_downstream
         self._metadata.set(cache_key, marker)
         self._remember(cache_key)
 
@@ -183,6 +187,7 @@ class CacheStore:
         upstream_keys: dict[str, str | None] | None = None,
         ttl_seconds: int | float | None = None,
         inactive_outputs: list[str] | None = None,
+        skip_downstream: list[str] | None = None,
     ) -> None:
         """Write metadata marker with an optional TTL expiration."""
         self.write_marker(
@@ -192,6 +197,7 @@ class CacheStore:
             inputs=inputs,
             upstream_keys=upstream_keys,
             inactive_outputs=inactive_outputs,
+            skip_downstream=skip_downstream,
         )
         if ttl_seconds is None:
             return
