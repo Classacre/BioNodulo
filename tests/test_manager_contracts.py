@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+
 from fastapi.testclient import TestClient
 
 
@@ -82,3 +84,56 @@ repository = "https://github.com/bionodulo/community-nodes.git"
     assert community["install_status"] == "installed"
     assert community["installed_package"]["name"] == "community-nodes"
     assert community["compatibility"]["supported_manifest"] == "bionodulo.toml"
+
+
+def test_manager_reload_evicts_deleted_custom_nodes_from_object_info(monkeypatch, tmp_path) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    package_dir = tmp_path / "custom_nodes" / "manifest_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-pkg"
+version = "0.1.0"
+entrypoints = ["nodes"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "nodes.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestEntrypointNode(BaseNode):
+    NODE_ID = "manifest_entrypoint"
+    DISPLAY_NAME = "Manifest Entrypoint"
+    CATEGORY = "custom"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "ok"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app()) as client:
+        first_reload = client.post("/api/manager/reload")
+        assert first_reload.status_code == 200
+        first_info = client.get("/api/object_info")
+        assert first_info.status_code == 200
+        first_payload = first_info.json()
+        assert "manifest_entrypoint" in first_payload
+        assert "input_file" in first_payload
+
+        shutil.rmtree(package_dir)
+
+        second_reload = client.post("/api/manager/reload")
+        assert second_reload.status_code == 200
+        second_info = client.get("/api/object_info")
+        assert second_info.status_code == 200
+        second_payload = second_info.json()
+
+    assert "manifest_entrypoint" not in second_payload
+    assert "input_file" in second_payload
