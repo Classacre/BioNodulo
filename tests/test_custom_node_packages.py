@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from bionodulo.manager.custom_nodes import list_installed_packages, load_package_manifest, registry_entries
+from bionodulo.manager.resolver import resolve_workflow
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -378,3 +379,34 @@ class ManifestEntrypointNode(BaseNode):
     assert registry.get("manifest_entrypoint") is BuiltinMarkerNode
     assert registry.object_info("manifest_entrypoint")["category"] == "test"
     assert "custom_node_package" not in registry.object_info("manifest_entrypoint")
+
+
+def test_resolver_uses_cached_node_info_for_missing_custom_node_source(tmp_path: Path) -> None:
+    registry = NodeRegistry.create_isolated()
+    workflow = {
+        "nodes": [
+            {
+                "id": "custom-qc-1",
+                "type": "custom_qc",
+                "node_info": {
+                    "display_name": "Custom QC",
+                    "category": "custom",
+                    "git_url": "https://example.test/custom-qc.git",
+                    "git_commit": "abc123",
+                    "required_executables": [],
+                    "required_r_packages": [],
+                    "builtin": False,
+                },
+            }
+        ],
+    }
+
+    report = resolve_workflow(workflow, registry, tmp_path)
+
+    assert report.installable is True
+    assert len(report.missing_nodes) == 1
+    missing = report.missing_nodes[0]
+    assert missing.node_type == "custom_qc"
+    assert missing.git_url == "https://example.test/custom-qc.git"
+    assert missing.git_commit == "abc123"
+    assert "https://example.test/custom-qc.git" in missing.message

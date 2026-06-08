@@ -356,6 +356,8 @@ async def _resolve_workflow_async(
             node_type_usages.setdefault(node_type, []).append(node_id)
 
     manifest = workflow.get("node_manifest", {})
+    if not isinstance(manifest, dict) or not manifest:
+        manifest = build_node_manifest(workflow, registry)
 
     # Run checks for each node type concurrently
     coros = [
