@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow } from '../types';
@@ -220,5 +222,15 @@ describe('ExportModal i18n', () => {
     expect(await screen.findByText('No se pudieron incrustar los metadatos del flujo de trabajo en el PNG')).toBeInTheDocument();
     expect(screen.queryByText('metadata write failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.downloadPng', downloadError);
+  });
+
+  it('keeps ExportModal on the shared Dialog primitive', () => {
+    const source = readFileSync(resolve(__dirname, '../components/modals/ExportModal.tsx'), 'utf8');
+
+    expect(source).toContain("import Dialog from '../ui/Dialog';");
+    expect(source).toContain('<Dialog');
+    expect(source).not.toContain("import { useFocusTrap } from '../../hooks/ui';");
+    expect(source).not.toContain('<div className="modal-overlay"');
+    expect(source).not.toContain('role="dialog"');
   });
 });
