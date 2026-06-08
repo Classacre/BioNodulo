@@ -450,8 +450,8 @@ class MergeTablesNode(BaseNode):
     NODE_ID = "merge_tables"
     DISPLAY_NAME = "Merge Tables"
     CATEGORY = "data_transform"
-    DESCRIPTION = "Join two CSV/TSV tables by a shared key using inner, left, right, or outer joins."
-    SEARCH_ALIASES = ["merge", "join", "table", "csv", "tsv", "annotation"]
+    DESCRIPTION = "Join two CSV/TSV tables by a shared or mapped key using inner, left, right, or outer joins."
+    SEARCH_ALIASES = ["merge", "join", "table", "csv", "tsv", "annotation", "left join", "right join", "outer join"]
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("merged_table",)
     REQUIRES_EXTERNAL_TOOLS = False
@@ -462,9 +462,20 @@ class MergeTablesNode(BaseNode):
             "required": {
                 "table_a": ("FILE", {"description": "Left CSV/TSV table"}),
                 "table_b": ("FILE", {"description": "Right CSV/TSV table"}),
-                "join_key": ("STRING", {"description": "Shared column name to join on"}),
             },
             "optional": {
+                "join_key": ("STRING", {
+                    "default": "",
+                    "description": "Shared column name to join on; empty auto-detects a common column",
+                }),
+                "key_column_a": ("STRING", {
+                    "default": "",
+                    "description": "Column name in table A; empty uses join_key or auto-detected common column",
+                }),
+                "key_column_b": ("STRING", {
+                    "default": "",
+                    "description": "Column name in table B; empty uses key_column_a/join_key",
+                }),
                 "join_type": ("STRING", {"default": "inner", "options": ["inner", "left", "right", "outer"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
                 "right_suffix": ("STRING", {"default": "_right", "advanced": True}),
@@ -480,32 +491,30 @@ class MergeTablesNode(BaseNode):
         delim = _delimiter(str(kwargs.get("delimiter", "auto")), table_a)
         fields_a, rows_a = _read_table(table_a, delim)
         fields_b, rows_b = _read_table(table_b, delim)
-        join_key = str(kwargs["join_key"])
+        key_a, key_b = self._resolve_join_keys(kwargs, fields_a, fields_b)
         join_type = str(kwargs.get("join_type", "inner"))
         suffix = str(kwargs.get("right_suffix", "_right"))
-        if join_key not in fields_a or join_key not in fields_b:
-            raise ValueError(f"Join key {join_key!r} must exist in both tables")
         if join_type not in {"inner", "left", "right", "outer"}:
             raise ValueError(f"Unsupported join_type: {join_type}")
 
         right_output_names = {
             field: (field if field not in fields_a else f"{field}{suffix}")
             for field in fields_b
-            if field != join_key
+            if field != key_b
         }
         output_fields = list(fields_a) + list(right_output_names.values())
 
         right_by_key: OrderedDict[str, list[dict[str, str]]] = OrderedDict()
         for row in rows_b:
-            right_by_key.setdefault(row.get(join_key, ""), []).append(row)
+            right_by_key.setdefault(row.get(key_b, ""), []).append(row)
         left_by_key: OrderedDict[str, list[dict[str, str]]] = OrderedDict()
         for row in rows_a:
-            left_by_key.setdefault(row.get(join_key, ""), []).append(row)
+            left_by_key.setdefault(row.get(key_a, ""), []).append(row)
 
         output_rows: list[dict[str, Any]] = []
         if join_type in {"inner", "left", "outer"}:
             for left in rows_a:
-                matches = right_by_key.get(left.get(join_key, ""), [])
+                matches = right_by_key.get(left.get(key_a, ""), [])
                 if matches:
                     for right in matches:
                         output_rows.append(self._combine(left, right, fields_a, right_output_names))
@@ -514,13 +523,13 @@ class MergeTablesNode(BaseNode):
 
         if join_type in {"right", "outer"}:
             for right in rows_b:
-                matches = left_by_key.get(right.get(join_key, ""), [])
+                matches = left_by_key.get(right.get(key_b, ""), [])
                 if join_type == "right" and matches:
                     for left in matches:
                         output_rows.append(self._combine(left, right, fields_a, right_output_names))
                 elif not matches:
                     left_stub = {field: "" for field in fields_a}
-                    left_stub[join_key] = right.get(join_key, "")
+                    left_stub[key_a] = right.get(key_b, "")
                     output_rows.append(self._combine(left_stub, right, fields_a, right_output_names))
 
         output_delim, extension = self._output_format(
@@ -531,6 +540,26 @@ class MergeTablesNode(BaseNode):
         out_path = _node_output_dir(self, context) / f"{Path(str(table_a)).stem}.merged{extension}"
         _write_table(out_path, output_fields, output_rows, output_delim)
         return (str(out_path),)
+
+    @staticmethod
+    def _resolve_join_keys(kwargs: dict[str, Any], fields_a: list[str], fields_b: list[str]) -> tuple[str, str]:
+        shared_key = str(kwargs.get("join_key", "") or "").strip()
+        key_a = str(kwargs.get("key_column_a", "") or "").strip() or shared_key
+        key_b = str(kwargs.get("key_column_b", "") or "").strip() or key_a or shared_key
+        if not key_a and not key_b:
+            common = [field for field in fields_a if field in fields_b]
+            if not common:
+                raise ValueError("No common columns found. Please specify join_key or key_column_a/key_column_b.")
+            key_a = key_b = common[0]
+        elif key_a and not key_b:
+            key_b = key_a
+        elif key_b and not key_a:
+            key_a = key_b
+        if key_a not in fields_a:
+            raise ValueError(f"Key column {key_a!r} must exist in table A")
+        if key_b not in fields_b:
+            raise ValueError(f"Key column {key_b!r} must exist in table B")
+        return key_a, key_b
 
     @staticmethod
     def _output_format(output_type: str, table_a: str | Path, table_b: str | Path) -> tuple[str, str]:

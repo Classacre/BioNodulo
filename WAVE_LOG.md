@@ -37,6 +37,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Missing-dependency install progress messages now route known backend protocol strings through a centralized locale-key map, preserving localized installer status copy without scattered English comparisons.
 - Workflow tabs now use the shared workflow-naming helper for untitled-name detection, keeping English fallback sentinels out of the tab component while preserving localized tab labels.
 - Flow-control nodes no longer import the shared HTTP stack at module load time, so core branch/loop/wait nodes still register in lightweight environments where `httpx` extras are unavailable; URL polling resolves the HTTP client lazily when used.
+- Merge Tables now accepts Stage 2 `key_column_a` / `key_column_b` inputs and auto-detects a shared key when no key is provided, while preserving the existing `join_key` contract and CWL runner compatibility.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
