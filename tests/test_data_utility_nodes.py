@@ -247,7 +247,10 @@ def test_merge_tables_exposes_output_type_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "Merge Tables"
     assert node_info["output_name"] == ["merged_table"]
     assert set(node_info["input"]["required"]) == {"table_a", "table_b"}
-    assert {"join_key", "key_column_a", "key_column_b"}.issubset(node_info["input"]["optional"])
+    assert {"join_key", "key_column_a", "key_column_b", "suffix_a", "suffix_b"}.issubset(
+        node_info["input"]["optional"]
+    )
+    assert node_info["input"]["optional"]["join_type"][1]["options"] == ["inner", "left", "right", "outer", "cross"]
     output_type = node_info["input"]["optional"]["output_type"]
     assert output_type[1]["default"] == "AUTO"
     assert output_type[1]["options"] == ["AUTO", "CSV", "TSV"]
@@ -339,6 +342,65 @@ async def test_merge_tables_auto_detects_common_key_when_not_specified(tmp_path:
     assert rows == [
         {"gene": "g1", "logfc": "2.0", "symbol": "ABC1"},
         {"gene": "g2", "logfc": "-1.2", "symbol": ""},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_merge_tables_cross_join_does_not_require_key_columns(tmp_path: Path) -> None:
+    table_a = tmp_path / "samples.tsv"
+    table_b = tmp_path / "conditions.tsv"
+    _write_table(table_a, [
+        {"sample": "S1"},
+        {"sample": "S2"},
+    ])
+    _write_table(table_b, [
+        {"condition": "control"},
+        {"condition": "treated"},
+    ])
+
+    result = await _node_class("merge_tables")().run(
+        table_a=str(table_a),
+        table_b=str(table_b),
+        join_type="cross",
+        delimiter="tsv",
+        context=_context(tmp_path, "merge-cross"),
+    )
+
+    rows = _read_table(result[0])
+    assert rows == [
+        {"sample": "S1", "condition": "control"},
+        {"sample": "S1", "condition": "treated"},
+        {"sample": "S2", "condition": "control"},
+        {"sample": "S2", "condition": "treated"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_merge_tables_suffixes_both_overlapping_non_key_columns(tmp_path: Path) -> None:
+    table_a = tmp_path / "expression.tsv"
+    table_b = tmp_path / "annotation.tsv"
+    _write_table(table_a, [
+        {"gene": "g1", "score": "0.91"},
+    ])
+    _write_table(table_b, [
+        {"gene": "g1", "score": "curated", "symbol": "ABC1"},
+    ])
+
+    result = await _node_class("merge_tables")().run(
+        table_a=str(table_a),
+        table_b=str(table_b),
+        join_key="gene",
+        join_type="inner",
+        delimiter="tsv",
+        suffix_a="_expr",
+        suffix_b="_ann",
+        context=_context(tmp_path, "merge-suffixes"),
+    )
+
+    rows = _read_table(result[0])
+    assert list(rows[0]) == ["gene", "score_expr", "score_ann", "symbol"]
+    assert rows == [
+        {"gene": "g1", "score_expr": "0.91", "score_ann": "curated", "symbol": "ABC1"},
     ]
 
 

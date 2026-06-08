@@ -450,8 +450,19 @@ class MergeTablesNode(BaseNode):
     NODE_ID = "merge_tables"
     DISPLAY_NAME = "Merge Tables"
     CATEGORY = "data_transform"
-    DESCRIPTION = "Join two CSV/TSV tables by a shared or mapped key using inner, left, right, or outer joins."
-    SEARCH_ALIASES = ["merge", "join", "table", "csv", "tsv", "annotation", "left join", "right join", "outer join"]
+    DESCRIPTION = "Join two CSV/TSV tables by a shared or mapped key using inner, left, right, outer, or cross joins."
+    SEARCH_ALIASES = [
+        "merge",
+        "join",
+        "table",
+        "csv",
+        "tsv",
+        "annotation",
+        "left join",
+        "right join",
+        "outer join",
+        "cross join",
+    ]
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("merged_table",)
     REQUIRES_EXTERNAL_TOOLS = False
@@ -476,8 +487,10 @@ class MergeTablesNode(BaseNode):
                     "default": "",
                     "description": "Column name in table B; empty uses key_column_a/join_key",
                 }),
-                "join_type": ("STRING", {"default": "inner", "options": ["inner", "left", "right", "outer"]}),
+                "join_type": ("STRING", {"default": "inner", "options": ["inner", "left", "right", "outer", "cross"]}),
                 "delimiter": ("STRING", {"default": "auto", "options": ["auto", "tsv", "csv"]}),
+                "suffix_a": ("STRING", {"default": "_a", "advanced": True}),
+                "suffix_b": ("STRING", {"default": "_b", "advanced": True}),
                 "right_suffix": ("STRING", {"default": "_right", "advanced": True}),
                 "output_type": ("STRING", {"default": "AUTO", "options": ["AUTO", "CSV", "TSV"]}),
             },
@@ -491,18 +504,29 @@ class MergeTablesNode(BaseNode):
         delim = _delimiter(str(kwargs.get("delimiter", "auto")), table_a)
         fields_a, rows_a = _read_table(table_a, delim)
         fields_b, rows_b = _read_table(table_b, delim)
-        key_a, key_b = self._resolve_join_keys(kwargs, fields_a, fields_b)
         join_type = str(kwargs.get("join_type", "inner"))
-        suffix = str(kwargs.get("right_suffix", "_right"))
-        if join_type not in {"inner", "left", "right", "outer"}:
+        if join_type not in {"inner", "left", "right", "outer", "cross"}:
             raise ValueError(f"Unsupported join_type: {join_type}")
+        key_a, key_b = ("", "") if join_type == "cross" else self._resolve_join_keys(kwargs, fields_a, fields_b)
+        suffix_a, suffix_b = self._resolve_suffixes(kwargs)
 
-        right_output_names = {
-            field: (field if field not in fields_a else f"{field}{suffix}")
-            for field in fields_b
-            if field != key_b
-        }
-        output_fields = list(fields_a) + list(right_output_names.values())
+        left_output_names, right_output_names = self._output_name_maps(fields_a, fields_b, key_a, key_b, suffix_a, suffix_b)
+        output_fields = list(left_output_names.values()) + list(right_output_names.values())
+
+        if join_type == "cross":
+            output_rows = [
+                self._combine(left, right, left_output_names, right_output_names)
+                for left in rows_a
+                for right in rows_b
+            ]
+            output_delim, extension = self._output_format(
+                str(kwargs.get("output_type", "AUTO") or "AUTO"),
+                table_a,
+                table_b,
+            )
+            out_path = _node_output_dir(self, context) / f"{Path(str(table_a)).stem}.merged{extension}"
+            _write_table(out_path, output_fields, output_rows, output_delim)
+            return (str(out_path),)
 
         right_by_key: OrderedDict[str, list[dict[str, str]]] = OrderedDict()
         for row in rows_b:
@@ -517,20 +541,20 @@ class MergeTablesNode(BaseNode):
                 matches = right_by_key.get(left.get(key_a, ""), [])
                 if matches:
                     for right in matches:
-                        output_rows.append(self._combine(left, right, fields_a, right_output_names))
+                        output_rows.append(self._combine(left, right, left_output_names, right_output_names))
                 elif join_type in {"left", "outer"}:
-                    output_rows.append(self._combine(left, None, fields_a, right_output_names))
+                    output_rows.append(self._combine(left, None, left_output_names, right_output_names))
 
         if join_type in {"right", "outer"}:
             for right in rows_b:
                 matches = left_by_key.get(right.get(key_b, ""), [])
                 if join_type == "right" and matches:
                     for left in matches:
-                        output_rows.append(self._combine(left, right, fields_a, right_output_names))
+                        output_rows.append(self._combine(left, right, left_output_names, right_output_names))
                 elif not matches:
                     left_stub = {field: "" for field in fields_a}
                     left_stub[key_a] = right.get(key_b, "")
-                    output_rows.append(self._combine(left_stub, right, fields_a, right_output_names))
+                    output_rows.append(self._combine(left_stub, right, left_output_names, right_output_names))
 
         output_delim, extension = self._output_format(
             str(kwargs.get("output_type", "AUTO") or "AUTO"),
@@ -540,6 +564,14 @@ class MergeTablesNode(BaseNode):
         out_path = _node_output_dir(self, context) / f"{Path(str(table_a)).stem}.merged{extension}"
         _write_table(out_path, output_fields, output_rows, output_delim)
         return (str(out_path),)
+
+    @staticmethod
+    def _resolve_suffixes(kwargs: dict[str, Any]) -> tuple[str, str]:
+        has_suffix_a = "suffix_a" in kwargs
+        has_suffix_b = "suffix_b" in kwargs
+        if has_suffix_a or has_suffix_b:
+            return str(kwargs.get("suffix_a", "_a")), str(kwargs.get("suffix_b", kwargs.get("right_suffix", "_b")))
+        return "", str(kwargs.get("right_suffix", "_right"))
 
     @staticmethod
     def _resolve_join_keys(kwargs: dict[str, Any], fields_a: list[str], fields_b: list[str]) -> tuple[str, str]:
@@ -562,6 +594,28 @@ class MergeTablesNode(BaseNode):
         return key_a, key_b
 
     @staticmethod
+    def _output_name_maps(
+        fields_a: list[str],
+        fields_b: list[str],
+        key_a: str,
+        key_b: str,
+        suffix_a: str,
+        suffix_b: str,
+    ) -> tuple[OrderedDict[str, str], OrderedDict[str, str]]:
+        left_names: OrderedDict[str, str] = OrderedDict()
+        right_names: OrderedDict[str, str] = OrderedDict()
+        overlapping = set(fields_a) & set(fields_b)
+        overlapping.discard(key_a)
+        overlapping.discard(key_b)
+        for field in fields_a:
+            left_names[field] = f"{field}{suffix_a}" if suffix_a and field in overlapping else field
+        for field in fields_b:
+            if field == key_b:
+                continue
+            right_names[field] = f"{field}{suffix_b}" if field in overlapping else field
+        return left_names, right_names
+
+    @staticmethod
     def _output_format(output_type: str, table_a: str | Path, table_b: str | Path) -> tuple[str, str]:
         normalized = output_type.upper()
         if normalized == "CSV":
@@ -580,10 +634,10 @@ class MergeTablesNode(BaseNode):
     def _combine(
         left: dict[str, str],
         right: dict[str, str] | None,
-        fields_a: list[str],
+        left_output_names: OrderedDict[str, str],
         right_output_names: dict[str, str],
     ) -> dict[str, str]:
-        row = {field: left.get(field, "") for field in fields_a}
+        row = {output_field: left.get(left_field, "") for left_field, output_field in left_output_names.items()}
         for right_field, output_field in right_output_names.items():
             row[output_field] = right.get(right_field, "") if right else ""
         return row
