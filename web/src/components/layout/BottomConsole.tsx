@@ -12,9 +12,10 @@ import { showOutputDiffAtom } from '../../state/uiAtoms';
 import { appPath } from '../../utils/appBase';
 
 type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
+type HistoryBucketId = 'today' | 'yesterday' | 'pastWeek' | 'earlier' | `month:${number}` | `year:${number}`;
 
 interface HistoryBucket {
-  label: string;
+  id: HistoryBucketId;
   runs: RunRecord[];
 }
 
@@ -26,19 +27,25 @@ function historyStatusFilterLabel(t: TFunction, status: HistoryStatusFilter): st
   return t(`console.historyStatus.${status}`);
 }
 
-function historyBucketLabel(t: TFunction, label: string): string {
-  switch (label) {
-    case 'Today':
+function historyBucketLabel(t: TFunction, id: HistoryBucketId, locale?: string): string {
+  switch (id) {
+    case 'today':
       return t('common.today');
-    case 'Yesterday':
+    case 'yesterday':
       return t('common.yesterday');
-    case 'Past Week':
+    case 'pastWeek':
       return t('console.bucketPastWeek');
-    case 'Earlier':
+    case 'earlier':
       return t('console.bucketEarlier');
-    default:
-      return label;
   }
+  if (id.startsWith('month:')) {
+    const monthNumber = Number.parseInt(id.slice('month:'.length), 10);
+    if (Number.isInteger(monthNumber) && monthNumber >= 1 && monthNumber <= 12) {
+      return new Date(2000, monthNumber - 1, 1).toLocaleString(locale, { month: 'long' });
+    }
+  }
+  if (id.startsWith('year:')) return id.slice('year:'.length);
+  return id;
 }
 
 function runTimestamp(run: RunRecord): number {
@@ -48,33 +55,33 @@ function runTimestamp(run: RunRecord): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function bucketLabelForRun(run: RunRecord, now: Date, locale?: string): string {
+function bucketIdForRun(run: RunRecord, now: Date): HistoryBucketId {
   const ts = runTimestamp(run);
-  if (!ts) return 'Earlier';
+  if (!ts) return 'earlier';
   const runDate = new Date(ts);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
   const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
-  if (ts >= todayStart) return 'Today';
-  if (ts >= yesterdayStart) return 'Yesterday';
-  if (ts >= weekStart) return 'Past Week';
-  if (runDate.getFullYear() === now.getFullYear()) return runDate.toLocaleString(locale, { month: 'long' });
-  return runDate.getFullYear().toString();
+  if (ts >= todayStart) return 'today';
+  if (ts >= yesterdayStart) return 'yesterday';
+  if (ts >= weekStart) return 'pastWeek';
+  if (runDate.getFullYear() === now.getFullYear()) return `month:${runDate.getMonth() + 1}`;
+  return `year:${runDate.getFullYear()}`;
 }
 
-function bucketHistory(history: RunRecord[], locale?: string): HistoryBucket[] {
+function bucketHistory(history: RunRecord[]): HistoryBucket[] {
   const now = new Date();
-  const order: string[] = [];
-  const groups = new Map<string, RunRecord[]>();
+  const order: HistoryBucketId[] = [];
+  const groups = new Map<HistoryBucketId, RunRecord[]>();
   for (const run of history) {
-    const label = bucketLabelForRun(run, now, locale);
-    if (!groups.has(label)) {
-      groups.set(label, []);
-      order.push(label);
+    const id = bucketIdForRun(run, now);
+    if (!groups.has(id)) {
+      groups.set(id, []);
+      order.push(id);
     }
-    groups.get(label)!.push(run);
+    groups.get(id)!.push(run);
   }
-  return order.map(label => ({ label, runs: groups.get(label)! }));
+  return order.map(id => ({ id, runs: groups.get(id)! }));
 }
 
 type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
@@ -576,7 +583,7 @@ export default function BottomConsole({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
-  const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<string>>(new Set());
+  const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<HistoryBucketId>>(new Set());
   // Per-node log render caps. Default cap keeps the DOM bounded even when a
   // run dumps tens of thousands of lines (e.g. `--verbose` aligners) — the
   // user can opt to render more on demand.
@@ -596,7 +603,7 @@ export default function BottomConsole({
     });
   }, [history, historyQuery, historyStatusFilter]);
 
-  const historyBuckets = useMemo(() => bucketHistory(filteredHistory, i18n.language), [filteredHistory, i18n.language]);
+  const historyBuckets = useMemo(() => bucketHistory(filteredHistory), [filteredHistory]);
   const historyCountsByStatus = useMemo(() => {
     const counts: Record<HistoryStatusFilter, number> = { all: history.length, completed: 0, error: 0, cancelled: 0 };
     for (const run of history) {
@@ -606,10 +613,10 @@ export default function BottomConsole({
     }
     return counts;
   }, [history]);
-  const toggleHistoryBucket = (label: string) => {
+  const toggleHistoryBucket = (id: HistoryBucketId) => {
     setCollapsedHistoryBuckets(prev => {
       const next = new Set(prev);
-      next.has(label) ? next.delete(label) : next.add(label);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
@@ -979,17 +986,17 @@ export default function BottomConsole({
                 ) : (
                   <div className="history-bucket-list">
                     {historyBuckets.map(bucket => {
-                      const collapsed = collapsedHistoryBuckets.has(bucket.label);
+                      const collapsed = collapsedHistoryBuckets.has(bucket.id);
                       return (
-                        <section key={bucket.label} className="history-bucket">
+                        <section key={bucket.id} className="history-bucket">
                           <button
                             type="button"
                             className="history-bucket-header"
-                            onClick={() => toggleHistoryBucket(bucket.label)}
+                            onClick={() => toggleHistoryBucket(bucket.id)}
                             aria-expanded={!collapsed}
                           >
                             <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={12} />
-                            <span className="history-bucket-label">{historyBucketLabel(t, bucket.label)}</span>
+                            <span className="history-bucket-label">{historyBucketLabel(t, bucket.id, i18n.language)}</span>
                             <span className="history-bucket-count">{bucket.runs.length}</span>
                           </button>
                           {!collapsed && (

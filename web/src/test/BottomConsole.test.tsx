@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
 
@@ -56,6 +58,22 @@ describe('BottomConsole i18n', () => {
     vi.useRealTimers();
     storage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it('keeps history bucket identifiers locale-neutral', () => {
+    const source = readFileSync(resolve(__dirname, '../components/layout/BottomConsole.tsx'), 'utf8');
+
+    expect(source).toContain('HistoryBucketId');
+    [
+      "return 'Today'",
+      "return 'Yesterday'",
+      "return 'Past Week'",
+      "return 'Earlier'",
+      "case 'Today'",
+      "case 'Yesterday'",
+      "case 'Past Week'",
+      "case 'Earlier'",
+    ].forEach(text => expect(source).not.toContain(text));
   });
 
   it('renders console tabs and empty states from the active locale', async () => {

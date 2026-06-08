@@ -33,6 +33,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Import and Export modals now use the shared Dialog primitive, removing their duplicated modal shell/focus-trap wrappers while preserving import/export actions.
 - Batch sample-sheet imports now use the shared Dialog primitive, preserving CSV/TSV mapping and queue actions while centralizing dialog semantics and focus handling.
 - Getting Started now uses the shared Dialog primitive, keeping its release notes, recents, resources, and startup toggle behavior while removing its duplicated modal shell.
+- BottomConsole history buckets now use stable locale-neutral ids internally while preserving localized Today, Yesterday, Past Week, Earlier, month, and year headings.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
