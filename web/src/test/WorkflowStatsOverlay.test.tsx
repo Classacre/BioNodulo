@@ -136,6 +136,9 @@ describe('WorkflowStatsOverlay i18n', () => {
     expect(screen.getByText('GPU')).toBeInTheDocument();
     expect(screen.getByText('VRAM')).toBeInTheDocument();
     expect(screen.getAllByText('Temp')).toHaveLength(2);
+    expect(screen.getByText('8,0 GB / 16,0 GB')).toBeInTheDocument();
+    expect(screen.getByText('2,0 GB / 8,0 GB')).toBeInTheDocument();
+    expect(screen.queryByText('8.0 GB / 16.0 GB')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Colapsar estadisticas de flujo de trabajo' }));
 
@@ -161,6 +164,8 @@ describe('WorkflowStatsOverlay i18n', () => {
       'workflowStats.gpuLabel',
       'workflowStats.vramLabel',
       'workflowStats.tempLabel',
+      'workflowStats.sizeMB',
+      'workflowStats.sizeGB',
     ].forEach(key => expect(source).toContain(key));
 
     [

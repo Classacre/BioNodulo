@@ -66,11 +66,16 @@ function summarise(workflow: Workflow, t: TFunction, categoryFallback: string): 
   return { nodes: realNodeCount, edges: edges.length, groups: groups.length, categories };
 }
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number, t: TFunction, language: string): string {
+  const integer = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
+  const decimal = new Intl.NumberFormat(language, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  });
   const gb = bytes / (1024 * 1024 * 1024);
-  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  if (gb >= 1) return t('workflowStats.sizeGB', { size: decimal.format(gb) });
   const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(0)} MB`;
+  return t('workflowStats.sizeMB', { size: integer.format(mb) });
 }
 
 function Bar({ value, color, label }: { value: number; color: string; label: string }) {
@@ -93,7 +98,7 @@ function tempColor(c: number, warn: number, danger: number): string {
 }
 
 export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStatsOverlayProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
 
@@ -210,7 +215,7 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
           )}
           <Bar value={sys.ram_percent} color="#8b5cf6" label={t('workflowStats.ramLabel')} />
           <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'right' }}>
-            {formatBytes(sys.ram_used)} / {formatBytes(sys.ram_total)}
+            {formatBytes(sys.ram_used, t, i18n.language)} / {formatBytes(sys.ram_total, t, i18n.language)}
           </div>
 
           {gpu && (
@@ -227,7 +232,7 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
                 </div>
               )}
               <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'right' }}>
-                {formatBytes(gpu.vram_used)} / {formatBytes(gpu.vram_total)}
+                {formatBytes(gpu.vram_used, t, i18n.language)} / {formatBytes(gpu.vram_total, t, i18n.language)}
               </div>
             </>
           )}

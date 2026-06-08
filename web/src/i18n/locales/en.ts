@@ -470,6 +470,8 @@ const en = {
     gpuLabel: 'GPU',
     vramLabel: 'VRAM',
     tempLabel: 'Temp',
+    sizeMB: '{{size}} MB',
+    sizeGB: '{{size}} GB',
   },
   gettingStarted: {
     title: 'Getting Started',
