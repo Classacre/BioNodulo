@@ -31,6 +31,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - Share URL copy feedback now formats copied URL size through workflowShare locale keys and active-language number formatting, so Spanish toasts can render decimal sizes such as `31,3 KB`.
 - Workspace file previews now use the shared Dialog primitive, giving preview modals consistent dialog semantics, focus trapping, Escape dismissal, and stacked z-index behavior.
 - Import and Export modals now use the shared Dialog primitive, removing their duplicated modal shell/focus-trap wrappers while preserving import/export actions.
+- Batch sample-sheet imports now use the shared Dialog primitive, preserving CSV/TSV mapping and queue actions while centralizing dialog semantics and focus handling.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 

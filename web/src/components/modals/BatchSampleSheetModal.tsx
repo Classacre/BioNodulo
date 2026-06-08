@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { Skeleton } from '../ui/Skeleton';
 import type { Workflow, WorkflowNode, WorkflowParameter } from '../../types';
-import { useFocusTrap } from '../../hooks/ui';
 import { coerceWorkflowParameterInput } from '../../utils/workflowParameters';
 import { logError } from '../../state/logging';
+import Dialog from '../ui/Dialog';
 
 export interface SampleSheetRun {
   rowIndex: number;
@@ -272,110 +272,14 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
     }
   };
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, true, onClose);
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        className="modal-content"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('batchSampleSheet.title')}
-        style={{ width: 760, maxHeight: '85vh' }}
-        onClick={event => event.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h3>{t('batchSampleSheet.title')}</h3>
-          <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')}>
-            <Icon name="close" size={14} />
-          </button>
-        </div>
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 12 }}>
-            {t('batchSampleSheet.description')}
-          </p>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
-              <Icon name="import" size={12} /> {t('batchSampleSheet.upload')}
-              <input
-                type="file"
-                accept=".csv,.tsv,.txt"
-                style={{ display: 'none' }}
-                onChange={handleFile}
-              />
-            </label>
-            <input
-              placeholder={t('batchSampleSheet.runNamePrefixPlaceholder')}
-              value={namePrefix}
-              onChange={event => setNamePrefix(event.target.value)}
-              style={{ ...INPUT_STYLE, flex: 1, maxWidth: 240 }}
-            />
-            {parsed && (
-              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                {t('batchSampleSheet.sheetSummary', {
-                  rows: t('batchSampleSheet.rowCount', { count: parsed.rows.length }),
-                  columns: t('batchSampleSheet.columnCount', { count: parsed.headers.length }),
-                  format: parsed.delimiter === '\t' ? 'TSV' : 'CSV',
-                })}
-              </span>
-            )}
-          </div>
-          <textarea
-            placeholder={t('batchSampleSheet.sheetPlaceholder')}
-            value={rawText}
-            onChange={event => setRawText(event.target.value)}
-            style={{ ...INPUT_STYLE, minHeight: 120, fontFamily: 'JetBrains Mono, ui-monospace, monospace', resize: 'vertical' }}
-          />
-          {!parsed && rawText.length === 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 12px' }}>
-              <Skeleton variant="text" width="40%" height={12} />
-              <Skeleton variant="text" width="80%" height={12} />
-              <Skeleton variant="text" width="60%" height={12} />
-            </div>
-          )}
-          {parsed && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('batchSampleSheet.columnMapping')}</strong>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {parsed.headers.map((header, index) => (
-                  <div key={`${header}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{header || t('batchSampleSheet.columnFallback', { index: index + 1 })}</span>
-                    <select
-                      value={columnMap[index] ?? SKIP_VALUE}
-                      onChange={event => setColumnMap(prev => ({ ...prev, [index]: event.target.value }))}
-                      style={INPUT_STYLE}
-                    >
-                      <option value={SKIP_VALUE}>{t('batchSampleSheet.skip')}</option>
-                      <option value={NAME_VALUE}>{t('batchSampleSheet.useAsRunName')}</option>
-                      {paramOptions.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {parsed && previewRuns.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {t('batchSampleSheet.preview', {
-                  shown: Math.min(previewRuns.length, MAX_PREVIEW_ROWS),
-                  total: parsed.rows.length,
-                })}
-              </strong>
-              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text)' }}>
-                {previewRuns.map(run => (
-                  <li key={run.rowIndex}>{run.name}</li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {error && <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12 }}>{error}</div>}
-        </div>
-        <div className="modal-footer">
+    <Dialog
+      title={t('batchSampleSheet.title')}
+      onClose={onClose}
+      width={760}
+      maxHeight="85vh"
+      footer={(
+        <>
           <button className="btn btn-sm" onClick={onClose}>{t('common.cancel')}</button>
           <button
             className="btn btn-primary btn-sm"
@@ -387,8 +291,92 @@ export default function BatchSampleSheetModal({ workflow, onClose, onSubmit }: B
               ? ` ${t('batchSampleSheet.submitting')}`
               : ` ${t('batchSampleSheet.queueRuns', { count: parsed?.rows.length ?? 0 })}`}
           </button>
+        </>
+      )}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 12 }}>
+          {t('batchSampleSheet.description')}
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label className="btn btn-sm" style={{ cursor: 'pointer' }}>
+            <Icon name="import" size={12} /> {t('batchSampleSheet.upload')}
+            <input
+              type="file"
+              accept=".csv,.tsv,.txt"
+              style={{ display: 'none' }}
+              onChange={handleFile}
+            />
+          </label>
+          <input
+            placeholder={t('batchSampleSheet.runNamePrefixPlaceholder')}
+            value={namePrefix}
+            onChange={event => setNamePrefix(event.target.value)}
+            style={{ ...INPUT_STYLE, flex: 1, maxWidth: 240 }}
+          />
+          {parsed && (
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+              {t('batchSampleSheet.sheetSummary', {
+                rows: t('batchSampleSheet.rowCount', { count: parsed.rows.length }),
+                columns: t('batchSampleSheet.columnCount', { count: parsed.headers.length }),
+                format: parsed.delimiter === '\t' ? 'TSV' : 'CSV',
+              })}
+            </span>
+          )}
         </div>
+        <textarea
+          placeholder={t('batchSampleSheet.sheetPlaceholder')}
+          value={rawText}
+          onChange={event => setRawText(event.target.value)}
+          style={{ ...INPUT_STYLE, minHeight: 120, fontFamily: 'JetBrains Mono, ui-monospace, monospace', resize: 'vertical' }}
+        />
+        {!parsed && rawText.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 12px' }}>
+            <Skeleton variant="text" width="40%" height={12} />
+            <Skeleton variant="text" width="80%" height={12} />
+            <Skeleton variant="text" width="60%" height={12} />
+          </div>
+        )}
+        {parsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('batchSampleSheet.columnMapping')}</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {parsed.headers.map((header, index) => (
+                <div key={`${header}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{header || t('batchSampleSheet.columnFallback', { index: index + 1 })}</span>
+                  <select
+                    value={columnMap[index] ?? SKIP_VALUE}
+                    onChange={event => setColumnMap(prev => ({ ...prev, [index]: event.target.value }))}
+                    style={INPUT_STYLE}
+                  >
+                    <option value={SKIP_VALUE}>{t('batchSampleSheet.skip')}</option>
+                    <option value={NAME_VALUE}>{t('batchSampleSheet.useAsRunName')}</option>
+                    {paramOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {parsed && previewRuns.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <strong style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('batchSampleSheet.preview', {
+                shown: Math.min(previewRuns.length, MAX_PREVIEW_ROWS),
+                total: parsed.rows.length,
+              })}
+            </strong>
+            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text)' }}>
+              {previewRuns.map(run => (
+                <li key={run.rowIndex}>{run.name}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {error && <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12 }}>{error}</div>}
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow, WorkflowNode } from '../types';
@@ -204,5 +206,15 @@ describe('BatchSampleSheetModal i18n', () => {
     expect(submittedRun.workflow.nodes[0].params.sample).toBe('{{sample_id}}');
     expect(submittedRun.workflow.nodes[0].params.threads).toBe(8);
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('uses the shared Dialog primitive for modal chrome', () => {
+    const source = readFileSync(resolve(__dirname, '../components/modals/BatchSampleSheetModal.tsx'), 'utf8');
+
+    expect(source).toContain("import Dialog from '../ui/Dialog';");
+    expect(source).toContain('<Dialog');
+    expect(source).not.toContain("import { useFocusTrap } from '../../hooks/ui';");
+    expect(source).not.toContain('<div className="modal-overlay"');
+    expect(source).not.toContain('role="dialog"');
   });
 });
