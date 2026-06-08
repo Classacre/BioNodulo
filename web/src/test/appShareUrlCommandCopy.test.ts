@@ -43,6 +43,7 @@ describe('App share URL command copy i18n', () => {
     expect(i18n.t('workflowShare.copyUrlTooLarge')).toBe('La URL supera 32 KB');
     expect(i18n.t('workflowShare.copyUrlTooLargeMessage')).toBe('Algunas herramientas de chat pueden truncarla. Considera exportar en su lugar.');
     expect(i18n.t('workflowShare.copyUrlCopied')).toBe('URL compartible copiada');
+    expect(i18n.t('workflowShare.copyUrlSizeKB', { size: '31,3' })).toBe('31,3 KB');
     expect(i18n.t('workflowShare.copyUrlDialogTitle')).toBe('URL compartible');
   });
 
@@ -56,6 +57,7 @@ describe('App share URL command copy i18n', () => {
       'workflowShare.copyUrlTooLarge',
       'workflowShare.copyUrlTooLargeMessage',
       'workflowShare.copyUrlCopied',
+      'workflowShare.copyUrlSizeKB',
       'workflowShare.copyUrlDialogTitle',
     ].forEach(key => expect(appSource).toContain(key));
 
@@ -66,6 +68,7 @@ describe('App share URL command copy i18n', () => {
       "toast.warning('URL exceeds 32 KB'",
       "message: 'Some chat tools may truncate. Consider exporting instead.'",
       "toast.success('Share URL copied'",
+      "message: `${(url.length / 1024).toFixed(1)} KB`",
       "title: 'Share URL'",
     ].forEach(text => expect(appSource).not.toContain(text));
   });

@@ -235,7 +235,7 @@ async function fetchTemplateWorkflow(template: TemplateInfo): Promise<Workflow |
 }
 
 export default function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { get, getBool, set, ready: settingsReady } = useSettings();
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
@@ -2115,7 +2115,13 @@ export default function App() {
           }
           try {
             await navigator.clipboard.writeText(url);
-            toast.success(t('workflowShare.copyUrlCopied'), { message: `${(url.length / 1024).toFixed(1)} KB` });
+            const shareUrlSize = new Intl.NumberFormat(i18n.language, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            }).format(url.length / 1024);
+            toast.success(t('workflowShare.copyUrlCopied'), {
+              message: t('workflowShare.copyUrlSizeKB', { size: shareUrlSize }),
+            });
           } catch {
             // Some browsers block clipboard from non-user gestures — surface
             // the URL inline as a fallback.
@@ -2485,6 +2491,7 @@ export default function App() {
     handleDuplicateTab,
     handleRun,
     handleToggleQueue,
+    i18n.language,
     t,
     palettes,
     redo,

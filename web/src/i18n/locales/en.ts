@@ -230,6 +230,7 @@ const en = {
     copyUrlTooLarge: 'URL exceeds 32 KB',
     copyUrlTooLargeMessage: 'Some chat tools may truncate. Consider exporting instead.',
     copyUrlCopied: 'Share URL copied',
+    copyUrlSizeKB: '{{size}} KB',
     copyUrlDialogTitle: 'Share URL',
   },
   workflowNaming: {

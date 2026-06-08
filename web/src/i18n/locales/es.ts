@@ -233,6 +233,7 @@ const es = {
     copyUrlTooLarge: 'La URL supera 32 KB',
     copyUrlTooLargeMessage: 'Algunas herramientas de chat pueden truncarla. Considera exportar en su lugar.',
     copyUrlCopied: 'URL compartible copiada',
+    copyUrlSizeKB: '{{size}} KB',
     copyUrlDialogTitle: 'URL compartible',
   },
   workflowNaming: {
