@@ -32,6 +32,12 @@ class NodeRegistry:
     _loaded: set[str]
     _object_info_cache: dict[str, Any] | None
     _custom_node_packages: dict[str, dict[str, Any]]
+    _custom_node_sources: dict[str, str]
+    _custom_node_roots: dict[str, set[str]]
+    _custom_node_shadows: dict[
+        str,
+        list[tuple[Type[BaseNode], dict[str, Any] | None, str | None]],
+    ]
 
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
@@ -52,6 +58,9 @@ class NodeRegistry:
         registry._loaded = set()
         registry._object_info_cache = None
         registry._custom_node_packages = {}
+        registry._custom_node_sources = {}
+        registry._custom_node_roots = {}
+        registry._custom_node_shadows = {}
 
     # ── Registration ─────────────────────────────────────────────────
 
@@ -59,12 +68,14 @@ class NodeRegistry:
         self,
         node_class: Type[BaseNode],
         custom_node_package: dict[str, Any] | None = None,
+        custom_node_source: str | None = None,
     ) -> None:
         """Register a single node class.
 
         Args:
             node_class: A BaseNode subclass to register.
             custom_node_package: Optional manifest package metadata for custom nodes.
+            custom_node_source: Optional custom-node root key used for reload cleanup.
 
         Raises:
             ValueError: If NODE_ID is missing or already registered.
@@ -79,11 +90,36 @@ class NodeRegistry:
             validate_metadata_contract()
         if node_id in self._nodes:
             logger.warning("Overwriting registered node: %s", node_id)
+        previous_node = self._nodes.get(node_id)
+        previous_source = self._custom_node_sources.get(node_id)
+        if (
+            custom_node_source is not None
+            and previous_node is not None
+            and previous_source != custom_node_source
+        ):
+            previous_package = self._custom_node_packages.get(node_id)
+            self._custom_node_shadows.setdefault(node_id, []).append(
+                (
+                    previous_node,
+                    dict(previous_package) if previous_package is not None else None,
+                    previous_source,
+                )
+            )
+        elif custom_node_source is None and previous_source:
+            self._custom_node_roots.get(previous_source, set()).discard(node_id)
+            self._custom_node_shadows.pop(node_id, None)
         self._nodes[node_id] = node_class
         if custom_node_package is None:
             self._custom_node_packages.pop(node_id, None)
         else:
             self._custom_node_packages[node_id] = dict(custom_node_package)
+        if previous_source and previous_source != custom_node_source:
+            self._custom_node_roots.get(previous_source, set()).discard(node_id)
+        if custom_node_source is None:
+            self._custom_node_sources.pop(node_id, None)
+        else:
+            self._custom_node_sources[node_id] = custom_node_source
+            self._custom_node_roots.setdefault(custom_node_source, set()).add(node_id)
         self._object_info_cache = None
         logger.debug("Registered node: %s", node_id)
 
@@ -184,6 +220,8 @@ class NodeRegistry:
             Number of node classes registered.
         """
         custom_path = Path(custom_nodes_dir)
+        custom_root = str(custom_path.resolve())
+        self._clear_custom_node_root(custom_root)
         if not custom_path.exists():
             logger.info("Custom nodes directory does not exist: %s", custom_path)
             return 0
@@ -202,15 +240,15 @@ class NodeRegistry:
                         entry.stem, entry
                     )
                     if module:
-                        count += self.register_from_module(module)
+                        count += self.register_from_module(module, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "bionodulo.toml").exists():
-                    count += self._load_manifest_package(entry)
+                    count += self._load_manifest_package(entry, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "__init__.py").exists():
                     module = self._load_module_from_path(
                         entry.name, entry / "__init__.py"
                     )
                     if module:
-                        count += self.register_from_module(module)
+                        count += self.register_from_module(module, custom_node_source=custom_root)
             except Exception as exc:
                 logger.warning("Failed to load custom node %s: %s", entry.name, exc)
 
@@ -228,7 +266,36 @@ class NodeRegistry:
         logger.info("Loaded %d nodes from custom_nodes", count)
         return count
 
-    def _load_manifest_package(self, package_dir: Path) -> int:
+    def _clear_custom_node_root(self, custom_root: str) -> None:
+        """Remove nodes previously loaded from one custom node root."""
+        node_ids = self._custom_node_roots.pop(custom_root, set())
+        if not node_ids:
+            return
+        for node_id in node_ids:
+            if self._custom_node_sources.get(node_id) != custom_root:
+                continue
+            shadows = self._custom_node_shadows.get(node_id)
+            if shadows:
+                node_class, package, source = shadows.pop()
+                self._nodes[node_id] = node_class
+                if package is None:
+                    self._custom_node_packages.pop(node_id, None)
+                else:
+                    self._custom_node_packages[node_id] = dict(package)
+                if source is None:
+                    self._custom_node_sources.pop(node_id, None)
+                else:
+                    self._custom_node_sources[node_id] = source
+                    self._custom_node_roots.setdefault(source, set()).add(node_id)
+                if not shadows:
+                    self._custom_node_shadows.pop(node_id, None)
+            else:
+                self._nodes.pop(node_id, None)
+                self._custom_node_packages.pop(node_id, None)
+                self._custom_node_sources.pop(node_id, None)
+        self._object_info_cache = None
+
+    def _load_manifest_package(self, package_dir: Path, custom_node_source: str) -> int:
         """Load modules declared by a custom node package manifest."""
         try:
             from bionodulo.manager.custom_nodes import load_package_manifest
@@ -260,7 +327,11 @@ class NodeRegistry:
                     "entrypoint": entrypoint,
                     "manifest_present": manifest.manifest_present,
                 }
-                count += self.register_from_module(module, custom_node_package=package_info)
+                count += self.register_from_module(
+                    module,
+                    custom_node_package=package_info,
+                    custom_node_source=custom_node_source,
+                )
         return count
 
     @staticmethod
@@ -297,12 +368,14 @@ class NodeRegistry:
         self,
         module: Any,
         custom_node_package: dict[str, Any] | None = None,
+        custom_node_source: str | None = None,
     ) -> int:
         """Find and register all BaseNode subclasses in a module.
 
         Args:
             module: Python module to scan.
             custom_node_package: Optional manifest package metadata for custom nodes.
+            custom_node_source: Optional custom-node root key used for reload cleanup.
 
         Returns:
             Number of node classes registered.
@@ -315,7 +388,11 @@ class NodeRegistry:
                 and obj is not CommandNode
                 and obj.NODE_ID
             ):
-                self.register(obj, custom_node_package=custom_node_package)
+                self.register(
+                    obj,
+                    custom_node_package=custom_node_package,
+                    custom_node_source=custom_node_source,
+                )
                 count += 1
         return count
 
@@ -355,6 +432,9 @@ class NodeRegistry:
         self._nodes.clear()
         self._loaded.clear()
         self._custom_node_packages.clear()
+        self._custom_node_sources.clear()
+        self._custom_node_roots.clear()
+        self._custom_node_shadows.clear()
         self._object_info_cache = None
 
 

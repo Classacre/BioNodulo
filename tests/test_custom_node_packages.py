@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
 
 from bionodulo.manager.custom_nodes import list_installed_packages, load_package_manifest, registry_entries
+from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -269,3 +271,110 @@ class ManifestInitNode(BaseNode):
 
     assert loaded_count == 1
     assert registry.get("manifest_init") is not None
+
+
+def test_node_registry_reload_removes_deleted_custom_node_packages(tmp_path: Path) -> None:
+    class BuiltinMarkerNode(BaseNode):
+        NODE_ID = "builtin_marker"
+        DISPLAY_NAME = "Builtin Marker"
+        CATEGORY = "test"
+        RETURN_TYPES = ("STRING",)
+        RETURN_NAMES = ("value",)
+
+        async def run(self, **kwargs):
+            return {"outputs": {"value": "ok"}}
+
+    custom_nodes_dir = tmp_path / "custom_nodes"
+    package_dir = custom_nodes_dir / "manifest_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-pkg"
+version = "0.1.0"
+entrypoints = ["nodes"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "nodes.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestEntrypointNode(BaseNode):
+    NODE_ID = "manifest_entrypoint"
+    DISPLAY_NAME = "Manifest Entrypoint"
+    CATEGORY = "custom"
+    GIT_URL = "https://example.test/manifest-pkg.git"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "ok"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    registry = NodeRegistry.create_isolated()
+    registry.register(BuiltinMarkerNode)
+    assert registry.load_custom_nodes(custom_nodes_dir) == 1
+    assert registry.has("manifest_entrypoint") is True
+
+    shutil.rmtree(package_dir)
+
+    assert registry.load_custom_nodes(custom_nodes_dir) == 0
+    assert registry.has("manifest_entrypoint") is False
+    assert registry.has("builtin_marker") is True
+
+
+def test_node_registry_reload_restores_builtin_shadowed_by_deleted_custom_node(tmp_path: Path) -> None:
+    class BuiltinMarkerNode(BaseNode):
+        NODE_ID = "manifest_entrypoint"
+        DISPLAY_NAME = "Builtin Marker"
+        CATEGORY = "test"
+        RETURN_TYPES = ("STRING",)
+        RETURN_NAMES = ("value",)
+
+        async def run(self, **kwargs):
+            return {"outputs": {"value": "builtin"}}
+
+    custom_nodes_dir = tmp_path / "custom_nodes"
+    package_dir = custom_nodes_dir / "manifest_pkg"
+    package_dir.mkdir(parents=True)
+    (package_dir / "bionodulo.toml").write_text(
+        """
+[package]
+name = "manifest-pkg"
+version = "0.1.0"
+entrypoints = ["nodes"]
+""".strip(),
+        encoding="utf-8",
+    )
+    (package_dir / "nodes.py").write_text(
+        """
+from bionodulo.nodes.base import BaseNode
+
+class ManifestEntrypointNode(BaseNode):
+    NODE_ID = "manifest_entrypoint"
+    DISPLAY_NAME = "Manifest Entrypoint"
+    CATEGORY = "custom"
+    GIT_URL = "https://example.test/manifest-pkg.git"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
+
+    async def run(self, **kwargs):
+        return {"outputs": {"value": "custom"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    registry = NodeRegistry.create_isolated()
+    registry.register(BuiltinMarkerNode)
+    assert registry.load_custom_nodes(custom_nodes_dir) == 1
+    assert registry.object_info("manifest_entrypoint")["category"] == "custom"
+
+    shutil.rmtree(package_dir)
+
+    assert registry.load_custom_nodes(custom_nodes_dir) == 0
+    assert registry.get("manifest_entrypoint") is BuiltinMarkerNode
+    assert registry.object_info("manifest_entrypoint")["category"] == "test"
+    assert "custom_node_package" not in registry.object_info("manifest_entrypoint")
