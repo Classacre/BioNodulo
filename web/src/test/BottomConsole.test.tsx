@@ -113,6 +113,49 @@ describe('BottomConsole i18n', () => {
     expect(screen.getByText('Los informes de procedencia estaran disponibles cuando una ejecucion termine o falle.')).toBeInTheDocument();
   });
 
+  it('returns run, queue, and console action labels from the active locale', async () => {
+    const { default: i18n, setLanguage } = await import('../i18n');
+
+    await setLanguage('es');
+
+    expect(i18n.t('runs.empty')).toBe('Aun no hay ejecuciones; ejecuta un flujo de trabajo para ver resultados');
+    expect(i18n.t('runs.statusPending')).toBe('Pendiente');
+    expect(i18n.t('runs.statusQueued')).toBe('En cola');
+    expect(i18n.t('runs.statusRunning')).toBe('En ejecucion');
+    expect(i18n.t('runs.statusPaused')).toBe('Pausada');
+    expect(i18n.t('runs.statusCompleted')).toBe('Completada');
+    expect(i18n.t('runs.statusFailed')).toBe('Fallida');
+    expect(i18n.t('runs.statusCancelled')).toBe('Cancelada');
+    expect(i18n.t('runs.retry')).toBe('Reintentar ejecucion');
+    expect(i18n.t('runs.loadWorkflow')).toBe('Cargar flujo de trabajo en el editor');
+    expect(i18n.t('runs.duplicateRun')).toBe('Duplicar ejecucion');
+    expect(i18n.t('runs.deleteRun')).toBe('Eliminar ejecucion');
+    expect(i18n.t('runs.progressLabel', { done: 2, total: 5 })).toBe('2 / 5 nodos');
+    expect(i18n.t('runs.progressLabelOne', { done: 1, total: 1 })).toBe('1 / 1 nodo');
+    expect(i18n.t('runs.reportLabel')).toBe('Informe de ejecucion');
+    expect(i18n.t('runs.downloadReport')).toBe('Descargar informe HTML');
+    expect(i18n.t('runs.diffOutputs')).toBe('Comparar salidas con la ejecucion anterior');
+    expect(i18n.t('runs.rerunFromHere')).toBe('Reejecutar desde este nodo');
+    expect(i18n.t('runs.skipUpstream')).toBe('Omitir cache ascendente');
+    expect(i18n.t('queue.empty')).toBe('La cola esta vacia');
+    expect(i18n.t('queue.inFlight')).toBe('En curso');
+    expect(i18n.t('queue.waiting')).toBe('En espera');
+    expect(i18n.t('queue.pause')).toBe('Pausar cola');
+    expect(i18n.t('queue.resume')).toBe('Reanudar cola');
+    expect(i18n.t('queue.raisePriority')).toBe('Subir prioridad');
+    expect(i18n.t('queue.lowerPriority')).toBe('Bajar prioridad');
+    expect(i18n.t('console.tabsManifest')).toBe('Manifiesto');
+    expect(i18n.t('console.tabsArtifacts')).toBe('Artefactos');
+    expect(i18n.t('console.tabsErrors')).toBe('Errores');
+    expect(i18n.t('console.levelWarn')).toBe('Aviso');
+    expect(i18n.t('console.filterPlaceholder')).toBe('Filtrar registros...');
+    expect(i18n.t('console.autoscroll')).toBe('Desplazamiento automatico');
+    expect(i18n.t('console.pauseScroll')).toBe('Pausar desplazamiento automatico');
+    expect(i18n.t('console.copyAll')).toBe('Copiar todo');
+    expect(i18n.t('console.saveLogs')).toBe('Guardar registros en archivo');
+    expect(i18n.t('console.empty')).toBe('No hay registros');
+  });
+
   it('localizes report fetch failures while logging the raw error', async () => {
     const { default: BottomConsole } = await import('../components/layout/BottomConsole');
     const { setLanguage } = await import('../i18n');

@@ -45,6 +45,7 @@ For full diffs, see the branch history for `bionodulo-collab`.
 - AI Embedding now supports an explicit `api` backend for `text_embedding`, routing batches through LiteLLM/OpenAI-compatible embeddings with metadata marked as remote API output and deterministic/local behavior unchanged.
 - Fine-Tune LLM local backend now packages a runnable LoRA training script plus command metadata when local training dependencies are available, while keeping actual model training as an explicit user-run step.
 - Spanish workflow chrome copy now covers the workflow search, notes drawer, shared accessibility labels, and app toast locale keys, with a focused i18n guard against English fallback text in those surfaces.
+- Spanish run history, queue, and console copy now covers status labels, run actions, queue controls, console tabs, log controls, and manifest/artifact labels, with BottomConsole i18n coverage for those locale keys.
 
 ## App.tsx state ownership prep — `0a8aeb7` — Hooks + modal atoms
 
