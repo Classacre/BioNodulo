@@ -1836,6 +1836,22 @@ input[type="range"]::-moz-range-thumb {
   max-width: 92vw;
 }
 
+.getting-started-modal .modal-header {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.getting-started-modal .modal-subheader {
+  padding: 0 16px;
+}
+
+.getting-started-modal .modal-body {
+  padding: 16px;
+  min-height: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
 .resource-link {
   display: flex;
   align-items: center;

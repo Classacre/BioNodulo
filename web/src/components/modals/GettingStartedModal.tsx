@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { logError } from '../../state/logging';
-import { useFocusTrap } from '../../hooks/ui';
+import Dialog from '../ui/Dialog';
 
 interface GettingStartedModalProps {
   onClose: () => void;
@@ -209,41 +209,47 @@ export default function GettingStartedModal({
   // needed; the existing backend endpoint stays in place so older user
   // workflows / scripts that still call it keep working.
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, true, onClose);
-
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 500 }}>
-      <div
-        ref={dialogRef}
-        className="modal-content getting-started-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('gettingStarted.title')}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 4 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{t('gettingStarted.title')}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>BioNodulo v2</div>
+    <Dialog
+      title={t('gettingStarted.title')}
+      onClose={onClose}
+      width={640}
+      maxHeight="85vh"
+      className="getting-started-modal"
+      hideCloseButton
+      header={(
+        <>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>BioNodulo v2</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {TABS.map(tabDef => (
+              <button
+                key={tabDef.id}
+                className={`env-type-tab ${tab === tabDef.id ? 'active' : ''}`}
+                onClick={() => setTab(tabDef.id)}
+                style={{ borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
+              >
+                {t(tabDef.labelKey)}
+              </button>
+            ))}
           </div>
+        </>
+      )}
+      footer={(
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={!showOnStartup}
+              onChange={e => onDontShowAgain(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            {t('gettingStarted.hideOnStartup')}
+          </label>
+          <button className="btn btn-primary" onClick={onClose}>{t('common.close')}</button>
         </div>
-
-        <div style={{ display: 'flex', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--border)' }}>
-          {TABS.map(tabDef => (
-            <button
-              key={tabDef.id}
-              className={`env-type-tab ${tab === tabDef.id ? 'active' : ''}`}
-              onClick={() => setTab(tabDef.id)}
-              style={{ borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
-            >
-              {t(tabDef.labelKey)}
-            </button>
-          ))}
-        </div>
-
-        <div className="modal-body" style={{ padding: 16, minHeight: 320, maxHeight: '60vh', overflowY: 'auto' }}>
-          {tab === 'welcome' && (
+      )}
+    >
+      {tab === 'welcome' && (
             <div>
               <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
                 {t('gettingStarted.welcomeIntro')} <strong>BioNodulo</strong> — {t('gettingStarted.welcomeDescription')}
@@ -512,22 +518,7 @@ export default function GettingStartedModal({
               </div>
             </div>
           )}
-        </div>
-
-        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={!showOnStartup}
-              onChange={e => onDontShowAgain(e.target.checked)}
-              style={{ accentColor: 'var(--accent)' }}
-            />
-            {t('gettingStarted.hideOnStartup')}
-          </label>
-          <button className="btn btn-primary" onClick={onClose}>{t('common.close')}</button>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

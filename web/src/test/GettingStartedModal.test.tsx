@@ -265,6 +265,12 @@ describe('GettingStartedModal i18n', () => {
   it('keeps the getting-started shell copy behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../components/modals/GettingStartedModal.tsx'), 'utf8');
 
+    expect(source).toContain("import Dialog from '../ui/Dialog';");
+    expect(source).toContain('<Dialog');
+    expect(source).not.toContain("import { useFocusTrap } from '../../hooks/ui';");
+    expect(source).not.toContain('<div className="modal-overlay"');
+    expect(source).not.toContain('role="dialog"');
+
     [
       'gettingStarted.title',
       'gettingStarted.tabs.welcome',
