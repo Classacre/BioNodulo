@@ -80,7 +80,7 @@
       "id": "odgi_build_001",
       "type": "odgi_build",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -97,8 +97,8 @@
       "id": "odgi_viz_001",
       "type": "odgi_viz",
       "position": [
-        1160,
-        300
+        1520,
+        408
       ],
       "params": {
         "width": 1600,
@@ -115,8 +115,8 @@
       "id": "odgi_stats_001",
       "type": "odgi_stats",
       "position": [
-        1160,
-        520
+        1520,
+        782
       ],
       "params": {
         "threads": 8
@@ -146,7 +146,7 @@
       "id": "validate_pggb_gfa_001",
       "type": "data_validator",
       "position": [
-        980,
+        1160,
         80
       ],
       "params": {
@@ -162,7 +162,7 @@
       "id": "validate_odgi_stats_001",
       "type": "data_validator",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -178,8 +178,8 @@
       "id": "validate_odgi_stats_json_001",
       "type": "data_validator",
       "position": [
-        1340,
-        520
+        1880,
+        546
       ],
       "params": {
         "expected_format": "json",
@@ -194,8 +194,8 @@
       "id": "graph_image_preview_001",
       "type": "image_preview",
       "position": [
-        1520,
-        300
+        1880,
+        1012
       ],
       "params": {},
       "ui": {
@@ -206,8 +206,8 @@
       "id": "pangenomics_report_001",
       "type": "html_report",
       "position": [
-        1700,
-        300
+        1880,
+        1286
       ],
       "params": {
         "title": "Pangenomics Graph QC Report",
@@ -225,8 +225,8 @@
       "id": "pangenomics_report_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        300
+        2240,
+        80
       ],
       "params": {},
       "ui": {

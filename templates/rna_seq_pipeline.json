@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz"
@@ -56,7 +56,7 @@
       "type": "hisat2_build",
       "position": [
         800,
-        444
+        454
       ],
       "params": {
         "threads": 4
@@ -70,7 +70,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -100,7 +100,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        980,
+        1160,
         80
       ],
       "params": {
@@ -133,7 +133,7 @@
       "id": "hisat2_001",
       "type": "hisat2_align",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -147,7 +147,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1520,
+        1880,
         80
       ],
       "params": {
@@ -161,7 +161,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1880,
+        2240,
         80
       ],
       "params": {
@@ -176,7 +176,7 @@
       "type": "input_gff",
       "position": [
         80,
-        430
+        421
       ],
       "params": {
         "annotation": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.gff.gz"
@@ -189,7 +189,7 @@
       "id": "counts_001",
       "type": "featurecounts",
       "position": [
-        2240,
+        2600,
         80
       ],
       "params": {
@@ -205,7 +205,7 @@
       "type": "data_validator",
       "position": [
         440,
-        430
+        1012
       ],
       "params": {
         "expected_format": "text",
@@ -220,7 +220,7 @@
       "id": "normalize_counts_001",
       "type": "normalize_data",
       "position": [
-        2600,
+        2960,
         80
       ],
       "params": {
@@ -237,7 +237,7 @@
       "id": "counts_report_001",
       "type": "html_report",
       "position": [
-        2960,
+        3680,
         80
       ],
       "params": {
@@ -254,8 +254,8 @@
       "id": "counts_heatmap_001",
       "type": "heatmap",
       "position": [
-        2960,
-        240
+        3320,
+        80
       ],
       "params": {
         "title": "Normalized Count Heatmap",
@@ -270,7 +270,7 @@
       "id": "counts_report_preview_001",
       "type": "html_preview",
       "position": [
-        3140,
+        4040,
         80
       ],
       "params": {},
@@ -282,8 +282,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        440,
-        640
+        800,
+        644
       ],
       "params": {
         "threads": 4
@@ -296,8 +296,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        800,
-        570
+        2960,
+        500
       ],
       "params": {
         "title": "RNA-Seq QC"
@@ -310,8 +310,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
-        570
+        3680,
+        568
       ],
       "params": {},
       "ui": {
@@ -322,8 +322,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        980,
-        570
+        3320,
+        868
       ],
       "params": {
         "expected_format": "text",
@@ -338,8 +338,8 @@
       "id": "qualimap_001",
       "type": "qualimap",
       "position": [
-        2240,
-        320
+        2600,
+        522
       ],
       "params": {
         "threads": 4,
@@ -353,8 +353,8 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        2240,
-        500
+        2600,
+        826
       ],
       "params": {},
       "ui": {
@@ -365,8 +365,8 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        2600,
-        320
+        2960,
+        852
       ],
       "params": {
         "run_name": "RNA-Seq QC",
@@ -381,8 +381,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        2960,
-        320
+        3320,
+        1334
       ],
       "params": {},
       "ui": {
@@ -393,8 +393,8 @@
       "id": "alignment_qc_report_001",
       "type": "html_report",
       "position": [
-        2600,
-        500
+        2960,
+        1292
       ],
       "params": {
         "title": "RNA-Seq Alignment QC Report",
@@ -410,8 +410,8 @@
       "id": "alignment_qc_report_preview_001",
       "type": "html_preview",
       "position": [
-        2960,
-        500
+        3320,
+        1488
       ],
       "params": {},
       "ui": {

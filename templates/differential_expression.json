@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "reference": "https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.fa.gz"
@@ -68,7 +68,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        80
       ],
       "params": {
         "expected_format": "fasta",
@@ -85,7 +85,7 @@
       "type": "data_validator",
       "position": [
         440,
-        80
+        546
       ],
       "params": {
         "expected_format": "fastq",
@@ -116,7 +116,7 @@
       "type": "kallisto_index",
       "position": [
         800,
-        318
+        316
       ],
       "params": {},
       "ui": {
@@ -128,7 +128,7 @@
       "type": "kallisto_quant",
       "position": [
         1160,
-        528
+        498
       ],
       "params": {
         "threads": 8
@@ -142,7 +142,7 @@
       "type": "extract_columns",
       "position": [
         1520,
-        -120
+        432
       ],
       "params": {
         "columns": "Name,TPM,NumReads",
@@ -158,7 +158,7 @@
       "type": "extract_columns",
       "position": [
         1520,
-        560
+        898
       ],
       "params": {
         "columns": "target_id,tpm,est_counts",
@@ -174,7 +174,7 @@
       "type": "join_tables",
       "position": [
         1880,
-        560
+        546
       ],
       "params": {
         "join_keys": "target_id",
@@ -192,7 +192,7 @@
       "type": "multiqc",
       "position": [
         1520,
-        300
+        80
       ],
       "params": {
         "title": "Quantification QC"
@@ -205,8 +205,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        300
+        2240,
+        568
       ],
       "params": {},
       "ui": {
@@ -217,8 +217,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        1700,
-        300
+        1880,
+        80
       ],
       "params": {
         "expected_format": "text",
@@ -233,7 +233,7 @@
       "id": "quant_report_001",
       "type": "html_report",
       "position": [
-        1880,
+        2240,
         80
       ],
       "params": {
@@ -250,7 +250,7 @@
       "id": "quant_report_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        2600,
         80
       ],
       "params": {},

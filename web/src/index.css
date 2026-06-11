@@ -1097,6 +1097,9 @@ html[data-canvas-pattern="mesh"] .workflow-canvas-host::before {
   font-size: 10px;
   pointer-events: auto;
 }
+.node-dom-widget-layer {
+  contain: layout paint;
+}
 .node-dom-widget span {
   overflow: hidden;
   text-overflow: ellipsis;

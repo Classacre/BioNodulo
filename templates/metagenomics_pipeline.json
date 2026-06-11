@@ -42,7 +42,7 @@
       "type": "input_directory",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "directory": "kraken2_db"
@@ -55,7 +55,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        620,
+        800,
         80
       ],
       "params": {
@@ -69,7 +69,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        710,
+        1160,
         80
       ],
       "params": {
@@ -102,7 +102,7 @@
       "id": "kraken2_001",
       "type": "kraken2",
       "position": [
-        980,
+        1880,
         80
       ],
       "params": {
@@ -116,7 +116,7 @@
       "id": "kraken2_retry_001",
       "type": "retry",
       "position": [
-        800,
+        1520,
         80
       ],
       "params": {
@@ -136,7 +136,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        546
       ],
       "params": {
         "expected_format": "directory",
@@ -151,7 +151,7 @@
       "id": "bracken_001",
       "type": "bracken",
       "position": [
-        1160,
+        2240,
         80
       ],
       "params": {
@@ -165,7 +165,7 @@
       "id": "validate_bracken_001",
       "type": "data_validator",
       "position": [
-        1340,
+        2600,
         80
       ],
       "params": {
@@ -181,8 +181,8 @@
       "id": "bracken_bar_001",
       "type": "bar_chart",
       "position": [
-        1520,
-        80
+        2960,
+        568
       ],
       "params": {
         "title": "Bracken Taxonomic Composition",
@@ -199,8 +199,8 @@
       "id": "bracken_heatmap_001",
       "type": "heatmap",
       "position": [
-        1700,
-        260
+        2960,
+        1264
       ],
       "params": {
         "title": "Bracken Abundance Heatmap",
@@ -215,7 +215,7 @@
       "id": "taxonomy_report_001",
       "type": "html_report",
       "position": [
-        1880,
+        3320,
         80
       ],
       "params": {
@@ -231,7 +231,7 @@
       "id": "taxonomy_report_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        3680,
         80
       ],
       "params": {},
@@ -243,8 +243,8 @@
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
-        800,
-        528
+        1520,
+        500
       ],
       "params": {
         "threads": 8,
@@ -258,8 +258,8 @@
       "id": "metaphlan_bar_001",
       "type": "bar_chart",
       "position": [
-        1160,
-        528
+        2240,
+        362
       ],
       "params": {
         "title": "MetaPhlAn Relative Abundance",
@@ -276,8 +276,8 @@
       "id": "validate_metaphlan_profile_001",
       "type": "data_validator",
       "position": [
-        980,
-        528
+        1880,
+        474
       ],
       "params": {
         "expected_format": "tsv",
@@ -292,8 +292,8 @@
       "id": "humann_001",
       "type": "humann",
       "position": [
-        980,
-        976
+        1880,
+        940
       ],
       "params": {
         "threads": 8
@@ -306,8 +306,8 @@
       "id": "humann_retry_001",
       "type": "retry",
       "position": [
-        800,
-        976
+        1520,
+        942
       ],
       "params": {
         "max_retries": 2,
@@ -325,8 +325,8 @@
       "id": "validate_humann_pathways_001",
       "type": "data_validator",
       "position": [
-        1160,
-        976
+        2240,
+        1058
       ],
       "params": {
         "expected_format": "tsv",
@@ -341,8 +341,8 @@
       "id": "validate_humann_pathcoverage_001",
       "type": "data_validator",
       "position": [
-        1160,
-        1136
+        2240,
+        1524
       ],
       "params": {
         "expected_format": "tsv",
@@ -357,8 +357,8 @@
       "id": "humann_pathcoverage_bar_001",
       "type": "bar_chart",
       "position": [
-        1340,
-        1136
+        2600,
+        546
       ],
       "params": {
         "title": "HUMAnN Pathway Coverage",
@@ -375,8 +375,8 @@
       "id": "functional_report_001",
       "type": "html_report",
       "position": [
-        1520,
-        976
+        2960,
+        80
       ],
       "params": {
         "title": "Metagenomics Functional Report",
@@ -391,8 +391,8 @@
       "id": "functional_report_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        976
+        3320,
+        568
       ],
       "params": {},
       "ui": {
@@ -403,8 +403,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        440,
-        444
+        800,
+        454
       ],
       "params": {
         "threads": 4
@@ -417,8 +417,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        800,
-        1340
+        1160,
+        430
       ],
       "params": {
         "title": "Metagenomics QC"
@@ -431,8 +431,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
-        1340
+        1880,
+        1266
       ],
       "params": {},
       "ui": {
@@ -443,8 +443,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        980,
-        1340
+        1520,
+        1362
       ],
       "params": {
         "expected_format": "text",
@@ -460,7 +460,7 @@
       "type": "qc_dashboard",
       "position": [
         1160,
-        1510
+        782
       ],
       "params": {
         "run_name": "Metagenomics QC",
@@ -475,8 +475,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        1340,
-        1510
+        1520,
+        1828
       ],
       "params": {},
       "ui": {

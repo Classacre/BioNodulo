@@ -38,7 +38,7 @@
       "type": "input_file",
       "position": [
         80,
-        234
+        231
       ],
       "params": {
         "file": "examples/data/biopython/deseq2_sample_info.csv"
@@ -69,7 +69,7 @@
       "type": "data_validator",
       "position": [
         440,
-        234
+        546
       ],
       "params": {
         "expected_format": "csv",
@@ -127,7 +127,7 @@
       "type": "volcano_plot",
       "position": [
         1160,
-        320
+        614
       ],
       "params": {
         "title": "DESeq2 Volcano Plot",
@@ -144,7 +144,7 @@
       "type": "ma_plot",
       "position": [
         1160,
-        560
+        1448
       ],
       "params": {
         "title": "DESeq2 MA Plot",
@@ -162,7 +162,7 @@
       "type": "scatter_plot",
       "position": [
         1160,
-        800
+        2282
       ],
       "params": {
         "title": "DESeq2 PCA Plot",
@@ -182,7 +182,7 @@
       "type": "filter_rows",
       "position": [
         1160,
-        1040
+        3490
       ],
       "params": {
         "column": "padj",
@@ -201,8 +201,8 @@
       "id": "pathway_gene_sets_001",
       "type": "input_file",
       "position": [
-        1160,
-        1280
+        80,
+        382
       ],
       "params": {
         "file": "templates/data/deseq2_gene_sets.json"
@@ -216,7 +216,7 @@
       "type": "transpose_table",
       "position": [
         1160,
-        800
+        3162
       ],
       "params": {
         "id_column": "gene",
@@ -232,7 +232,7 @@
       "type": "intersect_genes",
       "position": [
         1520,
-        1040
+        80
       ],
       "params": {
         "input_column": "gene",
@@ -248,7 +248,7 @@
       "type": "string_db",
       "position": [
         1520,
-        1280
+        384
       ],
       "params": {
         "protein_ids": "",
@@ -265,8 +265,8 @@
       "id": "de_report_001",
       "type": "html_report",
       "position": [
-        1520,
-        320
+        1880,
+        80
       ],
       "params": {
         "title": "DESeq2 Differential Expression Report",
@@ -282,7 +282,7 @@
       "type": "image_preview",
       "position": [
         1520,
-        560
+        850
       ],
       "params": {},
       "ui": {
@@ -294,7 +294,7 @@
       "type": "image_preview",
       "position": [
         1520,
-        80
+        1124
       ],
       "params": {},
       "ui": {
@@ -305,8 +305,8 @@
       "id": "de_report_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        320
+        2240,
+        80
       ],
       "params": {},
       "ui": {

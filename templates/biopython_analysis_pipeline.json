@@ -39,7 +39,7 @@
       "type": "ncbi_efetch",
       "position": [
         80,
-        -80
+        246
       ],
       "params": {
         "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
@@ -72,7 +72,7 @@
       "type": "bp_seq_stats",
       "position": [
         800,
-        318
+        316
       ],
       "params": {
         "input_file": "",
@@ -87,7 +87,7 @@
       "type": "bp_blast",
       "position": [
         800,
-        514
+        506
       ],
       "params": {
         "query": "",
@@ -122,7 +122,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        234
+        758
       ],
       "params": {
         "file_path": "examples/data/biopython/coding_sequences.fasta",
@@ -154,7 +154,7 @@
       "type": "data_validator",
       "position": [
         440,
-        234
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -171,7 +171,7 @@
       "type": "bp_translate",
       "position": [
         800,
-        878
+        856
       ],
       "params": {
         "input_file": "",
@@ -187,7 +187,7 @@
       "type": "r_biostrings_stats",
       "position": [
         800,
-        1116
+        1092
       ],
       "params": {
         "input_fasta": "",
@@ -203,7 +203,7 @@
       "type": "table_preview",
       "position": [
         1160,
-        318
+        316
       ],
       "params": {
         "rows": 25,
@@ -218,7 +218,7 @@
       "type": "bar_chart",
       "position": [
         1160,
-        514
+        552
       ],
       "params": {
         "title": "Sequence Lengths",
@@ -235,8 +235,8 @@
       "id": "sequence_classification_001",
       "type": "ai_sequence_classification",
       "position": [
-        1160,
-        1116
+        800,
+        1328
       ],
       "params": {
         "classifier": "deeploc",
@@ -253,7 +253,7 @@
       "type": "http_request",
       "position": [
         80,
-        -240
+        924
       ],
       "params": {
         "url": "https://rest.uniprot.org/uniprotkb/search",
@@ -272,7 +272,7 @@
       "type": "html_report",
       "position": [
         1520,
-        318
+        80
       ],
       "params": {
         "title": "Biopython Sequence Report",
@@ -288,7 +288,7 @@
       "type": "html_preview",
       "position": [
         1880,
-        318
+        80
       ],
       "params": {},
       "ui": {

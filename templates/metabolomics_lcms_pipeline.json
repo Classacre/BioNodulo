@@ -56,7 +56,7 @@
       "id": "validate_mzml_001",
       "type": "data_validator",
       "position": [
-        420,
+        440,
         80
       ],
       "params": {
@@ -72,7 +72,7 @@
       "id": "xcms_peak_detection_001",
       "type": "xcms_peak_detection",
       "position": [
-        760,
+        800,
         80
       ],
       "params": {
@@ -94,8 +94,8 @@
       "id": "validate_feature_table_001",
       "type": "data_validator",
       "position": [
-        1100,
-        -60
+        1160,
+        80
       ],
       "params": {
         "expected_format": "tsv",
@@ -110,8 +110,8 @@
       "id": "xcms_retention_correction_001",
       "type": "xcms_retention_correction",
       "position": [
-        1100,
-        180
+        1160,
+        546
       ],
       "params": {
         "method": "obiwarp",
@@ -128,8 +128,8 @@
       "id": "validate_aligned_features_001",
       "type": "data_validator",
       "position": [
-        1440,
-        40
+        1520,
+        80
       ],
       "params": {
         "expected_format": "tsv",
@@ -144,8 +144,8 @@
       "id": "camera_annotation_001",
       "type": "camera_annotation",
       "position": [
-        1440,
-        260
+        1520,
+        546
       ],
       "params": {
         "polarity": "positive",
@@ -161,8 +161,8 @@
       "id": "validate_camera_peaklist_001",
       "type": "data_validator",
       "position": [
-        1780,
-        260
+        1880,
+        80
       ],
       "params": {
         "expected_format": "tsv",
@@ -177,8 +177,8 @@
       "id": "metabolomics_report_001",
       "type": "html_report",
       "position": [
-        2120,
-        140
+        80,
+        231
       ],
       "params": {
         "title": "Metabolomics LC-MS Report",
@@ -197,8 +197,8 @@
       "id": "metabolomics_report_preview_001",
       "type": "html_preview",
       "position": [
-        2460,
-        140
+        440,
+        546
       ],
       "params": {},
       "ui": {

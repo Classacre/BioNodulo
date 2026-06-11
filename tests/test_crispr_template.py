@@ -22,6 +22,16 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -50,85 +60,52 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
     assert node_types["amplicon_r2_001"] == "input_file"
     assert node_types["screen_reads_001"] == "input_fastq"
     assert node_types["library_001"] == "input_file"
-    assert node_types["validate_genome_001"] == "data_validator"
-    assert node_types["validate_amplicon_r1_001"] == "data_validator"
-    assert node_types["validate_amplicon_r2_001"] == "data_validator"
-    assert node_types["validate_screen_reads_001"] == "data_validator"
-    assert node_types["validate_library_001"] == "data_validator"
     assert node_types["guide_design_001"] == "guide_rna_design"
     assert node_types["cas_offinder_001"] == "cas_offinder"
     assert node_types["crispresso2_001"] == "crispresso2"
     assert node_types["gate_crispresso_report_001"] == "gate"
     assert node_types["mageck_count_001"] == "mageck_count"
-    assert node_types["validate_mageck_count_001"] == "data_validator"
     assert node_types["mageck_test_001"] == "mageck_test"
-    assert node_types["validate_mageck_gene_summary_001"] == "data_validator"
-    assert node_types["validate_guides_001"] == "data_validator"
-    assert node_types["validate_offtargets_001"] == "data_validator"
-    assert node_types["validate_cas_offinder_001"] == "data_validator"
     assert node_types["crispr_report_001"] == "html_report"
     assert node_types["crispr_report_preview_001"] == "html_preview"
+    assert "data_validator" not in node_types.values()
 
-    assert _has_edge(workflow, "genome_001", "reference", "validate_genome_001", "input")
-    assert _has_edge(workflow, "amplicon_r1_001", "file", "validate_amplicon_r1_001", "input")
-    assert _has_edge(workflow, "amplicon_r2_001", "file", "validate_amplicon_r2_001", "input")
-    assert _has_edge(workflow, "screen_reads_001", "reads", "validate_screen_reads_001", "input")
-    assert _has_edge(workflow, "library_001", "file", "validate_library_001", "input")
-    assert _has_edge(workflow, "validate_genome_001", "passthrough", "guide_design_001", "genome")
-    assert _has_edge(workflow, "validate_genome_001", "passthrough", "cas_offinder_001", "genome_fasta")
-    assert _has_edge(workflow, "guide_design_001", "guides", "validate_guides_001", "input")
-    assert _has_edge(workflow, "guide_design_001", "off_targets", "validate_offtargets_001", "input")
-    assert _has_edge(workflow, "cas_offinder_001", "offtarget_sites", "validate_cas_offinder_001", "input")
-    assert _has_edge(workflow, "validate_amplicon_r1_001", "passthrough", "crispresso2_001", "r1")
-    assert _has_edge(workflow, "validate_amplicon_r2_001", "passthrough", "crispresso2_001", "r2")
+    assert _has_edge(workflow, "genome_001", "reference", "guide_design_001", "genome")
+    assert _has_edge(workflow, "genome_001", "reference", "cas_offinder_001", "genome_fasta")
+    assert _has_edge(workflow, "amplicon_r1_001", "file", "crispresso2_001", "r1")
+    assert _has_edge(workflow, "amplicon_r2_001", "file", "crispresso2_001", "r2")
     assert _has_edge(workflow, "crispresso2_001", "report", "gate_crispresso_report_001", "value")
-    assert _has_edge(workflow, "validate_screen_reads_001", "passthrough", "mageck_count_001", "fastq_files")
-    assert _has_edge(workflow, "validate_library_001", "passthrough", "mageck_count_001", "library_file")
-    assert _has_edge(workflow, "mageck_count_001", "count_table", "validate_mageck_count_001", "input")
-    assert _has_edge(workflow, "validate_mageck_count_001", "passthrough", "mageck_test_001", "count_table")
-    assert _has_edge(workflow, "mageck_test_001", "gene_summary", "validate_mageck_gene_summary_001", "input")
-    assert _has_edge(workflow, "validate_guides_001", "passthrough", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "validate_offtargets_001", "passthrough", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "validate_cas_offinder_001", "passthrough", "crispr_report_001", "tables")
+    assert _has_edge(workflow, "screen_reads_001", "reads", "mageck_count_001", "fastq_files")
+    assert _has_edge(workflow, "library_001", "file", "mageck_count_001", "library_file")
+    assert _has_edge(workflow, "mageck_count_001", "count_table", "mageck_test_001", "count_table")
+    assert _has_edge(workflow, "guide_design_001", "guides", "crispr_report_001", "tables")
+    assert _has_edge(workflow, "guide_design_001", "off_targets", "crispr_report_001", "tables")
+    assert _has_edge(workflow, "cas_offinder_001", "offtarget_sites", "crispr_report_001", "tables")
     assert _has_edge(workflow, "gate_crispresso_report_001", "output", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "validate_mageck_gene_summary_001", "passthrough", "crispr_report_001", "tables")
+    assert _has_edge(workflow, "mageck_test_001", "gene_summary", "crispr_report_001", "tables")
     assert _has_edge(workflow, "crispr_report_001", "html_report", "crispr_report_preview_001", "file")
-
-    assert not _has_edge(workflow, "genome_001", "reference", "guide_design_001", "genome")
-    assert not _has_edge(workflow, "amplicon_r1_001", "file", "crispresso2_001", "r1")
-    assert not _has_edge(workflow, "library_001", "file", "mageck_count_001", "library_file")
     assert not _has_edge(workflow, "crispresso2_001", "report", "crispr_report_preview_001", "file")
 
 
 def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     workflow = _load_template("crispr_editing_pipeline.json")
 
-    genome_validator = _node_by_id(workflow, "validate_genome_001")
-    r1_validator = _node_by_id(workflow, "validate_amplicon_r1_001")
-    r2_validator = _node_by_id(workflow, "validate_amplicon_r2_001")
-    screen_reads_validator = _node_by_id(workflow, "validate_screen_reads_001")
-    library_validator = _node_by_id(workflow, "validate_library_001")
-    guides_validator = _node_by_id(workflow, "validate_guides_001")
-    mageck_count_validator = _node_by_id(workflow, "validate_mageck_count_001")
     crispresso_gate = _node_by_id(workflow, "gate_crispresso_report_001")
     guide_design = _node_by_id(workflow, "guide_design_001")
     cas_offinder = _node_by_id(workflow, "cas_offinder_001")
     crispresso2 = _node_by_id(workflow, "crispresso2_001")
     mageck_test = _node_by_id(workflow, "mageck_test_001")
 
-    assert genome_validator["params"]["expected_format"] == "fasta"
-    assert genome_validator["params"]["min_records"] >= 1
-    assert genome_validator["params"]["fail_on_error"] is True
-    assert r1_validator["params"]["expected_format"] == "fastq"
-    assert r1_validator["params"]["min_records"] >= 1
-    assert r2_validator["params"]["expected_format"] == "fastq"
-    assert r2_validator["params"]["min_records"] >= 1
-    assert screen_reads_validator["params"]["expected_format"] == "fastq"
-    assert screen_reads_validator["params"]["min_records"] >= 1
-    assert library_validator["params"]["expected_format"] == "tsv"
-    assert library_validator["params"]["required_fields"] == "sgRNA,sequence,gene"
-    assert guides_validator["params"]["expected_format"] == "tsv"
-    assert mageck_count_validator["params"]["expected_format"] == "tsv"
+    assert _output_validation(workflow, "genome_001", "reference")["expected_format"] == "fasta"
+    assert _output_validation(workflow, "genome_001", "reference")["min_records"] >= 1
+    assert _output_validation(workflow, "amplicon_r1_001", "file")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "amplicon_r2_001", "file")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"
+    assert _output_validation(workflow, "library_001", "file")["required_fields"] == "sgRNA,sequence,gene"
+    assert _output_validation(workflow, "guide_design_001", "guides")["expected_format"] == "tsv"
+    assert _output_validation(workflow, "mageck_count_001", "count_table")["expected_format"] == "tsv"
+    assert _output_validation(workflow, "mageck_test_001", "gene_summary")["expected_format"] == "tsv"
 
     assert crispresso_gate["params"]["condition_mode"] == "file_exists"
     assert crispresso_gate["params"]["on_fail"] == "halt"
@@ -145,7 +122,7 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert mageck_test["params"]["treatment_labels"] == "treated"
     assert mageck_test["params"]["control_labels"] == "control"
 
-    assert workflow["outputs"]["validated_genome"] == "validate_genome_001"
+    assert workflow["outputs"]["validated_genome"] == "genome_001"
     assert workflow["outputs"]["designed_guides"] == "guide_design_001"
     assert workflow["outputs"]["cas_offinder_sites"] == "cas_offinder_001"
     assert workflow["outputs"]["crispresso_report_gate"] == "gate_crispresso_report_001"
@@ -170,7 +147,7 @@ def test_crispr_template_is_discoverable_from_workflow_templates_api() -> None:
     )
     assert listed["name"] == "CRISPR Editing and Screen Analysis"
     assert listed["category"] == "CRISPR"
-    assert listed["node_count"] >= 18
+    assert 12 <= listed["node_count"] < 18
     assert "guide_rna_design" in listed["tools"]
     assert "mageck_test" in listed["tools"]
     assert "Guide RNA Design" in listed["preview_steps"]

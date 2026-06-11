@@ -243,6 +243,52 @@ async def test_workflow_executor_passes_registry_to_node_context(tmp_path: Path)
     assert result["outputs"]["reader"] == {"registry_name": "runtime-registry"}
 
 
+@pytest.mark.asyncio
+async def test_executor_applies_inline_output_validation_rules(tmp_path: Path) -> None:
+    class FileProducerNode:
+        RETURN_NAMES = ("file",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        async def run(self, context, **_: Any) -> dict[str, Any]:
+            path = Path(context.node_dir) / "bad.fa"
+            path.write_text("not-fasta\n", encoding="utf-8")
+            return {"outputs": {"file": str(path)}}
+
+    class Registry:
+        def get(self, node_type: str) -> type[FileProducerNode] | None:
+            return {"file_producer": FileProducerNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "producer",
+                "type": "file_producer",
+                "ui": {
+                    "validation": {
+                        "outputs": {
+                            "file": {
+                                "expected_format": "fasta",
+                                "min_records": 1,
+                                "fail_on_error": True,
+                            }
+                        }
+                    }
+                },
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("inline-validation-run", workflow, force=True)
+
+    assert result["status"] == "failed"
+    assert "Data validation failed" in result["node_results"]["producer"]["error"]
+
+
 def test_graph_helpers_support_frontend_and_legacy_edge_shapes() -> None:
     frontend_edge = {
         "from": {"node": "input", "output": "reads"},

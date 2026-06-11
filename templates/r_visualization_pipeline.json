@@ -97,7 +97,7 @@
       "type": "r_dataframe_builder",
       "position": [
         80,
-        444
+        478
       ],
       "params": {
         "x_column": "Mean_Expression",
@@ -116,7 +116,7 @@
       "type": "r_plot",
       "position": [
         440,
-        654
+        684
       ],
       "params": {
         "data_csv": "",
@@ -139,7 +139,7 @@
       "type": "image_preview",
       "position": [
         800,
-        354
+        351
       ],
       "params": {
         "file": ""
@@ -153,7 +153,7 @@
       "type": "input_file",
       "position": [
         80,
-        808
+        876
       ],
       "params": {
         "file": "examples/data/biopython/heatmap_data.csv"
@@ -167,7 +167,7 @@
       "type": "r_dataframe_builder",
       "position": [
         80,
-        1102
+        1027
       ],
       "params": {
         "x_column": "baseMean",
@@ -186,7 +186,7 @@
       "type": "r_pheatmap",
       "position": [
         800,
-        1228
+        622
       ],
       "params": {
         "data_csv": "",
@@ -209,7 +209,7 @@
       "type": "data_validator",
       "position": [
         440,
-        808
+        1288
       ],
       "params": {
         "expected_format": "csv",
@@ -227,7 +227,7 @@
       "type": "image_preview",
       "position": [
         1160,
-        628
+        80
       ],
       "params": {
         "file": ""
@@ -241,7 +241,7 @@
       "type": "volcano_plot",
       "position": [
         440,
-        1102
+        1754
       ],
       "params": {
         "title": "Differential Expression Volcano Plot",
@@ -258,7 +258,7 @@
       "type": "ma_plot",
       "position": [
         440,
-        1368
+        2588
       ],
       "params": {
         "title": "Differential Expression MA Plot",
@@ -276,7 +276,7 @@
       "type": "image_preview",
       "position": [
         800,
-        1102
+        1156
       ],
       "params": {
         "file": ""
@@ -290,7 +290,7 @@
       "type": "image_preview",
       "position": [
         800,
-        1368
+        1427
       ],
       "params": {
         "file": ""
@@ -303,8 +303,8 @@
       "id": "viz_report_001",
       "type": "html_report",
       "position": [
-        1520,
-        444
+        1160,
+        351
       ],
       "params": {
         "title": "R Visualization Report",
@@ -319,8 +319,8 @@
       "id": "viz_report_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        444
+        1520,
+        80
       ],
       "params": {},
       "ui": {

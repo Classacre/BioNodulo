@@ -56,7 +56,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        280
+        231
       ],
       "params": {
         "reference": "examples/data/proteomics/target_decoy.fasta"
@@ -86,7 +86,7 @@
       "type": "data_validator",
       "position": [
         440,
-        280
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -124,7 +124,7 @@
       "id": "validate_sage_pin_001",
       "type": "data_validator",
       "position": [
-        980,
+        1160,
         80
       ],
       "params": {
@@ -140,7 +140,7 @@
       "id": "percolator_001",
       "type": "percolator",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -157,7 +157,7 @@
       "id": "validate_percolator_psms_001",
       "type": "data_validator",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -174,7 +174,7 @@
       "id": "proteomics_report_001",
       "type": "html_report",
       "position": [
-        1520,
+        2240,
         80
       ],
       "params": {
@@ -190,7 +190,7 @@
       "id": "proteomics_report_preview_001",
       "type": "html_preview",
       "position": [
-        1700,
+        2600,
         80
       ],
       "params": {},

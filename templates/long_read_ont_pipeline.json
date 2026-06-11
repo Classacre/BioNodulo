@@ -61,7 +61,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        280
+        231
       ],
       "params": {
         "reference": "examples/data/long_read/reference.fasta"
@@ -91,7 +91,7 @@
       "type": "data_validator",
       "position": [
         440,
-        280
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -125,7 +125,7 @@
       "id": "gate_basecalled_bam_001",
       "type": "gate",
       "position": [
-        980,
+        1160,
         80
       ],
       "params": {
@@ -141,7 +141,7 @@
       "id": "dorado_demux_001",
       "type": "dorado_demux",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -160,7 +160,7 @@
       "id": "chopper_001",
       "type": "chopper_filter",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -179,7 +179,7 @@
       "id": "gate_filtered_reads_001",
       "type": "gate",
       "position": [
-        1520,
+        2240,
         80
       ],
       "params": {
@@ -195,7 +195,7 @@
       "id": "nanoplot_001",
       "type": "nanoplot",
       "position": [
-        1700,
+        2600,
         80
       ],
       "params": {
@@ -214,7 +214,7 @@
       "type": "modkit_pileup",
       "position": [
         1160,
-        320
+        430
       ],
       "params": {
         "threads": 8,
@@ -230,7 +230,7 @@
       "id": "validate_nanoplot_report_001",
       "type": "data_validator",
       "position": [
-        1880,
+        2960,
         80
       ],
       "params": {
@@ -246,7 +246,7 @@
       "id": "long_read_report_001",
       "type": "html_report",
       "position": [
-        2060,
+        3320,
         80
       ],
       "params": {
@@ -262,7 +262,7 @@
       "id": "long_read_report_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        3680,
         80
       ],
       "params": {},

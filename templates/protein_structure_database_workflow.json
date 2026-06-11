@@ -61,7 +61,7 @@
       "id": "validate_uniprot_table_001",
       "type": "data_validator",
       "position": [
-        420,
+        440,
         80
       ],
       "params": {
@@ -78,7 +78,7 @@
       "type": "uniprot_retrieve",
       "position": [
         80,
-        280
+        616
       ],
       "params": {
         "accession": "P04637",
@@ -93,8 +93,8 @@
       "id": "validate_uniprot_fasta_001",
       "type": "data_validator",
       "position": [
-        420,
-        280
+        440,
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -110,7 +110,7 @@
       "type": "alphafold_db",
       "position": [
         80,
-        480
+        1014
       ],
       "params": {
         "uniprot_ids": "P04637",
@@ -126,8 +126,8 @@
       "id": "validate_alphafold_structure_001",
       "type": "data_validator",
       "position": [
-        420,
-        480
+        440,
+        1012
       ],
       "params": {
         "expected_format": "auto",
@@ -143,7 +143,7 @@
       "type": "pdb_download",
       "position": [
         80,
-        680
+        1366
       ],
       "params": {
         "pdb_ids": "4HHB",
@@ -159,8 +159,8 @@
       "id": "validate_pdb_structure_001",
       "type": "data_validator",
       "position": [
-        420,
-        680
+        440,
+        1478
       ],
       "params": {
         "expected_format": "auto",
@@ -175,8 +175,8 @@
       "id": "protein_structure_report_001",
       "type": "html_report",
       "position": [
-        780,
-        280
+        800,
+        80
       ],
       "params": {
         "title": "Protein Structure Database Report",
@@ -195,8 +195,8 @@
       "id": "protein_structure_report_preview_001",
       "type": "html_preview",
       "position": [
-        1120,
-        280
+        1160,
+        80
       ],
       "params": {},
       "ui": {

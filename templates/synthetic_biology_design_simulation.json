@@ -59,7 +59,7 @@
       "id": "validate_sbol_design_001",
       "type": "data_validator",
       "position": [
-        420,
+        440,
         80
       ],
       "params": {
@@ -75,7 +75,7 @@
       "id": "sbol_import_001",
       "type": "sbol_design_import",
       "position": [
-        760,
+        800,
         80
       ],
       "params": {
@@ -92,7 +92,7 @@
       "id": "validate_sbol_summary_001",
       "type": "data_validator",
       "position": [
-        1100,
+        1160,
         80
       ],
       "params": {
@@ -109,7 +109,7 @@
       "type": "input_file",
       "position": [
         80,
-        300
+        231
       ],
       "params": {
         "file": "examples/data/synthetic_biology/toggle_model.cps"
@@ -122,8 +122,8 @@
       "id": "validate_copasi_model_001",
       "type": "data_validator",
       "position": [
-        420,
-        300
+        440,
+        546
       ],
       "params": {
         "expected_format": "auto",
@@ -138,8 +138,8 @@
       "id": "copasi_simulation_001",
       "type": "copasi_simulation",
       "position": [
-        760,
-        300
+        800,
+        408
       ],
       "params": {
         "copasi_executable": "CopasiSE",
@@ -159,8 +159,8 @@
       "id": "validate_copasi_report_001",
       "type": "data_validator",
       "position": [
-        1100,
-        300
+        1160,
+        546
       ],
       "params": {
         "expected_format": "tsv",
@@ -176,7 +176,7 @@
       "type": "input_file",
       "position": [
         80,
-        520
+        382
       ],
       "params": {
         "file": "examples/data/synthetic_biology/toggle_study.omex"
@@ -189,8 +189,8 @@
       "id": "validate_omex_archive_001",
       "type": "data_validator",
       "position": [
-        420,
-        520
+        440,
+        1012
       ],
       "params": {
         "expected_format": "auto",
@@ -205,8 +205,8 @@
       "id": "ibiosim_model_001",
       "type": "ibiosim_model",
       "position": [
-        760,
-        520
+        800,
+        920
       ],
       "params": {
         "execution_mode": "cli",
@@ -224,8 +224,8 @@
       "id": "validate_ibiosim_index_001",
       "type": "data_validator",
       "position": [
-        1100,
-        520
+        1160,
+        1012
       ],
       "params": {
         "expected_format": "tsv",
@@ -241,7 +241,7 @@
       "type": "input_file",
       "position": [
         80,
-        760
+        533
       ],
       "params": {
         "file": "examples/data/synthetic_biology/toggle_netlist.v"
@@ -254,8 +254,8 @@
       "id": "validate_cello_netlist_001",
       "type": "data_validator",
       "position": [
-        420,
-        760
+        440,
+        1478
       ],
       "params": {
         "expected_format": "text",
@@ -271,7 +271,7 @@
       "type": "input_file",
       "position": [
         80,
-        940
+        684
       ],
       "params": {
         "file": "examples/data/synthetic_biology/Eco1C1G1T1.UCF.json"
@@ -284,8 +284,8 @@
       "id": "validate_cello_ucf_001",
       "type": "data_validator",
       "position": [
-        420,
-        940
+        440,
+        1944
       ],
       "params": {
         "expected_format": "json",
@@ -301,7 +301,7 @@
       "type": "input_file",
       "position": [
         80,
-        1120
+        835
       ],
       "params": {
         "file": "examples/data/synthetic_biology/cello_options.csv"
@@ -314,8 +314,8 @@
       "id": "validate_cello_options_001",
       "type": "data_validator",
       "position": [
-        420,
-        1120
+        440,
+        2410
       ],
       "params": {
         "expected_format": "csv",
@@ -331,7 +331,7 @@
       "type": "input_directory",
       "position": [
         80,
-        1300
+        986
       ],
       "params": {
         "directory": "/opt/Cello-v2/exec"
@@ -344,8 +344,8 @@
       "id": "validate_cello_exec_dir_001",
       "type": "data_validator",
       "position": [
-        420,
-        1300
+        440,
+        2876
       ],
       "params": {
         "expected_format": "directory",
@@ -360,8 +360,8 @@
       "id": "cello_design_001",
       "type": "cello_circuit_design",
       "position": [
-        760,
-        1030
+        800,
+        1340
       ],
       "params": {
         "netlist_constraint_file": "",
@@ -378,8 +378,8 @@
       "id": "validate_cello_index_001",
       "type": "data_validator",
       "position": [
-        1100,
-        1030
+        1160,
+        1478
       ],
       "params": {
         "expected_format": "tsv",
@@ -394,8 +394,8 @@
       "id": "synthetic_biology_report_001",
       "type": "html_report",
       "position": [
-        1460,
-        520
+        80,
+        1137
       ],
       "params": {
         "title": "Synthetic Biology Design and Simulation Report",
@@ -414,8 +414,8 @@
       "id": "synthetic_biology_report_preview_001",
       "type": "html_preview",
       "position": [
-        1800,
-        520
+        440,
+        3342
       ],
       "params": {},
       "ui": {

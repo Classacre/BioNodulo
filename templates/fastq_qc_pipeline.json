@@ -42,7 +42,7 @@
       "type": "input_sample_sheet",
       "position": [
         80,
-        260
+        270
       ],
       "params": {
         "sample_sheet": "templates/data/fastq_qc_sample_sheet.csv"
@@ -101,7 +101,7 @@
       "type": "data_validator",
       "position": [
         440,
-        260
+        546
       ],
       "params": {
         "expected_format": "csv",
@@ -133,7 +133,7 @@
       "type": "html_preview",
       "position": [
         2240,
-        80
+        430
       ],
       "params": {},
       "ui": {
@@ -160,8 +160,8 @@
       "id": "gate_multiqc_001",
       "type": "gate",
       "position": [
-        2060,
-        220
+        2240,
+        80
       ],
       "params": {
         "condition_mode": "boolean_is_true",
@@ -177,7 +177,7 @@
       "type": "qc_dashboard",
       "position": [
         1520,
-        300
+        432
       ],
       "params": {
         "run_name": "FastQ QC",
@@ -193,7 +193,7 @@
       "type": "html_preview",
       "position": [
         1880,
-        300
+        546
       ],
       "params": {},
       "ui": {

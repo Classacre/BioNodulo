@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
@@ -55,7 +55,7 @@
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {},
@@ -68,7 +68,7 @@
       "type": "data_validator",
       "position": [
         440,
-        444
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -101,7 +101,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -115,7 +115,7 @@
       "id": "collate_001",
       "type": "samtools_collate",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -129,7 +129,7 @@
       "id": "fixmate_001",
       "type": "samtools_fixmate",
       "position": [
-        1520,
+        2240,
         80
       ],
       "params": {
@@ -144,7 +144,7 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -159,7 +159,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1520,
+        2600,
         80
       ],
       "params": {
@@ -173,7 +173,7 @@
       "id": "markdup_001",
       "type": "samtools_markdup",
       "position": [
-        1700,
+        2960,
         80
       ],
       "params": {
@@ -188,7 +188,7 @@
       "id": "index_001",
       "type": "samtools_index",
       "position": [
-        1880,
+        3320,
         80
       ],
       "params": {},
@@ -200,8 +200,8 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        1880,
-        850
+        3320,
+        782
       ],
       "params": {},
       "ui": {
@@ -212,8 +212,8 @@
       "id": "gatk_001",
       "type": "gatk_haplotype_caller",
       "position": [
-        1880,
-        360
+        3680,
+        80
       ],
       "params": {
         "emit_ref_confidence": "GVCF",
@@ -227,8 +227,8 @@
       "id": "gatk_retry_001",
       "type": "retry",
       "position": [
-        1880,
-        220
+        3320,
+        362
       ],
       "params": {
         "max_retries": 2,
@@ -246,7 +246,7 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        2240,
+        4040,
         80
       ],
       "params": {
@@ -260,7 +260,7 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        2600,
+        4400,
         80
       ],
       "params": {
@@ -275,8 +275,8 @@
       "id": "vep_001",
       "type": "vep",
       "position": [
-        2600,
-        220
+        4400,
+        500
       ],
       "params": {
         "assembly": "GRCh38",
@@ -292,7 +292,7 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        2780,
+        4760,
         80
       ],
       "params": {
@@ -308,8 +308,8 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        2600,
-        360
+        4400,
+        1102
       ],
       "params": {
         "title": "Filtered Variant Statistics",
@@ -323,8 +323,8 @@
       "id": "coverage_plot_001",
       "type": "coverage_plot",
       "position": [
-        2600,
-        640
+        3320,
+        1018
       ],
       "params": {
         "region": "Wildtype:1-50000",
@@ -340,8 +340,8 @@
       "id": "manta_sv_001",
       "type": "manta_call",
       "position": [
-        2600,
-        920
+        3320,
+        1530
       ],
       "params": {
         "threads": 4
@@ -354,8 +354,8 @@
       "id": "delly_sv_001",
       "type": "delly_call",
       "position": [
-        2600,
-        1100
+        3320,
+        1856
       ],
       "params": {
         "mode": "call"
@@ -368,7 +368,7 @@
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
-        2960,
+        5480,
         80
       ],
       "params": {
@@ -384,7 +384,7 @@
       "id": "variant_report_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
+        5840,
         80
       ],
       "params": {},
@@ -396,8 +396,8 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        2960,
-        220
+        5120,
+        80
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -412,8 +412,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        440,
-        276
+        800,
+        270
       ],
       "params": {
         "threads": 4
@@ -426,8 +426,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        800,
-        528
+        1160,
+        522
       ],
       "params": {
         "title": "Variant Calling QC"
@@ -440,8 +440,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
-        528
+        1880,
+        362
       ],
       "params": {},
       "ui": {
@@ -452,8 +452,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        980,
-        528
+        1520,
+        362
       ],
       "params": {
         "expected_format": "text",

@@ -59,7 +59,7 @@
       "type": "input_file",
       "position": [
         80,
-        260
+        231
       ],
       "params": {
         "file": "examples/data/epigenomics/sample_R2.fastq.gz"
@@ -73,7 +73,7 @@
       "type": "input_directory",
       "position": [
         80,
-        440
+        382
       ],
       "params": {
         "directory": "examples/data/epigenomics/bismark_genome"
@@ -87,7 +87,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        620
+        533
       ],
       "params": {
         "reference": "examples/data/epigenomics/reference.fasta"
@@ -101,7 +101,7 @@
       "type": "bismark_align",
       "position": [
         800,
-        160
+        80
       ],
       "params": {
         "parallel_instances": 4,
@@ -133,7 +133,7 @@
       "type": "data_validator",
       "position": [
         440,
-        260
+        546
       ],
       "params": {
         "expected_format": "fastq",
@@ -150,7 +150,7 @@
       "type": "data_validator",
       "position": [
         440,
-        440
+        1012
       ],
       "params": {
         "expected_format": "directory",
@@ -166,7 +166,7 @@
       "type": "data_validator",
       "position": [
         440,
-        620
+        1478
       ],
       "params": {
         "expected_format": "fasta",
@@ -182,8 +182,8 @@
       "id": "gate_bismark_bam_001",
       "type": "gate",
       "position": [
-        980,
-        160
+        1160,
+        80
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -198,7 +198,7 @@
       "id": "bismark_methylation_001",
       "type": "bismark_methylation_extractor",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -215,8 +215,8 @@
       "id": "methyldackel_001",
       "type": "methyldackel",
       "position": [
-        1160,
-        320
+        1520,
+        430
       ],
       "params": {
         "output_prefix": "wgbs_methyldackel",
@@ -231,7 +231,7 @@
       "id": "validate_methylation_output_001",
       "type": "data_validator",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -247,8 +247,8 @@
       "id": "validate_methyldackel_bedgraph_001",
       "type": "data_validator",
       "position": [
-        1340,
-        320
+        1880,
+        546
       ],
       "params": {
         "expected_format": "text",
@@ -263,8 +263,8 @@
       "id": "wgbs_report_001",
       "type": "html_report",
       "position": [
-        1520,
-        160
+        2240,
+        80
       ],
       "params": {
         "title": "WGBS Methylation Profiling Report",
@@ -279,8 +279,8 @@
       "id": "wgbs_report_preview_001",
       "type": "html_preview",
       "position": [
-        1700,
-        160
+        2600,
+        80
       ],
       "params": {},
       "ui": {

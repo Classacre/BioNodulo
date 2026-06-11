@@ -42,7 +42,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
@@ -55,8 +55,8 @@
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        440,
-        444
+        800,
+        454
       ],
       "params": {},
       "ui": {
@@ -68,7 +68,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -84,7 +84,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        620,
+        800,
         80
       ],
       "params": {
@@ -115,7 +115,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
@@ -129,7 +129,7 @@
       "id": "collate_001",
       "type": "samtools_collate",
       "position": [
-        1340,
+        1880,
         80
       ],
       "params": {
@@ -143,7 +143,7 @@
       "id": "fixmate_001",
       "type": "samtools_fixmate",
       "position": [
-        1520,
+        2240,
         80
       ],
       "params": {
@@ -158,7 +158,7 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -172,7 +172,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1520,
+        2600,
         80
       ],
       "params": {
@@ -186,7 +186,7 @@
       "id": "markdup_001",
       "type": "samtools_markdup",
       "position": [
-        1700,
+        2960,
         80
       ],
       "params": {
@@ -201,7 +201,7 @@
       "id": "idx_001",
       "type": "samtools_index",
       "position": [
-        1880,
+        3320,
         80
       ],
       "params": {},
@@ -213,8 +213,8 @@
       "id": "fb_001",
       "type": "freebayes",
       "position": [
-        1880,
-        360
+        3320,
+        362
       ],
       "params": {
         "ploidy": 2
@@ -227,7 +227,7 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        2240,
+        3680,
         80
       ],
       "params": {
@@ -241,7 +241,7 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        2600,
+        4040,
         80
       ],
       "params": {
@@ -256,8 +256,8 @@
       "id": "vep_001",
       "type": "vep",
       "position": [
-        2600,
-        220
+        4040,
+        500
       ],
       "params": {
         "assembly": "GRCh38",
@@ -273,7 +273,7 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        2780,
+        4400,
         80
       ],
       "params": {
@@ -289,8 +289,8 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        2600,
-        360
+        4040,
+        1102
       ],
       "params": {
         "title": "Filtered WGS Variant Statistics",
@@ -304,8 +304,8 @@
       "id": "coverage_plot_001",
       "type": "coverage_plot",
       "position": [
-        2600,
-        640
+        3320,
+        758
       ],
       "params": {
         "region": "NC_000913.3:1-50000",
@@ -321,8 +321,8 @@
       "id": "manta_sv_001",
       "type": "manta_call",
       "position": [
-        2600,
-        920
+        3320,
+        1270
       ],
       "params": {
         "threads": 4,
@@ -337,8 +337,8 @@
       "id": "delly_sv_001",
       "type": "delly_call",
       "position": [
-        2600,
-        1100
+        3320,
+        1596
       ],
       "params": {
         "mode": "call",
@@ -352,7 +352,7 @@
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
-        2960,
+        5120,
         80
       ],
       "params": {
@@ -368,7 +368,7 @@
       "id": "variant_report_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
+        5480,
         80
       ],
       "params": {},
@@ -380,8 +380,8 @@
       "id": "sv_report_001",
       "type": "html_report",
       "position": [
-        2960,
-        920
+        3680,
+        316
       ],
       "params": {
         "title": "WGS Structural Variant Report",
@@ -397,8 +397,8 @@
       "id": "sv_report_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
-        920
+        4040,
+        1614
       ],
       "params": {},
       "ui": {
@@ -409,8 +409,8 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        2960,
-        220
+        4760,
+        80
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -425,8 +425,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        440,
-        640
+        800,
+        644
       ],
       "params": {
         "threads": 4
@@ -439,8 +439,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        800,
-        528
+        1160,
+        522
       ],
       "params": {
         "title": "WGS QC"
@@ -453,8 +453,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
-        528
+        1880,
+        362
       ],
       "params": {},
       "ui": {
@@ -465,8 +465,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        980,
-        528
+        1520,
+        362
       ],
       "params": {
         "expected_format": "text",

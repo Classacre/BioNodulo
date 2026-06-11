@@ -8,6 +8,14 @@ import { edgeColorForSource, defaultsFor } from '../../utils';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
+import {
+  NODE_HEADER_H,
+  NODE_PIN_H,
+  NODE_WIDGET_ROW_H,
+  calcRegularNodeHeight,
+  getInteractiveWidgetEntries,
+  getWidgetBlockTop,
+} from '../../utils/nodeLayout';
 import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
@@ -140,8 +148,6 @@ function sameNodeRunProgressRecord(
 
 const NODE_WIDTH = 220;
 const NODE_NOTE_WIDTH = 260;
-const NODE_HEADER_H = 32;
-const NODE_PIN_H = 22;
 const COLORS: Record<string, string> = {
   Input: '#0d9488', 'Quality Control': '#ec4899', 'Read Preprocessing': '#f59e0b',
   Alignment: '#3b82f6', 'SAM/BAM Processing': '#60a5fa', 'Variant Calling': '#ef4444',
@@ -244,28 +250,6 @@ function calcNoteHeight(text: string, width: number): number {
   return NODE_HEADER_H + Math.max(40, lines * 15 + 20);
 }
 
-function isInteractiveWidgetSpec(spec: unknown): boolean {
-  const s = spec as { type?: string; options?: unknown[]; forceInput?: boolean } | null | undefined;
-  if (!s) return false;
-  if (s.type === 'BOOLEAN') return true;
-  if (Array.isArray(s.options) && s.options.length > 0) return true;
-  if (s.type === 'INT' || s.type === 'FLOAT') return true;
-  if (s.type === 'STRING' && !s.forceInput) return true;
-  return false;
-}
-
-function countInteractiveWidgets(meta: NodeMetadata | null, params?: Record<string, unknown>): number {
-  const visibleInputs = getVisibleInputSpecs(meta, params);
-  const all = { ...visibleInputs.required, ...visibleInputs.optional };
-  let count = 0;
-  for (const [, spec] of Object.entries(all)) {
-    if (isInteractiveWidgetSpec(spec)) count += 1;
-  }
-  return count;
-}
-
-const WIDGET_ROW_H = 24;
-const WIDGET_BLOCK_PAD = 8;
 type CanvasPalette = {
   canvas: string;
   accent: string;
@@ -289,16 +273,7 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
     const text = String(params?.text || '');
     return calcNoteHeight(text, width || NODE_NOTE_WIDTH);
   }
-  const visibleInputs = getVisibleInputSpecs(meta, params);
-  const ins = Object.keys(visibleInputs.required).length + Object.keys(visibleInputs.optional).length;
-  const outs = resolveNodeOutputs(meta, params).length;
-  const ioHeight = Math.max(ins, outs, 1) * NODE_PIN_H;
-  const widgetCount = countInteractiveWidgets(meta, params);
-  const widgetHeight = widgetCount > 0 ? widgetCount * WIDGET_ROW_H + WIDGET_BLOCK_PAD : 0;
-  const visibleParamCount = Object.keys(params || {}).filter(key => key !== 'text').length;
-  const summaryHeight = widgetCount === 0 && visibleParamCount > 0 ? Math.min(3, visibleParamCount) * 15 + 10 : 0;
-  const descriptionHeight = widgetCount === 0 && visibleParamCount === 0 && meta?.description ? 28 : 0;
-  const base = NODE_HEADER_H + ioHeight + widgetHeight + summaryHeight + descriptionHeight + 12;
+  const base = calcRegularNodeHeight(meta, params);
   if (meta?.id === 'image_preview') return base + 120;
   if (meta?.id === 'html_preview') return base + 200;
   return base;
@@ -394,13 +369,10 @@ function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Arr
     if (n.collapsed) {
       return { width, height: NODE_HEADER_H + 8 };
     }
-    const visibleInputs = getVisibleInputSpecs(n.meta, n.params);
-    const widgetSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
-    const widgetCount = Object.keys(widgetSpecs).length;
-    const portRows = Math.max(n.inputs?.length || 0, n.outputs?.length || 0, 1);
+    const minHeight = calcNodeHeight(n.meta, false, n.params, width);
     const measuredH = n.height && n.height > 0
-      ? n.height
-      : NODE_HEADER_H + portRows * NODE_PIN_H + widgetCount * 24 + 16;
+      ? Math.max(n.height, minHeight)
+      : minHeight;
     return { width, height: measuredH };
   };
 
@@ -1357,17 +1329,13 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           // Track widget hit areas (kept for legacy slider/select drag handlers).
           // Visible rendering happens entirely via the DOM overlay below, so the
           // canvas itself no longer draws toggles/sliders/combos/etc.
-          const visibleInputs = getVisibleInputSpecs(node.meta, node.params);
-          const allSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
-          const widgetY0 = node.y + NODE_HEADER_H + Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H + 6;
-          let wy = widgetY0;
-          const widgetH = 18;
-          const widgetGap = 2;
+          const widgetEntries = getInteractiveWidgetEntries(node.meta, node.params);
+          const widgetY0 = node.y + getWidgetBlockTop(node.inputs.length, node.outputs.length);
           const wx = node.x + 8;
           const ww = nw - 16;
           const nodeWidgets: Array<{ name: string; type: string; x: number; y: number; w: number; h: number }> = [];
 
-          for (const [key, spec] of Object.entries(allSpecs)) {
+          widgetEntries.forEach(({ key, spec }, index) => {
             const s = spec as any;
             let wtype: string;
             if (s?.type === 'BOOLEAN') wtype = 'toggle';
@@ -1375,10 +1343,16 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             else if ((s?.type === 'INT' || s?.type === 'FLOAT') && s?.display === 'slider') wtype = 'slider';
             else if (s?.type === 'INT' || s?.type === 'FLOAT') wtype = 'number';
             else if (s?.type === 'STRING' && !s?.forceInput) wtype = 'text';
-            else continue;
-            nodeWidgets.push({ name: key, type: wtype, x: wx, y: wy, w: ww, h: widgetH });
-            wy += widgetH + widgetGap;
-          }
+            else return;
+            nodeWidgets.push({
+              name: key,
+              type: wtype,
+              x: wx,
+              y: widgetY0 + index * NODE_WIDGET_ROW_H,
+              w: ww,
+              h: NODE_WIDGET_ROW_H,
+            });
+          });
           widgetsRef.current.set(node.id, nodeWidgets);
           if (nodeWidgets.length === 0) {
             const paramEntries = Object.entries(node.params || {})
@@ -2411,7 +2385,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           const newHeight = calcNoteHeight(String(n.params?.text || ''), newWidth);
           return { ...n, width: newWidth, height: newHeight };
         }
-        return { ...n, width: newWidth, height: Math.max(NODE_HEADER_H + 20, n.height + dy) };
+        const minHeight = calcNodeHeight(n.meta, false, n.params, newWidth);
+        return { ...n, width: newWidth, height: Math.max(minHeight, n.height + dy) };
       }));
       return;
     }
@@ -3410,53 +3385,51 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         );
       })}
 
-      {/* Full DOM widget overlays for node controls. These provide native form
-          controls while preserving BioNodulo's custom canvas model.
-          With `transform: scale(scale)` they now scale uniformly with the node
-          so the previous zoom-out fallback to canvas-drawn widgets is gone. */}
+      {/* Full DOM widget overlays for node controls. Each overlay is clipped to
+          its node's own rectangle so form controls cannot float over unrelated
+          nodes even when a saved workflow has stale node dimensions. */}
       {graphNodes.filter(node => (
         !node.collapsed
         && !node.visualOnly
         && node.type !== 'reroute'
-      )).flatMap(node => {
-        const visibleInputs = getVisibleInputSpecs(node.meta, node.params);
-        const allSpecs = { ...visibleInputs.required, ...visibleInputs.optional };
-        const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
-        let top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 6) * scale;
-        const left = node.x * scale + offset.x + 8 * scale;
-        // Lay widgets out in WORLD units (so child controls keep their natural
-        // sizing) and use `transform: scale(scale)` to align with the canvas.
-        // This makes widgets grow/shrink in lockstep with the node at any zoom
-        // instead of clipping when scale > 1 or jittering when scale < 1.
+      )).map(node => {
+        const widgetEntries = getInteractiveWidgetEntries(node.meta, node.params);
+        if (widgetEntries.length === 0) return null;
+        const rect = toScreenNodeRect(node);
+        const widgetTop = getWidgetBlockTop(node.inputs.length, node.outputs.length);
         const layoutWidth = node.width - 16;
-        const layoutHeight = 24;
-        // Mid-drag, widget overlays must not capture pointer events: otherwise
-        // dragging a node OVER another node lets the moving node's widgets
-        // intercept the mouse and halt the drag. The dragged node's own
-        // widgets also fade + drop in z-order so the static target node
-        // remains visually on top until the drop lands.
         const isAnyDragging = dragging !== null || groupDragging !== null;
         const isThisDragging = dragging === node.id || (groupDragging !== null && node.selected);
         const widgetZ = isThisDragging ? 1 : 12;
         const widgetPointer: 'auto' | 'none' = isAnyDragging ? 'none' : 'auto';
         const widgetOpacity = isThisDragging ? 0.35 : 1;
-        return Object.entries(allSpecs).map(([key, rawSpec]) => {
-          const spec = rawSpec as any;
-          const value = node.params[key] ?? spec.default ?? '';
-          const rowTop = top;
-          top += layoutHeight * scale;
-          const common = {
-            position: 'absolute' as const,
-            left,
-            top: rowTop,
-            width: layoutWidth,
-            height: layoutHeight,
-            zIndex: widgetZ,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            pointerEvents: widgetPointer,
-            opacity: widgetOpacity,
-          };
+
+        return (
+          <div
+            key={`widgets-${node.id}`}
+            className="node-dom-widget-layer"
+            style={{
+              position: 'absolute',
+              left: rect.x,
+              top: rect.y,
+              width: node.width,
+              height: node.height,
+              zIndex: widgetZ,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              opacity: widgetOpacity,
+            }}
+          >
+            <div style={{ position: 'absolute', left: 8, top: widgetTop, width: layoutWidth, pointerEvents: 'none' }}>
+              {widgetEntries.map(({ key, spec: rawSpec }) => {
+                const spec = rawSpec as any;
+                const value = node.params[key] ?? spec.default ?? '';
+                const common = {
+                  height: NODE_WIDGET_ROW_H,
+                  pointerEvents: widgetPointer,
+                };
           const commit = (nextValue: unknown, push = true) => {
             handleNodeParamChange(node.id, key, nextValue);
             if (push) onPushHistory();
@@ -3552,7 +3525,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
             );
           }
           return null;
-        }).filter(Boolean);
+              }).filter(Boolean)}
+            </div>
+          </div>
+        );
       })}
 
       {/* Per-node error overlays. The badge sits at the top-right corner of

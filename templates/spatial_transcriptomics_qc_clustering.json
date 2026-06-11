@@ -58,7 +58,7 @@
       "id": "validate_visium_outs_001",
       "type": "data_validator",
       "position": [
-        420,
+        440,
         80
       ],
       "params": {
@@ -74,7 +74,7 @@
       "id": "squidpy_qc_001",
       "type": "squidpy_qc",
       "position": [
-        760,
+        800,
         80
       ],
       "params": {
@@ -93,8 +93,8 @@
       "id": "validate_squidpy_adata_001",
       "type": "data_validator",
       "position": [
-        1100,
-        -40
+        1160,
+        80
       ],
       "params": {
         "expected_format": "auto",
@@ -109,8 +109,8 @@
       "id": "spatial_plot_preview_001",
       "type": "image_preview",
       "position": [
-        1100,
-        180
+        1160,
+        546
       ],
       "params": {},
       "ui": {
@@ -122,7 +122,7 @@
       "type": "input_file",
       "position": [
         80,
-        380
+        231
       ],
       "params": {
         "file": "examples/data/spatial_transcriptomics/counts.csv"
@@ -135,8 +135,8 @@
       "id": "validate_count_matrix_001",
       "type": "data_validator",
       "position": [
-        420,
-        380
+        440,
+        546
       ],
       "params": {
         "expected_format": "csv",
@@ -152,7 +152,7 @@
       "type": "input_file",
       "position": [
         80,
-        560
+        382
       ],
       "params": {
         "file": "examples/data/spatial_transcriptomics/coordinates.csv"
@@ -165,8 +165,8 @@
       "id": "validate_coordinates_001",
       "type": "data_validator",
       "position": [
-        420,
-        560
+        440,
+        1012
       ],
       "params": {
         "expected_format": "csv",
@@ -181,8 +181,8 @@
       "id": "scanpy_spatial_001",
       "type": "scanpy_spatial",
       "position": [
-        760,
-        470
+        800,
+        500
       ],
       "params": {
         "sample_name": "visium_sample",
@@ -201,8 +201,8 @@
       "id": "validate_scanpy_clusters_001",
       "type": "data_validator",
       "position": [
-        1100,
-        400
+        1160,
+        820
       ],
       "params": {
         "expected_format": "csv",
@@ -217,8 +217,8 @@
       "id": "scanpy_umap_preview_001",
       "type": "image_preview",
       "position": [
-        1100,
-        620
+        1160,
+        1286
       ],
       "params": {},
       "ui": {
@@ -229,8 +229,8 @@
       "id": "spatial_report_001",
       "type": "html_report",
       "position": [
-        1460,
-        320
+        80,
+        533
       ],
       "params": {
         "title": "Spatial Transcriptomics QC and Clustering Report",
@@ -250,8 +250,8 @@
       "id": "spatial_report_preview_001",
       "type": "html_preview",
       "position": [
-        1800,
-        320
+        440,
+        1478
       ],
       "params": {},
       "ui": {

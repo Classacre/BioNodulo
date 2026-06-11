@@ -42,7 +42,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        170
+        270
       ],
       "params": {
         "sample_name": "control",
@@ -60,7 +60,7 @@
       "type": "input_directory",
       "position": [
         80,
-        276
+        460
       ],
       "params": {
         "directory": "bowtie2_index"
@@ -74,7 +74,7 @@
       "type": "input_file",
       "position": [
         80,
-        444
+        611
       ],
       "params": {
         "file": "examples/data/chip_seq/genes.bed"
@@ -87,7 +87,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1160,
+        1880,
         80
       ],
       "params": {
@@ -101,7 +101,7 @@
       "id": "bt2_001",
       "type": "bowtie2_align",
       "position": [
-        800,
+        1520,
         80
       ],
       "params": {
@@ -115,7 +115,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        620,
+        800,
         80
       ],
       "params": {
@@ -129,7 +129,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        710,
+        1160,
         80
       ],
       "params": {
@@ -163,7 +163,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        546
       ],
       "params": {
         "expected_format": "directory",
@@ -179,7 +179,7 @@
       "type": "data_validator",
       "position": [
         440,
-        444
+        1012
       ],
       "params": {
         "expected_format": "text",
@@ -195,7 +195,7 @@
       "type": "data_validator",
       "position": [
         440,
-        170
+        1478
       ],
       "params": {
         "expected_format": "fastq",
@@ -211,8 +211,8 @@
       "id": "fastp_control_001",
       "type": "fastp",
       "position": [
-        620,
-        170
+        800,
+        454
       ],
       "params": {
         "threads": 4
@@ -225,8 +225,8 @@
       "id": "gate_control_reads_001",
       "type": "gate",
       "position": [
-        710,
-        170
+        1160,
+        430
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -241,8 +241,8 @@
       "id": "bt2_control_001",
       "type": "bowtie2_align",
       "position": [
-        800,
-        170
+        1520,
+        1056
       ],
       "params": {
         "threads": 8
@@ -255,8 +255,8 @@
       "id": "view_control_001",
       "type": "samtools_view",
       "position": [
-        1160,
-        170
+        1880,
+        714
       ],
       "params": {
         "threads": 4
@@ -269,8 +269,8 @@
       "id": "sort_control_001",
       "type": "samtools_sort",
       "position": [
-        1520,
-        170
+        2240,
+        782
       ],
       "params": {
         "threads": 4
@@ -283,7 +283,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        1520,
+        2240,
         80
       ],
       "params": {
@@ -297,7 +297,7 @@
       "id": "macs2_001",
       "type": "macs2_callpeak",
       "position": [
-        1880,
+        2600,
         80
       ],
       "params": {
@@ -311,8 +311,8 @@
       "id": "coverage_001",
       "type": "deeptools_bamcoverage",
       "position": [
-        1880,
-        276
+        2600,
+        522
       ],
       "params": {
         "threads": 4,
@@ -328,7 +328,7 @@
       "id": "validate_peaks_001",
       "type": "data_validator",
       "position": [
-        2240,
+        2960,
         80
       ],
       "params": {
@@ -344,7 +344,7 @@
       "id": "peak_annotation_001",
       "type": "bedtools_closest",
       "position": [
-        2420,
+        3320,
         80
       ],
       "params": {
@@ -359,8 +359,8 @@
       "id": "chip_signal_plot_001",
       "type": "coverage_plot",
       "position": [
-        2240,
-        276
+        2960,
+        546
       ],
       "params": {
         "region": "chrX:1-50000",
@@ -376,8 +376,8 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        440,
-        570
+        1520,
+        544
       ],
       "params": {
         "threads": 4
@@ -390,8 +390,8 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        800,
-        360
+        1880,
+        362
       ],
       "params": {
         "title": "ChIP-Seq QC"
@@ -404,8 +404,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
-        360
+        2600,
+        1010
       ],
       "params": {},
       "ui": {
@@ -416,8 +416,8 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        980,
-        360
+        2240,
+        316
       ],
       "params": {
         "expected_format": "text",
@@ -432,7 +432,7 @@
       "id": "chip_seq_report_001",
       "type": "html_report",
       "position": [
-        2600,
+        3680,
         80
       ],
       "params": {
@@ -448,7 +448,7 @@
       "id": "chip_seq_report_preview_001",
       "type": "html_preview",
       "position": [
-        2780,
+        4040,
         80
       ],
       "params": {},

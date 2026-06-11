@@ -41,7 +41,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        620,
+        800,
         80
       ],
       "params": {
@@ -72,7 +72,7 @@
       "id": "spades_001",
       "type": "spades",
       "position": [
-        980,
+        1880,
         80
       ],
       "params": {
@@ -86,7 +86,7 @@
       "id": "switch_assembler_001",
       "type": "switch",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -103,7 +103,7 @@
       "id": "spades_retry_001",
       "type": "retry",
       "position": [
-        890,
+        1520,
         80
       ],
       "params": {
@@ -122,8 +122,8 @@
       "id": "megahit_001",
       "type": "megahit",
       "position": [
-        980,
-        220
+        1520,
+        500
       ],
       "params": {
         "threads": 8,
@@ -138,7 +138,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        276
+        270
       ],
       "params": {
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
@@ -151,7 +151,7 @@
       "id": "quast_001",
       "type": "quast",
       "position": [
-        1520,
+        2960,
         80
       ],
       "params": {
@@ -166,7 +166,7 @@
       "type": "data_validator",
       "position": [
         440,
-        276
+        546
       ],
       "params": {
         "expected_format": "fasta",
@@ -182,7 +182,7 @@
       "id": "validate_assembly_001",
       "type": "data_validator",
       "position": [
-        1160,
+        2240,
         80
       ],
       "params": {
@@ -199,7 +199,7 @@
       "id": "gate_assembly_001",
       "type": "gate",
       "position": [
-        1340,
+        2600,
         80
       ],
       "params": {
@@ -215,8 +215,8 @@
       "id": "prokka_001",
       "type": "prokka",
       "position": [
-        1520,
-        360
+        2960,
+        314
       ],
       "params": {
         "kingdom": "Bacteria"
@@ -229,8 +229,8 @@
       "id": "assembly_stats_001",
       "type": "bp_seq_stats",
       "position": [
-        1520,
-        220
+        2960,
+        780
       ],
       "params": {
         "format": "fasta"
@@ -243,8 +243,8 @@
       "id": "assembly_stats_chart_001",
       "type": "bar_chart",
       "position": [
-        1700,
-        220
+        3320,
+        80
       ],
       "params": {
         "x_column": "id",
@@ -261,8 +261,8 @@
       "id": "assembly_contig_summary_001",
       "type": "aggregate",
       "position": [
-        1700,
-        320
+        3320,
+        776
       ],
       "params": {
         "group_columns": "id",
@@ -280,8 +280,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        80
+        3680,
+        568
       ],
       "params": {},
       "ui": {
@@ -292,8 +292,8 @@
       "id": "validate_quast_001",
       "type": "data_validator",
       "position": [
-        1700,
-        80
+        3320,
+        1196
       ],
       "params": {
         "expected_format": "text",
@@ -308,8 +308,8 @@
       "id": "validate_prokka_001",
       "type": "data_validator",
       "position": [
-        1700,
-        360
+        3320,
+        1662
       ],
       "params": {
         "expected_format": "text",
@@ -324,8 +324,8 @@
       "id": "assembly_report_001",
       "type": "html_report",
       "position": [
-        1880,
-        360
+        3680,
+        80
       ],
       "params": {
         "title": "Assembly Annotation Report",
@@ -340,8 +340,8 @@
       "id": "assembly_report_preview_001",
       "type": "html_preview",
       "position": [
-        2060,
-        360
+        4040,
+        80
       ],
       "params": {},
       "ui": {

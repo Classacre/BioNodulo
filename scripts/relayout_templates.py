@@ -25,9 +25,10 @@ TEMPLATES_DIR = REPO_ROOT / "templates"
 # laid-out positions render cleanly in the browser canvas.
 NODE_WIDTH = 220
 NODE_HEADER_H = 32
-NODE_PIN_H = 18
+NODE_PIN_H = 22
 WIDGET_ROW_H = 24
-WIDGET_BLOCK_PAD = 8
+WIDGET_TOP_PAD = 6
+WIDGET_BOTTOM_PAD = 12
 COL_GAP = 360  # column-to-column distance in workflow space
 ROW_GAP = 60   # vertical gap between stacked nodes in the same column
 ORIGIN_X = 80
@@ -144,7 +145,7 @@ def estimate_node_height(node: dict[str, Any]) -> int:
     io_height = max(ins, outs, 1) * NODE_PIN_H
 
     widget_count = sum(1 for spec in all_specs.values() if _is_interactive_spec(spec))
-    widget_height = widget_count * WIDGET_ROW_H + WIDGET_BLOCK_PAD if widget_count else 0
+    widget_height = WIDGET_TOP_PAD + widget_count * WIDGET_ROW_H + WIDGET_BOTTOM_PAD if widget_count else 0
 
     params = node.get("params") or {}
     visible_params = sum(1 for key in params if key != "text")

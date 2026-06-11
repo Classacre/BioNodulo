@@ -530,10 +530,40 @@ class WorkflowExecutor:
                 )
             node_cache_keys[node_id] = cache_key
 
+            # ---- Prepare node working directory and environment prefix ----
+            node_dir = self.workspace_dir / "runs" / run_id / node_id
+            node_dir.mkdir(parents=True, exist_ok=True)
+
+            env_prefix: list[str] = []
+            isolation = getattr(self.settings, "execution", None)
+            isolation_mode = getattr(isolation, "env_isolation", "auto") if isolation else "auto"
+            if isolation_mode in ("auto", "always"):
+                env_prefix = self._env_prefix_for_node(node, workflow)
+
             # ---- Cache hit check ----
             if cache_key is not None and self.cache.is_hit(cache_key):
                 marker = self.cache.read_marker(cache_key)
                 cached_outputs = marker.get("outputs", {}) if marker else {}
+                ctx = ExecutionContext(
+                    run_id=run_id,
+                    node_id=node_id,
+                    node_type=node_type,
+                    node_dir=node_dir,
+                    workspace_dir=self.workspace_dir,
+                    params=resolved_params,
+                    api_secrets=self._api_secrets_for_options(options),
+                    emit=emit,
+                    cancel_event=cancel_event,
+                    env_prefix=env_prefix,
+                    run_metadata=run_metadata,
+                    executor=self,
+                    registry=self.registry,
+                )
+                cached_outputs = await self._apply_inline_output_validations(
+                    ctx=ctx,
+                    node=node,
+                    outputs=cached_outputs,
+                )
                 inactive_outputs = self._inactive_output_ports(
                     marker or {},
                     cached_outputs,
@@ -582,17 +612,6 @@ class WorkflowExecutor:
                                 }
                             )
                 continue
-
-            # ---- Prepare node working directory ----
-            node_dir = self.workspace_dir / "runs" / run_id / node_id
-            node_dir.mkdir(parents=True, exist_ok=True)
-
-            # ---- Determine environment prefix for isolated execution ----
-            env_prefix: list[str] = []
-            isolation = getattr(self.settings, "execution", None)
-            isolation_mode = getattr(isolation, "env_isolation", "auto") if isolation else "auto"
-            if isolation_mode in ("auto", "always"):
-                env_prefix = self._env_prefix_for_node(node, workflow)
 
             # ---- Build execution context ----
             ctx = ExecutionContext(
@@ -647,7 +666,12 @@ class WorkflowExecutor:
                         upstream_nodes=self._upstream_node_ids(node_id, upstream_of),
                         emit=emit,
                     )
-                outputs = result.get("outputs", {})
+                outputs = await self._apply_inline_output_validations(
+                    ctx=ctx,
+                    node=node,
+                    outputs=result.get("outputs", {}),
+                )
+                result["outputs"] = outputs
                 inactive_outputs = self._inactive_output_ports(
                     result,
                     outputs,
@@ -2894,6 +2918,63 @@ class WorkflowExecutor:
         return_names = getattr(node_class, "RETURN_NAMES", ()) or ()
         name = return_names[0] if return_names else "default"
         return {"outputs": {name: raw}}
+
+    @staticmethod
+    def _inline_output_validation_rules(node: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        ui = node.get("ui")
+        if not isinstance(ui, dict):
+            return {}
+        validation = ui.get("validation")
+        if not isinstance(validation, dict):
+            return {}
+        outputs = validation.get("outputs")
+        if not isinstance(outputs, dict):
+            return {}
+        rules: dict[str, dict[str, Any]] = {}
+        for output_name, raw_rule in outputs.items():
+            if not isinstance(raw_rule, dict):
+                continue
+            if raw_rule.get("enabled") is False:
+                continue
+            rules[str(output_name)] = dict(raw_rule)
+        return rules
+
+    async def _apply_inline_output_validations(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        outputs: dict[str, Any],
+    ) -> dict[str, Any]:
+        rules = self._inline_output_validation_rules(node)
+        if not rules:
+            return outputs
+
+        try:
+            from bionodulo.nodes.builtin.workflow_enhancement import DataValidatorNode
+        except Exception as exc:  # pragma: no cover - import failure is environment-specific
+            raise RuntimeError(f"Inline validation could not load Data Validator: {exc}") from exc
+
+        validator = DataValidatorNode()
+        validation_records = ctx.run_metadata.setdefault("inline_validations", [])
+        for output_name, rule in rules.items():
+            if output_name not in outputs:
+                raise RuntimeError(f"Inline validation output '{output_name}' not found for node '{ctx.node_id}'")
+            validator_kwargs = dict(rule)
+            validator_kwargs.pop("enabled", None)
+            validator_kwargs["input"] = outputs[output_name]
+            validator_kwargs.setdefault("fail_on_error", True)
+            _, passed, report, report_file = await validator.run(context=ctx, **validator_kwargs)
+            validation_records.append(
+                {
+                    "node_id": ctx.node_id,
+                    "output": output_name,
+                    "passed": bool(passed),
+                    "report": report,
+                    "report_file": report_file,
+                }
+            )
+        return outputs
 
     def _topological_sort(
         self,

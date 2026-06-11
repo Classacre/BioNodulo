@@ -38,7 +38,7 @@
       "type": "ncbi_efetch",
       "position": [
         80,
-        220
+        231
       ],
       "params": {
         "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
@@ -87,8 +87,8 @@
       "id": "gate_fasta_001",
       "type": "gate",
       "position": [
-        620,
-        220
+        800,
+        316
       ],
       "params": {
         "condition_mode": "boolean_is_true",
@@ -120,7 +120,7 @@
       "type": "bp_msa_view",
       "position": [
         1160,
-        320
+        432
       ],
       "params": {
         "format": "fasta"
@@ -134,7 +134,7 @@
       "type": "image_preview",
       "position": [
         1520,
-        320
+        80
       ],
       "params": {},
       "ui": {
@@ -146,7 +146,7 @@
       "type": "phylo_tree_viewer",
       "position": [
         1520,
-        80
+        354
       ],
       "params": {
         "layout": "rectangular",

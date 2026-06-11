@@ -109,6 +109,18 @@ export interface WorkflowNode {
     bypassed?: boolean;
     width?: number;
     height?: number;
+    validation?: {
+      outputs?: Record<string, {
+        enabled?: boolean;
+        expected_format?: string;
+        min_size_bytes?: number;
+        max_size_bytes?: number;
+        required_fields?: string;
+        min_records?: number;
+        checksum_expected?: string;
+        fail_on_error?: boolean;
+      }>;
+    };
   };
 }
 

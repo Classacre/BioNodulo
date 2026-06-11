@@ -38,7 +38,7 @@
       "type": "input_directory",
       "position": [
         80,
-        234
+        231
       ],
       "params": {
         "directory": "refdata-gex-GRCh38"
@@ -51,7 +51,7 @@
       "id": "cr_count_001",
       "type": "cellranger_count",
       "position": [
-        440,
+        1160,
         80
       ],
       "params": {
@@ -66,7 +66,7 @@
       "id": "cr_count_retry_001",
       "type": "retry",
       "position": [
-        350,
+        800,
         80
       ],
       "params": {
@@ -85,7 +85,7 @@
       "id": "validate_fastq_dir_001",
       "type": "data_validator",
       "position": [
-        260,
+        440,
         80
       ],
       "params": {
@@ -101,8 +101,8 @@
       "id": "validate_reference_dir_001",
       "type": "data_validator",
       "position": [
-        260,
-        234
+        440,
+        546
       ],
       "params": {
         "expected_format": "directory",
@@ -117,7 +117,7 @@
       "id": "validate_web_summary_001",
       "type": "data_validator",
       "position": [
-        620,
+        1520,
         80
       ],
       "params": {
@@ -133,8 +133,8 @@
       "id": "validate_metrics_summary_001",
       "type": "data_validator",
       "position": [
-        620,
-        260
+        1520,
+        546
       ],
       "params": {
         "expected_format": "csv",
@@ -149,7 +149,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        980,
+        2240,
         80
       ],
       "params": {},
@@ -161,7 +161,7 @@
       "id": "gate_web_summary_001",
       "type": "gate",
       "position": [
-        800,
+        1880,
         80
       ],
       "params": {
@@ -177,8 +177,8 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        800,
-        260
+        80,
+        382
       ],
       "params": {
         "run_name": "Single Cell QC",
@@ -194,8 +194,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        980,
-        260
+        440,
+        1012
       ],
       "params": {},
       "ui": {
@@ -206,8 +206,8 @@
       "id": "metrics_summary_chart_001",
       "type": "bar_chart",
       "position": [
-        800,
-        620
+        1880,
+        430
       ],
       "params": {
         "title": "Cell Ranger Metrics Summary",
@@ -224,8 +224,8 @@
       "id": "single_cell_report_001",
       "type": "html_report",
       "position": [
-        800,
-        440
+        2240,
+        234
       ],
       "params": {
         "title": "Single Cell RNA-Seq Report",
@@ -241,8 +241,8 @@
       "id": "single_cell_report_preview_001",
       "type": "html_preview",
       "position": [
-        980,
-        440
+        2600,
+        80
       ],
       "params": {},
       "ui": {
