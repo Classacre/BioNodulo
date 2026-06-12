@@ -22,6 +22,10 @@ def _get_registry(request: Request) -> Any:
     return request.app.state.node_registry
 
 
+def _get_run_queue(request: Request) -> Any:
+    return getattr(request.app.state, "run_queue", None)
+
+
 def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, str | None, str | None, str | None, float, int]:
     provider = str(body.provider or setting_literal(request, "bionodulo.llm.provider", "openai") or "openai")
     model_value = body.model or setting_literal(request, "bionodulo.llm.model", None)
@@ -78,6 +82,7 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
             settings=settings,
             settings_manager=settings_manager,
             files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
+            run_queue=_get_run_queue(request),
         )
     except Exception as exc:
         return {
@@ -140,6 +145,7 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
                 settings=settings,
                 settings_manager=settings_manager,
                 files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
+                run_queue=_get_run_queue(request),
             )
         except Exception as exc:
             yield f"data: {json.dumps({'type': 'reply', 'content': f'AI error: {exc}'})}\n\n"

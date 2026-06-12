@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import json
 import logging
 import os
@@ -36,6 +37,10 @@ class ToolDefinition:
     parameters: list[ToolParameter]
     execute: Callable[..., Any] = field(repr=False)
     mutates: bool = False
+    # An ``action`` tool has real side effects (runs a workflow, installs a
+    # dependency, writes a file) but does not produce a draft graph edit for
+    # confirmation. The autonomous agent loop may invoke these directly.
+    action: bool = False
 
 
 class ToolContext:
@@ -48,12 +53,32 @@ class ToolContext:
         registry: Any = None,
         settings: Any = None,
         settings_manager: Any = None,
+        run_queue: Any = None,
     ):
         self.workflow = _normalize_workflow(workflow or {}, workflow_id)
         self.workflow_id = self.workflow.get("id") or workflow_id
         self.registry = registry
         self.settings = settings
         self.settings_manager = settings_manager
+        self.run_queue = run_queue
+
+    @property
+    def executor(self) -> Any:
+        """The workflow executor backing this context, if any (unwrapped)."""
+        queue_executor = getattr(self.run_queue, "executor", None)
+        if queue_executor is None:
+            return None
+        # The queue may hold an ArqWorkflowExecutor wrapping the real executor.
+        return getattr(queue_executor, "executor", queue_executor)
+
+    @property
+    def runs_dir(self) -> Path:
+        executor = self.executor
+        workspace = getattr(executor, "workspace_dir", None)
+        if workspace is not None:
+            return Path(workspace) / "runs"
+        project_root = getattr(self.settings, "project_root", None)
+        return (Path(project_root) if project_root else REPO_ROOT) / "runs"
 
 
 def _param_schema(params: list[ToolParameter]) -> str:
@@ -596,11 +621,266 @@ def _get_system_stats(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     }
 
 
-def _get_run_history(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    return {
-        "runs": [],
-        "note": "Run history is request-context dependent. Open the console/history panel for live local run records.",
+def _get_run_history(ctx: ToolContext, limit: int | None = 10, **kwargs: Any) -> dict[str, Any]:
+    """Recent run records (most recent first) from the live run queue."""
+    queue = ctx.run_queue
+    if queue is None or not hasattr(queue, "list_history"):
+        return {"runs": [], "note": "No run queue is available in this context."}
+    try:
+        history = list(queue.list_history())
+    except Exception as exc:  # pragma: no cover - defensive
+        return {"error": f"Could not read run history: {exc}"}
+    try:
+        count = int(limit) if limit is not None else 10
+    except (TypeError, ValueError):
+        count = 10
+    runs = [
+        {
+            "run_id": r.get("run_id"),
+            "name": r.get("name"),
+            "status": r.get("status"),
+        }
+        for r in history[: max(1, count)]
+    ]
+    return {"runs": runs, "count": len(runs)}
+
+
+async def _run_workflow(
+    ctx: ToolContext,
+    force: bool | None = False,
+    target_nodes: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Execute the current workflow and return a status summary.
+
+    Runs synchronously through the workflow executor and waits for completion,
+    so the assistant can inspect per-node results and drive a debug loop.
+    """
+    executor = ctx.executor
+    if executor is None or not hasattr(executor, "execute"):
+        return {"error": "No execution backend is available in this context."}
+    from bionodulo.workflow.validation import validate_workflow
+
+    validation = validate_workflow(ctx.workflow, ctx.registry)
+    if not validation.valid:
+        return {
+            "error": "Workflow is invalid; fix these before running.",
+            "validation_errors": validation.errors,
+        }
+    run_id = _new_id("airun")
+    options: dict[str, Any] = {}
+    if target_nodes:
+        options["target_nodes"] = list(target_nodes)
+    try:
+        result = await executor.execute(
+            run_id=run_id,
+            workflow=ctx.workflow,
+            options=options,
+            force=bool(force),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("AI run_workflow failed")
+        return {"run_id": run_id, "status": "failed", "error": str(exc)}
+    node_results = result.get("node_results", {}) if isinstance(result, dict) else {}
+    node_statuses = {nid: nr.get("status") for nid, nr in node_results.items() if isinstance(nr, dict)}
+    failed_nodes = {
+        nid: str(nr.get("error", ""))[:500]
+        for nid, nr in node_results.items()
+        if isinstance(nr, dict) and nr.get("status") in ("failed", "error")
     }
+    return {
+        "run_id": run_id,
+        "status": result.get("status") if isinstance(result, dict) else "unknown",
+        "node_statuses": node_statuses,
+        "failed_nodes": failed_nodes,
+        "error": result.get("error") if isinstance(result, dict) else None,
+    }
+
+
+def _get_run_status(ctx: ToolContext, run_id: str, **kwargs: Any) -> dict[str, Any]:
+    """Status and per-node results for a run id."""
+    queue = ctx.run_queue
+    if queue is None or not hasattr(queue, "get_run"):
+        return {"error": "No run queue is available in this context."}
+    record = queue.get_run(run_id)
+    if not record:
+        return {"error": f"Run '{run_id}' not found."}
+    return record
+
+
+def _read_run_logs(
+    ctx: ToolContext,
+    run_id: str,
+    node_id: str | None = None,
+    tail: int | None = 100,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Read stdout/stderr logs for a run (optionally a single node).
+
+    Returns the last ``tail`` non-empty lines so the assistant can diagnose a
+    failure without flooding its context.
+    """
+    run_dir = ctx.runs_dir / run_id
+    if not run_dir.is_dir():
+        return {"error": f"Run directory not found for '{run_id}'."}
+    try:
+        line_cap = int(tail) if tail is not None else 100
+    except (TypeError, ValueError):
+        line_cap = 100
+    line_cap = max(1, min(line_cap, 2000))
+
+    lines: list[str] = []
+    node_dirs = [run_dir / node_id] if node_id else sorted(p for p in run_dir.iterdir() if p.is_dir())
+    for node_dir in node_dirs:
+        if not node_dir.is_dir():
+            continue
+        for stream in ("stdout", "stderr"):
+            log_path = node_dir / f"{stream}.log"
+            if not log_path.is_file():
+                continue
+            try:
+                content = log_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for line in content.splitlines():
+                if line.strip():
+                    lines.append(f"[{node_dir.name}/{stream}] {line}")
+    return {"run_id": run_id, "node_id": node_id, "log_tail": lines[-line_cap:]}
+
+
+async def _retry_run(ctx: ToolContext, run_id: str, **kwargs: Any) -> dict[str, Any]:
+    """Re-submit a previous run to the queue."""
+    queue = ctx.run_queue
+    if queue is None or not hasattr(queue, "retry"):
+        return {"error": "No run queue is available in this context."}
+    try:
+        new_run_id = await queue.retry(run_id)
+    except Exception as exc:
+        return {"error": f"Retry failed: {exc}"}
+    return {"retried_from": run_id, "run_id": new_run_id}
+
+
+async def _search_literature(
+    ctx: ToolContext,
+    query: str,
+    max_results: int | None = 5,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Search PubMed (NCBI E-utilities) for papers matching a query.
+
+    Keyless. Used by the optimize/reproduce flows to ground method choices in
+    the literature. Returns title, authors, journal, year, PMID, and DOI.
+    """
+    import httpx
+
+    try:
+        count = max(1, min(int(max_results) if max_results is not None else 5, 20))
+    except (TypeError, ValueError):
+        count = 5
+    base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    params_search = {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"}
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            search = await client.get(f"{base}/esearch.fcgi", params=params_search)
+            search.raise_for_status()
+            ids = (search.json().get("esearchresult", {}) or {}).get("idlist", []) or []
+            if not ids:
+                return {"query": query, "results": [], "count": 0}
+            summary = await client.get(
+                f"{base}/esummary.fcgi",
+                params={"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
+            )
+            summary.raise_for_status()
+            payload = summary.json().get("result", {}) or {}
+    except Exception as exc:
+        return {"error": f"Literature search failed: {exc}", "query": query}
+
+    results = []
+    for pmid in ids:
+        entry = payload.get(pmid) or {}
+        doi = ""
+        for article_id in entry.get("articleids", []) or []:
+            if article_id.get("idtype") == "doi":
+                doi = article_id.get("value", "")
+                break
+        results.append(
+            {
+                "pmid": pmid,
+                "title": entry.get("title", ""),
+                "authors": [a.get("name", "") for a in (entry.get("authors") or [])][:6],
+                "journal": entry.get("fulljournalname") or entry.get("source", ""),
+                "year": (entry.get("pubdate", "") or "")[:4],
+                "doi": doi,
+                "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            }
+        )
+    return {"query": query, "results": results, "count": len(results)}
+
+
+def _write_custom_node(
+    ctx: ToolContext,
+    name: str,
+    code: str,
+    requirements: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Write a Python custom-node module into the custom_nodes directory.
+
+    The module is imported on the next registry reload. ``requirements`` lists
+    conda/pip packages the node needs; they are recorded next to the module so
+    the dependency resolver can install them. Returns the written path.
+    """
+    if not name or not code:
+        return {"error": "Both 'name' and 'code' are required."}
+    settings = ctx.settings
+    custom_dir = getattr(settings, "custom_nodes_dir", None)
+    project_root = getattr(settings, "project_root", None)
+    if custom_dir is not None:
+        base = Path(custom_dir)
+        if not base.is_absolute() and project_root is not None:
+            base = Path(project_root) / base
+    else:
+        base = (Path(project_root) if project_root else REPO_ROOT) / "custom_nodes"
+    base.mkdir(parents=True, exist_ok=True)
+
+    safe_stem = "".join(ch if ch.isalnum() or ch in ("_",) else "_" for ch in Path(name).stem) or "custom_node"
+    module_path = base / f"{safe_stem}.py"
+    try:
+        module_path.write_text(code, encoding="utf-8")
+        written = [str(module_path)]
+        if requirements:
+            req_path = base / f"{safe_stem}.requirements.txt"
+            req_path.write_text("\n".join(str(r) for r in requirements) + "\n", encoding="utf-8")
+            written.append(str(req_path))
+    except OSError as exc:
+        return {"error": f"Could not write custom node: {exc}"}
+    return {
+        "success": True,
+        "written": written,
+        "note": "Reload the node manager (or restart) to register the new node.",
+    }
+
+
+def _read_workspace_file(ctx: ToolContext, path: str, max_bytes: int | None = 16000, **kwargs: Any) -> dict[str, Any]:
+    """Read a UTF-8 text file from inside the workspace (bounded, traversal-safe)."""
+    root = _workspace_root(ctx).resolve()
+    try:
+        target = (root / path).resolve()
+        target.relative_to(root)
+    except (ValueError, OSError):
+        return {"error": "Path escapes the workspace root."}
+    if not target.is_file():
+        return {"error": f"File not found: {path}"}
+    try:
+        cap = max(256, min(int(max_bytes) if max_bytes is not None else 16000, 200_000))
+    except (TypeError, ValueError):
+        cap = 16000
+    try:
+        data = target.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return {"error": f"Could not read file: {exc}"}
+    truncated = len(data) > cap
+    return {"path": path, "content": data[:cap], "truncated": truncated}
 
 
 def _get_collaboration_status(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
@@ -646,7 +926,74 @@ ALL_TOOLS: list[ToolDefinition] = [
     ToolDefinition("list_workflow_templates", "List built-in local workflow templates available without collaboration.", [], _list_workflow_templates),
     ToolDefinition("get_settings", "Get current application settings.", [], _get_settings),
     ToolDefinition("get_system_stats", "Get CPU, memory, and disk stats for the local backend host.", [], _get_system_stats),
-    ToolDefinition("get_run_history", "Summarize locally available run history context.", [], _get_run_history),
+    ToolDefinition(
+        "get_run_history",
+        "List recent workflow runs (most recent first) with their status, from the live run queue.",
+        [ToolParameter("limit", "integer", "Maximum number of runs to return", required=False, default=10)],
+        _get_run_history,
+    ),
+    ToolDefinition(
+        "run_workflow",
+        "Execute the current workflow and wait for it to finish, returning the overall status and per-node statuses/errors. Use this to test a workflow or to drive an autonomous debug loop. Validates the graph first.",
+        [
+            ToolParameter("force", "boolean", "Ignore the cache and re-run every node", required=False, default=False),
+            ToolParameter("target_nodes", "array", "Only run up to these node IDs (and their upstreams)", required=False, default=None),
+        ],
+        _run_workflow,
+        action=True,
+    ),
+    ToolDefinition(
+        "get_run_status",
+        "Get the recorded status and per-node results for a specific run id.",
+        [ToolParameter("run_id", "string", "Run identifier")],
+        _get_run_status,
+    ),
+    ToolDefinition(
+        "read_run_logs",
+        "Read the stdout/stderr log tail for a run, optionally for a single node. Use after a failed run to diagnose the error.",
+        [
+            ToolParameter("run_id", "string", "Run identifier"),
+            ToolParameter("node_id", "string", "Limit logs to this node", required=False, default=None),
+            ToolParameter("tail", "integer", "Number of trailing log lines", required=False, default=100),
+        ],
+        _read_run_logs,
+    ),
+    ToolDefinition(
+        "retry_run",
+        "Re-submit a previous run to the execution queue.",
+        [ToolParameter("run_id", "string", "Run identifier to retry")],
+        _retry_run,
+        action=True,
+    ),
+    ToolDefinition(
+        "search_literature",
+        "Search PubMed for papers matching a query (title, authors, journal, year, PMID, DOI). Use to research the best method for a task or to find a paper's referenced datasets/tools.",
+        [
+            ToolParameter("query", "string", "PubMed search query"),
+            ToolParameter("max_results", "integer", "Maximum papers to return (<=20)", required=False, default=5),
+        ],
+        _search_literature,
+    ),
+    ToolDefinition(
+        "write_custom_node",
+        "Write a Python custom-node module into the custom_nodes directory so a tool not covered by the built-in nodes can be used. Provide the full module source and any conda/pip requirements.",
+        [
+            ToolParameter("name", "string", "Module/file name (without extension)"),
+            ToolParameter("code", "string", "Full Python source for the custom node module"),
+            ToolParameter("requirements", "array", "conda/pip packages the node needs", required=False, default=None),
+        ],
+        _write_custom_node,
+        action=True,
+    ),
+    ToolDefinition(
+        "read_workspace_file",
+        "Read a UTF-8 text file from inside the workspace (bounded, path-traversal safe). Use to inspect input data or a run's output files.",
+        [
+            ToolParameter("path", "string", "Path relative to the workspace root"),
+            ToolParameter("max_bytes", "integer", "Maximum bytes to return", required=False, default=16000),
+        ],
+        _read_workspace_file,
+    ),
     ToolDefinition("get_collaboration_status", "Report whether the app is in local mode or collaboration mode.", [], _get_collaboration_status),
     ToolDefinition(
         "add_node",
@@ -713,13 +1060,40 @@ def get_tool(name: str) -> ToolDefinition | None:
 
 
 def execute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
-    """Execute a tool by name with the given arguments."""
+    """Execute a synchronous tool by name with the given arguments.
+
+    For async tools, prefer :func:`aexecute_tool`; calling this on an async tool
+    returns an error rather than an un-awaited coroutine.
+    """
     tool = get_tool(name)
     if not tool:
         return {"status": "error", "error": f"Tool '{name}' not found"}
     try:
         result = tool.execute(ctx, **arguments)
-        if isinstance(result, dict) and "error" in result:
+        if inspect.isawaitable(result):
+            try:
+                result.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return {"status": "error", "error": f"Tool '{name}' is async; use aexecute_tool"}
+        if isinstance(result, dict) and result.get("error"):
+            return {"status": "error", "error": result["error"], "result": result}
+        return {"status": "ok", "result": result, "mutates": tool.mutates}
+    except Exception as exc:
+        logger.exception("Tool execution failed: %s", name)
+        return {"status": "error", "error": str(exc)}
+
+
+async def aexecute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """Execute a tool by name, awaiting it when the tool is asynchronous."""
+    tool = get_tool(name)
+    if not tool:
+        return {"status": "error", "error": f"Tool '{name}' not found"}
+    try:
+        result = tool.execute(ctx, **arguments)
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, dict) and result.get("error"):
             return {"status": "error", "error": result["error"], "result": result}
         return {"status": "ok", "result": result, "mutates": tool.mutates}
     except Exception as exc:

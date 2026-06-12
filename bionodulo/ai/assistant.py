@@ -21,7 +21,7 @@ from typing import Any, TypedDict
 from bionodulo.ai.tools import (
     ALL_TOOLS,
     ToolContext,
-    execute_tool,
+    aexecute_tool,
     tools_to_openai_schema,
 )
 
@@ -30,24 +30,37 @@ BIONODULO_SYSTEM_PROMPT = '''You are BioNodulo AI, an expert bioinformatics work
 
 BioNodulo is a node-based visual editor for building bioinformatics pipelines. Users drag nodes onto a canvas and connect them with edges. Each node represents a tool (e.g., FastQC, BWA, GATK) or data input. Nodes have typed inputs and outputs that must match when connected.
 
-When helping users:
-- Ask clarifying questions if the request is vague
-- Use tools to fetch context rather than guessing
-- Propose concrete, step-by-step workflow changes
-- Warn about common bioinformatics pitfalls (missing QC, wrong reference format, etc.)
-- If the user attaches files, analyze their contents and reference them in your answer
+You are an autonomous agent, not just a chatbot. You can inspect, edit, RUN, and DEBUG workflows end to end:
+- Inspect: `get_workflow_summary`, `get_node_info`, `list_available_nodes`, `validate_workflow`, `get_dependency_report`.
+- Edit: `add_node`/`update_node`/`remove_node`/`add_edge`/`remove_edge`/`load_template` (drafted for the user to apply).
+- Run: `run_workflow` executes the current workflow and returns per-node statuses. `read_run_logs` returns the log tail of a run; `get_run_status` and `get_run_history` track runs; `retry_run` re-submits one.
+- Research: `search_literature` queries PubMed so method choices are grounded in papers.
+- Extend: `write_custom_node` adds a Python node (with dependencies) for a tool the built-ins don't cover.
+- Inspect data: `read_workspace_file` reads input/output files.
 
-Response format rules:
-1. Use the provided function tools whenever you need live workflow, node, dependency, environment, or settings context.
-2. Prefer `get_workflow_summary` over `get_current_workflow` unless you actually need full parameters — it is much cheaper to send.
-3. For mutating tools, draft the change but explain that the user must confirm before applying it.
-4. Keep final responses plain text and concise, with concrete next steps when useful.
-5. You can make multiple tool calls in sequence; wait for each result before the next.
+When debugging a failed run: call `run_workflow`, and if it fails, call `read_run_logs` for the failing node, diagnose the root cause, draft the fix, then run again — repeat until it succeeds or you are blocked.
+
+When helping users:
+- Use tools to fetch context rather than guessing.
+- Prefer `get_workflow_summary` over `get_current_workflow` unless you need full parameters — it is much cheaper.
+- For graph edits, the user confirms before they are applied. Running, installing, and writing files are actions you may take when the user has asked you to make the workflow work.
+- Warn about common bioinformatics pitfalls (missing QC, wrong reference format, un-indexed references/VCFs, paired-end handling).
+- Keep final replies plain text and concise, with concrete next steps.
 
 Useful built-in nodes for visualization:
-- `image_preview`: pin an image output (PNG/JPG/SVG) on the canvas — connect to any node that produces an image file.
-- `html_preview`: pin an HTML report on the canvas — useful for MultiQC, FastQC, plotly dashboards, or any tool that emits an .html report.
+- `image_preview`: pin an image output (PNG/JPG/SVG) on the canvas.
+- `html_preview`: pin an HTML report on the canvas (MultiQC, FastQC, plotly, etc.).
 '''
+
+
+# Per-task model routing. Frontier models for planning/diagnosis; the same tier
+# is fine for tool-arg formatting today, but keep the seam so a cheaper model can
+# be slotted in later. Provider-relative ids; resolved by ``_provider_model``.
+DEFAULT_MODELS = {
+    "anthropic": "claude-sonnet-4-6",
+    "openai": "gpt-4.1-mini",
+    "openrouter": "openai/gpt-4.1-mini",
+}
 
 
 @dataclass
@@ -316,12 +329,12 @@ def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
 def _provider_model(provider: str, model: str | None) -> str:
     provider = provider.lower()
     if provider == "anthropic":
-        chosen = model or "claude-3-5-sonnet-20241022"
+        chosen = model or DEFAULT_MODELS["anthropic"]
         return chosen if chosen.startswith("anthropic/") else f"anthropic/{chosen}"
     if provider == "openrouter":
-        chosen = model or "openai/gpt-4.1-mini"
+        chosen = model or DEFAULT_MODELS["openrouter"]
         return chosen if chosen.startswith("openrouter/") else f"openrouter/{chosen}"
-    return model or "gpt-4.1-mini"
+    return model or DEFAULT_MODELS["openai"]
 
 
 def _provider_api_key(provider: str, explicit: str | None) -> str:
@@ -433,7 +446,10 @@ async def _call_llm(
 # Main chat loop
 # ---------------------------------------------------------------------------
 
-MAX_TOOL_ROUNDS = 6
+# The agent loop can run a workflow, read its logs, fix the graph, and re-run.
+# Autonomous debugging needs more than a couple of rounds, so the budget is
+# generous; cost is bounded by history trimming + tool-result truncation below.
+MAX_TOOL_ROUNDS = 12
 
 # Token-efficiency knobs. The assistant loop sends the FULL message list on
 # every iteration, so trimming what we send is the single biggest cost lever.
@@ -485,58 +501,6 @@ class AssistantGraphState(TypedDict, total=False):
     temperature: float
     max_tokens: int
     tool_schemas: list[dict[str, Any]]
-    langchain_tools: dict[str, Any]
-
-
-def _tool_param_type(type_name: str) -> Any:
-    """Map BioNodulo tool parameter names to Pydantic-friendly Python types."""
-    normalized = type_name.lower()
-    if normalized in {"int", "integer"}:
-        return int
-    if normalized in {"float", "number"}:
-        return float
-    if normalized in {"bool", "boolean"}:
-        return bool
-    if normalized in {"array", "list"}:
-        return list[Any]
-    if normalized in {"object", "dict", "json"}:
-        return dict[str, Any]
-    return str
-
-
-def _build_langchain_tools(ctx: ToolContext) -> dict[str, Any]:
-    """Wrap existing BioNodulo tools as LangChain StructuredTool instances."""
-    from langchain_core.tools import StructuredTool
-    from pydantic import Field, create_model
-
-    wrapped: dict[str, Any] = {}
-    for definition in ALL_TOOLS:
-        fields: dict[str, Any] = {}
-        for param in definition.parameters:
-            py_type = _tool_param_type(param.type)
-            if param.required:
-                fields[param.name] = (
-                    py_type,
-                    Field(description=param.description),
-                )
-            else:
-                fields[param.name] = (
-                    py_type | None,
-                    Field(default=param.default, description=param.description),
-                )
-        args_schema = create_model(f"{definition.name}_Args", **fields)
-
-        def _runner(_tool_name: str = definition.name, **kwargs: Any) -> dict[str, Any]:
-            return execute_tool(_tool_name, kwargs, ctx)
-
-        _runner.__name__ = f"run_{definition.name}"
-        wrapped[definition.name] = StructuredTool.from_function(
-            func=_runner,
-            name=definition.name,
-            description=definition.description,
-            args_schema=args_schema,
-        )
-    return wrapped
 
 
 async def _graph_call_model(state: AssistantGraphState) -> AssistantGraphState:
@@ -604,7 +568,6 @@ async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
     messages_state = list(state["messages"])
     messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
     graph_ctx = state["ctx"]
-    langchain_tools = state["langchain_tools"]
     mutated = bool(state.get("mutated_workflow"))
 
     for tool_call in tool_calls:
@@ -615,14 +578,7 @@ async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
 
         steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
 
-        tool = langchain_tools.get(tool_name)
-        if tool is None:
-            result = {"status": "error", "error": f"Unknown tool: {tool_name}"}
-        else:
-            try:
-                result = tool.invoke(args)
-            except Exception as exc:
-                result = {"status": "error", "error": str(exc)}
+        result = await aexecute_tool(tool_name, args, graph_ctx)
 
         steps_state.append(
             ChatStep(
@@ -694,6 +650,7 @@ async def chat_with_tools(
     settings: Any = None,
     settings_manager: Any = None,
     files: list[dict[str, str]] | None = None,
+    run_queue: Any = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
 
@@ -706,6 +663,7 @@ async def chat_with_tools(
         registry=registry,
         settings=settings,
         settings_manager=settings_manager,
+        run_queue=run_queue,
     )
     tool_schemas = tools_to_openai_schema(ALL_TOOLS)
     system_prompt = BIONODULO_SYSTEM_PROMPT
@@ -723,7 +681,6 @@ async def chat_with_tools(
 
     messages.append({"role": "user", "content": user_content})
 
-    langchain_tools = _build_langchain_tools(ctx)
     compiled = _compiled_assistant_graph()
 
     final_state = await compiled.ainvoke(
@@ -744,7 +701,6 @@ async def chat_with_tools(
             "temperature": temperature,
             "max_tokens": max_tokens,
             "tool_schemas": tool_schemas,
-            "langchain_tools": langchain_tools,
         }
     )
 
