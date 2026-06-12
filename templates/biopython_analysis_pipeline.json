@@ -49,14 +49,24 @@
         "output_name": "16s_sequences.fasta"
       },
       "ui": {
-        "title": "Fetch NCBI 16S"
+        "title": "Fetch NCBI 16S",
+        "validation": {
+          "outputs": {
+            "records": {
+              "expected_format": "fasta",
+              "min_records": 2,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "seqio_read_001",
       "type": "bp_seqio_read",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -71,7 +81,7 @@
       "id": "seq_stats_001",
       "type": "bp_seq_stats",
       "position": [
-        800,
+        440,
         316
       ],
       "params": {
@@ -86,7 +96,7 @@
       "id": "blast_001",
       "type": "bp_blast",
       "position": [
-        800,
+        440,
         506
       ],
       "params": {
@@ -105,7 +115,7 @@
       "id": "seqio_write_001",
       "type": "bp_seqio_write",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -122,55 +132,31 @@
       "type": "input_fasta",
       "position": [
         80,
-        758
+        427
       ],
       "params": {
         "file_path": "examples/data/biopython/coding_sequences.fasta",
         "reference": "examples/data/biopython/coding_sequences.fasta"
       },
       "ui": {
-        "title": "Coding DNA FASTA"
-      }
-    },
-    {
-      "id": "validate_sequences_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 2,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Input FASTA"
-      }
-    },
-    {
-      "id": "validate_coding_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Coding FASTA"
+        "title": "Coding DNA FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "translate_001",
       "type": "bp_translate",
       "position": [
-        800,
+        440,
         856
       ],
       "params": {
@@ -186,7 +172,7 @@
       "id": "biostrings_001",
       "type": "r_biostrings_stats",
       "position": [
-        800,
+        440,
         1092
       ],
       "params": {
@@ -202,7 +188,7 @@
       "id": "table_preview_001",
       "type": "table_preview",
       "position": [
-        1160,
+        800,
         316
       ],
       "params": {
@@ -217,7 +203,7 @@
       "id": "seq_length_chart_001",
       "type": "bar_chart",
       "position": [
-        1160,
+        800,
         552
       ],
       "params": {
@@ -235,7 +221,7 @@
       "id": "sequence_classification_001",
       "type": "ai_sequence_classification",
       "position": [
-        800,
+        440,
         1328
       ],
       "params": {
@@ -253,7 +239,7 @@
       "type": "http_request",
       "position": [
         80,
-        924
+        593
       ],
       "params": {
         "url": "https://rest.uniprot.org/uniprotkb/search",
@@ -271,7 +257,7 @@
       "id": "sequence_report_001",
       "type": "html_report",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -287,7 +273,7 @@
       "id": "sequence_report_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {},
@@ -298,21 +284,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1b",
       "from": {
         "node": "ncbi_efetch_001",
         "output": "records"
-      },
-      "to": {
-        "node": "validate_sequences_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1b",
-      "from": {
-        "node": "validate_sequences_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "seqio_read_001",
@@ -322,8 +297,8 @@
     {
       "id": "e2",
       "from": {
-        "node": "validate_sequences_001",
-        "output": "passthrough"
+        "node": "ncbi_efetch_001",
+        "output": "records"
       },
       "to": {
         "node": "seq_stats_001",
@@ -333,8 +308,8 @@
     {
       "id": "e3",
       "from": {
-        "node": "validate_sequences_001",
-        "output": "passthrough"
+        "node": "ncbi_efetch_001",
+        "output": "records"
       },
       "to": {
         "node": "blast_001",
@@ -344,8 +319,8 @@
     {
       "id": "e4",
       "from": {
-        "node": "validate_sequences_001",
-        "output": "passthrough"
+        "node": "ncbi_efetch_001",
+        "output": "records"
       },
       "to": {
         "node": "blast_001",
@@ -364,21 +339,10 @@
       }
     },
     {
-      "id": "e6",
+      "id": "e6b",
       "from": {
         "node": "coding_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_coding_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e6b",
-      "from": {
-        "node": "validate_coding_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "translate_001",
@@ -388,8 +352,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "validate_coding_001",
-        "output": "passthrough"
+        "node": "coding_001",
+        "output": "reference"
       },
       "to": {
         "node": "biostrings_001",
@@ -399,8 +363,8 @@
     {
       "id": "e7a",
       "from": {
-        "node": "validate_coding_001",
-        "output": "passthrough"
+        "node": "coding_001",
+        "output": "reference"
       },
       "to": {
         "node": "sequence_classification_001",
@@ -485,8 +449,8 @@
     "revcomp": "biostrings_001",
     "six_frame": "biostrings_001",
     "fetched_fasta": "ncbi_efetch_001",
-    "validated_sequences": "validate_sequences_001",
-    "validated_coding_sequences": "validate_coding_001",
+    "validated_sequences": "ncbi_efetch_001",
+    "validated_coding_sequences": "coding_001",
     "sequence_length_chart": "seq_length_chart_001",
     "sequence_classifications": "sequence_classification_001",
     "sequence_classifications_csv": "sequence_classification_001",

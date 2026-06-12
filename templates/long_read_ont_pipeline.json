@@ -16,7 +16,6 @@
   "tools": [
     "input_directory",
     "input_fasta",
-    "data_validator",
     "dorado_basecaller",
     "gate",
     "dorado_demux",
@@ -53,7 +52,16 @@
         "directory": "examples/data/long_read/pod5"
       },
       "ui": {
-        "title": "POD5 Directory"
+        "title": "POD5 Directory",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -67,47 +75,24 @@
         "reference": "examples/data/long_read/reference.fasta"
       },
       "ui": {
-        "title": "Reference FASTA"
-      }
-    },
-    {
-      "id": "validate_pod5_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate POD5 Directory"
-      }
-    },
-    {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference"
+        "title": "Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "dorado_basecaller_001",
       "type": "dorado_basecaller",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -125,7 +110,7 @@
       "id": "gate_basecalled_bam_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -141,7 +126,7 @@
       "id": "dorado_demux_001",
       "type": "dorado_demux",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -160,7 +145,7 @@
       "id": "chopper_001",
       "type": "chopper_filter",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -179,7 +164,7 @@
       "id": "gate_filtered_reads_001",
       "type": "gate",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -195,7 +180,7 @@
       "id": "nanoplot_001",
       "type": "nanoplot",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
@@ -206,14 +191,23 @@
         "loglength": false
       },
       "ui": {
-        "title": "NanoPlot QC"
+        "title": "NanoPlot QC",
+        "validation": {
+          "outputs": {
+            "qc_report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "modkit_001",
       "type": "modkit_pileup",
       "position": [
-        1160,
+        800,
         430
       ],
       "params": {
@@ -227,26 +221,10 @@
       }
     },
     {
-      "id": "validate_nanoplot_report_001",
-      "type": "data_validator",
-      "position": [
-        2960,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate NanoPlot Report"
-      }
-    },
-    {
       "id": "long_read_report_001",
       "type": "html_report",
       "position": [
-        3320,
+        2600,
         80
       ],
       "params": {
@@ -262,7 +240,7 @@
       "id": "long_read_report_preview_001",
       "type": "html_preview",
       "position": [
-        3680,
+        2960,
         80
       ],
       "params": {},
@@ -273,32 +251,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e3",
       "from": {
         "node": "pod5_001",
         "output": "directory"
-      },
-      "to": {
-        "node": "validate_pod5_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "reference_001",
-        "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "validate_pod5_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "dorado_basecaller_001",
@@ -308,8 +264,8 @@
     {
       "id": "e4",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "reference_001",
+        "output": "reference"
       },
       "to": {
         "node": "dorado_basecaller_001",
@@ -385,8 +341,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "reference_001",
+        "output": "reference"
       },
       "to": {
         "node": "modkit_001",
@@ -394,21 +350,10 @@
       }
     },
     {
-      "id": "e12",
+      "id": "e13",
       "from": {
         "node": "nanoplot_001",
         "output": "qc_report"
-      },
-      "to": {
-        "node": "validate_nanoplot_report_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e13",
-      "from": {
-        "node": "validate_nanoplot_report_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "long_read_report_001",
@@ -451,8 +396,8 @@
   ],
   "groups": [],
   "outputs": {
-    "validated_pod5_dir": "validate_pod5_001",
-    "validated_reference": "validate_reference_001",
+    "validated_pod5_dir": "pod5_001",
+    "validated_reference": "reference_001",
     "basecalled_bam_quality_gate": "gate_basecalled_bam_001",
     "filtered_reads_quality_gate": "gate_filtered_reads_001",
     "basecalled_bam": "dorado_basecaller_001",

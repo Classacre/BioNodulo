@@ -49,7 +49,7 @@ describe('LeftRail i18n', () => {
       'Espacio de trabajo (Ctrl+1)',
     );
     expect(screen.getByRole('button', { name: 'Nodos (Ctrl+2)' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Inspector' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Plantillas (Ctrl+3)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entorno (Ctrl+4)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Artefactos runtime' })).toBeInTheDocument();
@@ -62,8 +62,6 @@ describe('LeftRail i18n', () => {
 
     expect(onChange).toHaveBeenCalledWith('templates');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Inspector' }));
-
-    expect(onChange).toHaveBeenCalledWith('inspector');
+    expect(onChange).not.toHaveBeenCalledWith('inspector');
   });
 });

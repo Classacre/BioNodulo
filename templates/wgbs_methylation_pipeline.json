@@ -16,7 +16,6 @@
     "input_file",
     "input_directory",
     "input_fasta",
-    "data_validator",
     "bismark_align",
     "gate",
     "bismark_methylation_extractor",
@@ -51,7 +50,17 @@
         "file": "examples/data/epigenomics/sample_R1.fastq.gz"
       },
       "ui": {
-        "title": "R1 FASTQ"
+        "title": "R1 FASTQ",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -65,7 +74,17 @@
         "file": "examples/data/epigenomics/sample_R2.fastq.gz"
       },
       "ui": {
-        "title": "R2 FASTQ"
+        "title": "R2 FASTQ",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -79,7 +98,16 @@
         "directory": "examples/data/epigenomics/bismark_genome"
       },
       "ui": {
-        "title": "Bismark Genome Folder"
+        "title": "Bismark Genome Folder",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -93,14 +121,24 @@
         "reference": "examples/data/epigenomics/reference.fasta"
       },
       "ui": {
-        "title": "Reference FASTA"
+        "title": "Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "bismark_align_001",
       "type": "bismark_align",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -112,77 +150,10 @@
       }
     },
     {
-      "id": "validate_r1_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate R1 FASTQ"
-      }
-    },
-    {
-      "id": "validate_r2_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate R2 FASTQ"
-      }
-    },
-    {
-      "id": "validate_genome_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1012
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Genome Folder"
-      }
-    },
-    {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1478
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference"
-      }
-    },
-    {
       "id": "gate_bismark_bam_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -198,7 +169,7 @@
       "id": "bismark_methylation_001",
       "type": "bismark_methylation_extractor",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -208,14 +179,23 @@
         "merge_non_cpg": false
       },
       "ui": {
-        "title": "Bismark Methylation Extractor"
+        "title": "Bismark Methylation Extractor",
+        "validation": {
+          "outputs": {
+            "methylation_output": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "methyldackel_001",
       "type": "methyldackel",
       "position": [
-        1520,
+        1160,
         430
       ],
       "params": {
@@ -224,46 +204,23 @@
         "min_depth": 1
       },
       "ui": {
-        "title": "MethylDackel"
-      }
-    },
-    {
-      "id": "validate_methylation_output_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        80
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Bismark Methylation"
-      }
-    },
-    {
-      "id": "validate_methyldackel_bedgraph_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        546
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MethylDackel BedGraph"
+        "title": "MethylDackel",
+        "validation": {
+          "outputs": {
+            "methylation_bedgraph": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "wgbs_report_001",
       "type": "html_report",
       "position": [
-        2240,
+        1520,
         80
       ],
       "params": {
@@ -279,7 +236,7 @@
       "id": "wgbs_report_preview_001",
       "type": "html_preview",
       "position": [
-        2600,
+        1880,
         80
       ],
       "params": {},
@@ -290,54 +247,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e5",
       "from": {
         "node": "r1_001",
         "output": "file"
-      },
-      "to": {
-        "node": "validate_r1_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "r2_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "validate_r2_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "genome_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "validate_genome_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e4",
-      "from": {
-        "node": "reference_001",
-        "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e5",
-      "from": {
-        "node": "validate_r1_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "bismark_align_001",
@@ -347,8 +260,8 @@
     {
       "id": "e6",
       "from": {
-        "node": "validate_r2_001",
-        "output": "passthrough"
+        "node": "r2_001",
+        "output": "file"
       },
       "to": {
         "node": "bismark_align_001",
@@ -358,8 +271,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "validate_genome_001",
-        "output": "passthrough"
+        "node": "genome_001",
+        "output": "directory"
       },
       "to": {
         "node": "bismark_align_001",
@@ -391,8 +304,8 @@
     {
       "id": "e10",
       "from": {
-        "node": "validate_genome_001",
-        "output": "passthrough"
+        "node": "genome_001",
+        "output": "directory"
       },
       "to": {
         "node": "bismark_methylation_001",
@@ -413,8 +326,8 @@
     {
       "id": "e12",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "reference_001",
+        "output": "reference"
       },
       "to": {
         "node": "methyldackel_001",
@@ -422,32 +335,10 @@
       }
     },
     {
-      "id": "e13",
+      "id": "e15",
       "from": {
         "node": "bismark_methylation_001",
         "output": "methylation_output"
-      },
-      "to": {
-        "node": "validate_methylation_output_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e14",
-      "from": {
-        "node": "methyldackel_001",
-        "output": "methylation_bedgraph"
-      },
-      "to": {
-        "node": "validate_methyldackel_bedgraph_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e15",
-      "from": {
-        "node": "validate_methylation_output_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "wgbs_report_001",
@@ -457,8 +348,8 @@
     {
       "id": "e16",
       "from": {
-        "node": "validate_methyldackel_bedgraph_001",
-        "output": "passthrough"
+        "node": "methyldackel_001",
+        "output": "methylation_bedgraph"
       },
       "to": {
         "node": "wgbs_report_001",
@@ -479,10 +370,10 @@
   ],
   "groups": [],
   "outputs": {
-    "validated_r1": "validate_r1_001",
-    "validated_r2": "validate_r2_001",
-    "validated_genome_folder": "validate_genome_001",
-    "validated_reference": "validate_reference_001",
+    "validated_r1": "r1_001",
+    "validated_r2": "r2_001",
+    "validated_genome_folder": "genome_001",
+    "validated_reference": "reference_001",
     "aligned_bam_quality_gate": "gate_bismark_bam_001",
     "aligned_bam": "bismark_align_001",
     "bismark_methylation": "bismark_methylation_001",

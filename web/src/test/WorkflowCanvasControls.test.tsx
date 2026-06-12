@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ObjectInfo } from '../types';
+import type { ObjectInfo, WorkflowNode } from '../types';
 
 const apiMocks = vi.hoisted(() => ({
   apiGet: vi.fn(),
@@ -435,6 +435,145 @@ describe('WorkflowCanvas controls i18n', () => {
       expect(screen.getByText('Password')).toBeInTheDocument();
     });
     expect(screen.queryByText('Bearer token')).not.toBeInTheDocument();
+  });
+
+  it('clips DOM widgets to each node and keeps them on their node layer', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    stubCanvasContext(vi.fn());
+    const objectInfo = {
+      data_validator: {
+        id: 'data_validator',
+        display_name: 'Data Validator',
+        category: 'workflow',
+        input_types: {
+          required: {
+            input: { type: 'ANY' },
+          },
+          optional: {
+            expected_format: { type: 'STRING', label: 'Expected format', options: ['auto', 'fasta', 'fastq'], default: 'auto' },
+            min_size_bytes: { type: 'INT', label: 'Minimum bytes', default: 0 },
+            max_size_bytes: { type: 'INT', label: 'Maximum bytes', default: 0 },
+            required_fields: { type: 'STRING', label: 'Required fields', default: '' },
+            min_records: { type: 'INT', label: 'Minimum records', default: 0 },
+            checksum_expected: { type: 'STRING', label: 'Checksum', default: '' },
+            fail_on_error: { type: 'BOOLEAN', label: 'Fail on Error', default: true },
+          },
+        },
+        return_types: ['ANY', 'BOOLEAN', 'JSON', 'FILE'],
+        return_names: ['passthrough', 'passed', 'validation_report', 'report_file'],
+      },
+    } satisfies ObjectInfo;
+
+    const { container } = render(
+      <WorkflowCanvas
+        nodes={[{
+          id: 'validator-1',
+          type: 'data_validator',
+          position: [100, 100],
+          params: {
+            expected_format: 'fasta',
+            min_size_bytes: 1,
+            max_size_bytes: 0,
+            required_fields: '',
+            min_records: 1,
+            checksum_expected: '',
+            fail_on_error: true,
+          },
+        }]}
+        edges={[]}
+        groups={[]}
+        objectInfo={objectInfo}
+        onNodesChange={() => undefined}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    const failOnError = await screen.findByText('Fail on Error');
+    const layer = failOnError.closest('.node-dom-widget-layer') as HTMLElement;
+    expect(layer).toBeTruthy();
+    expect(layer).toHaveStyle({
+      overflow: 'hidden',
+      pointerEvents: 'none',
+    });
+    expect(parseFloat(layer.style.height)).toBeGreaterThan(220);
+    expect(Number(layer.style.zIndex)).toBeLessThan(100);
+    expect(container.querySelectorAll('.node-dom-widget-layer')).toHaveLength(1);
+  });
+
+  it('auto-arranges tall nodes without vertical overlap', async () => {
+    const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
+    stubCanvasContext(vi.fn());
+    const onNodesChange = vi.fn();
+    const objectInfo = {
+      tall_node: {
+        id: 'tall_node',
+        display_name: 'Tall Node',
+        category: 'workflow',
+        input_types: {
+          optional: Object.fromEntries(Array.from({ length: 8 }, (_, index) => [
+            `option_${index}`,
+            { type: 'STRING', label: `Option ${index}`, default: `value-${index}` },
+          ])),
+        },
+        return_types: [],
+      },
+    } satisfies ObjectInfo;
+    const nodes: WorkflowNode[] = [
+      {
+        id: 'n1',
+        type: 'tall_node',
+        position: [400, 100],
+        params: Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`option_${index}`, `value-${index}`])),
+      },
+      {
+        id: 'n2',
+        type: 'tall_node',
+        position: [400, 110],
+        params: Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`option_${index}`, `value-${index}`])),
+      },
+    ];
+
+    render(
+      <WorkflowCanvas
+        nodes={nodes}
+        edges={[]}
+        groups={[]}
+        objectInfo={objectInfo}
+        onNodesChange={onNodesChange}
+        onEdgesChange={() => undefined}
+        onGroupsChange={() => undefined}
+        onPushHistory={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        snapToGrid={false}
+        showMinimap={false}
+        viewportLocked={false}
+        linksHidden={false}
+        onToggleMinimap={() => undefined}
+        onToggleLinksHidden={() => undefined}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTitle('Auto-arrange nodes'));
+
+    await waitFor(() => {
+      expect(onNodesChange).toHaveBeenCalled();
+    });
+    const arranged = onNodesChange.mock.calls.at(-1)?.[0] as WorkflowNode[];
+    const first = arranged.find(node => node.id === 'n1');
+    const second = arranged.find(node => node.id === 'n2');
+    expect(first?.position[1]).toBe(60);
+    expect(second?.position[1]).toBeGreaterThan(300);
   });
 
   it('logs media paste upload failures while keeping the failure toast', async () => {

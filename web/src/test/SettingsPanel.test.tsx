@@ -85,18 +85,19 @@ describe('SettingsPanel shell i18n', () => {
 
     render(<SettingsPanel onClose={() => undefined} />);
 
-    expect(screen.getByText('Tema')).toBeInTheDocument();
-    expect(screen.getByText('Seleccionar tema de la app')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Sistema' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Claro' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Oscuro' })).toBeInTheDocument();
+    expect(screen.queryByText('Tema')).not.toBeInTheDocument();
     expect(screen.getByText('Ayudas emergentes')).toBeInTheDocument();
     expect(screen.getByText('Mostrar ayudas emergentes al pasar el cursor')).toBeInTheDocument();
     expect(screen.getByText('Paleta')).toBeInTheDocument();
     expect(screen.getByText('Cambiar paleta de colores')).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: 'Claro' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('option', { name: 'Oscuro' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Restablecer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar paleta' })).toBeInTheDocument();
     expect(screen.getByText('Importar paleta')).toBeInTheDocument();
+    expect(screen.getByText('Creador de paletas')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nombre de paleta')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Guardar paleta' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Lienzo' }));
 

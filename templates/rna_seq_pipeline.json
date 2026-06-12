@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,24 @@
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz"
       },
       "ui": {
-        "title": "Reference FASTA"
+        "title": "Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "hisat2_build_001",
       "type": "hisat2_build",
       "position": [
-        800,
+        440,
         454
       ],
       "params": {
@@ -66,27 +86,10 @@
       }
     },
     {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference FASTA"
-      }
-    },
-    {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -100,7 +103,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -113,27 +116,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "hisat2_001",
       "type": "hisat2_align",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -147,7 +133,7 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -161,7 +147,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -182,14 +168,23 @@
         "annotation": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.gff.gz"
       },
       "ui": {
-        "title": "Annotation GFF"
+        "title": "Annotation GFF",
+        "validation": {
+          "outputs": {
+            "annotation": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "counts_001",
       "type": "featurecounts",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
@@ -201,26 +196,10 @@
       }
     },
     {
-      "id": "validate_annotation_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1012
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Annotation"
-      }
-    },
-    {
       "id": "normalize_counts_001",
       "type": "normalize_data",
       "position": [
-        2960,
+        2600,
         80
       ],
       "params": {
@@ -237,7 +216,7 @@
       "id": "counts_report_001",
       "type": "html_report",
       "position": [
-        3680,
+        3320,
         80
       ],
       "params": {
@@ -254,7 +233,7 @@
       "id": "counts_heatmap_001",
       "type": "heatmap",
       "position": [
-        3320,
+        2960,
         80
       ],
       "params": {
@@ -270,7 +249,7 @@
       "id": "counts_report_preview_001",
       "type": "html_preview",
       "position": [
-        4040,
+        3680,
         80
       ],
       "params": {},
@@ -282,7 +261,7 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        800,
+        440,
         644
       ],
       "params": {
@@ -296,22 +275,31 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        2960,
+        2600,
         500
       ],
       "params": {
         "title": "RNA-Seq QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        3680,
-        568
+        2960,
+        1176
       ],
       "params": {},
       "ui": {
@@ -319,26 +307,10 @@
       }
     },
     {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        3320,
-        868
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
-    },
-    {
       "id": "qualimap_001",
       "type": "qualimap",
       "position": [
-        2600,
+        2240,
         522
       ],
       "params": {
@@ -353,7 +325,7 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        2600,
+        2240,
         826
       ],
       "params": {},
@@ -365,7 +337,7 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        2960,
+        2600,
         852
       ],
       "params": {
@@ -381,8 +353,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
-        1334
+        2960,
+        868
       ],
       "params": {},
       "ui": {
@@ -393,7 +365,7 @@
       "id": "alignment_qc_report_001",
       "type": "html_report",
       "position": [
-        2960,
+        2600,
         1292
       ],
       "params": {
@@ -410,8 +382,8 @@
       "id": "alignment_qc_report_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
-        1488
+        2960,
+        1022
       ],
       "params": {},
       "ui": {
@@ -421,21 +393,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -465,21 +426,10 @@
       }
     },
     {
-      "id": "e3",
+      "id": "e3a",
       "from": {
         "node": "ref_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3a",
-      "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "hisat2_build_001",
@@ -517,17 +467,6 @@
       "to": {
         "node": "counts_001",
         "input": "bam"
-      }
-    },
-    {
-      "id": "e6",
-      "from": {
-        "node": "annot_001",
-        "output": "annotation"
-      },
-      "to": {
-        "node": "validate_annotation_001",
-        "input": "input"
       }
     },
     {
@@ -599,8 +538,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
+        "node": "reads_001",
+        "output": "reads"
       },
       "to": {
         "node": "qc_001",
@@ -641,17 +580,6 @@
       }
     },
     {
-      "id": "e9",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
-      }
-    },
-    {
       "id": "e10",
       "from": {
         "node": "sort_001",
@@ -665,8 +593,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "validate_annotation_001",
-        "output": "passthrough"
+        "node": "annot_001",
+        "output": "annotation"
       },
       "to": {
         "node": "qualimap_001",
@@ -753,8 +681,8 @@
     {
       "id": "e15d",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -764,8 +692,8 @@
     {
       "id": "e16",
       "from": {
-        "node": "validate_annotation_001",
-        "output": "passthrough"
+        "node": "annot_001",
+        "output": "annotation"
       },
       "to": {
         "node": "counts_001",
@@ -786,10 +714,10 @@
     "qc_dashboard": "qc_dashboard_001",
     "qc_dashboard_preview": "qc_dashboard_preview_001",
     "report": "qc_dashboard_001",
-    "validated_multiqc_report": "validate_multiqc_001",
-    "validated_reads": "validate_reads_001",
+    "validated_multiqc_report": "mqc_001",
+    "validated_reads": "reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
-    "validated_reference": "validate_reference_001",
-    "validated_annotation": "validate_annotation_001"
+    "validated_reference": "ref_001",
+    "validated_annotation": "annot_001"
   }
 }

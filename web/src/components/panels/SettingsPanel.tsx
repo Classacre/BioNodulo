@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../hooks/settings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
-import { addCustomPalette, paletteDisplayName, type ThemePalette } from '../../state/palettes';
+import { addCustomPalette, completePalette, paletteDisplayName, type PaletteMode, type PaletteToken, type PaletteTokens, type ThemePalette } from '../../state/palettes';
 import { toast } from '../ui';
 import Dialog from '../ui/Dialog';
 import { listFeatureFlags, useFeatureFlag, setFeatureFlag } from '../../state/featureFlags';
@@ -74,6 +74,32 @@ const AI_PROVIDER_OPTIONS = [
   { value: 'custom', labelKey: 'settings.ai.providerOptions.custom' },
 ];
 
+const PALETTE_MAKER_FIELDS = [
+  { key: 'canvas', labelKey: 'appearance.makerCanvas' },
+  { key: 'surface', labelKey: 'appearance.makerSurface' },
+  { key: 'text', labelKey: 'appearance.makerText' },
+  { key: 'accent', labelKey: 'appearance.makerAccent' },
+  { key: 'border', labelKey: 'appearance.makerBorder' },
+  { key: 'danger', labelKey: 'appearance.makerDanger' },
+  { key: 'warning', labelKey: 'appearance.makerWarning' },
+  { key: 'success', labelKey: 'appearance.makerSuccess' },
+  { key: 'info', labelKey: 'appearance.makerInfo' },
+] as const satisfies ReadonlyArray<{ key: PaletteToken; labelKey: string }>;
+
+type PaletteMakerKey = typeof PALETTE_MAKER_FIELDS[number]['key'];
+
+const DEFAULT_MAKER_COLORS: Record<PaletteMakerKey, string> = {
+  canvas: '#eef3f4',
+  surface: '#ffffff',
+  text: '#1d2930',
+  accent: '#0d9488',
+  border: '#d9e1e5',
+  danger: '#dc2626',
+  warning: '#f59e0b',
+  success: '#16a34a',
+  info: '#2563eb',
+};
+
 function matchesQuery(query: string, ...needles: Array<string | undefined>): boolean {
   if (!query) return true;
   const trimmed = query.trim().toLowerCase();
@@ -99,6 +125,9 @@ export default function SettingsPanel({
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('appearance');
+  const [makerName, setMakerName] = useState('Custom Palette');
+  const [makerMode, setMakerMode] = useState<PaletteMode>('light');
+  const [makerColors, setMakerColors] = useState<Record<PaletteMakerKey, string>>(DEFAULT_MAKER_COLORS);
 
   const toggle = (key: string) => set(key, !getBool(key));
 
@@ -125,6 +154,32 @@ export default function SettingsPanel({
       logError('settings.palette.import', err);
       toast.error(t('settings.appearance.paletteImportFailed'), { message: err instanceof Error ? err.message : String(err) });
     }
+  };
+
+  const saveMakerPalette = () => {
+    const name = makerName.trim() || 'Custom Palette';
+    const id = `custom-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || Date.now()}`;
+    const baseTokens: PaletteTokens = { ...makerColors };
+    const completed = completePalette({
+      id,
+      name,
+      description: t('settings.appearance.makerDescription'),
+      preview: [makerColors.accent, makerColors.canvas, makerColors.surface],
+      light: makerMode === 'light' ? baseTokens : {},
+      dark: makerMode === 'dark' ? baseTokens : {},
+    });
+    const palette: ThemePalette = {
+      id,
+      name,
+      description: t('settings.appearance.makerDescription'),
+      preview: completed.preview,
+      light: makerMode === 'light' ? baseTokens : completed.light,
+      dark: makerMode === 'dark' ? baseTokens : completed.dark,
+      canvasPattern: 'dots',
+    };
+    addCustomPalette(palette);
+    setPalette(id);
+    toast.success(t('settings.appearance.makerSaved'), { message: name });
   };
 
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -212,17 +267,10 @@ export default function SettingsPanel({
         </div>
         {/* Appearance */}
         <SettingsGroup active={isSectionVisible('appearance')} query={query} title={sectionTitle('appearance')}>
-          <SettingRow query={query} label={st('theme')} desc={st('appearance.themeDescription')} keywords="dark light system mode tema claro oscuro sistema">
-            <select className="select-input" value={String(get('bionodulo.theme'))} onChange={e => set('bionodulo.theme', e.target.value)}>
-              <option value="system">{st('appearance.themeSystem')}</option>
-              <option value="light">{st('appearance.themeLight')}</option>
-              <option value="dark">{st('appearance.themeDark')}</option>
-            </select>
-          </SettingRow>
           <SettingRow query={query} label={st('appearance.tooltips')} desc={st('appearance.tooltipsDescription')} keywords="hint hover help tooltip cursor ayuda">
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
-          <SettingRow query={query} label={st('palette')} desc={st('appearance.paletteDescription')} keywords="theme color swatch paleta colores">
+          <SettingRow query={query} label={st('palette')} desc={st('appearance.paletteDescription')} keywords="theme color swatch paleta colores dark light claro oscuro">
             <div className="palette-setting">
               <select className="select-input" value={paletteId} onChange={event => setPalette(event.target.value)}>
                 {palettes.map(palette => (
@@ -239,6 +287,40 @@ export default function SettingsPanel({
               <input accept=".json,application/json" onChange={event => event.target.files?.[0] && void importPalette(event.target.files[0])} type="file" />
             </label>
           </div>
+          <SettingRow query={query} label={st('appearance.makerTitle')} desc={st('appearance.makerDescription')} keywords="palette maker custom theme color paleta personalizada">
+            <div className="palette-maker">
+              <input
+                className="text-input palette-maker-name"
+                value={makerName}
+                onChange={event => setMakerName(event.target.value)}
+                aria-label={st('appearance.makerName')}
+                placeholder={st('appearance.makerName')}
+              />
+              <select
+                className="select-input"
+                value={makerMode}
+                onChange={event => setMakerMode(event.target.value as PaletteMode)}
+                aria-label={st('appearance.makerMode')}
+              >
+                <option value="light">{st('appearance.themeLight')}</option>
+                <option value="dark">{st('appearance.themeDark')}</option>
+              </select>
+              <button className="btn btn-sm" type="button" onClick={saveMakerPalette}>{st('appearance.makerSave')}</button>
+              <div className="palette-maker-colors">
+                {PALETTE_MAKER_FIELDS.map(field => (
+                  <label key={field.key} className="palette-maker-color">
+                    <span>{st(field.labelKey)}</span>
+                    <input
+                      type="color"
+                      value={makerColors[field.key]}
+                      onChange={event => setMakerColors(prev => ({ ...prev, [field.key]: event.target.value }))}
+                      aria-label={st(field.labelKey)}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </SettingRow>
           <div className="palette-preview-list">
             {palettes.map(palette => (
               <button

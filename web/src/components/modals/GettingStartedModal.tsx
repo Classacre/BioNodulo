@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
 import { logError } from '../../state/logging';
+import { setLanguage, supportedLanguages, type SupportedLanguage } from '../../i18n';
 import Dialog from '../ui/Dialog';
 
 interface GettingStartedModalProps {
@@ -219,7 +220,23 @@ export default function GettingStartedModal({
       hideCloseButton
       header={(
         <>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>BioNodulo v2</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>BioNodulo v2</div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
+              <span>{t('gettingStarted.languageLabel')}</span>
+              <select
+                className="select-input"
+                value={i18n.language.startsWith('es') ? 'es' : 'en'}
+                onChange={event => void setLanguage(event.target.value as SupportedLanguage)}
+                aria-label={t('gettingStarted.languageLabel')}
+                style={{ height: 26, fontSize: 11 }}
+              >
+                {supportedLanguages.map(language => (
+                  <option key={language.code} value={language.code}>{language.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div style={{ display: 'flex', gap: 4 }}>
             {TABS.map(tabDef => (
               <button

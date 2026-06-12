@@ -55,6 +55,9 @@ describe('GettingStartedModal i18n', () => {
 
     expect(screen.getByRole('dialog', { name: 'Primeros pasos' })).toBeInTheDocument();
     expect(screen.getByText('BioNodulo v2')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Idioma' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Espanol' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bienvenida' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Novedades' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recursos' })).toBeInTheDocument();
@@ -273,6 +276,7 @@ describe('GettingStartedModal i18n', () => {
 
     [
       'gettingStarted.title',
+      'gettingStarted.languageLabel',
       'gettingStarted.tabs.welcome',
       'gettingStarted.tabs.news',
       'gettingStarted.tabs.resources',

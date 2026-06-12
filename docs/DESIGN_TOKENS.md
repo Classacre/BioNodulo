@@ -126,6 +126,8 @@ Built-in mappings:
 
 | Palette | Pattern |
 |---|---|
+| Light (`light`) | `dots` |
+| Dark (`dark`) | `dots` |
 | BioNodulo (`bionodulo`) | `dots` |
 | Clinical (`clinical`) | `grid` |
 | Field Station (`field`) | `mesh` |

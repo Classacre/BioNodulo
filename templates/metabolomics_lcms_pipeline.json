@@ -15,7 +15,6 @@
   ],
   "tools": [
     "input_file",
-    "data_validator",
     "xcms_peak_detection",
     "xcms_retention_correction",
     "camera_annotation",
@@ -49,30 +48,23 @@
         "file": "examples/data/metabolomics/sample.mzML"
       },
       "ui": {
-        "title": "mzML Input"
-      }
-    },
-    {
-      "id": "validate_mzml_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "auto",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate mzML"
+        "title": "mzML Input",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "xcms_peak_detection_001",
       "type": "xcms_peak_detection",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -87,31 +79,24 @@
         "output_name": "lcms"
       },
       "ui": {
-        "title": "XCMS Peak Detection"
-      }
-    },
-    {
-      "id": "validate_feature_table_001",
-      "type": "data_validator",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Feature Table"
+        "title": "XCMS Peak Detection",
+        "validation": {
+          "outputs": {
+            "feature_table": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "xcms_retention_correction_001",
       "type": "xcms_retention_correction",
       "position": [
-        1160,
-        546
+        800,
+        80
       ],
       "params": {
         "method": "obiwarp",
@@ -121,31 +106,24 @@
         "output_name": "lcms_aligned"
       },
       "ui": {
-        "title": "XCMS Retention Correction"
-      }
-    },
-    {
-      "id": "validate_aligned_features_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Aligned Features"
+        "title": "XCMS Retention Correction",
+        "validation": {
+          "outputs": {
+            "aligned_feature_table": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "camera_annotation_001",
       "type": "camera_annotation",
       "position": [
-        1520,
-        546
+        1160,
+        80
       ],
       "params": {
         "polarity": "positive",
@@ -154,23 +132,16 @@
         "output_name": "lcms_camera"
       },
       "ui": {
-        "title": "CAMERA Annotation"
-      }
-    },
-    {
-      "id": "validate_camera_peaklist_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        80
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate CAMERA Peaklist"
+        "title": "CAMERA Annotation",
+        "validation": {
+          "outputs": {
+            "annotated_peaklist": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -198,7 +169,7 @@
       "type": "html_preview",
       "position": [
         440,
-        546
+        638
       ],
       "params": {},
       "ui": {
@@ -208,36 +179,14 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e2",
       "from": {
         "node": "mzml_001",
         "output": "file"
       },
       "to": {
-        "node": "validate_mzml_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "validate_mzml_001",
-        "output": "passthrough"
-      },
-      "to": {
         "node": "xcms_peak_detection_001",
         "input": "mzml_files"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "xcms_peak_detection_001",
-        "output": "feature_table"
-      },
-      "to": {
-        "node": "validate_feature_table_001",
-        "input": "input"
       }
     },
     {
@@ -252,17 +201,6 @@
       }
     },
     {
-      "id": "e5",
-      "from": {
-        "node": "xcms_retention_correction_001",
-        "output": "aligned_feature_table"
-      },
-      "to": {
-        "node": "validate_aligned_features_001",
-        "input": "input"
-      }
-    },
-    {
       "id": "e6",
       "from": {
         "node": "xcms_retention_correction_001",
@@ -271,17 +209,6 @@
       "to": {
         "node": "camera_annotation_001",
         "input": "xcms_object"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "camera_annotation_001",
-        "output": "annotated_peaklist"
-      },
-      "to": {
-        "node": "validate_camera_peaklist_001",
-        "input": "input"
       }
     },
     {
@@ -298,10 +225,10 @@
   ],
   "groups": [],
   "outputs": {
-    "validated_mzml": "validate_mzml_001",
-    "xcms_features": "validate_feature_table_001",
-    "aligned_features": "validate_aligned_features_001",
-    "camera_peaklist": "validate_camera_peaklist_001",
+    "validated_mzml": "mzml_001",
+    "xcms_features": "xcms_peak_detection_001",
+    "aligned_features": "xcms_retention_correction_001",
+    "camera_peaklist": "camera_annotation_001",
     "report": "metabolomics_report_001",
     "report_preview": "metabolomics_report_preview_001"
   }

@@ -26,6 +26,16 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -50,7 +60,6 @@ def test_pangenomics_template_covers_pggb_odgi_qc_and_visualization() -> None:
     assert {"pangenomics", "pggb", "odgi", "graph", "visualization"}.issubset(set(workflow["tags"]))
     assert {
         "input_fasta",
-        "data_validator",
         "pggb",
         "odgi_build",
         "odgi_viz",
@@ -61,33 +70,33 @@ def test_pangenomics_template_covers_pggb_odgi_qc_and_visualization() -> None:
     }.issubset(set(workflow["tools"]))
 
     assert node_types["haplotypes_001"] == "input_fasta"
-    assert node_types["validate_haplotypes_001"] == "data_validator"
+    assert "validate_haplotypes_001" not in node_types
     assert node_types["pggb_001"] == "pggb"
-    assert node_types["validate_pggb_gfa_001"] == "data_validator"
+    assert "validate_pggb_gfa_001" not in node_types
     assert node_types["odgi_build_001"] == "odgi_build"
-    assert node_types["validate_odgi_stats_001"] == "data_validator"
+    assert "validate_odgi_stats_001" not in node_types
     assert node_types["odgi_viz_001"] == "odgi_viz"
     assert node_types["odgi_stats_001"] == "odgi_stats"
-    assert node_types["validate_odgi_stats_json_001"] == "data_validator"
+    assert "validate_odgi_stats_json_001" not in node_types
     assert node_types["graph_image_preview_001"] == "image_preview"
     assert node_types["pangenomics_report_001"] == "html_report"
     assert node_types["pangenomics_report_preview_001"] == "html_preview"
 
-    assert _has_edge(workflow, "haplotypes_001", "reference", "validate_haplotypes_001", "input")
-    assert _has_edge(workflow, "validate_haplotypes_001", "passthrough", "pggb_001", "input_fasta")
-    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "validate_pggb_gfa_001", "input")
-    assert _has_edge(workflow, "validate_pggb_gfa_001", "passthrough", "odgi_build_001", "gfa_graph")
-    assert _has_edge(workflow, "validate_pggb_gfa_001", "passthrough", "odgi_viz_001", "gfa_graph")
-    assert _has_edge(workflow, "validate_pggb_gfa_001", "passthrough", "odgi_stats_001", "gfa_graph")
-    assert _has_edge(workflow, "odgi_build_001", "stats", "validate_odgi_stats_001", "input")
-    assert _has_edge(workflow, "odgi_stats_001", "stats_json", "validate_odgi_stats_json_001", "input")
+    assert not _has_edge(workflow, "haplotypes_001", "reference", "validate_haplotypes_001", "input")
+    assert _has_edge(workflow, "haplotypes_001", "reference", "pggb_001", "input_fasta")
+    assert not _has_edge(workflow, "pggb_001", "smooth_gfa", "validate_pggb_gfa_001", "input")
+    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_build_001", "gfa_graph")
+    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_viz_001", "gfa_graph")
+    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_stats_001", "gfa_graph")
+    assert not _has_edge(workflow, "odgi_build_001", "stats", "validate_odgi_stats_001", "input")
+    assert not _has_edge(workflow, "odgi_stats_001", "stats_json", "validate_odgi_stats_json_001", "input")
     assert _has_edge(workflow, "odgi_viz_001", "viz_image", "graph_image_preview_001", "file")
     assert _has_edge(workflow, "odgi_viz_001", "viz_image", "pangenomics_report_001", "images")
     assert _has_edge(workflow, "pangenomics_report_001", "html_report", "pangenomics_report_preview_001", "file")
 
-    assert not _has_edge(workflow, "haplotypes_001", "reference", "pggb_001", "input_fasta")
-    assert not _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_build_001", "gfa_graph")
-    assert not _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_viz_001", "gfa_graph")
+    assert _has_edge(workflow, "haplotypes_001", "reference", "pggb_001", "input_fasta")
+    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_build_001", "gfa_graph")
+    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_viz_001", "gfa_graph")
     assert not _has_edge(workflow, "odgi_build_001", "stats", "pangenomics_report_001", "tables")
     assert not _has_edge(workflow, "validate_odgi_stats_001", "passthrough", "pangenomics_report_001", "tables")
     assert not _has_edge(workflow, "validate_odgi_stats_json_001", "passthrough", "pangenomics_report_001", "tables")
@@ -98,31 +107,31 @@ def test_pangenomics_template_covers_pggb_odgi_qc_and_visualization() -> None:
 def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() -> None:
     workflow = _load_template("pangenomics_graph_pipeline.json")
 
-    haplotype_validator = _node_by_id(workflow, "validate_haplotypes_001")
+    haplotype_validator = _output_validation(workflow, "haplotypes_001", "reference")
     pggb = _node_by_id(workflow, "pggb_001")
-    gfa_validator = _node_by_id(workflow, "validate_pggb_gfa_001")
+    gfa_validator = _output_validation(workflow, "pggb_001", "smooth_gfa")
     odgi_build = _node_by_id(workflow, "odgi_build_001")
-    odgi_stats_validator = _node_by_id(workflow, "validate_odgi_stats_001")
+    odgi_stats_validator = _output_validation(workflow, "odgi_build_001", "stats")
     odgi_viz = _node_by_id(workflow, "odgi_viz_001")
     odgi_stats = _node_by_id(workflow, "odgi_stats_001")
     report = _node_by_id(workflow, "pangenomics_report_001")
 
     assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == "examples/data/pangenomics/haplotypes.fa"
-    assert haplotype_validator["params"]["expected_format"] == "fasta"
-    assert haplotype_validator["params"]["min_records"] >= 2
-    assert haplotype_validator["params"]["min_size_bytes"] > 0
-    assert haplotype_validator["params"]["fail_on_error"] is True
+    assert haplotype_validator["expected_format"] == "fasta"
+    assert haplotype_validator["min_records"] >= 2
+    assert haplotype_validator["min_size_bytes"] > 0
+    assert haplotype_validator["fail_on_error"] is True
     assert pggb["params"]["num_haplotypes"] == 2
     assert pggb["params"]["threads"] >= 8
     assert pggb["params"]["map_pct_id"] == 90
     assert pggb["params"]["segment_length"] == 5000
     assert pggb["params"]["graph_poas"] == 2
-    assert gfa_validator["params"]["expected_format"] == "text"
-    assert gfa_validator["params"]["fail_on_error"] is True
+    assert gfa_validator["expected_format"] == "text"
+    assert gfa_validator["fail_on_error"] is True
     assert odgi_build["params"]["output_name"] == "pangenome_graph"
     assert odgi_build["params"]["validate"] is True
-    assert odgi_stats_validator["params"]["expected_format"] == "json"
-    assert odgi_stats_validator["params"]["fail_on_error"] is True
+    assert odgi_stats_validator["expected_format"] == "json"
+    assert odgi_stats_validator["fail_on_error"] is True
     assert odgi_viz["params"]["width"] == 1600
     assert odgi_viz["params"]["height"] == 260
     assert odgi_viz["params"]["show_paths"] is True
@@ -132,12 +141,12 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     assert "PGGB" in report["params"]["text_sections"]
     assert report["params"]["section_names"] == "ODGI visualization"
 
-    assert workflow["outputs"]["validated_haplotypes"] == "validate_haplotypes_001"
+    assert workflow["outputs"]["validated_haplotypes"] == "haplotypes_001"
     assert workflow["outputs"]["pggb_graph"] == "pggb_001"
-    assert workflow["outputs"]["validated_graph_gfa"] == "validate_pggb_gfa_001"
+    assert workflow["outputs"]["validated_graph_gfa"] == "pggb_001"
     assert workflow["outputs"]["odgi_graph"] == "odgi_build_001"
-    assert workflow["outputs"]["odgi_build_stats"] == "validate_odgi_stats_001"
-    assert workflow["outputs"]["odgi_stats"] == "validate_odgi_stats_json_001"
+    assert workflow["outputs"]["odgi_build_stats"] == "odgi_build_001"
+    assert workflow["outputs"]["odgi_stats"] == "odgi_stats_001"
     assert workflow["outputs"]["graph_visualization"] == "odgi_viz_001"
     assert workflow["outputs"]["report"] == "pangenomics_report_001"
     assert workflow["outputs"]["report_preview"] == "pangenomics_report_preview_001"
@@ -158,7 +167,7 @@ def test_pangenomics_template_is_discoverable_from_workflow_templates_api() -> N
     )
     assert listed["name"] == "Pangenomics Graph QC and Visualization"
     assert listed["category"] == "Pangenomics"
-    assert listed["node_count"] >= 12
+    assert listed["node_count"] >= 8
     assert "pggb" in listed["tools"]
     assert "odgi_viz" in listed["tools"]
     assert "PGGB Build" in listed["preview_steps"]

@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,23 @@
         "directory": "kraken2_db"
       },
       "ui": {
-        "title": "Kraken2 DB"
+        "title": "Kraken2 DB",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -69,7 +88,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -82,27 +101,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "kraken2_001",
       "type": "kraken2",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -116,7 +118,7 @@
       "id": "kraken2_retry_001",
       "type": "retry",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -132,56 +134,33 @@
       }
     },
     {
-      "id": "validate_db_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Kraken2 DB"
-      }
-    },
-    {
       "id": "bracken_001",
       "type": "bracken",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
         "level": "S"
       },
       "ui": {
-        "title": "Bracken"
-      }
-    },
-    {
-      "id": "validate_bracken_001",
-      "type": "data_validator",
-      "position": [
-        2600,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Bracken Report"
+        "title": "Bracken",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "bracken_bar_001",
       "type": "bar_chart",
       "position": [
-        2960,
+        2240,
         568
       ],
       "params": {
@@ -199,7 +178,7 @@
       "id": "bracken_heatmap_001",
       "type": "heatmap",
       "position": [
-        2960,
+        2240,
         1264
       ],
       "params": {
@@ -215,7 +194,7 @@
       "id": "taxonomy_report_001",
       "type": "html_report",
       "position": [
-        3320,
+        2600,
         80
       ],
       "params": {
@@ -231,7 +210,7 @@
       "id": "taxonomy_report_preview_001",
       "type": "html_preview",
       "position": [
-        3680,
+        2960,
         80
       ],
       "params": {},
@@ -243,23 +222,32 @@
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
-        1520,
-        500
+        1160,
+        261
       ],
       "params": {
         "threads": 8,
         "bt2_db": "metaphlan_db"
       },
       "ui": {
-        "title": "MetaPhlAn"
+        "title": "MetaPhlAn",
+        "validation": {
+          "outputs": {
+            "profile": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "metaphlan_bar_001",
       "type": "bar_chart",
       "position": [
-        2240,
-        362
+        1520,
+        474
       ],
       "params": {
         "title": "MetaPhlAn Relative Abundance",
@@ -273,41 +261,39 @@
       }
     },
     {
-      "id": "validate_metaphlan_profile_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        474
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MetaPhlAn Profile"
-      }
-    },
-    {
       "id": "humann_001",
       "type": "humann",
       "position": [
-        1880,
-        940
+        1520,
+        1170
       ],
       "params": {
         "threads": 8
       },
       "ui": {
-        "title": "HUMAnN"
+        "title": "HUMAnN",
+        "validation": {
+          "outputs": {
+            "pathabundance": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "pathcoverage": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "humann_retry_001",
       "type": "retry",
       "position": [
-        1520,
-        942
+        1160,
+        703
       ],
       "params": {
         "max_retries": 2,
@@ -322,43 +308,11 @@
       }
     },
     {
-      "id": "validate_humann_pathways_001",
-      "type": "data_validator",
-      "position": [
-        2240,
-        1058
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate HUMAnN Pathways"
-      }
-    },
-    {
-      "id": "validate_humann_pathcoverage_001",
-      "type": "data_validator",
-      "position": [
-        2240,
-        1524
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate HUMAnN Path Coverage"
-      }
-    },
-    {
       "id": "humann_pathcoverage_bar_001",
       "type": "bar_chart",
       "position": [
-        2600,
-        546
+        1880,
+        362
       ],
       "params": {
         "title": "HUMAnN Pathway Coverage",
@@ -375,7 +329,7 @@
       "id": "functional_report_001",
       "type": "html_report",
       "position": [
-        2960,
+        2240,
         80
       ],
       "params": {
@@ -391,7 +345,7 @@
       "id": "functional_report_preview_001",
       "type": "html_preview",
       "position": [
-        3320,
+        2600,
         568
       ],
       "params": {},
@@ -403,7 +357,7 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        800,
+        440,
         454
       ],
       "params": {
@@ -417,22 +371,31 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1160,
+        800,
         430
       ],
       "params": {
         "title": "Metagenomics QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        1266
+        1160,
+        884
       ],
       "params": {},
       "ui": {
@@ -440,26 +403,10 @@
       }
     },
     {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        1362
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
-    },
-    {
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        1160,
+        800,
         782
       ],
       "params": {
@@ -475,8 +422,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        1520,
-        1828
+        1160,
+        1038
       ],
       "params": {},
       "ui": {
@@ -486,21 +433,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -541,17 +477,6 @@
       }
     },
     {
-      "id": "e3",
-      "from": {
-        "node": "db_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "validate_db_001",
-        "input": "input"
-      }
-    },
-    {
       "id": "e4",
       "from": {
         "node": "kraken2_001",
@@ -565,23 +490,12 @@
     {
       "id": "e5",
       "from": {
-        "node": "validate_db_001",
-        "output": "passthrough"
+        "node": "db_001",
+        "output": "directory"
       },
       "to": {
         "node": "bracken_001",
         "input": "db"
-      }
-    },
-    {
-      "id": "e6",
-      "from": {
-        "node": "bracken_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_bracken_001",
-        "input": "input"
       }
     },
     {
@@ -609,8 +523,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "validate_bracken_001",
-        "output": "passthrough"
+        "node": "bracken_001",
+        "output": "report"
       },
       "to": {
         "node": "taxonomy_report_001",
@@ -640,21 +554,10 @@
       }
     },
     {
-      "id": "e9a",
+      "id": "e9a_validated",
       "from": {
         "node": "metaphlan_001",
         "output": "profile"
-      },
-      "to": {
-        "node": "validate_metaphlan_profile_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e9a_validated",
-      "from": {
-        "node": "validate_metaphlan_profile_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "metaphlan_bar_001",
@@ -695,21 +598,10 @@
       }
     },
     {
-      "id": "e10a",
+      "id": "e10b",
       "from": {
         "node": "humann_001",
         "output": "pathabundance"
-      },
-      "to": {
-        "node": "validate_humann_pathways_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e10b",
-      "from": {
-        "node": "validate_humann_pathways_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "functional_report_001",
@@ -717,21 +609,10 @@
       }
     },
     {
-      "id": "e10c",
+      "id": "e10c_validated",
       "from": {
         "node": "humann_001",
         "output": "pathcoverage"
-      },
-      "to": {
-        "node": "validate_humann_pathcoverage_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e10c_validated",
-      "from": {
-        "node": "validate_humann_pathcoverage_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "functional_report_001",
@@ -741,8 +622,8 @@
     {
       "id": "e10c_chart",
       "from": {
-        "node": "validate_humann_pathcoverage_001",
-        "output": "passthrough"
+        "node": "humann_001",
+        "output": "pathcoverage"
       },
       "to": {
         "node": "humann_pathcoverage_bar_001",
@@ -785,8 +666,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
+        "node": "reads_001",
+        "output": "reads"
       },
       "to": {
         "node": "qc_001",
@@ -805,21 +686,10 @@
       }
     },
     {
-      "id": "e13",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
-      }
-    },
-    {
       "id": "e14",
       "from": {
-        "node": "validate_bracken_001",
-        "output": "passthrough"
+        "node": "bracken_001",
+        "output": "report"
       },
       "to": {
         "node": "bracken_bar_001",
@@ -829,8 +699,8 @@
     {
       "id": "e14a",
       "from": {
-        "node": "validate_bracken_001",
-        "output": "passthrough"
+        "node": "bracken_001",
+        "output": "report"
       },
       "to": {
         "node": "bracken_heatmap_001",
@@ -840,8 +710,8 @@
     {
       "id": "e15",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -851,8 +721,8 @@
     {
       "id": "e16",
       "from": {
-        "node": "validate_db_001",
-        "output": "passthrough"
+        "node": "db_001",
+        "output": "directory"
       },
       "to": {
         "node": "kraken2_001",
@@ -890,21 +760,21 @@
     "metaphlan_chart": "metaphlan_bar_001",
     "taxonomy_report": "taxonomy_report_001",
     "taxonomy_report_preview": "taxonomy_report_preview_001",
-    "validated_bracken_report": "validate_bracken_001",
-    "validated_metaphlan_profile": "validate_metaphlan_profile_001",
-    "validated_db": "validate_db_001",
+    "validated_bracken_report": "bracken_001",
+    "validated_metaphlan_profile": "metaphlan_001",
+    "validated_db": "db_001",
     "kraken2_retry_policy": "kraken2_retry_001",
     "metaphlan": "metaphlan_001",
     "pathways": "humann_001",
     "humann_retry_policy": "humann_retry_001",
-    "validated_humann_pathways": "validate_humann_pathways_001",
-    "validated_humann_pathcoverage": "validate_humann_pathcoverage_001",
+    "validated_humann_pathways": "humann_001",
+    "validated_humann_pathcoverage": "humann_001",
     "functional_pathcoverage_chart": "humann_pathcoverage_bar_001",
     "functional_report": "functional_report_001",
     "functional_report_preview": "functional_report_preview_001",
-    "validated_reads": "validate_reads_001",
+    "validated_reads": "reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
-    "validated_multiqc_report": "validate_multiqc_001",
+    "validated_multiqc_report": "mqc_001",
     "qc_dashboard": "qc_dashboard_001",
     "qc_dashboard_preview": "qc_dashboard_preview_001"
   }

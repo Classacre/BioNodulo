@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,24 @@
         "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
       },
       "ui": {
-        "title": "Reference FASTA"
+        "title": "Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {},
@@ -64,44 +84,10 @@
       }
     },
     {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference FASTA"
-      }
-    },
-    {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -115,7 +101,7 @@
       "id": "collate_001",
       "type": "samtools_collate",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -129,7 +115,7 @@
       "id": "fixmate_001",
       "type": "samtools_fixmate",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -144,7 +130,7 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -159,7 +145,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
@@ -173,7 +159,7 @@
       "id": "markdup_001",
       "type": "samtools_markdup",
       "position": [
-        2960,
+        2600,
         80
       ],
       "params": {
@@ -188,7 +174,7 @@
       "id": "index_001",
       "type": "samtools_index",
       "position": [
-        3320,
+        2960,
         80
       ],
       "params": {},
@@ -200,8 +186,8 @@
       "id": "flagstat_001",
       "type": "samtools_flagstat",
       "position": [
-        3320,
-        782
+        2960,
+        543
       ],
       "params": {},
       "ui": {
@@ -212,7 +198,7 @@
       "id": "gatk_001",
       "type": "gatk_haplotype_caller",
       "position": [
-        3680,
+        3320,
         80
       ],
       "params": {
@@ -227,7 +213,7 @@
       "id": "gatk_retry_001",
       "type": "retry",
       "position": [
-        3320,
+        2960,
         362
       ],
       "params": {
@@ -246,7 +232,7 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        4040,
+        3680,
         80
       ],
       "params": {
@@ -260,7 +246,7 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        4400,
+        4040,
         80
       ],
       "params": {
@@ -275,7 +261,7 @@
       "id": "vep_001",
       "type": "vep",
       "position": [
-        4400,
+        4040,
         500
       ],
       "params": {
@@ -292,7 +278,7 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        4760,
+        4400,
         80
       ],
       "params": {
@@ -308,7 +294,7 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        4400,
+        4040,
         1102
       ],
       "params": {
@@ -323,8 +309,8 @@
       "id": "coverage_plot_001",
       "type": "coverage_plot",
       "position": [
-        3320,
-        1018
+        2960,
+        779
       ],
       "params": {
         "region": "Wildtype:1-50000",
@@ -340,8 +326,8 @@
       "id": "manta_sv_001",
       "type": "manta_call",
       "position": [
-        3320,
-        1530
+        2960,
+        1291
       ],
       "params": {
         "threads": 4
@@ -354,8 +340,8 @@
       "id": "delly_sv_001",
       "type": "delly_call",
       "position": [
-        3320,
-        1856
+        2960,
+        1617
       ],
       "params": {
         "mode": "call"
@@ -368,7 +354,7 @@
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
-        5480,
+        5120,
         80
       ],
       "params": {
@@ -384,7 +370,7 @@
       "id": "variant_report_preview_001",
       "type": "html_preview",
       "position": [
-        5840,
+        5480,
         80
       ],
       "params": {},
@@ -396,7 +382,7 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        5120,
+        4760,
         80
       ],
       "params": {
@@ -412,7 +398,7 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        800,
+        440,
         270
       ],
       "params": {
@@ -426,62 +412,44 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1160,
+        800,
         522
       ],
       "params": {
         "title": "Variant Calling QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
+        1160,
         362
       ],
       "params": {},
       "ui": {
         "title": "View MultiQC Report"
       }
-    },
-    {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        362
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
     }
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "bwa_001",
@@ -489,21 +457,10 @@
       }
     },
     {
-      "id": "e2",
+      "id": "e2a",
       "from": {
         "node": "ref_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2a",
-      "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "bwa_idx_001",
@@ -590,8 +547,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "gatk_001",
@@ -623,8 +580,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
+        "node": "reads_001",
+        "output": "reads"
       },
       "to": {
         "node": "qc_001",
@@ -662,17 +619,6 @@
       "to": {
         "node": "fixmate_001",
         "input": "bam"
-      }
-    },
-    {
-      "id": "e13",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
       }
     },
     {
@@ -799,8 +745,8 @@
     {
       "id": "e22",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "manta_sv_001",
@@ -821,8 +767,8 @@
     {
       "id": "e24",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "delly_sv_001",
@@ -843,8 +789,8 @@
     {
       "id": "e20",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -866,8 +812,8 @@
     "gatk_retry_policy": "gatk_retry_001",
     "manta_sv": "manta_sv_001",
     "delly_sv": "delly_sv_001",
-    "validated_multiqc_report": "validate_multiqc_001",
-    "validated_reads": "validate_reads_001",
-    "validated_reference": "validate_reference_001"
+    "validated_multiqc_report": "mqc_001",
+    "validated_reads": "reads_001",
+    "validated_reference": "ref_001"
   }
 }

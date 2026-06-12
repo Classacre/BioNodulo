@@ -17,7 +17,6 @@
   "tools": [
     "input_directory",
     "input_file",
-    "data_validator",
     "squidpy_qc",
     "scanpy_spatial",
     "image_preview",
@@ -51,30 +50,23 @@
         "directory": "examples/data/spatial_transcriptomics/visium_outs"
       },
       "ui": {
-        "title": "Visium outs Directory"
-      }
-    },
-    {
-      "id": "validate_visium_outs_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Visium outs"
+        "title": "Visium outs Directory",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "squidpy_qc_001",
       "type": "squidpy_qc",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -86,31 +78,24 @@
         "resolution": 0.8
       },
       "ui": {
-        "title": "Squidpy QC"
-      }
-    },
-    {
-      "id": "validate_squidpy_adata_001",
-      "type": "data_validator",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "expected_format": "auto",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Squidpy AnnData"
+        "title": "Squidpy QC",
+        "validation": {
+          "outputs": {
+            "adata": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "spatial_plot_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
-        546
+        800,
+        80
       ],
       "params": {},
       "ui": {
@@ -128,23 +113,16 @@
         "file": "examples/data/spatial_transcriptomics/counts.csv"
       },
       "ui": {
-        "title": "Count Matrix"
-      }
-    },
-    {
-      "id": "validate_count_matrix_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Count Matrix"
+        "title": "Count Matrix",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -158,30 +136,23 @@
         "file": "examples/data/spatial_transcriptomics/coordinates.csv"
       },
       "ui": {
-        "title": "Spot Coordinates"
-      }
-    },
-    {
-      "id": "validate_coordinates_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1012
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Coordinates"
+        "title": "Spot Coordinates",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "scanpy_spatial_001",
       "type": "scanpy_spatial",
       "position": [
-        800,
+        440,
         500
       ],
       "params": {
@@ -194,31 +165,24 @@
         "resolution": 0.8
       },
       "ui": {
-        "title": "Scanpy Spatial"
-      }
-    },
-    {
-      "id": "validate_scanpy_clusters_001",
-      "type": "data_validator",
-      "position": [
-        1160,
-        820
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Scanpy Clusters"
+        "title": "Scanpy Spatial",
+        "validation": {
+          "outputs": {
+            "clusters": {
+              "expected_format": "csv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "scanpy_umap_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
-        1286
+        800,
+        354
       ],
       "params": {},
       "ui": {
@@ -251,7 +215,7 @@
       "type": "html_preview",
       "position": [
         440,
-        1478
+        988
       ],
       "params": {},
       "ui": {
@@ -261,36 +225,14 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e2",
       "from": {
         "node": "visium_outs_001",
         "output": "directory"
       },
       "to": {
-        "node": "validate_visium_outs_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "validate_visium_outs_001",
-        "output": "passthrough"
-      },
-      "to": {
         "node": "squidpy_qc_001",
         "input": "visium_path"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "squidpy_qc_001",
-        "output": "adata"
-      },
-      "to": {
-        "node": "validate_squidpy_adata_001",
-        "input": "input"
       }
     },
     {
@@ -305,32 +247,10 @@
       }
     },
     {
-      "id": "e5",
+      "id": "e7",
       "from": {
         "node": "count_matrix_001",
         "output": "file"
-      },
-      "to": {
-        "node": "validate_count_matrix_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e6",
-      "from": {
-        "node": "coordinates_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "validate_coordinates_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "validate_count_matrix_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "scanpy_spatial_001",
@@ -340,23 +260,12 @@
     {
       "id": "e8",
       "from": {
-        "node": "validate_coordinates_001",
-        "output": "passthrough"
+        "node": "coordinates_001",
+        "output": "file"
       },
       "to": {
         "node": "scanpy_spatial_001",
         "input": "coordinates"
-      }
-    },
-    {
-      "id": "e9",
-      "from": {
-        "node": "scanpy_spatial_001",
-        "output": "clusters"
-      },
-      "to": {
-        "node": "validate_scanpy_clusters_001",
-        "input": "input"
       }
     },
     {
@@ -384,10 +293,10 @@
   ],
   "groups": [],
   "outputs": {
-    "validated_visium_outs": "validate_visium_outs_001",
-    "squidpy_adata": "validate_squidpy_adata_001",
+    "validated_visium_outs": "visium_outs_001",
+    "squidpy_adata": "squidpy_qc_001",
     "spatial_plot_preview": "spatial_plot_preview_001",
-    "scanpy_clusters": "validate_scanpy_clusters_001",
+    "scanpy_clusters": "scanpy_spatial_001",
     "scanpy_umap_preview": "scanpy_umap_preview_001",
     "report": "spatial_report_001",
     "report_preview": "spatial_report_preview_001"

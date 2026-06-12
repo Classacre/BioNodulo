@@ -16,6 +16,20 @@ def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
     return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
 
 
+
+def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+    return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -42,17 +56,17 @@ def test_fastq_qc_template_demonstrates_sample_sheet_input_validation() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["sample_sheet_001"] == "input_sample_sheet"
-    assert node_types["validate_sample_sheet_001"] == "data_validator"
+    assert "validate_sample_sheet_001" not in node_types
 
     sample_sheet = next(node for node in workflow["nodes"] if node["id"] == "sample_sheet_001")
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_sample_sheet_001")
+    validator = _output_validation(workflow, "sample_sheet_001", "sample_sheet")
     assert sample_sheet["params"]["sample_sheet"] == "templates/data/fastq_qc_sample_sheet.csv"
-    assert validator["params"]["expected_format"] == "csv"
-    assert validator["params"]["required_fields"] == "sample,fastq_1,fastq_2"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "csv"
+    assert validator["required_fields"] == "sample,fastq_1,fastq_2"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
 
-    assert _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
+    assert not _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
     assert workflow["outputs"]["sample_sheet"] == "sample_sheet_001"
-    assert workflow["outputs"]["validated_sample_sheet"] == "validate_sample_sheet_001"
+    assert workflow["outputs"]["validated_sample_sheet"] == "sample_sheet_001"

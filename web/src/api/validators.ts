@@ -103,6 +103,7 @@ export interface ValidatedRunRecord {
   status: string;
   workflow_name?: string;
   node_statuses: unknown[];
+  execution_plan: string[];
   artifacts: Record<string, unknown>;
   previews: Record<string, unknown>;
   start_time?: string;
@@ -110,13 +111,18 @@ export interface ValidatedRunRecord {
   error?: string;
 }
 
+function normalizeRunStatus(status: string): string {
+  return status === 'failed' ? 'error' : status;
+}
+
 export function validateRunRecord(value: unknown, path = 'run'): ValidatedRunRecord {
   const obj = requireObject(value, path);
   return {
     run_id: requireString(obj.run_id, `${path}.run_id`),
-    status: requireString(obj.status, `${path}.status`),
+    status: normalizeRunStatus(requireString(obj.status, `${path}.status`)),
     workflow_name: optionalString(obj.workflow_name, `${path}.workflow_name`),
     node_statuses: Array.isArray(obj.node_statuses) ? obj.node_statuses : [],
+    execution_plan: stringArray(obj.execution_plan, `${path}.execution_plan`),
     artifacts: isObject(obj.artifacts) ? obj.artifacts : {},
     previews: isObject(obj.previews) ? obj.previews : {},
     start_time: optionalTimestamp(obj.start_time, `${path}.start_time`)

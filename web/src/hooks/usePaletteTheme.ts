@@ -6,6 +6,7 @@ import {
   getBuiltInPalettes,
   getPaletteRevision,
   getPaletteDefinition,
+  paletteThemeMode,
   setActivePaletteId,
   subscribePalettes,
   type PaletteMode,
@@ -42,14 +43,23 @@ export function usePaletteTheme(options: UsePaletteThemeOptions = {}) {
   }, [options.mode, paletteId]);
 
   const setPalette = useCallback((id: string) => {
+    const forcedMode = paletteThemeMode(id);
+    if (forcedMode) {
+      document.documentElement.classList.toggle('dark', forcedMode === 'dark');
+      document.body.classList.toggle('dark', forcedMode === 'dark');
+      document.documentElement.dataset.theme = forcedMode;
+      document.documentElement.style.colorScheme = forcedMode;
+      try { localStorage.setItem('bionodulo.theme', forcedMode); } catch { /* ignore */ }
+    }
     setActivePaletteId(id);
-    applyPalette(id, options.mode);
+    applyPalette(id, forcedMode ?? options.mode);
   }, [options.mode]);
 
   const resetPalette = useCallback(() => {
-    setActivePaletteId('bionodulo');
-    applyPalette('bionodulo', options.mode);
-  }, [options.mode]);
+    setActivePaletteId('light');
+    applyPalette('light', 'light');
+    try { localStorage.setItem('bionodulo.theme', 'light'); } catch { /* ignore */ }
+  }, []);
 
   return {
     paletteId,

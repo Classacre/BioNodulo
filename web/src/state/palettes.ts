@@ -123,12 +123,62 @@ export interface ThemePalette {
   canvasPattern?: CanvasPattern;
 }
 
+export type PaletteThemeMode = PaletteMode | null;
+
 const STORAGE_KEY = 'bionodulo.palette';
 const CUSTOM_STORAGE_KEY = 'bionodulo.customPalettes';
 const listeners = new Set<() => void>();
 let paletteRevision = 0;
 
 export const BUILT_IN_PALETTES: ThemePalette[] = [
+  {
+    id: 'light',
+    name: 'Light',
+    description: 'Bright neutral BioNodulo palette.',
+    descriptionKey: 'palettes.descriptions.light',
+    canvasPattern: 'dots',
+    preview: ['#0d9488', '#eef3f4', '#ffffff'],
+    light: {
+      canvas: '#eef3f4', surface: '#ffffff', 'surface-2': '#f3f6f7', 'surface-3': '#e8edef',
+      text: '#1d2930', 'text-2': '#334155',
+      border: '#d9e1e5', 'border-2': '#c4cdd3',
+      accent: '#0d9488', 'accent-light': '#ccfbf1', 'accent-dark': '#0f766e',
+      danger: '#dc2626', warning: '#f59e0b', success: '#16a34a', info: '#2563eb',
+      'minimap-bg': 'rgba(255,255,255,0.9)',
+    },
+    dark: {
+      canvas: '#eef3f4', surface: '#ffffff', 'surface-2': '#f3f6f7', 'surface-3': '#e8edef',
+      text: '#1d2930', 'text-2': '#334155',
+      border: '#d9e1e5', 'border-2': '#c4cdd3',
+      accent: '#0d9488', 'accent-light': '#ccfbf1', 'accent-dark': '#0f766e',
+      danger: '#dc2626', warning: '#f59e0b', success: '#16a34a', info: '#2563eb',
+      'minimap-bg': 'rgba(255,255,255,0.9)',
+    },
+  },
+  {
+    id: 'dark',
+    name: 'Dark',
+    description: 'Dark neutral BioNodulo palette.',
+    descriptionKey: 'palettes.descriptions.dark',
+    canvasPattern: 'dots',
+    preview: ['#2dd4bf', '#0f172a', '#1e293b'],
+    light: {
+      canvas: '#0f172a', surface: '#1e293b', 'surface-2': '#334155', 'surface-3': '#475569',
+      text: '#f1f5f9', 'text-2': '#cbd5e1',
+      border: '#475569', 'border-2': '#64748b',
+      accent: '#2dd4bf', 'accent-light': '#134e4a', 'accent-dark': '#5eead4',
+      danger: '#f87171', warning: '#fbbf24', success: '#4ade80', info: '#60a5fa',
+      'minimap-bg': 'rgba(15,23,42,0.9)',
+    },
+    dark: {
+      canvas: '#0f172a', surface: '#1e293b', 'surface-2': '#334155', 'surface-3': '#475569',
+      text: '#f1f5f9', 'text-2': '#cbd5e1',
+      border: '#475569', 'border-2': '#64748b',
+      accent: '#2dd4bf', 'accent-light': '#134e4a', 'accent-dark': '#5eead4',
+      danger: '#f87171', warning: '#fbbf24', success: '#4ade80', info: '#60a5fa',
+      'minimap-bg': 'rgba(15,23,42,0.9)',
+    },
+  },
   {
     id: 'bionodulo',
     name: 'BioNodulo',
@@ -250,7 +300,7 @@ function getStoredPaletteId(): string | null {
   }
 }
 
-let activePaletteId: string = getStoredPaletteId() || BUILT_IN_PALETTES[0].id;
+let activePaletteId: string = getStoredPaletteId() || 'light';
 let customPalettes: ThemePalette[] = loadCustomPalettes();
 
 function loadCustomPalettes(): ThemePalette[] {
@@ -314,6 +364,12 @@ export function paletteDisplayName(palette: Pick<ThemePalette, 'id' | 'name'>, t
 
 export function getPaletteDefinition(id: string): ThemePalette | undefined {
   return listPalettes().find(p => p.id === id);
+}
+
+export function paletteThemeMode(id: string): PaletteThemeMode {
+  if (id === 'light') return 'light';
+  if (id === 'dark') return 'dark';
+  return null;
 }
 
 export function upsertCustomPalette(palette: ThemePalette): void {

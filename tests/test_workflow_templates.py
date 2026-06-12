@@ -16,6 +16,20 @@ def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
     return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
 
 
+def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+    return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -56,51 +70,51 @@ def test_variant_calling_template_validates_reference_before_alignment_and_calli
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reference_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "gatk_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
-    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+    assert "validate_reference_001" not in node_types
+    validator = _output_validation(workflow, "ref_001", "reference")
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 
 def test_variant_calling_template_validates_reads_before_alignment_and_qc() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "bwa_001", "reads")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "qc_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "bwa_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "bwa_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "bwa_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_variant_calling_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
@@ -172,51 +186,51 @@ def test_wgs_variant_template_validates_reference_before_alignment_and_calling()
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reference_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "fb_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
-    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+    assert "validate_reference_001" not in node_types
+    validator = _output_validation(workflow, "ref_001", "reference")
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 
 def test_wgs_variant_template_validates_reads_before_trimming_and_qc() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "qc_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_wgs_variant_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
@@ -298,9 +312,9 @@ def test_fastq_qc_template_trims_reads_before_fastqc() -> None:
     assert node_types["fastp_001"] == "fastp"
     fastp = next(node for node in workflow["nodes"] if node["id"] == "fastp_001")
     assert fastp["params"]["threads"] == 4
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
+    assert _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "fastqc_001", "reads")
-    assert not _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "input_fastq_001", "reads", "fastqc_001", "reads")
     assert workflow["outputs"]["trimmed_reads"] == "fastp_001"
 
@@ -309,16 +323,16 @@ def test_fastq_qc_template_validates_input_reads_before_trimming() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "input_fastq_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert not _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "input_fastq_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "input_fastq_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "input_fastq_001", "reads", "fastp_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "input_fastq_001"
 
 
 def test_fastq_qc_template_demonstrates_sample_sheet_input_validation() -> None:
@@ -326,18 +340,18 @@ def test_fastq_qc_template_demonstrates_sample_sheet_input_validation() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["sample_sheet_001"] == "input_sample_sheet"
-    assert node_types["validate_sample_sheet_001"] == "data_validator"
+    assert "validate_sample_sheet_001" not in node_types
     sample_sheet = next(node for node in workflow["nodes"] if node["id"] == "sample_sheet_001")
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_sample_sheet_001")
+    validator = _output_validation(workflow, "sample_sheet_001", "sample_sheet")
     assert sample_sheet["params"]["sample_sheet"] == "templates/data/fastq_qc_sample_sheet.csv"
-    assert validator["params"]["expected_format"] == "csv"
-    assert validator["params"]["required_fields"] == "sample,fastq_1,fastq_2"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
+    assert validator["expected_format"] == "csv"
+    assert validator["required_fields"] == "sample,fastq_1,fastq_2"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
     assert workflow["outputs"]["sample_sheet"] == "sample_sheet_001"
-    assert workflow["outputs"]["validated_sample_sheet"] == "validate_sample_sheet_001"
+    assert workflow["outputs"]["validated_sample_sheet"] == "sample_sheet_001"
 
 
 def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
@@ -407,7 +421,7 @@ def test_rna_seq_template_adds_alignment_qc_dashboard() -> None:
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
     assert dashboard["params"]["run_name"] == "RNA-Seq QC"
     assert _has_edge(workflow, "sort_001", "sorted_bam", "qualimap_001", "bam")
-    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "qualimap_001", "feature_file")
+    assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "flagstat_001", "bam")
     assert _has_edge(workflow, "qc_001", "report_dir", "qc_dashboard_001", "fastqc_dir")
     assert _has_edge(workflow, "flagstat_001", "stats", "qc_dashboard_001", "alignment_stats")
@@ -429,49 +443,49 @@ def test_rna_seq_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_rna_seq_template_validates_reference_fasta_before_indexing() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reference_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "hisat2_build_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "hisat2_build_001", "reference")
-    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+    assert "validate_reference_001" not in node_types
+    validator = _output_validation(workflow, "ref_001", "reference")
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "ref_001", "reference", "hisat2_build_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "hisat2_build_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 
 def test_rna_seq_template_validates_reads_before_trimming_and_qc() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "qc_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_rna_seq_template_gates_trimmed_reads_before_alignment() -> None:
@@ -493,17 +507,17 @@ def test_rna_seq_template_validates_annotation_before_counts_and_alignment_qc() 
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_annotation_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_annotation_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "annot_001", "annotation", "validate_annotation_001", "input")
-    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "counts_001", "gtf")
-    assert _has_edge(workflow, "validate_annotation_001", "passthrough", "qualimap_001", "feature_file")
-    assert not _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
-    assert not _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
-    assert workflow["outputs"]["validated_annotation"] == "validate_annotation_001"
+    assert "validate_annotation_001" not in node_types
+    validator = _output_validation(workflow, "annot_001", "annotation")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "annot_001", "annotation", "validate_annotation_001", "input")
+    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
+    assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
+    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
+    assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
+    assert workflow["outputs"]["validated_annotation"] == "annot_001"
 
 
 def test_rna_seq_template_normalizes_featurecounts_output() -> None:
@@ -584,44 +598,44 @@ def test_deseq2_template_validates_count_matrix_and_sample_info_before_analysis(
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_counts_001"] == "data_validator"
-    assert node_types["validate_samples_001"] == "data_validator"
-    counts_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_counts_001")
-    samples_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_samples_001")
-    assert counts_validator["params"]["expected_format"] == "csv"
-    assert counts_validator["params"]["min_records"] >= 1
-    assert counts_validator["params"]["min_size_bytes"] > 0
-    assert counts_validator["params"]["fail_on_error"] is True
-    assert samples_validator["params"]["expected_format"] == "csv"
-    assert samples_validator["params"]["min_records"] >= 2
-    assert samples_validator["params"]["required_fields"] == "sample,condition"
-    assert samples_validator["params"]["min_size_bytes"] > 0
-    assert samples_validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "counts_001", "file", "validate_counts_001", "input")
-    assert _has_edge(workflow, "validate_counts_001", "passthrough", "deseq2_001", "count_matrix")
-    assert _has_edge(workflow, "samples_001", "file", "validate_samples_001", "input")
-    assert _has_edge(workflow, "validate_samples_001", "passthrough", "deseq2_001", "sample_info")
-    assert not _has_edge(workflow, "counts_001", "file", "deseq2_001", "count_matrix")
-    assert not _has_edge(workflow, "samples_001", "file", "deseq2_001", "sample_info")
-    assert workflow["outputs"]["validated_counts"] == "validate_counts_001"
-    assert workflow["outputs"]["validated_sample_info"] == "validate_samples_001"
+    assert "validate_counts_001" not in node_types
+    assert "validate_samples_001" not in node_types
+    counts_validator = _output_validation(workflow, "counts_001", "file")
+    samples_validator = _output_validation(workflow, "samples_001", "file")
+    assert counts_validator["expected_format"] == "csv"
+    assert counts_validator["min_records"] >= 1
+    assert counts_validator["min_size_bytes"] > 0
+    assert counts_validator["fail_on_error"] is True
+    assert samples_validator["expected_format"] == "csv"
+    assert samples_validator["min_records"] >= 2
+    assert samples_validator["required_fields"] == "sample,condition"
+    assert samples_validator["min_size_bytes"] > 0
+    assert samples_validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "counts_001", "file", "validate_counts_001", "input")
+    assert _has_edge(workflow, "counts_001", "file", "deseq2_001", "count_matrix")
+    assert not _has_edge(workflow, "samples_001", "file", "validate_samples_001", "input")
+    assert _has_edge(workflow, "samples_001", "file", "deseq2_001", "sample_info")
+    assert _has_edge(workflow, "counts_001", "file", "deseq2_001", "count_matrix")
+    assert _has_edge(workflow, "samples_001", "file", "deseq2_001", "sample_info")
+    assert workflow["outputs"]["validated_counts"] == "counts_001"
+    assert workflow["outputs"]["validated_sample_info"] == "samples_001"
 
 
 def test_r_visualization_template_validates_heatmap_csv_before_pheatmap() -> None:
     workflow = _load_template("r_visualization_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_heatmap_csv_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_heatmap_csv_001")
-    assert validator["params"]["expected_format"] == "csv"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["required_fields"] == "gene"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "heatmap_data_001", "file", "validate_heatmap_csv_001", "input")
-    assert _has_edge(workflow, "validate_heatmap_csv_001", "passthrough", "pheatmap_001", "data_csv")
-    assert not _has_edge(workflow, "heatmap_data_001", "file", "pheatmap_001", "data_csv")
-    assert workflow["outputs"]["validated_heatmap_data"] == "validate_heatmap_csv_001"
+    assert "validate_heatmap_csv_001" not in node_types
+    validator = _output_validation(workflow, "heatmap_data_001", "file")
+    assert validator["expected_format"] == "csv"
+    assert validator["min_records"] >= 1
+    assert validator["required_fields"] == "gene"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "heatmap_data_001", "file", "validate_heatmap_csv_001", "input")
+    assert _has_edge(workflow, "heatmap_data_001", "file", "pheatmap_001", "data_csv")
+    assert _has_edge(workflow, "heatmap_data_001", "file", "pheatmap_001", "data_csv")
+    assert workflow["outputs"]["validated_heatmap_data"] == "heatmap_data_001"
 
 
 def test_r_visualization_template_combines_plots_into_html_report() -> None:
@@ -649,40 +663,40 @@ def test_biopython_template_validates_input_fastas_before_sequence_tools() -> No
     node_types = _node_types(workflow)
 
     assert node_types["ncbi_efetch_001"] == "ncbi_efetch"
-    assert node_types["validate_sequences_001"] == "data_validator"
-    assert node_types["validate_coding_001"] == "data_validator"
+    assert "validate_sequences_001" not in node_types
+    assert "validate_coding_001" not in node_types
     efetch = next(node for node in workflow["nodes"] if node["id"] == "ncbi_efetch_001")
-    sequences_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_sequences_001")
-    coding_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_coding_001")
+    sequences_validator = _output_validation(workflow, "ncbi_efetch_001", "records")
+    coding_validator = _output_validation(workflow, "coding_001", "reference")
     assert efetch["params"]["database"] == "nuccore"
     assert efetch["params"]["rettype"] == "fasta"
     assert efetch["params"]["retmode"] == "text"
-    assert sequences_validator["params"]["expected_format"] == "fasta"
-    assert sequences_validator["params"]["min_records"] >= 2
-    assert sequences_validator["params"]["min_size_bytes"] > 0
-    assert sequences_validator["params"]["fail_on_error"] is True
-    assert coding_validator["params"]["expected_format"] == "fasta"
-    assert coding_validator["params"]["min_records"] >= 1
-    assert coding_validator["params"]["min_size_bytes"] > 0
-    assert coding_validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "ncbi_efetch_001", "records", "validate_sequences_001", "input")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seqio_read_001", "input_file")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seq_stats_001", "input_file")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "blast_001", "query")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "blast_001", "subject")
-    assert _has_edge(workflow, "coding_001", "reference", "validate_coding_001", "input")
-    assert _has_edge(workflow, "validate_coding_001", "passthrough", "translate_001", "input_file")
-    assert _has_edge(workflow, "validate_coding_001", "passthrough", "biostrings_001", "input_fasta")
+    assert sequences_validator["expected_format"] == "fasta"
+    assert sequences_validator["min_records"] >= 2
+    assert sequences_validator["min_size_bytes"] > 0
+    assert sequences_validator["fail_on_error"] is True
+    assert coding_validator["expected_format"] == "fasta"
+    assert coding_validator["min_records"] >= 1
+    assert coding_validator["min_size_bytes"] > 0
+    assert coding_validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "ncbi_efetch_001", "records", "validate_sequences_001", "input")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "seqio_read_001", "input_file")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "seq_stats_001", "input_file")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "query")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "subject")
+    assert not _has_edge(workflow, "coding_001", "reference", "validate_coding_001", "input")
+    assert _has_edge(workflow, "coding_001", "reference", "translate_001", "input_file")
+    assert _has_edge(workflow, "coding_001", "reference", "biostrings_001", "input_fasta")
     assert not _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
     assert not _has_edge(workflow, "seqs_001", "reference", "seqio_read_001", "input_file")
     assert not _has_edge(workflow, "seqs_001", "reference", "seq_stats_001", "input_file")
     assert not _has_edge(workflow, "seqs_001", "reference", "blast_001", "query")
     assert not _has_edge(workflow, "seqs_001", "reference", "blast_001", "subject")
-    assert not _has_edge(workflow, "coding_001", "reference", "translate_001", "input_file")
-    assert not _has_edge(workflow, "coding_001", "reference", "biostrings_001", "input_fasta")
+    assert _has_edge(workflow, "coding_001", "reference", "translate_001", "input_file")
+    assert _has_edge(workflow, "coding_001", "reference", "biostrings_001", "input_fasta")
     assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
-    assert workflow["outputs"]["validated_sequences"] == "validate_sequences_001"
-    assert workflow["outputs"]["validated_coding_sequences"] == "validate_coding_001"
+    assert workflow["outputs"]["validated_sequences"] == "ncbi_efetch_001"
+    assert workflow["outputs"]["validated_coding_sequences"] == "coding_001"
 
 
 def test_biopython_template_adds_sequence_stats_chart_report() -> None:
@@ -717,7 +731,7 @@ def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences(
     assert classifier["params"]["fallback_backend"] == "deterministic"
     assert classifier["params"]["confidence_threshold"] == 0.0
     assert classifier["params"]["top_k"] == 3
-    assert _has_edge(workflow, "validate_coding_001", "passthrough", "sequence_classification_001", "input_fasta")
+    assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
     assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
@@ -747,36 +761,36 @@ def test_differential_expression_template_validates_transcriptome_before_indexin
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_transcriptome_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_transcriptome_001")
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "tx_001", "reference", "validate_transcriptome_001", "input")
-    assert _has_edge(workflow, "validate_transcriptome_001", "passthrough", "salmon_idx_001", "transcripts")
-    assert _has_edge(workflow, "validate_transcriptome_001", "passthrough", "kallisto_idx_001", "transcripts")
-    assert not _has_edge(workflow, "tx_001", "reference", "salmon_idx_001", "transcripts")
-    assert not _has_edge(workflow, "tx_001", "reference", "kallisto_idx_001", "transcripts")
-    assert workflow["outputs"]["validated_transcriptome"] == "validate_transcriptome_001"
+    assert "validate_transcriptome_001" not in node_types
+    validator = _output_validation(workflow, "tx_001", "reference")
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "tx_001", "reference", "validate_transcriptome_001", "input")
+    assert _has_edge(workflow, "tx_001", "reference", "salmon_idx_001", "transcripts")
+    assert _has_edge(workflow, "tx_001", "reference", "kallisto_idx_001", "transcripts")
+    assert _has_edge(workflow, "tx_001", "reference", "salmon_idx_001", "transcripts")
+    assert _has_edge(workflow, "tx_001", "reference", "kallisto_idx_001", "transcripts")
+    assert workflow["outputs"]["validated_transcriptome"] == "tx_001"
 
 
 def test_differential_expression_template_validates_reads_before_quantification() -> None:
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "salmon_quant_001", "reads")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "kallisto_quant_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "salmon_quant_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "kallisto_quant_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "salmon_quant_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "kallisto_quant_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "salmon_quant_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "kallisto_quant_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_differential_expression_template_is_labeled_as_transcript_quantification() -> None:
@@ -798,7 +812,7 @@ def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc
     assert node_types["mqc_001"] == "multiqc"
     assert _has_edge(workflow, "salmon_quant_001", "counts", "mqc_001", "reports")
     assert _has_edge(workflow, "kallisto_quant_001", "abundance", "mqc_001", "reports")
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
     assert workflow["outputs"]["report"] == "mqc_001"
 
 
@@ -806,15 +820,15 @@ def test_differential_expression_template_validates_multiqc_report_before_previe
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_differential_expression_template_adds_quantification_html_report() -> None:
@@ -932,35 +946,35 @@ def test_assembly_template_validates_reads_before_trimming() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "switch_assembler_001", "passthrough_data")
-    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "reads_001", "reads", "spades_001", "reads")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_assembly_template_validates_reference_before_quast() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reference_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_001")
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "quast_001", "reference")
-    assert not _has_edge(workflow, "ref_001", "reference", "quast_001", "reference")
-    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+    assert "validate_reference_001" not in node_types
+    validator = _output_validation(workflow, "ref_001", "reference")
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "ref_001", "reference", "quast_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "quast_001", "reference")
+    assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 
 def test_assembly_template_adds_annotation_html_report() -> None:
@@ -973,9 +987,9 @@ def test_assembly_template_adds_annotation_html_report() -> None:
     assert report["params"]["section_names"] == (
         "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
     )
-    assert _has_edge(workflow, "validate_quast_001", "passthrough", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "validate_prokka_001", "passthrough", "assembly_report_001", "tables")
-    assert not _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "prokka_001", "gff", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
     assert workflow["outputs"]["report"] == "assembly_report_001"
 
 
@@ -983,15 +997,15 @@ def test_assembly_template_validates_quast_report_before_preview() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_quast_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_quast_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "quast_001", "report", "validate_quast_001", "input")
-    assert _has_edge(workflow, "validate_quast_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_quast_report"] == "validate_quast_001"
+    assert "validate_quast_001" not in node_types
+    validator = _output_validation(workflow, "quast_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "quast_001", "report", "validate_quast_001", "input")
+    assert _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_quast_report"] == "quast_001"
 
 
 def test_chip_seq_template_trims_reads_before_alignment_and_qc() -> None:
@@ -1001,9 +1015,9 @@ def test_chip_seq_template_trims_reads_before_alignment_and_qc() -> None:
     assert node_types["fastp_001"] == "fastp"
     fastp = next(node for node in workflow["nodes"] if node["id"] == "fastp_001")
     assert fastp["params"]["threads"] == 4
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
+    assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "gate_trimmed_reads_001", "value")
-    assert not _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
     assert not _has_edge(workflow, "treat_001", "reads", "bt2_001", "reads")
     assert not _has_edge(workflow, "treat_001", "reads", "qc_001", "reads")
     assert workflow["outputs"]["trimmed_reads"] == "fastp_001"
@@ -1030,16 +1044,16 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "treat_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert not _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "treat_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "treat_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "treat_001"
 
 
 def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
@@ -1047,7 +1061,7 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["control_001"] == "input_fastq"
-    assert node_types["validate_control_reads_001"] == "data_validator"
+    assert "validate_control_reads_001" not in node_types
     assert node_types["fastp_control_001"] == "fastp"
     assert node_types["gate_control_reads_001"] == "gate"
     assert node_types["bt2_control_001"] == "bowtie2_align"
@@ -1055,39 +1069,39 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     assert node_types["sort_control_001"] == "samtools_sort"
 
     control = next(node for node in workflow["nodes"] if node["id"] == "control_001")
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_control_reads_001")
+    validator = _output_validation(workflow, "control_001", "reads")
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_control_reads_001")
     assert control["params"]["sample_name"] == "control"
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "fastq"
+    assert validator["fail_on_error"] is True
     assert gate["params"]["condition_mode"] == "is_not_empty"
     assert gate["params"]["on_fail"] == "halt"
 
-    assert _has_edge(workflow, "control_001", "reads", "validate_control_reads_001", "input")
-    assert _has_edge(workflow, "validate_control_reads_001", "passthrough", "fastp_control_001", "reads")
+    assert not _has_edge(workflow, "control_001", "reads", "validate_control_reads_001", "input")
+    assert _has_edge(workflow, "control_001", "reads", "fastp_control_001", "reads")
     assert _has_edge(workflow, "fastp_control_001", "trimmed_reads", "gate_control_reads_001", "value")
     assert _has_edge(workflow, "gate_control_reads_001", "output", "bt2_control_001", "reads")
-    assert _has_edge(workflow, "validate_index_001", "passthrough", "bt2_control_001", "index")
+    assert _has_edge(workflow, "idx_001", "directory", "bt2_control_001", "index")
     assert _has_edge(workflow, "bt2_control_001", "alignment", "view_control_001", "sam")
     assert _has_edge(workflow, "view_control_001", "bam", "sort_control_001", "bam")
     assert _has_edge(workflow, "sort_control_001", "sorted_bam", "macs2_001", "control")
     assert workflow["outputs"]["control_alignment"] == "sort_control_001"
-    assert workflow["outputs"]["validated_control_reads"] == "validate_control_reads_001"
+    assert workflow["outputs"]["validated_control_reads"] == "control_001"
 
 
 def test_chip_seq_template_validates_index_directory_before_alignment() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_index_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_index_001")
-    assert validator["params"]["expected_format"] == "directory"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "idx_001", "directory", "validate_index_001", "input")
-    assert _has_edge(workflow, "validate_index_001", "passthrough", "bt2_001", "index")
-    assert not _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
-    assert workflow["outputs"]["validated_index"] == "validate_index_001"
+    assert "validate_index_001" not in node_types
+    validator = _output_validation(workflow, "idx_001", "directory")
+    assert validator["expected_format"] == "directory"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "idx_001", "directory", "validate_index_001", "input")
+    assert _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
+    assert _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
+    assert workflow["outputs"]["validated_index"] == "idx_001"
 
 
 def test_chip_seq_template_generates_bigwig_coverage_track() -> None:
@@ -1108,13 +1122,13 @@ def test_chip_seq_template_validates_macs2_peak_output() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_peaks_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_peaks_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "macs2_001", "peaks", "validate_peaks_001", "input")
-    assert workflow["outputs"]["validated_peaks"] == "validate_peaks_001"
+    assert "validate_peaks_001" not in node_types
+    validator = _output_validation(workflow, "macs2_001", "peaks")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "macs2_001", "peaks", "validate_peaks_001", "input")
+    assert workflow["outputs"]["validated_peaks"] == "macs2_001"
 
 
 def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> None:
@@ -1122,30 +1136,24 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
     node_types = _node_types(workflow)
 
     assert node_types["peak_annotation_bed_001"] == "input_file"
-    assert node_types["validate_peak_annotation_bed_001"] == "data_validator"
+    assert "validate_peak_annotation_bed_001" not in node_types
     assert node_types["peak_annotation_001"] == "bedtools_closest"
 
     annotation_input = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_bed_001")
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_peak_annotation_bed_001")
+    validator = _output_validation(workflow, "peak_annotation_bed_001", "file")
     annotator = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_001")
     assert annotation_input["params"]["file"].endswith("genes.bed")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
     assert annotator["params"]["distance"] is True
     assert annotator["params"]["mode"] == "first"
 
-    assert _has_edge(workflow, "peak_annotation_bed_001", "file", "validate_peak_annotation_bed_001", "input")
-    assert _has_edge(workflow, "validate_peaks_001", "passthrough", "peak_annotation_001", "variants")
-    assert _has_edge(
-        workflow,
-        "validate_peak_annotation_bed_001",
-        "passthrough",
-        "peak_annotation_001",
-        "annotations",
-    )
+    assert not _has_edge(workflow, "peak_annotation_bed_001", "file", "validate_peak_annotation_bed_001", "input")
+    assert _has_edge(workflow, "macs2_001", "peaks", "peak_annotation_001", "variants")
+    assert _has_edge(workflow, "peak_annotation_bed_001", "file", "peak_annotation_001", "annotations")
     assert _has_edge(workflow, "peak_annotation_001", "closest", "chip_seq_report_001", "tables")
-    assert workflow["outputs"]["validated_peak_annotation_bed"] == "validate_peak_annotation_bed_001"
+    assert workflow["outputs"]["validated_peak_annotation_bed"] == "peak_annotation_bed_001"
     assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"
 
 
@@ -1153,15 +1161,15 @@ def test_chip_seq_template_validates_multiqc_report_before_preview() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
@@ -1180,11 +1188,11 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
     assert heatmap["params"]["scale"] == "column"
     assert heatmap["params"]["format"] == "png"
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_bar_001", "table")
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
     assert _has_edge(workflow, "bracken_bar_001", "chart_image", "taxonomy_report_001", "images")
     assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "taxonomy_report_001", "images")
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "taxonomy_report_001", "tables")
+    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
     assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
     assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
     assert workflow["outputs"]["taxonomy_report"] == "taxonomy_report_001"
@@ -1194,18 +1202,18 @@ def test_metagenomics_template_validates_reads_before_trimming_and_qc() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_reads_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reads_001")
-    assert validator["params"]["expected_format"] == "fastq"
-    assert validator["params"]["min_records"] >= 1
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "fastp_001", "reads")
-    assert _has_edge(workflow, "validate_reads_001", "passthrough", "qc_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
-    assert not _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
-    assert workflow["outputs"]["validated_reads"] == "validate_reads_001"
+    assert "validate_reads_001" not in node_types
+    validator = _output_validation(workflow, "reads_001", "reads")
+    assert validator["expected_format"] == "fastq"
+    assert validator["min_records"] >= 1
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "reads_001", "reads", "validate_reads_001", "input")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
+    assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
 def test_metagenomics_template_gates_trimmed_reads_before_profiling() -> None:
@@ -1233,73 +1241,73 @@ def test_metagenomics_template_validates_database_directory_before_profiling() -
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_db_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_db_001")
-    assert validator["params"]["expected_format"] == "directory"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "db_001", "directory", "validate_db_001", "input")
-    assert _has_edge(workflow, "validate_db_001", "passthrough", "kraken2_001", "db")
-    assert _has_edge(workflow, "validate_db_001", "passthrough", "bracken_001", "db")
-    assert not _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
-    assert not _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
-    assert workflow["outputs"]["validated_db"] == "validate_db_001"
+    assert "validate_db_001" not in node_types
+    validator = _output_validation(workflow, "db_001", "directory")
+    assert validator["expected_format"] == "directory"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "db_001", "directory", "validate_db_001", "input")
+    assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
+    assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
+    assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
+    assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
+    assert workflow["outputs"]["validated_db"] == "db_001"
 
 
 def test_metagenomics_template_validates_bracken_report_before_visualization() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_bracken_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_bracken_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "bracken_001", "report", "validate_bracken_001", "input")
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_bar_001", "table")
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "validate_bracken_001", "passthrough", "taxonomy_report_001", "tables")
-    assert not _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
-    assert not _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert not _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
-    assert workflow["outputs"]["validated_bracken_report"] == "validate_bracken_001"
+    assert "validate_bracken_001" not in node_types
+    validator = _output_validation(workflow, "bracken_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "bracken_001", "report", "validate_bracken_001", "input")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
+    assert workflow["outputs"]["validated_bracken_report"] == "bracken_001"
 
 
 def test_metagenomics_template_validates_metaphlan_profile_before_visualization() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_metaphlan_profile_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_metaphlan_profile_001")
-    assert validator["params"]["expected_format"] == "tsv"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "metaphlan_001", "profile", "validate_metaphlan_profile_001", "input")
-    assert _has_edge(workflow, "validate_metaphlan_profile_001", "passthrough", "metaphlan_bar_001", "table")
-    assert not _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
-    assert workflow["outputs"]["validated_metaphlan_profile"] == "validate_metaphlan_profile_001"
+    assert "validate_metaphlan_profile_001" not in node_types
+    validator = _output_validation(workflow, "metaphlan_001", "profile")
+    assert validator["expected_format"] == "tsv"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "metaphlan_001", "profile", "validate_metaphlan_profile_001", "input")
+    assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
+    assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
+    assert workflow["outputs"]["validated_metaphlan_profile"] == "metaphlan_001"
 
 
 def test_metagenomics_template_validates_humann_pathcoverage_before_reporting() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_humann_pathcoverage_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_humann_pathcoverage_001")
+    assert "validate_humann_pathcoverage_001" not in node_types
+    validator = _output_validation(workflow, "humann_001", "pathcoverage")
     report = next(node for node in workflow["nodes"] if node["id"] == "functional_report_001")
-    assert validator["params"]["expected_format"] == "tsv"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "tsv"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
     assert report["params"]["section_names"] == (
         "HUMAnN pathway abundance,HUMAnN pathway coverage,"
         "HUMAnN pathway coverage chart,HUMAnN gene families"
     )
-    assert _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
-    assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "humann_pathcoverage_bar_001", "table")
-    assert _has_edge(workflow, "validate_humann_pathcoverage_001", "passthrough", "functional_report_001", "tables")
+    assert not _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "humann_pathcoverage_bar_001", "table")
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
     assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "functional_report_001", "images")
-    assert not _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
-    assert workflow["outputs"]["validated_humann_pathcoverage"] == "validate_humann_pathcoverage_001"
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
+    assert workflow["outputs"]["validated_humann_pathcoverage"] == "humann_001"
     assert workflow["outputs"]["functional_pathcoverage_chart"] == "humann_pathcoverage_bar_001"
 
 
@@ -1307,62 +1315,62 @@ def test_metagenomics_template_validates_multiqc_report_before_preview() -> None
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_multiqc_001"] == "data_validator"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_multiqc_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
-    assert not _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_multiqc_report"] == "validate_multiqc_001"
+    assert "validate_multiqc_001" not in node_types
+    validator = _output_validation(workflow, "mqc_001", "report")
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
+    assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
 def test_single_cell_template_validates_input_directories_before_cellranger() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_fastq_dir_001"] == "data_validator"
-    assert node_types["validate_reference_dir_001"] == "data_validator"
-    fastq_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_fastq_dir_001")
-    ref_validator = next(node for node in workflow["nodes"] if node["id"] == "validate_reference_dir_001")
-    assert fastq_validator["params"]["expected_format"] == "directory"
-    assert ref_validator["params"]["expected_format"] == "directory"
-    assert fastq_validator["params"]["min_size_bytes"] > 0
-    assert ref_validator["params"]["min_size_bytes"] > 0
-    assert fastq_validator["params"]["fail_on_error"] is True
-    assert ref_validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
-    assert _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_retry_001", "input")
+    assert "validate_fastq_dir_001" not in node_types
+    assert "validate_reference_dir_001" not in node_types
+    fastq_validator = _output_validation(workflow, "fastq_001", "directory")
+    ref_validator = _output_validation(workflow, "ref_001", "directory")
+    assert fastq_validator["expected_format"] == "directory"
+    assert ref_validator["expected_format"] == "directory"
+    assert fastq_validator["min_size_bytes"] > 0
+    assert ref_validator["min_size_bytes"] > 0
+    assert fastq_validator["fail_on_error"] is True
+    assert ref_validator["fail_on_error"] is True
+    assert not _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
+    assert _has_edge(workflow, "fastq_001", "directory", "cr_count_retry_001", "input")
     assert _has_edge(workflow, "cr_count_retry_001", "passthrough", "cr_count_001", "fastq_dir")
-    assert _has_edge(workflow, "ref_001", "directory", "validate_reference_dir_001", "input")
-    assert _has_edge(workflow, "validate_reference_dir_001", "passthrough", "cr_count_001", "transcriptome")
+    assert not _has_edge(workflow, "ref_001", "directory", "validate_reference_dir_001", "input")
+    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
     assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
-    assert not _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
-    assert workflow["outputs"]["validated_fastq_dir"] == "validate_fastq_dir_001"
-    assert workflow["outputs"]["validated_reference_dir"] == "validate_reference_dir_001"
+    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
+    assert workflow["outputs"]["validated_fastq_dir"] == "fastq_001"
+    assert workflow["outputs"]["validated_reference_dir"] == "ref_001"
 
 
 def test_single_cell_template_validates_cellranger_web_summary_before_preview() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_web_summary_001"] == "data_validator"
+    assert "validate_web_summary_001" not in node_types
     assert node_types["gate_web_summary_001"] == "gate"
-    validator = next(node for node in workflow["nodes"] if node["id"] == "validate_web_summary_001")
+    validator = _output_validation(workflow, "cr_count_001", "web_summary")
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_web_summary_001")
-    assert validator["params"]["expected_format"] == "text"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "text"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
     assert gate["params"]["condition_mode"] == "file_exists"
     assert gate["params"]["on_fail"] == "halt"
     assert "web_summary" in gate["params"]["error_message"]
-    assert _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
-    assert _has_edge(workflow, "validate_web_summary_001", "passthrough", "gate_web_summary_001", "value")
+    assert not _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
+    assert _has_edge(workflow, "cr_count_001", "web_summary", "gate_web_summary_001", "value")
     assert _has_edge(workflow, "gate_web_summary_001", "output", "html_preview_001", "file")
     assert not _has_edge(workflow, "cr_count_001", "web_summary", "html_preview_001", "file")
     assert not _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
-    assert workflow["outputs"]["validated_web_summary"] == "validate_web_summary_001"
+    assert workflow["outputs"]["validated_web_summary"] == "cr_count_001"
     assert workflow["outputs"]["web_summary_quality_gate"] == "gate_web_summary_001"
 
 
@@ -1384,9 +1392,9 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
-    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "metrics_summary_chart_001", "table")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
     assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
-    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "single_cell_report_001", "tables")
     assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"

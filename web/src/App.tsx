@@ -5,6 +5,7 @@ import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
+import RunsDrawer from './components/layout/RunsDrawer';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
 import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
@@ -139,6 +140,15 @@ function workflowNameSignature(workflows: Workflow[]): string {
 
 function recordSignature(record: Record<string, string>): string {
   return JSON.stringify(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function workflowExecutionPlan(workflow: Workflow, targetNodes?: string[]): string[] {
+  const executable = workflow.nodes
+    .filter(node => node.type !== 'note' && node.type !== 'reroute')
+    .map(node => node.id);
+  if (!targetNodes || targetNodes.length === 0) return executable;
+  const targets = new Set(targetNodes);
+  return executable.filter(nodeId => targets.has(nodeId));
 }
 
 function nodeTypeSignature(nodes: WorkflowNode[]): string {
@@ -776,7 +786,7 @@ export default function App() {
         workflow_name: h.workflow_name || t('console.untitledWorkflow'),
         node_statuses: h.node_statuses as NodeStatus[],
         node_outputs: {},
-        execution_plan: [],
+        execution_plan: h.execution_plan,
         previews: h.previews as Record<string, string>,
         artifacts: h.artifacts as Record<string, string>,
         start_time: h.start_time,
@@ -932,6 +942,7 @@ export default function App() {
 
   const consoleVisible = useAtomValue(consoleVisibleAtom);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
+  const [runsDrawerOpen, setRunsDrawerOpen] = useState(false);
   const [railTab, setRailTabState] = useState<RailTab>(null);
 
   // Panel layout state — extracted to usePanelLayout.
@@ -1424,7 +1435,7 @@ export default function App() {
           workflow_name: result.workflow_name || batchName,
           node_statuses: [],
           node_outputs: {},
-          execution_plan: [],
+          execution_plan: workflowExecutionPlan(activeWorkflow),
           previews: {},
           artifacts: {},
           start_time: new Date().toISOString(),
@@ -1438,6 +1449,7 @@ export default function App() {
         toast.success(count > 1
           ? t('console.actions.runsQueued', { count })
           : t('console.actions.runQueued'));
+        setRunsDrawerOpen(true);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1472,15 +1484,14 @@ export default function App() {
           workflow_name: result.workflow_name || sampleRun.name,
           node_statuses: [],
           node_outputs: {},
-          execution_plan: [],
+          execution_plan: workflowExecutionPlan(sampleRun.workflow),
           previews: {},
           artifacts: {},
           start_time: new Date().toISOString(),
         });
       }
       toast.success(t('console.actions.sampleSheetRunsQueued', { count: runs.length }));
-      setConsoleVisible(true);
-      setRailTab('console');
+      setRunsDrawerOpen(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(t('console.actions.sampleSheetBatchFailed'), { message: msg });
@@ -1541,13 +1552,12 @@ export default function App() {
         workflow_name: result.workflow_name || `${activeWorkflow.name || t('common.untitled')} (${t('workflowNaming.selectionSuffix')})`,
         node_statuses: [],
         node_outputs: {},
-        execution_plan: nodeIds,
+        execution_plan: workflowExecutionPlan(activeWorkflow, nodeIds),
         previews: {},
         artifacts: {},
         start_time: new Date().toISOString(),
       });
-      setConsoleVisible(true);
-      setRailTab('console');
+      setRunsDrawerOpen(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       addLog({
@@ -1838,14 +1848,13 @@ export default function App() {
         artifacts: {},
         start_time: new Date().toISOString(),
       });
-      setConsoleVisible(true);
-      setRailTab('console');
+      setRunsDrawerOpen(true);
       toast.success(consoleActionCopy.toast.retryQueued, { message: data.run_id });
     } catch (err) {
       logError('app.run.retry', err);
       toast.error(consoleActionCopy.error.couldNotRetryRun, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addRun, consoleActionCopy, setRailTab]);
+  }, [addRun, consoleActionCopy]);
 
   const handleMoveRun = useCallback(async (run: RunRecord, direction: 'up' | 'down') => {
     const pending = queuedRuns.filter(candidate => candidate.status === 'pending');
@@ -1932,15 +1941,8 @@ export default function App() {
   }, [activeWorkflow, activeWorkflowId, appCollabCopy, collabSessionActive, publishCollabWorkflowSnapshot]);
 
   const handleToggleQueue = useCallback(() => {
-    const isVisible = consoleVisible || railTab === 'console';
-    if (isVisible) {
-      setConsoleVisible(false);
-      if (railTab === 'console') setRailTab(null);
-    } else {
-      setConsoleVisible(true);
-      setRailTab('console');
-    }
-  }, [consoleVisible, railTab, setRailTab]);
+    setRunsDrawerOpen(open => !open);
+  }, []);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
     logTelemetry('template.load', { id: template.id, name: template.name, category: template.category });
@@ -2200,13 +2202,6 @@ export default function App() {
         groupLabelKey: 'commandPalette.groups.panels',
         shortcut: getBinding('rail.nodes') ?? undefined,
         onSelect: () => togglePanel('nodes'),
-      },
-      {
-        id: 'rail.inspector',
-        label: t('commandPalette.commands.rail.inspector'),
-        group: 'Panels',
-        groupLabelKey: 'commandPalette.groups.panels',
-        onSelect: () => togglePanel('inspector'),
       },
       {
         id: 'rail.templates',
@@ -2763,21 +2758,22 @@ export default function App() {
     'app-shell',
     showAI ? 'ai-open' : '',
     showComments ? 'comments-open' : '',
+    runsDrawerOpen ? 'runs-drawer-open' : '',
     (consoleVisible || railTab === 'console') ? 'console-open' : '',
     focusMode ? 'focus-mode' : '',
-  ].filter(Boolean).join(' ')), [consoleVisible, focusMode, railTab, showAI, showComments]);
+  ].filter(Boolean).join(' ')), [consoleVisible, focusMode, railTab, runsDrawerOpen, showAI, showComments]);
   // Total pixel width of all panels currently docked to the RIGHT edge —
   // exposed as `--right-panel-inset` so .minimap / .canvas-controls slide
   // left to stay visible instead of being clipped by the panel.
   const rightPanelInset = useMemo(() => {
-    let total = 0;
+    let total = runsDrawerOpen ? 380 : 0;
     for (const tab of openPanelTabs) {
       if (isCenterMenuTab(tab)) continue;
       if (!rightDockedPanels[tab] || floatingPanels[tab]) continue;
       total += (panelWidths[tab] ?? 340);
     }
     return total;
-  }, [openPanelTabs, rightDockedPanels, floatingPanels, panelWidths]);
+  }, [openPanelTabs, rightDockedPanels, floatingPanels, panelWidths, runsDrawerOpen]);
   // NOTE: The "Unsaved changes / Autosave" pill that used to live in the top
   // bar was removed in Wave L. The amber dot on each workflow tab now carries
   // the dirty signal, and pre-flight save state is still surfaced inline when
@@ -3029,6 +3025,20 @@ export default function App() {
       />
 
       <LeftRail active={railTab} onChange={setRailTab} />
+
+      <RunsDrawer
+        open={runsDrawerOpen}
+        queue={queuedRuns}
+        history={runs}
+        onClose={() => setRunsDrawerOpen(false)}
+        onCancelRun={handleCancelRun}
+        onRetryRun={handleRetryRun}
+        onLoadRunWorkflow={handleLoadRunWorkflow}
+        onDeleteHistoryEntry={handleDeleteHistoryEntry}
+        onMoveRun={handleMoveRun}
+        onClearQueue={handleClearQueue}
+        onClearHistory={handleClearHistory}
+      />
 
       <div
         className="main-canvas"
@@ -3326,13 +3336,6 @@ export default function App() {
               history={runs}
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
               onClearLogs={clearLogs}
-              onCancelRun={handleCancelRun}
-              onRetryRun={handleRetryRun}
-              onLoadRunWorkflow={handleLoadRunWorkflow}
-              onDeleteHistoryEntry={handleDeleteHistoryEntry}
-              onMoveRun={handleMoveRun}
-              onClearQueue={handleClearQueue}
-              onClearHistory={handleClearHistory}
               nodeIdToName={nodeIdToNameMap}
             />
           </ErrorBoundary>

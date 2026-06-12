@@ -41,8 +41,8 @@ def test_variant_template_adds_parallel_manta_and_delly_sv_calling() -> None:
     assert delly["params"]["mode"] == "call"
 
     assert _has_edge(workflow, "markdup_001", "marked_bam", "manta_sv_001", "bam")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "manta_sv_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "manta_sv_001", "reference")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "delly_sv_001", "bam")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "delly_sv_001", "reference")
+    assert _has_edge(workflow, "ref_001", "reference", "delly_sv_001", "reference")
     assert workflow["outputs"]["manta_sv"] == "manta_sv_001"
     assert workflow["outputs"]["delly_sv"] == "delly_sv_001"

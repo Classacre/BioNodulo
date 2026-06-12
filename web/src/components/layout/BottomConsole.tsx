@@ -7,98 +7,20 @@ import Icon from '../ui/Icon';
 import { apiGetText } from '../../api/client';
 import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtoms';
 import { logError } from '../../state/logging';
-import { batchCountAtom, logsAtom } from '../../state/runAtoms';
-import { showOutputDiffAtom } from '../../state/uiAtoms';
+import { logsAtom } from '../../state/runAtoms';
 import { appPath } from '../../utils/appBase';
-
-type HistoryStatusFilter = 'all' | 'completed' | 'error' | 'cancelled';
-type HistoryBucketId = 'today' | 'yesterday' | 'pastWeek' | 'earlier' | `month:${number}` | `year:${number}`;
-
-interface HistoryBucket {
-  id: HistoryBucketId;
-  runs: RunRecord[];
-}
 
 function runStatusLabel(t: TFunction, status: RunRecord['status'] | 'failed'): string {
   return t(`console.status.${status}`);
 }
 
-function historyStatusFilterLabel(t: TFunction, status: HistoryStatusFilter): string {
-  return t(`console.historyStatus.${status}`);
-}
-
-function historyBucketLabel(t: TFunction, id: HistoryBucketId, locale?: string): string {
-  switch (id) {
-    case 'today':
-      return t('common.today');
-    case 'yesterday':
-      return t('common.yesterday');
-    case 'pastWeek':
-      return t('console.bucketPastWeek');
-    case 'earlier':
-      return t('console.bucketEarlier');
-  }
-  if (id.startsWith('month:')) {
-    const monthNumber = Number.parseInt(id.slice('month:'.length), 10);
-    if (Number.isInteger(monthNumber) && monthNumber >= 1 && monthNumber <= 12) {
-      return new Date(2000, monthNumber - 1, 1).toLocaleString(locale, { month: 'long' });
-    }
-  }
-  if (id.startsWith('year:')) return id.slice('year:'.length);
-  return id;
-}
-
-function runTimestamp(run: RunRecord): number {
-  const value = run.end_time || run.start_time;
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function bucketIdForRun(run: RunRecord, now: Date): HistoryBucketId {
-  const ts = runTimestamp(run);
-  if (!ts) return 'earlier';
-  const runDate = new Date(ts);
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-  const weekStart = todayStart - 6 * 24 * 60 * 60 * 1000;
-  if (ts >= todayStart) return 'today';
-  if (ts >= yesterdayStart) return 'yesterday';
-  if (ts >= weekStart) return 'pastWeek';
-  if (runDate.getFullYear() === now.getFullYear()) return `month:${runDate.getMonth() + 1}`;
-  return `year:${runDate.getFullYear()}`;
-}
-
-function bucketHistory(history: RunRecord[]): HistoryBucket[] {
-  const now = new Date();
-  const order: HistoryBucketId[] = [];
-  const groups = new Map<HistoryBucketId, RunRecord[]>();
-  for (const run of history) {
-    const id = bucketIdForRun(run, now);
-    if (!groups.has(id)) {
-      groups.set(id, []);
-      order.push(id);
-    }
-    groups.get(id)!.push(run);
-  }
-  return order.map(id => ({ id, runs: groups.get(id)! }));
-}
-
-type ConsoleTab = 'logs' | 'queue' | 'history' | 'previews' | 'report';
-export type QueueMoveDirection = 'up' | 'down';
+type ConsoleTab = 'logs' | 'previews' | 'report';
 
 interface BottomConsoleProps {
   queue: RunRecord[];
   history: RunRecord[];
   onClose: () => void;
   onClearLogs?: () => void;
-  onCancelRun?: (run: RunRecord) => void;
-  onRetryRun?: (run: RunRecord) => void;
-  onLoadRunWorkflow?: (run: RunRecord) => void;
-  onDeleteHistoryEntry?: (run: RunRecord) => void;
-  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
-  onClearQueue?: () => void;
-  onClearHistory?: () => void;
   /**
    * Mapping from internal node UUID to its human-friendly title/type. When a
    * log entry's `node_id` matches an entry here, we render the friendly name
@@ -268,174 +190,6 @@ function derivePreviews(history: RunRecord[], t: TFunction): {
   return { imagePreviews, htmlPreviews };
 }
 
-const COMPLETE_NODE_STATUSES = new Set<NodeStatus['status']>(['completed', 'cached', 'skipped']);
-
-interface RunProgress {
-  total: number;
-  completed: number;
-  running: number;
-  pending: number;
-  failed: number;
-  percent: number;
-}
-
-function progressForRun(run: RunRecord): RunProgress {
-  const statuses = Array.isArray(run.node_statuses) ? run.node_statuses : [];
-  const total = Math.max(run.execution_plan?.length || 0, statuses.length);
-  const completed = statuses.filter(node => COMPLETE_NODE_STATUSES.has(node.status)).length;
-  const running = statuses.filter(node => node.status === 'running').length;
-  const failed = statuses.filter(node => node.status === 'error').length;
-  const pending = Math.max(0, total - completed - running - failed);
-
-  let percent = total > 0 ? Math.round(((completed + running * 0.5) / total) * 100) : 0;
-  if (run.status === 'completed') percent = 100;
-  if (run.status === 'running' && total === 0) percent = 8;
-  if (run.status === 'error' && total === 0) percent = 100;
-  if (run.status === 'cancelled') percent = Math.max(percent, 5);
-
-  return { total, completed, running, pending, failed, percent: Math.min(100, Math.max(0, percent)) };
-}
-
-function shortRunId(runId: string): string {
-  return runId.length > 12 ? `${runId.slice(0, 8)}...${runId.slice(-4)}` : runId;
-}
-
-function RunProgressBar({ progress, status, t }: { progress: RunProgress; status: RunRecord['status']; t: TFunction }) {
-  return (
-    <div className={`queue-progress is-${status}`} title={t('console.progressComplete', { percent: progress.percent })}>
-      <div className="queue-progress-fill" style={{ width: `${progress.percent}%` }} />
-    </div>
-  );
-}
-
-function RunActionButton({
-  title,
-  icon,
-  onClick,
-  disabled = false,
-}: {
-  title: string;
-  icon: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      className="btn btn-icon btn-sm queue-action-btn"
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <Icon name={icon} size={12} />
-    </button>
-  );
-}
-
-function QueueRunCard({
-  run,
-  index,
-  totalRuns,
-  onCancelRun,
-  onRetryRun,
-  onMoveRun,
-  t,
-}: {
-  run: RunRecord;
-  index: number;
-  totalRuns: number;
-  onCancelRun?: (run: RunRecord) => void;
-  onRetryRun?: (run: RunRecord) => void;
-  onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
-  t: TFunction;
-}) {
-  const progress = progressForRun(run);
-  const canCancel = run.status === 'pending' || run.status === 'running';
-  const canRetry = run.status === 'error' || run.status === 'cancelled';
-  const canMove = run.status === 'pending';
-
-  return (
-    <div className={`queue-run-card is-${run.status}`}>
-      <div className="queue-run-main">
-        <div className="queue-run-title-row">
-          <span className={`queue-status-pill is-${run.status}`}>{runStatusLabel(t, run.status)}</span>
-          <strong className="queue-run-name">{run.workflow_name || t('console.untitledWorkflow')}</strong>
-          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
-        </div>
-        <RunProgressBar progress={progress} status={run.status} t={t} />
-        <div className="queue-run-meta">
-          <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
-          {progress.running > 0 && <span>{t('console.runningCount', { count: progress.running })}</span>}
-          {progress.pending > 0 && <span>{t('console.pendingCount', { count: progress.pending })}</span>}
-          {progress.failed > 0 && <span className="queue-run-error">{t('console.failedCount', { count: progress.failed })}</span>}
-        </div>
-      </div>
-      <div className="queue-run-actions">
-        {onMoveRun && (
-          <>
-            <RunActionButton title={t('console.moveEarlier')} icon="chevronUp" onClick={() => onMoveRun(run, 'up')} disabled={!canMove || index === 0} />
-            <RunActionButton title={t('console.moveLater')} icon="chevronDown" onClick={() => onMoveRun(run, 'down')} disabled={!canMove || index === totalRuns - 1} />
-          </>
-        )}
-        {onRetryRun && canRetry && (
-          <RunActionButton title={t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
-        )}
-        {onCancelRun && canCancel && (
-          <RunActionButton title={t('console.cancelRun')} icon="stop" onClick={() => onCancelRun(run)} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEntry, t, locale }: {
-  run: RunRecord;
-  onRetryRun?: (run: RunRecord) => void;
-  onLoadRunWorkflow?: (run: RunRecord) => void;
-  onDeleteHistoryEntry?: (run: RunRecord) => void;
-  t: TFunction;
-  locale?: string;
-}) {
-  const progress = progressForRun(run);
-  const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
-  return (
-    <div className={`queue-run-card history-run-card is-${run.status}`}>
-      <div className="queue-run-main">
-        <div className="queue-run-title-row">
-          <span className={`queue-status-pill is-${run.status}`}>{runStatusLabel(t, run.status)}</span>
-          <strong className="queue-run-name">{run.workflow_name || t('console.untitledWorkflow')}</strong>
-          <span className="queue-run-id" title={run.run_id}>{shortRunId(run.run_id)}</span>
-        </div>
-        <RunProgressBar progress={progress} status={run.status} t={t} />
-        <div className="queue-run-meta">
-          <span>{run.end_time ? new Date(run.end_time).toLocaleString(locale) : t('console.inProgress')}</span>
-          <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
-        </div>
-      </div>
-      <div className="queue-run-actions">
-        {onLoadRunWorkflow && (
-          <RunActionButton
-            title={t('console.loadWorkflow')}
-            icon="import"
-            onClick={() => onLoadRunWorkflow(run)}
-          />
-        )}
-        {onRetryRun && canRetry && (
-          <RunActionButton title={t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
-        )}
-        {onDeleteHistoryEntry && (
-          <RunActionButton
-            title={t('console.deleteHistoryRun')}
-            icon="close"
-            onClick={() => onDeleteHistoryEntry(run)}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ReportPanel({ history, t }: { history: RunRecord[]; t: TFunction }) {
   const completed = history.filter(r => r.status === 'completed' || r.status === 'error' || r.status === 'cancelled');
   const [selectedRunId, setSelectedRunId] = useState<string | null>(completed[0]?.run_id ?? null);
@@ -562,28 +316,16 @@ export default function BottomConsole({
   history,
   onClose,
   onClearLogs,
-  onCancelRun,
-  onRetryRun,
-  onLoadRunWorkflow,
-  onDeleteHistoryEntry,
-  onMoveRun,
-  onClearQueue,
-  onClearHistory,
   nodeIdToName,
 }: BottomConsoleProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const logs = useAtomValue(logsAtom);
-  const batchCount = useAtomValue(batchCountAtom);
   const openLightbox = useSetAtom(openLightboxAtom);
   const setHtmlPreviewState = useSetAtom(htmlPreviewStateAtom);
-  const setShowOutputDiff = useSetAtom(showOutputDiffAtom);
   const [tab, setTab] = useState<ConsoleTab>('logs');
   const [showVerbose, setShowVerbose] = useState(true);
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [historyQuery, setHistoryQuery] = useState('');
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
-  const [collapsedHistoryBuckets, setCollapsedHistoryBuckets] = useState<Set<HistoryBucketId>>(new Set());
   // Per-node log render caps. Default cap keeps the DOM bounded even when a
   // run dumps tens of thousands of lines (e.g. `--verbose` aligners) — the
   // user can opt to render more on demand.
@@ -592,35 +334,6 @@ export default function BottomConsole({
   const LOG_RENDER_STEP = 1000;
   const logsBodyRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
-
-  const filteredHistory = useMemo(() => {
-    const trimmed = historyQuery.trim().toLowerCase();
-    return history.filter(run => {
-      if (historyStatusFilter !== 'all' && run.status !== historyStatusFilter) return false;
-      if (!trimmed) return true;
-      const name = (run.workflow_name || '').toLowerCase();
-      return name.includes(trimmed) || run.run_id.toLowerCase().includes(trimmed);
-    });
-  }, [history, historyQuery, historyStatusFilter]);
-
-  const historyBuckets = useMemo(() => bucketHistory(filteredHistory), [filteredHistory]);
-  const historyCountsByStatus = useMemo(() => {
-    const counts: Record<HistoryStatusFilter, number> = { all: history.length, completed: 0, error: 0, cancelled: 0 };
-    for (const run of history) {
-      if (run.status === 'completed') counts.completed += 1;
-      else if (run.status === 'error') counts.error += 1;
-      else if (run.status === 'cancelled') counts.cancelled += 1;
-    }
-    return counts;
-  }, [history]);
-  const toggleHistoryBucket = (id: HistoryBucketId) => {
-    setCollapsedHistoryBuckets(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
 
   const {
     safeLogs,
@@ -741,14 +454,6 @@ export default function BottomConsole({
   };
 
   const allRunIds = groupedEntries.map(([runId]) => runId);
-  const queueStats = queue.reduce((stats, run) => {
-    stats.totalNodes += Math.max(run.execution_plan?.length || 0, run.node_statuses?.length || 0);
-    if (run.status === 'running') stats.running += 1;
-    else if (run.status === 'pending') stats.pending += 1;
-    else if (run.status === 'error') stats.failed += 1;
-    return stats;
-  }, { running: 0, pending: 0, failed: 0, totalNodes: 0 });
-  const visibleBatchCount = batchCount;
   const previewCount = imagePreviews.length + htmlPreviews.length;
 
   return (
@@ -756,12 +461,6 @@ export default function BottomConsole({
       <div className="console-tabs">
         <button className={`console-tab ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>
           {t('console.tabsLogs')} {hostLogs.length > 0 && `(${hostLogs.length})`}
-        </button>
-        <button className={`console-tab ${tab === 'queue' ? 'active' : ''}`} onClick={() => setTab('queue')}>
-          {t('console.tabsQueue')} ({queue.length})
-        </button>
-        <button className={`console-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>
-          {t('console.tabsHistory')} ({history.length})
         </button>
         <button className={`console-tab ${tab === 'previews' ? 'active' : ''}`} onClick={() => setTab('previews')}>
           {t('console.tabsPreviews')} {previewCount > 0 && `(${previewCount})`}
@@ -791,11 +490,6 @@ export default function BottomConsole({
         {tab === 'logs' && safeLogs.length > 0 && onClearLogs && (
           <button className="btn btn-sm btn-ghost" onClick={onClearLogs} title={t('console.clearAllLogs')}>
             {t('common.clear')}
-          </button>
-        )}
-        {tab === 'queue' && queue.length > 0 && onClearQueue && (
-          <button className="btn btn-sm btn-ghost" onClick={onClearQueue} title={t('console.clearQueuedRuns')}>
-            {t('console.clearQueue')}
           </button>
         )}
         {tab === 'logs' && solverLogs.length > 0 && (
@@ -900,126 +594,6 @@ export default function BottomConsole({
                   </div>
                 )}
               </>
-            )
-        )}
-        {tab === 'queue' && (
-          queue.length === 0
-            ? <div style={{ color: 'var(--muted)' }}>{t('console.emptyQueue')}</div>
-            : (
-              <div className="queue-panel">
-                <div className="queue-summary">
-                  <span className="queue-summary-item"><strong>{visibleBatchCount}</strong> {t('console.batchCount', { count: visibleBatchCount })}</span>
-                  <span className="queue-summary-item"><strong>{queueStats.running}</strong> {t('console.status.running')}</span>
-                  <span className="queue-summary-item"><strong>{queueStats.pending}</strong> {t('console.status.pending')}</span>
-                  <span className="queue-summary-item"><strong>{queueStats.totalNodes}</strong> {t('console.nodesCount', { count: queueStats.totalNodes })}</span>
-                  {queueStats.failed > 0 && <span className="queue-summary-item is-error"><strong>{queueStats.failed}</strong> {t('console.status.failed')}</span>}
-                </div>
-                <div className="queue-run-list">
-                  {queue.map((r, index) => (
-                    <QueueRunCard
-                      key={r.run_id}
-                      run={r}
-                      index={index}
-                      totalRuns={queue.length}
-                      onCancelRun={onCancelRun}
-                      onRetryRun={onRetryRun}
-                      onMoveRun={onMoveRun}
-                      t={t}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-        )}
-        {tab === 'history' && (
-          history.length === 0
-            ? <div style={{ color: 'var(--muted)' }}>{t('console.emptyHistory')}</div>
-            : (
-              <div className="history-tab">
-                <div className="history-toolbar">
-                  <input
-                    type="search"
-                    className="text-input history-search"
-                    placeholder={t('console.historyFilterPlaceholder')}
-                    value={historyQuery}
-                    onChange={e => setHistoryQuery(e.target.value)}
-                    aria-label={t('console.historyFilterLabel')}
-                  />
-                  <div className="history-status-filters" role="group" aria-label={t('console.historyStatusFilterLabel')}>
-                    {(['all', 'completed', 'error', 'cancelled'] as HistoryStatusFilter[]).map(status => (
-                      <button
-                        key={status}
-                        type="button"
-                        className={`history-status-chip ${historyStatusFilter === status ? 'is-active' : ''} is-${status}`}
-                        onClick={() => setHistoryStatusFilter(status)}
-                        title={t(status === 'all' ? 'console.showAllRuns' : 'console.showStatusRuns', { status: historyStatusFilterLabel(t, status).toLowerCase() })}
-                      >
-                        {historyStatusFilterLabel(t, status)}
-                        <span className="history-status-chip-count">{historyCountsByStatus[status]}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost"
-                    onClick={() => setShowOutputDiff(true)}
-                    disabled={history.length < 1}
-                    title={t('console.compareRunsTitle')}
-                  >
-                    <Icon name="layers" size={12} /> {t('console.compareRuns')}
-                  </button>
-                  {onClearHistory && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      onClick={onClearHistory}
-                      title={t('console.clearHistoryTitle')}
-                    >
-                      <Icon name="trash" size={12} /> {t('console.clearHistory')}
-                    </button>
-                  )}
-                </div>
-                {filteredHistory.length === 0 ? (
-                  <div style={{ color: 'var(--muted)', padding: '8px 4px' }}>
-                    {t('console.historyNoMatches')}
-                  </div>
-                ) : (
-                  <div className="history-bucket-list">
-                    {historyBuckets.map(bucket => {
-                      const collapsed = collapsedHistoryBuckets.has(bucket.id);
-                      return (
-                        <section key={bucket.id} className="history-bucket">
-                          <button
-                            type="button"
-                            className="history-bucket-header"
-                            onClick={() => toggleHistoryBucket(bucket.id)}
-                            aria-expanded={!collapsed}
-                          >
-                            <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={12} />
-                            <span className="history-bucket-label">{historyBucketLabel(t, bucket.id, i18n.language)}</span>
-                            <span className="history-bucket-count">{bucket.runs.length}</span>
-                          </button>
-                          {!collapsed && (
-                            <div className="queue-run-list history-run-list">
-                              {bucket.runs.map(r => (
-                                <HistoryRunCard
-                                  key={r.run_id}
-                                  run={r}
-                                  onRetryRun={onRetryRun}
-                                  onLoadRunWorkflow={onLoadRunWorkflow}
-                                  onDeleteHistoryEntry={onDeleteHistoryEntry}
-                                  t={t}
-                                  locale={i18n.language}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </section>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             )
         )}
         {tab === 'previews' && (

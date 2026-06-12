@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.arq_executor import maybe_wrap_with_arq
+from bionodulo.workflow.graph import edge_source, edge_target, topological_sort
 
 
 class RunStatus(str, Enum):
@@ -329,6 +330,8 @@ class RunQueue:
             "created_at": r.created_at,
             "started_at": r.started_at,
             "finished_at": r.finished_at,
+            "execution_plan": self._execution_plan_for_request(r),
+            "node_statuses": [],
         }
         if include_result and r.result:
             entry["previews"] = {
@@ -348,6 +351,49 @@ class RunQueue:
                     for nid, ninfo in meta["nodes"].items()
                 ]
         return entry
+
+    @staticmethod
+    def _execution_plan_for_request(r: RunRequest) -> list[str]:
+        """Return visible executable node ids for queue/history progress UI."""
+        result = r.result if isinstance(r.result, dict) else None
+        meta = result.get("metadata", {}) if result else {}
+        meta_nodes = meta.get("nodes") if isinstance(meta, dict) else None
+        if isinstance(meta_nodes, dict) and meta_nodes:
+            return [str(node_id) for node_id in meta_nodes.keys()]
+
+        nodes_data = r.workflow.get("nodes", [])
+        if isinstance(nodes_data, dict):
+            nodes = [
+                {**node, "id": str(node_id)}
+                for node_id, node in nodes_data.items()
+                if isinstance(node, dict)
+            ]
+        else:
+            nodes = [
+                node
+                for node in list(nodes_data or [])
+                if isinstance(node, dict)
+            ]
+        executable_ids = {
+            str(node["id"])
+            for node in nodes
+            if node.get("id") is not None and node.get("type") != "note"
+        }
+        plan_workflow = {
+            "nodes": [node for node in nodes if str(node.get("id")) in executable_ids],
+            "edges": [
+                edge
+                for edge in list(r.workflow.get("edges", []) or [])
+                if isinstance(edge, dict)
+                and edge_source(edge) in executable_ids
+                and edge_target(edge) in executable_ids
+            ],
+        }
+        try:
+            ordered = topological_sort(plan_workflow)
+        except ValueError:
+            ordered = [str(node.get("id")) for node in nodes if str(node.get("id")) in executable_ids]
+        return [node_id for node_id in ordered if node_id in executable_ids]
 
     def queue_state(self) -> dict[str, Any]:
         """Get the current queue state."""
@@ -374,17 +420,20 @@ class RunQueue:
         """Get a specific run by ID."""
         for r in self._queue_items():
             if r.run_id == run_id:
-                return {
+                entry = self._run_to_dict(r, include_result=False)
+                entry.update({
                     "run_id": r.run_id,
                     "status": r.status.value,
                     "workflow_name": r.metadata.get("name", "Untitled"),
                     "workflow": r.workflow,
                     "created_at": r.created_at,
                     "result": r.result,
-                }
+                })
+                return entry
         if run_id in self._running:
             r = self._running[run_id]
-            return {
+            entry = self._run_to_dict(r, include_result=True)
+            entry.update({
                 "run_id": r.run_id,
                 "status": r.status.value,
                 "workflow_name": r.metadata.get("name", "Untitled"),
@@ -392,10 +441,12 @@ class RunQueue:
                 "created_at": r.created_at,
                 "started_at": r.started_at,
                 "result": r.result,
-            }
+            })
+            return entry
         for r in self._history:
             if r.run_id == run_id:
-                return {
+                entry = self._run_to_dict(r, include_result=True)
+                entry.update({
                     "run_id": r.run_id,
                     "status": r.status.value,
                     "workflow_name": r.metadata.get("name", "Untitled"),
@@ -404,7 +455,8 @@ class RunQueue:
                     "started_at": r.started_at,
                     "finished_at": r.finished_at,
                     "result": r.result,
-                }
+                })
+                return entry
         return None
 
     def clear_history(self) -> int:
@@ -425,14 +477,7 @@ class RunQueue:
         """List completed (historic) runs."""
         history = []
         for r in reversed(self._history):
-            entry: dict[str, Any] = {
-                "run_id": r.run_id,
-                "status": r.status.value,
-                "workflow_name": r.metadata.get("name", "Untitled"),
-                "created_at": r.created_at,
-                "started_at": r.started_at,
-                "finished_at": r.finished_at,
-            }
+            entry = self._run_to_dict(r, include_result=True)
             if r.result:
                 # Extract previews as a node_id -> path mapping
                 previews: dict[str, str] = {}

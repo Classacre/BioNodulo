@@ -15,7 +15,6 @@
   ],
   "tools": [
     "input_fasta",
-    "data_validator",
     "pggb",
     "odgi_build",
     "odgi_viz",
@@ -51,14 +50,24 @@
         "reference": "examples/data/pangenomics/haplotypes.fa"
       },
       "ui": {
-        "title": "Haplotype FASTA"
+        "title": "Haplotype FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 2,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "pggb_001",
       "type": "pggb",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -73,14 +82,23 @@
         "do_layout": false
       },
       "ui": {
-        "title": "PGGB Build"
+        "title": "PGGB Build",
+        "validation": {
+          "outputs": {
+            "smooth_gfa": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "odgi_build_001",
       "type": "odgi_build",
       "position": [
-        1520,
+        800,
         80
       ],
       "params": {
@@ -90,14 +108,23 @@
         "output_name": "pangenome_graph"
       },
       "ui": {
-        "title": "ODGI Build"
+        "title": "ODGI Build",
+        "validation": {
+          "outputs": {
+            "stats": {
+              "expected_format": "json",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "odgi_viz_001",
       "type": "odgi_viz",
       "position": [
-        1520,
+        800,
         408
       ],
       "params": {
@@ -115,87 +142,31 @@
       "id": "odgi_stats_001",
       "type": "odgi_stats",
       "position": [
-        1520,
+        800,
         782
       ],
       "params": {
         "threads": 8
       },
       "ui": {
-        "title": "ODGI Stats"
-      }
-    },
-    {
-      "id": "validate_haplotypes_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 2,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Haplotypes"
-      }
-    },
-    {
-      "id": "validate_pggb_gfa_001",
-      "type": "data_validator",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate PGGB GFA"
-      }
-    },
-    {
-      "id": "validate_odgi_stats_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        80
-      ],
-      "params": {
-        "expected_format": "json",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate ODGI Build Stats"
-      }
-    },
-    {
-      "id": "validate_odgi_stats_json_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        546
-      ],
-      "params": {
-        "expected_format": "json",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate ODGI Stats JSON"
+        "title": "ODGI Stats",
+        "validation": {
+          "outputs": {
+            "stats_json": {
+              "expected_format": "json",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "graph_image_preview_001",
       "type": "image_preview",
       "position": [
-        1880,
-        1012
+        1160,
+        80
       ],
       "params": {},
       "ui": {
@@ -206,8 +177,8 @@
       "id": "pangenomics_report_001",
       "type": "html_report",
       "position": [
-        1880,
-        1286
+        1160,
+        354
       ],
       "params": {
         "title": "Pangenomics Graph QC Report",
@@ -225,7 +196,7 @@
       "id": "pangenomics_report_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        1520,
         80
       ],
       "params": {},
@@ -236,21 +207,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e2",
       "from": {
         "node": "haplotypes_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_haplotypes_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "validate_haplotypes_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "pggb_001",
@@ -258,21 +218,10 @@
       }
     },
     {
-      "id": "e3",
+      "id": "e4",
       "from": {
         "node": "pggb_001",
         "output": "smooth_gfa"
-      },
-      "to": {
-        "node": "validate_pggb_gfa_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e4",
-      "from": {
-        "node": "validate_pggb_gfa_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "odgi_build_001",
@@ -282,8 +231,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "validate_pggb_gfa_001",
-        "output": "passthrough"
+        "node": "pggb_001",
+        "output": "smooth_gfa"
       },
       "to": {
         "node": "odgi_viz_001",
@@ -293,34 +242,12 @@
     {
       "id": "e6",
       "from": {
-        "node": "validate_pggb_gfa_001",
-        "output": "passthrough"
+        "node": "pggb_001",
+        "output": "smooth_gfa"
       },
       "to": {
         "node": "odgi_stats_001",
         "input": "gfa_graph"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "odgi_build_001",
-        "output": "stats"
-      },
-      "to": {
-        "node": "validate_odgi_stats_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "odgi_stats_001",
-        "output": "stats_json"
-      },
-      "to": {
-        "node": "validate_odgi_stats_json_001",
-        "input": "input"
       }
     },
     {
@@ -359,12 +286,12 @@
   ],
   "groups": [],
   "outputs": {
-    "validated_haplotypes": "validate_haplotypes_001",
+    "validated_haplotypes": "haplotypes_001",
     "pggb_graph": "pggb_001",
-    "validated_graph_gfa": "validate_pggb_gfa_001",
+    "validated_graph_gfa": "pggb_001",
     "odgi_graph": "odgi_build_001",
-    "odgi_build_stats": "validate_odgi_stats_001",
-    "odgi_stats": "validate_odgi_stats_json_001",
+    "odgi_build_stats": "odgi_build_001",
+    "odgi_stats": "odgi_stats_001",
     "graph_visualization": "odgi_viz_001",
     "report": "pangenomics_report_001",
     "report_preview": "pangenomics_report_preview_001"

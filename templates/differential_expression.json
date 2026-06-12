@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Control FASTQ"
+        "title": "Control FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,24 @@
         "reference": "https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.fa.gz"
       },
       "ui": {
-        "title": "Transcriptome FASTA"
+        "title": "Transcriptome FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "salmon_idx_001",
       "type": "salmon_index",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {},
@@ -64,44 +84,10 @@
       }
     },
     {
-      "id": "validate_transcriptome_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Transcriptome"
-      }
-    },
-    {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "salmon_quant_001",
       "type": "salmon_quant",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -115,7 +101,7 @@
       "id": "kallisto_idx_001",
       "type": "kallisto_index",
       "position": [
-        800,
+        440,
         316
       ],
       "params": {},
@@ -127,7 +113,7 @@
       "id": "kallisto_quant_001",
       "type": "kallisto_quant",
       "position": [
-        1160,
+        800,
         498
       ],
       "params": {
@@ -141,7 +127,7 @@
       "id": "salmon_quant_columns_001",
       "type": "extract_columns",
       "position": [
-        1520,
+        1160,
         432
       ],
       "params": {
@@ -157,7 +143,7 @@
       "id": "kallisto_quant_columns_001",
       "type": "extract_columns",
       "position": [
-        1520,
+        1160,
         898
       ],
       "params": {
@@ -173,8 +159,8 @@
       "id": "quant_comparison_001",
       "type": "join_tables",
       "position": [
-        1880,
-        546
+        1520,
+        80
       ],
       "params": {
         "join_keys": "target_id",
@@ -191,22 +177,31 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
         "title": "Quantification QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
-        568
+        1520,
+        476
       ],
       "params": {},
       "ui": {
@@ -214,26 +209,10 @@
       }
     },
     {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        1880,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
-    },
-    {
       "id": "quant_report_001",
       "type": "html_report",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -250,7 +229,7 @@
       "id": "quant_report_preview_001",
       "type": "html_preview",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {},
@@ -261,21 +240,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1b",
       "from": {
         "node": "tx_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_transcriptome_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1b",
-      "from": {
-        "node": "validate_transcriptome_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "salmon_idx_001",
@@ -283,21 +251,10 @@
       }
     },
     {
-      "id": "e2",
+      "id": "e2a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "salmon_quant_001",
@@ -318,8 +275,8 @@
     {
       "id": "e4",
       "from": {
-        "node": "validate_transcriptome_001",
-        "output": "passthrough"
+        "node": "tx_001",
+        "output": "reference"
       },
       "to": {
         "node": "kallisto_idx_001",
@@ -329,8 +286,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
+        "node": "reads_001",
+        "output": "reads"
       },
       "to": {
         "node": "kallisto_quant_001",
@@ -357,17 +314,6 @@
       "to": {
         "node": "mqc_001",
         "input": "reports"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
       }
     },
     {
@@ -472,8 +418,8 @@
     {
       "id": "e18",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -485,10 +431,10 @@
   "outputs": {
     "salmon": "salmon_quant_001",
     "kallisto": "kallisto_quant_001",
-    "validated_reads": "validate_reads_001",
-    "validated_transcriptome": "validate_transcriptome_001",
+    "validated_reads": "reads_001",
+    "validated_transcriptome": "tx_001",
     "report": "mqc_001",
-    "validated_multiqc_report": "validate_multiqc_001",
+    "validated_multiqc_report": "mqc_001",
     "quantification_report": "quant_report_001",
     "quantification_report_preview": "quant_report_preview_001",
     "quantifier_comparison": "quant_comparison_001"

@@ -28,6 +28,16 @@ def _node(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
+
 def test_single_cell_template_retries_only_cellranger_count_after_fastq_validation() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
@@ -43,13 +53,13 @@ def test_single_cell_template_retries_only_cellranger_count_after_fastq_validati
         "only_retry_specific_nodes": "cr_count_001",
     }
 
-    assert _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
-    assert _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_retry_001", "input")
+    assert not _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
+    assert _has_edge(workflow, "fastq_001", "directory", "cr_count_retry_001", "input")
     assert _has_edge(workflow, "cr_count_retry_001", "passthrough", "cr_count_001", "fastq_dir")
-    assert _has_edge(workflow, "validate_reference_dir_001", "passthrough", "cr_count_001", "transcriptome")
+    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
     assert not _has_edge(workflow, "validate_fastq_dir_001", "passthrough", "cr_count_001", "fastq_dir")
     assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
-    assert not _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
+    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
     assert workflow["outputs"]["cellranger_retry_policy"] == "cr_count_retry_001"
 
 
@@ -57,15 +67,15 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["validate_metrics_summary_001"] == "data_validator"
+    assert "validate_metrics_summary_001" not in node_types
     assert node_types["metrics_summary_chart_001"] == "bar_chart"
-    validator = _node(workflow, "validate_metrics_summary_001")
+    validator = _output_validation(workflow, "cr_count_001", "metrics_summary")
     chart = _node(workflow, "metrics_summary_chart_001")
     report = _node(workflow, "single_cell_report_001")
 
-    assert validator["params"]["expected_format"] == "csv"
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "csv"
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
     assert chart["params"] == {
         "title": "Cell Ranger Metrics Summary",
         "x_column": "Metric Name",
@@ -75,12 +85,12 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
     }
     assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
 
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
-    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "metrics_summary_chart_001", "table")
+    assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
     assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
-    assert _has_edge(workflow, "validate_metrics_summary_001", "passthrough", "single_cell_report_001", "tables")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "single_cell_report_001", "tables")
     assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
-    assert workflow["outputs"]["validated_metrics_summary"] == "validate_metrics_summary_001"
+    assert workflow["outputs"]["validated_metrics_summary"] == "cr_count_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
     assert workflow["outputs"]["metrics_report"] == "single_cell_report_001"
     assert workflow["outputs"]["metrics_report_preview"] == "single_cell_report_preview_001"

@@ -22,6 +22,16 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -48,7 +58,6 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
     )
     assert {
         "input_file",
-        "data_validator",
         "xcms_peak_detection",
         "xcms_retention_correction",
         "camera_annotation",
@@ -57,21 +66,21 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
     }.issubset(set(workflow["tools"]))
 
     assert node_types["mzml_001"] == "input_file"
-    assert node_types["validate_mzml_001"] == "data_validator"
+    assert "validate_mzml_001" not in node_types
     assert node_types["xcms_peak_detection_001"] == "xcms_peak_detection"
-    assert node_types["validate_feature_table_001"] == "data_validator"
+    assert "validate_feature_table_001" not in node_types
     assert node_types["xcms_retention_correction_001"] == "xcms_retention_correction"
-    assert node_types["validate_aligned_features_001"] == "data_validator"
+    assert "validate_aligned_features_001" not in node_types
     assert node_types["camera_annotation_001"] == "camera_annotation"
-    assert node_types["validate_camera_peaklist_001"] == "data_validator"
+    assert "validate_camera_peaklist_001" not in node_types
     assert node_types["metabolomics_report_001"] == "html_report"
     assert node_types["metabolomics_report_preview_001"] == "html_preview"
 
-    assert _has_edge(workflow, "mzml_001", "file", "validate_mzml_001", "input")
-    assert _has_edge(workflow, "validate_mzml_001", "passthrough", "xcms_peak_detection_001", "mzml_files")
-    assert _has_edge(workflow, "xcms_peak_detection_001", "feature_table", "validate_feature_table_001", "input")
+    assert not _has_edge(workflow, "mzml_001", "file", "validate_mzml_001", "input")
+    assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
+    assert not _has_edge(workflow, "xcms_peak_detection_001", "feature_table", "validate_feature_table_001", "input")
     assert _has_edge(workflow, "xcms_peak_detection_001", "xcms_object", "xcms_retention_correction_001", "xcms_object")
-    assert _has_edge(
+    assert not _has_edge(
         workflow,
         "xcms_retention_correction_001",
         "aligned_feature_table",
@@ -85,10 +94,10 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
         "camera_annotation_001",
         "xcms_object",
     )
-    assert _has_edge(workflow, "camera_annotation_001", "annotated_peaklist", "validate_camera_peaklist_001", "input")
+    assert not _has_edge(workflow, "camera_annotation_001", "annotated_peaklist", "validate_camera_peaklist_001", "input")
     assert _has_edge(workflow, "metabolomics_report_001", "html_report", "metabolomics_report_preview_001", "file")
 
-    assert not _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
+    assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
     assert not _has_edge(workflow, "xcms_peak_detection_001", "xcms_object", "camera_annotation_001", "xcms_object")
     assert not _has_edge(workflow, "validate_aligned_features_001", "passthrough", "metabolomics_report_001", "tables")
     assert not _has_edge(workflow, "validate_camera_peaklist_001", "passthrough", "metabolomics_report_001", "tables")
@@ -99,19 +108,19 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     workflow = _load_template("metabolomics_lcms_pipeline.json")
 
     mzml_input = _node_by_id(workflow, "mzml_001")
-    mzml_validator = _node_by_id(workflow, "validate_mzml_001")
+    mzml_validator = _output_validation(workflow, "mzml_001", "file")
     xcms = _node_by_id(workflow, "xcms_peak_detection_001")
-    feature_validator = _node_by_id(workflow, "validate_feature_table_001")
+    feature_validator = _output_validation(workflow, "xcms_peak_detection_001", "feature_table")
     retention = _node_by_id(workflow, "xcms_retention_correction_001")
-    aligned_validator = _node_by_id(workflow, "validate_aligned_features_001")
+    aligned_validator = _output_validation(workflow, "xcms_retention_correction_001", "aligned_feature_table")
     camera = _node_by_id(workflow, "camera_annotation_001")
-    camera_validator = _node_by_id(workflow, "validate_camera_peaklist_001")
+    camera_validator = _output_validation(workflow, "camera_annotation_001", "annotated_peaklist")
     report = _node_by_id(workflow, "metabolomics_report_001")
 
     assert mzml_input["params"]["file"] == "examples/data/metabolomics/sample.mzML"
-    assert mzml_validator["params"]["expected_format"] == "auto"
-    assert mzml_validator["params"]["min_size_bytes"] > 0
-    assert mzml_validator["params"]["fail_on_error"] is True
+    assert mzml_validator["expected_format"] == "auto"
+    assert mzml_validator["min_size_bytes"] > 0
+    assert mzml_validator["fail_on_error"] is True
 
     assert xcms["params"]["ppm"] == 25.0
     assert xcms["params"]["peakwidth_min"] == 8.0
@@ -119,22 +128,22 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     assert xcms["params"]["snthresh"] == 10.0
     assert xcms["params"]["threads"] >= 2
     assert xcms["params"]["output_name"] == "lcms"
-    assert feature_validator["params"]["expected_format"] == "tsv"
-    assert feature_validator["params"]["min_size_bytes"] > 0
+    assert feature_validator["expected_format"] == "tsv"
+    assert feature_validator["min_size_bytes"] > 0
 
     assert retention["params"]["method"] == "obiwarp"
     assert retention["params"]["bin_size"] == 1.0
     assert retention["params"]["min_fraction"] == 0.5
     assert retention["params"]["output_name"] == "lcms_aligned"
-    assert aligned_validator["params"]["expected_format"] == "tsv"
-    assert aligned_validator["params"]["fail_on_error"] is True
+    assert aligned_validator["expected_format"] == "tsv"
+    assert aligned_validator["fail_on_error"] is True
 
     assert camera["params"]["polarity"] == "positive"
     assert camera["params"]["run_group_corr"] is True
     assert camera["params"]["run_adducts"] is True
     assert camera["params"]["output_name"] == "lcms_camera"
-    assert camera_validator["params"]["expected_format"] == "tsv"
-    assert camera_validator["params"]["fail_on_error"] is True
+    assert camera_validator["expected_format"] == "tsv"
+    assert camera_validator["fail_on_error"] is True
 
     assert report["params"]["title"] == "Metabolomics LC-MS Report"
     assert "XCMS" in report["params"]["text_sections"]
@@ -144,10 +153,10 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     )
     assert report["params"]["section_names"] == "Aligned feature table,CAMERA peak annotations"
 
-    assert workflow["outputs"]["validated_mzml"] == "validate_mzml_001"
-    assert workflow["outputs"]["xcms_features"] == "validate_feature_table_001"
-    assert workflow["outputs"]["aligned_features"] == "validate_aligned_features_001"
-    assert workflow["outputs"]["camera_peaklist"] == "validate_camera_peaklist_001"
+    assert workflow["outputs"]["validated_mzml"] == "mzml_001"
+    assert workflow["outputs"]["xcms_features"] == "xcms_peak_detection_001"
+    assert workflow["outputs"]["aligned_features"] == "xcms_retention_correction_001"
+    assert workflow["outputs"]["camera_peaklist"] == "camera_annotation_001"
     assert workflow["outputs"]["report"] == "metabolomics_report_001"
     assert workflow["outputs"]["report_preview"] == "metabolomics_report_preview_001"
 
@@ -167,7 +176,7 @@ def test_metabolomics_lcms_template_is_discoverable_from_workflow_templates_api(
     )
     assert listed["name"] == "Metabolomics LC-MS Workflow"
     assert listed["category"] == "Metabolomics"
-    assert listed["node_count"] >= 10
+    assert listed["node_count"] >= 6
     assert "xcms_peak_detection" in listed["tools"]
     assert "camera_annotation" in listed["tools"]
     assert "XCMS Peak Detection" in listed["preview_steps"]

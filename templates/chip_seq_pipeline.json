@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Treatment FASTQ"
+        "title": "Treatment FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -52,7 +62,17 @@
         ]
       },
       "ui": {
-        "title": "Input Control FASTQ"
+        "title": "Input Control FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -66,7 +86,16 @@
         "directory": "bowtie2_index"
       },
       "ui": {
-        "title": "Bowtie2 Index"
+        "title": "Bowtie2 Index",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -80,14 +109,23 @@
         "file": "examples/data/chip_seq/genes.bed"
       },
       "ui": {
-        "title": "Gene Annotation BED"
+        "title": "Gene Annotation BED",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -101,7 +139,7 @@
       "id": "bt2_001",
       "type": "bowtie2_align",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -115,7 +153,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -129,7 +167,7 @@
       "id": "gate_trimmed_reads_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -142,76 +180,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
-      "id": "validate_index_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Bowtie2 Index"
-      }
-    },
-    {
-      "id": "validate_peak_annotation_bed_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1012
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Annotation BED"
-      }
-    },
-    {
-      "id": "validate_control_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1478
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Control FASTQ"
-      }
-    },
-    {
       "id": "fastp_control_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         454
       ],
       "params": {
@@ -225,7 +197,7 @@
       "id": "gate_control_reads_001",
       "type": "gate",
       "position": [
-        1160,
+        800,
         430
       ],
       "params": {
@@ -241,7 +213,7 @@
       "id": "bt2_control_001",
       "type": "bowtie2_align",
       "position": [
-        1520,
+        1160,
         1056
       ],
       "params": {
@@ -255,7 +227,7 @@
       "id": "view_control_001",
       "type": "samtools_view",
       "position": [
-        1880,
+        1520,
         714
       ],
       "params": {
@@ -269,8 +241,8 @@
       "id": "sort_control_001",
       "type": "samtools_sort",
       "position": [
-        2240,
-        782
+        1880,
+        470
       ],
       "params": {
         "threads": 4
@@ -283,7 +255,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -297,21 +269,30 @@
       "id": "macs2_001",
       "type": "macs2_callpeak",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
         "format": "AUTO"
       },
       "ui": {
-        "title": "MACS2 CallPeak"
+        "title": "MACS2 CallPeak",
+        "validation": {
+          "outputs": {
+            "peaks": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "coverage_001",
       "type": "deeptools_bamcoverage",
       "position": [
-        2600,
+        2240,
         522
       ],
       "params": {
@@ -325,26 +306,10 @@
       }
     },
     {
-      "id": "validate_peaks_001",
-      "type": "data_validator",
-      "position": [
-        2960,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MACS2 Peaks"
-      }
-    },
-    {
       "id": "peak_annotation_001",
       "type": "bedtools_closest",
       "position": [
-        3320,
+        2600,
         80
       ],
       "params": {
@@ -359,8 +324,8 @@
       "id": "chip_signal_plot_001",
       "type": "coverage_plot",
       "position": [
-        2960,
-        546
+        2600,
+        430
       ],
       "params": {
         "region": "chrX:1-50000",
@@ -376,7 +341,7 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        1520,
+        1160,
         544
       ],
       "params": {
@@ -390,22 +355,31 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1880,
+        1520,
         362
       ],
       "params": {
         "title": "ChIP-Seq QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        2600,
-        1010
+        1880,
+        316
       ],
       "params": {},
       "ui": {
@@ -413,26 +387,10 @@
       }
     },
     {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        2240,
-        316
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
-    },
-    {
       "id": "chip_seq_report_001",
       "type": "html_report",
       "position": [
-        3680,
+        2960,
         80
       ],
       "params": {
@@ -448,7 +406,7 @@
       "id": "chip_seq_report_preview_001",
       "type": "html_preview",
       "position": [
-        4040,
+        3320,
         80
       ],
       "params": {},
@@ -459,21 +417,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "treat_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -500,28 +447,6 @@
       "to": {
         "node": "bt2_001",
         "input": "reads"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "idx_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "validate_index_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2a",
-      "from": {
-        "node": "peak_annotation_bed_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "validate_peak_annotation_bed_001",
-        "input": "input"
       }
     },
     {
@@ -591,32 +516,10 @@
       }
     },
     {
-      "id": "e7",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e8",
+      "id": "e8a",
       "from": {
         "node": "macs2_001",
         "output": "peaks"
-      },
-      "to": {
-        "node": "validate_peaks_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e8a",
-      "from": {
-        "node": "validate_peaks_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "peak_annotation_001",
@@ -626,8 +529,8 @@
     {
       "id": "e8b",
       "from": {
-        "node": "validate_peak_annotation_bed_001",
-        "output": "passthrough"
+        "node": "peak_annotation_bed_001",
+        "output": "file"
       },
       "to": {
         "node": "peak_annotation_001",
@@ -637,8 +540,8 @@
     {
       "id": "e9",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -648,8 +551,8 @@
     {
       "id": "e10",
       "from": {
-        "node": "validate_index_001",
-        "output": "passthrough"
+        "node": "idx_001",
+        "output": "directory"
       },
       "to": {
         "node": "bt2_001",
@@ -657,21 +560,10 @@
       }
     },
     {
-      "id": "e11",
+      "id": "e12",
       "from": {
         "node": "control_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_control_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e12",
-      "from": {
-        "node": "validate_control_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_control_001",
@@ -703,8 +595,8 @@
     {
       "id": "e15",
       "from": {
-        "node": "validate_index_001",
-        "output": "passthrough"
+        "node": "idx_001",
+        "output": "directory"
       },
       "to": {
         "node": "bt2_control_001",
@@ -747,8 +639,8 @@
     {
       "id": "e19",
       "from": {
-        "node": "validate_peaks_001",
-        "output": "passthrough"
+        "node": "macs2_001",
+        "output": "peaks"
       },
       "to": {
         "node": "chip_seq_report_001",
@@ -803,20 +695,20 @@
   "groups": [],
   "outputs": {
     "peaks": "macs2_001",
-    "validated_peaks": "validate_peaks_001",
-    "validated_peak_annotation_bed": "validate_peak_annotation_bed_001",
+    "validated_peaks": "macs2_001",
+    "validated_peak_annotation_bed": "peak_annotation_bed_001",
     "peak_annotation": "peak_annotation_001",
     "coverage_track": "coverage_001",
     "chip_signal_plot": "chip_signal_plot_001",
     "report": "chip_seq_report_001",
     "chip_seq_report": "chip_seq_report_001",
     "chip_seq_report_preview": "chip_seq_report_preview_001",
-    "validated_multiqc_report": "validate_multiqc_001",
+    "validated_multiqc_report": "mqc_001",
     "trimmed_reads": "fastp_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
-    "validated_reads": "validate_reads_001",
-    "validated_control_reads": "validate_control_reads_001",
+    "validated_reads": "treat_001",
+    "validated_control_reads": "control_001",
     "control_alignment": "sort_control_001",
-    "validated_index": "validate_index_001"
+    "validated_index": "idx_001"
   }
 }

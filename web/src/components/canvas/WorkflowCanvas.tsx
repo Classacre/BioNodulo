@@ -2061,30 +2061,6 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         }
       }
 
-      // Check widget hit
-      const nodeWidgets = widgetsRef.current.get(clicked.id) || [];
-      for (const w of nodeWidgets) {
-        if (world.x >= w.x && world.x <= w.x + w.w && world.y >= w.y && world.y <= w.y + w.h) {
-          if (w.type === 'toggle') {
-            const newVal = !clicked.params[w.name];
-            handleNodeParamChange(clicked.id, w.name, newVal);
-            onPushHistory();
-          } else if (w.type === 'combo') {
-            const visibleInputs = getVisibleInputSpecs(clicked.meta, clicked.params);
-            const spec = visibleInputs.required[w.name] || visibleInputs.optional[w.name];
-            const options = (spec as any)?.options || [];
-            const currentIdx = options.indexOf(String(clicked.params[w.name] ?? options[0]));
-            const nextIdx = (currentIdx + 1) % options.length;
-            handleNodeParamChange(clicked.id, w.name, options[nextIdx]);
-            onPushHistory();
-          } else if (w.type === 'slider') {
-            setActiveWidget({ nodeId: clicked.id, name: w.name });
-            setDragStart({ x: e.clientX, y: e.clientY });
-          }
-          return;
-        }
-      }
-
       // Check node resize handle
       if (world.x >= clicked.x + clicked.width - 10 && world.y >= clicked.y + clicked.height - 10) {
         dragMovedRef.current = false;
@@ -2812,10 +2788,11 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     // Topological column-rank layout. Picks the working set (selected nodes
     // if any, otherwise the whole workflow), computes each node's depth as
     // longest predecessor chain among in-set nodes, then places columns
-    // left-to-right at fixed COL_W spacing with nodes stacked vertically
-    // by their incoming order within the column.
+    // left-to-right at fixed column spacing with nodes stacked vertically
+    // by measured node height. Fixed row spacing caused tall DOM-widget nodes
+    // to overlap as soon as a template opened or auto-layout ran.
     const COL_W = 280;
-    const ROW_H = 160;
+    const ROW_GAP = 40;
     const selectedIds = new Set(graphNodesRef.current.filter(n => n.selected).map(n => n.id));
     const workingSet = selectedIds.size > 0
       ? graphNodesRef.current.filter(n => selectedIds.has(n.id))
@@ -2865,8 +2842,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     const positions = new Map<string, [number, number]>();
     Array.from(columns.entries()).sort(([a], [b]) => a - b).forEach(([depth, nodesInCol]) => {
       nodesInCol.sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));
-      nodesInCol.forEach((node, row) => {
-        positions.set(node.id, [anchorX + depth * COL_W, anchorY + row * ROW_H]);
+      let y = anchorY;
+      nodesInCol.forEach((node) => {
+        positions.set(node.id, [anchorX + depth * COL_W, y]);
+        y += Math.max(node.height, calcNodeHeight(node.meta, node.collapsed, node.params, node.width)) + ROW_GAP;
       });
     });
 

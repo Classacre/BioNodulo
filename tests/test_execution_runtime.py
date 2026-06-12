@@ -372,6 +372,63 @@ async def test_run_queue_releases_pending_join_accounting() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_queue_serializes_execution_plan_for_queue_and_history() -> None:
+    class BlockingExecutor:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def execute(self, **_: Any) -> dict[str, Any]:
+            self.started.set()
+            await self.release.wait()
+            return {
+                "status": "completed",
+                "metadata": {
+                    "nodes": {
+                        "input": {"status": "completed"},
+                        "qc": {"status": "completed"},
+                    }
+                },
+            }
+
+    workflow = {
+        "name": "Queue Plan",
+        "nodes": [
+            {"id": "note", "type": "note"},
+            {"id": "input", "type": "input_fastq"},
+            {"id": "qc", "type": "fastqc"},
+        ],
+        "edges": [
+            {"source_node": "input", "source_output": "reads", "target_node": "qc", "target_input": "reads"},
+        ],
+    }
+    executor = BlockingExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit(workflow, run_id="running", metadata={"name": "Queue Plan"})
+        await asyncio.wait_for(executor.started.wait(), timeout=1.0)
+        await queue.submit(workflow, run_id="pending", metadata={"name": "Queue Plan"})
+
+        state = queue.queue_state()
+        assert state["running"][0]["execution_plan"] == ["input", "qc"]
+        assert state["pending"][0]["execution_plan"] == ["input", "qc"]
+
+        executor.release.set()
+        await asyncio.wait_for(queue._pending.join(), timeout=1.0)
+
+        history_by_id = {entry["run_id"]: entry for entry in queue.list_history()}
+        assert history_by_id["running"]["execution_plan"] == ["input", "qc"]
+        assert history_by_id["running"]["node_statuses"] == [
+            {"node_id": "input", "status": "completed"},
+            {"node_id": "qc", "status": "completed"},
+        ]
+    finally:
+        executor.release.set()
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_run_queue_reorders_pending_before_execution() -> None:
     class BlockingExecutor:
         def __init__(self) -> None:

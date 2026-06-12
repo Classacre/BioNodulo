@@ -88,7 +88,7 @@
       "type": "gate",
       "position": [
         800,
-        316
+        246
       ],
       "params": {
         "condition_mode": "boolean_is_true",
@@ -120,7 +120,7 @@
       "type": "bp_msa_view",
       "position": [
         1160,
-        432
+        261
       ],
       "params": {
         "format": "fasta"

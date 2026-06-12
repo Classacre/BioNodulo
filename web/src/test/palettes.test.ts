@@ -6,6 +6,7 @@ import {
   completePalette,
   BUILT_IN_PALETTES,
   getResolvedPaletteMode,
+  paletteThemeMode,
 } from '../state/palettes';
 import type { ThemePalette } from '../state/palettes';
 
@@ -53,6 +54,15 @@ describe('palettes.getResolvedPaletteMode', () => {
     document.documentElement.setAttribute('data-theme', 'dark');
     expect(getResolvedPaletteMode()).toBe('dark');
     document.documentElement.removeAttribute('data-theme');
+  });
+});
+
+describe('palette theme modes', () => {
+  it('exposes light and dark as selectable palettes with explicit modes', () => {
+    expect(BUILT_IN_PALETTES.map(palette => palette.id)).toEqual(expect.arrayContaining(['light', 'dark']));
+    expect(paletteThemeMode('light')).toBe('light');
+    expect(paletteThemeMode('dark')).toBe('dark');
+    expect(paletteThemeMode('bionodulo')).toBeNull();
   });
 });
 

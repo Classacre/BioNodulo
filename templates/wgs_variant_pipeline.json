@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,24 @@
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
       },
       "ui": {
-        "title": "Reference FASTA"
+        "title": "Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        800,
+        440,
         454
       ],
       "params": {},
@@ -64,27 +84,10 @@
       }
     },
     {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference FASTA"
-      }
-    },
-    {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -95,27 +98,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -129,7 +115,7 @@
       "id": "collate_001",
       "type": "samtools_collate",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -143,7 +129,7 @@
       "id": "fixmate_001",
       "type": "samtools_fixmate",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -158,7 +144,7 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -172,7 +158,7 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
@@ -186,7 +172,7 @@
       "id": "markdup_001",
       "type": "samtools_markdup",
       "position": [
-        2960,
+        2600,
         80
       ],
       "params": {
@@ -201,7 +187,7 @@
       "id": "idx_001",
       "type": "samtools_index",
       "position": [
-        3320,
+        2960,
         80
       ],
       "params": {},
@@ -213,7 +199,7 @@
       "id": "fb_001",
       "type": "freebayes",
       "position": [
-        3320,
+        2960,
         362
       ],
       "params": {
@@ -227,7 +213,7 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        3680,
+        3320,
         80
       ],
       "params": {
@@ -241,7 +227,7 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        4040,
+        3680,
         80
       ],
       "params": {
@@ -256,7 +242,7 @@
       "id": "vep_001",
       "type": "vep",
       "position": [
-        4040,
+        3680,
         500
       ],
       "params": {
@@ -273,7 +259,7 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        4400,
+        4040,
         80
       ],
       "params": {
@@ -289,7 +275,7 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        4040,
+        3680,
         1102
       ],
       "params": {
@@ -304,7 +290,7 @@
       "id": "coverage_plot_001",
       "type": "coverage_plot",
       "position": [
-        3320,
+        2960,
         758
       ],
       "params": {
@@ -321,7 +307,7 @@
       "id": "manta_sv_001",
       "type": "manta_call",
       "position": [
-        3320,
+        2960,
         1270
       ],
       "params": {
@@ -337,7 +323,7 @@
       "id": "delly_sv_001",
       "type": "delly_call",
       "position": [
-        3320,
+        2960,
         1596
       ],
       "params": {
@@ -352,7 +338,7 @@
       "id": "variant_report_001",
       "type": "html_report",
       "position": [
-        5120,
+        4760,
         80
       ],
       "params": {
@@ -368,7 +354,7 @@
       "id": "variant_report_preview_001",
       "type": "html_preview",
       "position": [
-        5480,
+        5120,
         80
       ],
       "params": {},
@@ -380,7 +366,7 @@
       "id": "sv_report_001",
       "type": "html_report",
       "position": [
-        3680,
+        3320,
         316
       ],
       "params": {
@@ -397,7 +383,7 @@
       "id": "sv_report_preview_001",
       "type": "html_preview",
       "position": [
-        4040,
+        3680,
         1614
       ],
       "params": {},
@@ -409,7 +395,7 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        4760,
+        4400,
         80
       ],
       "params": {
@@ -425,7 +411,7 @@
       "id": "qc_001",
       "type": "fastqc",
       "position": [
-        800,
+        440,
         644
       ],
       "params": {
@@ -439,62 +425,44 @@
       "id": "mqc_001",
       "type": "multiqc",
       "position": [
-        1160,
+        800,
         522
       ],
       "params": {
         "title": "WGS QC"
       },
       "ui": {
-        "title": "MultiQC"
+        "title": "MultiQC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
+        1160,
         362
       ],
       "params": {},
       "ui": {
         "title": "View MultiQC Report"
       }
-    },
-    {
-      "id": "validate_multiqc_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        362
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate MultiQC Report"
-      }
     }
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -513,21 +481,10 @@
       }
     },
     {
-      "id": "e3",
+      "id": "e3a",
       "from": {
         "node": "ref_001",
         "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3a",
-      "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "bwa_idx_001",
@@ -603,8 +560,8 @@
     {
       "id": "e9",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "fb_001",
@@ -625,8 +582,8 @@
     {
       "id": "e11",
       "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
+        "node": "reads_001",
+        "output": "reads"
       },
       "to": {
         "node": "qc_001",
@@ -664,17 +621,6 @@
       "to": {
         "node": "fixmate_001",
         "input": "bam"
-      }
-    },
-    {
-      "id": "e13",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_multiqc_001",
-        "input": "input"
       }
     },
     {
@@ -801,8 +747,8 @@
     {
       "id": "e19b",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "manta_sv_001",
@@ -823,8 +769,8 @@
     {
       "id": "e19d",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "delly_sv_001",
@@ -878,8 +824,8 @@
     {
       "id": "e20",
       "from": {
-        "node": "validate_multiqc_001",
-        "output": "passthrough"
+        "node": "mqc_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -901,8 +847,8 @@
     "delly_sv": "delly_sv_001",
     "structural_variant_report": "sv_report_001",
     "structural_variant_report_preview": "sv_report_preview_001",
-    "validated_multiqc_report": "validate_multiqc_001",
-    "validated_reads": "validate_reads_001",
-    "validated_reference": "validate_reference_001"
+    "validated_multiqc_report": "mqc_001",
+    "validated_reads": "reads_001",
+    "validated_reference": "ref_001"
   }
 }

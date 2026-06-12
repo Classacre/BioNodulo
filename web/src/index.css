@@ -535,6 +535,46 @@ body {
 .palette-actions input {
   display: none;
 }
+.palette-maker {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  gap: 8px;
+  width: min(100%, 420px);
+}
+.palette-maker-name {
+  min-width: 0;
+}
+.palette-maker-colors {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.palette-maker-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+}
+.palette-maker-color span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-maker-color input {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
 .palette-preview-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2210,6 +2250,102 @@ kbd {
 @keyframes slideInRight {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+.runs-drawer {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+  z-index: 145;
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.2s ease both;
+}
+
+.runs-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.runs-drawer-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.runs-drawer-subtitle {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.runs-drawer-toolbar,
+.runs-drawer-actions,
+.runs-drawer-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px 0;
+}
+
+.runs-drawer-search {
+  flex: 1;
+  min-width: 160px;
+  font-size: 11px;
+}
+
+.runs-drawer-filters {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.runs-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.runs-drawer-empty {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.runs-drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runs-drawer-section + .runs-drawer-section {
+  margin-top: 16px;
+}
+
+.runs-drawer-section-title {
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.runs-drawer .queue-run-card {
+  align-items: flex-start;
+}
+
+.runs-drawer .queue-run-title-row {
+  flex-wrap: wrap;
 }
 
 /* Shift floating canvas chrome away from side and bottom drawers. */

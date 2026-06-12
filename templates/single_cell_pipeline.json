@@ -30,7 +30,16 @@
         "directory": "examples/data/single_cell"
       },
       "ui": {
-        "title": "FASTQ Directory"
+        "title": "FASTQ Directory",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -44,14 +53,23 @@
         "directory": "refdata-gex-GRCh38"
       },
       "ui": {
-        "title": "Cell Ranger Reference"
+        "title": "Cell Ranger Reference",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "cr_count_001",
       "type": "cellranger_count",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -59,14 +77,28 @@
         "expect_cells": 100
       },
       "ui": {
-        "title": "Cell Ranger Count"
+        "title": "Cell Ranger Count",
+        "validation": {
+          "outputs": {
+            "web_summary": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "metrics_summary": {
+              "expected_format": "csv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "cr_count_retry_001",
       "type": "retry",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -82,74 +114,10 @@
       }
     },
     {
-      "id": "validate_fastq_dir_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Directory"
-      }
-    },
-    {
-      "id": "validate_reference_dir_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "directory",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference Directory"
-      }
-    },
-    {
-      "id": "validate_web_summary_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate web_summary"
-      }
-    },
-    {
-      "id": "validate_metrics_summary_001",
-      "type": "data_validator",
-      "position": [
-        1520,
-        546
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate metrics_summary"
-      }
-    },
-    {
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        1520,
         80
       ],
       "params": {},
@@ -161,7 +129,7 @@
       "id": "gate_web_summary_001",
       "type": "gate",
       "position": [
-        1880,
+        1160,
         80
       ],
       "params": {
@@ -195,7 +163,7 @@
       "type": "html_preview",
       "position": [
         440,
-        1012
+        261
       ],
       "params": {},
       "ui": {
@@ -206,7 +174,7 @@
       "id": "metrics_summary_chart_001",
       "type": "bar_chart",
       "position": [
-        1880,
+        1160,
         430
       ],
       "params": {
@@ -224,7 +192,7 @@
       "id": "single_cell_report_001",
       "type": "html_report",
       "position": [
-        2240,
+        1520,
         234
       ],
       "params": {
@@ -241,7 +209,7 @@
       "id": "single_cell_report_preview_001",
       "type": "html_preview",
       "position": [
-        2600,
+        1880,
         80
       ],
       "params": {},
@@ -252,43 +220,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
-      "from": {
-        "node": "fastq_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "validate_fastq_dir_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "ref_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "validate_reference_dir_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3",
+      "id": "e3a",
       "from": {
         "node": "cr_count_001",
         "output": "web_summary"
-      },
-      "to": {
-        "node": "validate_web_summary_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3a",
-      "from": {
-        "node": "validate_web_summary_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "gate_web_summary_001",
@@ -307,21 +242,10 @@
       }
     },
     {
-      "id": "e3c",
+      "id": "e3d",
       "from": {
         "node": "cr_count_001",
         "output": "metrics_summary"
-      },
-      "to": {
-        "node": "validate_metrics_summary_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3d",
-      "from": {
-        "node": "validate_metrics_summary_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "single_cell_report_001",
@@ -331,8 +255,8 @@
     {
       "id": "e3e",
       "from": {
-        "node": "validate_metrics_summary_001",
-        "output": "passthrough"
+        "node": "cr_count_001",
+        "output": "metrics_summary"
       },
       "to": {
         "node": "metrics_summary_chart_001",
@@ -353,8 +277,8 @@
     {
       "id": "e4",
       "from": {
-        "node": "validate_fastq_dir_001",
-        "output": "passthrough"
+        "node": "fastq_001",
+        "output": "directory"
       },
       "to": {
         "node": "cr_count_retry_001",
@@ -375,8 +299,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "validate_reference_dir_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "directory"
       },
       "to": {
         "node": "cr_count_001",
@@ -412,10 +336,10 @@
     "filtered_feature_bc_matrix": "cr_count_001",
     "filtered_feature_bc_matrix_h5": "cr_count_001",
     "cellranger_retry_policy": "cr_count_retry_001",
-    "validated_fastq_dir": "validate_fastq_dir_001",
-    "validated_reference_dir": "validate_reference_dir_001",
-    "validated_web_summary": "validate_web_summary_001",
-    "validated_metrics_summary": "validate_metrics_summary_001",
+    "validated_fastq_dir": "fastq_001",
+    "validated_reference_dir": "ref_001",
+    "validated_web_summary": "cr_count_001",
+    "validated_metrics_summary": "cr_count_001",
     "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",

@@ -46,7 +46,7 @@ def test_chip_seq_template_adds_final_html_report_from_validated_peaks() -> None
         "ChIP-seq signal coverage,Validated MACS2 peaks,Nearest peak annotations"
     )
 
-    assert _has_edge(workflow, "validate_peaks_001", "passthrough", "chip_seq_report_001", "tables")
+    assert _has_edge(workflow, "macs2_001", "peaks", "chip_seq_report_001", "tables")
     assert _has_edge(workflow, "peak_annotation_001", "closest", "chip_seq_report_001", "tables")
     assert _has_edge(workflow, "chip_seq_report_001", "html_report", "chip_seq_report_preview_001", "file")
     assert not _has_edge(workflow, "coverage_001", "coverage_bw", "chip_seq_report_001", "images")

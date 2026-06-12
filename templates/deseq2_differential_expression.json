@@ -30,7 +30,17 @@
         "file": "examples/data/biopython/deseq2_counts.csv"
       },
       "ui": {
-        "title": "Count Matrix"
+        "title": "Count Matrix",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -44,49 +54,25 @@
         "file": "examples/data/biopython/deseq2_sample_info.csv"
       },
       "ui": {
-        "title": "Sample Info"
-      }
-    },
-    {
-      "id": "validate_counts_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Count Matrix"
-      }
-    },
-    {
-      "id": "validate_samples_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_records": 2,
-        "min_size_bytes": 1,
-        "required_fields": "sample,condition",
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Sample Info"
+        "title": "Sample Info",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_records": 2,
+              "min_size_bytes": 1,
+              "required_fields": "sample,condition",
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "deseq2_001",
       "type": "deseq2_analysis",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -104,7 +90,7 @@
       "id": "heatmap_001",
       "type": "r_pheatmap",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -126,7 +112,7 @@
       "id": "volcano_001",
       "type": "volcano_plot",
       "position": [
-        1160,
+        800,
         614
       ],
       "params": {
@@ -143,7 +129,7 @@
       "id": "ma_plot_001",
       "type": "ma_plot",
       "position": [
-        1160,
+        800,
         1448
       ],
       "params": {
@@ -161,7 +147,7 @@
       "id": "pca_plot_001",
       "type": "scatter_plot",
       "position": [
-        1160,
+        800,
         2282
       ],
       "params": {
@@ -181,7 +167,7 @@
       "id": "significant_genes_001",
       "type": "filter_rows",
       "position": [
-        1160,
+        800,
         3490
       ],
       "params": {
@@ -215,7 +201,7 @@
       "id": "normalized_counts_transpose_001",
       "type": "transpose_table",
       "position": [
-        1160,
+        800,
         3162
       ],
       "params": {
@@ -231,7 +217,7 @@
       "id": "pathway_enrichment_001",
       "type": "intersect_genes",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -247,7 +233,7 @@
       "id": "string_enrichment_001",
       "type": "string_db",
       "position": [
-        1520,
+        1160,
         384
       ],
       "params": {
@@ -265,7 +251,7 @@
       "id": "de_report_001",
       "type": "html_report",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -281,8 +267,8 @@
       "id": "ma_preview_001",
       "type": "image_preview",
       "position": [
-        1520,
-        850
+        1160,
+        565
       ],
       "params": {},
       "ui": {
@@ -293,8 +279,8 @@
       "id": "heatmap_preview_001",
       "type": "image_preview",
       "position": [
-        1520,
-        1124
+        1160,
+        839
       ],
       "params": {},
       "ui": {
@@ -305,7 +291,7 @@
       "id": "de_report_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {},
@@ -316,21 +302,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1b",
       "from": {
         "node": "counts_001",
         "output": "file"
-      },
-      "to": {
-        "node": "validate_counts_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1b",
-      "from": {
-        "node": "validate_counts_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "deseq2_001",
@@ -338,21 +313,10 @@
       }
     },
     {
-      "id": "e2",
+      "id": "e2b",
       "from": {
         "node": "samples_001",
         "output": "file"
-      },
-      "to": {
-        "node": "validate_samples_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2b",
-      "from": {
-        "node": "validate_samples_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "deseq2_001",
@@ -617,7 +581,7 @@
     "heatmap": "heatmap_001",
     "report": "de_report_001",
     "report_preview": "de_report_preview_001",
-    "validated_counts": "validate_counts_001",
-    "validated_sample_info": "validate_samples_001"
+    "validated_counts": "counts_001",
+    "validated_sample_info": "samples_001"
   }
 }

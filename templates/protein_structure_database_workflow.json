@@ -19,7 +19,6 @@
     "uniprot_retrieve",
     "alphafold_db",
     "pdb_download",
-    "data_validator",
     "html_report",
     "html_preview"
   ],
@@ -54,23 +53,16 @@
         "output_name": "tp53_uniprot"
       },
       "ui": {
-        "title": "UniProt Search"
-      }
-    },
-    {
-      "id": "validate_uniprot_table_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "tsv",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate UniProt Table"
+        "title": "UniProt Search",
+        "validation": {
+          "outputs": {
+            "results_table": {
+              "expected_format": "tsv",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -78,7 +70,7 @@
       "type": "uniprot_retrieve",
       "position": [
         80,
-        616
+        261
       ],
       "params": {
         "accession": "P04637",
@@ -86,23 +78,16 @@
         "output_name": "tp53"
       },
       "ui": {
-        "title": "UniProt Retrieve"
-      }
-    },
-    {
-      "id": "validate_uniprot_fasta_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate UniProt FASTA"
+        "title": "UniProt Retrieve",
+        "validation": {
+          "outputs": {
+            "sequence": {
+              "expected_format": "fasta",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -110,7 +95,7 @@
       "type": "alphafold_db",
       "position": [
         80,
-        1014
+        442
       ],
       "params": {
         "uniprot_ids": "P04637",
@@ -119,23 +104,16 @@
         "download_pae": true
       },
       "ui": {
-        "title": "AlphaFold DB"
-      }
-    },
-    {
-      "id": "validate_alphafold_structure_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1012
-      ],
-      "params": {
-        "expected_format": "auto",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate AlphaFold Structure"
+        "title": "AlphaFold DB",
+        "validation": {
+          "outputs": {
+            "structure_mmcif": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -143,7 +121,7 @@
       "type": "pdb_download",
       "position": [
         80,
-        1366
+        623
       ],
       "params": {
         "pdb_ids": "4HHB",
@@ -152,30 +130,23 @@
         "download_density": false
       },
       "ui": {
-        "title": "RCSB PDB Download"
-      }
-    },
-    {
-      "id": "validate_pdb_structure_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1478
-      ],
-      "params": {
-        "expected_format": "auto",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate PDB Structure"
+        "title": "RCSB PDB Download",
+        "validation": {
+          "outputs": {
+            "structure_file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "protein_structure_report_001",
       "type": "html_report",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -195,7 +166,7 @@
       "id": "protein_structure_report_preview_001",
       "type": "html_preview",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {},
@@ -206,54 +177,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e5",
       "from": {
         "node": "uniprot_search_001",
         "output": "results_table"
-      },
-      "to": {
-        "node": "validate_uniprot_table_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e2",
-      "from": {
-        "node": "uniprot_retrieve_001",
-        "output": "sequence"
-      },
-      "to": {
-        "node": "validate_uniprot_fasta_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e3",
-      "from": {
-        "node": "alphafold_db_001",
-        "output": "structure_mmcif"
-      },
-      "to": {
-        "node": "validate_alphafold_structure_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e4",
-      "from": {
-        "node": "pdb_download_001",
-        "output": "structure_file"
-      },
-      "to": {
-        "node": "validate_pdb_structure_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e5",
-      "from": {
-        "node": "validate_uniprot_table_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "protein_structure_report_001",
@@ -274,11 +201,11 @@
   ],
   "groups": [],
   "outputs": {
-    "uniprot_search_results": "validate_uniprot_table_001",
-    "uniprot_sequence": "validate_uniprot_fasta_001",
-    "alphafold_structure": "validate_alphafold_structure_001",
+    "uniprot_search_results": "uniprot_search_001",
+    "uniprot_sequence": "uniprot_retrieve_001",
+    "alphafold_structure": "alphafold_db_001",
     "alphafold_metadata": "alphafold_db_001",
-    "pdb_structure": "validate_pdb_structure_001",
+    "pdb_structure": "pdb_download_001",
     "pdb_metadata": "pdb_download_001",
     "report": "protein_structure_report_001",
     "report_preview": "protein_structure_report_preview_001"

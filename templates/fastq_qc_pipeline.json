@@ -34,7 +34,17 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -48,14 +58,25 @@
         "sample_sheet": "templates/data/fastq_qc_sample_sheet.csv"
       },
       "ui": {
-        "title": "Sample Sheet"
+        "title": "Sample Sheet",
+        "validation": {
+          "outputs": {
+            "sample_sheet": {
+              "expected_format": "csv",
+              "required_fields": "sample,fastq_1,fastq_2",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "fastqc_001",
       "type": "fastqc",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -69,7 +90,7 @@
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -80,45 +101,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
-      "id": "validate_sample_sheet_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "csv",
-        "required_fields": "sample,fastq_1,fastq_2",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Sample Sheet"
-      }
-    },
-    {
       "id": "multiqc_001",
       "type": "multiqc",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -132,7 +118,7 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        2240,
+        1880,
         430
       ],
       "params": {},
@@ -144,7 +130,7 @@
       "id": "validate_multiqc_001",
       "type": "data_validator",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -160,7 +146,7 @@
       "id": "gate_multiqc_001",
       "type": "gate",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -176,7 +162,7 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        1520,
+        1160,
         432
       ],
       "params": {
@@ -192,8 +178,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        1880,
-        546
+        1520,
+        261
       ],
       "params": {},
       "ui": {
@@ -203,36 +189,14 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "input_fastq_001",
         "output": "reads"
       },
       "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
-      },
-      "to": {
         "node": "fastp_001",
         "input": "reads"
-      }
-    },
-    {
-      "id": "e1s",
-      "from": {
-        "node": "sample_sheet_001",
-        "output": "sample_sheet"
-      },
-      "to": {
-        "node": "validate_sample_sheet_001",
-        "input": "input"
       }
     },
     {
@@ -329,9 +293,9 @@
     "report": "multiqc_001",
     "validated_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
-    "validated_reads": "validate_reads_001",
+    "validated_reads": "input_fastq_001",
     "sample_sheet": "sample_sheet_001",
-    "validated_sample_sheet": "validate_sample_sheet_001",
+    "validated_sample_sheet": "sample_sheet_001",
     "qc_dashboard": "qc_dashboard_001"
   }
 }

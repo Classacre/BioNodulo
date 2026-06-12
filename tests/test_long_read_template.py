@@ -22,6 +22,16 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node_by_id(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -41,36 +51,36 @@ def test_long_read_ont_template_covers_basecalling_filtering_qc_and_methylation(
 
     assert node_types["pod5_001"] == "input_directory"
     assert node_types["reference_001"] == "input_fasta"
-    assert node_types["validate_pod5_001"] == "data_validator"
-    assert node_types["validate_reference_001"] == "data_validator"
+    assert "validate_pod5_001" not in node_types
+    assert "validate_reference_001" not in node_types
     assert node_types["dorado_basecaller_001"] == "dorado_basecaller"
     assert node_types["dorado_demux_001"] == "dorado_demux"
     assert node_types["chopper_001"] == "chopper_filter"
     assert node_types["nanoplot_001"] == "nanoplot"
     assert node_types["modkit_001"] == "modkit_pileup"
-    assert node_types["validate_nanoplot_report_001"] == "data_validator"
+    assert "validate_nanoplot_report_001" not in node_types
     assert node_types["long_read_report_001"] == "html_report"
     assert node_types["long_read_report_preview_001"] == "html_preview"
 
-    assert _has_edge(workflow, "pod5_001", "directory", "validate_pod5_001", "input")
-    assert _has_edge(workflow, "reference_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "validate_pod5_001", "passthrough", "dorado_basecaller_001", "pod5_dir")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "dorado_basecaller_001", "reference")
+    assert not _has_edge(workflow, "pod5_001", "directory", "validate_pod5_001", "input")
+    assert not _has_edge(workflow, "reference_001", "reference", "validate_reference_001", "input")
+    assert _has_edge(workflow, "pod5_001", "directory", "dorado_basecaller_001", "pod5_dir")
+    assert _has_edge(workflow, "reference_001", "reference", "dorado_basecaller_001", "reference")
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "gate_basecalled_bam_001", "value")
     assert _has_edge(workflow, "gate_basecalled_bam_001", "output", "dorado_demux_001", "reads")
     assert _has_edge(workflow, "dorado_demux_001", "demux_dir", "chopper_001", "reads")
     assert _has_edge(workflow, "chopper_001", "filtered_reads", "gate_filtered_reads_001", "value")
     assert _has_edge(workflow, "gate_filtered_reads_001", "output", "nanoplot_001", "fastq")
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "modkit_001", "bam")
-    assert _has_edge(workflow, "validate_reference_001", "passthrough", "modkit_001", "reference")
-    assert _has_edge(workflow, "nanoplot_001", "qc_report", "validate_nanoplot_report_001", "input")
-    assert _has_edge(workflow, "validate_nanoplot_report_001", "passthrough", "long_read_report_001", "tables")
+    assert _has_edge(workflow, "reference_001", "reference", "modkit_001", "reference")
+    assert not _has_edge(workflow, "nanoplot_001", "qc_report", "validate_nanoplot_report_001", "input")
+    assert _has_edge(workflow, "nanoplot_001", "qc_report", "long_read_report_001", "tables")
     assert _has_edge(workflow, "modkit_001", "bedmethyl", "long_read_report_001", "tables")
     assert _has_edge(workflow, "long_read_report_001", "html_report", "long_read_report_preview_001", "file")
 
-    assert not _has_edge(workflow, "pod5_001", "directory", "dorado_basecaller_001", "pod5_dir")
-    assert not _has_edge(workflow, "reference_001", "reference", "dorado_basecaller_001", "reference")
-    assert not _has_edge(workflow, "nanoplot_001", "qc_report", "long_read_report_001", "tables")
+    assert _has_edge(workflow, "pod5_001", "directory", "dorado_basecaller_001", "pod5_dir")
+    assert _has_edge(workflow, "reference_001", "reference", "dorado_basecaller_001", "reference")
+    assert _has_edge(workflow, "nanoplot_001", "qc_report", "long_read_report_001", "tables")
 
 
 def test_long_read_ont_template_validates_and_gates_core_outputs() -> None:
@@ -79,23 +89,23 @@ def test_long_read_ont_template_validates_and_gates_core_outputs() -> None:
 
     assert node_types["gate_basecalled_bam_001"] == "gate"
     assert node_types["gate_filtered_reads_001"] == "gate"
-    assert node_types["validate_nanoplot_report_001"] == "data_validator"
+    assert "validate_nanoplot_report_001" not in node_types
 
-    pod5_validator = _node_by_id(workflow, "validate_pod5_001")
-    reference_validator = _node_by_id(workflow, "validate_reference_001")
-    report_validator = _node_by_id(workflow, "validate_nanoplot_report_001")
+    pod5_validator = _output_validation(workflow, "pod5_001", "directory")
+    reference_validator = _output_validation(workflow, "reference_001", "reference")
+    report_validator = _output_validation(workflow, "nanoplot_001", "qc_report")
     basecall_gate = _node_by_id(workflow, "gate_basecalled_bam_001")
     reads_gate = _node_by_id(workflow, "gate_filtered_reads_001")
 
-    assert pod5_validator["params"]["expected_format"] == "directory"
-    assert pod5_validator["params"]["min_size_bytes"] > 0
-    assert pod5_validator["params"]["fail_on_error"] is True
-    assert reference_validator["params"]["expected_format"] == "fasta"
-    assert reference_validator["params"]["min_records"] >= 1
-    assert reference_validator["params"]["fail_on_error"] is True
-    assert report_validator["params"]["expected_format"] == "text"
-    assert report_validator["params"]["min_size_bytes"] > 0
-    assert report_validator["params"]["fail_on_error"] is True
+    assert pod5_validator["expected_format"] == "directory"
+    assert pod5_validator["min_size_bytes"] > 0
+    assert pod5_validator["fail_on_error"] is True
+    assert reference_validator["expected_format"] == "fasta"
+    assert reference_validator["min_records"] >= 1
+    assert reference_validator["fail_on_error"] is True
+    assert report_validator["expected_format"] == "text"
+    assert report_validator["min_size_bytes"] > 0
+    assert report_validator["fail_on_error"] is True
 
     assert basecall_gate["params"]["condition_mode"] == "file_exists"
     assert basecall_gate["params"]["on_fail"] == "halt"
@@ -111,8 +121,8 @@ def test_long_read_ont_template_validates_and_gates_core_outputs() -> None:
     assert not _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "dorado_demux_001", "reads")
     assert not _has_edge(workflow, "chopper_001", "filtered_reads", "nanoplot_001", "fastq")
 
-    assert workflow["outputs"]["validated_pod5_dir"] == "validate_pod5_001"
-    assert workflow["outputs"]["validated_reference"] == "validate_reference_001"
+    assert workflow["outputs"]["validated_pod5_dir"] == "pod5_001"
+    assert workflow["outputs"]["validated_reference"] == "reference_001"
     assert workflow["outputs"]["basecalled_bam_quality_gate"] == "gate_basecalled_bam_001"
     assert workflow["outputs"]["filtered_reads_quality_gate"] == "gate_filtered_reads_001"
     assert workflow["outputs"]["basecalled_bam"] == "dorado_basecaller_001"
@@ -139,7 +149,7 @@ def test_long_read_ont_template_is_discoverable_from_workflow_templates_api() ->
     )
     assert listed["name"] == "ONT Long-Read Sequencing"
     assert listed["category"] == "Long Read"
-    assert listed["node_count"] >= 12
+    assert listed["node_count"] >= 11
     assert "dorado_basecaller" in listed["tools"]
     assert "modkit_pileup" in listed["tools"]
     assert "Dorado Basecaller" in listed["preview_steps"]

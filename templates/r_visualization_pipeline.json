@@ -159,7 +159,18 @@
         "file": "examples/data/biopython/heatmap_data.csv"
       },
       "ui": {
-        "title": "Heatmap Data"
+        "title": "Heatmap Data",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "required_fields": "gene",
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -185,8 +196,8 @@
       "id": "pheatmap_001",
       "type": "r_pheatmap",
       "position": [
-        800,
-        622
+        440,
+        1288
       ],
       "params": {
         "data_csv": "",
@@ -205,29 +216,11 @@
       }
     },
     {
-      "id": "validate_heatmap_csv_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        1288
-      ],
-      "params": {
-        "expected_format": "csv",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "required_fields": "gene",
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Heatmap CSV"
-      }
-    },
-    {
       "id": "heatmap_preview_001",
       "type": "image_preview",
       "position": [
-        1160,
-        80
+        800,
+        622
       ],
       "params": {
         "file": ""
@@ -241,7 +234,7 @@
       "type": "volcano_plot",
       "position": [
         440,
-        1754
+        1822
       ],
       "params": {
         "title": "Differential Expression Volcano Plot",
@@ -258,7 +251,7 @@
       "type": "ma_plot",
       "position": [
         440,
-        2588
+        2656
       ],
       "params": {
         "title": "Differential Expression MA Plot",
@@ -276,7 +269,7 @@
       "type": "image_preview",
       "position": [
         800,
-        1156
+        893
       ],
       "params": {
         "file": ""
@@ -290,7 +283,7 @@
       "type": "image_preview",
       "position": [
         800,
-        1427
+        1164
       ],
       "params": {
         "file": ""
@@ -303,8 +296,8 @@
       "id": "viz_report_001",
       "type": "html_report",
       "position": [
-        1160,
-        351
+        800,
+        1435
       ],
       "params": {
         "title": "R Visualization Report",
@@ -319,7 +312,7 @@
       "id": "viz_report_preview_001",
       "type": "html_preview",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {},
@@ -374,21 +367,10 @@
       }
     },
     {
-      "id": "e5",
+      "id": "e5b",
       "from": {
         "node": "heatmap_data_001",
         "output": "file"
-      },
-      "to": {
-        "node": "validate_heatmap_csv_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e5b",
-      "from": {
-        "node": "validate_heatmap_csv_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "pheatmap_001",
@@ -521,7 +503,7 @@
   "outputs": {
     "report": "viz_report_001",
     "report_preview": "viz_report_preview_001",
-    "validated_heatmap_data": "validate_heatmap_csv_001",
+    "validated_heatmap_data": "heatmap_data_001",
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001"
   }

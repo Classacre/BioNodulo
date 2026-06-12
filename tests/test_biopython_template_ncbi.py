@@ -20,6 +20,16 @@ def _node(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
+def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
+    node = _node(workflow, node_id)
+    return (
+        node.get("ui", {})
+        .get("validation", {})
+        .get("outputs", {})
+        .get(output, {})
+    )
+
+
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
         edge.get("from") == {"node": source, "output": source_output}
@@ -34,28 +44,28 @@ def test_biopython_template_fetches_ncbi_fasta_before_sequence_analysis() -> Non
 
     assert node_types["seqs_001"] == "input_fasta"
     assert node_types["ncbi_efetch_001"] == "ncbi_efetch"
-    assert node_types["validate_sequences_001"] == "data_validator"
+    assert "validate_sequences_001" not in node_types
 
     efetch = _node(workflow, "ncbi_efetch_001")
-    validator = _node(workflow, "validate_sequences_001")
+    validator = _output_validation(workflow, "ncbi_efetch_001", "records")
     assert efetch["params"]["database"] == "nuccore"
     assert efetch["params"]["rettype"] == "fasta"
     assert efetch["params"]["retmode"] == "text"
     assert efetch["params"]["id_list"] == "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1"
     assert efetch["params"]["output_name"] == "16s_sequences.fasta"
-    assert validator["params"]["expected_format"] == "fasta"
-    assert validator["params"]["min_records"] >= 2
-    assert validator["params"]["min_size_bytes"] > 0
-    assert validator["params"]["fail_on_error"] is True
+    assert validator["expected_format"] == "fasta"
+    assert validator["min_records"] >= 2
+    assert validator["min_size_bytes"] > 0
+    assert validator["fail_on_error"] is True
 
-    assert _has_edge(workflow, "ncbi_efetch_001", "records", "validate_sequences_001", "input")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seqio_read_001", "input_file")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "seq_stats_001", "input_file")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "blast_001", "query")
-    assert _has_edge(workflow, "validate_sequences_001", "passthrough", "blast_001", "subject")
+    assert not _has_edge(workflow, "ncbi_efetch_001", "records", "validate_sequences_001", "input")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "seqio_read_001", "input_file")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "seq_stats_001", "input_file")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "query")
+    assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "subject")
     assert not _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
     assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
-    assert workflow["outputs"]["validated_sequences"] == "validate_sequences_001"
+    assert workflow["outputs"]["validated_sequences"] == "ncbi_efetch_001"
 
 
 def test_biopython_template_previews_sequence_report() -> None:
@@ -92,7 +102,7 @@ def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_
         "Sequence length chart,Sequence statistics,AI sequence classifications"
     )
 
-    assert _has_edge(workflow, "validate_coding_001", "passthrough", "sequence_classification_001", "input_fasta")
+    assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
     assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"

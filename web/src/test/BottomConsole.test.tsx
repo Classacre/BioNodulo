@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -61,7 +61,7 @@ describe('BottomConsole i18n', () => {
   });
 
   it('keeps history bucket identifiers locale-neutral', () => {
-    const source = readFileSync(resolve(__dirname, '../components/layout/BottomConsole.tsx'), 'utf8');
+    const source = readFileSync(resolve(__dirname, '../components/layout/RunsDrawer.tsx'), 'utf8');
 
     expect(source).toContain('HistoryBucketId');
     [
@@ -93,18 +93,12 @@ describe('BottomConsole i18n', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Registros' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cola (0)' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Historial (0)' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cola (0)' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Historial (0)' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previsualizaciones' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Informe' })).toBeInTheDocument();
     expect(screen.getByTitle('Cerrar consola')).toBeInTheDocument();
     expect(screen.getByText('Todavia no hay registros. Ejecuta un flujo de trabajo para verlos.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cola (0)' }));
-    expect(screen.getByText('La cola esta vacia.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Historial (0)' }));
-    expect(screen.getByText('Todavia no hay ejecuciones completadas.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Previsualizaciones' }));
     expect(screen.getByText('Todavia no hay previsualizaciones. Ejecuta un flujo de trabajo que genere graficos o informes HTML.')).toBeInTheDocument();
@@ -258,113 +252,4 @@ describe('BottomConsole i18n', () => {
     expect(screen.queryByText('[unknown]')).not.toBeInTheDocument();
   });
 
-  it('renders queue and history controls from the active locale', async () => {
-    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
-    const { setLanguage } = await import('../i18n');
-
-    await setLanguage('es');
-
-    const queueRun = runRecord({
-      run_id: 'queue-run-1',
-      status: 'pending',
-      execution_plan: ['node-a', 'node-b'],
-      node_statuses: [{ node_id: 'node-a', status: 'running' }],
-    });
-    const historyRun = runRecord({
-      run_id: 'history-run-1',
-      status: 'completed',
-      workflow_name: 'Completed workflow',
-      execution_plan: ['node-a'],
-      node_statuses: [{ node_id: 'node-a', status: 'completed' }],
-      end_time: new Date().toISOString(),
-    });
-
-    render(
-      <Provider>
-        <BottomConsole
-          queue={[queueRun]}
-          history={[historyRun]}
-          onClose={() => undefined}
-          onMoveRun={() => undefined}
-          onCancelRun={() => undefined}
-          onRetryRun={() => undefined}
-          onLoadRunWorkflow={() => undefined}
-          onDeleteHistoryEntry={() => undefined}
-          onClearQueue={() => undefined}
-          onClearHistory={() => undefined}
-        />
-      </Provider>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cola (1)' }));
-
-    expect(screen.getAllByText('pendiente').length).toBeGreaterThan(0);
-    expect(screen.getByText('Flujo de trabajo sin titulo')).toBeInTheDocument();
-    expect(screen.queryByText('Workflow sin titulo')).not.toBeInTheDocument();
-    expect(screen.getByText('0/2 nodos')).toBeInTheDocument();
-    expect(screen.getByText('1 ejecutando')).toBeInTheDocument();
-    expect(screen.getByText('1 pendiente')).toBeInTheDocument();
-    expect(screen.getByTitle('Mover antes')).toBeInTheDocument();
-    expect(screen.getByTitle('Mover despues')).toBeInTheDocument();
-    expect(screen.getByTitle('Cancelar ejecucion')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Limpiar cola' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }));
-
-    expect(screen.getByRole('searchbox', { name: 'Filtrar historial' })).toHaveAttribute('placeholder', 'Filtrar por nombre o ID de ejecucion');
-    expect(screen.getByRole('group', { name: 'Filtrar historial por estado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Todas/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Completadas/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Errores/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Canceladas/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Comparar ejecuciones' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Limpiar historial' })).toBeInTheDocument();
-    expect(screen.getByTitle('Cargar este flujo de trabajo en una pestana nueva')).toBeInTheDocument();
-    expect(screen.queryByTitle('Cargar este workflow en una pestana nueva')).not.toBeInTheDocument();
-    expect(screen.getByTitle('Reintentar ejecucion')).toBeInTheDocument();
-    expect(screen.getByTitle('Eliminar esta ejecucion del historial')).toBeInTheDocument();
-    expect(screen.getByText('Hoy')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Filtrar historial' }), {
-      target: { value: 'missing' },
-    });
-
-    expect(screen.getByText('Ninguna ejecucion coincide con el filtro actual.')).toBeInTheDocument();
-
-    const filters = screen.getByRole('group', { name: 'Filtrar historial por estado' });
-    fireEvent.click(within(filters).getByRole('button', { name: /Canceladas/ }));
-    expect(screen.getByText('Ninguna ejecucion coincide con el filtro actual.')).toBeInTheDocument();
-  });
-
-  it('uses the active locale for older same-year history month buckets', async () => {
-    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
-    const { setLanguage } = await import('../i18n');
-
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-07T12:00:00.000Z'));
-    await setLanguage('es');
-
-    const historyRun = runRecord({
-      run_id: 'history-run-may',
-      status: 'completed',
-      workflow_name: 'May workflow',
-      end_time: '2026-05-03T09:30:00.000Z',
-    });
-
-    render(
-      <Provider>
-        <BottomConsole
-          queue={[]}
-          history={[historyRun]}
-          onClose={() => undefined}
-        />
-      </Provider>,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Historial (1)' }));
-
-    expect(screen.getByText('mayo')).toBeInTheDocument();
-    expect(screen.getByText(new Date(historyRun.end_time!).toLocaleString('es'))).toBeInTheDocument();
-    expect(screen.queryByText('May')).not.toBeInTheDocument();
-  });
 });

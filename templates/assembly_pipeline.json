@@ -34,14 +34,24 @@
         ]
       },
       "ui": {
-        "title": "Input FASTQ"
+        "title": "Input FASTQ",
+        "validation": {
+          "outputs": {
+            "reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "fastp_001",
       "type": "fastp",
       "position": [
-        800,
+        440,
         80
       ],
       "params": {
@@ -52,27 +62,10 @@
       }
     },
     {
-      "id": "validate_reads_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "expected_format": "fastq",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate FASTQ Reads"
-      }
-    },
-    {
       "id": "spades_001",
       "type": "spades",
       "position": [
-        1880,
+        1520,
         80
       ],
       "params": {
@@ -86,7 +79,7 @@
       "id": "switch_assembler_001",
       "type": "switch",
       "position": [
-        1160,
+        800,
         80
       ],
       "params": {
@@ -103,7 +96,7 @@
       "id": "spades_retry_001",
       "type": "retry",
       "position": [
-        1520,
+        1160,
         80
       ],
       "params": {
@@ -122,8 +115,8 @@
       "id": "megahit_001",
       "type": "megahit",
       "position": [
-        1520,
-        500
+        1160,
+        261
       ],
       "params": {
         "threads": 8,
@@ -144,45 +137,47 @@
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
       },
       "ui": {
-        "title": "Reference (optional)"
+        "title": "Reference (optional)",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "quast_001",
       "type": "quast",
       "position": [
-        2960,
+        2600,
         80
       ],
       "params": {
         "threads": 4
       },
       "ui": {
-        "title": "Quast Assessment"
-      }
-    },
-    {
-      "id": "validate_reference_001",
-      "type": "data_validator",
-      "position": [
-        440,
-        546
-      ],
-      "params": {
-        "expected_format": "fasta",
-        "min_records": 1,
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Reference"
+        "title": "Quast Assessment",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "validate_assembly_001",
       "type": "data_validator",
       "position": [
-        2240,
+        1880,
         80
       ],
       "params": {
@@ -199,7 +194,7 @@
       "id": "gate_assembly_001",
       "type": "gate",
       "position": [
-        2600,
+        2240,
         80
       ],
       "params": {
@@ -215,21 +210,30 @@
       "id": "prokka_001",
       "type": "prokka",
       "position": [
-        2960,
+        2600,
         314
       ],
       "params": {
         "kingdom": "Bacteria"
       },
       "ui": {
-        "title": "Prokka Annotation"
+        "title": "Prokka Annotation",
+        "validation": {
+          "outputs": {
+            "gff": {
+              "expected_format": "text",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "assembly_stats_001",
       "type": "bp_seq_stats",
       "position": [
-        2960,
+        2600,
         780
       ],
       "params": {
@@ -243,7 +247,7 @@
       "id": "assembly_stats_chart_001",
       "type": "bar_chart",
       "position": [
-        3320,
+        2960,
         80
       ],
       "params": {
@@ -261,7 +265,7 @@
       "id": "assembly_contig_summary_001",
       "type": "aggregate",
       "position": [
-        3320,
+        2960,
         776
       ],
       "params": {
@@ -280,8 +284,8 @@
       "id": "html_preview_001",
       "type": "html_preview",
       "position": [
-        3680,
-        568
+        2960,
+        1196
       ],
       "params": {},
       "ui": {
@@ -289,42 +293,10 @@
       }
     },
     {
-      "id": "validate_quast_001",
-      "type": "data_validator",
-      "position": [
-        3320,
-        1196
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate QUAST Report"
-      }
-    },
-    {
-      "id": "validate_prokka_001",
-      "type": "data_validator",
-      "position": [
-        3320,
-        1662
-      ],
-      "params": {
-        "expected_format": "text",
-        "min_size_bytes": 1,
-        "fail_on_error": true
-      },
-      "ui": {
-        "title": "Validate Prokka GFF"
-      }
-    },
-    {
       "id": "assembly_report_001",
       "type": "html_report",
       "position": [
-        3680,
+        3320,
         80
       ],
       "params": {
@@ -340,7 +312,7 @@
       "id": "assembly_report_preview_001",
       "type": "html_preview",
       "position": [
-        4040,
+        3680,
         80
       ],
       "params": {},
@@ -351,21 +323,10 @@
   ],
   "edges": [
     {
-      "id": "e1",
+      "id": "e1a",
       "from": {
         "node": "reads_001",
         "output": "reads"
-      },
-      "to": {
-        "node": "validate_reads_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e1a",
-      "from": {
-        "node": "validate_reads_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "fastp_001",
@@ -439,17 +400,6 @@
       }
     },
     {
-      "id": "e4",
-      "from": {
-        "node": "ref_001",
-        "output": "reference"
-      },
-      "to": {
-        "node": "validate_reference_001",
-        "input": "input"
-      }
-    },
-    {
       "id": "e5",
       "from": {
         "node": "validate_assembly_001",
@@ -516,32 +466,10 @@
       }
     },
     {
-      "id": "e7",
-      "from": {
-        "node": "quast_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "validate_quast_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e8",
+      "id": "e8a",
       "from": {
         "node": "prokka_001",
         "output": "gff"
-      },
-      "to": {
-        "node": "validate_prokka_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e8a",
-      "from": {
-        "node": "validate_prokka_001",
-        "output": "passthrough"
       },
       "to": {
         "node": "assembly_report_001",
@@ -584,8 +512,8 @@
     {
       "id": "e9",
       "from": {
-        "node": "validate_quast_001",
-        "output": "passthrough"
+        "node": "quast_001",
+        "output": "report"
       },
       "to": {
         "node": "html_preview_001",
@@ -595,8 +523,8 @@
     {
       "id": "e9a",
       "from": {
-        "node": "validate_quast_001",
-        "output": "passthrough"
+        "node": "quast_001",
+        "output": "report"
       },
       "to": {
         "node": "assembly_report_001",
@@ -606,8 +534,8 @@
     {
       "id": "e10",
       "from": {
-        "node": "validate_reference_001",
-        "output": "passthrough"
+        "node": "ref_001",
+        "output": "reference"
       },
       "to": {
         "node": "quast_001",
@@ -634,10 +562,10 @@
     "megahit_assembly": "megahit_001",
     "validated_assembly": "validate_assembly_001",
     "assembly_quality_gate": "gate_assembly_001",
-    "validated_reads": "validate_reads_001",
-    "validated_reference": "validate_reference_001",
-    "validated_quast_report": "validate_quast_001",
-    "validated_prokka_annotation": "validate_prokka_001",
+    "validated_reads": "reads_001",
+    "validated_reference": "ref_001",
+    "validated_quast_report": "quast_001",
+    "validated_prokka_annotation": "prokka_001",
     "assembly_stats": "assembly_stats_001",
     "assembly_stats_chart": "assembly_stats_chart_001",
     "assembly_contig_summary": "assembly_contig_summary_001",

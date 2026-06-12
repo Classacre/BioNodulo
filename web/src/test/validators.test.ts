@@ -144,10 +144,20 @@ describe('validateRunRecord', () => {
     const r = validateRunRecord({
       run_id: 'r1',
       status: 'completed',
+      execution_plan: ['input', 'qc'],
       extra: 'ignored',
     });
     expect(r.run_id).toBe('r1');
     expect(r.status).toBe('completed');
+    expect(r.execution_plan).toEqual(['input', 'qc']);
+  });
+
+  it('normalizes backend failed status for frontend run cards', () => {
+    const r = validateRunRecord({
+      run_id: 'r1',
+      status: 'failed',
+    });
+    expect(r.status).toBe('error');
   });
 
   it('throws on missing run_id', () => {
