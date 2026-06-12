@@ -201,3 +201,58 @@ Ordered for value × confidence; each lands green and committed.
 7. **Reference-prep + tabix nodes + tool-version pinning + real HPC DAG submission**. *(L)*
 
 See per-area sections above for exact `file:line` anchors.
+
+---
+
+## Progress log (optimbionodulo)
+
+Done and committed on this branch (full backend suite 1463 passing; frontend
+431 passing; `tsc --noEmit` clean):
+
+1. **Audit synthesis** — this document.
+2. **Correctness fixes** — CWL export uses `sys.executable` (unblocked 5 failing
+   tests); cuteSV reference made positional + dropped invalid `--genome`; BWA-MEM
+   flags moved before positionals; sync `node.run()` now runs via
+   `asyncio.to_thread` so it can't stall the event loop.
+3. **Parallel DAG scheduler** — `WorkflowExecutor.execute` replaced the serial
+   loop with a bounded-concurrency ready-set scheduler (`max_workers`, default
+   4). Independent branches run concurrently; chains still serialize (tested).
+4. **Content-addressed cache** — keys now fold input/param file fingerprints
+   (`content_hashing`: fast/strong/off) + node version, so in-place edits
+   invalidate (tested). Was a stale-result correctness hole.
+5. **Autonomous AI agent** — new tools: run_workflow, get_run_status,
+   read_run_logs, retry_run, get_run_history, search_literature (PubMed),
+   write_custom_node, read_workspace_file, download_dataset (ENA/URL). Async-aware
+   tool execution; dropped the trivial LangChain wrapper; model defaults
+   refreshed; tool-round budget 6→12. End-to-end test: the agent runs a failing
+   workflow, fixes it, and re-runs to success in one turn.
+6. **Paper-reproduction orchestrator** — `bionodulo/ai/orchestrator.py`: parse →
+   parallel dataset + node-author sub-agents → build → run/auto-debug → verify,
+   with `POST /ai/reproduce-paper`. Orchestration unit-tested with injected
+   fakes (no live model).
+7. **Security hardening** — SSRF egress guard (`core/netguard.py`) on http_request
+   + download_dataset; CORS honors `--cors-origins` and no longer ships
+   `*`+credentials; `POST /workspace/root` constrained to the home tree.
+8. **Frontend** — `WorkflowCanvas` wrapped in `React.memo`; added the missing
+   inspector command-palette entry; fixed two pre-existing failing test files.
+
+## Remaining high-value follow-ups (not yet done)
+
+- **Execution:** decompose the 3,300-line `executor.py`; add subprocess
+  resource limits (rlimit/cgroup); build adjacency once instead of per-call.
+- **Bioinformatics:** add reference-prep nodes (`samtools faidx`, GATK
+  `CreateSequenceDictionary`) and auto-`tabix` for `VCF_GZ`; tool-specific index
+  types; feed node `VERSION` into the pixi manifest as exact pins.
+- **HPC:** real per-node DAG→job submission with `afterok` dependency chaining
+  (the biggest gap vs Snakemake/Nextflow); the `submit_job(dependency=...)`
+  primitive already exists but is never used by the executor.
+- **Converters:** replace the regex Snakemake/Nextflow importers with real
+  parsers (or scope them honestly); preserve port-level edges.
+- **API/security:** decide the auth-gating model for execution/mutation/file
+  routes independent of `collab.enabled`; replace the no-credential token mint;
+  move LLM secrets off the plaintext settings JSON; pin/verify the pixi
+  installer download.
+- **Frontend:** enable the React Compiler; memoize + cull the per-node DOM widget
+  overlay; decompose `App.tsx` (collab/history/run/commands/subgraph hooks);
+  pick one of Tailwind vs the 4k-line `index.css`; lazy-load i18n locales.
+
