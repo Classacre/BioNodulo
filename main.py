@@ -40,6 +40,7 @@ def main() -> None:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
     os.environ["BIONODULO_HOST"] = args.host
     os.environ["BIONODULO_PORT"] = str(args.port)
+    os.environ["BIONODULO_CORS_ORIGINS"] = args.cors_origins
 
     # Ensure project root exists
     root = ensure_workspace_root(project_dir)

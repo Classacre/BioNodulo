@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -152,11 +153,33 @@ def create_app() -> FastAPI:
     app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(ProxyPrefixMiddleware)
 
-    # CORS
+    # CORS. A wildcard origin with credentials lets any website drive the API
+    # via the user's browser, so honor --cors-origins (BIONODULO_CORS_ORIGINS)
+    # and default to same-origin + local dev origins rather than "*".
+    cors_env = os.environ.get("BIONODULO_CORS_ORIGINS", "").strip()
+    if cors_env and cors_env != "*":
+        cors_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+        cors_allow_credentials = True
+    elif cors_env == "*":
+        # Explicit opt-in to a wide-open API: browsers forbid "*" + credentials,
+        # so credentials are disabled in that mode.
+        cors_origins = ["*"]
+        cors_allow_credentials = False
+    else:
+        host = os.environ.get("BIONODULO_HOST", "127.0.0.1")
+        port = os.environ.get("BIONODULO_PORT", "8000")
+        cors_origins = [
+            f"http://{host}:{port}",
+            f"http://localhost:{port}",
+            f"http://127.0.0.1:{port}",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+        cors_allow_credentials = True
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=cors_origins,
+        allow_credentials=cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )

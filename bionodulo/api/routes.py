@@ -1161,7 +1161,12 @@ async def get_workspace_root(request: Request) -> dict[str, str]:
 async def set_workspace_root(
     request: Request, body: WorkspaceRootRequest
 ) -> dict[str, str]:
-    """Set a new workspace root directory."""
+    """Set a new workspace root directory.
+
+    Constrained to the user's home directory tree (or BIONODULO_ROOT_BASE) so a
+    caller cannot repoint the root at "/" or a system directory and then read or
+    write arbitrary files through the workspace file endpoints.
+    """
     new_root = Path(body.path).resolve()
     if not new_root.exists():
         raise HTTPException(
@@ -1169,6 +1174,15 @@ async def set_workspace_root(
         )
     if not new_root.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: \\\'{body.path}\\\'")
+
+    allowed_base = Path(os.environ.get("BIONODULO_ROOT_BASE", str(Path.home()))).resolve()
+    try:
+        new_root.relative_to(allowed_base)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Workspace root must be inside {allowed_base}",
+        )
 
     settings = _get_settings(request)
     settings.project_root = new_root

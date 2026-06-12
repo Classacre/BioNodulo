@@ -82,3 +82,48 @@ def test_assistant_graph_is_compiled_once() -> None:
     from bionodulo.ai.assistant import _compiled_assistant_graph
 
     assert _compiled_assistant_graph() is _compiled_assistant_graph()
+
+
+def test_netguard_blocks_internal_addresses_and_allows_public():
+    from bionodulo.core.netguard import assert_safe_url
+
+    for blocked in (
+        "http://127.0.0.1/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://10.0.0.5/secret",
+        "http://[::1]/",
+        "ftp://127.0.0.1/",
+    ):
+        with pytest.raises(ValueError):
+            assert_safe_url(blocked)
+
+    # A public IP literal is allowed (no DNS needed for the test).
+    assert_safe_url("http://8.8.8.8/")
+    # Private egress is permitted only when explicitly opted in.
+    assert_safe_url("http://10.0.0.5/", allow_private=True)
+
+
+@pytest.mark.asyncio
+async def test_download_dataset_tool_blocks_ssrf(tmp_path):
+    from types import SimpleNamespace
+
+    from bionodulo.ai.tools import ToolContext, aexecute_tool
+
+    ctx = ToolContext(workflow={}, settings=SimpleNamespace(project_root=tmp_path))
+    result = await aexecute_tool(
+        "download_dataset", {"source": "http://169.254.169.254/latest/meta-data/"}, ctx
+    )
+    assert result["status"] == "error"
+
+
+def test_set_workspace_root_rejects_paths_outside_base(tmp_path, monkeypatch):
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT_BASE", str(tmp_path))
+    allowed = tmp_path / "ws"
+    allowed.mkdir()
+    with TestClient(create_app()) as client:
+        ok = client.post("/api/workspace/root", json={"path": str(allowed)})
+        assert ok.status_code == 200
+        bad = client.post("/api/workspace/root", json={"path": "/"})
+        assert bad.status_code == 403

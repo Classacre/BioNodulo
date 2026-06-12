@@ -198,6 +198,9 @@ class HTTPRequestNode(BaseNode):
         url = str(kwargs.get("url", "") or "").strip()
         if not url.startswith(("http://", "https://")):
             raise ValueError("HTTP Request requires an http:// or https:// URL")
+        from bionodulo.core.netguard import assert_safe_url
+
+        assert_safe_url(url)  # SSRF guard: block loopback/link-local/private hosts
         method = str(kwargs.get("method", "GET") or "GET").upper()
         if method not in HTTP_METHODS:
             raise ValueError(f"Unsupported HTTP method: {method}")

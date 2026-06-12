@@ -910,6 +910,12 @@ async def _download_dataset(
         if not url.startswith(("http://", "https://", "ftp://")):
             return {"error": f"Unsupported URL scheme: {url}"}
         fetch_url = url.replace("ftp://", "https://", 1) if url.startswith("ftp://") else url
+        from bionodulo.core.netguard import assert_safe_url
+
+        try:
+            assert_safe_url(fetch_url)  # SSRF guard
+        except ValueError as exc:
+            return {"error": str(exc)}
         name = dest_name or fetch_url.rstrip("/").split("/")[-1] or "download.dat"
         safe_name = "".join(ch if ch.isalnum() or ch in ("_", "-", ".") else "_" for ch in name)
         target = data_dir / safe_name
