@@ -30,6 +30,9 @@ class ExecutionSettings:
     cache_ttl_seconds: int = 86400
     env_isolation: str = "auto"
     timeout_seconds: int = 3600
+    # How node input files are fingerprinted for the result cache:
+    # "fast" (size+mtime), "strong" (sha256 of contents), or "off" (path-only).
+    content_hashing: str = "fast"
 
 
 @dataclass

@@ -194,6 +194,16 @@ class WorkflowExecutor:
             value = 4
         return max(1, value)
 
+    def _cache_hash_mode(self) -> str:
+        """Input-file fingerprint mode for cache keys: 'fast', 'strong', or 'off'.
+
+        Sourced from ``settings.execution.content_hashing`` (default 'fast').
+        """
+        execution = getattr(self.settings, "execution", None) if self.settings is not None else None
+        mode = getattr(execution, "content_hashing", None) if execution is not None else None
+        mode = str(mode).lower() if mode is not None else "fast"
+        return mode if mode in {"fast", "strong", "off"} else "fast"
+
     @staticmethod
     async def _drive_node_scheduler(
         *,
@@ -607,12 +617,19 @@ class WorkflowExecutor:
                     or self._executor_cache_policy(_node_class) == "always_run"
                 )
                 if not forced_node:
+                    hash_mode = self._cache_hash_mode()
+                    input_fingerprints = {
+                        **{f"in:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_inputs, hash_mode).items()},
+                        **{f"param:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_params, hash_mode).items()},
+                    }
                     cache_key = self.cache.cache_key_for_node(
                         node_id=node_id,
                         node_type=node_type,
                         params=resolved_params,
                         inputs=resolved_inputs,
                         upstream_keys=upstream_keys,
+                        tool_version=getattr(_node_class, "VERSION", None),
+                        input_fingerprints=input_fingerprints,
                     )
                 node_cache_keys[node_id] = cache_key
 

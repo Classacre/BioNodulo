@@ -79,6 +79,8 @@ class CacheStore:
         params: dict[str, Any],
         inputs: dict[str, Any],
         upstream_keys: dict[str, str | None],
+        tool_version: str | None = None,
+        input_fingerprints: dict[str, Any] | None = None,
     ) -> str:
         """Generate a deterministic cache key for a node execution.
 
@@ -88,6 +90,11 @@ class CacheStore:
         - ``params`` (sorted JSON)
         - ``inputs`` (sorted JSON of resolved input values)
         - ``upstream_keys`` (sorted mapping of input edge to upstream cache key)
+        - ``tool_version`` (the node's declared version, when provided, so a
+          node-implementation change invalidates stale results)
+        - ``input_fingerprints`` (content fingerprints of input *files*, so the
+          cache is content-addressed rather than path-addressed — editing a
+          file in place no longer yields a false hit)
 
         Args:
             node_id: Unique node identifier (for logging, not part of key).
@@ -96,22 +103,91 @@ class CacheStore:
             inputs: Resolved input values from upstream nodes.
             upstream_keys: Mapping from input edge name to the cache key of
                 the upstream node that produced it (or *None*).
+            tool_version: Optional node/tool version string.
+            input_fingerprints: Optional mapping of input identifier to a
+                content fingerprint (see :meth:`fingerprint_inputs`).
 
         Returns:
             A 64-character hex SHA-256 string.
         """
+        key_obj: dict[str, Any] = {
+            "node_type": node_type,
+            "params": _sorted_json(params),
+            "inputs": _sorted_json(inputs),
+            "upstream_keys": _sorted_json(upstream_keys),
+        }
+        # Only add the newer fields when present so keys (and unit tests that
+        # call this directly without them) stay stable for path-only inputs.
+        if tool_version is not None:
+            key_obj["tool_version"] = tool_version
+        if input_fingerprints:
+            key_obj["input_fingerprints"] = _sorted_json(input_fingerprints)
         payload = json.dumps(
-            {
-                "node_type": node_type,
-                "params": _sorted_json(params),
-                "inputs": _sorted_json(inputs),
-                "upstream_keys": _sorted_json(upstream_keys),
-            },
+            key_obj,
             sort_keys=True,
             ensure_ascii=True,
             separators=(",", ":"),
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def fingerprint_inputs(values: dict[str, Any] | None, mode: str = "fast") -> dict[str, str]:
+        """Map any input value that resolves to an existing file to a fingerprint.
+
+        ``mode`` selects the trade-off:
+        - ``"fast"`` (default): ``size`` + ``mtime_ns`` — cheap, like make /
+          Snakemake's default. Detects in-place edits without reading the file.
+        - ``"strong"``: a SHA-256 of the file contents — robust against
+          mtime-only changes, but reads every input (can be slow for the large
+          files common in bioinformatics).
+        - ``"off"``: no fingerprinting (legacy path-only behaviour).
+
+        Nested lists/tuples/dicts are walked so multi-file ports are covered.
+        """
+        if not values or mode == "off":
+            return {}
+
+        result: dict[str, str] = {}
+
+        def _fingerprint(path: str) -> str | None:
+            try:
+                stat = os.stat(path)
+            except OSError:
+                return None
+            if mode == "strong":
+                try:
+                    digest = hashlib.sha256()
+                    with open(path, "rb") as handle:
+                        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                            digest.update(chunk)
+                    return f"sha256:{digest.hexdigest()}"
+                except OSError:
+                    return None
+            return f"fast:{stat.st_size}:{stat.st_mtime_ns}"
+
+        def _walk(prefix: str, value: Any) -> None:
+            if isinstance(value, str):
+                # Bound the length so we never stat absurd blobs, and only treat
+                # values that are actually existing files as content inputs.
+                if value and len(value) < 4096:
+                    try:
+                        is_file = os.path.isfile(value)
+                    except (OSError, ValueError):
+                        is_file = False
+                    if is_file:
+                        fingerprint = _fingerprint(value)
+                        if fingerprint is not None:
+                            result[prefix] = fingerprint
+            elif isinstance(value, (list, tuple)):
+                for index, item in enumerate(value):
+                    _walk(f"{prefix}[{index}]", item)
+            elif isinstance(value, dict):
+                for key, item in value.items():
+                    _walk(f"{prefix}.{key}", item)
+
+        for key, value in values.items():
+            _walk(str(key), value)
+        return result
 
     def is_hit(self, cache_key: str) -> bool:
         """Return *True* if a non-expired cached result exists for *cache_key*."""

@@ -2091,3 +2091,53 @@ async def test_executor_serializes_chained_nodes(tmp_path: Path) -> None:
 
     assert result["status"] == "completed"
     assert state["peak"] == 1
+
+
+@pytest.mark.asyncio
+async def test_executor_cache_is_content_addressed(tmp_path: Path) -> None:
+    """Editing an input file in place must invalidate the cache.
+
+    Previously the key used only the input *path*, so a changed-but-same-path
+    file produced a false cache hit and a stale (scientifically wrong) result.
+    """
+    data_file = tmp_path / "input.txt"
+    data_file.write_text("v1")
+
+    class ReaderNode:
+        RETURN_NAMES = ("content",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"path": ("FILE", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, path: Any = None, **_: Any) -> dict[str, Any]:
+            return {"outputs": {"content": "ok"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"reader": ReaderNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {
+                "id": "r",
+                "type": "reader",
+                "inputs": {"path": {"value": str(data_file)}},
+                "outputs": {"content": {}},
+            }
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    first = await executor.execute("run1", workflow)
+    assert first["node_results"]["r"]["status"] == "completed"
+
+    # Unchanged file -> cache hit.
+    second = await executor.execute("run2", workflow)
+    assert second["node_results"]["r"]["status"] == "cached"
+
+    # Changed contents at the same path -> cache miss, node re-runs.
+    data_file.write_text("v2-different-contents")
+    third = await executor.execute("run3", workflow)
+    assert third["node_results"]["r"]["status"] == "completed"
