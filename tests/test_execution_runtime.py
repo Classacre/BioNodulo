@@ -2005,3 +2005,89 @@ def test_arq_execution_backend_is_opt_in(monkeypatch) -> None:
     assert isinstance(wrapped, ArqWorkflowExecutor)
     assert str(wrapped.workspace_dir) == "workspace"
     assert str(wrapped.cache_dir) == "cache"
+
+
+@pytest.mark.asyncio
+async def test_executor_runs_independent_nodes_concurrently(tmp_path: Path) -> None:
+    """Independent DAG branches must overlap under the parallel scheduler.
+
+    The old serial executor processed nodes one at a time, so the peak number
+    of simultaneously-running nodes would always be 1. Three unconnected nodes
+    should now run together.
+    """
+    state = {"active": 0, "peak": 0}
+
+    class SleepNode:
+        RETURN_NAMES = ("done",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any = None, **_: Any) -> dict[str, Any]:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+            await asyncio.sleep(0.15)
+            state["active"] -= 1
+            return {"outputs": {"done": "ok"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"sleep_node": SleepNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "a", "type": "sleep_node"},
+            {"id": "b", "type": "sleep_node"},
+            {"id": "c", "type": "sleep_node"},
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("concurrent-run", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert state["peak"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_executor_serializes_chained_nodes(tmp_path: Path) -> None:
+    """A linear chain A->B->C must never overlap regardless of max_workers."""
+    state = {"active": 0, "peak": 0}
+
+    class ChainNode:
+        RETURN_NAMES = ("value",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {"value": ("STRING", {})}, "hidden": {}}
+
+        async def run(self, context: Any = None, **_: Any) -> dict[str, Any]:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+            await asyncio.sleep(0.05)
+            state["active"] -= 1
+            return {"outputs": {"value": "ok"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"chain_node": ChainNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "a", "type": "chain_node"},
+            {"id": "b", "type": "chain_node"},
+            {"id": "c", "type": "chain_node"},
+        ],
+        "edges": [
+            {"source": "a", "sourceHandle": "value", "target": "b", "targetHandle": "value"},
+            {"source": "b", "sourceHandle": "value", "target": "c", "targetHandle": "value"},
+        ],
+    }
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+
+    result = await executor.execute("chain-run", workflow, force=True)
+
+    assert result["status"] == "completed"
+    assert state["peak"] == 1

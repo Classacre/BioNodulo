@@ -179,6 +179,85 @@ class WorkflowExecutor:
         option_secrets = options.get("api_secrets", {})
         return merge_api_secrets(configured, option_secrets if isinstance(option_secrets, dict) else {})
 
+    def _max_parallel_nodes(self) -> int:
+        """Maximum number of nodes to execute concurrently within one run.
+
+        Sourced from ``settings.execution.max_workers`` (default 4). Independent
+        branches of the DAG run in parallel up to this bound; set to 1 to recover
+        fully serial execution.
+        """
+        execution = getattr(self.settings, "execution", None) if self.settings is not None else None
+        raw = getattr(execution, "max_workers", None) if execution is not None else None
+        try:
+            value = int(raw) if raw is not None else 4
+        except (TypeError, ValueError):
+            value = 4
+        return max(1, value)
+
+    @staticmethod
+    async def _drive_node_scheduler(
+        *,
+        execution_order: list[str],
+        upstream_of: dict[str, list[str]],
+        downstream_of: dict[str, list[str]],
+        run_node: Callable[[int, str], Any],
+        cancel_event: asyncio.Event,
+        max_parallel: int,
+    ) -> None:
+        """Execute nodes with bounded concurrency while honouring the DAG.
+
+        A node is dispatched only once every one of its predecessors has finished
+        processing, so the per-node body still sees complete upstream state.
+        Independent branches run concurrently up to ``max_parallel``. When
+        ``run_node`` returns ``"stop"`` (a blocking failure or cancellation) no
+        further nodes are dispatched; already in-flight nodes are awaited to
+        completion rather than abandoned.
+        """
+        idx_of = {node_id: i for i, node_id in enumerate(execution_order)}
+        indegree = {
+            node_id: len(set(upstream_of.get(node_id, ())))
+            for node_id in execution_order
+        }
+        successors = {
+            node_id: list(dict.fromkeys(downstream_of.get(node_id, ())))
+            for node_id in execution_order
+        }
+        ready: deque[str] = deque(
+            node_id for node_id in execution_order if indegree.get(node_id, 0) == 0
+        )
+        sem = asyncio.Semaphore(max(1, max_parallel))
+        stop = False
+
+        async def _guarded(node_id: str) -> tuple[str, str]:
+            async with sem:
+                if stop or cancel_event.is_set():
+                    return ("stop", node_id)
+                outcome = await run_node(idx_of[node_id], node_id)
+                return (outcome, node_id)
+
+        pending: set[asyncio.Task[tuple[str, str]]] = set()
+        while True:
+            while ready and not stop:
+                pending.add(asyncio.create_task(_guarded(ready.popleft())))
+            if not pending:
+                break
+            finished, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in finished:
+                outcome, node_id = task.result()
+                if outcome == "stop":
+                    stop = True
+                    continue
+                for succ in successors.get(node_id, ()):  # newly satisfiable nodes
+                    indegree[succ] -= 1
+                    if indegree[succ] == 0:
+                        ready.append(succ)
+            if stop:
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                break
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -373,177 +452,254 @@ class WorkflowExecutor:
 
         stop_on_error = options.get("stop_on_error", True)
 
-        for idx, node_id in enumerate(execution_order):
-            if cancel_event.is_set():
-                emit("cancelled", {"run_id": run_id, "node_id": node_id})
-                return {
-                    "status": "cancelled",
-                    "node_results": node_results,
-                    "cancelled_at": node_id,
-                }
+        cancelled_holder: dict[str, str | None] = {}
 
-            if node_id in skipped_nodes and node_id in node_results:
-                continue
+        async def _run_node(idx: int, node_id: str) -> str:
+            """Process one node; return 'done' to keep scheduling or
+            'stop' to halt (blocking failure or cancellation). The single-pass
+            ``for`` loop lets the original body keep its ``continue``/``break``
+            control flow unchanged."""
+            should_stop = False
+            for _scheduler_pass in (0,):
+                if cancel_event.is_set():
+                    emit("cancelled", {"run_id": run_id, "node_id": node_id})
+                    cancelled_holder.setdefault("at", node_id)
+                    should_stop = True
+                    break
 
-            node = nodes[node_id]
-            node_type = node.get("type", "unknown")
-            node_meta = node.get("meta", {})
+                if node_id in skipped_nodes and node_id in node_results:
+                    continue
 
-            if resume_checkpoint and node_id == resume_node_id:
+                node = nodes[node_id]
+                node_type = node.get("type", "unknown")
+                node_meta = node.get("meta", {})
+
+                if resume_checkpoint and node_id == resume_node_id:
+                    emit(
+                        "node_resume",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "checkpoint": resume_checkpoint,
+                            "outputs": resume_outputs,
+                        },
+                    )
+                    node_results[node_id] = {
+                        "status": "resumed",
+                        "outputs": resume_outputs,
+                        "checkpoint": resume_checkpoint,
+                    }
+                    node_outputs[node_id] = resume_outputs
+                    node_cache_keys[node_id] = None
+                    run_metadata["nodes"][node_id] = {
+                        "type": node_type,
+                        "status": "resumed",
+                        "cache_key": None,
+                    }
+                    continue
+
                 emit(
-                    "node_resume",
+                    "node_start",
                     {
                         "run_id": run_id,
                         "node_id": node_id,
-                        "checkpoint": resume_checkpoint,
-                        "outputs": resume_outputs,
+                        "node_type": node_type,
+                        "progress": f"{idx + 1}/{len(execution_order)}",
                     },
                 )
-                node_results[node_id] = {
-                    "status": "resumed",
-                    "outputs": resume_outputs,
-                    "checkpoint": resume_checkpoint,
-                }
-                node_outputs[node_id] = resume_outputs
-                node_cache_keys[node_id] = None
-                run_metadata["nodes"][node_id] = {
-                    "type": node_type,
-                    "status": "resumed",
-                    "cache_key": None,
-                }
-                continue
 
-            emit(
-                "node_start",
-                {
-                    "run_id": run_id,
-                    "node_id": node_id,
-                    "node_type": node_type,
-                    "progress": f"{idx + 1}/{len(execution_order)}",
-                },
-            )
+                # ---- Muted node: skip execution entirely ----
+                if node_meta.get("muted"):
+                    emit(
+                        "node_skip",
+                        {"run_id": run_id, "node_id": node_id, "reason": "muted"},
+                    )
+                    node_results[node_id] = {"status": "muted"}
+                    skipped_nodes.add(node_id)
+                    continue
 
-            # ---- Muted node: skip execution entirely ----
-            if node_meta.get("muted"):
-                emit(
-                    "node_skip",
-                    {"run_id": run_id, "node_id": node_id, "reason": "muted"},
+                inactive_upstream = self._inactive_upstream(
+                    node_id,
+                    edge_map,
+                    skipped_nodes,
+                    node_inactive_outputs,
+                    self._node_class_for(node),
                 )
-                node_results[node_id] = {"status": "muted"}
-                skipped_nodes.add(node_id)
-                continue
-
-            inactive_upstream = self._inactive_upstream(
-                node_id,
-                edge_map,
-                skipped_nodes,
-                node_inactive_outputs,
-                self._node_class_for(node),
-            )
-            if inactive_upstream is not None:
-                emit(
-                    "node_skip",
-                    {
-                        "run_id": run_id,
-                        "node_id": node_id,
+                if inactive_upstream is not None:
+                    emit(
+                        "node_skip",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "reason": "inactive_branch",
+                            "upstream": inactive_upstream,
+                        },
+                    )
+                    node_results[node_id] = {
+                        "status": "skipped",
                         "reason": "inactive_branch",
                         "upstream": inactive_upstream,
-                    },
-                )
-                node_results[node_id] = {
-                    "status": "skipped",
-                    "reason": "inactive_branch",
-                    "upstream": inactive_upstream,
-                }
-                skipped_nodes.add(node_id)
-                continue
+                    }
+                    skipped_nodes.add(node_id)
+                    continue
 
-            # ---- Bypassed node: pass inputs through to outputs ----
-            if node_meta.get("bypassed"):
-                bypass_outputs = self._bypass_outputs(node_id, node, edge_map)
-                emit(
-                    "node_bypass",
-                    {
-                        "run_id": run_id,
-                        "node_id": node_id,
+                # ---- Bypassed node: pass inputs through to outputs ----
+                if node_meta.get("bypassed"):
+                    bypass_outputs = self._bypass_outputs(node_id, node, edge_map)
+                    emit(
+                        "node_bypass",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "outputs": bypass_outputs,
+                        },
+                    )
+                    node_results[node_id] = {
+                        "status": "bypassed",
                         "outputs": bypass_outputs,
-                    },
+                    }
+                    node_outputs[node_id] = bypass_outputs
+                    continue
+
+                # ---- Resolve inputs from upstream nodes ----
+                try:
+                    resolved_inputs = self._resolve_inputs(
+                        node_id, node, edge_map, node_outputs, workflow_parameters
+                    )
+                except Exception as exc:
+                    msg = f"Input resolution failed for {node_id}: {exc}"
+                    # Emit `node_error` (not the generic `error`) so the frontend
+                    # WS handler can flip the node's status to 'error' and the
+                    # canvas border switches from green to red. The earlier
+                    # `error` event was a queue-level signal and never updated
+                    # per-node status.
+                    emit("node_error", {"run_id": run_id, "node_id": node_id, "error": msg})
+                    node_results[node_id] = {"status": "failed", "error": msg}
+                    failed_nodes.add(node_id)
+                    if stop_on_error:
+                        should_stop = True
+                        break
+                    continue
+
+                # ---- Fill parameter defaults ----
+                _node_class = node.get("_node_class")
+                if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
+                    _node_class = self.registry.get(str(node.get("type", "unknown")))
+                resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
+                executes_loop_body = self._executes_loop_body(_node_class)
+                executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
+
+                # ---- Build upstream cache key map ----
+                upstream_keys: dict[str, str | None] = {}
+                for edge in edge_map.get(node_id, []):
+                    src = edge_source(edge)
+                    src_port = edge_source_port(edge)
+                    tgt_port = edge_target_port(edge)
+                    upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
+
+                # ---- Compute cache key ----
+                cache_key = None
+                forced_node = (
+                    force
+                    or node_id in force_nodes
+                    or executes_loop_body
+                    or executes_try_catch_branches
+                    or self._executor_cache_policy(_node_class) == "always_run"
                 )
-                node_results[node_id] = {
-                    "status": "bypassed",
-                    "outputs": bypass_outputs,
-                }
-                node_outputs[node_id] = bypass_outputs
-                continue
+                if not forced_node:
+                    cache_key = self.cache.cache_key_for_node(
+                        node_id=node_id,
+                        node_type=node_type,
+                        params=resolved_params,
+                        inputs=resolved_inputs,
+                        upstream_keys=upstream_keys,
+                    )
+                node_cache_keys[node_id] = cache_key
 
-            # ---- Resolve inputs from upstream nodes ----
-            try:
-                resolved_inputs = self._resolve_inputs(
-                    node_id, node, edge_map, node_outputs, workflow_parameters
-                )
-            except Exception as exc:
-                msg = f"Input resolution failed for {node_id}: {exc}"
-                # Emit `node_error` (not the generic `error`) so the frontend
-                # WS handler can flip the node's status to 'error' and the
-                # canvas border switches from green to red. The earlier
-                # `error` event was a queue-level signal and never updated
-                # per-node status.
-                emit("node_error", {"run_id": run_id, "node_id": node_id, "error": msg})
-                node_results[node_id] = {"status": "failed", "error": msg}
-                failed_nodes.add(node_id)
-                if stop_on_error:
-                    break
-                continue
+                # ---- Prepare node working directory and environment prefix ----
+                node_dir = self.workspace_dir / "runs" / run_id / node_id
+                node_dir.mkdir(parents=True, exist_ok=True)
 
-            # ---- Fill parameter defaults ----
-            _node_class = node.get("_node_class")
-            if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
-                _node_class = self.registry.get(str(node.get("type", "unknown")))
-            resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
-            executes_loop_body = self._executes_loop_body(_node_class)
-            executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
+                env_prefix: list[str] = []
+                isolation = getattr(self.settings, "execution", None)
+                isolation_mode = getattr(isolation, "env_isolation", "auto") if isolation else "auto"
+                if isolation_mode in ("auto", "always"):
+                    env_prefix = self._env_prefix_for_node(node, workflow)
 
-            # ---- Build upstream cache key map ----
-            upstream_keys: dict[str, str | None] = {}
-            for edge in edge_map.get(node_id, []):
-                src = edge_source(edge)
-                src_port = edge_source_port(edge)
-                tgt_port = edge_target_port(edge)
-                upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
+                # ---- Cache hit check ----
+                if cache_key is not None and self.cache.is_hit(cache_key):
+                    marker = self.cache.read_marker(cache_key)
+                    cached_outputs = marker.get("outputs", {}) if marker else {}
+                    ctx = ExecutionContext(
+                        run_id=run_id,
+                        node_id=node_id,
+                        node_type=node_type,
+                        node_dir=node_dir,
+                        workspace_dir=self.workspace_dir,
+                        params=resolved_params,
+                        api_secrets=self._api_secrets_for_options(options),
+                        emit=emit,
+                        cancel_event=cancel_event,
+                        env_prefix=env_prefix,
+                        run_metadata=run_metadata,
+                        executor=self,
+                        registry=self.registry,
+                    )
+                    cached_outputs = await self._apply_inline_output_validations(
+                        ctx=ctx,
+                        node=node,
+                        outputs=cached_outputs,
+                    )
+                    inactive_outputs = self._inactive_output_ports(
+                        marker or {},
+                        cached_outputs,
+                        _node_class,
+                    )
+                    if inactive_outputs:
+                        node_inactive_outputs[node_id] = inactive_outputs
+                    self._apply_skip_downstream(
+                        run_id,
+                        node_id,
+                        marker or {},
+                        _node_class,
+                        nodes,
+                        node_results,
+                        skipped_nodes,
+                        emit,
+                    )
+                    emit(
+                        "node_cache_hit",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "cache_key": cache_key,
+                            "outputs": cached_outputs,
+                        },
+                    )
+                    node_results[node_id] = {
+                        "status": "cached",
+                        "cache_key": cache_key,
+                        "outputs": cached_outputs,
+                    }
+                    node_outputs[node_id] = cached_outputs
+                    # Collect previews from cached outputs too
+                    for port, path in cached_outputs.items():
+                        paths = path if isinstance(path, (list, tuple)) else [path]
+                        for p_str in paths:
+                            if not isinstance(p_str, (str, Path)):
+                                continue
+                            p = Path(p_str)
+                            if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
+                                previews.append(
+                                    {
+                                        "path": str(p),
+                                        "label": f"{node_id}/{port}",
+                                        "node_id": node_id,
+                                    }
+                                )
+                    continue
 
-            # ---- Compute cache key ----
-            cache_key = None
-            forced_node = (
-                force
-                or node_id in force_nodes
-                or executes_loop_body
-                or executes_try_catch_branches
-                or self._executor_cache_policy(_node_class) == "always_run"
-            )
-            if not forced_node:
-                cache_key = self.cache.cache_key_for_node(
-                    node_id=node_id,
-                    node_type=node_type,
-                    params=resolved_params,
-                    inputs=resolved_inputs,
-                    upstream_keys=upstream_keys,
-                )
-            node_cache_keys[node_id] = cache_key
-
-            # ---- Prepare node working directory and environment prefix ----
-            node_dir = self.workspace_dir / "runs" / run_id / node_id
-            node_dir.mkdir(parents=True, exist_ok=True)
-
-            env_prefix: list[str] = []
-            isolation = getattr(self.settings, "execution", None)
-            isolation_mode = getattr(isolation, "env_isolation", "auto") if isolation else "auto"
-            if isolation_mode in ("auto", "always"):
-                env_prefix = self._env_prefix_for_node(node, workflow)
-
-            # ---- Cache hit check ----
-            if cache_key is not None and self.cache.is_hit(cache_key):
-                marker = self.cache.read_marker(cache_key)
-                cached_outputs = marker.get("outputs", {}) if marker else {}
+                # ---- Build execution context ----
                 ctx = ExecutionContext(
                     run_id=run_id,
                     node_id=node_id,
@@ -559,204 +715,153 @@ class WorkflowExecutor:
                     executor=self,
                     registry=self.registry,
                 )
-                cached_outputs = await self._apply_inline_output_validations(
-                    ctx=ctx,
-                    node=node,
-                    outputs=cached_outputs,
-                )
-                inactive_outputs = self._inactive_output_ports(
-                    marker or {},
-                    cached_outputs,
-                    _node_class,
-                )
-                if inactive_outputs:
-                    node_inactive_outputs[node_id] = inactive_outputs
-                self._apply_skip_downstream(
-                    run_id,
-                    node_id,
-                    marker or {},
-                    _node_class,
-                    nodes,
-                    node_results,
-                    skipped_nodes,
-                    emit,
-                )
-                emit(
-                    "node_cache_hit",
-                    {
-                        "run_id": run_id,
-                        "node_id": node_id,
-                        "cache_key": cache_key,
-                        "outputs": cached_outputs,
-                    },
-                )
-                node_results[node_id] = {
-                    "status": "cached",
-                    "cache_key": cache_key,
-                    "outputs": cached_outputs,
-                }
-                node_outputs[node_id] = cached_outputs
-                # Collect previews from cached outputs too
-                for port, path in cached_outputs.items():
-                    paths = path if isinstance(path, (list, tuple)) else [path]
-                    for p_str in paths:
-                        if not isinstance(p_str, (str, Path)):
-                            continue
-                        p = Path(p_str)
-                        if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
-                            previews.append(
-                                {
-                                    "path": str(p),
-                                    "label": f"{node_id}/{port}",
-                                    "node_id": node_id,
-                                }
-                            )
-                continue
 
-            # ---- Build execution context ----
-            ctx = ExecutionContext(
-                run_id=run_id,
-                node_id=node_id,
-                node_type=node_type,
-                node_dir=node_dir,
-                workspace_dir=self.workspace_dir,
-                params=resolved_params,
-                api_secrets=self._api_secrets_for_options(options),
-                emit=emit,
-                cancel_event=cancel_event,
-                env_prefix=env_prefix,
-                run_metadata=run_metadata,
-                executor=self,
-                registry=self.registry,
-            )
-
-            # ---- Execute the node ----
-            try:
-                if executes_loop_body:
-                    result = await self._execute_loop_node(
+                # ---- Execute the node ----
+                try:
+                    if executes_loop_body:
+                        result = await self._execute_loop_node(
+                            ctx=ctx,
+                            node=node,
+                            inputs=resolved_inputs,
+                            all_nodes=all_nodes,
+                            edges=edges,
+                            body_node_ids=loop_bodies.get(node_id, set()),
+                            node_outputs=node_outputs,
+                            options=options,
+                            workflow=workflow,
+                            emit=emit,
+                        )
+                    elif executes_try_catch_branches:
+                        result = await self._execute_try_catch_node(
+                            ctx=ctx,
+                            node=node,
+                            inputs=resolved_inputs,
+                            all_nodes=all_nodes,
+                            edges=edges,
+                            branch_node_ids=try_catch_regions.get(node_id, {"try": set(), "catch": set()}),
+                            node_outputs=node_outputs,
+                            options=options,
+                            workflow=workflow,
+                            emit=emit,
+                        )
+                    else:
+                        result = await self._execute_node_with_retry(
+                            ctx=ctx,
+                            node=node,
+                            inputs=resolved_inputs,
+                            upstream_nodes=self._upstream_node_ids(node_id, upstream_of),
+                            emit=emit,
+                        )
+                    outputs = await self._apply_inline_output_validations(
                         ctx=ctx,
                         node=node,
-                        inputs=resolved_inputs,
-                        all_nodes=all_nodes,
-                        edges=edges,
-                        body_node_ids=loop_bodies.get(node_id, set()),
-                        node_outputs=node_outputs,
-                        options=options,
-                        workflow=workflow,
-                        emit=emit,
+                        outputs=result.get("outputs", {}),
                     )
-                elif executes_try_catch_branches:
-                    result = await self._execute_try_catch_node(
-                        ctx=ctx,
-                        node=node,
-                        inputs=resolved_inputs,
-                        all_nodes=all_nodes,
-                        edges=edges,
-                        branch_node_ids=try_catch_regions.get(node_id, {"try": set(), "catch": set()}),
-                        node_outputs=node_outputs,
-                        options=options,
-                        workflow=workflow,
-                        emit=emit,
+                    result["outputs"] = outputs
+                    inactive_outputs = self._inactive_output_ports(
+                        result,
+                        outputs,
+                        _node_class,
                     )
-                else:
-                    result = await self._execute_node_with_retry(
-                        ctx=ctx,
-                        node=node,
-                        inputs=resolved_inputs,
-                        upstream_nodes=self._upstream_node_ids(node_id, upstream_of),
-                        emit=emit,
+                    if inactive_outputs:
+                        node_inactive_outputs[node_id] = inactive_outputs
+                    skip_downstream = self._apply_skip_downstream(
+                        run_id,
+                        node_id,
+                        result,
+                        _node_class,
+                        nodes,
+                        node_results,
+                        skipped_nodes,
+                        emit,
                     )
-                outputs = await self._apply_inline_output_validations(
-                    ctx=ctx,
-                    node=node,
-                    outputs=result.get("outputs", {}),
-                )
-                result["outputs"] = outputs
-                inactive_outputs = self._inactive_output_ports(
-                    result,
-                    outputs,
-                    _node_class,
-                )
-                if inactive_outputs:
-                    node_inactive_outputs[node_id] = inactive_outputs
-                skip_downstream = self._apply_skip_downstream(
-                    run_id,
-                    node_id,
-                    result,
-                    _node_class,
-                    nodes,
-                    node_results,
-                    skipped_nodes,
-                    emit,
-                )
-                node_results[node_id] = {
-                    "status": "completed",
-                    "outputs": outputs,
-                    "cache_key": cache_key,
-                    "attempts": result.get("attempts", 1),
-                }
-                node_outputs[node_id] = outputs
-
-                # Cache the result
-                if cache_key is not None:
-                    self.cache.write_marker(
-                        cache_key=cache_key,
-                        outputs=outputs,
-                        params=resolved_params,
-                        inputs=resolved_inputs,
-                        upstream_keys=upstream_keys,
-                        inactive_outputs=sorted(inactive_outputs) if inactive_outputs else None,
-                        skip_downstream=sorted(skip_downstream) if skip_downstream else None,
-                    )
-
-                # Collect previews
-                node_previews = self._collect_previews(ctx, result)
-                previews.extend(node_previews)
-
-                emit(
-                    "node_complete",
-                    {
-                        "run_id": run_id,
-                        "node_id": node_id,
+                    node_results[node_id] = {
+                        "status": "completed",
                         "outputs": outputs,
-                    },
-                )
+                        "cache_key": cache_key,
+                        "attempts": result.get("attempts", 1),
+                    }
+                    node_outputs[node_id] = outputs
 
-            except Exception as exc:
-                tb = traceback.format_exc()
-                msg = f"Execution failed for {node_id}: {exc}"
-                attempts = getattr(exc, "attempts", 1)
-                emit(
-                    "node_error",
-                    {
-                        "run_id": run_id,
-                        "node_id": node_id,
-                        "error": msg,
-                        "traceback": tb,
-                    },
-                )
-                error_outputs = self._error_outputs(
-                    node=node,
-                    error=exc,
-                    message=msg,
-                    traceback_text=tb,
-                    attempts=attempts,
-                )
-                node_results[node_id] = {"status": "failed", "error": msg, "traceback": tb}
-                node_results[node_id]["attempts"] = attempts
-                failed_nodes.add(node_id)
-                if self._continue_on_fail(node):
-                    node_results[node_id]["continue_on_fail"] = True
-                    node_results[node_id]["outputs"] = error_outputs
-                    node_outputs[node_id] = error_outputs
-                    continue
-                if stop_on_error:
-                    break
+                    # Cache the result
+                    if cache_key is not None:
+                        self.cache.write_marker(
+                            cache_key=cache_key,
+                            outputs=outputs,
+                            params=resolved_params,
+                            inputs=resolved_inputs,
+                            upstream_keys=upstream_keys,
+                            inactive_outputs=sorted(inactive_outputs) if inactive_outputs else None,
+                            skip_downstream=sorted(skip_downstream) if skip_downstream else None,
+                        )
 
-            run_metadata["nodes"][node_id] = {
-                "type": node_type,
-                "status": node_results[node_id]["status"],
-                "cache_key": cache_key,
+                    # Collect previews
+                    node_previews = self._collect_previews(ctx, result)
+                    previews.extend(node_previews)
+
+                    emit(
+                        "node_complete",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "outputs": outputs,
+                        },
+                    )
+
+                except Exception as exc:
+                    tb = traceback.format_exc()
+                    msg = f"Execution failed for {node_id}: {exc}"
+                    attempts = getattr(exc, "attempts", 1)
+                    emit(
+                        "node_error",
+                        {
+                            "run_id": run_id,
+                            "node_id": node_id,
+                            "error": msg,
+                            "traceback": tb,
+                        },
+                    )
+                    error_outputs = self._error_outputs(
+                        node=node,
+                        error=exc,
+                        message=msg,
+                        traceback_text=tb,
+                        attempts=attempts,
+                    )
+                    node_results[node_id] = {"status": "failed", "error": msg, "traceback": tb}
+                    node_results[node_id]["attempts"] = attempts
+                    failed_nodes.add(node_id)
+                    if self._continue_on_fail(node):
+                        node_results[node_id]["continue_on_fail"] = True
+                        node_results[node_id]["outputs"] = error_outputs
+                        node_outputs[node_id] = error_outputs
+                        continue
+                    if stop_on_error:
+                        should_stop = True
+                        break
+
+                run_metadata["nodes"][node_id] = {
+                    "type": node_type,
+                    "status": node_results[node_id]["status"],
+                    "cache_key": cache_key,
+                }
+
+            return "stop" if should_stop else "done"
+
+        await self._drive_node_scheduler(
+            execution_order=execution_order,
+            upstream_of=upstream_of,
+            downstream_of=downstream_of,
+            run_node=_run_node,
+            cancel_event=cancel_event,
+            max_parallel=self._max_parallel_nodes(),
+        )
+
+        if cancel_event.is_set():
+            return {
+                "status": "cancelled",
+                "node_results": node_results,
+                "cancelled_at": cancelled_holder.get("at"),
             }
 
         # ---- Finalize ----
