@@ -11,9 +11,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.ai.orchestrator import reproduce_paper
 from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.rate_limits import limiter
-from bionodulo.api.schemas import AIChatRequest
+from bionodulo.api.schemas import AIChatRequest, AIReproducePaperRequest
 
 ai_router = APIRouter()
 
@@ -167,3 +168,34 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@ai_router.post("/ai/reproduce-paper")
+@limiter.limit("3/minute")
+async def ai_reproduce_paper(request: Request, body: AIReproducePaperRequest) -> dict[str, Any]:
+    """Autonomously reproduce a paper's pipeline via parallel sub-agents.
+
+    Parses the paper into a structured plan, then fans out dataset-acquisition
+    and node-authoring sub-agents, builds the workflow, runs and debugs it, and
+    verifies the outputs against the paper's claims.
+    """
+    state = app_state(request)
+    settings = state.settings
+    registry = _get_registry(request)
+    provider, model, api_key, api_base, _temperature, _max_tokens = _llm_runtime_settings(request, body)
+
+    try:
+        report = await reproduce_paper(
+            paper_text=body.paper_text,
+            registry=registry,
+            settings=settings,
+            run_queue=_get_run_queue(request),
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            workflow_id=body.workflow_id,
+        )
+    except Exception as exc:
+        return {"error": f"Paper reproduction failed: {exc}"}
+    return report

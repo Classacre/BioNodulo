@@ -158,6 +158,15 @@ class AIChatRequest(BaseModel):
     files: list[AIChatFile] = Field(default_factory=list, description="Attached files")
 
 
+class AIReproducePaperRequest(BaseModel):
+    """Request body for POST /ai/reproduce-paper."""
+
+    paper_text: str = Field(..., description="Extracted text of the paper to reproduce")
+    workflow_id: str | None = Field(None, description="Target workflow ID for the reproduction")
+    provider: str | None = Field(None, description="LLM provider override")
+    model: str | None = Field(None, description="Model name override")
+
+
 class AIChatResponseStep(BaseModel):
     """A single step in the AI reasoning chain."""
 

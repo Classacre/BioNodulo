@@ -651,11 +651,18 @@ async def chat_with_tools(
     settings_manager: Any = None,
     files: list[dict[str, str]] | None = None,
     run_queue: Any = None,
+    system_prompt: str | None = None,
+    tool_names: list[str] | None = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
 
     Returns a ChatResponse containing all reasoning steps, tool calls,
     and optionally a proposed workflow change for user confirmation.
+
+    ``system_prompt`` overrides the default assistant persona (used to spawn
+    focused sub-agents), and ``tool_names`` restricts the tools offered to a
+    subset of :data:`ALL_TOOLS` (e.g. a dataset sub-agent only needs research +
+    download + file tools).
     """
     ctx = ToolContext(
         workflow=workflow,
@@ -665,8 +672,13 @@ async def chat_with_tools(
         settings_manager=settings_manager,
         run_queue=run_queue,
     )
-    tool_schemas = tools_to_openai_schema(ALL_TOOLS)
-    system_prompt = BIONODULO_SYSTEM_PROMPT
+    if tool_names:
+        wanted = set(tool_names)
+        active_tools = [tool for tool in ALL_TOOLS if tool.name in wanted]
+    else:
+        active_tools = ALL_TOOLS
+    tool_schemas = tools_to_openai_schema(active_tools)
+    system_prompt = system_prompt or BIONODULO_SYSTEM_PROMPT
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},

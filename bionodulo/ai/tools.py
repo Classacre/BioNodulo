@@ -883,6 +883,96 @@ def _read_workspace_file(ctx: ToolContext, path: str, max_bytes: int | None = 16
     return {"path": path, "content": data[:cap], "truncated": truncated}
 
 
+async def _download_dataset(
+    ctx: ToolContext,
+    source: str,
+    dest_name: str | None = None,
+    max_mb: int | None = 2048,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Download a dataset into the workspace ``data`` directory.
+
+    ``source`` is either a direct http(s) URL or an ENA/SRA-style run accession
+    (e.g. SRR/ERR/DRR...), which is resolved to its FASTQ FTP links via the ENA
+    portal. Returns the local path(s). Used by the paper-reproduction dataset
+    sub-agent. Network egress is restricted to public hosts.
+    """
+    import httpx
+
+    data_dir = _workspace_root(ctx).resolve() / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        cap_bytes = max(1, int(max_mb) if max_mb is not None else 2048) * 1024 * 1024
+    except (TypeError, ValueError):
+        cap_bytes = 2048 * 1024 * 1024
+
+    async def _download_url(url: str) -> dict[str, Any]:
+        if not url.startswith(("http://", "https://", "ftp://")):
+            return {"error": f"Unsupported URL scheme: {url}"}
+        fetch_url = url.replace("ftp://", "https://", 1) if url.startswith("ftp://") else url
+        name = dest_name or fetch_url.rstrip("/").split("/")[-1] or "download.dat"
+        safe_name = "".join(ch if ch.isalnum() or ch in ("_", "-", ".") else "_" for ch in name)
+        target = data_dir / safe_name
+        written = 0
+        try:
+            async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+                async with client.stream("GET", fetch_url) as resp:
+                    resp.raise_for_status()
+                    with open(target, "wb") as handle:
+                        async for chunk in resp.aiter_bytes(1024 * 256):
+                            written += len(chunk)
+                            if written > cap_bytes:
+                                handle.close()
+                                target.unlink(missing_ok=True)
+                                return {"error": f"Download exceeded {max_mb} MB cap."}
+                            handle.write(chunk)
+        except Exception as exc:
+            return {"error": f"Download failed for {url}: {exc}"}
+        return {"path": str(target), "bytes": written}
+
+    accession = source.strip()
+    if accession.startswith(("http://", "https://", "ftp://")):
+        result = await _download_url(accession)
+        if "error" in result:
+            return {"source": source, **result}
+        return {"source": source, "downloaded": [result]}
+
+    # Treat as an ENA/SRA run accession: resolve fastq FTP links via ENA portal.
+    if accession[:3].upper() in {"SRR", "ERR", "DRR", "SRX", "ERX", "DRX"}:
+        portal = (
+            "https://www.ebi.ac.uk/ena/portal/api/filereport"
+            f"?accession={accession}&result=read_run&fields=fastq_ftp&format=tsv"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                resp = await client.get(portal)
+                resp.raise_for_status()
+                rows = [r for r in resp.text.splitlines() if r.strip()]
+        except Exception as exc:
+            return {"error": f"ENA lookup failed for {accession}: {exc}", "source": source}
+        ftp_links: list[str] = []
+        for row in rows[1:]:  # skip header
+            cols = row.split("\t")
+            if cols and cols[-1]:
+                ftp_links.extend(part for part in cols[-1].split(";") if part)
+        if not ftp_links:
+            return {"error": f"No FASTQ files found for accession {accession}", "source": source}
+        downloaded = []
+        for link in ftp_links:
+            url = link if link.startswith(("http", "ftp")) else f"https://{link}"
+            res = await _download_url(url)
+            downloaded.append(res)
+        return {"source": source, "accession": accession, "downloaded": downloaded}
+
+    return {
+        "error": (
+            f"Could not interpret '{source}' as a URL or ENA/SRA run accession. "
+            "Provide a direct download URL or an SRR/ERR/DRR accession."
+        ),
+        "source": source,
+    }
+
+
 def _get_collaboration_status(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     settings = _settings_dict(ctx)
     enabled = bool(settings.get("bionodulo.collab.enabled", False))
@@ -993,6 +1083,17 @@ ALL_TOOLS: list[ToolDefinition] = [
             ToolParameter("max_bytes", "integer", "Maximum bytes to return", required=False, default=16000),
         ],
         _read_workspace_file,
+    ),
+    ToolDefinition(
+        "download_dataset",
+        "Download a dataset into the workspace data directory from a direct URL or an ENA/SRA run accession (SRR/ERR/DRR...). Use to fetch a paper's referenced sequencing data.",
+        [
+            ToolParameter("source", "string", "A download URL or an ENA/SRA run accession"),
+            ToolParameter("dest_name", "string", "Optional local filename", required=False, default=None),
+            ToolParameter("max_mb", "integer", "Maximum download size in MB", required=False, default=2048),
+        ],
+        _download_dataset,
+        action=True,
     ),
     ToolDefinition("get_collaboration_status", "Report whether the app is in local mode or collaboration mode.", [], _get_collaboration_status),
     ToolDefinition(
