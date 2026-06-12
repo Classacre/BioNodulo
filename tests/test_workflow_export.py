@@ -264,7 +264,7 @@ def test_cwl_export_supports_normalize_data_with_builtin_node_runner() -> None:
 
     assert workflow["inputs"] == {"norm_table": "File"}
     assert workflow["steps"]["norm"]["in"] == {"table": "norm_table"}
-    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"] == [
         "--node-type",
         "normalize_data",
@@ -322,7 +322,7 @@ def test_cwl_export_supports_additional_data_transform_nodes_with_builtin_runner
 
     assert cwl_workflow["inputs"] == {root_input: "File"}
     assert cwl_workflow["steps"][node_id]["in"] == {root_input.rsplit("_", 1)[1]: root_input}
-    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"][:6] == [
         "--node-type",
         node_type,
@@ -370,7 +370,7 @@ def test_cwl_export_supports_core_table_transform_nodes_with_builtin_runner(
     tool = json.loads(exported[f"tools/{node_id}.cwl"])
 
     assert cwl_workflow["inputs"] == root_inputs
-    assert tool["baseCommand"] == ["python3", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"][:4] == [
         "--node-type",
         node_type,

@@ -732,8 +732,6 @@ def test_cutesv_renders_long_read_sv_command() -> None:
         "cuteSV",
         "--threads",
         "16",
-        "--genome",
-        "GRCh38.fa",
         "--sample",
         "tumor-01",
         "--max_cluster_bias_INS",
@@ -743,6 +741,7 @@ def test_cutesv_renders_long_read_sv_command() -> None:
         "--max_size",
         "50000",
         "sample.sorted.bam",
+        "GRCh38.fa",
         "/tmp/run/cutesv/sv_vcf.vcf",
         "/tmp/run/cutesv",
     ]

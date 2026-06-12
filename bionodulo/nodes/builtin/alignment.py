@@ -99,18 +99,21 @@ class BWAMemNode(CommandNode):
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         r1, r2 = _split_reads(inputs)
         rg = f"@RG\\tID:{inputs.get('rg_id', '1')}\\tSM:{inputs.get('rg_sample', 'sample')}\\tPL:{inputs.get('rg_platform', 'ILLUMINA')}"
+        # All bwa-mem flags must precede the positional reference/reads — options
+        # placed after positionals are not parsed reliably (POSIX getopt stops at
+        # the first non-option argument).
         cmd = [
             "bwa", "mem",
             "-t", str(inputs.get("threads", 8)),
             "-R", rg,
             "-T", str(inputs.get("min_score", 30)),
-            str(inputs.get("reference", "")),
-            str(r1),
         ]
-        if r2:
-            cmd.append(str(r2))
         if inputs.get("mark_shorter_splits") is not False:
             cmd.append("-M")
+        cmd.append(str(inputs.get("reference", "")))
+        cmd.append(str(r1))
+        if r2:
+            cmd.append(str(r2))
         cmd.extend([">", f"{inputs.get('output', '.')}/alignment.sam"])
         return cmd
 

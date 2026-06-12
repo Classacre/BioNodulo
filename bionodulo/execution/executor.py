@@ -2779,7 +2779,10 @@ class WorkflowExecutor:
             if asyncio.iscoroutinefunction(node_class.run):
                 raw = await node_instance.run(context=ctx, **kwargs)
             else:
-                raw = node_instance.run(context=ctx, **kwargs)
+                # Run synchronous (often CPU- or IO-bound) node bodies off the
+                # event loop so a single blocking node cannot stall the server,
+                # the queue, or sibling nodes running concurrently.
+                raw = await asyncio.to_thread(node_instance.run, context=ctx, **kwargs)
             return self._normalize_result(raw, node_class)
 
         raise RuntimeError(

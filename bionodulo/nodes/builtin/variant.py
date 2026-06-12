@@ -904,8 +904,6 @@ class CuteSVNode(CommandNode):
             "cuteSV",
             "--threads",
             str(inputs.get("threads", 4)),
-            "--genome",
-            str(inputs.get("reference", "")),
             "--sample",
             str(inputs.get("sample_name", "sample")),
         ]
@@ -915,8 +913,11 @@ class CuteSVNode(CommandNode):
             cmd.extend(["--min_size", str(inputs["min_size"])])
         if inputs.get("max_size"):
             cmd.extend(["--max_size", str(inputs["max_size"])])
+        # cuteSV takes the reference as a positional argument, not a flag:
+        #   cuteSV [options] <sorted.bam> <reference.fa> <output.vcf> <work_dir>
         cmd.extend([
             str(inputs.get("bam", "")),
+            str(inputs.get("reference", "")),
             f"{out_dir}/sv_vcf.vcf",
             out_dir,
         ])

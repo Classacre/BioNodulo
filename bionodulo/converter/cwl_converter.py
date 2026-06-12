@@ -8,6 +8,7 @@ and vice versa.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -262,7 +263,7 @@ def _node_to_builtin_runner_tool(node_id: str, node: dict[str, Any]) -> dict[str
         "cwlVersion": "v1.2",
         "id": node_id,
         "label": node_type + " - " + node_id,
-        "baseCommand": ["python3", "-m", "bionodulo.converter.cwl_node_runner"],
+        "baseCommand": [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"],
         "arguments": arguments,
         "inputs": cwl_inputs,
         "outputs": cwl_outputs,
