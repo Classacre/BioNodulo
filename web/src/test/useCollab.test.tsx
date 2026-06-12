@@ -42,6 +42,9 @@ vi.mock('react-i18next', () => ({
       'collab.shareWorkflowError': 'No se pudo compartir el flujo de trabajo',
     }[key] ?? key),
   }),
+  // i18n/index.ts (pulled in transitively) calls i18n.use(initReactI18next),
+  // so the mock must provide it or module init throws.
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 vi.mock('../collab/useAwareness', () => ({
   useAwareness: () => ({

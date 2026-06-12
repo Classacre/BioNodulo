@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState, forwardRef, useImperativeHandle, memo } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { TFunction } from 'i18next';
@@ -3961,7 +3961,11 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   );
 });
 
-export default WorkflowCanvas;
+// Memoized: the canvas is expensive and App re-renders frequently (logs, run
+// progress, collab presence). A shallow prop compare skips the heavy redraw
+// when nothing the canvas depends on changed. `activeWorkflow` is a fresh
+// object on every real edit, so genuine changes still re-render.
+export default memo(WorkflowCanvas);
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | Record<string, number>) {
   if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };

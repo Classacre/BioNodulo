@@ -2204,6 +2204,14 @@ export default function App() {
         onSelect: () => togglePanel('nodes'),
       },
       {
+        id: 'rail.inspector',
+        label: t('commandPalette.commands.rail.inspector'),
+        group: 'Panels',
+        groupLabelKey: 'commandPalette.groups.panels',
+        shortcut: getBinding('rail.inspector') ?? undefined,
+        onSelect: () => togglePanel('inspector'),
+      },
+      {
         id: 'rail.templates',
         label: t('commandPalette.commands.rail.templates'),
         group: 'Panels',
