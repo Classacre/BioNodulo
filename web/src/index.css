@@ -157,7 +157,9 @@ body {
   position: absolute;
   bottom: 12px;
   left: 12px;
-  z-index: 50;
+  /* Above the canvas/nodes but below the rail-panel menus (z-index 40-48) so a
+     menu opened over the bottom-left corner is not covered by the stats. */
+  z-index: 35;
   padding: 8px 10px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
