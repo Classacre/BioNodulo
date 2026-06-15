@@ -168,8 +168,9 @@ describe('SettingsPanel shell i18n', () => {
 
     expect(screen.getByText('Tamano de historial de cola')).toBeInTheDocument();
     expect(screen.getByText('Entradas maximas del historial')).toBeInTheDocument();
-    expect(screen.getByText('Hashing fuerte')).toBeInTheDocument();
-    expect(screen.getByText('Usar claves de cache mas fuertes')).toBeInTheDocument();
+    expect(screen.getByText('Nodos en paralelo')).toBeInTheDocument();
+    expect(screen.getByText('Huella de cache')).toBeInTheDocument();
+    expect(screen.getByText('Aislamiento de entorno')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Archivos' }));
 

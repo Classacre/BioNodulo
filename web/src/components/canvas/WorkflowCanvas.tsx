@@ -563,8 +563,11 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   // Read on every render so settings changes propagate immediately. The
   // values are forwarded into the draw loop via a ref to avoid invalidating
   // the memoised `draw` callback on every settings change.
-  const { get, getBool } = useSettings();
+  const { get, getBool, getNumber } = useSettings();
   const qualityModeSetting = String(get('bionodulo.canvas.quality') || 'auto') as 'auto' | 'high' | 'low';
+  const showGrid = getBool('bionodulo.canvas.showGrid', true);
+  // Grid spacing in world units (also the snap step). Clamp to a sane range.
+  const gridSize = Math.min(200, Math.max(4, getNumber('bionodulo.canvas.gridSize', 20)));
   const shadowsEnabled = getBool('bionodulo.canvas.shadows', true);
   const smoothLinksEnabled = getBool('bionodulo.canvas.smoothLinks', true);
   // 'type' (default) colors each link by its data type; 'gradient' blends the
@@ -894,7 +897,6 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, offset.x * dpr, offset.y * dpr);
 
     // Grid
-    const gridSize = 20;
     const minX = -offset.x / scale;
     const minY = -offset.y / scale;
     const maxX = minX + w / scale;
@@ -912,10 +914,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     const startY = Math.floor(minY / gridSize) * gridSize;
     ctx.strokeStyle = gridStroke;
     ctx.lineWidth = 1;
-    for (let x = startX; x <= maxX; x += gridSize) {
+    for (let x = startX; showGrid && x <= maxX; x += gridSize) {
       ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, maxY); ctx.stroke();
     }
-    for (let y = startY; y <= maxY; y += gridSize) {
+    for (let y = startY; showGrid && y <= maxY; y += gridSize) {
       ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(maxX, y); ctx.stroke();
     }
 
@@ -1550,6 +1552,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     nodeProgressRecord,
     collabUsers,
     missingDependencyNodeIds,
+    showGrid,
+    gridSize,
     requestDraw,
   ]);
 
@@ -1961,8 +1965,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
 
   const addNode = useCallback((meta: NodeMetadata, cx: number, cy: number): WorkflowNode => {
     const world = toWorld(cx, cy);
-    const x = dragCoordinate(world.x, 0, snapToGrid);
-    const y = dragCoordinate(world.y, 0, snapToGrid);
+    const x = dragCoordinate(world.x, 0, snapToGrid, gridSize);
+    const y = dragCoordinate(world.y, 0, snapToGrid, gridSize);
     const isNote = meta.id === 'note';
     const newNode: WorkflowNode = {
       id: `${meta.id}_${Date.now()}`,
@@ -2386,8 +2390,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         return {
           ...g,
           position: [
-            dragCoordinate(gs.startPos[0], dx, snapToGrid),
-            dragCoordinate(gs.startPos[1], dy, snapToGrid),
+            dragCoordinate(gs.startPos[0], dx, snapToGrid, gridSize),
+            dragCoordinate(gs.startPos[1], dy, snapToGrid, gridSize),
           ] as [number, number],
         };
       });
@@ -2397,8 +2401,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           if (!start) return n;
           return {
             ...n,
-            x: dragCoordinate(start[0], dx, snapToGrid),
-            y: dragCoordinate(start[1], dy, snapToGrid),
+            x: dragCoordinate(start[0], dx, snapToGrid, gridSize),
+            y: dragCoordinate(start[1], dy, snapToGrid, gridSize),
           };
         });
       }
@@ -2432,8 +2436,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           if (!start) return n;
           return {
             ...n,
-            x: dragCoordinate(start[0], dx, snapToGrid),
-            y: dragCoordinate(start[1], dy, snapToGrid),
+            x: dragCoordinate(start[0], dx, snapToGrid, gridSize),
+            y: dragCoordinate(start[1], dy, snapToGrid, gridSize),
           };
         });
         graphNodesRef.current = next;

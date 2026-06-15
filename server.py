@@ -220,6 +220,36 @@ def create_app() -> FastAPI:
     # Settings manager
     settings_manager = SettingsManager(settings.settings_file)
 
+    # Bridge user-facing execution settings (settings_manager) onto the config
+    # ExecutionSettings that the executor + queue actually read. Applied at
+    # startup; in-place mutation so the already-built executor (same settings
+    # object) picks them up. Changing these takes effect on next restart.
+    def _user_setting(key: str) -> Any:
+        try:
+            return settings_manager.get(key)
+        except Exception:
+            return None
+
+    _ex = settings.execution
+    _mw = _user_setting("bionodulo.execution.maxWorkers")
+    if _mw is not None:
+        try:
+            _ex.max_workers = max(1, int(_mw))
+        except (TypeError, ValueError):
+            pass
+    _ch = _user_setting("bionodulo.execution.contentHashing")
+    if _ch in ("fast", "strong", "off"):
+        _ex.content_hashing = _ch
+    _ei = _user_setting("bionodulo.execution.envIsolation")
+    if _ei in ("auto", "always", "off"):
+        _ex.env_isolation = _ei
+    _ts = _user_setting("bionodulo.execution.timeoutSeconds")
+    if _ts is not None:
+        try:
+            _ex.timeout_seconds = max(1, int(_ts))
+        except (TypeError, ValueError):
+            pass
+
     try:
         _history_cap = int(settings_manager.get("bionodulo.queueHistorySize") or 100)
     except (TypeError, ValueError):

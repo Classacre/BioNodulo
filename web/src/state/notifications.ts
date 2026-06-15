@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useSyncExternalStore } from 'react';
+import { getSettingValue } from '../hooks/settings/useSettings';
 
 export type NotificationTone = 'info' | 'success' | 'warning' | 'error' | 'loading';
 
@@ -46,7 +47,9 @@ function makeId() {
 
 function getDuration(options: NotificationOptions) {
   if (typeof options.duration === 'number') return Math.max(0, options.duration);
-  return options.tone === 'loading' ? 0 : DEFAULT_DURATION;
+  if (options.tone === 'loading') return 0;
+  const configured = Number(getSettingValue('bionodulo.notifications.toastDuration', DEFAULT_DURATION));
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_DURATION;
 }
 
 function scheduleDismiss(notification: NotificationRecord) {

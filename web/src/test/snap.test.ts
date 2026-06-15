@@ -34,4 +34,12 @@ describe('dragCoordinate', () => {
     expect(dragCoordinate(100, -11, true)).toBe(80);
     expect(dragCoordinate(100, -9, true)).toBe(100);
   });
+
+  it('respects a custom grid size (configurable bionodulo.canvas.gridSize)', () => {
+    // grid = 50: a 30px move from an on-grid start crosses the halfway point.
+    expect(dragCoordinate(100, 30, true, 50)).toBe(150);
+    expect(dragCoordinate(100, 20, true, 50)).toBe(100);
+    expect(snapToGridValue(173, 50)).toBe(150);
+    expect(snapToGridValue(176, 50)).toBe(200);
+  });
 });

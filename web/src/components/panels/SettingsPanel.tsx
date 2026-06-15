@@ -1,6 +1,7 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { setLanguage, supportedLanguages, type SupportedLanguage } from '../../i18n';
 import { useSettings } from '../../hooks/settings';
 import { usePaletteTheme } from '../../hooks/usePaletteTheme';
 import { addCustomPalette, completePalette, paletteDisplayName, type PaletteMode, type PaletteToken, type PaletteTokens, type ThemePalette } from '../../state/palettes';
@@ -120,8 +121,8 @@ export default function SettingsPanel({
   onJoinCollabSession,
   onLeaveCollabSession,
 }: SettingsPanelProps) {
-  const { t } = useTranslation();
-  const { get, getBool, set } = useSettings();
+  const { t, i18n } = useTranslation();
+  const { get, getBool, getNumber, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('appearance');
@@ -271,6 +272,20 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('appearance.tooltips')} desc={st('appearance.tooltipsDescription')} keywords="hint hover help tooltip cursor ayuda">
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
+          <SettingRow query={query} label={st('appearance.language')} desc={st('appearance.languageDescription')} keywords="language locale idioma lenguaje english spanish espanol translation traduccion">
+            <select
+              className="select-input"
+              value={i18n.language?.startsWith('es') ? 'es' : 'en'}
+              onChange={e => { const lang = e.target.value as SupportedLanguage; void setLanguage(lang); set('bionodulo.locale', lang); }}
+            >
+              {supportedLanguages.map(lang => (
+                <option key={lang.code} value={lang.code}>{lang.label}</option>
+              ))}
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('appearance.toastDuration')} desc={st('appearance.toastDurationDescription')} keywords="notification toast duration timeout notificacion duracion aviso">
+            <input type="number" min={1} max={60} className="text-input" style={{ width: 70 }} value={Math.round(getNumber('bionodulo.notifications.toastDuration', 5000) / 1000)} onChange={e => set('bionodulo.notifications.toastDuration', Math.max(1, parseInt(e.target.value) || 5) * 1000)} />
+          </SettingRow>
           <SettingRow query={query} label={st('palette')} desc={st('appearance.paletteDescription')} keywords="theme color swatch paleta colores dark light claro oscuro">
             <button className="btn btn-sm" onClick={resetPalette} type="button">{t('common.reset')}</button>
           </SettingRow>
@@ -337,6 +352,12 @@ export default function SettingsPanel({
         <SettingsGroup active={isSectionVisible('canvas')} query={query} title={sectionTitle('canvas')}>
           <SettingRow query={query} label={st('snapToGrid')} desc={st('canvas.snapToGridDescription')} keywords="grid alignment cuadricula alineacion">
             <div className={`toggle ${get('bionodulo.snapToGrid') ? 'on' : ''}`} onClick={() => toggle('bionodulo.snapToGrid')} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.showGrid')} desc={st('canvas.showGridDescription')} keywords="grid dots background cuadricula puntos fondo">
+            <div className={`toggle ${getBool('bionodulo.canvas.showGrid', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showGrid', !getBool('bionodulo.canvas.showGrid', true))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.gridSize')} desc={st('canvas.gridSizeDescription')} keywords="grid size spacing cuadricula tamano espaciado snap">
+            <input type="number" min={4} max={200} step={2} className="text-input" style={{ width: 70 }} value={getNumber('bionodulo.canvas.gridSize', 20)} onChange={e => set('bionodulo.canvas.gridSize', Math.min(200, Math.max(4, parseInt(e.target.value) || 20)))} />
           </SettingRow>
           <SettingRow query={query} label={st('canvas.lockViewport')} desc={st('canvas.lockViewportDescription')} keywords="zoom pan camera bloquear vista lienzo">
             <div className={`toggle ${get('bionodulo.viewportLocked') ? 'on' : ''}`} onClick={() => toggle('bionodulo.viewportLocked')} />
@@ -444,11 +465,28 @@ export default function SettingsPanel({
 
         {/* Execution */}
         <SettingsGroup active={isSectionVisible('execution')} query={query} title={sectionTitle('execution')}>
+          <SettingRow query={query} label={st('execution.maxWorkers')} desc={st('execution.maxWorkersDescription')} keywords="parallel workers concurrency nodes paralelo concurrencia nodos">
+            <input type="number" min={1} max={64} className="text-input" style={{ width: 70 }} value={getNumber('bionodulo.execution.maxWorkers', 4)} onChange={e => set('bionodulo.execution.maxWorkers', Math.max(1, parseInt(e.target.value) || 4))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('execution.contentHashing')} desc={st('execution.contentHashingDescription')} keywords="hash cache key content fingerprint claves contenido huella">
+            <select className="select-input" value={String(get('bionodulo.execution.contentHashing') || 'fast')} onChange={e => set('bionodulo.execution.contentHashing', e.target.value)}>
+              <option value="fast">{st('execution.contentHashingFast')}</option>
+              <option value="strong">{st('execution.contentHashingStrong')}</option>
+              <option value="off">{st('execution.contentHashingOff')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('execution.envIsolation')} desc={st('execution.envIsolationDescription')} keywords="environment isolation conda pixi container entorno aislamiento">
+            <select className="select-input" value={String(get('bionodulo.execution.envIsolation') || 'auto')} onChange={e => set('bionodulo.execution.envIsolation', e.target.value)}>
+              <option value="auto">{st('execution.envIsolationAuto')}</option>
+              <option value="always">{st('execution.envIsolationAlways')}</option>
+              <option value="off">{st('execution.envIsolationOff')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('execution.timeoutSeconds')} desc={st('execution.timeoutSecondsDescription')} keywords="timeout seconds limit tiempo limite segundos">
+            <input type="number" min={1} className="text-input" style={{ width: 90 }} value={getNumber('bionodulo.execution.timeoutSeconds', 3600)} onChange={e => set('bionodulo.execution.timeoutSeconds', Math.max(1, parseInt(e.target.value) || 3600))} />
+          </SettingRow>
           <SettingRow query={query} label={st('execution.queueHistorySize')} desc={st('execution.queueHistorySizeDescription')} keywords="queue history cola historial">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.queueHistorySize'))} onChange={e => set('bionodulo.queueHistorySize', parseInt(e.target.value))} />
-          </SettingRow>
-          <SettingRow query={query} label={st('execution.strongHashing')} desc={st('execution.strongHashingDescription')} keywords="hash cache key claves fuerte">
-            <div className={`toggle ${get('bionodulo.strongHashing') ? 'on' : ''}`} onClick={() => toggle('bionodulo.strongHashing')} />
           </SettingRow>
         </SettingsGroup>
 
