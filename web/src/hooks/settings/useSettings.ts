@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiGet } from '../../api/client';
+import { apiGet, apiPost } from '../../api/client';
 
 const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.theme': 'system',
@@ -49,6 +49,15 @@ function loadLocal(): Record<string, unknown> {
 
 function saveLocal(settings: Record<string, unknown>) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
+}
+
+// Persist changed keys to the backend so settings the server consumes (LLM
+// credentials/model, execution + file options) actually take effect. localStorage
+// alone never reaches the backend. Fire-and-forget: the UI already updated local
+// state, and the app must keep working offline.
+function persistRemote(partial: Record<string, unknown>): void {
+  if (!partial || Object.keys(partial).length === 0) return;
+  void apiPost('/api/settings', { settings: partial }).catch(() => { /* offline */ });
 }
 
 // Global shared state so all components see the same settings
@@ -145,6 +154,7 @@ export function useSettings() {
     const previous = globalSettings[key];
     globalSettings = { ...globalSettings, [key]: value };
     saveLocal(globalSettings);
+    persistRemote({ [key]: value });
     emitKeyChange(key, value, previous);
     emit();
   }, []);
@@ -153,6 +163,7 @@ export function useSettings() {
     const previous = globalSettings;
     globalSettings = { ...globalSettings, ...newSettings };
     saveLocal(globalSettings);
+    persistRemote(newSettings);
     for (const [key, value] of Object.entries(newSettings)) {
       emitKeyChange(key, value, previous[key]);
     }
@@ -166,7 +177,14 @@ export function useSettings() {
     apiGet<Partial<typeof globalSettings>>('/api/settings')
       .then(data => {
         if (data) {
-          globalSettings = { ...globalSettings, ...data };
+          // The backend redacts secrets (e.g. apiKey -> "***") on GET. Don't let
+          // a redacted placeholder clobber the real local value.
+          const clean: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'string' && /^\*+$/.test(value)) continue;
+            clean[key] = value;
+          }
+          globalSettings = { ...globalSettings, ...clean };
           saveLocal(globalSettings);
         }
       })
