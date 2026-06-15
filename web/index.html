@@ -5,9 +5,157 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BioNodulo - Visual Bioinformatics Pipelines</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      /* Boot loader. Inlined so it paints during the JS bundle download — the
+         slow part on poor connections — before any React/bundle code runs. */
+      #bn-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #0f172a;
+        color: #e8eef2;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        transition: opacity 0.45s ease;
+      }
+      @media (prefers-color-scheme: light) {
+        #bn-boot { background: #eef3f4; color: #1d2930; }
+      }
+      #bn-boot.bn-boot-hide { opacity: 0; pointer-events: none; }
+      .bn-boot-logo { width: 96px; height: 96px; display: block; }
+      .bn-boot-logo .bn-edge {
+        stroke: #f5f1e8;
+        stroke-width: 4;
+        stroke-linecap: round;
+        fill: none;
+        stroke-dasharray: 22;
+        stroke-dashoffset: 22;
+        animation: bn-edge-draw 2.2s ease-in-out infinite;
+      }
+      @media (prefers-color-scheme: light) {
+        .bn-boot-logo .bn-edge { stroke: #334155; }
+      }
+      .bn-boot-logo .bn-edge.bn-e2 { animation-delay: 0.25s; }
+      .bn-boot-logo .bn-edge.bn-e3 { animation-delay: 0.5s; }
+      .bn-boot-logo .bn-node {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: bn-node-pulse 2.2s ease-in-out infinite;
+      }
+      .bn-boot-logo .bn-n2 { animation-delay: 0.18s; }
+      .bn-boot-logo .bn-n3 { animation-delay: 0.36s; }
+      @keyframes bn-edge-draw {
+        0% { stroke-dashoffset: 22; }
+        45% { stroke-dashoffset: 0; }
+        80% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: 22; }
+      }
+      @keyframes bn-node-pulse {
+        0%, 100% { transform: scale(0.78); opacity: 0.55; }
+        45% { transform: scale(1.12); opacity: 1; }
+      }
+      .bn-boot-title {
+        font-size: 20px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+      }
+      .bn-boot-title small { font-size: 11px; opacity: 0.55; margin-left: 6px; font-weight: 500; }
+      .bn-boot-bar {
+        width: 240px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(127, 143, 160, 0.25);
+        overflow: hidden;
+        position: relative;
+      }
+      .bn-boot-fill {
+        position: absolute;
+        inset: 0;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2dd4bf, #8fb7ff);
+        transition: width 0.35s ease;
+      }
+      /* Until the first real progress update, show an indeterminate sweep so the
+         bar never looks frozen. */
+      .bn-boot-bar.bn-indeterminate .bn-boot-fill {
+        width: 40% !important;
+        animation: bn-sweep 1.3s ease-in-out infinite;
+      }
+      @keyframes bn-sweep {
+        0% { left: -40%; }
+        100% { left: 100%; }
+      }
+      .bn-boot-status {
+        font-size: 12.5px;
+        opacity: 0.7;
+        min-height: 16px;
+        letter-spacing: 0.01em;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bn-boot-logo .bn-edge,
+        .bn-boot-logo .bn-node,
+        .bn-boot-bar.bn-indeterminate .bn-boot-fill { animation: none; }
+        .bn-boot-logo .bn-edge { stroke-dashoffset: 0; }
+        .bn-boot-logo .bn-node { opacity: 1; transform: none; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="bn-boot" role="status" aria-live="polite">
+      <svg class="bn-boot-logo" viewBox="0 0 64 64" aria-hidden="true">
+        <path class="bn-edge bn-e1" d="M25 22h13" />
+        <path class="bn-edge bn-e2" d="M23 28l6 10" />
+        <path class="bn-edge bn-e3" d="M41 27l-6 11" />
+        <circle class="bn-node bn-n1" cx="19" cy="22" r="7" fill="#7ee6b4" />
+        <circle class="bn-node bn-n2" cx="45" cy="20" r="7" fill="#d7f36b" />
+        <circle class="bn-node bn-n3" cx="32" cy="44" r="8" fill="#8fb7ff" />
+      </svg>
+      <div class="bn-boot-title">BioNodulo<small>2.0</small></div>
+      <div class="bn-boot-bar bn-indeterminate"><div class="bn-boot-fill"></div></div>
+      <div class="bn-boot-status">Starting up…</div>
+    </div>
+    <script>
+      // Minimal boot-loader API the app drives as it initializes. Kept tiny and
+      // dependency-free so it works before the bundle is parsed.
+      (function () {
+        var el = document.getElementById('bn-boot');
+        var bar = el && el.querySelector('.bn-boot-bar');
+        var fill = el && el.querySelector('.bn-boot-fill');
+        var status = el && el.querySelector('.bn-boot-status');
+        var pct = 0;
+        window.__bnLoader = {
+          setProgress: function (value, label) {
+            if (!el) return;
+            if (typeof value === 'number') {
+              // Monotonic — never jump backwards.
+              pct = Math.max(pct, Math.min(100, value));
+              if (bar) bar.classList.remove('bn-indeterminate');
+              if (fill) fill.style.width = pct + '%';
+            }
+            if (label && status) status.textContent = label;
+          },
+          done: function () {
+            if (!el || el.classList.contains('bn-boot-hide')) return;
+            this.setProgress(100);
+            el.classList.add('bn-boot-hide');
+            window.setTimeout(function () {
+              if (el && el.parentNode) el.parentNode.removeChild(el);
+            }, 500);
+          },
+        };
+        // Safety net: never leave the loader stuck forever if the app fails to
+        // signal readiness.
+        window.setTimeout(function () {
+          if (window.__bnLoader) window.__bnLoader.done();
+        }, 30000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -2,6 +2,11 @@
 // panels / dialogs / domains). Keep keys stable: external screen-reader and
 // keyboard-help text reads them directly.
 const en = {
+  boot: {
+    loadingSettings: 'Loading your settings…',
+    loadingNodes: 'Loading the node library…',
+    ready: 'Ready',
+  },
   common: {
     cancel: 'Cancel',
     close: 'Close',

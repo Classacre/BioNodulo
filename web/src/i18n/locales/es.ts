@@ -2,6 +2,11 @@
 // back to en at runtime via i18next's fallbackLng. To extend coverage, add
 // entries to web/scripts/es-overlay.ts and re-run the generator.
 const es = {
+  boot: {
+    loadingSettings: 'Cargando tus ajustes…',
+    loadingNodes: 'Cargando la biblioteca de nodos…',
+    ready: 'Listo',
+  },
   common: {
     cancel: 'Cancelar',
     close: 'Cerrar',

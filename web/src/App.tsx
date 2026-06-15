@@ -47,6 +47,7 @@ import { useAuth, useCollabPolling } from './hooks/collab';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { logError } from './state/logging';
+import { bootProgress, bootDone } from './state/bootLoader';
 import { usePanelRegistry } from './state/panels';
 import { paletteDisplayName } from './state/palettes';
 import { rememberRecentWorkflow } from './state/recentWorkflows';
@@ -257,6 +258,26 @@ export default function App() {
   const { getBinding } = useKeybindings();
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
+
+  // Drive the inline boot loader (index.html) as the app initializes, then
+  // dismiss it once the node registry + settings have resolved (both settle even
+  // offline, so the loader never hangs waiting on the backend).
+  const bootDoneRef = useRef(false);
+  useEffect(() => {
+    bootProgress(settingsReady ? 70 : 55, t('boot.loadingSettings'));
+  }, [settingsReady, t]);
+  useEffect(() => {
+    if (!objectInfoLoading) bootProgress(90, t('boot.loadingNodes'));
+  }, [objectInfoLoading, t]);
+  useEffect(() => {
+    if (bootDoneRef.current) return;
+    if (settingsReady && !objectInfoLoading) {
+      bootDoneRef.current = true;
+      bootProgress(100, t('boot.ready'));
+      bootDone();
+    }
+  }, [settingsReady, objectInfoLoading, t]);
+
   const consoleActionCopy = useMemo(() => makeConsoleActionCopy(t), [t]);
   const appFileActionCopy = useMemo(() => makeAppFileActionCopy(t), [t]);
   const appCollabCopy = useMemo(() => makeAppCollabCopy(t), [t]);
