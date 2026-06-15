@@ -5,6 +5,29 @@ to avoid duplication between manifest.py, diagnostics.py, and resolver.py.
 """
 from __future__ import annotations
 
+# Aliases for conda package names that nodes commonly declare under their
+# Python-import / pip name. The conda-forge/bioconda package name differs, so a
+# raw REQUIRED_CONDA_PACKAGES entry like "torch" must be normalised to "pytorch"
+# or the solver reports "No candidates were found".
+CONDA_PACKAGE_ALIASES: dict[str, str] = {
+    "torch": "pytorch",
+    "sklearn": "scikit-learn",
+    "scikit_learn": "scikit-learn",
+    "opencv-python": "opencv",
+    "pillow": "pillow",
+    "bio": "biopython",
+    "biopython-bio": "biopython",
+}
+
+
+def normalize_conda_package(name: str) -> str:
+    """Return the conda-forge/bioconda package name for a declared dependency."""
+    if not name:
+        return name
+    base = name.strip()
+    return CONDA_PACKAGE_ALIASES.get(base, base)
+
+
 # Mapping of executable names to conda package names.
 # This is the single source of truth for tool → package resolution.
 EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
@@ -265,6 +288,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "squidpy": ">=1.6",
     "cell2location": ">=0.1",
     "torch": ">=2.0",
+    "pytorch": ">=2.0",
     "snpeff": ">=5.2",
     "openjdk": ">=17",
     "ensembl-vep": ">=113",

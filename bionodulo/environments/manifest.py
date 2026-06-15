@@ -22,6 +22,7 @@ from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
     R_PACKAGE_TO_CONDA_PACKAGE,
     PACKAGE_MIN_VERSIONS,
+    normalize_conda_package,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ def workflow_to_packages(
             conda_pkgs = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
             for cpkg in conda_pkgs:
                 if cpkg:
-                    packages.add(cpkg)
+                    packages.add(normalize_conda_package(cpkg))
 
         for exe in executables:
             pkg = EXECUTABLE_TO_CONDA_PACKAGE.get(exe, exe)

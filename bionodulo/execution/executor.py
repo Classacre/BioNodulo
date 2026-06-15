@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bionodulo.core.credentials import merge_api_secrets, redact_tree
-from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to_packages
+from bionodulo.environments.manifest import get_env_dir, get_env_id, is_env_ready, workflow_to_packages
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
@@ -3397,13 +3397,17 @@ class WorkflowExecutor:
             if env_name:
                 return self._command_prefix_list(env_type, env_name)
 
-        # Default: workflow-scoped manifest
+        # Default: workflow-scoped manifest. Only use the pixi env when it is
+        # actually installed — a failed/partial install leaves a pixi.toml behind,
+        # and wrapping commands in `pixi run` against a non-ready env makes every
+        # node re-trigger a doomed solve (which hangs or fails the whole run).
+        # Falling back to system PATH lets a missing tool fail fast instead.
         if workflow is not None:
             packages = workflow_to_packages(workflow, self.registry)
             env_id = get_env_id(packages)
             env_dir = get_env_dir(env_id, self.workspace_dir)
             manifest_path = env_dir / "pixi.toml"
-            if manifest_path.exists():
+            if manifest_path.exists() and is_env_ready(env_dir):
                 return self._command_prefix_list("pixi", None, manifest_path=manifest_path)
 
         # Fallback: system PATH

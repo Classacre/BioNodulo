@@ -2141,3 +2141,38 @@ async def test_executor_cache_is_content_addressed(tmp_path: Path) -> None:
     data_file.write_text("v2-different-contents")
     third = await executor.execute("run3", workflow)
     assert third["node_results"]["r"]["status"] == "completed"
+
+
+def test_env_prefix_skips_unready_env(tmp_path: Path) -> None:
+    """A manifest left behind by a failed install must NOT be used to run.
+
+    Previously _env_prefix_for_node used the env as soon as a pixi.toml existed,
+    so a half-installed (red) env wrapped every command in `pixi run` against an
+    unsolvable env — which hangs the run. The env must be fully installed first.
+    """
+    from bionodulo.environments.manifest import get_env_dir, get_env_id, workflow_to_packages
+
+    class ToolNode:
+        REQUIRED_CONDA_PACKAGES = ["samtools"]
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {}, "optional": {}, "hidden": {}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"tool": ToolNode}.get(node_type)
+
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
+    workflow = {"nodes": [{"id": "n1", "type": "tool"}], "edges": []}
+    node = {"id": "n1", "type": "tool", "_node_class": ToolNode}
+
+    # No manifest at all -> system PATH.
+    assert executor._env_prefix_for_node(node, workflow) == []
+
+    # Manifest present but env never installed -> still system PATH (no pixi run).
+    packages = workflow_to_packages(workflow, Registry())
+    env_dir = get_env_dir(get_env_id(packages), tmp_path)
+    env_dir.mkdir(parents=True, exist_ok=True)
+    (env_dir / "pixi.toml").write_text("[workspace]\n", encoding="utf-8")
+    assert executor._env_prefix_for_node(node, workflow) == []

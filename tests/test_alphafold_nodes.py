@@ -349,11 +349,14 @@ def test_proteinmpnn_environment_metadata_is_declared() -> None:
     registry.load_builtin_nodes()
 
     assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
-    assert PACKAGE_MIN_VERSIONS["torch"] == ">=2.0"
+    assert PACKAGE_MIN_VERSIONS["pytorch"] == ">=2.0"
+    # The node declares the pip/import name "torch"; the conda package is
+    # "pytorch", so workflow_to_packages must normalize it (else pixi cannot
+    # solve the environment).
     assert workflow_to_packages(
         {"nodes": [{"id": "design", "type": "proteinmpnn_design"}]},
         registry,
-    ) == ["numpy", "python", "torch"]
+    ) == ["numpy", "python", "pytorch"]
 
 
 @pytest.mark.asyncio
