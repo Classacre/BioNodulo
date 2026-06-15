@@ -18,9 +18,7 @@
     "uniprot_search",
     "uniprot_retrieve",
     "alphafold_db",
-    "pdb_download",
-    "html_report",
-    "html_preview"
+    "pdb_download"
   ],
   "nodes": [
     {
@@ -143,58 +141,92 @@
       }
     },
     {
-      "id": "protein_structure_report_001",
-      "type": "html_report",
-      "position": [
-        440,
-        80
-      ],
-      "params": {
-        "title": "Protein Structure Database Report",
-        "text_sections": "# Summary\nUniProt supplies reviewed protein entry and sequence context for TP53. AlphaFold DB provides a predicted TP53 mmCIF structure and PAE metadata. RCSB PDB provides an experimental mmCIF structure plus entry metadata for comparison. The table section below is restricted to the validated UniProt TSV search results.",
-        "tables": "",
-        "section_names": "UniProt search results",
-        "theme": "light",
-        "include_toc": true,
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Protein Structure Report"
-      }
-    },
-    {
-      "id": "protein_structure_report_preview_001",
-      "type": "html_preview",
+      "id": "render_uniprot_search_tab_0",
+      "type": "table_preview",
       "position": [
         800,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View Protein Structure Report"
+        "title": "View Table: UniProt hits"
+      }
+    },
+    {
+      "id": "render_uniprot_seq_0",
+      "type": "table_preview",
+      "position": [
+        800,
+        261
+      ],
+      "params": {},
+      "ui": {
+        "title": "View: TP53 FASTA"
+      }
+    },
+    {
+      "id": "render_alphafold_meta_0",
+      "type": "table_preview",
+      "position": [
+        800,
+        442
+      ],
+      "params": {},
+      "ui": {
+        "title": "View: AlphaFold metadata"
+      }
+    },
+    {
+      "id": "render_pdb_meta_0",
+      "type": "table_preview",
+      "position": [
+        800,
+        623
+      ],
+      "params": {},
+      "ui": {
+        "title": "View: PDB metadata"
       }
     }
   ],
   "edges": [
     {
-      "id": "e5",
       "from": {
         "node": "uniprot_search_001",
         "output": "results_table"
       },
       "to": {
-        "node": "protein_structure_report_001",
-        "input": "tables"
+        "node": "render_uniprot_search_tab_0",
+        "input": "file"
       }
     },
     {
-      "id": "e6",
       "from": {
-        "node": "protein_structure_report_001",
-        "output": "html_report"
+        "node": "uniprot_retrieve_001",
+        "output": "sequence"
       },
       "to": {
-        "node": "protein_structure_report_preview_001",
+        "node": "render_uniprot_seq_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "alphafold_db_001",
+        "output": "structure_metadata"
+      },
+      "to": {
+        "node": "render_alphafold_meta_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "pdb_download_001",
+        "output": "pdb_metadata"
+      },
+      "to": {
+        "node": "render_pdb_meta_0",
         "input": "file"
       }
     }
@@ -204,10 +236,6 @@
     "uniprot_search_results": "uniprot_search_001",
     "uniprot_sequence": "uniprot_retrieve_001",
     "alphafold_structure": "alphafold_db_001",
-    "alphafold_metadata": "alphafold_db_001",
-    "pdb_structure": "pdb_download_001",
-    "pdb_metadata": "pdb_download_001",
-    "report": "protein_structure_report_001",
-    "report_preview": "protein_structure_report_preview_001"
+    "pdb_structure": "pdb_download_001"
   }
 }

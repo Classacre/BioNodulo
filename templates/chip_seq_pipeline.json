@@ -387,31 +387,39 @@
       }
     },
     {
-      "id": "chip_seq_report_001",
-      "type": "html_report",
-      "position": [
-        2960,
-        80
-      ],
-      "params": {
-        "title": "ChIP-Seq Report",
-        "text_sections": "# Summary\nChIP-seq alignment, MACS2 peak calling, nearest-feature annotation, and QC completed. Validated MACS2 peaks and nearest peak annotations are included as result tables.",
-        "section_names": "ChIP-seq signal coverage,Validated MACS2 peaks,Nearest peak annotations"
-      },
-      "ui": {
-        "title": "ChIP-seq report"
-      }
-    },
-    {
-      "id": "chip_seq_report_preview_001",
-      "type": "html_preview",
+      "id": "render_macs2_tab_0",
+      "type": "table_preview",
       "position": [
         3320,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View ChIP-seq Report"
+        "title": "View Table: macs2"
+      }
+    },
+    {
+      "id": "render_peak_annotation_tab_1",
+      "type": "table_preview",
+      "position": [
+        3320,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: peak_annotation"
+      }
+    },
+    {
+      "id": "render_chip_signal_plot_ima_2",
+      "type": "image_preview",
+      "position": [
+        3320,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: chip_signal_plot"
       }
     }
   ],
@@ -637,28 +645,6 @@
       }
     },
     {
-      "id": "e19",
-      "from": {
-        "node": "macs2_001",
-        "output": "peaks"
-      },
-      "to": {
-        "node": "chip_seq_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e19_annotation",
-      "from": {
-        "node": "peak_annotation_001",
-        "output": "closest"
-      },
-      "to": {
-        "node": "chip_seq_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e19a",
       "from": {
         "node": "coverage_001",
@@ -670,24 +656,32 @@
       }
     },
     {
-      "id": "e19b",
+      "from": {
+        "node": "macs2_001",
+        "output": "peaks"
+      },
+      "to": {
+        "node": "render_macs2_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "peak_annotation_001",
+        "output": "closest"
+      },
+      "to": {
+        "node": "render_peak_annotation_tab_1",
+        "input": "file"
+      }
+    },
+    {
       "from": {
         "node": "chip_signal_plot_001",
         "output": "coverage_image"
       },
       "to": {
-        "node": "chip_seq_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e20",
-      "from": {
-        "node": "chip_seq_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "chip_seq_report_preview_001",
+        "node": "render_chip_signal_plot_ima_2",
         "input": "file"
       }
     }
@@ -700,9 +694,6 @@
     "peak_annotation": "peak_annotation_001",
     "coverage_track": "coverage_001",
     "chip_signal_plot": "chip_signal_plot_001",
-    "report": "chip_seq_report_001",
-    "chip_seq_report": "chip_seq_report_001",
-    "chip_seq_report_preview": "chip_seq_report_preview_001",
     "validated_multiqc_report": "mqc_001",
     "trimmed_reads": "fastp_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",

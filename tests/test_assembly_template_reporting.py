@@ -43,30 +43,17 @@ def test_assembly_template_validates_prokka_gff_before_final_report_preview() ->
     node_types = _node_types(workflow)
 
     assert "validate_prokka_001" not in node_types
-    assert node_types["assembly_report_001"] == "html_report"
-    assert node_types["assembly_report_preview_001"] == "html_preview"
+    assert node_types["render_prokka_tab_0"] == "table_preview"
 
     validator = _output_validation(workflow, "prokka_001", "gff")
     assert validator["expected_format"] == "text"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
 
-    report = _node_by_id(workflow, "assembly_report_001")
-    assert report["params"]["title"] == "Assembly Annotation Report"
-    assert report["params"]["section_names"] == (
-        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
-    )
-
     assert not _has_edge(workflow, "prokka_001", "gff", "validate_prokka_001", "input")
-    assert _has_edge(workflow, "prokka_001", "gff", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "assembly_report_001", "html_report", "assembly_report_preview_001", "file")
-    assert _has_edge(workflow, "prokka_001", "gff", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "prokka_001", "gff", "render_prokka_tab_0", "file")
 
     assert workflow["outputs"]["validated_prokka_annotation"] == "prokka_001"
-    assert workflow["outputs"]["assembly_report"] == "assembly_report_001"
-    assert workflow["outputs"]["assembly_report_preview"] == "assembly_report_preview_001"
 
 
 def test_assembly_template_reports_aggregated_contig_summary() -> None:
@@ -85,11 +72,8 @@ def test_assembly_template_reports_aggregated_contig_summary() -> None:
         "output_type": "TSV",
     }
 
-    report = _node_by_id(workflow, "assembly_report_001")
-    assert report["params"]["section_names"] == (
-        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
-    )
+    assert node_types["render_assembly_contig_summary_tab_2"] == "table_preview"
 
     assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "assembly_contig_summary_001", "table")
-    assert _has_edge(workflow, "assembly_contig_summary_001", "aggregated_table", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "assembly_contig_summary_001", "aggregated_table", "render_assembly_contig_summary_tab_2", "file")
     assert workflow["outputs"]["assembly_contig_summary"] == "assembly_contig_summary_001"

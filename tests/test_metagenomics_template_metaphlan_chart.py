@@ -45,12 +45,14 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert node_types["metaphlan_001"] == "metaphlan"
     assert "validate_metaphlan_profile_001" not in node_types
     assert node_types["metaphlan_bar_001"] == "bar_chart"
-    assert node_types["taxonomy_report_001"] == "html_report"
-    assert node_types["taxonomy_report_preview_001"] == "html_preview"
+    # The taxonomy_report_001 html_report and its html_preview were removed by design;
+    # the MetaPhlAn chart renders into a dedicated image_preview node.
+    assert "taxonomy_report_001" not in node_types
+    assert "taxonomy_report_preview_001" not in node_types
+    assert node_types["render_metaphlan_bar_ima_3"] == "image_preview"
 
     validator = _output_validation(workflow, "metaphlan_001", "profile")
     chart = _node_by_id(workflow, "metaphlan_bar_001")
-    report = _node_by_id(workflow, "taxonomy_report_001")
     assert validator["expected_format"] == "tsv"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
@@ -59,16 +61,10 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert chart["params"]["y_column"] == "relative_abundance"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
-    assert report["params"]["section_names"] == (
-        "Bracken taxonomy chart,MetaPhlAn relative abundance,"
-        "Bracken abundance heatmap,Bracken report"
-    )
 
     assert not _has_edge(workflow, "metaphlan_001", "profile", "validate_metaphlan_profile_001", "input")
     assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
-    assert _has_edge(workflow, "metaphlan_bar_001", "chart_image", "taxonomy_report_001", "images")
-    assert _has_edge(workflow, "taxonomy_report_001", "html_report", "taxonomy_report_preview_001", "file")
-    assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
+    assert _has_edge(workflow, "metaphlan_bar_001", "chart_image", "render_metaphlan_bar_ima_3", "file")
     assert workflow["outputs"]["validated_metaphlan_profile"] == "metaphlan_001"
     assert workflow["outputs"]["metaphlan_chart"] == "metaphlan_bar_001"
-    assert workflow["outputs"]["taxonomy_report_preview"] == "taxonomy_report_preview_001"
+    assert "taxonomy_report_preview" not in workflow["outputs"]

@@ -68,8 +68,6 @@ def test_protein_structure_template_covers_uniprot_alphafold_and_rcsb_workflow()
         "uniprot_retrieve",
         "alphafold_db",
         "pdb_download",
-        "html_report",
-        "html_preview",
     }.issubset(set(workflow["tools"]))
 
     assert node_types["uniprot_search_001"] == "uniprot_search"
@@ -80,26 +78,24 @@ def test_protein_structure_template_covers_uniprot_alphafold_and_rcsb_workflow()
     assert "validate_alphafold_structure_001" not in node_types
     assert node_types["pdb_download_001"] == "pdb_download"
     assert "validate_pdb_structure_001" not in node_types
-    assert node_types["protein_structure_report_001"] == "html_report"
-    assert node_types["protein_structure_report_preview_001"] == "html_preview"
+    assert node_types["render_uniprot_search_tab_0"] == "table_preview"
+    assert node_types["render_uniprot_seq_0"] == "table_preview"
+    assert node_types["render_alphafold_meta_0"] == "table_preview"
+    assert node_types["render_pdb_meta_0"] == "table_preview"
 
     assert not _has_edge(workflow, "uniprot_search_001", "results_table", "validate_uniprot_table_001", "input")
     assert not _has_edge(workflow, "uniprot_retrieve_001", "sequence", "validate_uniprot_fasta_001", "input")
     assert not _has_edge(workflow, "alphafold_db_001", "structure_mmcif", "validate_alphafold_structure_001", "input")
     assert not _has_edge(workflow, "pdb_download_001", "structure_file", "validate_pdb_structure_001", "input")
-    assert _has_edge(workflow, "uniprot_search_001", "results_table", "protein_structure_report_001", "tables")
-    assert _has_edge(
-        workflow,
-        "protein_structure_report_001",
-        "html_report",
-        "protein_structure_report_preview_001",
-        "file",
-    )
+    assert _has_edge(workflow, "uniprot_search_001", "results_table", "render_uniprot_search_tab_0", "file")
+    assert _has_edge(workflow, "uniprot_retrieve_001", "sequence", "render_uniprot_seq_0", "file")
+    assert _has_edge(workflow, "alphafold_db_001", "structure_metadata", "render_alphafold_meta_0", "file")
+    assert _has_edge(workflow, "pdb_download_001", "pdb_metadata", "render_pdb_meta_0", "file")
 
-    assert not _has_edge(workflow, "uniprot_search_001", "results_data", "protein_structure_report_001", "tables")
-    assert not _has_edge(workflow, "alphafold_db_001", "structure_metadata", "protein_structure_report_001", "tables")
-    assert not _has_edge(workflow, "pdb_download_001", "pdb_metadata", "protein_structure_report_001", "tables")
-    assert _target_input_count(workflow, "protein_structure_report_001", "tables") == 1
+    assert _target_input_count(workflow, "render_uniprot_search_tab_0", "file") == 1
+    assert _target_input_count(workflow, "render_uniprot_seq_0", "file") == 1
+    assert _target_input_count(workflow, "render_alphafold_meta_0", "file") == 1
+    assert _target_input_count(workflow, "render_pdb_meta_0", "file") == 1
 
 
 def test_protein_structure_template_validates_outputs_and_database_parameters() -> None:
@@ -113,7 +109,6 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     alphafold_validator = _output_validation(workflow, "alphafold_db_001", "structure_mmcif")
     pdb = _node_by_id(workflow, "pdb_download_001")
     pdb_validator = _output_validation(workflow, "pdb_download_001", "structure_file")
-    report = _node_by_id(workflow, "protein_structure_report_001")
 
     assert uniprot_search["params"]["query"] == "gene:TP53 AND organism_id:9606"
     assert uniprot_search["params"]["max_results"] == 10
@@ -143,20 +138,10 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     assert pdb_validator["expected_format"] == "auto"
     assert pdb_validator["fail_on_error"] is True
 
-    assert report["params"]["title"] == "Protein Structure Database Report"
-    assert "UniProt" in report["params"]["text_sections"]
-    assert "AlphaFold" in report["params"]["text_sections"]
-    assert "RCSB" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "UniProt search results"
-
     assert workflow["outputs"]["uniprot_search_results"] == "uniprot_search_001"
     assert workflow["outputs"]["uniprot_sequence"] == "uniprot_retrieve_001"
     assert workflow["outputs"]["alphafold_structure"] == "alphafold_db_001"
-    assert workflow["outputs"]["alphafold_metadata"] == "alphafold_db_001"
     assert workflow["outputs"]["pdb_structure"] == "pdb_download_001"
-    assert workflow["outputs"]["pdb_metadata"] == "pdb_download_001"
-    assert workflow["outputs"]["report"] == "protein_structure_report_001"
-    assert workflow["outputs"]["report_preview"] == "protein_structure_report_preview_001"
 
 
 def test_protein_structure_template_is_discoverable_from_workflow_templates_api() -> None:

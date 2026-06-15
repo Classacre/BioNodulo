@@ -20,20 +20,6 @@
       }
     },
     {
-      "id": "seqs_001",
-      "type": "input_fasta",
-      "position": [
-        80,
-        80
-      ],
-      "params": {
-        "reference": "examples/data/phylogenetics/16s_sequences.fasta"
-      },
-      "ui": {
-        "title": "Input Sequences"
-      }
-    },
-    {
       "id": "ncbi_efetch_001",
       "type": "ncbi_efetch",
       "position": [
@@ -160,31 +146,15 @@
       }
     },
     {
-      "id": "phylo_report_001",
-      "type": "html_report",
-      "position": [
-        1880,
-        80
-      ],
-      "params": {
-        "title": "Phylogenetics Report",
-        "text_sections": "# Summary\nMultiple sequence alignment and IQ-TREE phylogeny with rendered tree output.",
-        "section_names": "Phylogenetic tree,Alignment visualization"
-      },
-      "ui": {
-        "title": "Phylogenetics Report"
-      }
-    },
-    {
-      "id": "phylo_report_preview_001",
-      "type": "html_preview",
+      "id": "render_tree_viewer_ima_0",
+      "type": "image_preview",
       "position": [
         2240,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View Phylogenetics Report"
+        "title": "View Figure: tree_viewer"
       }
     }
   ],
@@ -267,35 +237,12 @@
       }
     },
     {
-      "id": "e6",
       "from": {
         "node": "tree_viewer_001",
         "output": "tree_image"
       },
       "to": {
-        "node": "phylo_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "msa_view_001",
-        "output": "alignment_image"
-      },
-      "to": {
-        "node": "phylo_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "phylo_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "phylo_report_preview_001",
+        "node": "render_tree_viewer_ima_0",
         "input": "file"
       }
     }
@@ -304,8 +251,6 @@
   "outputs": {
     "tree": "iqtree_001",
     "tree_image": "tree_viewer_001",
-    "report": "phylo_report_001",
-    "report_preview": "phylo_report_preview_001",
     "alignment": "mafft_001",
     "fetched_fasta": "ncbi_efetch_001",
     "validated_fasta": "validate_fasta_001",

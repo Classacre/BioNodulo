@@ -34,7 +34,7 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
 
     assert node_types["coverage_001"] == "deeptools_bamcoverage"
     assert node_types["chip_signal_plot_001"] == "coverage_plot"
-    assert node_types["chip_seq_report_001"] == "html_report"
+    assert node_types["render_chip_signal_plot_ima_2"] == "image_preview"
 
     plot = _node_by_id(workflow, "chip_signal_plot_001")
     assert plot["params"]["region"] == "chrX:1-50000"
@@ -43,5 +43,5 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
     assert plot["params"]["format"] == "png"
 
     assert _has_edge(workflow, "coverage_001", "coverage_bw", "chip_signal_plot_001", "alignment")
-    assert _has_edge(workflow, "chip_signal_plot_001", "coverage_image", "chip_seq_report_001", "images")
+    assert _has_edge(workflow, "chip_signal_plot_001", "coverage_image", "render_chip_signal_plot_ima_2", "file")
     assert workflow["outputs"]["chip_signal_plot"] == "chip_signal_plot_001"

@@ -33,22 +33,15 @@ def test_wgs_variant_template_previews_final_variant_reports() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["vep_001"] == "vep"
-    assert node_types["variant_report_001"] == "html_report"
-    assert node_types["variant_report_preview_001"] == "html_preview"
-    assert node_types["sv_report_001"] == "html_report"
-    assert node_types["sv_report_preview_001"] == "html_preview"
-
-    variant_report = _node_by_id(workflow, "variant_report_001")
-    sv_report = _node_by_id(workflow, "sv_report_001")
-    assert variant_report["params"]["section_names"] == (
-        "VCF statistics,Coverage plot,SnpEff prioritized variants,VEP annotated variants"
-    )
-    assert sv_report["params"]["section_names"] == "Manta SV calls,DELLY SV calls"
+    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
+    assert node_types["render_coverage_plot_ima_3"] == "image_preview"
+    assert node_types["render_gate_prioritized_vcf_tab_0"] == "table_preview"
+    assert node_types["render_vep_tab_1"] == "table_preview"
+    assert node_types["render_manta_sv_tab_0"] == "table_preview"
+    assert node_types["render_delly_sv_tab_1"] == "table_preview"
 
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
-    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
-    assert _has_edge(workflow, "variant_report_001", "html_report", "variant_report_preview_001", "file")
-    assert _has_edge(workflow, "sv_report_001", "html_report", "sv_report_preview_001", "file")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
+    assert _has_edge(workflow, "manta_sv_001", "sv_vcf", "render_manta_sv_tab_0", "file")
+    assert _has_edge(workflow, "delly_sv_001", "sv_vcf", "render_delly_sv_tab_1", "file")
     assert workflow["outputs"]["vep_annotation"] == "vep_001"
-    assert workflow["outputs"]["variant_report_preview"] == "variant_report_preview_001"
-    assert workflow["outputs"]["structural_variant_report_preview"] == "sv_report_preview_001"

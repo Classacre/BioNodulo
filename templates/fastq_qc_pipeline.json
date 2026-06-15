@@ -48,31 +48,6 @@
       }
     },
     {
-      "id": "sample_sheet_001",
-      "type": "input_sample_sheet",
-      "position": [
-        80,
-        270
-      ],
-      "params": {
-        "sample_sheet": "templates/data/fastq_qc_sample_sheet.csv"
-      },
-      "ui": {
-        "title": "Sample Sheet",
-        "validation": {
-          "outputs": {
-            "sample_sheet": {
-              "expected_format": "csv",
-              "required_fields": "sample,fastq_1,fastq_2",
-              "min_records": 1,
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
       "id": "fastqc_001",
       "type": "fastqc",
       "position": [
@@ -294,8 +269,6 @@
     "validated_report": "validate_multiqc_001",
     "trimmed_reads": "fastp_001",
     "validated_reads": "input_fastq_001",
-    "sample_sheet": "sample_sheet_001",
-    "validated_sample_sheet": "sample_sheet_001",
     "qc_dashboard": "qc_dashboard_001"
   }
 }

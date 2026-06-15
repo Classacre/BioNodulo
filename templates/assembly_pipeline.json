@@ -293,31 +293,51 @@
       }
     },
     {
-      "id": "assembly_report_001",
-      "type": "html_report",
-      "position": [
-        3320,
-        80
-      ],
-      "params": {
-        "title": "Assembly Annotation Report",
-        "text_sections": "# Summary\nAssembly validation, QUAST quality assessment, and Prokka annotation for the genome assembly workflow.",
-        "section_names": "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
-      },
-      "ui": {
-        "title": "Assembly report"
-      }
-    },
-    {
-      "id": "assembly_report_preview_001",
-      "type": "html_preview",
+      "id": "render_prokka_tab_0",
+      "type": "table_preview",
       "position": [
         3680,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View Assembly Report"
+        "title": "View Table: prokka"
+      }
+    },
+    {
+      "id": "render_assembly_stats_tab_1",
+      "type": "table_preview",
+      "position": [
+        3680,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: assembly_stats"
+      }
+    },
+    {
+      "id": "render_assembly_contig_summary_tab_2",
+      "type": "table_preview",
+      "position": [
+        3680,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: assembly_contig_summary"
+      }
+    },
+    {
+      "id": "render_assembly_stats_chart_ima_4",
+      "type": "image_preview",
+      "position": [
+        3680,
+        960
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: assembly_stats_chart"
       }
     }
   ],
@@ -466,50 +486,6 @@
       }
     },
     {
-      "id": "e8a",
-      "from": {
-        "node": "prokka_001",
-        "output": "gff"
-      },
-      "to": {
-        "node": "assembly_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e8b",
-      "from": {
-        "node": "assembly_stats_chart_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "assembly_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e8c",
-      "from": {
-        "node": "assembly_stats_001",
-        "output": "stats_tsv"
-      },
-      "to": {
-        "node": "assembly_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e8d",
-      "from": {
-        "node": "assembly_contig_summary_001",
-        "output": "aggregated_table"
-      },
-      "to": {
-        "node": "assembly_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e9",
       "from": {
         "node": "quast_001",
@@ -518,17 +494,6 @@
       "to": {
         "node": "html_preview_001",
         "input": "file"
-      }
-    },
-    {
-      "id": "e9a",
-      "from": {
-        "node": "quast_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "assembly_report_001",
-        "input": "tables"
       }
     },
     {
@@ -543,13 +508,42 @@
       }
     },
     {
-      "id": "e11",
       "from": {
-        "node": "assembly_report_001",
-        "output": "html_report"
+        "node": "prokka_001",
+        "output": "gff"
       },
       "to": {
-        "node": "assembly_report_preview_001",
+        "node": "render_prokka_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "assembly_stats_001",
+        "output": "stats_tsv"
+      },
+      "to": {
+        "node": "render_assembly_stats_tab_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "assembly_contig_summary_001",
+        "output": "aggregated_table"
+      },
+      "to": {
+        "node": "render_assembly_contig_summary_tab_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "assembly_stats_chart_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "render_assembly_stats_chart_ima_4",
         "input": "file"
       }
     }
@@ -570,9 +564,6 @@
     "assembly_stats_chart": "assembly_stats_chart_001",
     "assembly_contig_summary": "assembly_contig_summary_001",
     "quast": "quast_001",
-    "annotation": "prokka_001",
-    "report": "assembly_report_001",
-    "assembly_report": "assembly_report_001",
-    "assembly_report_preview": "assembly_report_preview_001"
+    "annotation": "prokka_001"
   }
 }

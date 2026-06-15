@@ -248,22 +248,6 @@
       }
     },
     {
-      "id": "de_report_001",
-      "type": "html_report",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {
-        "title": "DESeq2 Differential Expression Report",
-        "text_sections": "# Summary\nDifferential expression results with volcano, MA, heatmap, full result table, filtered significant genes, transposed normalized counts for sample-oriented review, and pathway gene-set overlaps.",
-        "section_names": "Volcano plot,MA plot,PCA plot,Expression heatmap,DESeq2 results,Normalized counts,Transposed normalized counts,Significant genes,Pathway overlaps,STRING enrichment"
-      },
-      "ui": {
-        "title": "DE Report"
-      }
-    },
-    {
       "id": "ma_preview_001",
       "type": "image_preview",
       "position": [
@@ -288,15 +272,99 @@
       }
     },
     {
-      "id": "de_report_preview_001",
-      "type": "html_preview",
+      "id": "render_deseq2_tab_0",
+      "type": "table_preview",
       "position": [
         1880,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View DE Report"
+        "title": "View Table: deseq2"
+      }
+    },
+    {
+      "id": "render_deseq2_tab_1",
+      "type": "table_preview",
+      "position": [
+        1880,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: deseq2"
+      }
+    },
+    {
+      "id": "render_normalized_counts_transpose_tab_2",
+      "type": "table_preview",
+      "position": [
+        1880,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: normalized_counts_transpose"
+      }
+    },
+    {
+      "id": "render_significant_genes_tab_3",
+      "type": "table_preview",
+      "position": [
+        1880,
+        740
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: significant_genes"
+      }
+    },
+    {
+      "id": "render_pathway_enrichment_tab_4",
+      "type": "table_preview",
+      "position": [
+        1880,
+        960
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: pathway_enrichment"
+      }
+    },
+    {
+      "id": "render_string_enrichment_tab_5",
+      "type": "table_preview",
+      "position": [
+        1880,
+        1180
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: string_enrichment"
+      }
+    },
+    {
+      "id": "render_volcano_ima_6",
+      "type": "image_preview",
+      "position": [
+        1880,
+        1400
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: volcano"
+      }
+    },
+    {
+      "id": "render_pca_plot_ima_8",
+      "type": "image_preview",
+      "position": [
+        1880,
+        1840
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: pca_plot"
       }
     }
   ],
@@ -357,50 +425,6 @@
       }
     },
     {
-      "id": "e6",
-      "from": {
-        "node": "volcano_001",
-        "output": "volcano_image"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e6a",
-      "from": {
-        "node": "ma_plot_001",
-        "output": "ma_image"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e6b",
-      "from": {
-        "node": "pca_plot_001",
-        "output": "plot_image"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e6c",
-      "from": {
-        "node": "heatmap_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "images"
-      }
-    },
-    {
       "id": "e7",
       "from": {
         "node": "deseq2_001",
@@ -409,28 +433,6 @@
       "to": {
         "node": "pca_plot_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e7a",
-      "from": {
-        "node": "deseq2_001",
-        "output": "results_csv"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e7b",
-      "from": {
-        "node": "deseq2_001",
-        "output": "normalized_counts_csv"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
       }
     },
     {
@@ -445,17 +447,6 @@
       }
     },
     {
-      "id": "e7d",
-      "from": {
-        "node": "normalized_counts_transpose_001",
-        "output": "transposed_table"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e7e",
       "from": {
         "node": "deseq2_001",
@@ -464,17 +455,6 @@
       "to": {
         "node": "significant_genes_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e7f",
-      "from": {
-        "node": "significant_genes_001",
-        "output": "filtered_table"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
       }
     },
     {
@@ -500,17 +480,6 @@
       }
     },
     {
-      "id": "e7i",
-      "from": {
-        "node": "pathway_enrichment_001",
-        "output": "overlap"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e7j",
       "from": {
         "node": "significant_genes_001",
@@ -519,17 +488,6 @@
       "to": {
         "node": "string_enrichment_001",
         "input": "protein_table"
-      }
-    },
-    {
-      "id": "e7k",
-      "from": {
-        "node": "string_enrichment_001",
-        "output": "interaction_network"
-      },
-      "to": {
-        "node": "de_report_001",
-        "input": "tables"
       }
     },
     {
@@ -555,13 +513,82 @@
       }
     },
     {
-      "id": "e10",
       "from": {
-        "node": "de_report_001",
-        "output": "html_report"
+        "node": "deseq2_001",
+        "output": "results_csv"
       },
       "to": {
-        "node": "de_report_preview_001",
+        "node": "render_deseq2_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "deseq2_001",
+        "output": "normalized_counts_csv"
+      },
+      "to": {
+        "node": "render_deseq2_tab_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "normalized_counts_transpose_001",
+        "output": "transposed_table"
+      },
+      "to": {
+        "node": "render_normalized_counts_transpose_tab_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "significant_genes_001",
+        "output": "filtered_table"
+      },
+      "to": {
+        "node": "render_significant_genes_tab_3",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "pathway_enrichment_001",
+        "output": "overlap"
+      },
+      "to": {
+        "node": "render_pathway_enrichment_tab_4",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "string_enrichment_001",
+        "output": "interaction_network"
+      },
+      "to": {
+        "node": "render_string_enrichment_tab_5",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "volcano_001",
+        "output": "volcano_image"
+      },
+      "to": {
+        "node": "render_volcano_ima_6",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "pca_plot_001",
+        "output": "plot_image"
+      },
+      "to": {
+        "node": "render_pca_plot_ima_8",
         "input": "file"
       }
     }
@@ -579,8 +606,6 @@
     "string_enrichment": "string_enrichment_001",
     "normalized_counts": "deseq2_001",
     "heatmap": "heatmap_001",
-    "report": "de_report_001",
-    "report_preview": "de_report_preview_001",
     "validated_counts": "counts_001",
     "validated_sample_info": "samples_001"
   }

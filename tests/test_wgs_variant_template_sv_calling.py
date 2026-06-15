@@ -34,24 +34,23 @@ def test_wgs_variant_template_adds_parallel_manta_and_delly_sv_calling() -> None
 
     assert node_types["manta_sv_001"] == "manta_call"
     assert node_types["delly_sv_001"] == "delly_call"
-    assert node_types["sv_report_001"] == "html_report"
+    # The SV HTML report was replaced by direct table_preview render nodes.
+    assert node_types["render_manta_sv_tab_0"] == "table_preview"
+    assert node_types["render_delly_sv_tab_1"] == "table_preview"
 
     manta = _node_by_id(workflow, "manta_sv_001")
     delly = _node_by_id(workflow, "delly_sv_001")
-    report = _node_by_id(workflow, "sv_report_001")
     assert manta["params"]["threads"] == 4
     assert manta["params"]["exome"] is False
     assert manta["params"]["rna"] is False
     assert delly["params"]["mode"] == "call"
     assert delly["params"]["map_qual"] == 1
-    assert "structural variants" in report["params"]["text_sections"]
 
     assert _has_edge(workflow, "markdup_001", "marked_bam", "manta_sv_001", "bam")
     assert _has_edge(workflow, "ref_001", "reference", "manta_sv_001", "reference")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "delly_sv_001", "bam")
     assert _has_edge(workflow, "ref_001", "reference", "delly_sv_001", "reference")
-    assert _has_edge(workflow, "manta_sv_001", "sv_vcf", "sv_report_001", "tables")
-    assert _has_edge(workflow, "delly_sv_001", "sv_vcf", "sv_report_001", "tables")
+    assert _has_edge(workflow, "manta_sv_001", "sv_vcf", "render_manta_sv_tab_0", "file")
+    assert _has_edge(workflow, "delly_sv_001", "sv_vcf", "render_delly_sv_tab_1", "file")
     assert workflow["outputs"]["manta_sv"] == "manta_sv_001"
     assert workflow["outputs"]["delly_sv"] == "delly_sv_001"
-    assert workflow["outputs"]["structural_variant_report"] == "sv_report_001"

@@ -66,8 +66,11 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
     assert node_types["gate_crispresso_report_001"] == "gate"
     assert node_types["mageck_count_001"] == "mageck_count"
     assert node_types["mageck_test_001"] == "mageck_test"
-    assert node_types["crispr_report_001"] == "html_report"
-    assert node_types["crispr_report_preview_001"] == "html_preview"
+    assert node_types["render_guide_design_tab_0"] == "table_preview"
+    assert node_types["render_guide_design_tab_1"] == "table_preview"
+    assert node_types["render_cas_offinder_tab_2"] == "table_preview"
+    assert node_types["render_gate_crispresso_report_tab_3"] == "table_preview"
+    assert node_types["render_mageck_test_tab_4"] == "table_preview"
     assert "data_validator" not in node_types.values()
 
     assert _has_edge(workflow, "genome_001", "reference", "guide_design_001", "genome")
@@ -78,13 +81,11 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
     assert _has_edge(workflow, "screen_reads_001", "reads", "mageck_count_001", "fastq_files")
     assert _has_edge(workflow, "library_001", "file", "mageck_count_001", "library_file")
     assert _has_edge(workflow, "mageck_count_001", "count_table", "mageck_test_001", "count_table")
-    assert _has_edge(workflow, "guide_design_001", "guides", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "guide_design_001", "off_targets", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "cas_offinder_001", "offtarget_sites", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "gate_crispresso_report_001", "output", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "mageck_test_001", "gene_summary", "crispr_report_001", "tables")
-    assert _has_edge(workflow, "crispr_report_001", "html_report", "crispr_report_preview_001", "file")
-    assert not _has_edge(workflow, "crispresso2_001", "report", "crispr_report_preview_001", "file")
+    assert _has_edge(workflow, "guide_design_001", "guides", "render_guide_design_tab_0", "file")
+    assert _has_edge(workflow, "guide_design_001", "off_targets", "render_guide_design_tab_1", "file")
+    assert _has_edge(workflow, "cas_offinder_001", "offtarget_sites", "render_cas_offinder_tab_2", "file")
+    assert _has_edge(workflow, "gate_crispresso_report_001", "output", "render_gate_crispresso_report_tab_3", "file")
+    assert _has_edge(workflow, "mageck_test_001", "gene_summary", "render_mageck_test_tab_4", "file")
 
 
 def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
@@ -128,8 +129,6 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert workflow["outputs"]["crispresso_report_gate"] == "gate_crispresso_report_001"
     assert workflow["outputs"]["mageck_counts"] == "mageck_count_001"
     assert workflow["outputs"]["mageck_gene_summary"] == "mageck_test_001"
-    assert workflow["outputs"]["report"] == "crispr_report_001"
-    assert workflow["outputs"]["report_preview"] == "crispr_report_preview_001"
 
 
 def test_crispr_template_is_discoverable_from_workflow_templates_api() -> None:

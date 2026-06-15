@@ -63,8 +63,6 @@ def test_synthetic_biology_template_covers_biocad_design_and_simulation_workflow
         "copasi_simulation",
         "ibiosim_model",
         "cello_circuit_design",
-        "html_report",
-        "html_preview",
     }.issubset(set(workflow["tools"]))
 
     assert node_types["sbol_design_001"] == "input_file"
@@ -89,8 +87,8 @@ def test_synthetic_biology_template_covers_biocad_design_and_simulation_workflow
     assert "validate_cello_exec_dir_001" not in node_types
     assert node_types["cello_design_001"] == "cello_circuit_design"
     assert "validate_cello_index_001" not in node_types
-    assert node_types["synthetic_biology_report_001"] == "html_report"
-    assert node_types["synthetic_biology_report_preview_001"] == "html_preview"
+    assert "synthetic_biology_report_001" not in node_types
+    assert "synthetic_biology_report_preview_001" not in node_types
 
     assert not _has_edge(workflow, "sbol_design_001", "file", "validate_sbol_design_001", "input")
     assert _has_edge(workflow, "sbol_design_001", "file", "sbol_import_001", "sbol_file")
@@ -110,18 +108,10 @@ def test_synthetic_biology_template_covers_biocad_design_and_simulation_workflow
     assert _has_edge(workflow, "cello_options_001", "file", "cello_design_001", "options_file")
     assert _has_edge(workflow, "cello_exec_dir_001", "directory", "cello_design_001", "cello_exec_dir")
     assert not _has_edge(workflow, "cello_design_001", "result_index", "validate_cello_index_001", "input")
-    assert _has_edge(
-        workflow,
-        "synthetic_biology_report_001",
-        "html_report",
-        "synthetic_biology_report_preview_001",
-        "file",
-    )
 
     assert _has_edge(workflow, "sbol_design_001", "file", "sbol_import_001", "sbol_file")
     assert _has_edge(workflow, "copasi_model_001", "file", "copasi_simulation_001", "model_file")
     assert _has_edge(workflow, "omex_archive_001", "file", "ibiosim_model_001", "archive_file")
-    assert _target_input_count(workflow, "synthetic_biology_report_001", "tables") == 0
 
 
 def test_synthetic_biology_template_validates_outputs_and_tool_parameters() -> None:
@@ -140,7 +130,6 @@ def test_synthetic_biology_template_validates_outputs_and_tool_parameters() -> N
     ibiosim_index_validator = _output_validation(workflow, "ibiosim_model_001", "result_index")
     cello = _node_by_id(workflow, "cello_design_001")
     cello_index_validator = _output_validation(workflow, "cello_design_001", "result_index")
-    report = _node_by_id(workflow, "synthetic_biology_report_001")
 
     assert sbol_input["params"]["file"] == "examples/data/synthetic_biology/toggle_switch.xml"
     assert sbol_validator["expected_format"] == "auto"
@@ -179,26 +168,11 @@ def test_synthetic_biology_template_validates_outputs_and_tool_parameters() -> N
     assert cello["params"]["output_name"] == "toggle_circuit"
     assert cello_index_validator["expected_format"] == "tsv"
 
-    assert report["params"]["title"] == "Synthetic Biology Design and Simulation Report"
-    assert "SBOL" in report["params"]["text_sections"]
-    assert "COPASI" in report["params"]["text_sections"]
-    assert "Cello" in report["params"]["text_sections"]
-    assert report["params"]["tables"] == (
-        "copasi_simulation/toggle_simulation.report.tsv,"
-        "ibiosim_model/toggle_study.result_index.tsv,"
-        "cello_circuit_design/toggle_circuit.result_index.tsv"
-    )
-    assert report["params"]["section_names"] == (
-        "COPASI report,iBioSim result index,Cello result index"
-    )
-
     assert workflow["outputs"]["validated_sbol"] == "sbol_design_001"
     assert workflow["outputs"]["sbol_summary"] == "sbol_import_001"
     assert workflow["outputs"]["copasi_report"] == "copasi_simulation_001"
     assert workflow["outputs"]["ibiosim_index"] == "ibiosim_model_001"
     assert workflow["outputs"]["cello_index"] == "cello_design_001"
-    assert workflow["outputs"]["report"] == "synthetic_biology_report_001"
-    assert workflow["outputs"]["report_preview"] == "synthetic_biology_report_preview_001"
 
 
 def test_synthetic_biology_template_is_discoverable_from_workflow_templates_api() -> None:
@@ -216,7 +190,7 @@ def test_synthetic_biology_template_is_discoverable_from_workflow_templates_api(
     )
     assert listed["name"] == "Synthetic Biology Design and Simulation"
     assert listed["category"] == "Synthetic Biology"
-    assert listed["node_count"] >= 13
+    assert listed["node_count"] >= 11
     assert "sbol_design_import" in listed["tools"]
     assert "cello_circuit_design" in listed["tools"]
     assert "SBOL Design Import" in listed["preview_steps"]

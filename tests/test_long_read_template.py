@@ -59,8 +59,9 @@ def test_long_read_ont_template_covers_basecalling_filtering_qc_and_methylation(
     assert node_types["nanoplot_001"] == "nanoplot"
     assert node_types["modkit_001"] == "modkit_pileup"
     assert "validate_nanoplot_report_001" not in node_types
-    assert node_types["long_read_report_001"] == "html_report"
-    assert node_types["long_read_report_preview_001"] == "html_preview"
+    assert node_types["render_nanoplot_tab_0"] == "table_preview"
+    assert node_types["render_modkit_tab_1"] == "table_preview"
+    assert node_types["render_dorado_demux_tab_2"] == "table_preview"
 
     assert not _has_edge(workflow, "pod5_001", "directory", "validate_pod5_001", "input")
     assert not _has_edge(workflow, "reference_001", "reference", "validate_reference_001", "input")
@@ -74,13 +75,13 @@ def test_long_read_ont_template_covers_basecalling_filtering_qc_and_methylation(
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "modkit_001", "bam")
     assert _has_edge(workflow, "reference_001", "reference", "modkit_001", "reference")
     assert not _has_edge(workflow, "nanoplot_001", "qc_report", "validate_nanoplot_report_001", "input")
-    assert _has_edge(workflow, "nanoplot_001", "qc_report", "long_read_report_001", "tables")
-    assert _has_edge(workflow, "modkit_001", "bedmethyl", "long_read_report_001", "tables")
-    assert _has_edge(workflow, "long_read_report_001", "html_report", "long_read_report_preview_001", "file")
+    assert _has_edge(workflow, "nanoplot_001", "qc_report", "render_nanoplot_tab_0", "file")
+    assert _has_edge(workflow, "modkit_001", "bedmethyl", "render_modkit_tab_1", "file")
+    assert _has_edge(workflow, "dorado_demux_001", "barcode_summary", "render_dorado_demux_tab_2", "file")
 
     assert _has_edge(workflow, "pod5_001", "directory", "dorado_basecaller_001", "pod5_dir")
     assert _has_edge(workflow, "reference_001", "reference", "dorado_basecaller_001", "reference")
-    assert _has_edge(workflow, "nanoplot_001", "qc_report", "long_read_report_001", "tables")
+    assert _has_edge(workflow, "nanoplot_001", "qc_report", "render_nanoplot_tab_0", "file")
 
 
 def test_long_read_ont_template_validates_and_gates_core_outputs() -> None:
@@ -130,8 +131,6 @@ def test_long_read_ont_template_validates_and_gates_core_outputs() -> None:
     assert workflow["outputs"]["filtered_reads"] == "chopper_001"
     assert workflow["outputs"]["qc_report"] == "nanoplot_001"
     assert workflow["outputs"]["bedmethyl"] == "modkit_001"
-    assert workflow["outputs"]["report"] == "long_read_report_001"
-    assert workflow["outputs"]["report_preview"] == "long_read_report_preview_001"
 
 
 def test_long_read_ont_template_is_discoverable_from_workflow_templates_api() -> None:

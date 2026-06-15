@@ -20,21 +20,6 @@
       }
     },
     {
-      "id": "seqs_001",
-      "type": "input_fasta",
-      "position": [
-        80,
-        80
-      ],
-      "params": {
-        "file_path": "examples/data/phylogenetics/16s_sequences.fasta",
-        "reference": "examples/data/phylogenetics/16s_sequences.fasta"
-      },
-      "ui": {
-        "title": "Example Local FASTA"
-      }
-    },
-    {
       "id": "ncbi_efetch_001",
       "type": "ncbi_efetch",
       "position": [
@@ -235,50 +220,27 @@
       }
     },
     {
-      "id": "http_gene_lookup_001",
-      "type": "http_request",
-      "position": [
-        80,
-        593
-      ],
-      "params": {
-        "url": "https://rest.uniprot.org/uniprotkb/search",
-        "method": "GET",
-        "query_params": "{\"query\":\"gene:rpoB AND organism_id:562\",\"fields\":\"accession,id,protein_name,gene_names,organism_name\",\"format\":\"tsv\",\"size\":\"5\"}",
-        "cache_ttl": 3600,
-        "rate_limit_per_second": 1,
-        "output_name": "uniprot_rpob_lookup"
-      },
-      "ui": {
-        "title": "UniProt API Lookup"
-      }
-    },
-    {
-      "id": "sequence_report_001",
-      "type": "html_report",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "title": "Biopython Sequence Report",
-        "text_sections": "# Summary\nSequence metadata, length distribution, computed statistics, and AI sequence classifications from the Biopython analysis workflow.",
-        "section_names": "Sequence length chart,Sequence statistics,AI sequence classifications"
-      },
-      "ui": {
-        "title": "Sequence Report"
-      }
-    },
-    {
-      "id": "sequence_report_preview_001",
-      "type": "html_preview",
+      "id": "render_sequence_classification_tab_1",
+      "type": "table_preview",
       "position": [
         1520,
-        80
+        300
       ],
       "params": {},
       "ui": {
-        "title": "View Sequence Report"
+        "title": "View Table: sequence_classification"
+      }
+    },
+    {
+      "id": "render_seq_length_chart_ima_2",
+      "type": "image_preview",
+      "position": [
+        1520,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: seq_length_chart"
       }
     }
   ],
@@ -394,46 +356,22 @@
       }
     },
     {
-      "id": "e10",
-      "from": {
-        "node": "seq_length_chart_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "sequence_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e11",
-      "from": {
-        "node": "seq_stats_001",
-        "output": "stats_tsv"
-      },
-      "to": {
-        "node": "sequence_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e11a",
       "from": {
         "node": "sequence_classification_001",
         "output": "classifications_csv"
       },
       "to": {
-        "node": "sequence_report_001",
-        "input": "tables"
+        "node": "render_sequence_classification_tab_1",
+        "input": "file"
       }
     },
     {
-      "id": "e12",
       "from": {
-        "node": "sequence_report_001",
-        "output": "html_report"
+        "node": "seq_length_chart_001",
+        "output": "chart_image"
       },
       "to": {
-        "node": "sequence_report_preview_001",
+        "node": "render_seq_length_chart_ima_2",
         "input": "file"
       }
     }
@@ -453,9 +391,6 @@
     "validated_coding_sequences": "coding_001",
     "sequence_length_chart": "seq_length_chart_001",
     "sequence_classifications": "sequence_classification_001",
-    "sequence_classifications_csv": "sequence_classification_001",
-    "api_gene_lookup": "http_gene_lookup_001",
-    "report": "sequence_report_001",
-    "sequence_report_preview": "sequence_report_preview_001"
+    "sequence_classifications_csv": "sequence_classification_001"
   }
 }

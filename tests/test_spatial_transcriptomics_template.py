@@ -68,8 +68,6 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
         "squidpy_qc",
         "scanpy_spatial",
         "image_preview",
-        "html_report",
-        "html_preview",
     }.issubset(set(workflow["tools"]))
 
     assert node_types["visium_outs_001"] == "input_directory"
@@ -84,8 +82,8 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
     assert node_types["scanpy_spatial_001"] == "scanpy_spatial"
     assert "validate_scanpy_clusters_001" not in node_types
     assert node_types["scanpy_umap_preview_001"] == "image_preview"
-    assert node_types["spatial_report_001"] == "html_report"
-    assert node_types["spatial_report_preview_001"] == "html_preview"
+    assert "spatial_report_001" not in node_types
+    assert "spatial_report_preview_001" not in node_types
 
     assert not _has_edge(workflow, "visium_outs_001", "directory", "validate_visium_outs_001", "input")
     assert _has_edge(workflow, "visium_outs_001", "directory", "squidpy_qc_001", "visium_path")
@@ -98,13 +96,10 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
     assert _has_edge(workflow, "coordinates_001", "file", "scanpy_spatial_001", "coordinates")
     assert not _has_edge(workflow, "scanpy_spatial_001", "clusters", "validate_scanpy_clusters_001", "input")
     assert _has_edge(workflow, "scanpy_spatial_001", "umap", "scanpy_umap_preview_001", "file")
-    assert _has_edge(workflow, "spatial_report_001", "html_report", "spatial_report_preview_001", "file")
 
     assert _has_edge(workflow, "visium_outs_001", "directory", "squidpy_qc_001", "visium_path")
     assert _has_edge(workflow, "count_matrix_001", "file", "scanpy_spatial_001", "count_matrix")
     assert _has_edge(workflow, "coordinates_001", "file", "scanpy_spatial_001", "coordinates")
-    assert _target_input_count(workflow, "spatial_report_001", "images") == 0
-    assert _target_input_count(workflow, "spatial_report_001", "tables") == 0
 
 
 def test_spatial_transcriptomics_template_validates_outputs_and_analysis_parameters() -> None:
@@ -120,7 +115,6 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     coordinates_validator = _output_validation(workflow, "coordinates_001", "file")
     scanpy = _node_by_id(workflow, "scanpy_spatial_001")
     clusters_validator = _output_validation(workflow, "scanpy_spatial_001", "clusters")
-    report = _node_by_id(workflow, "spatial_report_001")
 
     assert visium_input["params"]["directory"] == "examples/data/spatial_transcriptomics/visium_outs"
     assert visium_validator["expected_format"] == "directory"
@@ -153,20 +147,11 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert clusters_validator["expected_format"] == "csv"
     assert clusters_validator["fail_on_error"] is True
 
-    assert report["params"]["title"] == "Spatial Transcriptomics QC and Clustering Report"
-    assert "Squidpy" in report["params"]["text_sections"]
-    assert "Scanpy" in report["params"]["text_sections"]
-    assert report["params"]["images"] == "squidpy_qc/spatial_plot.png,scanpy_spatial/umap.png"
-    assert report["params"]["tables"] == "scanpy_spatial/clusters.csv"
-    assert report["params"]["section_names"] == "Squidpy spatial QC,Scanpy UMAP,Scanpy clusters"
-
     assert workflow["outputs"]["validated_visium_outs"] == "visium_outs_001"
     assert workflow["outputs"]["squidpy_adata"] == "squidpy_qc_001"
     assert workflow["outputs"]["spatial_plot_preview"] == "spatial_plot_preview_001"
     assert workflow["outputs"]["scanpy_clusters"] == "scanpy_spatial_001"
     assert workflow["outputs"]["scanpy_umap_preview"] == "scanpy_umap_preview_001"
-    assert workflow["outputs"]["report"] == "spatial_report_001"
-    assert workflow["outputs"]["report_preview"] == "spatial_report_preview_001"
 
 
 def test_spatial_transcriptomics_template_is_discoverable_from_workflow_templates_api() -> None:
@@ -184,7 +169,7 @@ def test_spatial_transcriptomics_template_is_discoverable_from_workflow_template
     )
     assert listed["name"] == "Spatial Transcriptomics QC and Clustering"
     assert listed["category"] == "Spatial Transcriptomics"
-    assert listed["node_count"] >= 9
+    assert listed["node_count"] >= 7
     assert "squidpy_qc" in listed["tools"]
     assert "scanpy_spatial" in listed["tools"]
     assert "Squidpy QC" in listed["preview_steps"]

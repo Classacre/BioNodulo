@@ -46,7 +46,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
-    assert node_types["variant_report_001"] == "html_report"
+    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
@@ -57,9 +57,9 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
-    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "render_vcf_stats_ima_2", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
@@ -127,7 +127,7 @@ def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
     assert coverage["params"]["window_size"] == 100
     assert coverage["params"]["format"] == "png"
     assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
-    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "variant_report_001", "images")
+    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "render_coverage_plot_ima_3", "file")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -147,9 +147,9 @@ def test_variant_calling_template_prioritizes_annotated_variants() -> None:
     assert "prioritized VCF" in gate["params"]["error_message"]
     assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
     assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "gate_prioritized_vcf_001", "value")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
-    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
-    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "file")
+    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "file")
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
@@ -163,7 +163,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
-    assert node_types["variant_report_001"] == "html_report"
+    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
@@ -173,9 +173,9 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "variant_report_001", "images")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
-    assert _has_edge(workflow, "vep_001", "annotated_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "render_vcf_stats_ima_2", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
@@ -243,7 +243,7 @@ def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
     assert coverage["params"]["window_size"] == 100
     assert coverage["params"]["format"] == "png"
     assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
-    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "variant_report_001", "images")
+    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "render_coverage_plot_ima_3", "file")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -263,9 +263,9 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     assert "prioritized VCF" in gate["params"]["error_message"]
     assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
     assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "gate_prioritized_vcf_001", "value")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "variant_report_001", "tables")
-    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "variant_report_001", "tables")
-    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "variant_report_001", "tables")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "file")
+    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "file")
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
@@ -339,19 +339,11 @@ def test_fastq_qc_template_demonstrates_sample_sheet_input_validation() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["sample_sheet_001"] == "input_sample_sheet"
+    # The sample_sheet_001 demo node was removed from the template by design.
+    assert "sample_sheet_001" not in node_types
     assert "validate_sample_sheet_001" not in node_types
-    sample_sheet = next(node for node in workflow["nodes"] if node["id"] == "sample_sheet_001")
-    validator = _output_validation(workflow, "sample_sheet_001", "sample_sheet")
-    assert sample_sheet["params"]["sample_sheet"] == "templates/data/fastq_qc_sample_sheet.csv"
-    assert validator["expected_format"] == "csv"
-    assert validator["required_fields"] == "sample,fastq_1,fastq_2"
-    assert validator["min_records"] >= 1
-    assert validator["min_size_bytes"] > 0
-    assert validator["fail_on_error"] is True
-    assert not _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
-    assert workflow["outputs"]["sample_sheet"] == "sample_sheet_001"
-    assert workflow["outputs"]["validated_sample_sheet"] == "sample_sheet_001"
+    assert "sample_sheet" not in workflow["outputs"]
+    assert "validated_sample_sheet" not in workflow["outputs"]
 
 
 def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
@@ -359,18 +351,18 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["tree_viewer_001"] == "phylo_tree_viewer"
-    assert node_types["phylo_report_001"] == "html_report"
+    # The phylo_report_001 html_report was removed by design; figures feed preview nodes.
+    assert "phylo_report_001" not in node_types
+    assert node_types["render_tree_viewer_ima_0"] == "image_preview"
+    assert node_types["image_preview_001"] == "image_preview"
     tree_viewer = next(node for node in workflow["nodes"] if node["id"] == "tree_viewer_001")
-    report = next(node for node in workflow["nodes"] if node["id"] == "phylo_report_001")
     assert tree_viewer["params"]["format"] == "png"
     assert tree_viewer["params"]["layout"] == "rectangular"
-    assert report["params"]["section_names"] == "Phylogenetic tree,Alignment visualization"
     assert _has_edge(workflow, "iqtree_001", "tree", "tree_viewer_001", "tree_file")
-    assert _has_edge(workflow, "tree_viewer_001", "tree_image", "phylo_report_001", "images")
-    assert _has_edge(workflow, "msa_view_001", "alignment_image", "phylo_report_001", "images")
-    assert not _has_edge(workflow, "mafft_001", "alignment", "phylo_report_001", "tables")
+    assert _has_edge(workflow, "tree_viewer_001", "tree_image", "render_tree_viewer_ima_0", "file")
+    assert _has_edge(workflow, "msa_view_001", "alignment_image", "image_preview_001", "file")
     assert workflow["outputs"]["tree_image"] == "tree_viewer_001"
-    assert workflow["outputs"]["report"] == "phylo_report_001"
+    assert "report" not in workflow["outputs"]
 
 
 def test_phylogenetics_template_validates_input_fasta_before_alignment() -> None:
@@ -537,7 +529,7 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     assert heatmap["params"]["format"] == "png"
     assert _has_edge(workflow, "counts_001", "counts", "normalize_counts_001", "table")
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
-    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "counts_report_001", "images")
+    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "render_counts_heatmap_ima_2", "file")
     assert workflow["outputs"]["normalized_counts"] == "normalize_counts_001"
     assert workflow["outputs"]["counts_heatmap"] == "counts_heatmap_001"
 
@@ -548,18 +540,18 @@ def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
 
     assert node_types["volcano_001"] == "volcano_plot"
     assert node_types["ma_plot_001"] == "ma_plot"
-    assert node_types["de_report_001"] == "html_report"
+    assert node_types["render_volcano_ima_6"] == "image_preview"
+    assert node_types["render_deseq2_tab_0"] == "table_preview"
     volcano = next(node for node in workflow["nodes"] if node["id"] == "volcano_001")
     ma_plot = next(node for node in workflow["nodes"] if node["id"] == "ma_plot_001")
     assert volcano["params"]["format"] == "png"
     assert ma_plot["params"]["format"] == "png"
     assert _has_edge(workflow, "deseq2_001", "results_csv", "volcano_001", "results_table")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "ma_plot_001", "results_table")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "de_report_001", "images")
-    assert _has_edge(workflow, "deseq2_001", "results_csv", "de_report_001", "tables")
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "render_volcano_ima_6", "file")
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "render_deseq2_tab_0", "file")
     assert workflow["outputs"]["volcano_plot"] == "volcano_001"
     assert workflow["outputs"]["ma_plot"] == "ma_plot_001"
-    assert workflow["outputs"]["report"] == "de_report_001"
 
 
 def test_deseq2_template_extracts_significant_genes() -> None:
@@ -576,7 +568,7 @@ def test_deseq2_template_extracts_significant_genes() -> None:
     assert filter_node["params"]["logical_op"] == "AND"
     assert filter_node["params"]["output_type"] == "CSV"
     assert _has_edge(workflow, "deseq2_001", "results_csv", "significant_genes_001", "table")
-    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "de_report_001", "tables")
+    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "render_significant_genes_tab_3", "file")
     assert workflow["outputs"]["significant_genes"] == "significant_genes_001"
 
 
@@ -590,7 +582,7 @@ def test_deseq2_template_transposes_normalized_counts_for_sample_reporting() -> 
     assert transpose_node["params"]["new_header"] == "sample"
     assert transpose_node["params"]["output_type"] == "CSV"
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "normalized_counts_transpose_001", "table")
-    assert _has_edge(workflow, "normalized_counts_transpose_001", "transposed_table", "de_report_001", "tables")
+    assert _has_edge(workflow, "normalized_counts_transpose_001", "transposed_table", "render_normalized_counts_transpose_tab_2", "file")
     assert workflow["outputs"]["normalized_counts_transposed"] == "normalized_counts_transpose_001"
 
 
@@ -642,20 +634,22 @@ def test_r_visualization_template_combines_plots_into_html_report() -> None:
     workflow = _load_template("r_visualization_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["viz_report_001"] == "html_report"
-    assert node_types["viz_report_preview_001"] == "html_preview"
-    report = next(node for node in workflow["nodes"] if node["id"] == "viz_report_001")
-    assert report["params"]["title"] == "R Visualization Report"
-    assert "Sequencing depth" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "QC plot,Expression plot,Heatmap,Volcano plot,MA plot"
-    assert _has_edge(workflow, "qc_plot_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "expr_plot_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "viz_report_001", "images")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "viz_report_001", "images")
-    assert _has_edge(workflow, "viz_report_001", "html_report", "viz_report_preview_001", "file")
-    assert workflow["outputs"]["report"] == "viz_report_001"
-    assert workflow["outputs"]["report_preview"] == "viz_report_preview_001"
+    # The viz_report_001 html_report and its html_preview were removed by design;
+    # each figure feeds its own curated image_preview node instead.
+    assert "viz_report_001" not in node_types
+    assert "viz_report_preview_001" not in node_types
+    assert node_types["qc_preview_001"] == "image_preview"
+    assert node_types["expr_preview_001"] == "image_preview"
+    assert node_types["heatmap_preview_001"] == "image_preview"
+    assert node_types["volcano_preview_001"] == "image_preview"
+    assert node_types["ma_preview_001"] == "image_preview"
+    assert _has_edge(workflow, "qc_plot_001", "plot_png", "qc_preview_001", "file")
+    assert _has_edge(workflow, "expr_plot_001", "plot_png", "expr_preview_001", "file")
+    assert _has_edge(workflow, "pheatmap_001", "plot_png", "heatmap_preview_001", "file")
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "volcano_preview_001", "file")
+    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
+    assert "report" not in workflow["outputs"]
+    assert "report_preview" not in workflow["outputs"]
 
 
 def test_biopython_template_validates_input_fastas_before_sequence_tools() -> None:
@@ -704,21 +698,17 @@ def test_biopython_template_adds_sequence_stats_chart_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["seq_length_chart_001"] == "bar_chart"
-    assert node_types["sequence_report_001"] == "html_report"
+    assert node_types["render_seq_length_chart_ima_2"] == "image_preview"
+    assert node_types["table_preview_001"] == "table_preview"
     chart = next(node for node in workflow["nodes"] if node["id"] == "seq_length_chart_001")
-    report = next(node for node in workflow["nodes"] if node["id"] == "sequence_report_001")
     assert chart["params"]["x_column"] == "id"
     assert chart["params"]["y_column"] == "length"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
-    assert report["params"]["section_names"] == (
-        "Sequence length chart,Sequence statistics,AI sequence classifications"
-    )
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "seq_length_chart_001", "table")
-    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
-    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
+    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "render_seq_length_chart_ima_2", "file")
+    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "table_preview_001", "file")
     assert workflow["outputs"]["sequence_length_chart"] == "seq_length_chart_001"
-    assert workflow["outputs"]["report"] == "sequence_report_001"
 
 
 def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences() -> None:
@@ -732,7 +722,7 @@ def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences(
     assert classifier["params"]["confidence_threshold"] == 0.0
     assert classifier["params"]["top_k"] == 3
     assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
+    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file")
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 
@@ -741,20 +731,9 @@ def test_biopython_template_demonstrates_generic_http_api_lookup() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["http_gene_lookup_001"] == "http_request"
-    request = next(node for node in workflow["nodes"] if node["id"] == "http_gene_lookup_001")
-    assert request["params"]["url"] == "https://rest.uniprot.org/uniprotkb/search"
-    assert request["params"]["method"] == "GET"
-    assert json.loads(request["params"]["query_params"]) == {
-        "query": "gene:rpoB AND organism_id:562",
-        "fields": "accession,id,protein_name,gene_names,organism_name",
-        "format": "tsv",
-        "size": "5",
-    }
-    assert request["params"]["cache_ttl"] == 3600
-    assert request["params"]["rate_limit_per_second"] == 1
-    assert request["params"]["output_name"] == "uniprot_rpob_lookup"
-    assert workflow["outputs"]["api_gene_lookup"] == "http_gene_lookup_001"
+    # The http_gene_lookup_001 demo node was removed from the template by design.
+    assert "http_gene_lookup_001" not in node_types
+    assert "api_gene_lookup" not in workflow["outputs"]
 
 
 def test_differential_expression_template_validates_transcriptome_before_indexing() -> None:
@@ -831,22 +810,16 @@ def test_differential_expression_template_validates_multiqc_report_before_previe
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
-def test_differential_expression_template_adds_quantification_html_report() -> None:
+def test_differential_expression_template_adds_quantification_table_previews() -> None:
     workflow = _load_template("differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["quant_report_001"] == "html_report"
-    assert node_types["quant_report_preview_001"] == "html_preview"
-    report = next(node for node in workflow["nodes"] if node["id"] == "quant_report_001")
-    assert report["params"]["title"] == "Transcript Quantification Report"
-    assert report["params"]["section_names"] == "Salmon quantification,Kallisto abundance,Quantifier comparison"
-    assert report["params"]["max_table_rows"] == 100
-    assert _has_edge(workflow, "salmon_quant_001", "counts", "quant_report_001", "tables")
-    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "quant_report_001", "tables")
-    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "quant_report_001", "tables")
-    assert _has_edge(workflow, "quant_report_001", "html_report", "quant_report_preview_001", "file")
-    assert workflow["outputs"]["quantification_report"] == "quant_report_001"
-    assert workflow["outputs"]["quantification_report_preview"] == "quant_report_preview_001"
+    assert node_types["render_salmon_quant_tab_0"] == "table_preview"
+    assert node_types["render_kallisto_quant_tab_1"] == "table_preview"
+    assert node_types["render_quant_comparison_tab_2"] == "table_preview"
+    assert _has_edge(workflow, "salmon_quant_001", "counts", "render_salmon_quant_tab_0", "file")
+    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "render_kallisto_quant_tab_1", "file")
+    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "render_quant_comparison_tab_2", "file")
 
 
 def test_differential_expression_template_compares_quantifier_outputs() -> None:
@@ -860,7 +833,6 @@ def test_differential_expression_template_compares_quantifier_outputs() -> None:
     salmon_columns = next(node for node in workflow["nodes"] if node["id"] == "salmon_quant_columns_001")
     kallisto_columns = next(node for node in workflow["nodes"] if node["id"] == "kallisto_quant_columns_001")
     comparison = next(node for node in workflow["nodes"] if node["id"] == "quant_comparison_001")
-    report = next(node for node in workflow["nodes"] if node["id"] == "quant_report_001")
 
     assert salmon_columns["params"]["columns"] == "Name,TPM,NumReads"
     assert salmon_columns["params"]["rename_to"] == "target_id,salmon_tpm,salmon_reads"
@@ -873,13 +845,12 @@ def test_differential_expression_template_compares_quantifier_outputs() -> None:
     assert comparison["params"]["delimiter"] == "tsv"
     assert comparison["params"]["left_suffix"] == "_salmon"
     assert comparison["params"]["right_suffix"] == "_kallisto"
-    assert "Quantifier comparison" in report["params"]["section_names"]
 
     assert _has_edge(workflow, "salmon_quant_001", "counts", "salmon_quant_columns_001", "table")
     assert _has_edge(workflow, "kallisto_quant_001", "abundance", "kallisto_quant_columns_001", "table")
     assert _has_edge(workflow, "salmon_quant_columns_001", "extracted_table", "quant_comparison_001", "table_a")
     assert _has_edge(workflow, "kallisto_quant_columns_001", "extracted_table", "quant_comparison_001", "table_b")
-    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "quant_report_001", "tables")
+    assert _has_edge(workflow, "quant_comparison_001", "joined_table", "render_quant_comparison_tab_2", "file")
     assert workflow["outputs"]["quantifier_comparison"] == "quant_comparison_001"
 
 
@@ -981,16 +952,10 @@ def test_assembly_template_adds_annotation_html_report() -> None:
     workflow = _load_template("assembly_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["assembly_report_001"] == "html_report"
-    report = next(node for node in workflow["nodes"] if node["id"] == "assembly_report_001")
-    assert report["params"]["title"] == "Assembly Annotation Report"
-    assert report["params"]["section_names"] == (
-        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
-    )
-    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "prokka_001", "gff", "assembly_report_001", "tables")
-    assert _has_edge(workflow, "quast_001", "report", "assembly_report_001", "tables")
-    assert workflow["outputs"]["report"] == "assembly_report_001"
+    assert node_types["render_prokka_tab_0"] == "table_preview"
+    assert node_types["render_assembly_stats_tab_1"] == "table_preview"
+    assert _has_edge(workflow, "prokka_001", "gff", "render_prokka_tab_0", "file")
+    assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "render_assembly_stats_tab_1", "file")
 
 
 def test_assembly_template_validates_quast_report_before_preview() -> None:
@@ -1152,7 +1117,7 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
     assert not _has_edge(workflow, "peak_annotation_bed_001", "file", "validate_peak_annotation_bed_001", "input")
     assert _has_edge(workflow, "macs2_001", "peaks", "peak_annotation_001", "variants")
     assert _has_edge(workflow, "peak_annotation_bed_001", "file", "peak_annotation_001", "annotations")
-    assert _has_edge(workflow, "peak_annotation_001", "closest", "chip_seq_report_001", "tables")
+    assert _has_edge(workflow, "peak_annotation_001", "closest", "render_peak_annotation_tab_1", "file")
     assert workflow["outputs"]["validated_peak_annotation_bed"] == "peak_annotation_bed_001"
     assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"
 
@@ -1178,7 +1143,9 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
 
     assert node_types["bracken_bar_001"] == "bar_chart"
     assert node_types["bracken_heatmap_001"] == "heatmap"
-    assert node_types["taxonomy_report_001"] == "html_report"
+    assert node_types["render_bracken_bar_ima_1"] == "image_preview"
+    assert node_types["render_bracken_heatmap_ima_2"] == "image_preview"
+    assert node_types["render_bracken_tab_0"] == "table_preview"
     chart = next(node for node in workflow["nodes"] if node["id"] == "bracken_bar_001")
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
     assert chart["params"]["x_column"] == "name"
@@ -1190,12 +1157,11 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     assert heatmap["params"]["format"] == "png"
     assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
     assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "bracken_bar_001", "chart_image", "taxonomy_report_001", "images")
-    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "taxonomy_report_001", "images")
-    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
+    assert _has_edge(workflow, "bracken_bar_001", "chart_image", "render_bracken_bar_ima_1", "file")
+    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "render_bracken_heatmap_ima_2", "file")
+    assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")
     assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
     assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
-    assert workflow["outputs"]["taxonomy_report"] == "taxonomy_report_001"
 
 
 def test_metagenomics_template_validates_reads_before_trimming_and_qc() -> None:
@@ -1266,10 +1232,7 @@ def test_metagenomics_template_validates_bracken_report_before_visualization() -
     assert not _has_edge(workflow, "bracken_001", "report", "validate_bracken_001", "input")
     assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
     assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "bracken_001", "report", "taxonomy_report_001", "tables")
+    assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")
     assert workflow["outputs"]["validated_bracken_report"] == "bracken_001"
 
 
@@ -1294,19 +1257,13 @@ def test_metagenomics_template_validates_humann_pathcoverage_before_reporting() 
 
     assert "validate_humann_pathcoverage_001" not in node_types
     validator = _output_validation(workflow, "humann_001", "pathcoverage")
-    report = next(node for node in workflow["nodes"] if node["id"] == "functional_report_001")
     assert validator["expected_format"] == "tsv"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
-    assert report["params"]["section_names"] == (
-        "HUMAnN pathway abundance,HUMAnN pathway coverage,"
-        "HUMAnN pathway coverage chart,HUMAnN gene families"
-    )
     assert not _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
     assert _has_edge(workflow, "humann_001", "pathcoverage", "humann_pathcoverage_bar_001", "table")
-    assert _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
-    assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "functional_report_001", "images")
-    assert _has_edge(workflow, "humann_001", "pathcoverage", "functional_report_001", "tables")
+    assert _has_edge(workflow, "humann_001", "pathcoverage", "render_humann_tab_1", "file")
+    assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "render_humann_pathcoverage_bar_ima_3", "file")
     assert workflow["outputs"]["validated_humann_pathcoverage"] == "humann_001"
     assert workflow["outputs"]["functional_pathcoverage_chart"] == "humann_pathcoverage_bar_001"
 
@@ -1380,22 +1337,20 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
 
     assert node_types["qc_dashboard_001"] == "qc_dashboard"
     assert node_types["qc_dashboard_preview_001"] == "html_preview"
-    assert node_types["single_cell_report_001"] == "html_report"
-    assert node_types["single_cell_report_preview_001"] == "html_preview"
+    # The single_cell_report_001 html_report and its html_preview were removed by design.
+    assert "single_cell_report_001" not in node_types
+    assert "single_cell_report_preview_001" not in node_types
+    assert node_types["render_cr_count_tab_0"] == "table_preview"
+    assert node_types["render_metrics_summary_chart_ima_1"] == "image_preview"
 
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
-    report = next(node for node in workflow["nodes"] if node["id"] == "single_cell_report_001")
     assert dashboard["params"]["run_name"] == "Single Cell QC"
     assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
-    assert report["params"]["title"] == "Single Cell RNA-Seq Report"
-    assert "Cell Ranger" in report["params"]["text_sections"]
-    assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
-    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "single_cell_report_001", "tables")
-    assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
+    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "render_metrics_summary_chart_ima_1", "file")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
-    assert workflow["outputs"]["report"] == "single_cell_report_001"
+    assert "report" not in workflow["outputs"]

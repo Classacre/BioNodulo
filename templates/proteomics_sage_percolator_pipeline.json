@@ -16,9 +16,7 @@
     "input_file",
     "input_fasta",
     "sage_search",
-    "percolator",
-    "html_report",
-    "html_preview"
+    "percolator"
   ],
   "nodes": [
     {
@@ -142,31 +140,39 @@
       }
     },
     {
-      "id": "proteomics_report_001",
-      "type": "html_report",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "title": "Proteomics Sage-Percolator Report",
-        "text_sections": "# Summary\nSage peptide-spectrum matching results are post-processed with Percolator to estimate PSM and protein-level FDR.",
-        "section_names": "Percolator PSMs,Percolator proteins,Sage search results"
-      },
-      "ui": {
-        "title": "Proteomics Report"
-      }
-    },
-    {
-      "id": "proteomics_report_preview_001",
-      "type": "html_preview",
+      "id": "render_percolator_tab_0",
+      "type": "table_preview",
       "position": [
         1520,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View Proteomics Report"
+        "title": "View Table: percolator"
+      }
+    },
+    {
+      "id": "render_percolator_tab_1",
+      "type": "table_preview",
+      "position": [
+        1520,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: percolator"
+      }
+    },
+    {
+      "id": "render_sage_search_tab_2",
+      "type": "table_preview",
+      "position": [
+        1520,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: sage_search"
       }
     }
   ],
@@ -216,46 +222,32 @@
       }
     },
     {
-      "id": "e9",
       "from": {
         "node": "percolator_001",
         "output": "percolator_psms"
       },
       "to": {
-        "node": "proteomics_report_001",
-        "input": "tables"
+        "node": "render_percolator_tab_0",
+        "input": "file"
       }
     },
     {
-      "id": "e10",
       "from": {
         "node": "percolator_001",
         "output": "percolator_proteins"
       },
       "to": {
-        "node": "proteomics_report_001",
-        "input": "tables"
+        "node": "render_percolator_tab_1",
+        "input": "file"
       }
     },
     {
-      "id": "e11",
       "from": {
         "node": "sage_search_001",
         "output": "results_tsv"
       },
       "to": {
-        "node": "proteomics_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e12",
-      "from": {
-        "node": "proteomics_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "proteomics_report_preview_001",
+        "node": "render_sage_search_tab_2",
         "input": "file"
       }
     }
@@ -268,8 +260,6 @@
     "sage_pin": "sage_search_001",
     "validated_sage_pin": "sage_search_001",
     "percolator_psms": "percolator_001",
-    "percolator_proteins": "percolator_001",
-    "report": "proteomics_report_001",
-    "report_preview": "proteomics_report_preview_001"
+    "percolator_proteins": "percolator_001"
   }
 }

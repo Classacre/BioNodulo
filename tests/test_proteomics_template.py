@@ -47,7 +47,7 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert workflow["name"] == "Proteomics Sage-Percolator Search"
     assert workflow["category"] == "Proteomics"
     assert {"proteomics", "sage", "percolator", "fdr"}.issubset(set(workflow["tags"]))
-    assert {"sage_search", "percolator", "html_report"}.issubset(set(workflow["tools"]))
+    assert {"sage_search", "percolator"}.issubset(set(workflow["tools"]))
 
     assert node_types["spectra_001"] == "input_file"
     assert node_types["fasta_001"] == "input_fasta"
@@ -57,8 +57,9 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert "validate_sage_pin_001" not in node_types
     assert node_types["percolator_001"] == "percolator"
     assert "validate_percolator_psms_001" not in node_types
-    assert node_types["proteomics_report_001"] == "html_report"
-    assert node_types["proteomics_report_preview_001"] == "html_preview"
+    assert node_types["render_percolator_tab_0"] == "table_preview"
+    assert node_types["render_percolator_tab_1"] == "table_preview"
+    assert node_types["render_sage_search_tab_2"] == "table_preview"
 
     sage = _node_by_id(workflow, "sage_search_001")
     percolator = _node_by_id(workflow, "percolator_001")
@@ -79,9 +80,9 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert _has_edge(workflow, "sage_search_001", "pin_file", "percolator_001", "pin_file")
     assert _has_edge(workflow, "fasta_001", "reference", "percolator_001", "fasta_db")
     assert not _has_edge(workflow, "percolator_001", "percolator_psms", "validate_percolator_psms_001", "input")
-    assert _has_edge(workflow, "percolator_001", "percolator_psms", "proteomics_report_001", "tables")
-    assert _has_edge(workflow, "percolator_001", "percolator_proteins", "proteomics_report_001", "tables")
-    assert _has_edge(workflow, "proteomics_report_001", "html_report", "proteomics_report_preview_001", "file")
+    assert _has_edge(workflow, "percolator_001", "percolator_psms", "render_percolator_tab_0", "file")
+    assert _has_edge(workflow, "percolator_001", "percolator_proteins", "render_percolator_tab_1", "file")
+    assert _has_edge(workflow, "sage_search_001", "results_tsv", "render_sage_search_tab_2", "file")
 
     assert not _has_edge(workflow, "sage_search_001", "results_tsv", "percolator_001", "pin_file")
     assert _has_edge(workflow, "sage_search_001", "pin_file", "percolator_001", "pin_file")
@@ -93,8 +94,6 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert workflow["outputs"]["validated_sage_pin"] == "sage_search_001"
     assert workflow["outputs"]["percolator_psms"] == "percolator_001"
     assert workflow["outputs"]["percolator_proteins"] == "percolator_001"
-    assert workflow["outputs"]["report"] == "proteomics_report_001"
-    assert workflow["outputs"]["report_preview"] == "proteomics_report_preview_001"
 
 
 def test_proteomics_sage_percolator_template_is_discoverable_from_workflow_templates_api() -> None:

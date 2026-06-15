@@ -213,23 +213,6 @@
       }
     },
     {
-      "id": "counts_report_001",
-      "type": "html_report",
-      "position": [
-        3320,
-        80
-      ],
-      "params": {
-        "title": "RNA-Seq Counts Report",
-        "text_sections": "# Summary\nRaw featureCounts output, CPM-normalized counts, and a normalized count heatmap for the RNA-seq workflow.",
-        "section_names": "Normalized count heatmap,Raw featureCounts,Normalized CPM counts",
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Counts Report"
-      }
-    },
-    {
       "id": "counts_heatmap_001",
       "type": "heatmap",
       "position": [
@@ -243,18 +226,6 @@
       },
       "ui": {
         "title": "Normalized Counts Heatmap"
-      }
-    },
-    {
-      "id": "counts_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        3680,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Counts Report"
       }
     },
     {
@@ -299,7 +270,7 @@
       "type": "html_preview",
       "position": [
         2960,
-        1536
+        1646
       ],
       "params": {},
       "ui": {
@@ -362,32 +333,63 @@
       }
     },
     {
-      "id": "alignment_qc_report_001",
-      "type": "html_report",
+      "id": "render_counts_tab_0",
+      "type": "table_preview",
       "position": [
-        2600,
-        1292
-      ],
-      "params": {
-        "title": "RNA-Seq Alignment QC Report",
-        "text_sections": "# Summary\nQualiMap BAM QC and samtools flagstat alignment summary for the RNA-seq workflow.",
-        "section_names": "QualiMap BAM QC,Flagstat alignment summary",
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Alignment QC Report"
-      }
-    },
-    {
-      "id": "alignment_qc_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        2960,
-        1202
+        3680,
+        80
       ],
       "params": {},
       "ui": {
-        "title": "View Alignment QC Report"
+        "title": "View Table: counts"
+      }
+    },
+    {
+      "id": "render_normalize_counts_tab_1",
+      "type": "table_preview",
+      "position": [
+        3680,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: normalize_counts"
+      }
+    },
+    {
+      "id": "render_counts_heatmap_ima_2",
+      "type": "image_preview",
+      "position": [
+        3680,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: counts_heatmap"
+      }
+    },
+    {
+      "id": "render_qualimap_tab_0",
+      "type": "table_preview",
+      "position": [
+        2960,
+        1292
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: qualimap"
+      }
+    },
+    {
+      "id": "render_flagstat_tab_1",
+      "type": "table_preview",
+      "position": [
+        2960,
+        1512
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: flagstat"
       }
     }
   ],
@@ -481,28 +483,6 @@
       }
     },
     {
-      "id": "e6b",
-      "from": {
-        "node": "counts_001",
-        "output": "counts"
-      },
-      "to": {
-        "node": "counts_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e6c",
-      "from": {
-        "node": "normalize_counts_001",
-        "output": "normalized_table"
-      },
-      "to": {
-        "node": "counts_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e6c_heatmap",
       "from": {
         "node": "normalize_counts_001",
@@ -511,28 +491,6 @@
       "to": {
         "node": "counts_heatmap_001",
         "input": "matrix"
-      }
-    },
-    {
-      "id": "e6c_heatmap_report",
-      "from": {
-        "node": "counts_heatmap_001",
-        "output": "heatmap_image"
-      },
-      "to": {
-        "node": "counts_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e6d",
-      "from": {
-        "node": "counts_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "counts_report_preview_001",
-        "input": "file"
       }
     },
     {
@@ -646,39 +604,6 @@
       }
     },
     {
-      "id": "e15a",
-      "from": {
-        "node": "qualimap_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "alignment_qc_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e15b",
-      "from": {
-        "node": "flagstat_001",
-        "output": "stats"
-      },
-      "to": {
-        "node": "alignment_qc_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e15c",
-      "from": {
-        "node": "alignment_qc_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "alignment_qc_report_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e15d",
       "from": {
         "node": "mqc_001",
@@ -699,6 +624,56 @@
         "node": "counts_001",
         "input": "gtf"
       }
+    },
+    {
+      "from": {
+        "node": "counts_001",
+        "output": "counts"
+      },
+      "to": {
+        "node": "render_counts_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "normalize_counts_001",
+        "output": "normalized_table"
+      },
+      "to": {
+        "node": "render_normalize_counts_tab_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "counts_heatmap_001",
+        "output": "heatmap_image"
+      },
+      "to": {
+        "node": "render_counts_heatmap_ima_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "qualimap_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "render_qualimap_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "flagstat_001",
+        "output": "stats"
+      },
+      "to": {
+        "node": "render_flagstat_tab_1",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -706,10 +681,6 @@
     "counts": "counts_001",
     "normalized_counts": "normalize_counts_001",
     "counts_heatmap": "counts_heatmap_001",
-    "counts_report": "counts_report_001",
-    "counts_report_preview": "counts_report_preview_001",
-    "alignment_qc_report": "alignment_qc_report_001",
-    "alignment_qc_report_preview": "alignment_qc_report_preview_001",
     "alignment_qc": "qualimap_001",
     "qc_dashboard": "qc_dashboard_001",
     "qc_dashboard_preview": "qc_dashboard_preview_001",

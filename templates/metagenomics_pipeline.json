@@ -191,34 +191,6 @@
       }
     },
     {
-      "id": "taxonomy_report_001",
-      "type": "html_report",
-      "position": [
-        2600,
-        80
-      ],
-      "params": {
-        "title": "Metagenomics Taxonomy Report",
-        "text_sections": "# Summary\nBracken taxonomic abundance report with composition and abundance heatmap visualizations, plus MetaPhlAn relative abundance.",
-        "section_names": "Bracken taxonomy chart,MetaPhlAn relative abundance,Bracken abundance heatmap,Bracken report"
-      },
-      "ui": {
-        "title": "Taxonomy Report"
-      }
-    },
-    {
-      "id": "taxonomy_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        2960,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Taxonomy Report"
-      }
-    },
-    {
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
@@ -326,34 +298,6 @@
       }
     },
     {
-      "id": "functional_report_001",
-      "type": "html_report",
-      "position": [
-        2240,
-        80
-      ],
-      "params": {
-        "title": "Metagenomics Functional Report",
-        "text_sections": "# Summary\nHUMAnN functional profiling outputs for pathway abundance, pathway coverage, a coverage chart, and gene families.",
-        "section_names": "HUMAnN pathway abundance,HUMAnN pathway coverage,HUMAnN pathway coverage chart,HUMAnN gene families"
-      },
-      "ui": {
-        "title": "Functional Report"
-      }
-    },
-    {
-      "id": "functional_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        2600,
-        568
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Functional Report"
-      }
-    },
-    {
       "id": "qc_001",
       "type": "fastqc",
       "position": [
@@ -429,6 +373,102 @@
       "ui": {
         "title": "View QC Dashboard"
       }
+    },
+    {
+      "id": "render_bracken_tab_0",
+      "type": "table_preview",
+      "position": [
+        2960,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: bracken"
+      }
+    },
+    {
+      "id": "render_bracken_bar_ima_1",
+      "type": "image_preview",
+      "position": [
+        2960,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: bracken_bar"
+      }
+    },
+    {
+      "id": "render_bracken_heatmap_ima_2",
+      "type": "image_preview",
+      "position": [
+        2960,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: bracken_heatmap"
+      }
+    },
+    {
+      "id": "render_metaphlan_bar_ima_3",
+      "type": "image_preview",
+      "position": [
+        2960,
+        740
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: metaphlan_bar"
+      }
+    },
+    {
+      "id": "render_humann_tab_0",
+      "type": "table_preview",
+      "position": [
+        2600,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: humann"
+      }
+    },
+    {
+      "id": "render_humann_tab_1",
+      "type": "table_preview",
+      "position": [
+        2600,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: humann"
+      }
+    },
+    {
+      "id": "render_humann_tab_2",
+      "type": "table_preview",
+      "position": [
+        2600,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: humann"
+      }
+    },
+    {
+      "id": "render_humann_pathcoverage_bar_ima_3",
+      "type": "image_preview",
+      "position": [
+        2600,
+        740
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: humann_pathcoverage_bar"
+      }
     }
   ],
   "edges": [
@@ -499,50 +539,6 @@
       }
     },
     {
-      "id": "e7",
-      "from": {
-        "node": "bracken_bar_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "taxonomy_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e7a",
-      "from": {
-        "node": "bracken_heatmap_001",
-        "output": "heatmap_image"
-      },
-      "to": {
-        "node": "taxonomy_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "bracken_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "taxonomy_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e8b",
-      "from": {
-        "node": "taxonomy_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "taxonomy_report_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e9",
       "from": {
         "node": "gate_trimmed_reads_001",
@@ -562,17 +558,6 @@
       "to": {
         "node": "metaphlan_bar_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e9b",
-      "from": {
-        "node": "metaphlan_bar_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "taxonomy_report_001",
-        "input": "images"
       }
     },
     {
@@ -598,28 +583,6 @@
       }
     },
     {
-      "id": "e10b",
-      "from": {
-        "node": "humann_001",
-        "output": "pathabundance"
-      },
-      "to": {
-        "node": "functional_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e10c_validated",
-      "from": {
-        "node": "humann_001",
-        "output": "pathcoverage"
-      },
-      "to": {
-        "node": "functional_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e10c_chart",
       "from": {
         "node": "humann_001",
@@ -628,39 +591,6 @@
       "to": {
         "node": "humann_pathcoverage_bar_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e10c_chart_report",
-      "from": {
-        "node": "humann_pathcoverage_bar_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "functional_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e10d",
-      "from": {
-        "node": "humann_001",
-        "output": "genefamilies"
-      },
-      "to": {
-        "node": "functional_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e10e",
-      "from": {
-        "node": "functional_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "functional_report_preview_001",
-        "input": "file"
       }
     },
     {
@@ -750,6 +680,86 @@
         "node": "qc_dashboard_preview_001",
         "input": "file"
       }
+    },
+    {
+      "from": {
+        "node": "bracken_001",
+        "output": "report"
+      },
+      "to": {
+        "node": "render_bracken_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "bracken_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "render_bracken_bar_ima_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "bracken_heatmap_001",
+        "output": "heatmap_image"
+      },
+      "to": {
+        "node": "render_bracken_heatmap_ima_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "metaphlan_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "render_metaphlan_bar_ima_3",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "humann_001",
+        "output": "pathabundance"
+      },
+      "to": {
+        "node": "render_humann_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "humann_001",
+        "output": "pathcoverage"
+      },
+      "to": {
+        "node": "render_humann_tab_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "humann_001",
+        "output": "genefamilies"
+      },
+      "to": {
+        "node": "render_humann_tab_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "humann_pathcoverage_bar_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "render_humann_pathcoverage_bar_ima_3",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
@@ -758,8 +768,6 @@
     "taxonomy_chart": "bracken_bar_001",
     "taxonomy_heatmap": "bracken_heatmap_001",
     "metaphlan_chart": "metaphlan_bar_001",
-    "taxonomy_report": "taxonomy_report_001",
-    "taxonomy_report_preview": "taxonomy_report_preview_001",
     "validated_bracken_report": "bracken_001",
     "validated_metaphlan_profile": "metaphlan_001",
     "validated_db": "db_001",
@@ -770,8 +778,6 @@
     "validated_humann_pathways": "humann_001",
     "validated_humann_pathcoverage": "humann_001",
     "functional_pathcoverage_chart": "humann_pathcoverage_bar_001",
-    "functional_report": "functional_report_001",
-    "functional_report_preview": "functional_report_preview_001",
     "validated_reads": "reads_001",
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_multiqc_report": "mqc_001",

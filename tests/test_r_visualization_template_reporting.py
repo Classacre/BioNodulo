@@ -24,24 +24,34 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
+    return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
+
+
 def test_r_visualization_report_includes_de_volcano_and_ma_plots() -> None:
     workflow = _load_template("r_visualization_pipeline.json")
+    node_types = _node_types(workflow)
 
-    report = _node(workflow, "viz_report_001")
-    assert report["params"]["section_names"] == (
-        "QC plot,Expression plot,Heatmap,Volcano plot,MA plot"
-    )
+    # The viz_report_001 html_report was removed by design; each figure feeds its own
+    # curated image_preview node instead.
+    assert "viz_report_001" not in node_types
+    assert node_types["volcano_preview_001"] == "image_preview"
+    assert node_types["ma_preview_001"] == "image_preview"
 
-    assert _has_edge(workflow, "qc_plot_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "expr_plot_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "pheatmap_001", "plot_png", "viz_report_001", "images")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "viz_report_001", "images")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "viz_report_001", "images")
+    assert _has_edge(workflow, "qc_plot_001", "plot_png", "qc_preview_001", "file")
+    assert _has_edge(workflow, "expr_plot_001", "plot_png", "expr_preview_001", "file")
+    assert _has_edge(workflow, "pheatmap_001", "plot_png", "heatmap_preview_001", "file")
+    assert _has_edge(workflow, "volcano_001", "volcano_image", "volcano_preview_001", "file")
+    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
 
 
 def test_r_visualization_template_adds_html_preview_for_unified_report() -> None:
     workflow = _load_template("r_visualization_pipeline.json")
+    node_types = _node_types(workflow)
 
-    assert _node(workflow, "viz_report_preview_001")["type"] == "html_preview"
-    assert _has_edge(workflow, "viz_report_001", "html_report", "viz_report_preview_001", "file")
-    assert workflow["outputs"]["report_preview"] == "viz_report_preview_001"
+    # The unified viz_report_001 html_report and its html_preview were removed by design;
+    # the volcano and MA plots are previewed via dedicated image_preview nodes.
+    assert "viz_report_preview_001" not in node_types
+    assert _node(workflow, "volcano_preview_001")["type"] == "image_preview"
+    assert _node(workflow, "ma_preview_001")["type"] == "image_preview"
+    assert "report_preview" not in workflow["outputs"]

@@ -20,9 +20,7 @@
     "sbol_design_import",
     "copasi_simulation",
     "ibiosim_model",
-    "cello_circuit_design",
-    "html_report",
-    "html_preview"
+    "cello_circuit_design"
   ],
   "nodes": [
     {
@@ -311,38 +309,6 @@
           }
         }
       }
-    },
-    {
-      "id": "synthetic_biology_report_001",
-      "type": "html_report",
-      "position": [
-        80,
-        1137
-      ],
-      "params": {
-        "title": "Synthetic Biology Design and Simulation Report",
-        "text_sections": "# Summary\nSBOL import normalizes and summarizes the design file. COPASI runs a scheduled simulation task, iBioSim executes a COMBINE archive branch, and Cello compiles a genetic circuit from validated Verilog and UCF inputs.",
-        "tables": "copasi_simulation/toggle_simulation.report.tsv,ibiosim_model/toggle_study.result_index.tsv,cello_circuit_design/toggle_circuit.result_index.tsv",
-        "section_names": "COPASI report,iBioSim result index,Cello result index",
-        "theme": "light",
-        "include_toc": true,
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Synthetic Biology Report"
-      }
-    },
-    {
-      "id": "synthetic_biology_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        440,
-        1756
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Synthetic Biology Report"
-      }
     }
   ],
   "edges": [
@@ -422,17 +388,6 @@
         "node": "cello_design_001",
         "input": "cello_exec_dir"
       }
-    },
-    {
-      "id": "e19",
-      "from": {
-        "node": "synthetic_biology_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "synthetic_biology_report_preview_001",
-        "input": "file"
-      }
     }
   ],
   "groups": [],
@@ -441,8 +396,6 @@
     "sbol_summary": "sbol_import_001",
     "copasi_report": "copasi_simulation_001",
     "ibiosim_index": "ibiosim_model_001",
-    "cello_index": "cello_design_001",
-    "report": "synthetic_biology_report_001",
-    "report_preview": "synthetic_biology_report_preview_001"
+    "cello_index": "cello_design_001"
   }
 }

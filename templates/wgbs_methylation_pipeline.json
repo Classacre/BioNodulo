@@ -19,9 +19,7 @@
     "bismark_align",
     "gate",
     "bismark_methylation_extractor",
-    "methyldackel",
-    "html_report",
-    "html_preview"
+    "methyldackel"
   ],
   "nodes": [
     {
@@ -217,31 +215,27 @@
       }
     },
     {
-      "id": "wgbs_report_001",
-      "type": "html_report",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {
-        "title": "WGBS Methylation Profiling Report",
-        "text_sections": "# Summary\nValidated WGBS reads are aligned with Bismark and processed through Bismark methylation extractor and MethylDackel to produce methylation calls for downstream analysis.",
-        "section_names": "Bismark methylation output,MethylDackel bedGraph"
-      },
-      "ui": {
-        "title": "WGBS Report"
-      }
-    },
-    {
-      "id": "wgbs_report_preview_001",
-      "type": "html_preview",
+      "id": "render_bismark_methylation_tab_0",
+      "type": "table_preview",
       "position": [
         1880,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View WGBS Report"
+        "title": "View Table: bismark_methylation"
+      }
+    },
+    {
+      "id": "render_methyldackel_tab_1",
+      "type": "table_preview",
+      "position": [
+        1880,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: methyldackel"
       }
     }
   ],
@@ -335,35 +329,22 @@
       }
     },
     {
-      "id": "e15",
       "from": {
         "node": "bismark_methylation_001",
         "output": "methylation_output"
       },
       "to": {
-        "node": "wgbs_report_001",
-        "input": "tables"
+        "node": "render_bismark_methylation_tab_0",
+        "input": "file"
       }
     },
     {
-      "id": "e16",
       "from": {
         "node": "methyldackel_001",
         "output": "methylation_bedgraph"
       },
       "to": {
-        "node": "wgbs_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e17",
-      "from": {
-        "node": "wgbs_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "wgbs_report_preview_001",
+        "node": "render_methyldackel_tab_1",
         "input": "file"
       }
     }
@@ -378,8 +359,6 @@
     "aligned_bam": "bismark_align_001",
     "bismark_methylation": "bismark_methylation_001",
     "methyldackel_bedgraph": "methyldackel_001",
-    "methyldackel_mbias": "methyldackel_001",
-    "report": "wgbs_report_001",
-    "report_preview": "wgbs_report_preview_001"
+    "methyldackel_mbias": "methyldackel_001"
   }
 }

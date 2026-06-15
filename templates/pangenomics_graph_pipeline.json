@@ -19,9 +19,7 @@
     "odgi_build",
     "odgi_viz",
     "odgi_stats",
-    "image_preview",
-    "html_report",
-    "html_preview"
+    "image_preview"
   ],
   "nodes": [
     {
@@ -172,37 +170,6 @@
       "ui": {
         "title": "Preview Graph Image"
       }
-    },
-    {
-      "id": "pangenomics_report_001",
-      "type": "html_report",
-      "position": [
-        1160,
-        354
-      ],
-      "params": {
-        "title": "Pangenomics Graph QC Report",
-        "text_sections": "# Summary\nPGGB builds a reference-free pangenome graph from validated haplotype sequences. ODGI then rebuilds, summarizes, and visualizes the graph for quality control. Validated ODGI JSON stats remain available as workflow outputs.",
-        "section_names": "ODGI visualization",
-        "theme": "light",
-        "include_toc": true,
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Pangenomics Report"
-      }
-    },
-    {
-      "id": "pangenomics_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Pangenomics Report"
-      }
     }
   ],
   "edges": [
@@ -260,28 +227,6 @@
         "node": "graph_image_preview_001",
         "input": "file"
       }
-    },
-    {
-      "id": "e10",
-      "from": {
-        "node": "odgi_viz_001",
-        "output": "viz_image"
-      },
-      "to": {
-        "node": "pangenomics_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e11",
-      "from": {
-        "node": "pangenomics_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "pangenomics_report_preview_001",
-        "input": "file"
-      }
     }
   ],
   "groups": [],
@@ -292,8 +237,6 @@
     "odgi_graph": "odgi_build_001",
     "odgi_build_stats": "odgi_build_001",
     "odgi_stats": "odgi_stats_001",
-    "graph_visualization": "odgi_viz_001",
-    "report": "pangenomics_report_001",
-    "report_preview": "pangenomics_report_preview_001"
+    "graph_visualization": "odgi_viz_001"
   }
 }

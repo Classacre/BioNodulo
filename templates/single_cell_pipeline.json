@@ -189,32 +189,27 @@
       }
     },
     {
-      "id": "single_cell_report_001",
-      "type": "html_report",
-      "position": [
-        1520,
-        414
-      ],
-      "params": {
-        "title": "Single Cell RNA-Seq Report",
-        "text_sections": "# Cell Ranger Summary\nCell Ranger processed the tinygex 10x Genomics FASTQ directory against the configured reference transcriptome. The validated web summary remains available as the detailed run report, with the metrics summary included as both a chart and table below.",
-        "section_names": "Cell Ranger metrics chart,Cell Ranger metrics",
-        "max_table_rows": 100
-      },
-      "ui": {
-        "title": "Single Cell Report"
-      }
-    },
-    {
-      "id": "single_cell_report_preview_001",
-      "type": "html_preview",
+      "id": "render_cr_count_tab_0",
+      "type": "table_preview",
       "position": [
         1880,
-        80
+        414
       ],
       "params": {},
       "ui": {
-        "title": "View Single Cell Report"
+        "title": "View Table: cr_count"
+      }
+    },
+    {
+      "id": "render_metrics_summary_chart_ima_1",
+      "type": "image_preview",
+      "position": [
+        1880,
+        634
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: metrics_summary_chart"
       }
     }
   ],
@@ -242,17 +237,6 @@
       }
     },
     {
-      "id": "e3d",
-      "from": {
-        "node": "cr_count_001",
-        "output": "metrics_summary"
-      },
-      "to": {
-        "node": "single_cell_report_001",
-        "input": "tables"
-      }
-    },
-    {
       "id": "e3e",
       "from": {
         "node": "cr_count_001",
@@ -261,17 +245,6 @@
       "to": {
         "node": "metrics_summary_chart_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e3f",
-      "from": {
-        "node": "metrics_summary_chart_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "single_cell_report_001",
-        "input": "images"
       }
     },
     {
@@ -319,13 +292,22 @@
       }
     },
     {
-      "id": "e7",
       "from": {
-        "node": "single_cell_report_001",
-        "output": "html_report"
+        "node": "cr_count_001",
+        "output": "metrics_summary"
       },
       "to": {
-        "node": "single_cell_report_preview_001",
+        "node": "render_cr_count_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "metrics_summary_chart_001",
+        "output": "chart_image"
+      },
+      "to": {
+        "node": "render_metrics_summary_chart_ima_1",
         "input": "file"
       }
     }
@@ -343,9 +325,6 @@
     "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
-    "qc_dashboard_preview": "qc_dashboard_preview_001",
-    "report": "single_cell_report_001",
-    "metrics_report": "single_cell_report_001",
-    "metrics_report_preview": "single_cell_report_preview_001"
+    "qc_dashboard_preview": "qc_dashboard_preview_001"
   }
 }

@@ -21,9 +21,7 @@
     "dorado_demux",
     "chopper_filter",
     "nanoplot",
-    "modkit_pileup",
-    "html_report",
-    "html_preview"
+    "modkit_pileup"
   ],
   "nodes": [
     {
@@ -221,31 +219,39 @@
       }
     },
     {
-      "id": "long_read_report_001",
-      "type": "html_report",
-      "position": [
-        2600,
-        80
-      ],
-      "params": {
-        "title": "ONT Long-Read Sequencing Report",
-        "text_sections": "# Summary\nDorado basecalling output is demultiplexed, filtered with Chopper, summarized with NanoPlot, and paired with Modkit bedMethyl methylation calls.",
-        "section_names": "NanoPlot QC report,Modkit bedMethyl,Barcode summary"
-      },
-      "ui": {
-        "title": "Long-Read Report"
-      }
-    },
-    {
-      "id": "long_read_report_preview_001",
-      "type": "html_preview",
+      "id": "render_nanoplot_tab_0",
+      "type": "table_preview",
       "position": [
         2960,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View Long-Read Report"
+        "title": "View Table: nanoplot"
+      }
+    },
+    {
+      "id": "render_modkit_tab_1",
+      "type": "table_preview",
+      "position": [
+        2960,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: modkit"
+      }
+    },
+    {
+      "id": "render_dorado_demux_tab_2",
+      "type": "table_preview",
+      "position": [
+        2960,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: dorado_demux"
       }
     }
   ],
@@ -350,46 +356,32 @@
       }
     },
     {
-      "id": "e13",
       "from": {
         "node": "nanoplot_001",
         "output": "qc_report"
       },
       "to": {
-        "node": "long_read_report_001",
-        "input": "tables"
+        "node": "render_nanoplot_tab_0",
+        "input": "file"
       }
     },
     {
-      "id": "e14",
       "from": {
         "node": "modkit_001",
         "output": "bedmethyl"
       },
       "to": {
-        "node": "long_read_report_001",
-        "input": "tables"
+        "node": "render_modkit_tab_1",
+        "input": "file"
       }
     },
     {
-      "id": "e15",
       "from": {
         "node": "dorado_demux_001",
         "output": "barcode_summary"
       },
       "to": {
-        "node": "long_read_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e16",
-      "from": {
-        "node": "long_read_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "long_read_report_preview_001",
+        "node": "render_dorado_demux_tab_2",
         "input": "file"
       }
     }
@@ -406,8 +398,6 @@
     "filtered_reads": "chopper_001",
     "qc_report": "nanoplot_001",
     "qc_stats": "nanoplot_001",
-    "bedmethyl": "modkit_001",
-    "report": "long_read_report_001",
-    "report_preview": "long_read_report_preview_001"
+    "bedmethyl": "modkit_001"
   }
 }

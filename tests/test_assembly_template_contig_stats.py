@@ -41,15 +41,15 @@ def test_assembly_template_adds_contig_stats_chart_to_final_report() -> None:
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "png"
 
-    report = _node(workflow, "assembly_report_001")
-    assert report["params"]["section_names"] == (
-        "Contig lengths,Per-contig metric summary,Contig statistics,QUAST report,Prokka annotation"
-    )
+    # The HTML report was replaced by direct render nodes (table_preview /
+    # image_preview) — the chart and stats table are previewed individually.
+    assert node_types["render_assembly_stats_chart_ima_4"] == "image_preview"
+    assert node_types["render_assembly_stats_tab_1"] == "table_preview"
 
     assert _has_edge(workflow, "gate_assembly_001", "output", "assembly_stats_001", "input_file")
     assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "assembly_stats_chart_001", "table")
-    assert _has_edge(workflow, "assembly_stats_chart_001", "chart_image", "assembly_report_001", "images")
-    assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "assembly_report_001", "tables")
+    assert _has_edge(workflow, "assembly_stats_chart_001", "chart_image", "render_assembly_stats_chart_ima_4", "file")
+    assert _has_edge(workflow, "assembly_stats_001", "stats_tsv", "render_assembly_stats_tab_1", "file")
 
     assert workflow["outputs"]["assembly_stats"] == "assembly_stats_001"
     assert workflow["outputs"]["assembly_stats_chart"] == "assembly_stats_chart_001"

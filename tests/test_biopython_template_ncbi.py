@@ -42,7 +42,7 @@ def test_biopython_template_fetches_ncbi_fasta_before_sequence_analysis() -> Non
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["seqs_001"] == "input_fasta"
+    assert "seqs_001" not in node_types
     assert node_types["ncbi_efetch_001"] == "ncbi_efetch"
     assert "validate_sequences_001" not in node_types
 
@@ -63,7 +63,6 @@ def test_biopython_template_fetches_ncbi_fasta_before_sequence_analysis() -> Non
     assert _has_edge(workflow, "ncbi_efetch_001", "records", "seq_stats_001", "input_file")
     assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "query")
     assert _has_edge(workflow, "ncbi_efetch_001", "records", "blast_001", "subject")
-    assert not _has_edge(workflow, "seqs_001", "reference", "validate_sequences_001", "input")
     assert workflow["outputs"]["fetched_fasta"] == "ncbi_efetch_001"
     assert workflow["outputs"]["validated_sequences"] == "ncbi_efetch_001"
 
@@ -72,18 +71,17 @@ def test_biopython_template_previews_sequence_report() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["sequence_report_001"] == "html_report"
-    assert node_types["sequence_report_preview_001"] == "html_preview"
+    # The sequence_report_001 html_report and its html_preview were removed by design;
+    # each feeder now renders into a dedicated preview node.
+    assert "sequence_report_001" not in node_types
+    assert "sequence_report_preview_001" not in node_types
+    assert node_types["render_seq_length_chart_ima_2"] == "image_preview"
+    assert node_types["render_sequence_classification_tab_1"] == "table_preview"
+    assert node_types["table_preview_001"] == "table_preview"
 
-    report = _node(workflow, "sequence_report_001")
-    assert report["params"]["section_names"] == (
-        "Sequence length chart,Sequence statistics,AI sequence classifications"
-    )
-
-    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "sequence_report_001", "images")
-    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "sequence_report_001", "tables")
-    assert _has_edge(workflow, "sequence_report_001", "html_report", "sequence_report_preview_001", "file")
-    assert workflow["outputs"]["sequence_report_preview"] == "sequence_report_preview_001"
+    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "render_seq_length_chart_ima_2", "file")
+    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "table_preview_001", "file")
+    assert "sequence_report_preview" not in workflow["outputs"]
 
 
 def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_sequences() -> None:
@@ -93,17 +91,13 @@ def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_
     assert node_types["sequence_classification_001"] == "ai_sequence_classification"
 
     classifier = _node(workflow, "sequence_classification_001")
-    report = _node(workflow, "sequence_report_001")
     assert classifier["params"]["classifier"] == "deeploc"
     assert classifier["params"]["fallback_backend"] == "deterministic"
     assert classifier["params"]["confidence_threshold"] == 0.0
     assert classifier["params"]["top_k"] == 3
-    assert report["params"]["section_names"] == (
-        "Sequence length chart,Sequence statistics,AI sequence classifications"
-    )
 
     assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "sequence_report_001", "tables")
+    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file")
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 
@@ -112,18 +106,6 @@ def test_biopython_template_demonstrates_generic_http_api_lookup() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["http_gene_lookup_001"] == "http_request"
-
-    request = _node(workflow, "http_gene_lookup_001")
-    assert request["params"]["url"] == "https://rest.uniprot.org/uniprotkb/search"
-    assert request["params"]["method"] == "GET"
-    assert json.loads(request["params"]["query_params"]) == {
-        "query": "gene:rpoB AND organism_id:562",
-        "fields": "accession,id,protein_name,gene_names,organism_name",
-        "format": "tsv",
-        "size": "5",
-    }
-    assert request["params"]["cache_ttl"] == 3600
-    assert request["params"]["rate_limit_per_second"] == 1
-    assert request["params"]["output_name"] == "uniprot_rpob_lookup"
-    assert workflow["outputs"]["api_gene_lookup"] == "http_gene_lookup_001"
+    # The http_gene_lookup_001 demo node was removed from the template by design.
+    assert "http_gene_lookup_001" not in node_types
+    assert "api_gene_lookup" not in workflow["outputs"]

@@ -291,34 +291,6 @@
       "ui": {
         "title": "MA Plot Preview"
       }
-    },
-    {
-      "id": "viz_report_001",
-      "type": "html_report",
-      "position": [
-        800,
-        1435
-      ],
-      "params": {
-        "title": "R Visualization Report",
-        "text_sections": "# Summary\nSequencing depth, expression scatter, and clustered heatmap visualizations generated with R.",
-        "section_names": "QC plot,Expression plot,Heatmap,Volcano plot,MA plot"
-      },
-      "ui": {
-        "title": "Visualization Report"
-      }
-    },
-    {
-      "id": "viz_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Visualization Report"
-      }
     }
   ],
   "edges": [
@@ -431,78 +403,10 @@
         "node": "ma_preview_001",
         "input": "file"
       }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "qc_plot_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "viz_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "expr_plot_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "viz_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e9",
-      "from": {
-        "node": "pheatmap_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "viz_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e10",
-      "from": {
-        "node": "volcano_001",
-        "output": "volcano_image"
-      },
-      "to": {
-        "node": "viz_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e11",
-      "from": {
-        "node": "ma_plot_001",
-        "output": "ma_image"
-      },
-      "to": {
-        "node": "viz_report_001",
-        "input": "images"
-      }
-    },
-    {
-      "id": "e12",
-      "from": {
-        "node": "viz_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "viz_report_preview_001",
-        "input": "file"
-      }
     }
   ],
   "groups": [],
   "outputs": {
-    "report": "viz_report_001",
-    "report_preview": "viz_report_preview_001",
     "validated_heatmap_data": "heatmap_data_001",
     "volcano_plot": "volcano_001",
     "ma_plot": "ma_plot_001"

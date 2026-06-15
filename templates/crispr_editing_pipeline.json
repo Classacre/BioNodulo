@@ -22,9 +22,7 @@
     "crispresso2",
     "gate",
     "mageck_count",
-    "mageck_test",
-    "html_report",
-    "html_preview"
+    "mageck_test"
   ],
   "nodes": [
     {
@@ -316,31 +314,63 @@
       }
     },
     {
-      "id": "crispr_report_001",
-      "type": "html_report",
-      "position": [
-        1160,
-        80
-      ],
-      "params": {
-        "title": "CRISPR Editing and Screen Analysis Report",
-        "text_sections": "# Summary\nGuide RNA design, candidate off-target checks, CRISPResso2 amplicon editing, and MAGeCK pooled-screen ranking are combined into one CRISPR analysis report.",
-        "section_names": "Designed guides,Design off-targets,Cas-OFFinder sites,CRISPResso2 report,MAGeCK gene summary"
-      },
-      "ui": {
-        "title": "CRISPR Report"
-      }
-    },
-    {
-      "id": "crispr_report_preview_001",
-      "type": "html_preview",
+      "id": "render_guide_design_tab_0",
+      "type": "table_preview",
       "position": [
         1520,
         80
       ],
       "params": {},
       "ui": {
-        "title": "View CRISPR Report"
+        "title": "View Table: guide_design"
+      }
+    },
+    {
+      "id": "render_guide_design_tab_1",
+      "type": "table_preview",
+      "position": [
+        1520,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: guide_design"
+      }
+    },
+    {
+      "id": "render_cas_offinder_tab_2",
+      "type": "table_preview",
+      "position": [
+        1520,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: cas_offinder"
+      }
+    },
+    {
+      "id": "render_gate_crispresso_report_tab_3",
+      "type": "table_preview",
+      "position": [
+        1520,
+        740
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: gate_crispresso_report"
+      }
+    },
+    {
+      "id": "render_mageck_test_tab_4",
+      "type": "table_preview",
+      "position": [
+        1520,
+        960
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: mageck_test"
       }
     }
   ],
@@ -434,68 +464,52 @@
       }
     },
     {
-      "id": "e9",
       "from": {
         "node": "guide_design_001",
         "output": "guides"
       },
       "to": {
-        "node": "crispr_report_001",
-        "input": "tables"
+        "node": "render_guide_design_tab_0",
+        "input": "file"
       }
     },
     {
-      "id": "e10",
       "from": {
         "node": "guide_design_001",
         "output": "off_targets"
       },
       "to": {
-        "node": "crispr_report_001",
-        "input": "tables"
+        "node": "render_guide_design_tab_1",
+        "input": "file"
       }
     },
     {
-      "id": "e11",
       "from": {
         "node": "cas_offinder_001",
         "output": "offtarget_sites"
       },
       "to": {
-        "node": "crispr_report_001",
-        "input": "tables"
+        "node": "render_cas_offinder_tab_2",
+        "input": "file"
       }
     },
     {
-      "id": "e12",
       "from": {
         "node": "gate_crispresso_report_001",
         "output": "output"
       },
       "to": {
-        "node": "crispr_report_001",
-        "input": "tables"
+        "node": "render_gate_crispresso_report_tab_3",
+        "input": "file"
       }
     },
     {
-      "id": "e13",
       "from": {
         "node": "mageck_test_001",
         "output": "gene_summary"
       },
       "to": {
-        "node": "crispr_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e14",
-      "from": {
-        "node": "crispr_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "crispr_report_preview_001",
+        "node": "render_mageck_test_tab_4",
         "input": "file"
       }
     }
@@ -514,8 +528,6 @@
     "crispresso_report": "crispresso2_001",
     "mageck_counts": "mageck_count_001",
     "mageck_gene_summary": "mageck_test_001",
-    "mageck_sgrna_summary": "mageck_test_001",
-    "report": "crispr_report_001",
-    "report_preview": "crispr_report_preview_001"
+    "mageck_sgrna_summary": "mageck_test_001"
   }
 }

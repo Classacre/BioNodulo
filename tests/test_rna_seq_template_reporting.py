@@ -33,27 +33,27 @@ def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables
     node_types = _node_types(workflow)
 
     assert node_types["counts_heatmap_001"] == "heatmap"
-    assert node_types["counts_report_001"] == "html_report"
-    assert node_types["counts_report_preview_001"] == "html_preview"
+    # The counts_report_001 html_report and its html_preview were removed by design;
+    # each feeder now renders into a dedicated preview node.
+    assert "counts_report_001" not in node_types
+    assert "counts_report_preview_001" not in node_types
+    assert node_types["render_counts_heatmap_ima_2"] == "image_preview"
+    assert node_types["render_counts_tab_0"] == "table_preview"
+    assert node_types["render_normalize_counts_tab_1"] == "table_preview"
 
     heatmap = _node(workflow, "counts_heatmap_001")
-    report = _node(workflow, "counts_report_001")
     assert heatmap["params"]["title"] == "Normalized Count Heatmap"
     assert heatmap["params"]["scale"] == "row"
     assert heatmap["params"]["format"] == "png"
-    assert report["params"]["title"] == "RNA-Seq Counts Report"
-    assert report["params"]["section_names"] == "Normalized count heatmap,Raw featureCounts,Normalized CPM counts"
-    assert report["params"]["max_table_rows"] == 100
 
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
-    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "counts_report_001", "images")
-    assert _has_edge(workflow, "counts_001", "counts", "counts_report_001", "tables")
-    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_report_001", "tables")
-    assert _has_edge(workflow, "counts_report_001", "html_report", "counts_report_preview_001", "file")
+    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "render_counts_heatmap_ima_2", "file")
+    assert _has_edge(workflow, "counts_001", "counts", "render_counts_tab_0", "file")
+    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "render_normalize_counts_tab_1", "file")
 
     assert workflow["outputs"]["counts_heatmap"] == "counts_heatmap_001"
-    assert workflow["outputs"]["counts_report"] == "counts_report_001"
-    assert workflow["outputs"]["counts_report_preview"] == "counts_report_preview_001"
+    assert "counts_report" not in workflow["outputs"]
+    assert "counts_report_preview" not in workflow["outputs"]
     assert workflow["outputs"]["report"] == "qc_dashboard_001"
 
 
@@ -78,16 +78,14 @@ def test_rna_seq_template_reports_qualimap_alignment_qc() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["alignment_qc_report_001"] == "html_report"
-    assert node_types["alignment_qc_report_preview_001"] == "html_preview"
+    # The alignment_qc_report_001 html_report and its html_preview were removed by
+    # design; QualiMap and flagstat outputs render into dedicated preview nodes.
+    assert "alignment_qc_report_001" not in node_types
+    assert "alignment_qc_report_preview_001" not in node_types
+    assert node_types["render_qualimap_tab_0"] == "table_preview"
+    assert node_types["render_flagstat_tab_1"] == "table_preview"
 
-    report = _node(workflow, "alignment_qc_report_001")
-    assert report["params"]["title"] == "RNA-Seq Alignment QC Report"
-    assert report["params"]["section_names"] == "QualiMap BAM QC,Flagstat alignment summary"
-    assert report["params"]["max_table_rows"] == 100
-
-    assert _has_edge(workflow, "qualimap_001", "report", "alignment_qc_report_001", "tables")
-    assert _has_edge(workflow, "flagstat_001", "stats", "alignment_qc_report_001", "tables")
-    assert _has_edge(workflow, "alignment_qc_report_001", "html_report", "alignment_qc_report_preview_001", "file")
-    assert workflow["outputs"]["alignment_qc_report"] == "alignment_qc_report_001"
-    assert workflow["outputs"]["alignment_qc_report_preview"] == "alignment_qc_report_preview_001"
+    assert _has_edge(workflow, "qualimap_001", "report", "render_qualimap_tab_0", "file")
+    assert _has_edge(workflow, "flagstat_001", "stats", "render_flagstat_tab_1", "file")
+    assert "alignment_qc_report" not in workflow["outputs"]
+    assert "alignment_qc_report_preview" not in workflow["outputs"]

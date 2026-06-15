@@ -63,8 +63,9 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert node_types["methyldackel_001"] == "methyldackel"
     assert "validate_methylation_output_001" not in node_types
     assert "validate_methyldackel_bedgraph_001" not in node_types
-    assert node_types["wgbs_report_001"] == "html_report"
-    assert node_types["wgbs_report_preview_001"] == "html_preview"
+    # HTML report replaced by direct table_preview render nodes.
+    assert node_types["render_bismark_methylation_tab_0"] == "table_preview"
+    assert node_types["render_methyldackel_tab_1"] == "table_preview"
 
     assert not _has_edge(workflow, "r1_001", "file", "validate_r1_001", "input")
     assert not _has_edge(workflow, "r2_001", "file", "validate_r2_001", "input")
@@ -80,9 +81,8 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert _has_edge(workflow, "reference_001", "reference", "methyldackel_001", "reference")
     assert not _has_edge(workflow, "bismark_methylation_001", "methylation_output", "validate_methylation_output_001", "input")
     assert not _has_edge(workflow, "methyldackel_001", "methylation_bedgraph", "validate_methyldackel_bedgraph_001", "input")
-    assert _has_edge(workflow, "bismark_methylation_001", "methylation_output", "wgbs_report_001", "tables")
-    assert _has_edge(workflow, "methyldackel_001", "methylation_bedgraph", "wgbs_report_001", "tables")
-    assert _has_edge(workflow, "wgbs_report_001", "html_report", "wgbs_report_preview_001", "file")
+    assert _has_edge(workflow, "bismark_methylation_001", "methylation_output", "render_bismark_methylation_tab_0", "file")
+    assert _has_edge(workflow, "methyldackel_001", "methylation_bedgraph", "render_methyldackel_tab_1", "file")
 
     assert _has_edge(workflow, "r1_001", "file", "bismark_align_001", "r1")
     assert _has_edge(workflow, "r2_001", "file", "bismark_align_001", "r2")
@@ -131,8 +131,6 @@ def test_wgbs_methylation_template_validates_inputs_and_core_outputs() -> None:
     assert workflow["outputs"]["bismark_methylation"] == "bismark_methylation_001"
     assert workflow["outputs"]["methyldackel_bedgraph"] == "methyldackel_001"
     assert workflow["outputs"]["methyldackel_mbias"] == "methyldackel_001"
-    assert workflow["outputs"]["report"] == "wgbs_report_001"
-    assert workflow["outputs"]["report_preview"] == "wgbs_report_preview_001"
 
 
 def test_wgbs_methylation_template_is_discoverable_from_workflow_templates_api() -> None:

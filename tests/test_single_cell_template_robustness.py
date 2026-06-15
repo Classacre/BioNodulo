@@ -71,7 +71,7 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
     assert node_types["metrics_summary_chart_001"] == "bar_chart"
     validator = _output_validation(workflow, "cr_count_001", "metrics_summary")
     chart = _node(workflow, "metrics_summary_chart_001")
-    report = _node(workflow, "single_cell_report_001")
+    node_types = _node_types(workflow)
 
     assert validator["expected_format"] == "csv"
     assert validator["min_size_bytes"] > 0
@@ -83,17 +83,17 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
         "orientation": "horizontal",
         "format": "png",
     }
-    assert report["params"]["section_names"] == "Cell Ranger metrics chart,Cell Ranger metrics"
+    # The HTML report was replaced by direct render nodes: the metrics table and
+    # the chart are each previewed individually.
+    assert node_types["render_cr_count_tab_0"] == "table_preview"
+    assert node_types["render_metrics_summary_chart_ima_1"] == "image_preview"
 
     assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
-    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "single_cell_report_001", "images")
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "single_cell_report_001", "tables")
-    assert _has_edge(workflow, "single_cell_report_001", "html_report", "single_cell_report_preview_001", "file")
+    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "render_metrics_summary_chart_ima_1", "file")
+    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["validated_metrics_summary"] == "cr_count_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
-    assert workflow["outputs"]["metrics_report"] == "single_cell_report_001"
-    assert workflow["outputs"]["metrics_report_preview"] == "single_cell_report_preview_001"
 
 
 def test_single_cell_template_advertises_qc_dashboard_preview() -> None:

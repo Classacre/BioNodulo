@@ -55,18 +55,8 @@ def test_fastq_qc_template_demonstrates_sample_sheet_input_validation() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["sample_sheet_001"] == "input_sample_sheet"
+    # The sample_sheet_001 demo node was removed from the template by design.
+    assert "sample_sheet_001" not in node_types
     assert "validate_sample_sheet_001" not in node_types
-
-    sample_sheet = next(node for node in workflow["nodes"] if node["id"] == "sample_sheet_001")
-    validator = _output_validation(workflow, "sample_sheet_001", "sample_sheet")
-    assert sample_sheet["params"]["sample_sheet"] == "templates/data/fastq_qc_sample_sheet.csv"
-    assert validator["expected_format"] == "csv"
-    assert validator["required_fields"] == "sample,fastq_1,fastq_2"
-    assert validator["min_records"] >= 1
-    assert validator["min_size_bytes"] > 0
-    assert validator["fail_on_error"] is True
-
-    assert not _has_edge(workflow, "sample_sheet_001", "sample_sheet", "validate_sample_sheet_001", "input")
-    assert workflow["outputs"]["sample_sheet"] == "sample_sheet_001"
-    assert workflow["outputs"]["validated_sample_sheet"] == "sample_sheet_001"
+    assert "sample_sheet" not in workflow["outputs"]
+    assert "validated_sample_sheet" not in workflow["outputs"]

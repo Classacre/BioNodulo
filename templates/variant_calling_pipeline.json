@@ -351,34 +351,6 @@
       }
     },
     {
-      "id": "variant_report_001",
-      "type": "html_report",
-      "position": [
-        5120,
-        80
-      ],
-      "params": {
-        "title": "Variant Calling Report",
-        "text_sections": "# Summary\nDuplicate marking, filtering, annotation, and VCF statistics for the variant calling workflow.",
-        "section_names": "VCF statistics,Coverage plot,SnpEff prioritized variants,VEP annotated variants"
-      },
-      "ui": {
-        "title": "Variant report"
-      }
-    },
-    {
-      "id": "variant_report_preview_001",
-      "type": "html_preview",
-      "position": [
-        5480,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Variant Report"
-      }
-    },
-    {
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
@@ -441,6 +413,54 @@
       "params": {},
       "ui": {
         "title": "View MultiQC Report"
+      }
+    },
+    {
+      "id": "render_gate_prioritized_vcf_tab_0",
+      "type": "table_preview",
+      "position": [
+        5480,
+        80
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: gate_prioritized_vcf"
+      }
+    },
+    {
+      "id": "render_vep_tab_1",
+      "type": "table_preview",
+      "position": [
+        5480,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Table: vep"
+      }
+    },
+    {
+      "id": "render_vcf_stats_ima_2",
+      "type": "image_preview",
+      "position": [
+        5480,
+        520
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: vcf_stats"
+      }
+    },
+    {
+      "id": "render_coverage_plot_ima_3",
+      "type": "image_preview",
+      "position": [
+        5480,
+        740
+      ],
+      "params": {},
+      "ui": {
+        "title": "View Figure: coverage_plot"
       }
     }
   ],
@@ -677,39 +697,6 @@
       }
     },
     {
-      "id": "e16b",
-      "from": {
-        "node": "gate_prioritized_vcf_001",
-        "output": "output"
-      },
-      "to": {
-        "node": "variant_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e16c",
-      "from": {
-        "node": "vep_001",
-        "output": "annotated_vcf"
-      },
-      "to": {
-        "node": "variant_report_001",
-        "input": "tables"
-      }
-    },
-    {
-      "id": "e17",
-      "from": {
-        "node": "vcf_stats_001",
-        "output": "stats_image"
-      },
-      "to": {
-        "node": "variant_report_001",
-        "input": "images"
-      }
-    },
-    {
       "id": "e18",
       "from": {
         "node": "markdup_001",
@@ -718,17 +705,6 @@
       "to": {
         "node": "coverage_plot_001",
         "input": "alignment"
-      }
-    },
-    {
-      "id": "e19",
-      "from": {
-        "node": "coverage_plot_001",
-        "output": "coverage_image"
-      },
-      "to": {
-        "node": "variant_report_001",
-        "input": "images"
       }
     },
     {
@@ -776,17 +752,6 @@
       }
     },
     {
-      "id": "e19b",
-      "from": {
-        "node": "variant_report_001",
-        "output": "html_report"
-      },
-      "to": {
-        "node": "variant_report_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e20",
       "from": {
         "node": "mqc_001",
@@ -794,6 +759,46 @@
       },
       "to": {
         "node": "html_preview_001",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "gate_prioritized_vcf_001",
+        "output": "output"
+      },
+      "to": {
+        "node": "render_gate_prioritized_vcf_tab_0",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "vep_001",
+        "output": "annotated_vcf"
+      },
+      "to": {
+        "node": "render_vep_tab_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "vcf_stats_001",
+        "output": "stats_image"
+      },
+      "to": {
+        "node": "render_vcf_stats_ima_2",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "coverage_plot_001",
+        "output": "coverage_image"
+      },
+      "to": {
+        "node": "render_coverage_plot_ima_3",
         "input": "file"
       }
     }
@@ -807,8 +812,6 @@
     "flagstat": "flagstat_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
-    "report": "variant_report_001",
-    "variant_report_preview": "variant_report_preview_001",
     "gatk_retry_policy": "gatk_retry_001",
     "manta_sv": "manta_sv_001",
     "delly_sv": "delly_sv_001",

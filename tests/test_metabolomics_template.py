@@ -61,8 +61,6 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
         "xcms_peak_detection",
         "xcms_retention_correction",
         "camera_annotation",
-        "html_report",
-        "html_preview",
     }.issubset(set(workflow["tools"]))
 
     assert node_types["mzml_001"] == "input_file"
@@ -73,8 +71,8 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
     assert "validate_aligned_features_001" not in node_types
     assert node_types["camera_annotation_001"] == "camera_annotation"
     assert "validate_camera_peaklist_001" not in node_types
-    assert node_types["metabolomics_report_001"] == "html_report"
-    assert node_types["metabolomics_report_preview_001"] == "html_preview"
+    assert "metabolomics_report_001" not in node_types
+    assert "metabolomics_report_preview_001" not in node_types
 
     assert not _has_edge(workflow, "mzml_001", "file", "validate_mzml_001", "input")
     assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
@@ -95,13 +93,9 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
         "xcms_object",
     )
     assert not _has_edge(workflow, "camera_annotation_001", "annotated_peaklist", "validate_camera_peaklist_001", "input")
-    assert _has_edge(workflow, "metabolomics_report_001", "html_report", "metabolomics_report_preview_001", "file")
 
     assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
     assert not _has_edge(workflow, "xcms_peak_detection_001", "xcms_object", "camera_annotation_001", "xcms_object")
-    assert not _has_edge(workflow, "validate_aligned_features_001", "passthrough", "metabolomics_report_001", "tables")
-    assert not _has_edge(workflow, "validate_camera_peaklist_001", "passthrough", "metabolomics_report_001", "tables")
-    assert _target_input_count(workflow, "metabolomics_report_001", "tables") == 0
 
 
 def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() -> None:
@@ -115,7 +109,6 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     aligned_validator = _output_validation(workflow, "xcms_retention_correction_001", "aligned_feature_table")
     camera = _node_by_id(workflow, "camera_annotation_001")
     camera_validator = _output_validation(workflow, "camera_annotation_001", "annotated_peaklist")
-    report = _node_by_id(workflow, "metabolomics_report_001")
 
     assert mzml_input["params"]["file"] == "examples/data/metabolomics/sample.mzML"
     assert mzml_validator["expected_format"] == "auto"
@@ -145,20 +138,10 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     assert camera_validator["expected_format"] == "tsv"
     assert camera_validator["fail_on_error"] is True
 
-    assert report["params"]["title"] == "Metabolomics LC-MS Report"
-    assert "XCMS" in report["params"]["text_sections"]
-    assert report["params"]["tables"] == (
-        "xcms_retention_correction/lcms_aligned.aligned_feature_table.tsv,"
-        "camera_annotation/lcms_camera.camera_peaklist.tsv"
-    )
-    assert report["params"]["section_names"] == "Aligned feature table,CAMERA peak annotations"
-
     assert workflow["outputs"]["validated_mzml"] == "mzml_001"
     assert workflow["outputs"]["xcms_features"] == "xcms_peak_detection_001"
     assert workflow["outputs"]["aligned_features"] == "xcms_retention_correction_001"
     assert workflow["outputs"]["camera_peaklist"] == "camera_annotation_001"
-    assert workflow["outputs"]["report"] == "metabolomics_report_001"
-    assert workflow["outputs"]["report_preview"] == "metabolomics_report_preview_001"
 
 
 def test_metabolomics_lcms_template_is_discoverable_from_workflow_templates_api() -> None:
@@ -176,7 +159,7 @@ def test_metabolomics_lcms_template_is_discoverable_from_workflow_templates_api(
     )
     assert listed["name"] == "Metabolomics LC-MS Workflow"
     assert listed["category"] == "Metabolomics"
-    assert listed["node_count"] >= 6
+    assert listed["node_count"] >= 4
     assert "xcms_peak_detection" in listed["tools"]
     assert "camera_annotation" in listed["tools"]
     assert "XCMS Peak Detection" in listed["preview_steps"]
