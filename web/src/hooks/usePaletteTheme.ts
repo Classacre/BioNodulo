@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
   applyPalette,
   clearPaletteOverrides,
@@ -6,9 +7,9 @@ import {
   getBuiltInPalettes,
   getPaletteRevision,
   getPaletteDefinition,
-  paletteThemeMode,
   setActivePaletteId,
   subscribePalettes,
+  systemDefaultPaletteId,
   type PaletteMode,
 } from '../state/palettes';
 
@@ -32,33 +33,22 @@ export function usePaletteTheme(options: UsePaletteThemeOptions = {}) {
   const palettes = useMemo(() => getBuiltInPalettes(), [paletteRevision]);
   const activePalette = getPaletteDefinition(paletteId) ?? palettes[0];
 
+  // A palette is fully self-describing: applying it sets the CSS variables AND
+  // the light/dark class from the palette's own mode. Nothing else manages the
+  // theme, so a single apply on change is enough — no class observer needed.
   useEffect(() => {
-    const root = document.documentElement;
-    const reapply = () => applyPalette(paletteId, options.mode);
-    reapply();
-
-    const observer = new MutationObserver(reapply);
-    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-    return () => observer.disconnect();
+    applyPalette(paletteId, options.mode);
   }, [options.mode, paletteId]);
 
   const setPalette = useCallback((id: string) => {
-    const forcedMode = paletteThemeMode(id);
-    if (forcedMode) {
-      document.documentElement.classList.toggle('dark', forcedMode === 'dark');
-      document.body.classList.toggle('dark', forcedMode === 'dark');
-      document.documentElement.dataset.theme = forcedMode;
-      document.documentElement.style.colorScheme = forcedMode;
-      try { localStorage.setItem('bionodulo.theme', forcedMode); } catch { /* ignore */ }
-    }
     setActivePaletteId(id);
-    applyPalette(id, forcedMode ?? options.mode);
-  }, [options.mode]);
+    applyPalette(id);
+  }, []);
 
   const resetPalette = useCallback(() => {
-    setActivePaletteId('light');
-    applyPalette('light', 'light');
-    try { localStorage.setItem('bionodulo.theme', 'light'); } catch { /* ignore */ }
+    const id = systemDefaultPaletteId();
+    setActivePaletteId(id);
+    applyPalette(id);
   }, []);
 
   return {

@@ -43,7 +43,6 @@ describe('hooks organization', () => {
 
   it('keeps settings hooks in the settings hooks category', () => {
     const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
-    const themeSource = readFileSync(resolve(process.cwd(), 'src/hooks/useTheme.ts'), 'utf8');
     const settingsPanelSource = readFileSync(
       resolve(process.cwd(), 'src/components/panels/SettingsPanel.tsx'),
       'utf8',
@@ -59,7 +58,6 @@ describe('hooks organization', () => {
     }
     expect(appSource).toContain("from './hooks/settings'");
     expect(appSource).not.toContain("from './hooks/useSettings'");
-    expect(themeSource).toContain("from './settings'");
     expect(settingsPanelSource).toContain("from '../../hooks/settings'");
     expect(canvasSource).toContain("from '../../hooks/settings'");
   });

@@ -176,6 +176,7 @@ export default function SettingsPanel({
       light: makerMode === 'light' ? baseTokens : completed.light,
       dark: makerMode === 'dark' ? baseTokens : completed.dark,
       canvasPattern: 'dots',
+      mode: makerMode,
     };
     addCustomPalette(palette);
     setPalette(id);
@@ -271,14 +272,7 @@ export default function SettingsPanel({
             <div className={`toggle ${get('bionodulo.tooltipsEnabled') ? 'on' : ''}`} onClick={() => toggle('bionodulo.tooltipsEnabled')} />
           </SettingRow>
           <SettingRow query={query} label={st('palette')} desc={st('appearance.paletteDescription')} keywords="theme color swatch paleta colores dark light claro oscuro">
-            <div className="palette-setting">
-              <select className="select-input" value={paletteId} onChange={event => setPalette(event.target.value)}>
-                {palettes.map(palette => (
-                  <option key={palette.id} value={palette.id}>{paletteName(palette)}</option>
-                ))}
-              </select>
-              <button className="btn btn-sm" onClick={resetPalette} type="button">{t('common.reset')}</button>
-            </div>
+            <button className="btn btn-sm" onClick={resetPalette} type="button">{t('common.reset')}</button>
           </SettingRow>
           <div className="palette-actions">
             <button className="btn btn-sm" onClick={exportPalette} type="button">{st('appearance.exportPalette')}</button>

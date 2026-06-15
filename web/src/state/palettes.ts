@@ -121,6 +121,11 @@ export interface ThemePalette {
   light: PaletteTokens;
   dark: PaletteTokens;
   canvasPattern?: CanvasPattern;
+  // Each palette is a single, self-contained appearance. `mode` selects which
+  // token set is applied and whether the document gets the `.dark` class. There
+  // is no separate global light/dark toggle — Light and Dark are just two
+  // palettes like any other.
+  mode?: PaletteMode;
 }
 
 export type PaletteThemeMode = PaletteMode | null;
@@ -136,6 +141,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'Light',
     description: 'Bright neutral BioNodulo palette.',
     descriptionKey: 'palettes.descriptions.light',
+    mode: 'light',
     canvasPattern: 'dots',
     preview: ['#0d9488', '#eef3f4', '#ffffff'],
     light: {
@@ -160,6 +166,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'Dark',
     description: 'Dark neutral BioNodulo palette.',
     descriptionKey: 'palettes.descriptions.dark',
+    mode: 'dark',
     canvasPattern: 'dots',
     preview: ['#2dd4bf', '#0f172a', '#1e293b'],
     light: {
@@ -184,6 +191,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'BioNodulo',
     description: 'Default teal workbench palette.',
     descriptionKey: 'palettes.descriptions.bionodulo',
+    mode: 'light',
     canvasPattern: 'dots',
     preview: ['#0d9488', '#eef3f4', '#1d2930'],
     light: {
@@ -208,6 +216,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'Clinical',
     description: 'High-contrast clinical workstation theme.',
     descriptionKey: 'palettes.descriptions.clinical',
+    mode: 'light',
     canvasPattern: 'grid',
     preview: ['#0369a1', '#f8fafc', '#0f172a'],
     light: {
@@ -232,6 +241,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'Field Station',
     description: 'Outdoor / field-research green palette.',
     descriptionKey: 'palettes.descriptions.field',
+    mode: 'light',
     canvasPattern: 'mesh',
     preview: ['#15803d', '#fefce8', '#1c1917'],
     light: {
@@ -256,6 +266,7 @@ export const BUILT_IN_PALETTES: ThemePalette[] = [
     name: 'High Contrast',
     description: 'Maximum-contrast accessibility theme.',
     descriptionKey: 'palettes.descriptions.contrast',
+    mode: 'dark',
     canvasPattern: 'grid',
     preview: ['#facc15', '#000000', '#ffffff'],
     light: {
@@ -300,7 +311,22 @@ function getStoredPaletteId(): string | null {
   }
 }
 
-let activePaletteId: string = getStoredPaletteId() || 'light';
+function systemPrefersDark(): boolean {
+  try {
+    return typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/** Palette to use on first launch when the user has not chosen one yet. */
+export function systemDefaultPaletteId(): string {
+  return systemPrefersDark() ? 'dark' : 'light';
+}
+
+let activePaletteId: string = getStoredPaletteId() || systemDefaultPaletteId();
 let customPalettes: ThemePalette[] = loadCustomPalettes();
 
 function loadCustomPalettes(): ThemePalette[] {
@@ -366,10 +392,8 @@ export function getPaletteDefinition(id: string): ThemePalette | undefined {
   return listPalettes().find(p => p.id === id);
 }
 
-export function paletteThemeMode(id: string): PaletteThemeMode {
-  if (id === 'light') return 'light';
-  if (id === 'dark') return 'dark';
-  return null;
+export function paletteThemeMode(id: string): PaletteMode {
+  return getPaletteDefinition(id)?.mode ?? 'light';
 }
 
 export function upsertCustomPalette(palette: ThemePalette): void {
@@ -508,13 +532,27 @@ export function applyPalette(id = activePaletteId, mode?: PaletteMode, target?: 
   if (typeof document === 'undefined') return null;
   const raw = getPaletteDefinition(id) ?? BUILT_IN_PALETTES[0];
   const palette = completePalette(raw);
-  const resolvedMode = getResolvedPaletteMode(mode);
+  // The palette's own mode is the single source of truth. `mode` may override
+  // it for off-screen previews (e.g. the palette maker), but normal selection
+  // always uses the palette's declared appearance.
+  const resolvedMode: PaletteMode = mode ?? raw.mode ?? 'light';
   const root = target ?? document.documentElement;
   const tokens = palette[resolvedMode];
 
   Object.entries(tokens).forEach(([token, value]) => {
     if (value) root.style.setProperty(`--${token}`, value, 'important');
   });
+
+  // Drive the light/dark class from the palette's mode so component CSS and the
+  // canvas renderer (which reads `.dark`) stay in sync with the applied tokens.
+  // Only touch the global document state when applying to the real root.
+  if (!target || target === document.documentElement) {
+    const isDark = resolvedMode === 'dark';
+    root.classList.toggle('dark', isDark);
+    document.body?.classList.toggle('dark', isDark);
+    root.dataset.theme = isDark ? 'dark' : 'light';
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+  }
 
   root.dataset.palette = palette.id;
   root.dataset.canvasPattern = palette.canvasPattern || 'none';
@@ -526,4 +564,15 @@ export function clearPaletteOverrides(target?: HTMLElement): void {
   const root = target ?? document.documentElement;
   ALL_PALETTE_TOKENS.forEach(token => root.style.removeProperty(`--${token}`));
   delete root.dataset.palette;
+}
+
+// Apply the active palette as soon as this module loads so the `.dark` class and
+// CSS variables are set before React first paints — avoids a flash of the wrong
+// theme and means no other system needs to manage the light/dark class.
+if (typeof document !== 'undefined') {
+  try {
+    applyPalette(activePaletteId);
+  } catch {
+    /* ignore — applied again on mount */
+  }
 }

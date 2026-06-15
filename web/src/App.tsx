@@ -38,7 +38,6 @@ import {
 } from './components/ui';
 import { useSettings } from './hooks/settings';
 import { useObjectInfo } from './hooks/data';
-import { useTheme } from './hooks/useTheme';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
@@ -252,7 +251,8 @@ export default function App() {
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
   } = useWorkflow();
-  useTheme();
+  // Theme is fully owned by the palette system (usePaletteTheme + state/palettes),
+  // which applies the active palette and its light/dark class on load and on change.
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
   const { objectInfo, loading: objectInfoLoading } = useObjectInfo();

@@ -285,8 +285,8 @@ describe('SettingsPanel shell i18n', () => {
 
     render(<SettingsPanel onClose={() => undefined} />);
 
-    expect(screen.getByRole('option', { name: 'Estacion de campo' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Field Station' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Estacion de campo' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Field Station' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Alto contraste' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'High Contrast' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clinica' })).toHaveAttribute(

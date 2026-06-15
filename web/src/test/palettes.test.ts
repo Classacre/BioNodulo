@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   ALL_PALETTE_TOKENS,
+  applyPalette,
   completePalette,
   BUILT_IN_PALETTES,
   getResolvedPaletteMode,
@@ -62,7 +63,43 @@ describe('palette theme modes', () => {
     expect(BUILT_IN_PALETTES.map(palette => palette.id)).toEqual(expect.arrayContaining(['light', 'dark']));
     expect(paletteThemeMode('light')).toBe('light');
     expect(paletteThemeMode('dark')).toBe('dark');
-    expect(paletteThemeMode('bionodulo')).toBeNull();
+    // Every palette is now self-describing — light/dark are not special. A
+    // themed palette reports its own mode rather than `null`.
+    expect(paletteThemeMode('bionodulo')).toBe('light');
+    for (const palette of BUILT_IN_PALETTES) {
+      expect(palette.mode === 'light' || palette.mode === 'dark', `${palette.id} mode`).toBe(true);
+    }
+  });
+});
+
+describe('palettes.applyPalette', () => {
+  afterEach(() => {
+    document.documentElement.className = '';
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.removeAttribute('data-palette');
+  });
+
+  it("drives the .dark class and canvas token from each palette's own mode", () => {
+    const root = document.documentElement;
+
+    applyPalette('dark');
+    expect(root.classList.contains('dark')).toBe(true);
+    expect(root.dataset.theme).toBe('dark');
+    expect(root.dataset.palette).toBe('dark');
+    const darkCanvas = root.style.getPropertyValue('--canvas');
+
+    // Switching from dark to a themed (light-mode) palette must fully switch:
+    // the .dark class clears and the tokens become the themed palette's own —
+    // this reproduces the bug where dark -> other palette did not change.
+    applyPalette('clinical');
+    expect(root.dataset.palette).toBe('clinical');
+    expect(root.classList.contains('dark')).toBe(false);
+    expect(root.dataset.theme).toBe('light');
+    expect(root.style.getPropertyValue('--canvas')).not.toBe(darkCanvas);
+
+    // And back to a dark palette re-applies the dark class.
+    applyPalette('dark');
+    expect(root.classList.contains('dark')).toBe(true);
   });
 });
 
