@@ -217,14 +217,20 @@ def create_app() -> FastAPI:
 
         task.add_done_callback(_log_emit_error)
 
+    # Settings manager
+    settings_manager = SettingsManager(settings.settings_file)
+
+    try:
+        _history_cap = int(settings_manager.get("bionodulo.queueHistorySize") or 100)
+    except (TypeError, ValueError):
+        _history_cap = 100
+
     run_queue = RunQueue(
         executor=executor,
         max_concurrent=settings.execution.max_workers,
         emit=_emit_to_hub,
+        max_history=_history_cap,
     )
-
-    # Settings manager
-    settings_manager = SettingsManager(settings.settings_file)
 
     # Store on app state
     app.state.settings = settings

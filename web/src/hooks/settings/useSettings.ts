@@ -2,19 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost } from '../../api/client';
 
 const DEFAULT_SETTINGS: Record<string, unknown> = {
-  'bionodulo.theme': 'system',
   'bionodulo.snapToGrid': false,
   'bionodulo.showMinimap': true,
   'bionodulo.linksHidden': false,
   'bionodulo.viewportLocked': false,
   'bionodulo.autoSave': 'off',
   'bionodulo.queueHistorySize': 100,
-  'bionodulo.fileExplorerDepth': 4,
   'bionodulo.showHiddenFiles': false,
   'bionodulo.strongHashing': false,
   'bionodulo.tooltipsEnabled': true,
-  'bionodulo.confirmFileDelete': true,
-  'bionodulo.preserveView': true,
   'bionodulo.llm.provider': 'openai',
   'bionodulo.llm.model': 'gpt-4.1-mini',
   'bionodulo.llm.baseUrl': '',
@@ -71,6 +67,14 @@ const listeners = new Set<() => void>();
 // can ignore no-op flips and short-circuit when the new value matches state.
 type SettingChangeListener = (newValue: unknown, oldValue: unknown, key: string) => void;
 const keyListeners = new Map<string, Set<SettingChangeListener>>();
+
+/** Non-reactive read of a single setting (no subscription/re-render). Use in
+ * hot paths or non-component code; components that must update on change should
+ * use `useSettings`. */
+export function getSettingValue<T = unknown>(key: string, fallback?: T): T {
+  const val = globalSettings[key];
+  return (val === undefined ? fallback : val) as T;
+}
 
 export function subscribeSetting(key: string, listener: SettingChangeListener): () => void {
   let bucket = keyListeners.get(key);

@@ -6,6 +6,7 @@ import { alertDialog } from '../ui';
 import Dialog from '../ui/Dialog';
 import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
+import { useSettings } from '../../hooks/settings';
 
 interface FileEntry {
   name: string;
@@ -22,8 +23,12 @@ interface WorkspacePanelProps {
 
 export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkflow }: WorkspacePanelProps) {
   const { t, i18n } = useTranslation();
+  const { getBool } = useSettings();
+  const showHidden = getBool('bionodulo.showHiddenFiles', false);
   const [path, setPath] = useState('/');
   const [files, setFiles] = useState<FileEntry[]>([]);
+  // Hide dotfiles unless the user opts in (bionodulo.showHiddenFiles).
+  const visibleFiles = showHidden ? files : files.filter(f => !f.name.startsWith('.'));
   const [loading, setLoading] = useState(false);
   const [, setRootPath] = useState('');
   const [rootInput, setRootInput] = useState('');
@@ -107,11 +112,11 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
 
     if (isShift && lastSelectedRef.current && fileListRef.current) {
       // Range select
-      const names = files.map(f => f.path);
+      const names = visibleFiles.map(f => f.path);
       const lastIdx = names.indexOf(lastSelectedRef.current);
       const currIdx = names.indexOf(file.path);
       const [start, end] = lastIdx < currIdx ? [lastIdx, currIdx] : [currIdx, lastIdx];
-      const range = files.slice(start, end + 1).map(f => f.path);
+      const range = visibleFiles.slice(start, end + 1).map(f => f.path);
       setSelected(prev => {
         const next = new Set(prev);
         range.forEach(p => next.add(p));
@@ -244,10 +249,10 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
           <div className="workspace-loading">{t('common.loading')}</div>
         ) : (
           <div className="workspace-file-list" ref={fileListRef}>
-            {files.length === 0 && (
+            {visibleFiles.length === 0 && (
               <div className="workspace-empty">{t('workspace.emptyDirectory')}</div>
             )}
-            {files.map(file => {
+            {visibleFiles.map(file => {
               const isSelected = selected.has(file.path);
               return (
                 <div

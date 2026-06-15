@@ -65,9 +65,11 @@ class RunQueue:
         executor: WorkflowExecutor | None = None,
         max_concurrent: int = 0,
         emit: Callable[[str, dict[str, Any]], None] | None = None,
+        max_history: int = 100,
     ) -> None:
         self.executor = maybe_wrap_with_arq(executor or WorkflowExecutor())
         self.max_concurrent = max_concurrent if max_concurrent > 0 else min(4, os.cpu_count() or 1)
+        self.max_history = max(1, int(max_history))
         self.emit = emit or (lambda _evt, _data: None)
 
         self._pending: asyncio.Queue[RunRequest] = asyncio.Queue()
@@ -79,6 +81,13 @@ class RunQueue:
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
         self._worker_start_lock = asyncio.Lock()
+
+    def _record_history(self, req: RunRequest) -> None:
+        """Append a finished run and cap history to max_history (bounds memory
+        and honours the bionodulo.queueHistorySize setting)."""
+        self._history.append(req)
+        if len(self._history) > self.max_history:
+            del self._history[: len(self._history) - self.max_history]
 
     # ------------------------------------------------------------------
     # Public API
@@ -150,7 +159,7 @@ class RunQueue:
                     self._pending_items.remove(req)
                     req.status = RunStatus.INTERRUPTED
                     req.finished_at = time.time()
-                    self._history.append(req)
+                    self._record_history(req)
                     removed = True
                     self.emit("queue_interrupt", {"run_id": run_id})
                     break
@@ -194,7 +203,7 @@ class RunQueue:
                     req.cancel_event.set()
                     req.status = RunStatus.CANCELLED
                     req.finished_at = time.time()
-                    self._history.append(req)
+                    self._record_history(req)
                     removed = True
                     self.emit("queue_cancel", {"run_id": run_id})
                     break
@@ -217,7 +226,7 @@ class RunQueue:
                 req.cancel_event.set()
                 req.status = RunStatus.CANCELLED
                 req.finished_at = time.time()
-                self._history.append(req)
+                self._record_history(req)
         count = len(pending)
         self.emit("queue_clear", {"cleared": count})
         await self._emit_queue()
@@ -606,7 +615,7 @@ class RunQueue:
 
         async with self._lock:
             active = self._running.pop(request.run_id, request)
-            self._history.append(active)
+            self._record_history(active)
 
         self.emit(
             "queue_finish",

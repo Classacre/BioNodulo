@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFoundationStyles } from './FoundationStyles';
+import { getSettingValue } from '../../hooks/settings/useSettings';
 
 export type TooltipPlacement = 'top' | 'right' | 'bottom' | 'left';
 
@@ -45,6 +46,9 @@ export function Tooltip({
 
   const show = () => {
     if (disabled) return;
+    // Global "show tooltips" setting (default on). Checked at hover time so the
+    // tooltip never subscribes to settings changes.
+    if (getSettingValue<boolean>('bionodulo.tooltipsEnabled', true) === false) return;
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => {
       const nextRect = triggerRef.current?.getBoundingClientRect();

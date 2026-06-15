@@ -341,9 +341,6 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.lockViewport')} desc={st('canvas.lockViewportDescription')} keywords="zoom pan camera bloquear vista lienzo">
             <div className={`toggle ${get('bionodulo.viewportLocked') ? 'on' : ''}`} onClick={() => toggle('bionodulo.viewportLocked')} />
           </SettingRow>
-          <SettingRow query={query} label={st('canvas.preserveView')} desc={st('canvas.preserveViewDescription')} keywords="zoom pan persist conservar posicion">
-            <div className={`toggle ${get('bionodulo.preserveView') ? 'on' : ''}`} onClick={() => toggle('bionodulo.preserveView')} />
-          </SettingRow>
           <SettingRow query={query} label={st('autoSave')} desc={st('canvas.autoSaveDescription')} keywords="autosave persist localstorage guardado automatico">
             <select className="select-input" value={String(get('bionodulo.autoSave'))} onChange={e => set('bionodulo.autoSave', e.target.value)}>
               <option value="off">{st('canvas.autoSaveOff')}</option>
@@ -457,14 +454,8 @@ export default function SettingsPanel({
 
         {/* Files */}
         <SettingsGroup active={isSectionVisible('files')} query={query} title={sectionTitle('files')}>
-          <SettingRow query={query} label={st('files.explorerDepth')} desc={st('files.explorerDepthDescription')} keywords="workspace file tree archivos arbol profundidad">
-            <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.fileExplorerDepth'))} onChange={e => set('bionodulo.fileExplorerDepth', parseInt(e.target.value))} />
-          </SettingRow>
           <SettingRow query={query} label={st('files.showHiddenFiles')} desc={st('files.showHiddenFilesDescription')} keywords="dotfiles hidden ocultos archivos">
             <div className={`toggle ${get('bionodulo.showHiddenFiles') ? 'on' : ''}`} onClick={() => toggle('bionodulo.showHiddenFiles')} />
-          </SettingRow>
-          <SettingRow query={query} label={st('files.confirmDelete')} desc={st('files.confirmDeleteDescription')} keywords="confirm delete safety confirmar eliminar seguridad">
-            <div className={`toggle ${get('bionodulo.confirmFileDelete') ? 'on' : ''}`} onClick={() => toggle('bionodulo.confirmFileDelete')} />
           </SettingRow>
         </SettingsGroup>
 

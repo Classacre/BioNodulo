@@ -105,8 +105,6 @@ describe('SettingsPanel shell i18n', () => {
     expect(screen.getByText('Alinear nodos a la cuadricula')).toBeInTheDocument();
     expect(screen.getByText('Bloquear vista')).toBeInTheDocument();
     expect(screen.getByText('Impedir desplazamiento/zoom del lienzo')).toBeInTheDocument();
-    expect(screen.getByText('Conservar vista')).toBeInTheDocument();
-    expect(screen.getByText('Recordar posicion del lienzo')).toBeInTheDocument();
     expect(screen.getByText('Guardado automatico')).toBeInTheDocument();
     expect(screen.getByText('Guardar flujos de trabajo automaticamente')).toBeInTheDocument();
     expect(screen.queryByText('Guardar workflows automaticamente')).not.toBeInTheDocument();
@@ -175,12 +173,8 @@ describe('SettingsPanel shell i18n', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Archivos' }));
 
-    expect(screen.getByText('Profundidad del explorador')).toBeInTheDocument();
-    expect(screen.getByText('Limite de anidacion del arbol de archivos')).toBeInTheDocument();
     expect(screen.getByText('Mostrar archivos ocultos')).toBeInTheDocument();
     expect(screen.getByText('Mostrar dotfiles')).toBeInTheDocument();
-    expect(screen.getByText('Confirmar eliminacion')).toBeInTheDocument();
-    expect(screen.getByText('Pedir confirmacion antes de eliminar archivos')).toBeInTheDocument();
   });
 
   it('renders AI and Telemetry rows from the active locale', async () => {
