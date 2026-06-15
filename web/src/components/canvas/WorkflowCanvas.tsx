@@ -8,6 +8,7 @@ import { edgeColorForSource, defaultsFor } from '../../utils';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
+import { dragCoordinate } from '../../utils/snap';
 import {
   NODE_HEADER_H,
   NODE_PIN_H,
@@ -647,6 +648,11 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   const dragMovedRef = useRef(false);
   const dragCommitNeededRef = useRef(false);
   const dragOwnershipStartedRef = useRef(false);
+  // Start positions of the nodes being dragged, captured at drag start. Node
+  // moves are computed as start + total-delta (absolute), not by accumulating
+  // per-frame deltas — otherwise snap-to-grid rounds away each small frame delta
+  // and the node refuses to move on slow drags.
+  const dragNodeStartRef = useRef<Map<string, [number, number]> | null>(null);
   // Snapshot of each dragged node's original rect so we can render faint
   // "ghost" outlines at the origin during a node drag.
   const dragGhostsRef = useRef<Array<{ id: string; x: number; y: number; w: number; h: number; radius: number; isReroute: boolean }>>([]);
@@ -1955,8 +1961,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
 
   const addNode = useCallback((meta: NodeMetadata, cx: number, cy: number): WorkflowNode => {
     const world = toWorld(cx, cy);
-    const x = snapToGrid ? Math.round(world.x / 20) * 20 : world.x;
-    const y = snapToGrid ? Math.round(world.y / 20) * 20 : world.y;
+    const x = dragCoordinate(world.x, 0, snapToGrid);
+    const y = dragCoordinate(world.y, 0, snapToGrid);
     const isNote = meta.id === 'note';
     const newNode: WorkflowNode = {
       id: `${meta.id}_${Date.now()}`,
@@ -2380,8 +2386,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         return {
           ...g,
           position: [
-            snapToGrid ? Math.round((gs.startPos[0] + dx) / 20) * 20 : gs.startPos[0] + dx,
-            snapToGrid ? Math.round((gs.startPos[1] + dy) / 20) * 20 : gs.startPos[1] + dy,
+            dragCoordinate(gs.startPos[0], dx, snapToGrid),
+            dragCoordinate(gs.startPos[1], dy, snapToGrid),
           ] as [number, number],
         };
       });
@@ -2389,12 +2395,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         graphNodesRef.current = graphNodesRef.current.map(n => {
           const start = gs.nodeStarts.get(n.id);
           if (!start) return n;
-          const nx = start[0] + dx;
-          const ny = start[1] + dy;
           return {
             ...n,
-            x: snapToGrid ? Math.round(nx / 20) * 20 : nx,
-            y: snapToGrid ? Math.round(ny / 20) * 20 : ny,
+            x: dragCoordinate(start[0], dx, snapToGrid),
+            y: dragCoordinate(start[1], dy, snapToGrid),
           };
         });
       }
@@ -2403,23 +2407,33 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     }
     if (dragging) {
       isDraggingRef.current = true;
+      // Total delta from the drag origin (dragStart is NOT reset per frame) so
+      // positions are absolute (start + delta). This makes snap-to-grid work on
+      // slow drags instead of rounding away each tiny per-frame movement.
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
       if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
         dragMovedRef.current = true;
         startDragOwnership(dragging);
       }
-      setDragStart({ x: e.clientX, y: e.clientY });
       setGraphNodes(prev => {
+        // Capture start positions once, from fresh state (which carries the
+        // current selection — graphNodesRef is not synced mid-drag).
+        if (!dragNodeStartRef.current) {
+          const starts = new Map<string, [number, number]>();
+          for (const n of prev) {
+            if (n.selected && !n.pinned) starts.set(n.id, [n.x, n.y]);
+          }
+          dragNodeStartRef.current = starts;
+        }
+        const starts = dragNodeStartRef.current;
         const next = prev.map(n => {
-          if (!n.selected) return n;
-          if (n.pinned) return n;
-          const nx = n.x + dx;
-          const ny = n.y + dy;
+          const start = starts.get(n.id);
+          if (!start) return n;
           return {
             ...n,
-            x: snapToGrid ? Math.round(nx / 20) * 20 : nx,
-            y: snapToGrid ? Math.round(ny / 20) * 20 : ny,
+            x: dragCoordinate(start[0], dx, snapToGrid),
+            y: dragCoordinate(start[1], dy, snapToGrid),
           };
         });
         graphNodesRef.current = next;
@@ -2582,6 +2596,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     dragCommitNeededRef.current = false;
     dragOwnershipStartedRef.current = false;
     dragGhostsRef.current = [];
+    dragNodeStartRef.current = null;
     setDragging(null);
     setPanning(false);
     setSelectBox(null);
