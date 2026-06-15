@@ -29,13 +29,21 @@ def test_input_node_schemas_are_preserved() -> None:
         "hidden": {},
     }
     assert InputFASTANode.INPUT_TYPES() == {
-        "required": {"reference": ("FASTA", {"description": "Path or URL to FASTA file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."})},
-        "optional": {},
+        "required": {"reference": ("FASTA", {"description": "Local path, URL, or NCBI accession for the FASTA. With source=auto, http(s)/ftp URLs are downloaded (gzip auto-decompressed) and everything else is a local path."})},
+        "optional": {"source": ("STRING", {
+            "default": "auto",
+            "options": ["auto", "local", "url", "ncbi"],
+            "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
+        })},
         "hidden": {"file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"})},
     }
     assert InputFileNode.INPUT_TYPES() == {
-        "required": {"file": ("FILE", {"description": "Path or URL to a file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."})},
-        "optional": {},
+        "required": {"file": ("FILE", {"description": "Local path, URL, or NCBI accession for the file. With source=auto, http(s)/ftp URLs are downloaded (gzip auto-decompressed) and everything else is a local path."})},
+        "optional": {"source": ("STRING", {
+            "default": "auto",
+            "options": ["auto", "local", "url", "ncbi"],
+            "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
+        })},
         "hidden": {"file_path": ("STRING", {"description": "Alias for file (backward compatibility)"})},
     }
     assert InputDirectoryNode.INPUT_TYPES() == {
@@ -122,3 +130,34 @@ async def test_directory_input_preserves_dir_path_alias_and_recursive_copy(tmp_p
     copied = out_dir / source_dir.name
     assert result == {"outputs": {"directory": str(copied.resolve())}}
     assert (copied / "nested" / "sample.txt").read_text() == "sample\n"
+
+
+def test_ncbi_efetch_url_builder() -> None:
+    from bionodulo.nodes.builtin.inputs import _ncbi_efetch_url
+
+    url = _ncbi_efetch_url("NR_074517.1")
+    assert url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?")
+    assert "id=NR_074517.1" in url
+    assert "rettype=fasta" in url
+    # Multiple comma-separated accessions are joined.
+    multi = _ncbi_efetch_url("A.1, B.2")
+    assert "id=A.1%2CB.2" in multi or "id=A.1,B.2" in multi
+
+
+def test_input_fasta_source_modes_resolve(tmp_path: Path) -> None:
+    src_dir = tmp_path / "src"; src_dir.mkdir()
+    node_dir = tmp_path / "node"; node_dir.mkdir()
+    fasta = src_dir / "seq.fasta"
+    fasta.write_text(">a\nACGT\n")
+    ctx = SimpleNamespace(workspace_dir=str(tmp_path), node_dir=str(node_dir))
+
+    import asyncio
+
+    # Explicit local mode copies the file.
+    out = asyncio.run(InputFASTANode().run(reference=str(fasta), source="local", context=ctx))
+    copied = list(out["outputs"].values())[0]
+    assert Path(copied).exists()
+
+    # Default (no source) still works (backward compatible).
+    out2 = asyncio.run(InputFASTANode().run(reference=str(fasta), context=ctx))
+    assert Path(list(out2["outputs"].values())[0]).exists()

@@ -43,6 +43,18 @@ def _looks_like_url(value: Any) -> bool:
     return parsed.scheme.lower() in URL_SCHEMES and bool(parsed.netloc)
 
 
+# NCBI E-utilities efetch endpoint. Used so a single input node can pull a
+# record by accession instead of needing a separate fetch node.
+_NCBI_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+
+def _ncbi_efetch_url(accession: str, *, db: str = "nuccore", rettype: str = "fasta") -> str:
+    """Build an NCBI efetch URL for one or more comma-separated accessions."""
+    ids = ",".join(part.strip() for part in str(accession).split(",") if part.strip())
+    query = urllib.parse.urlencode({"db": db, "id": ids, "rettype": rettype, "retmode": "text"})
+    return f"{_NCBI_EFETCH}?{query}"
+
+
 def _safe_filename(url: str) -> str:
     """Derive a safe local filename from a URL.
 
@@ -236,19 +248,29 @@ class CopyInputNode(CommandNode):
         return out_dir
 
     @staticmethod
-    def _resolve_source(source: Any, context: Any) -> Path:
-        """Resolve a source path or URL to a concrete local file.
+    def _resolve_source(source: Any, context: Any, mode: str = "auto") -> Path:
+        """Resolve a source path, URL, or NCBI accession to a concrete file.
 
-        URLs are downloaded into a workspace-scoped cache directory on
-        first use; the cached path is returned. Relative paths are resolved
-        against the run workspace directory. Absolute local paths pass
-        through unchanged. Missing `examples/data/<category>/<file>` paths
-        fall back to the `EXAMPLE_DATA_MANIFEST` — URL-backed entries are
-        downloaded, generator entries are materialised on the fly — so
-        templates that ship synthetic example data keep working even
-        without an up-front bulk download.
+        ``mode`` selects how *source* is interpreted:
+        - ``"auto"`` (default): a string that looks like an http(s)/ftp URL is
+          downloaded; anything else is treated as a local path.
+        - ``"url"``: *source* is always downloaded as a URL.
+        - ``"ncbi"``: *source* is one or more NCBI accessions, fetched via the
+          E-utilities efetch endpoint (FASTA by default).
+        - ``"local"``: *source* is always treated as a local path.
+
+        URLs are downloaded into a workspace-scoped cache directory on first
+        use; the cached path is returned. Relative paths are resolved against
+        the run workspace directory. Absolute local paths pass through
+        unchanged. Missing ``examples/data/<category>/<file>`` paths fall back
+        to the ``EXAMPLE_DATA_MANIFEST`` so templates that ship synthetic
+        example data keep working without an up-front bulk download.
         """
-        if isinstance(source, str) and _looks_like_url(source):
+        if mode == "ncbi" and isinstance(source, str) and source.strip():
+            return _download_to_cache(_ncbi_efetch_url(source), context)
+        if mode == "url" and isinstance(source, str) and source.strip():
+            return _download_to_cache(source, context)
+        if mode in ("auto", "") and isinstance(source, str) and _looks_like_url(source):
             return _download_to_cache(source, context)
         src = Path(source)
         if not src.is_absolute() and context is not None:
@@ -261,8 +283,8 @@ class CopyInputNode(CommandNode):
         return src
 
     @classmethod
-    def _copy_one(cls, source: Any, out_dir: Path, context: Any) -> Path:
-        src = cls._resolve_source(source, context)
+    def _copy_one(cls, source: Any, out_dir: Path, context: Any, mode: str = "auto") -> Path:
+        src = cls._resolve_source(source, context, mode)
         if not src.exists():
             raise FileNotFoundError(f"Source not found: {src}")
         dst = out_dir / src.name
@@ -289,9 +311,13 @@ class CopyInputNode(CommandNode):
         if isinstance(values, str):
             values = [values]
 
+        # How to interpret the source string: local path, URL, or NCBI
+        # accession. "auto" keeps the historical behaviour (download when it
+        # looks like a URL, else local), so existing templates are unaffected.
+        mode = str(kwargs.get("source") or "auto").strip().lower()
         context = kwargs.get("context")
         out_dir = self.__class__._output_dir(context, kwargs.get("output_dir"))
-        copied = [self.__class__._copy_one(src, out_dir, context) for src in values]
+        copied = [self.__class__._copy_one(src, out_dir, context, mode) for src in values]
         return {"outputs": self.__class__._format_outputs(copied)}
 
 
@@ -368,9 +394,15 @@ class InputFASTANode(CopyInputNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "reference": ("FASTA", {"description": "Path or URL to FASTA file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."}),
+                "reference": ("FASTA", {"description": "Local path, URL, or NCBI accession for the FASTA. With source=auto, http(s)/ftp URLs are downloaded (gzip auto-decompressed) and everything else is a local path."}),
             },
-            "optional": {},
+            "optional": {
+                "source": ("STRING", {
+                    "default": "auto",
+                    "options": ["auto", "local", "url", "ncbi"],
+                    "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
+                }),
+            },
             "hidden": {
                 "file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"}),
             },
@@ -397,9 +429,15 @@ class InputFileNode(CopyInputNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "file": ("FILE", {"description": "Path or URL to a file. http(s)/ftp URLs are downloaded on first use (gzip auto-decompressed)."}),
+                "file": ("FILE", {"description": "Local path, URL, or NCBI accession for the file. With source=auto, http(s)/ftp URLs are downloaded (gzip auto-decompressed) and everything else is a local path."}),
             },
-            "optional": {},
+            "optional": {
+                "source": ("STRING", {
+                    "default": "auto",
+                    "options": ["auto", "local", "url", "ncbi"],
+                    "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
+                }),
+            },
             "hidden": {
                 "file_path": ("STRING", {"description": "Alias for file (backward compatibility)"}),
             },
