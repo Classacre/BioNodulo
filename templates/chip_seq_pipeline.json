@@ -242,7 +242,7 @@
       "type": "samtools_sort",
       "position": [
         1880,
-        470
+        650
       ],
       "params": {
         "threads": 4

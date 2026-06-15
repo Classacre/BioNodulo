@@ -103,8 +103,8 @@
       ],
       "params": {
         "max_retries": 2,
-        "delay_seconds": 5.0,
-        "backoff_multiplier": 2.0,
+        "delay_seconds": 5,
+        "backoff_multiplier": 2,
         "max_delay": 120,
         "retry_on": "all",
         "only_retry_specific_nodes": "cr_count_001"
@@ -193,7 +193,7 @@
       "type": "html_report",
       "position": [
         1520,
-        234
+        414
       ],
       "params": {
         "title": "Single Cell RNA-Seq Report",

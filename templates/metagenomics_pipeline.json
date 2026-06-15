@@ -123,8 +123,8 @@
       ],
       "params": {
         "max_retries": 2,
-        "delay_seconds": 10.0,
-        "backoff_multiplier": 2.0,
+        "delay_seconds": 10,
+        "backoff_multiplier": 2,
         "max_delay": 120,
         "retry_on": "all",
         "only_retry_specific_nodes": "kraken2_001"
@@ -297,8 +297,8 @@
       ],
       "params": {
         "max_retries": 2,
-        "delay_seconds": 10.0,
-        "backoff_multiplier": 2.0,
+        "delay_seconds": 10,
+        "backoff_multiplier": 2,
         "max_delay": 120,
         "retry_on": "all",
         "only_retry_specific_nodes": "humann_001"
@@ -423,7 +423,7 @@
       "type": "html_preview",
       "position": [
         1160,
-        1038
+        1218
       ],
       "params": {},
       "ui": {
