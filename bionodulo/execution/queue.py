@@ -11,6 +11,7 @@ import asyncio
 import copy
 import inspect
 import json
+import logging
 import os
 import time
 import uuid
@@ -21,7 +22,10 @@ from typing import Any, Callable
 
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.arq_executor import maybe_wrap_with_arq
+from bionodulo.execution.run_store import RunStore
 from bionodulo.workflow.graph import edge_source, edge_target, topological_sort
+
+logger = logging.getLogger(__name__)
 
 
 class RunStatus(str, Enum):
@@ -66,11 +70,13 @@ class RunQueue:
         max_concurrent: int = 0,
         emit: Callable[[str, dict[str, Any]], None] | None = None,
         max_history: int = 100,
+        store: RunStore | None = None,
     ) -> None:
         self.executor = maybe_wrap_with_arq(executor or WorkflowExecutor())
         self.max_concurrent = max_concurrent if max_concurrent > 0 else min(4, os.cpu_count() or 1)
         self.max_history = max(1, int(max_history))
         self.emit = emit or (lambda _evt, _data: None)
+        self._store = store
 
         self._pending: asyncio.Queue[RunRequest] = asyncio.Queue()
         self._pending_items: list[RunRequest] = []
@@ -88,6 +94,90 @@ class RunQueue:
         self._history.append(req)
         if len(self._history) > self.max_history:
             del self._history[: len(self._history) - self.max_history]
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def _persist(self, req: RunRequest) -> None:
+        """Mirror a run's current state to the durable store (best effort)."""
+        if self._store is None:
+            return
+        try:
+            self._store.upsert(
+                {
+                    "run_id": req.run_id,
+                    "status": req.status.value,
+                    "workflow": req.workflow,
+                    "options": req.options,
+                    "metadata": req.metadata,
+                    "force": req.force,
+                    "force_nodes": sorted(req.force_nodes),
+                    "result": req.result,
+                    "created_at": req.created_at,
+                    "started_at": req.started_at,
+                    "finished_at": req.finished_at,
+                }
+            )
+        except Exception:
+            logger.exception("Failed to persist run %s", req.run_id)
+
+    def _forget(self, run_id: str) -> None:
+        if self._store is None:
+            return
+        try:
+            self._store.delete(run_id)
+        except Exception:
+            logger.exception("Failed to delete run %s from store", run_id)
+
+    def recover(self) -> dict[str, Any]:
+        """Reconcile persisted runs at startup.
+
+        Runs left non-terminal by a dead process are marked ``interrupted``;
+        all persisted runs are loaded back into history so the UI keeps showing
+        them. Returns a summary dict with the interrupted run_ids and the count
+        restored into history.
+        """
+        if self._store is None:
+            return {"interrupted": [], "restored": 0}
+
+        try:
+            orphan_ids = self._store.mark_orphans_interrupted()
+            records = self._store.load_all()
+        except Exception:
+            logger.exception("Run store recovery failed")
+            return {"interrupted": [], "restored": 0}
+
+        restored = 0
+        for rec in records:
+            status_value = str(rec.get("status", "interrupted"))
+            try:
+                status = RunStatus(status_value)
+            except ValueError:
+                status = RunStatus.INTERRUPTED
+            req = RunRequest(
+                run_id=str(rec["run_id"]),
+                workflow=rec.get("workflow", {}) or {},
+                options=rec.get("options", {}) or {},
+                force=bool(rec.get("force", False)),
+                force_nodes=set(rec.get("force_nodes", []) or []),
+                metadata=rec.get("metadata", {}) or {},
+                status=status,
+                result=rec.get("result"),
+                created_at=rec.get("created_at") or time.time(),
+                started_at=rec.get("started_at"),
+                finished_at=rec.get("finished_at"),
+            )
+            self._record_history(req)
+            restored += 1
+
+        if orphan_ids:
+            logger.warning(
+                "Marked %d orphaned run(s) as interrupted after restart: %s",
+                len(orphan_ids),
+                ", ".join(orphan_ids),
+            )
+        return {"interrupted": orphan_ids, "restored": restored}
 
     # ------------------------------------------------------------------
     # Public API
@@ -118,6 +208,7 @@ class RunQueue:
         )
         async with self._lock:
             self._pending_items.append(request)
+        self._persist(request)
         await self._pending.put(request)
         self.emit("queue_submit", {"run_id": rid, "status": "pending"})
         await self._emit_queue()
@@ -135,39 +226,43 @@ class RunQueue:
         Returns:
             *True* if a run was interrupted.
         """
-        if run_id and run_id in self._running:
-            self._running[run_id].cancel_event.set()
-            self._running[run_id].status = RunStatus.INTERRUPTED
-            self.emit("queue_interrupt", {"run_id": run_id})
-            await self._emit_queue()
-            return True
+        to_persist: RunRequest | None = None
+        async with self._lock:
+            target: RunRequest | None = None
+            if run_id and run_id in self._running:
+                target = self._running[run_id]
+            elif not run_id and self._running:
+                _rid, target = next(iter(self._running.items()))
+            if target is not None:
+                target.cancel_event.set()
+                target.status = RunStatus.INTERRUPTED
+                emit_id = target.run_id
+                to_persist = target
+            else:
+                emit_id = None
 
-        if not run_id and self._running:
-            rid, req = next(iter(self._running.items()))
-            req.cancel_event.set()
-            req.status = RunStatus.INTERRUPTED
-            self.emit("queue_interrupt", {"run_id": rid})
-            await self._emit_queue()
-            return True
-
-        if run_id:
             removed = False
-            async with self._lock:
+            if target is None and run_id:
                 for req in list(self._pending_items):
                     if req.run_id != run_id:
                         continue
                     self._pending_items.remove(req)
+                    req.cancel_event.set()
                     req.status = RunStatus.INTERRUPTED
                     req.finished_at = time.time()
                     self._record_history(req)
                     removed = True
-                    self.emit("queue_interrupt", {"run_id": run_id})
+                    emit_id = run_id
+                    to_persist = req
                     break
-            if removed:
-                await self._emit_queue()
-                return True
 
-        return False
+        if to_persist is not None:
+            self._persist(to_persist)
+        if emit_id is not None:
+            self.emit("queue_interrupt", {"run_id": emit_id})
+            await self._emit_queue()
+            return True
+        return removed
 
     async def cancel(self, run_id: str | None = None) -> bool:
         """Cancel a running or pending run.
@@ -178,24 +273,23 @@ class RunQueue:
         Returns:
             *True* if a run was cancelled.
         """
-        if run_id and run_id in self._running:
-            self._running[run_id].cancel_event.set()
-            self._running[run_id].status = RunStatus.CANCELLED
-            self.emit("queue_cancel", {"run_id": run_id})
-            await self._emit_queue()
-            return True
+        to_persist: RunRequest | None = None
+        async with self._lock:
+            target: RunRequest | None = None
+            if run_id and run_id in self._running:
+                target = self._running[run_id]
+            elif not run_id and self._running:
+                _rid, target = next(iter(self._running.items()))
+            if target is not None:
+                target.cancel_event.set()
+                target.status = RunStatus.CANCELLED
+                emit_id = target.run_id
+                to_persist = target
+            else:
+                emit_id = None
 
-        if not run_id and self._running:
-            rid, req = next(iter(self._running.items()))
-            req.cancel_event.set()
-            req.status = RunStatus.CANCELLED
-            self.emit("queue_cancel", {"run_id": rid})
-            await self._emit_queue()
-            return True
-
-        if run_id:
             removed = False
-            async with self._lock:
+            if target is None and run_id:
                 for req in list(self._pending_items):
                     if req.run_id != run_id:
                         continue
@@ -205,13 +299,17 @@ class RunQueue:
                     req.finished_at = time.time()
                     self._record_history(req)
                     removed = True
-                    self.emit("queue_cancel", {"run_id": run_id})
+                    emit_id = run_id
+                    to_persist = req
                     break
-            if removed:
-                await self._emit_queue()
-                return True
 
-        return False
+        if to_persist is not None:
+            self._persist(to_persist)
+        if emit_id is not None:
+            self.emit("queue_cancel", {"run_id": emit_id})
+            await self._emit_queue()
+            return True
+        return removed
 
     async def clear_pending(self) -> int:
         """Clear all pending runs from the queue.
@@ -227,6 +325,8 @@ class RunQueue:
                 req.status = RunStatus.CANCELLED
                 req.finished_at = time.time()
                 self._record_history(req)
+        for req in pending:
+            self._persist(req)
         count = len(pending)
         self.emit("queue_clear", {"cleared": count})
         await self._emit_queue()
@@ -472,6 +572,11 @@ class RunQueue:
         """Remove all completed runs from history. Returns the number cleared."""
         cleared = len(self._history)
         self._history.clear()
+        if self._store is not None:
+            try:
+                self._store.clear_terminal()
+            except Exception:
+                logger.exception("Failed to clear terminal runs from store")
         return cleared
 
     def delete_history_entry(self, run_id: str) -> bool:
@@ -479,6 +584,7 @@ class RunQueue:
         for i, r in enumerate(self._history):
             if r.run_id == run_id:
                 del self._history[i]
+                self._forget(run_id)
                 return True
         return False
 
@@ -532,6 +638,11 @@ class RunQueue:
             maybe_close = executor_close()
             if inspect.isawaitable(maybe_close):
                 await maybe_close
+        if self._store is not None:
+            try:
+                self._store.close()
+            except Exception:
+                logger.exception("Failed to close run store")
 
     # ------------------------------------------------------------------
     # Worker
@@ -581,6 +692,7 @@ class RunQueue:
             request.status = RunStatus.RUNNING
             request.started_at = time.time()
 
+        self._persist(request)
         self.emit("queue_start", {"run_id": request.run_id})
         await self._emit_queue()
 
@@ -599,16 +711,20 @@ class RunQueue:
                 emit=_emit_wrapper,
             )
             request.result = result
-            request.status = (
-                RunStatus.COMPLETED
-                if result.get("status") == "completed"
-                else RunStatus.FAILED
-                if result.get("status") == "failed"
-                else RunStatus.CANCELLED
-            )
+            # Preserve a cancel/interrupt that landed while the executor was
+            # finalizing — do not let a late "completed"/"failed" clobber it.
+            if request.status in (RunStatus.CANCELLED, RunStatus.INTERRUPTED):
+                pass
+            elif request.cancel_event.is_set() or result.get("status") == "cancelled":
+                request.status = RunStatus.CANCELLED
+            elif result.get("status") == "completed":
+                request.status = RunStatus.COMPLETED
+            else:
+                request.status = RunStatus.FAILED
         except Exception as exc:
             request.result = {"status": "failed", "error": str(exc)}
-            request.status = RunStatus.FAILED
+            if request.status not in (RunStatus.CANCELLED, RunStatus.INTERRUPTED):
+                request.status = RunStatus.FAILED
             self.emit("queue_error", {"run_id": request.run_id, "error": str(exc)})
 
         request.finished_at = time.time()
@@ -617,6 +733,7 @@ class RunQueue:
             active = self._running.pop(request.run_id, request)
             self._record_history(active)
 
+        self._persist(request)
         self.emit(
             "queue_finish",
             {

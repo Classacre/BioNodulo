@@ -26,11 +26,24 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     Connects to the EventHub and forwards events as JSON messages.
     Handles client ping/pong for connection health checks.
     """
-    auth_payload = get_auth_ws(dict(websocket.query_params))
-    if auth_payload is None:
-        await websocket.accept()
-        await websocket.close(code=4401, reason="Unauthorized")
-        return
+    # The event stream (run logs, install progress) is core single-user
+    # functionality. Only require a JWT when collaboration mode is on; in local
+    # mode the whole app is unauthenticated by design, so a tokenless connection
+    # is accepted. Matches _require_execute_permission's collab gating.
+    collab_enabled = False
+    try:
+        settings_manager = getattr(websocket.app.state, "settings_manager", None)
+        if settings_manager is not None:
+            collab_enabled = bool(settings_manager.get("bionodulo.collab.enabled"))
+    except Exception:
+        collab_enabled = False
+
+    if collab_enabled:
+        auth_payload = get_auth_ws(dict(websocket.query_params))
+        if auth_payload is None:
+            await websocket.accept()
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
 
     await websocket.accept()
 

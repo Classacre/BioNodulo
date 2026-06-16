@@ -12,14 +12,23 @@ from bionodulo.hpc.base import HPCJob
 from bionodulo.hpc.slurm import SLURMBackend
 
 
-def test_event_websocket_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_event_websocket_requires_token_in_collab_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     import bionodulo.collab.auth as auth
     from server import create_app
 
+    # Isolate the workspace root: enabling collab below writes to the settings
+    # file, and without this it pollutes the shared ~/.bionodulo workspace and
+    # breaks the local-mode test that expects collab off by default.
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
     monkeypatch.setenv("BIONODULO_JWT_SECRET", "test-secret-for-event-websocket-32-bytes-min")
     monkeypatch.setattr(auth, "_JWT_SECRET_CACHE", None)
     monkeypatch.setattr(auth, "JWT_SECRET", "")
     with TestClient(create_app()) as client:
+        # Enable collaboration so the event socket enforces auth.
+        client.post("/api/settings", json={"settings": {"bionodulo.collab.enabled": True}})
+
         with client.websocket_connect("/ws") as ws:
             with pytest.raises(WebSocketDisconnect) as exc_info:
                 ws.receive_json()
@@ -29,6 +38,60 @@ def test_event_websocket_requires_token(monkeypatch: pytest.MonkeyPatch) -> None
             assert ws.receive_json()["type"] == "connected"
 
     assert exc_info.value.code == 4401
+
+
+def test_event_websocket_allows_anonymous_in_local_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """In local (single-user) mode the event stream is reachable without a JWT —
+    run logs / install progress must work for the default, collab-disabled app."""
+    from server import create_app
+
+    # Isolate the workspace so this test sees collab disabled by default rather
+    # than whatever a previous collab test may have written globally.
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    with TestClient(create_app()) as client:
+        with client.websocket_connect("/ws") as ws:
+            assert ws.receive_json()["type"] == "connected"
+
+
+def test_queue_mutations_require_auth_in_collab_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Queue/history mutations must reject anonymous callers once collab is on."""
+    import bionodulo.collab.auth as auth
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_JWT_SECRET", "test-secret-for-queue-auth-32-bytes-minimum")
+    monkeypatch.setattr(auth, "_JWT_SECRET_CACHE", None)
+    monkeypatch.setattr(auth, "JWT_SECRET", "")
+
+    with TestClient(create_app()) as client:
+        client.post("/api/settings", json={"settings": {"bionodulo.collab.enabled": True}})
+
+        # Anonymous mutations are rejected.
+        assert client.post("/api/queue/clear").status_code == 401
+        assert client.post("/api/history/clear").status_code == 401
+        assert client.post("/api/queue/run-x/cancel").status_code == 401
+        assert client.post("/api/runs/run-x/retry").status_code == 401
+
+        # With a valid token the gate is satisfied (cancel of an unknown run is
+        # then a normal 404, not an auth failure).
+        token = client.post("/api/auth/token", json={"name": "Op"}).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        assert client.post("/api/queue/clear", headers=headers).status_code == 200
+        assert client.post("/api/queue/run-x/cancel", headers=headers).status_code == 404
+
+
+def test_queue_mutations_open_in_local_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Local (collab-disabled) mode keeps queue endpoints unauthenticated by design."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    with TestClient(create_app()) as client:
+        assert client.post("/api/queue/clear").status_code == 200
+        assert client.post("/api/history/clear").status_code == 200
 
 
 @pytest.mark.asyncio

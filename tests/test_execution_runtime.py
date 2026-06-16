@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -85,6 +86,51 @@ async def test_run_subprocess_streams_to_log_files(tmp_path: Path) -> None:
     assert stdout_path.read_text(encoding="utf-8").strip() == "streamed-out"
     assert stderr_path.read_text(encoding="utf-8").strip() == "streamed-err"
     assert ("log", {"node_id": "subprocess", "level": "stdout", "message": "streamed-out"}) in events
+
+
+@pytest.mark.asyncio
+async def test_run_subprocess_cancel_kills_process_tree(tmp_path: Path) -> None:
+    from bionodulo.execution.subprocess_runner import (
+        CommandCancelledError,
+        run_subprocess,
+    )
+
+    # Child writes its PID, then spawns a grandchild that sleeps for a long
+    # time. Cancelling must kill the whole group, not just the immediate shell.
+    marker = tmp_path / "grandchild.pid"
+    script = (
+        f"import os,sys,time,subprocess;"
+        f"p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']);"
+        f"open(r'{marker}','w').write(str(p.pid));"
+        f"sys.stdout.flush();"
+        f"time.sleep(30)"
+    )
+
+    cancel_event = asyncio.Event()
+
+    async def _cancel_soon() -> None:
+        for _ in range(50):
+            if marker.exists():
+                break
+            await asyncio.sleep(0.05)
+        await asyncio.sleep(0.05)
+        cancel_event.set()
+
+    canceller = asyncio.create_task(_cancel_soon())
+    with pytest.raises(CommandCancelledError):
+        await run_subprocess(
+            [sys.executable, "-c", script],
+            stdout_path=tmp_path / "out.log",
+            stderr_path=tmp_path / "err.log",
+            cancel_event=cancel_event,
+        )
+    await canceller
+
+    # Grandchild must be dead after cancellation.
+    grandchild_pid = int(marker.read_text().strip())
+    await asyncio.sleep(0.2)
+    with pytest.raises(ProcessLookupError):
+        os.kill(grandchild_pid, 0)
 
 
 def test_cache_store_tracks_and_replaces_markers_atomically(tmp_path: Path) -> None:
@@ -315,6 +361,56 @@ def test_graph_helpers_support_frontend_and_legacy_edge_shapes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_store_persists_and_reconciles_orphans(tmp_path: Path) -> None:
+    from bionodulo.execution.run_store import RunStore
+
+    db = tmp_path / "runs.db"
+
+    class HangingExecutor:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def execute(self, **_: Any) -> dict[str, Any]:
+            self.started.set()
+            await self.release.wait()
+            return {"status": "completed"}
+
+    # First "process": one run finishes, a second is left running when we crash.
+    store1 = RunStore(db)
+    executor = HangingExecutor()
+    queue1 = RunQueue(executor=executor, max_concurrent=1, store=store1)
+    try:
+        await queue1.submit({"nodes": [], "edges": []}, run_id="done")
+        await asyncio.wait_for(executor.started.wait(), timeout=1.0)
+        executor.release.set()
+        for _ in range(40):
+            if queue1.get_run("done") and queue1.get_run("done")["status"] == "completed":
+                break
+            await asyncio.sleep(0.02)
+
+        executor.release.clear()
+        executor.started.clear()
+        await queue1.submit({"nodes": [], "edges": []}, run_id="orphan")
+        await asyncio.wait_for(executor.started.wait(), timeout=1.0)
+    finally:
+        # Simulate a crash: drop in-memory state without graceful shutdown,
+        # leaving "orphan" persisted as running.
+        store1.close()
+
+    # Second "process": fresh queue recovers from the same DB.
+    store2 = RunStore(db)
+    queue2 = RunQueue(executor=HangingExecutor(), max_concurrent=1, store=store2)
+    try:
+        summary = queue2.recover()
+        assert "orphan" in summary["interrupted"]
+        assert queue2.get_run("orphan")["status"] == "interrupted"
+        assert queue2.get_run("done")["status"] == "completed"
+    finally:
+        await queue2.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_run_queue_honors_max_concurrent() -> None:
     class BlockingExecutor:
         def __init__(self) -> None:
@@ -490,6 +586,44 @@ async def test_run_queue_cancel_pending_moves_run_to_history() -> None:
         state = queue.queue_state()
         assert state["pending"] == []
         assert queue.get_run("pending")["status"] == "cancelled"
+    finally:
+        executor.release.set()
+        await queue.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_run_queue_cancel_running_not_overwritten_by_late_completion() -> None:
+    """A cancel landing while the executor finalizes must stick."""
+
+    class LateExecutor:
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def execute(self, *, cancel_event: asyncio.Event, **_: Any) -> dict[str, Any]:
+            self.started.set()
+            await self.release.wait()
+            # Executor finished its work before noticing the cancel and reports
+            # "completed" — the queue must not clobber the user's cancel.
+            return {"status": "completed"}
+
+    executor = LateExecutor()
+    queue = RunQueue(executor=executor, max_concurrent=1)
+
+    try:
+        await queue.submit({"nodes": [], "edges": []}, run_id="running")
+        await asyncio.wait_for(executor.started.wait(), timeout=1.0)
+
+        assert await queue.cancel("running") is True
+        executor.release.set()
+
+        for _ in range(40):
+            if queue.get_run("running")["status"] in {"cancelled", "completed"}:
+                if "running" not in queue._running:
+                    break
+            await asyncio.sleep(0.02)
+
+        assert queue.get_run("running")["status"] == "cancelled"
     finally:
         executor.release.set()
         await queue.shutdown()

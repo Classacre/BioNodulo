@@ -30,7 +30,7 @@ from typing import Any, Callable
 from bionodulo.core.credentials import merge_api_secrets, redact_tree
 from bionodulo.environments.manifest import get_env_dir, get_env_id, is_env_ready, workflow_to_packages
 from bionodulo.execution.cache import CacheStore
-from bionodulo.execution.subprocess_runner import run_subprocess
+from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
 from bionodulo.workflow.migrations import apply_workflow_migrations
 
@@ -147,6 +147,7 @@ class ExecutionContext:
             emit=self.emit,
             node_id=self.node_id,
             timeout=timeout,
+            cancel_event=self.cancel_event,
         )
 
 
@@ -825,6 +826,21 @@ class WorkflowExecutor:
                         },
                     )
 
+                except CommandCancelledError:
+                    # Subprocess was killed because the run was cancelled. Mark
+                    # the cancel event (idempotent), record the node as cancelled
+                    # rather than failed, and stop the scheduler.
+                    cancel_event.set()
+                    cancelled_holder.setdefault("at", node_id)
+                    node_results[node_id] = {"status": "cancelled"}
+                    run_metadata["nodes"][node_id] = {
+                        "type": node_type,
+                        "status": "cancelled",
+                        "cache_key": cache_key,
+                    }
+                    should_stop = True
+                    break
+
                 except Exception as exc:
                     tb = traceback.format_exc()
                     msg = f"Execution failed for {node_id}: {exc}"
@@ -875,8 +891,26 @@ class WorkflowExecutor:
         )
 
         if cancel_event.is_set():
+            # Persist what ran so logs/report endpoints and crash recovery can
+            # see the partial run instead of an empty directory.
+            run_metadata["status"] = "cancelled"
+            run_metadata["failed_nodes"] = list(failed_nodes)
+            run_metadata["skipped_nodes"] = list(skipped_nodes)
+            run_metadata["cancelled_at"] = cancelled_holder.get("at")
+            cancel_artifacts = self._collect_artifacts(run_id, nodes, node_results)
+            run_metadata["artifacts"] = cancel_artifacts
+            try:
+                self._write_metadata(run_id, run_metadata)
+            except Exception:
+                logger.exception("Failed to write metadata for cancelled run %s", run_id)
+            emit("complete", {"run_id": run_id, "status": "cancelled"})
             return {
                 "status": "cancelled",
+                "run_id": run_id,
+                "outputs": node_outputs,
+                "previews": previews,
+                "artifacts": cancel_artifacts,
+                "metadata": run_metadata,
                 "node_results": node_results,
                 "cancelled_at": cancelled_holder.get("at"),
             }

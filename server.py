@@ -32,6 +32,7 @@ from bionodulo.core.events import EventHub
 from bionodulo.core.workspace import ensure_examples_link, ensure_workspace_root
 from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.execution.queue import RunQueue
+from bionodulo.execution.run_store import RunStore
 from bionodulo.nodes.registry import NodeRegistry
 
 logger = logging.getLogger(__name__)
@@ -255,12 +256,32 @@ def create_app() -> FastAPI:
     except (TypeError, ValueError):
         _history_cap = 100
 
+    # Durable run store so the queue survives restarts: pending/running runs are
+    # persisted and reconciled on startup (orphans marked interrupted).
+    try:
+        run_store: RunStore | None = RunStore(settings.project_root / "runs" / "runs.db")
+    except Exception:
+        logger.exception("Failed to open run store; running without persistence")
+        run_store = None
+
     run_queue = RunQueue(
         executor=executor,
         max_concurrent=settings.execution.max_workers,
         emit=_emit_to_hub,
         max_history=_history_cap,
+        store=run_store,
     )
+    if run_store is not None:
+        try:
+            summary = run_queue.recover()
+            if summary.get("interrupted") or summary.get("restored"):
+                logger.info(
+                    "Run store recovery: %d restored, %d interrupted",
+                    summary.get("restored", 0),
+                    len(summary.get("interrupted", [])),
+                )
+        except Exception:
+            logger.exception("Run store recovery failed")
 
     # Store on app state
     app.state.settings = settings

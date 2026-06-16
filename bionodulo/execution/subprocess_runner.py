@@ -10,12 +10,31 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 from pathlib import Path
 from typing import Any, Callable
 
 
 STREAM_CAPTURE_LIMIT = 1024 * 1024
 LOG_BATCH_LINES = 50
+# Grace period between SIGTERM and SIGKILL when terminating a cancelled or
+# timed-out process group.
+TERMINATE_GRACE_SECONDS = 5.0
+
+
+class CommandCancelledError(Exception):
+    """Raised when a subprocess is killed because its run was cancelled.
+
+    Distinct from :class:`CommandExecutionError` so the executor can record the
+    node as *cancelled* rather than *failed*.
+
+    Attributes:
+        cmd: The command string that was cancelled.
+    """
+
+    def __init__(self, cmd: str) -> None:
+        self.cmd = cmd
+        super().__init__(f"Command cancelled: {cmd}")
 
 
 class CommandExecutionError(Exception):
@@ -46,6 +65,88 @@ class CommandExecutionError(Exception):
         )
 
 
+class _Cancelled(Exception):
+    """Internal signal that a cancel_event fired while waiting on a process."""
+
+
+async def _wait_process(
+    process: "asyncio.subprocess.Process",
+    timeout: float | None,
+    cancel_event: asyncio.Event | None,
+) -> int:
+    """Wait for *process*, honouring *timeout* and *cancel_event*.
+
+    Raises ``asyncio.TimeoutError`` on timeout and :class:`_Cancelled` when the
+    cancel event fires before the process exits.
+    """
+    wait_task = asyncio.ensure_future(process.wait())
+    waiters: list[asyncio.Future[Any]] = [wait_task]
+    cancel_task: asyncio.Task[bool] | None = None
+    if cancel_event is not None:
+        cancel_task = asyncio.ensure_future(cancel_event.wait())
+        waiters.append(cancel_task)
+
+    try:
+        done, _pending = await asyncio.wait(
+            waiters, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+        )
+        if not done:
+            raise asyncio.TimeoutError
+        if cancel_task is not None and cancel_task in done and wait_task not in done:
+            raise _Cancelled
+        return wait_task.result()
+    finally:
+        # Detach awaiters we are no longer interested in. The caller terminates
+        # the process explicitly on the timeout/cancel paths; cancelling these
+        # futures just avoids "pending task destroyed" warnings.
+        if cancel_task is not None and not cancel_task.done():
+            cancel_task.cancel()
+        if not wait_task.done():
+            wait_task.cancel()
+
+
+async def _terminate_process(process: "asyncio.subprocess.Process") -> None:
+    """Terminate a process group: SIGTERM, grace period, then SIGKILL.
+
+    Falls back to killing just the process when the platform lacks process
+    groups or the group is already gone.
+    """
+    if process.returncode is not None:
+        return
+
+    def _signal_group(sig: int) -> None:
+        try:
+            if os.name != "nt" and process.pid is not None:
+                os.killpg(os.getpgid(process.pid), sig)
+            else:
+                process.send_signal(sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    try:
+        _signal_group(signal.SIGTERM)
+    except Exception:
+        process.terminate()
+
+    try:
+        await asyncio.wait_for(process.wait(), timeout=TERMINATE_GRACE_SECONDS)
+        return
+    except asyncio.TimeoutError:
+        pass
+
+    try:
+        _signal_group(signal.SIGKILL)
+    except Exception:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+    try:
+        await process.wait()
+    except ProcessLookupError:
+        pass
+
+
 async def run_subprocess(
     cmd: str | list[str],
     cwd: str | Path | None = None,
@@ -55,6 +156,7 @@ async def run_subprocess(
     emit: Callable[[str, dict[str, Any]], None] | None = None,
     node_id: str | None = None,
     timeout: float | None = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> dict[str, Any]:
     """Run an external command asynchronously with streaming log capture.
 
@@ -69,12 +171,15 @@ async def run_subprocess(
         emit: Optional callback for real-time log events.
         node_id: Node identifier included in emitted log events.
         timeout: Maximum seconds to wait for the process.
+        cancel_event: When set mid-flight, the process group is terminated
+            (SIGTERM then SIGKILL) and :class:`CommandCancelledError` is raised.
 
     Returns:
         Dictionary with ``returncode``, ``stdout_path``, ``stderr_path`` and a
         bounded in-memory tail of each stream.
 
     Raises:
+        CommandCancelledError: If *cancel_event* fires before the process exits.
         CommandExecutionError: If the process exits with a non-zero code.
         asyncio.TimeoutError: If the process exceeds *timeout* seconds.
     """
@@ -158,6 +263,17 @@ async def run_subprocess(
         return captured.decode("utf-8", errors="replace"), truncated
 
     try:
+        # Start each process in its own process group (POSIX) / job-control
+        # session so cancellation/timeout can terminate the whole tree of
+        # children, not just the immediate shell.
+        popen_kwargs: dict[str, Any] = {}
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = getattr(
+                __import__("subprocess"), "CREATE_NEW_PROCESS_GROUP", 0
+            )
+        else:
+            popen_kwargs["start_new_session"] = True
+
         if isinstance(cmd, str):
             shell_kwargs: dict[str, Any] = {}
             if os.name != "nt":
@@ -169,6 +285,7 @@ async def run_subprocess(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **shell_kwargs,
+                **popen_kwargs,
             )
         else:
             process = await asyncio.create_subprocess_exec(
@@ -177,6 +294,7 @@ async def run_subprocess(
                 env=merged_env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **popen_kwargs,
             )
 
         stdout_task = asyncio.create_task(
@@ -185,14 +303,19 @@ async def run_subprocess(
         stderr_task = asyncio.create_task(
             _drain_stream(process.stderr, stderr_path, "stderr")
         )
+
         try:
-            returncode = await asyncio.wait_for(process.wait(), timeout=timeout)
+            returncode = await _wait_process(process, timeout, cancel_event)
         except asyncio.TimeoutError:
             _emit("error", f"[subprocess] Timeout after {timeout}s")
-            process.kill()
-            await process.wait()
+            await _terminate_process(process)
             await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
             raise
+        except _Cancelled:
+            _emit("error", "[subprocess] Cancelled; terminating process group")
+            await _terminate_process(process)
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            raise CommandCancelledError(cmd_str)
         stdout_result, stderr_result = await asyncio.gather(stdout_task, stderr_task)
     except asyncio.TimeoutError:
         raise

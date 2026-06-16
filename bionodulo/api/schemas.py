@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Upper bound on nodes in a single submitted workflow — a sanity guard against
+# absurd payloads, well above any realistic pipeline.
+MAX_WORKFLOW_NODES = 10000
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +30,18 @@ class RunCreateRequest(BaseModel):
 
     workflow: dict[str, Any] = Field(..., description="Workflow JSON object to execute")
     workflow_id: str | None = Field(None, description="Collaborative workflow UUID, when applicable")
-    name: str = Field("Untitled", description="Human-readable run name")
+    name: str = Field("Untitled", max_length=512, description="Human-readable run name")
+
+    @field_validator("workflow")
+    @classmethod
+    def _bound_workflow_size(cls, value: dict[str, Any]) -> dict[str, Any]:
+        nodes = value.get("nodes")
+        count = len(nodes) if isinstance(nodes, (list, dict)) else 0
+        if count > MAX_WORKFLOW_NODES:
+            raise ValueError(
+                f"workflow has too many nodes ({count} > {MAX_WORKFLOW_NODES})"
+            )
+        return value
     environment: str | None = Field(None, description="Conda env or container to use")
     no_cache: bool = Field(False, description="Force re-execution by bypassing cache")
     dry_run: bool = Field(

@@ -111,7 +111,12 @@ class ArqWorkflowExecutor:
         }
         job = await pool.enqueue_job("execute_workflow_job", payload, _job_id=run_id)
         if job is None:
-            raise RuntimeError(f"ARQ job already exists or could not be enqueued: {run_id}")
+            # A job with this id already exists (e.g. resubmit after a restart
+            # where Redis still holds it). Attach to it and await its result
+            # instead of hard-failing.
+            from arq.jobs import Job
+
+            job = Job(run_id, pool)
 
         cancel_event = cancel_event or asyncio.Event()
         while True:

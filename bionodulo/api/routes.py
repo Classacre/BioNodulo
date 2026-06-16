@@ -10,6 +10,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -245,19 +246,50 @@ def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -
 
 
 def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:
-    """Require execute permission when collaborative permissions are enabled."""
-    if not workflow_id:
-        return None
+    """Gate run/queue mutations when collaborative permissions are enabled.
+
+    In local (single-user) mode collaboration is off and the whole app is
+    unauthenticated by design, so this is a no-op. When collaboration is on,
+    a valid token is *always* required — a missing ``workflow_id`` no longer
+    silently bypasses the check — and an execute role is additionally required
+    on the specific workflow when one is identified.
+    """
     if not _setting_bool(request, "bionodulo.collab.enabled", False):
         return None
     payload = _require_auth_payload(request)
-    user_id = payload.get("sub", "")
-    require_workflow_role(request, workflow_id, user_id, "execute")
+    if workflow_id:
+        user_id = payload.get("sub", "")
+        require_workflow_role(request, workflow_id, user_id, "execute")
     return payload
 
 
 def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
+
+
+# Run identifiers are server- or client-supplied but must always be a single
+# safe path segment — never a traversal sequence used to walk outside runs/.
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+
+# Upper bounds for the (polling) log endpoint so a chatty tool can't OOM the
+# server or return an unbounded JSON array.
+LOG_MAX_BYTES_PER_FILE = 2 * 1024 * 1024
+LOG_DEFAULT_LIMIT = 5000
+LOG_MAX_LIMIT = 50000
+
+
+def _safe_run_dir(settings: Settings, run_id: str) -> Path:
+    """Resolve ``runs/{run_id}`` and guarantee it stays inside the runs root.
+
+    Raises ``HTTPException(400)`` for malformed or traversal-style run ids.
+    """
+    if not _RUN_ID_RE.match(run_id or ""):
+        raise HTTPException(status_code=400, detail="Invalid run id")
+    runs_root = settings.project_root / "runs"
+    try:
+        return ensure_within(Path(run_id), runs_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid run id") from exc
 
 
 def _checkpoint_manifest_path(settings: Settings) -> Path:
@@ -751,6 +783,10 @@ async def list_workflow_triggers(request: Request) -> dict[str, Any]:
 @router.post("/workflow_triggers/evaluate")
 async def evaluate_workflow_triggers(request: Request, body: WorkflowTriggerEvaluateRequest) -> dict[str, Any]:
     """Evaluate schedule and file-watch trigger registrations."""
+    # Evaluating with submit_runs=True enqueues real executions, so gate it the
+    # same way as POST /runs when collaboration is enabled.
+    if body.submit_runs:
+        _require_execute_permission(request, None)
     settings = _get_settings(request)
     trigger_dir = _workflow_triggers_dir(settings)
     errors: list[dict[str, str]] = []
@@ -813,6 +849,7 @@ async def get_queue_state(request: Request) -> dict[str, Any]:
 @router.post("/queue/clear")
 async def clear_queue(request: Request) -> dict[str, Any]:
     """Clear all pending jobs from the queue."""
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if hasattr(queue, "clear"):
         cleared = await queue.clear()
@@ -832,6 +869,7 @@ async def cancel_queued_run(request: Request, run_id: str) -> dict[str, Any]:
     history (so a slightly-late click from the UI is a no-op instead of an
     error toast). Only an unknown ``run_id`` is treated as 404.
     """
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if not hasattr(queue, "cancel"):
         raise HTTPException(status_code=501, detail="Queue cancellation is not available")
@@ -852,6 +890,7 @@ async def cancel_queued_run(request: Request, run_id: str) -> dict[str, Any]:
 @router.post("/queue/reorder")
 async def reorder_pending_run(request: Request, body: QueueReorderRequest) -> dict[str, Any]:
     """Move a pending job within the queue."""
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if not hasattr(queue, "reorder_pending"):
         raise HTTPException(status_code=501, detail="Queue reordering is not available")
@@ -886,6 +925,7 @@ async def get_history(request: Request) -> dict[str, Any]:
 @router.post("/history/clear")
 async def clear_history(request: Request) -> dict[str, Any]:
     """Remove all completed runs from history."""
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if hasattr(queue, "clear_history"):
         cleared = queue.clear_history()
@@ -897,6 +937,7 @@ async def clear_history(request: Request) -> dict[str, Any]:
 @router.delete("/history/{run_id}")
 async def delete_history_entry(request: Request, run_id: str) -> dict[str, Any]:
     """Remove a single completed run from history."""
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if not hasattr(queue, "delete_history_entry"):
         raise HTTPException(status_code=501, detail="History deletion is not available")
@@ -925,6 +966,7 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
 @router.post("/runs/{run_id}/retry")
 async def retry_run(request: Request, run_id: str) -> dict[str, Any]:
     """Retry a stored pending, running, or historic run."""
+    _require_execute_permission(request, None)
     queue = _get_queue(request)
     if not hasattr(queue, "retry"):
         raise HTTPException(status_code=501, detail="Run retry is not available")
@@ -935,28 +977,63 @@ async def retry_run(request: Request, run_id: str) -> dict[str, Any]:
     return {"run_id": new_run_id, "retry_of": run_id, "status": "queued"}
 
 
+def _read_log_tail(log_path: Path, max_bytes: int) -> tuple[str, bool]:
+    """Read at most *max_bytes* from the end of a log file.
+
+    Returns ``(text, truncated)``. Reading only the tail bounds memory for a
+    multi-gigabyte log and keeps the most recent (most useful) output.
+    """
+    try:
+        size = log_path.stat().st_size
+        with log_path.open("rb") as handle:
+            if size > max_bytes:
+                handle.seek(size - max_bytes)
+                raw = handle.read()
+                # Drop a partial first line after seeking into the middle.
+                nl = raw.find(b"\n")
+                if nl != -1:
+                    raw = raw[nl + 1 :]
+                return raw.decode("utf-8", errors="replace"), True
+            return handle.read().decode("utf-8", errors="replace"), False
+    except OSError:
+        return "", False
+
+
 @router.get("/runs/{run_id}/logs")
-async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
+async def get_run_logs(
+    request: Request,
+    run_id: str,
+    offset: int = 0,
+    limit: int = LOG_DEFAULT_LIMIT,
+) -> dict[str, Any]:
     """Retrieve logs for a specific run from on-disk log files.
 
-    Reads stdout.log and stderr.log from each node's execution directory
-    under workspace/runs/{run_id}/.
+    Reads stdout.log and stderr.log from each node's execution directory under
+    workspace/runs/{run_id}/. Per-file reads are tail-capped and the assembled
+    log array is paginated via ``offset``/``limit`` so a chatty tool cannot
+    exhaust server memory.
     """
     settings = _get_settings(request)
-    run_dir = settings.project_root / "runs" / run_id
+    run_dir = _safe_run_dir(settings, run_id)
     if not run_dir.exists():
         raise HTTPException(status_code=404, detail=f"Run directory not found: '{run_id}'")
 
+    offset = max(0, int(offset))
+    limit = max(1, min(int(limit), LOG_MAX_LIMIT))
+
     logs: list[dict[str, Any]] = []
+    truncated_files: list[str] = []
     meta_path = run_dir / "run_metadata.json"
     nodes_meta: dict[str, Any] = {}
     run_started_at = datetime.now(timezone.utc).isoformat()
+    final_status = "unknown"
 
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             nodes_meta = meta.get("nodes", {})
             run_started_at = meta.get("started_at") or run_started_at
+            final_status = meta.get("status", final_status)
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -988,31 +1065,25 @@ async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
             log_path = node_dir / f"{stream_name}.log"
             if not log_path.exists():
                 continue
+            content, was_truncated = _read_log_tail(log_path, LOG_MAX_BYTES_PER_FILE)
+            if was_truncated:
+                truncated_files.append(f"{node_id}/{stream_name}.log")
             try:
-                content = log_path.read_text(encoding="utf-8", errors="replace")
                 mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc).isoformat()
-                for line in content.splitlines():
-                    if not line.strip():
-                        continue
-                    logs.append({
-                        "node_id": node_id,
-                        "level": level,
-                        "message": line,
-                        "timestamp": mtime,
-                        "stream": stream_name,
-                    })
             except OSError:
-                continue
+                mtime = run_started_at
+            for line in content.splitlines():
+                if not line.strip():
+                    continue
+                logs.append({
+                    "node_id": node_id,
+                    "level": level,
+                    "message": line,
+                    "timestamp": mtime,
+                    "stream": stream_name,
+                })
 
     # Synthetic complete event
-    final_status = "unknown"
-    if meta_path.exists():
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            final_status = meta.get("status", final_status)
-        except (json.JSONDecodeError, OSError):
-            pass
-
     logs.append({
         "node_id": "engine",
         "level": "success" if final_status == "completed" else "error" if final_status == "failed" else "info",
@@ -1021,7 +1092,17 @@ async def get_run_logs(request: Request, run_id: str) -> dict[str, Any]:
         "stream": "event",
     })
 
-    return {"run_id": run_id, "logs": logs}
+    total = len(logs)
+    page = logs[offset : offset + limit]
+    return {
+        "run_id": run_id,
+        "logs": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + limit < total,
+        "truncated_files": truncated_files,
+    }
 
 
 @router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
@@ -1030,14 +1111,15 @@ async def get_run_report(request: Request, run_id: str) -> PlainTextResponse:
     from bionodulo.provenance import generate_execution_report
 
     settings = _get_settings(request)
-    run_dir = settings.project_root / "runs" / run_id
+    run_dir = _safe_run_dir(settings, run_id)
     meta_path = run_dir / "run_metadata.json"
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
     try:
         run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+        logger.warning("Could not read run metadata for %s: %s", run_id, exc)
+        raise HTTPException(status_code=500, detail="Could not read run metadata") from exc
 
     html_text = generate_execution_report(run_metadata, include_artifacts=True)
     return PlainTextResponse(html_text, media_type="text/html; charset=utf-8")
@@ -1049,14 +1131,15 @@ async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
     from bionodulo.provenance import generate_provenance_report
 
     settings = _get_settings(request)
-    run_dir = settings.project_root / "runs" / run_id
+    run_dir = _safe_run_dir(settings, run_id)
     meta_path = run_dir / "run_metadata.json"
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
     try:
         run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        raise HTTPException(status_code=500, detail=f"Could not read run metadata: {exc}") from exc
+        logger.warning("Could not read run metadata for %s: %s", run_id, exc)
+        raise HTTPException(status_code=500, detail="Could not read run metadata") from exc
 
     workflow: dict[str, Any] = {}
     node_results: dict[str, dict[str, Any]] = {}
@@ -2122,7 +2205,8 @@ async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"HPC submit failed: {exc}") from exc
+        logger.warning("HPC submit failed: %s", exc)
+        raise HTTPException(status_code=500, detail="HPC submit failed") from exc
 
     raise HTTPException(status_code=501, detail="HPC backend submit_workflow is not implemented")
 
@@ -2135,7 +2219,8 @@ async def hpc_job_status(request: Request, job_id: str) -> dict[str, Any]:
         try:
             return await hpc.job_status(job_id)
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to get job status: {exc}") from exc
+            logger.warning("Failed to get HPC job status for %s: %s", job_id, exc)
+            raise HTTPException(status_code=500, detail="Failed to get job status") from exc
 
     return {
         "job_id": job_id,
