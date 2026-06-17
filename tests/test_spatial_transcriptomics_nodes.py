@@ -241,16 +241,9 @@ def test_scanpy_spatial_is_registered_for_frontend_discovery() -> None:
     assert "spatial transcriptomics" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"count_matrix", "coordinates"}
-    assert set(inputs["optional"]) == {
-        "sample_name",
-        "delimiter",
-        "min_cells",
-        "min_genes",
-        "n_hvg",
-        "n_pcs",
-        "resolution",
-    }
+    # All inputs optional now: visium_path (real .h5) OR count_matrix+coordinates CSV.
+    assert set(inputs["required"]) == set()
+    assert {"visium_path", "count_matrix", "coordinates"}.issubset(set(inputs["optional"]))
 
 
 def test_scanpy_spatial_writes_script_and_renders_command(tmp_path: Path) -> None:

@@ -10,19 +10,12 @@ template references example data with no manifest coverage, and asserts the
 from __future__ import annotations
 
 import re
-import tempfile
 from pathlib import Path
 
 from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
 
 ROOT = Path(__file__).resolve().parents[1]
 _REF_RE = re.compile(r"examples/data/([A-Za-z0-9_./-]+)")
-
-# The only entries allowed to be synthetic (no canonical small public CSV exists).
-_ALLOWED_GENERATORS = {
-    ("spatial_transcriptomics", "counts.csv"),
-    ("spatial_transcriptomics", "coordinates.csv"),
-}
 
 
 def _template_refs() -> set[str]:
@@ -53,29 +46,11 @@ def test_every_template_example_path_is_in_manifest() -> None:
     assert not uncovered, f"template example paths missing from manifest: {uncovered}"
 
 
-def test_manifest_is_real_urls_except_allowed_synthetic() -> None:
-    synthetic = [
-        (d.category, d.filename)
-        for d in EXAMPLE_DATA_MANIFEST
-        if d.url is None and d.generator is not None
-    ]
-    assert set(synthetic) <= _ALLOWED_GENERATORS, f"unexpected synthetic generators: {synthetic}"
-    # Every other entry must carry a real URL.
+def test_manifest_is_all_real_urls_no_synthetic() -> None:
+    # Every example-data entry must be a real public URL — zero synthetic generators.
     for d in EXAMPLE_DATA_MANIFEST:
-        if (d.category, d.filename) in _ALLOWED_GENERATORS:
-            continue
+        assert d.generator is None, f"{d.category}/{d.filename} uses a synthetic generator"
         assert d.url and d.url.startswith(("http://", "https://")), f"{d.category}/{d.filename} has no URL"
-
-
-def test_allowed_generators_still_produce_output() -> None:
-    tmp = Path(tempfile.mkdtemp())
-    for spec in EXAMPLE_DATA_MANIFEST:
-        if spec.generator is None:
-            continue
-        dest = tmp / spec.filename
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        spec.generator(dest)
-        assert dest.exists() and dest.stat().st_size > 0
 
 
 def test_no_example_data_files_are_committed() -> None:

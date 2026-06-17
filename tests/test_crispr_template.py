@@ -113,14 +113,14 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert crispresso_gate["params"]["on_fail"] == "halt"
     assert "CRISPResso2 HTML report" in crispresso_gate["params"]["error_message"]
 
-    assert guide_design["params"]["target"] == "chr1:1-1000"
+    assert guide_design["params"]["target"] == "chr9:1-1000"
     assert guide_design["params"]["pam"] == "NGG"
     assert guide_design["params"]["guide_length"] == 20
     assert guide_design["params"]["mismatches"] == 3
-    assert cas_offinder["params"]["guide_seq"] == "ACGTACGTACGTACGTACGT"
+    assert cas_offinder["params"]["guide_seq"] == "AGGCGGATCACCTGAGGTCA"
     assert cas_offinder["params"]["pam_sequence"] == "NNG"
     assert crispresso2["params"]["name"] == "edited_locus"
-    assert crispresso2["params"]["guide_seq"] == "ACGTACGTACGTACGTACGT"
+    assert crispresso2["params"]["guide_seq"] == "ACAAAACTGTGCTAGACATG"
     assert mageck_test["params"]["treatment_labels"] == "treated"
     assert mageck_test["params"]["control_labels"] == "control"
 

@@ -1024,7 +1024,7 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     assert _has_edge(workflow, "control_001", "reads", "fastp_control_001", "reads")
     assert _has_edge(workflow, "fastp_control_001", "trimmed_reads", "gate_control_reads_001", "value")
     assert _has_edge(workflow, "gate_control_reads_001", "output", "bt2_control_001", "reads")
-    assert _has_edge(workflow, "idx_001", "directory", "bt2_control_001", "index")
+    assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")
     assert _has_edge(workflow, "bt2_control_001", "alignment", "view_control_001", "sam")
     assert _has_edge(workflow, "view_control_001", "bam", "sort_control_001", "bam")
     assert _has_edge(workflow, "sort_control_001", "sorted_bam", "macs2_001", "control")
@@ -1032,19 +1032,20 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     assert workflow["outputs"]["validated_control_reads"] == "control_001"
 
 
-def test_chip_seq_template_validates_index_directory_before_alignment() -> None:
+def test_chip_seq_template_builds_index_from_real_reference_before_alignment() -> None:
+    # The placeholder bowtie2_index dir was replaced with the real yeast reference
+    # (nf-core chipseq) + a bowtie2_build step feeding both alignments.
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert "validate_index_001" not in node_types
-    validator = _output_validation(workflow, "idx_001", "directory")
-    assert validator["expected_format"] == "directory"
-    assert validator["min_size_bytes"] > 0
-    assert validator["fail_on_error"] is True
-    assert not _has_edge(workflow, "idx_001", "directory", "validate_index_001", "input")
-    assert _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
-    assert _has_edge(workflow, "idx_001", "directory", "bt2_001", "index")
-    assert workflow["outputs"]["validated_index"] == "idx_001"
+    assert "idx_001" not in node_types
+    assert node_types["genome_001"] == "input_fasta"
+    assert node_types["bt2build_001"] == "bowtie2_build"
+    genome = next(n for n in workflow["nodes"] if n["id"] == "genome_001")
+    assert genome["params"]["reference"] == "examples/data/chip_seq/genome.fa"
+    assert _has_edge(workflow, "genome_001", "reference", "bt2build_001", "reference")
+    assert _has_edge(workflow, "bt2build_001", "index", "bt2_001", "index")
+    assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")
 
 
 def test_chip_seq_template_generates_bigwig_coverage_track() -> None:

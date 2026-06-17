@@ -9,8 +9,9 @@ Directory inputs (e.g. a 10x ``visium_outs/`` or an ONT ``pod5/`` folder) are
 expressed as several entries whose ``filename`` includes the sub-path; the
 resolver materialises every entry under the referenced directory.
 
-Two spatial CSVs have no canonical small public source and are derived
-synthetically — they are the only non-URL entries.
+Every entry is a real public URL — no synthetic data. (The spatial count/
+coordinate CSVs are derived at run time from the real Visium ``.h5`` by the
+``scanpy_spatial`` node, not generated here.)
 """
 
 from __future__ import annotations
@@ -37,38 +38,6 @@ class DataFile:
     gunzip: bool = False
     generator: Callable[[Path], None] | None = None
     description: str = ""
-
-
-# ---------------------------------------------------------------------------
-# The only synthetic entries: a small spatial count matrix + coordinates. No
-# canonical small public CSV exists (squidpy/scanpy/nf-core ship .h5ad or full
-# Visium outs, never a plain gene-by-spot CSV), so these are generated. The real
-# Visium outs/ directory below provides real data for the squidpy branch.
-# ---------------------------------------------------------------------------
-
-def _spatial_barcodes() -> list[str]:
-    return [f"spot_{i:03d}" for i in range(40)]
-
-
-def _generate_spatial_counts(path: Path) -> None:
-    import random
-
-    rng = random.Random(808)
-    barcodes = _spatial_barcodes()
-    lines = ["gene," + ",".join(barcodes)]
-    for g in range(400):  # gene-by-spot matrix; node transposes to spots x genes
-        lines.append(f"GENE{g:04d}," + ",".join(str(rng.randint(0, 20)) for _ in barcodes))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _generate_spatial_coordinates(path: Path) -> None:
-    import random
-
-    rng = random.Random(809)
-    lines = ["barcode,x,y"]
-    for b in _spatial_barcodes():
-        lines.append(f"{b},{rng.randint(0, 1000)},{rng.randint(0, 1000)}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -230,9 +199,10 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("single_cell", "tinygex_S1_L002_R1_001.fastq", f"{_TINYGEX}/tinygex_S1_L002_R1_001.fastq.gz", gunzip=True, description="10x tinygex L002 R1"),
     DataFile("single_cell", "tinygex_S1_L002_R2_001.fastq", f"{_TINYGEX}/tinygex_S1_L002_R2_001.fastq.gz", gunzip=True, description="10x tinygex L002 R2"),
 
-    # chip_seq — nf-core chipseq IP/input pair + gene annotations
-    DataFile("chip_seq", "wt_H3K4me3_read1.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R1.fastq.gz", gunzip=True, description="ChIP-seq IP R1 (nf-core)"),
-    DataFile("chip_seq", "wt_H3K4me3_read2.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R2.fastq.gz", gunzip=True, description="ChIP-seq IP R2 (nf-core)"),
+    # chip_seq — nf-core chipseq Spt5 IP/input pair + yeast reference + gene annotations
+    DataFile("chip_seq", "genome.fa", f"{_NFCORE}/chipseq/reference/genome.fa", description="S. cerevisiae reference (nf-core chipseq)"),
+    DataFile("chip_seq", "wt_Spt5_read1.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R1.fastq.gz", gunzip=True, description="Spt5 ChIP IP R1 (nf-core)"),
+    DataFile("chip_seq", "wt_Spt5_read2.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R2.fastq.gz", gunzip=True, description="Spt5 ChIP IP R2 (nf-core)"),
     DataFile("chip_seq", "input_control_read1.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204809_Spt5-ChIP_Input1_SacCer_ChIP-Seq_ss100k_R1.fastq.gz", gunzip=True, description="ChIP-seq input control R1 (nf-core)"),
     DataFile("chip_seq", "input_control_read2.fastq", f"{_NFCORE}/chipseq/testdata/SRR5204809_Spt5-ChIP_Input1_SacCer_ChIP-Seq_ss100k_R2.fastq.gz", gunzip=True, description="ChIP-seq input control R2 (nf-core)"),
     DataFile("chip_seq", "genes.bed", f"{_NFCORE}/chipseq/reference/genes.bed", description="Gene annotations BED (nf-core chipseq)"),
@@ -263,9 +233,8 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("long_read", "reference.fasta", f"{_NFCORE}/nanoseq/reference/chr22_23800000-23980000.fa", description="Nanopore reference (nf-core nanoseq)"),
     DataFile("long_read", "pod5/example.pod5", "https://media.githubusercontent.com/media/nanoporetech/pod5-file-format/master/test_data/multi_fast5_zip_v4.pod5", description="Real tiny ONT pod5"),
 
-    # spatial_transcriptomics — synthetic CSVs (no real CSV exists) + real Visium outs
-    DataFile("spatial_transcriptomics", "counts.csv", generator=_generate_spatial_counts, description="Synthetic gene-by-spot count matrix (no public CSV)"),
-    DataFile("spatial_transcriptomics", "coordinates.csv", generator=_generate_spatial_coordinates, description="Synthetic spot coordinates (no public CSV)"),
+    # spatial_transcriptomics — real Visium outs (scanpy_spatial derives the
+    # count/coordinate CSVs from this .h5 at run time; squidpy reads it directly)
     DataFile("spatial_transcriptomics", "visium_outs/filtered_feature_bc_matrix.h5", f"{_VISIUM}/filtered_feature_bc_matrix.h5", description="Visium matrix (nf-core spatialvi)"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/scalefactors_json.json", f"{_VISIUM}/spatial/scalefactors_json.json", description="Visium scalefactors"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_positions.csv", f"{_VISIUM}/spatial/tissue_positions.csv", description="Visium tissue positions"),

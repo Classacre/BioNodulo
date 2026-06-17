@@ -208,22 +208,37 @@ class ScanpySpatialNode(CommandNode):
         delimiter = str(inputs.get("delimiter", "comma") or "comma").strip().lower()
         sep = "\\t" if delimiter in {"tab", "tsv", "\\t"} else ","
         sample_name = str(inputs.get("sample_name", "sample") or "sample")
+        visium_path = str(inputs.get("visium_path", "") or "").strip()
+        if visium_path:
+            # Real Space Ranger outs/: read the .h5 and DERIVE the count matrix +
+            # coordinate CSVs from it (real data), then continue the same pipeline.
+            load = f"""
+adata = sc.read_visium('{visium_path}')
+adata.var_names_make_unique()
+adata.obs['sample'] = '{sample_name}'
+adata.to_df().T.to_csv('{out_dir}/counts.csv')
+import numpy as _np
+_coords = pd.DataFrame(_np.asarray(adata.obsm['spatial']), index=adata.obs_names, columns=['x', 'y'])
+_coords.index.name = 'barcode'
+_coords.to_csv('{out_dir}/coordinates.csv')
+"""
+        else:
+            load = f"""
+counts = pd.read_csv('{inputs.get("count_matrix", "")}', sep='{sep}', index_col=0)
+coordinates = pd.read_csv('{inputs.get("coordinates", "")}')
+adata = sc.AnnData(counts.T)
+adata.obs['sample'] = '{sample_name}'
+if 'barcode' in coordinates.columns:
+    coordinates = coordinates.set_index('barcode')
+    adata.obs = adata.obs.join(coordinates, how='left')
+"""
         script = f"""
 import scanpy as sc
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
-counts = pd.read_csv('{inputs.get("count_matrix", "")}', sep='{sep}', index_col=0)
-coordinates = pd.read_csv('{inputs.get("coordinates", "")}')
-adata = sc.AnnData(counts.T)
-adata.obs['sample'] = '{sample_name}'
-
-if 'barcode' in coordinates.columns:
-    coordinates = coordinates.set_index('barcode')
-    adata.obs = adata.obs.join(coordinates, how='left')
-
+{load}
 sc.pp.filter_cells(adata, min_genes={inputs.get("min_genes", 200)})
 sc.pp.filter_genes(adata, min_cells={inputs.get("min_cells", 3)})
 sc.pp.normalize_total(adata, target_sum=1e4)
@@ -249,16 +264,20 @@ print("Done")
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
         node_out = Path(output_dir) / cls.NODE_ID
         node_out.mkdir(parents=True, exist_ok=True)
-        return [node_out / "clusters.csv", node_out / "umap.png"]
+        outs = [node_out / "clusters.csv", node_out / "umap.png"]
+        if str(inputs.get("visium_path", "") or "").strip():
+            # Real CSVs derived from the Space Ranger .h5.
+            outs += [node_out / "counts.csv", node_out / "coordinates.csv"]
+        return outs
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
-            "required": {
-                "count_matrix": ("FILE", {"description": "Gene-by-cell count matrix as CSV or TSV"}),
-                "coordinates": ("CSV", {"description": "Spatial coordinates keyed by barcode"}),
-            },
+            "required": {},
             "optional": {
+                "visium_path": ("DIRECTORY", {"description": "Space Ranger outs/ directory (reads the .h5; derives count/coordinate CSVs)"}),
+                "count_matrix": ("FILE", {"description": "Gene-by-cell count matrix as CSV or TSV (used when no visium_path)"}),
+                "coordinates": ("CSV", {"description": "Spatial coordinates keyed by barcode (used when no visium_path)"}),
                 "sample_name": ("STRING", {"default": "sample"}),
                 "delimiter": ("STRING", {"default": "comma", "options": ["comma", "tab"]}),
                 "min_cells": ("INT", {"default": 3, "min": 1}),

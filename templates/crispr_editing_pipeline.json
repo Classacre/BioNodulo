@@ -72,7 +72,7 @@
         80
       ],
       "params": {
-        "target": "chr1:1-1000",
+        "target": "chr9:1-1000",
         "pam": "NGG",
         "guide_length": 20,
         "max_guides": 50,
@@ -105,7 +105,7 @@
         454
       ],
       "params": {
-        "guide_seq": "ACGTACGTACGTACGTACGT",
+        "guide_seq": "AGGCGGATCACCTGAGGTCA",
         "mismatches": 3,
         "pam_sequence": "NNG",
         "device": "C"
@@ -131,9 +131,9 @@
         782
       ],
       "params": {
-        "amplicon_seq": "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT",
+        "amplicon_seq": "GGGCAAAGAGGGAAATGAGATCATGTCCTAACCCTGATCCTCTTGTCCCACAGATATCCAGAACCCTGACCCTGCCGTGTACCAGCTGAGAGACTCTAAATCCAGTGACAAGTCTGTCTGCCTATTCACCGATTTTGATTCTCAAACAAATGTGTCACAAAGTAAGGATTCTGATGTGTATATCACAGACAAAACTGTGCTAGACATGAGGTCTATGGACTTCAAGAGCAACAGTGCTGTGGCCTGGAGCAACAAATCTGACTTTGCATGTGCAAACGCCTTCAAC",
         "name": "edited_locus",
-        "guide_seq": "ACGTACGTACGTACGTACGT",
+        "guide_seq": "ACAAAACTGTGCTAGACATG",
         "quant_window_center": -3,
         "quant_window_size": 5
       },

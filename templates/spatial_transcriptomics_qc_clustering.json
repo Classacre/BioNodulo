@@ -101,52 +101,6 @@
       }
     },
     {
-      "id": "count_matrix_001",
-      "type": "input_file",
-      "position": [
-        80,
-        231
-      ],
-      "params": {
-        "file": "examples/data/spatial_transcriptomics/counts.csv"
-      },
-      "ui": {
-        "title": "Count Matrix",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "csv",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "coordinates_001",
-      "type": "input_file",
-      "position": [
-        80,
-        382
-      ],
-      "params": {
-        "file": "examples/data/spatial_transcriptomics/coordinates.csv"
-      },
-      "ui": {
-        "title": "Spot Coordinates",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "csv",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
       "id": "scanpy_spatial_001",
       "type": "scanpy_spatial",
       "position": [
@@ -212,28 +166,6 @@
       }
     },
     {
-      "id": "e7",
-      "from": {
-        "node": "count_matrix_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "scanpy_spatial_001",
-        "input": "count_matrix"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "coordinates_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "scanpy_spatial_001",
-        "input": "coordinates"
-      }
-    },
-    {
       "id": "e10",
       "from": {
         "node": "scanpy_spatial_001",
@@ -242,6 +174,16 @@
       "to": {
         "node": "scanpy_umap_preview_001",
         "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "visium_outs_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "scanpy_spatial_001",
+        "input": "visium_path"
       }
     }
   ],

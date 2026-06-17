@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles.\n\nData source: Zenodo record 1324070 (Galaxy Training Material).\nwt_H3K4me3_read1.fastq (8.5M), wt_H3K4me3_read2.fastq (8.5M).\nMouse H3K4me3 ChIP-seq from 'Formation of the Super-Structures on the Inactive X' tutorial.\nURL: https://zenodo.org/record/1324070\nNote: Bowtie2 index directory is a placeholder. Provide your own index."
+        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles.\n\nData source: Zenodo record 1324070 (Galaxy Training Material).\nwt_Spt5_read1.fastq (8.5M), wt_Spt5_read2.fastq (8.5M).\nMouse Spt5 ChIP-seq from 'Formation of the Super-Structures on the Inactive X' tutorial.\nURL: https://zenodo.org/record/1324070\nNote: Bowtie2 index directory is a placeholder. Provide your own index."
       },
       "ui": {
         "title": "Notes",
@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "treatment",
         "reads": [
-          "examples/data/chip_seq/wt_H3K4me3_read1.fastq",
-          "examples/data/chip_seq/wt_H3K4me3_read2.fastq"
+          "examples/data/chip_seq/wt_Spt5_read1.fastq",
+          "examples/data/chip_seq/wt_Spt5_read2.fastq"
         ]
       },
       "ui": {
@@ -68,29 +68,6 @@
             "reads": {
               "expected_format": "fastq",
               "min_records": 1,
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "idx_001",
-      "type": "input_directory",
-      "position": [
-        80,
-        460
-      ],
-      "params": {
-        "directory": "bowtie2_index"
-      },
-      "ui": {
-        "title": "Bowtie2 Index",
-        "validation": {
-          "outputs": {
-            "directory": {
-              "expected_format": "directory",
               "min_size_bytes": 1,
               "fail_on_error": true
             }
@@ -328,7 +305,7 @@
         430
       ],
       "params": {
-        "region": "chrX:1-50000",
+        "region": "I:1-50000",
         "window_size": 100,
         "title": "ChIP-Seq Signal Coverage",
         "format": "html"
@@ -396,6 +373,35 @@
       "params": {},
       "ui": {
         "title": "View Table: peak_annotation"
+      }
+    },
+    {
+      "id": "genome_001",
+      "type": "input_fasta",
+      "position": [
+        80,
+        340
+      ],
+      "params": {
+        "file": "examples/data/chip_seq/genome.fa",
+        "reference": "examples/data/chip_seq/genome.fa"
+      },
+      "ui": {
+        "title": "Yeast Reference (SacCer)"
+      }
+    },
+    {
+      "id": "bt2build_001",
+      "type": "bowtie2_build",
+      "position": [
+        80,
+        460
+      ],
+      "params": {
+        "threads": 8
+      },
+      "ui": {
+        "title": "Build Bowtie2 Index"
       }
     }
   ],
@@ -522,17 +528,6 @@
       }
     },
     {
-      "id": "e10",
-      "from": {
-        "node": "idx_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "bt2_001",
-        "input": "index"
-      }
-    },
-    {
       "id": "e12",
       "from": {
         "node": "control_001",
@@ -563,17 +558,6 @@
       "to": {
         "node": "bt2_control_001",
         "input": "reads"
-      }
-    },
-    {
-      "id": "e15",
-      "from": {
-        "node": "idx_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "bt2_control_001",
-        "input": "index"
       }
     },
     {
@@ -639,6 +623,36 @@
         "node": "render_peak_annotation_tab_1",
         "input": "file"
       }
+    },
+    {
+      "from": {
+        "node": "genome_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "bt2build_001",
+        "input": "reference"
+      }
+    },
+    {
+      "from": {
+        "node": "bt2build_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "bt2_001",
+        "input": "index"
+      }
+    },
+    {
+      "from": {
+        "node": "bt2build_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "bt2_control_001",
+        "input": "index"
+      }
     }
   ],
   "groups": [],
@@ -654,7 +668,6 @@
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_reads": "treat_001",
     "validated_control_reads": "control_001",
-    "control_alignment": "sort_control_001",
-    "validated_index": "idx_001"
+    "control_alignment": "sort_control_001"
   }
 }
