@@ -331,7 +331,7 @@
         "region": "chrX:1-50000",
         "window_size": 100,
         "title": "ChIP-Seq Signal Coverage",
-        "format": "png"
+        "format": "html"
       },
       "ui": {
         "title": "ChIP-seq Signal Plot"
@@ -375,18 +375,6 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        1880,
-        316
-      ],
-      "params": {},
-      "ui": {
-        "title": "View MultiQC Report"
-      }
-    },
-    {
       "id": "render_macs2_tab_0",
       "type": "table_preview",
       "position": [
@@ -408,18 +396,6 @@
       "params": {},
       "ui": {
         "title": "View Table: peak_annotation"
-      }
-    },
-    {
-      "id": "render_chip_signal_plot_ima_2",
-      "type": "image_preview",
-      "position": [
-        3320,
-        520
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: chip_signal_plot"
       }
     }
   ],
@@ -546,17 +522,6 @@
       }
     },
     {
-      "id": "e9",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e10",
       "from": {
         "node": "idx_001",
@@ -672,16 +637,6 @@
       },
       "to": {
         "node": "render_peak_annotation_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "chip_signal_plot_001",
-        "output": "coverage_image"
-      },
-      "to": {
-        "node": "render_chip_signal_plot_ima_2",
         "input": "file"
       }
     }

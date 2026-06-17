@@ -280,7 +280,7 @@
       ],
       "params": {
         "title": "Filtered WGS Variant Statistics",
-        "format": "png"
+        "format": "html"
       },
       "ui": {
         "title": "VCF statistics"
@@ -297,7 +297,7 @@
         "region": "NC_000913.3:1-50000",
         "window_size": 100,
         "title": "WGS Coverage",
-        "format": "png"
+        "format": "html"
       },
       "ui": {
         "title": "Coverage Plot"
@@ -388,18 +388,6 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        1160,
-        362
-      ],
-      "params": {},
-      "ui": {
-        "title": "View MultiQC Report"
-      }
-    },
-    {
       "id": "render_gate_prioritized_vcf_tab_0",
       "type": "table_preview",
       "position": [
@@ -421,30 +409,6 @@
       "params": {},
       "ui": {
         "title": "View Table: vep"
-      }
-    },
-    {
-      "id": "render_vcf_stats_ima_2",
-      "type": "image_preview",
-      "position": [
-        5120,
-        520
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: vcf_stats"
-      }
-    },
-    {
-      "id": "render_coverage_plot_ima_3",
-      "type": "image_preview",
-      "position": [
-        5120,
-        774
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: coverage_plot"
       }
     },
     {
@@ -749,17 +713,6 @@
       }
     },
     {
-      "id": "e20",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "from": {
         "node": "gate_prioritized_vcf_001",
         "output": "output"
@@ -776,26 +729,6 @@
       },
       "to": {
         "node": "render_vep_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "vcf_stats_001",
-        "output": "stats_image"
-      },
-      "to": {
-        "node": "render_vcf_stats_ima_2",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "coverage_plot_001",
-        "output": "coverage_image"
-      },
-      "to": {
-        "node": "render_coverage_plot_ima_3",
         "input": "file"
       }
     },

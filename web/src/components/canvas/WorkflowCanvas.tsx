@@ -16,6 +16,8 @@ import {
   calcRegularNodeHeight,
   getInteractiveWidgetEntries,
   getWidgetBlockTop,
+  isColorParam,
+  toHexColor,
 } from '../../utils/nodeLayout';
 import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
@@ -114,7 +116,15 @@ export interface GraphNode {
   title: string;
   status?: NodeStatus['status'];
   visualOnly: boolean;
+  inlinePreview: boolean;
+  previewCollapsed: boolean;
 }
+
+// Inline preview body on terminal-visual tool nodes: a small toggle bar plus a
+// collapsible figure/report band, so the result renders on the producing node
+// instead of a separate preview sink.
+export const INLINE_PREVIEW_TOGGLE_H = 20;
+export const INLINE_PREVIEW_BAND_H = 150;
 
 type HoveredSlot = { nodeId: string; type: 'input' | 'output'; index: number } | null;
 
@@ -268,7 +278,13 @@ const canvasNodeRunProgressAtom = selectAtom(
   sameNodeRunProgressRecord,
 );
 
-function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: Record<string, unknown>, width?: number): number {
+function calcNodeHeight(
+  meta: NodeMetadata | null,
+  collapsed: boolean,
+  params?: Record<string, unknown>,
+  width?: number,
+  previewCollapsed = false,
+): number {
   if (collapsed) return NODE_HEADER_H;
   if (meta?.id === 'note') {
     const text = String(params?.text || '');
@@ -277,6 +293,10 @@ function calcNodeHeight(meta: NodeMetadata | null, collapsed: boolean, params?: 
   const base = calcRegularNodeHeight(meta, params);
   if (meta?.id === 'image_preview') return base + 120;
   if (meta?.id === 'html_preview') return base + 200;
+  if (meta?.id === 'table_preview' || meta?.id === 'text_preview') return base + 180;
+  if (meta?.inline_preview) {
+    return base + INLINE_PREVIEW_TOGGLE_H + (previewCollapsed ? 0 : INLINE_PREVIEW_BAND_H);
+  }
   return base;
 }
 
@@ -736,6 +756,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         const isNote = meta?.id === 'note';
         const isReroute = meta?.id === 'reroute';
         const visualOnly = meta?.visual_only ?? isNote;
+        const inlinePreview = Boolean(meta?.inline_preview);
+        const previewCollapsed = wn.ui?.previewCollapsed ?? existing?.previewCollapsed ?? false;
         const nodeWidth = isNote
           ? (wn.ui?.width ?? existing?.width ?? NODE_NOTE_WIDTH)
           : (isReroute ? 20 : (wn.ui?.width ?? existing?.width ?? NODE_WIDTH));
@@ -745,12 +767,13 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         } else if (collapsed) {
           nodeHeight = calcNodeHeight(meta, true, wn.params);
         } else {
-          const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined);
+          const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined, previewCollapsed);
           const storedHeight = wn.ui?.height ?? existing?.height;
           // Stored heights may have been computed by an older version that
           // undersized widget rows; honour user-resized growth but never let
-          // the node clip its DOM-widget overlays.
-          nodeHeight = storedHeight ? Math.max(storedHeight, minHeight) : minHeight;
+          // the node clip its DOM-widget overlays. Inline-preview nodes own
+          // their height (toggle bar + band), so ignore stale stored heights.
+          nodeHeight = (storedHeight && !inlinePreview) ? Math.max(storedHeight, minHeight) : minHeight;
         }
         const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
         return {
@@ -786,6 +809,8 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           title: wn.ui?.title || meta?.display_name || wn.type || t('canvas.nodeFallbackTitle'),
           status: existing?.status,
           visualOnly,
+          inlinePreview,
+          previewCollapsed,
         };
       });
     });
@@ -3052,6 +3077,21 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
     ));
   }, [nodes, onNodesChange]);
 
+  // Collapse/expand the inline preview body on a terminal-visual node, updating
+  // both the live graph (height) and the persisted ui flag.
+  const toggleInlinePreview = useCallback((nodeId: string) => {
+    const next = !(nodesRef.current.find(n => n.id === nodeId)?.ui?.previewCollapsed ?? false);
+    setGraphNodes(prev => prev.map(n =>
+      n.id === nodeId
+        ? { ...n, previewCollapsed: next, height: calcNodeHeight(n.meta, n.collapsed, n.params, undefined, next) }
+        : n,
+    ));
+    onNodesChangeRef.current(nodesRef.current.map(wn =>
+      wn.id === nodeId ? { ...wn, ui: { ...wn.ui, previewCollapsed: next } } : wn,
+    ));
+    onPushHistoryRef.current();
+  }, []);
+
   // Right-click on a node's widget label: stamp that key=value onto every
   // other selected node that exposes the same param key. Skips the source
   // node itself and any selected node without the param so we don't bolt
@@ -3307,14 +3347,20 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       })}
 
       {/* Image preview DOM overlays */}
-      {nodePreviewsMap && graphNodes.filter(n => nodePreviewsMap.has(n.id) && !n.collapsed).map(node => {
+      {nodePreviewsMap && graphNodes.filter(n => nodePreviewsMap.has(n.id) && !n.collapsed && !(n.inlinePreview && n.previewCollapsed)).map(node => {
         const previewUrl = nodePreviewsMap.get(node.id)!;
         const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
         const pad = 4 * scale;
         const left = node.x * scale + offset.x + pad;
-        const top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        // Inline-preview tool nodes render the figure in the bottom band (below
+        // their widgets); dedicated *_preview sinks fill the whole body.
+        const top = node.inlinePreview
+          ? node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale
+          : node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
         const width = (node.width - 8) * scale;
-        const height = (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        const height = node.inlinePreview
+          ? INLINE_PREVIEW_BAND_H * scale
+          : (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
         if (width <= 0 || height <= 0) return null;
         return (
           <div
@@ -3347,14 +3393,18 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           allow-scripts only because most bioinformatics reports (MultiQC,
           FastQC, etc.) need JS for tabs/plots. pointer-events stay on so users
           can scroll inside the report without dragging the node. */}
-      {nodeHtmlPreviewsMap && graphNodes.filter(n => nodeHtmlPreviewsMap.has(n.id) && !n.collapsed).map(node => {
+      {nodeHtmlPreviewsMap && graphNodes.filter(n => nodeHtmlPreviewsMap.has(n.id) && !n.collapsed && !(n.inlinePreview && n.previewCollapsed)).map(node => {
         const previewUrl = nodeHtmlPreviewsMap.get(node.id)!;
         const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
         const pad = 4 * scale;
         const left = node.x * scale + offset.x + pad;
-        const top = node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        const top = node.inlinePreview
+          ? node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale
+          : node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
         const width = (node.width - 8) * scale;
-        const height = (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        const height = node.inlinePreview
+          ? INLINE_PREVIEW_BAND_H * scale
+          : (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
         if (width <= 0 || height <= 0) return null;
         return (
           <div
@@ -3379,6 +3429,36 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
               loading="lazy"
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             />
+          </div>
+        );
+      })}
+
+      {/* Inline-preview toggle bar: a small clickable strip on terminal-visual
+          nodes that collapses/expands the figure band, so dense graphs and heavy
+          Plotly reports stay manageable. */}
+      {graphNodes.filter(n => n.inlinePreview && !n.collapsed).map(node => {
+        const pad = 4 * scale;
+        const bandH = node.previewCollapsed ? 0 : INLINE_PREVIEW_BAND_H;
+        const left = node.x * scale + offset.x + pad;
+        const top = node.y * scale + offset.y + (node.height - bandH - INLINE_PREVIEW_TOGGLE_H) * scale;
+        const width = (node.width - 8) * scale;
+        const height = INLINE_PREVIEW_TOGGLE_H * scale;
+        if (width <= 0) return null;
+        const hasPreview = Boolean(nodePreviewsMap?.has(node.id) || nodeHtmlPreviewsMap?.has(node.id));
+        return (
+          <div
+            key={`pvtoggle-${node.id}`}
+            className="node-inline-preview-toggle"
+            onMouseDown={e => { e.stopPropagation(); }}
+            onClick={e => { e.stopPropagation(); toggleInlinePreview(node.id); }}
+            title={node.previewCollapsed ? t('canvas.showPreview', { defaultValue: 'Show preview' }) : t('canvas.hidePreview', { defaultValue: 'Hide preview' })}
+            style={{ position: 'absolute', left, top, width, height, zIndex: 6, fontSize: Math.max(8, 10 * scale) }}
+          >
+            <span>{node.previewCollapsed ? '▸' : '▾'}</span>
+            <span>{t('canvas.previewLabel', { defaultValue: 'Preview' })}</span>
+            {!hasPreview && !node.previewCollapsed && (
+              <span className="node-inline-preview-hint">{t('canvas.previewAfterRun', { defaultValue: 'runs here' })}</span>
+            )}
           </div>
         );
       })}
@@ -3506,6 +3586,28 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
                   onChange={event => handleNodeParamChange(node.id, key, spec.type === 'INT' ? parseInt(event.target.value, 10) : parseFloat(event.target.value))}
                   onBlur={() => onPushHistory()}
                 />
+              </label>
+            );
+          }
+          if (isColorParam(key, spec)) {
+            return (
+              <label key={`${node.id}-${key}`} className="node-dom-widget node-dom-widget-color" {...labelProps}>
+                <span>{spec.label || key}</span>
+                <span className="node-dom-color-controls">
+                  <input
+                    type="color"
+                    value={toHexColor(value)}
+                    onChange={event => commit(event.target.value, false)}
+                    onBlur={() => onPushHistory()}
+                  />
+                  <input
+                    type="text"
+                    value={String(value)}
+                    spellCheck={false}
+                    onChange={event => commit(event.target.value, false)}
+                    onBlur={() => onPushHistory()}
+                  />
+                </span>
               </label>
             );
           }

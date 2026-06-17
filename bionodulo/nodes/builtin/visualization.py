@@ -3480,6 +3480,9 @@ def _render_line_png(
     palette: str,
     marker: str,
     show_grid: bool,
+    title: str = "",
+    x_label: str = "",
+    y_label: str = "",
 ) -> None:
     pixels = bytearray([255, 255, 255]) * (layout.width * layout.height)
     background = (248, 250, 252)
@@ -3526,7 +3529,62 @@ def _render_line_png(
             for x, y in projected:
                 _draw_circle(pixels, layout.width, layout.height, x, y, 4, colour)
 
+    _draw_xy_labels(
+        pixels,
+        layout=layout,
+        x_min=bounds.x_min,
+        x_max=bounds.x_max,
+        y_min=bounds.y_min,
+        y_max=bounds.y_max,
+        title=title,
+        x_label=x_label,
+        y_label=y_label,
+    )
+
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _draw_xy_labels(
+    pixels: bytearray,
+    *,
+    layout: PlotLayout,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    title: str,
+    x_label: str,
+    y_label: str,
+) -> None:
+    """Draw title, numeric axis ticks, and axis titles on an XY (line) PNG."""
+    from bionodulo.nodes.builtin import _bitmap_font as font
+
+    width, height = layout.width, layout.height
+    x0, y0 = layout.left, layout.top
+    x1, y1 = width - layout.right, height - layout.bottom
+    label_color = (51, 65, 85)
+
+    if title:
+        scale = font.fit_scale(title, max(40, x1 - x0), preferred=2)
+        font.draw_text_centered(
+            pixels, width, height, (x0 + x1) // 2,
+            max(2, (y0 - font.GLYPH_H * scale) // 2), title, (17, 24, 39), scale,
+        )
+
+    n = 4
+    for i in range(n + 1):
+        xv = x_min + (x_max - x_min) * i / n
+        px = int(round(layout.left + layout.plot_width * i / n))
+        font.draw_text_centered(pixels, width, height, px, y1 + 6, _format_tick(xv), label_color, 1)
+        yv = y_min + (y_max - y_min) * i / n
+        py = int(round(y1 - layout.plot_height * i / n)) - font.GLYPH_H // 2
+        lbl = _format_tick(yv)
+        font.draw_text(pixels, width, height, max(2, x0 - font.text_width(lbl, 1) - 4), py, lbl, label_color, 1)
+
+    if x_label:
+        font.draw_text_centered(pixels, width, height, (x0 + x1) // 2, y1 + 22, x_label, label_color, 1)
+    if y_label:
+        font.draw_text(pixels, width, height, 2, max(2, y0 - font.GLYPH_H - 2), y_label, label_color, 1)
 
 
 def _plotly_dash(line_style: str) -> str:
@@ -6189,11 +6247,15 @@ def _render_bar_png(
     layout: PlotLayout,
     orientation: str,
     color: str,
+    title: str = "",
+    x_label: str = "",
+    y_label: str = "",
 ) -> None:
     pixels = bytearray([255, 255, 255]) * (layout.width * layout.height)
     background = (248, 250, 252)
     axis = (17, 24, 39)
     frame = (203, 213, 225)
+    label_color = (51, 65, 85)
 
     categories = _bar_categories(rows)
     groups = _bar_groups(rows)
@@ -6255,7 +6317,98 @@ def _render_bar_png(
                     for x in range(rect_x0, rect_x1 + 1):
                         _set_pixel(pixels, layout.width, layout.height, x, y, colour)
 
+    _draw_bar_labels(
+        pixels,
+        layout=layout,
+        orientation=orientation,
+        categories=categories,
+        value_min=value_min,
+        value_max=value_max,
+        title=title,
+        x_label=x_label,
+        y_label=y_label,
+        label_color=label_color,
+    )
+
     _write_png(path, layout.width, layout.height, pixels)
+
+
+def _format_tick(value: float) -> str:
+    """Compact numeric label for an axis tick."""
+    if value == int(value) and abs(value) < 1e15:
+        return str(int(value))
+    if abs(value) >= 1000 or (value != 0 and abs(value) < 0.01):
+        return f"{value:.3g}"
+    return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _draw_bar_labels(
+    pixels: bytearray,
+    *,
+    layout: PlotLayout,
+    orientation: str,
+    categories: list[str],
+    value_min: float,
+    value_max: float,
+    title: str,
+    x_label: str,
+    y_label: str,
+    label_color: tuple[int, int, int],
+) -> None:
+    """Draw title, axis titles, value ticks, and category labels on a bar PNG."""
+    from bionodulo.nodes.builtin import _bitmap_font as font
+
+    width, height = layout.width, layout.height
+    x0, y0 = layout.left, layout.top
+    x1, y1 = width - layout.right, height - layout.bottom
+
+    # Title — centred in the top margin.
+    if title:
+        scale = font.fit_scale(title, max(40, x1 - x0), preferred=2)
+        font.draw_text_centered(
+            pixels, width, height, (x0 + x1) // 2,
+            max(2, (y0 - font.GLYPH_H * scale) // 2), title, (17, 24, 39), scale,
+        )
+
+    n_ticks = 4
+    tick_values = [
+        value_min + (value_max - value_min) * i / n_ticks for i in range(n_ticks + 1)
+    ]
+
+    if orientation == "horizontal":
+        # Value ticks along the bottom (x) axis.
+        for tv in tick_values:
+            tx = int(round(_bar_project_x(tv, value_min, value_max, layout)))
+            font.draw_text_centered(pixels, width, height, tx, y1 + 6, _format_tick(tv), label_color, 1)
+        # Category labels in the left margin, one per band.
+        band = layout.plot_height / max(1, len(categories))
+        for idx, cat in enumerate(categories):
+            cy = int(y0 + band * (idx + 0.5) - font.GLYPH_H // 2)
+            text = cat if len(cat) <= 12 else cat[:11] + "…"
+            text = text.replace("…", ".")
+            w = font.text_width(text, 1)
+            font.draw_text(pixels, width, height, max(2, x0 - w - 4), cy, text, label_color, 1)
+        if x_label:  # value axis title
+            font.draw_text_centered(pixels, width, height, (x0 + x1) // 2, y1 + 22, y_label or "", label_color, 1)
+    else:
+        # Value ticks along the left (y) axis.
+        for tv in tick_values:
+            ty = int(round(_bar_project_y(tv, value_min, value_max, layout))) - font.GLYPH_H // 2
+            label = _format_tick(tv)
+            w = font.text_width(label, 1)
+            font.draw_text(pixels, width, height, max(2, x0 - w - 4), ty, label, label_color, 1)
+        # Category labels along the bottom, thinned to avoid overlap.
+        band = layout.plot_width / max(1, len(categories))
+        max_chars = max(3, int(band // font.char_width(1)))
+        step = max(1, int(len(categories) * font.char_width(1) // max(1, layout.plot_width)) + 1) if categories else 1
+        for idx, cat in enumerate(categories):
+            if idx % step:
+                continue
+            cx = int(x0 + band * (idx + 0.5))
+            text = cat if len(cat) <= max_chars else cat[: max_chars - 1] + "."
+            font.draw_text_centered(pixels, width, height, cx, y1 + 6, text, label_color, 1)
+        if y_label:  # value axis title under the chart
+            font.draw_text_centered(pixels, width, height, (x0 + x1) // 2, y1 + 22, y_label, label_color, 1)
 
 
 def _render_bar_html(
@@ -6959,6 +7112,9 @@ class LineChartNode(BaseNode):
                 palette=palette,
                 marker=marker,
                 show_grid=show_grid,
+                title=title,
+                x_label=xlabel,
+                y_label=ylabel,
             )
 
         if context is not None and hasattr(context, "register_preview"):
@@ -7808,6 +7964,9 @@ class BarChartNode(BaseNode):
                 layout=layout,
                 orientation=orientation,
                 color=color,
+                title=title,
+                x_label=x_column,
+                y_label=y_column,
             )
 
         if context is not None and hasattr(context, "register_preview"):

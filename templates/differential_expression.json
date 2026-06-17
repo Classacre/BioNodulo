@@ -197,18 +197,6 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        1520,
-        476
-      ],
-      "params": {},
-      "ui": {
-        "title": "View MultiQC Report"
-      }
-    },
-    {
       "id": "render_salmon_quant_tab_0",
       "type": "table_preview",
       "position": [
@@ -376,17 +364,6 @@
       "to": {
         "node": "quant_comparison_001",
         "input": "table_b"
-      }
-    },
-    {
-      "id": "e18",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
       }
     },
     {

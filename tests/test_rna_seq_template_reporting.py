@@ -32,22 +32,20 @@ def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["counts_heatmap_001"] == "heatmap"
+    assert node_types["counts_heatmap_001"] == "r_pheatmap"
     # The counts_report_001 html_report and its html_preview were removed by design;
     # each feeder now renders into a dedicated preview node.
     assert "counts_report_001" not in node_types
     assert "counts_report_preview_001" not in node_types
-    assert node_types["render_counts_heatmap_ima_2"] == "image_preview"
+    assert "render_counts_heatmap_ima_2" not in node_types
     assert node_types["render_counts_tab_0"] == "table_preview"
     assert node_types["render_normalize_counts_tab_1"] == "table_preview"
 
     heatmap = _node(workflow, "counts_heatmap_001")
-    assert heatmap["params"]["title"] == "Normalized Count Heatmap"
     assert heatmap["params"]["scale"] == "row"
-    assert heatmap["params"]["format"] == "png"
+    assert heatmap["params"]["cluster_rows"] is True
 
-    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
-    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "render_counts_heatmap_ima_2", "file")
+    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "data_csv")
     assert _has_edge(workflow, "counts_001", "counts", "render_counts_tab_0", "file")
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "render_normalize_counts_tab_1", "file")
 

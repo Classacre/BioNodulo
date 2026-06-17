@@ -46,7 +46,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
-    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
+    assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
@@ -57,10 +57,9 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "render_vcf_stats_ima_2", "file")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
     assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
-    assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
+    assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
     assert workflow["outputs"]["vep_annotation"] == "vep_001"
@@ -112,8 +111,6 @@ def test_variant_calling_template_validates_multiqc_report_before_preview() -> N
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -125,9 +122,8 @@ def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
     coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_plot_001")
     assert coverage["params"]["region"] == "Wildtype:1-50000"
     assert coverage["params"]["window_size"] == 100
-    assert coverage["params"]["format"] == "png"
+    assert coverage["params"]["format"] == "html"
     assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
-    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "render_coverage_plot_ima_3", "file")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -163,7 +159,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
-    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
+    assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
@@ -173,10 +169,9 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "render_vcf_stats_ima_2", "file")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
     assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
-    assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "png"
+    assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
     assert workflow["outputs"]["vep_annotation"] == "vep_001"
@@ -228,8 +223,6 @@ def test_wgs_variant_template_validates_multiqc_report_before_preview() -> None:
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -241,9 +234,8 @@ def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
     coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_plot_001")
     assert coverage["params"]["region"] == "NC_000913.3:1-50000"
     assert coverage["params"]["window_size"] == 100
-    assert coverage["params"]["format"] == "png"
+    assert coverage["params"]["format"] == "html"
     assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
-    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "render_coverage_plot_ima_3", "file")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -286,7 +278,6 @@ def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -
     assert gate["params"]["on_fail"] == "halt"
     assert _has_edge(workflow, "multiqc_001", "report", "validate_multiqc_001", "input")
     assert _has_edge(workflow, "validate_multiqc_001", "passed", "gate_multiqc_001", "value")
-    assert _has_edge(workflow, "validate_multiqc_001", "passthrough", "html_preview_001", "file")
     assert workflow["outputs"]["validated_report"] == "validate_multiqc_001"
 
 
@@ -353,13 +344,12 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     assert node_types["tree_viewer_001"] == "phylo_tree_viewer"
     # The phylo_report_001 html_report was removed by design; figures feed preview nodes.
     assert "phylo_report_001" not in node_types
-    assert node_types["render_tree_viewer_ima_0"] == "image_preview"
+    assert "render_tree_viewer_ima_0" not in node_types
     assert node_types["image_preview_001"] == "image_preview"
     tree_viewer = next(node for node in workflow["nodes"] if node["id"] == "tree_viewer_001")
     assert tree_viewer["params"]["format"] == "png"
     assert tree_viewer["params"]["layout"] == "rectangular"
     assert _has_edge(workflow, "iqtree_001", "tree", "tree_viewer_001", "tree_file")
-    assert _has_edge(workflow, "tree_viewer_001", "tree_image", "render_tree_viewer_ima_0", "file")
     assert _has_edge(workflow, "msa_view_001", "alignment_image", "image_preview_001", "file")
     assert workflow["outputs"]["tree_image"] == "tree_viewer_001"
     assert "report" not in workflow["outputs"]
@@ -441,8 +431,6 @@ def test_rna_seq_template_validates_multiqc_report_before_preview() -> None:
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -517,19 +505,20 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["normalize_counts_001"] == "normalize_data"
-    assert node_types["counts_heatmap_001"] == "heatmap"
+    # The normalized-count heatmap uses R's pheatmap (clustered expression
+    # heatmap is the RNA-seq standard); normalization emits CSV so pheatmap and
+    # the table preview can both read it.
+    assert node_types["counts_heatmap_001"] == "r_pheatmap"
     normalizer = next(node for node in workflow["nodes"] if node["id"] == "normalize_counts_001")
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "counts_heatmap_001")
     assert normalizer["params"]["method"] == "cpm"
     assert normalizer["params"]["id_columns"] == "Geneid"
     assert normalizer["params"]["axis"] == "rows"
-    assert normalizer["params"]["output_type"] == "TSV"
-    assert heatmap["params"]["title"] == "Normalized Count Heatmap"
+    assert normalizer["params"]["output_type"] == "CSV"
     assert heatmap["params"]["scale"] == "row"
-    assert heatmap["params"]["format"] == "png"
+    assert heatmap["params"]["cluster_rows"] is True
     assert _has_edge(workflow, "counts_001", "counts", "normalize_counts_001", "table")
-    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "matrix")
-    assert _has_edge(workflow, "counts_heatmap_001", "heatmap_image", "render_counts_heatmap_ima_2", "file")
+    assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "data_csv")
     assert workflow["outputs"]["normalized_counts"] == "normalize_counts_001"
     assert workflow["outputs"]["counts_heatmap"] == "counts_heatmap_001"
 
@@ -540,15 +529,14 @@ def test_deseq2_template_adds_volcano_ma_and_report_outputs() -> None:
 
     assert node_types["volcano_001"] == "volcano_plot"
     assert node_types["ma_plot_001"] == "ma_plot"
-    assert node_types["render_volcano_ima_6"] == "image_preview"
+    assert "render_volcano_ima_6" not in node_types
     assert node_types["render_deseq2_tab_0"] == "table_preview"
     volcano = next(node for node in workflow["nodes"] if node["id"] == "volcano_001")
     ma_plot = next(node for node in workflow["nodes"] if node["id"] == "ma_plot_001")
-    assert volcano["params"]["format"] == "png"
-    assert ma_plot["params"]["format"] == "png"
+    assert volcano["params"]["format"] == "html"
+    assert ma_plot["params"]["format"] == "html"
     assert _has_edge(workflow, "deseq2_001", "results_csv", "volcano_001", "results_table")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "ma_plot_001", "results_table")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "render_volcano_ima_6", "file")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "render_deseq2_tab_0", "file")
     assert workflow["outputs"]["volcano_plot"] == "volcano_001"
     assert workflow["outputs"]["ma_plot"] == "ma_plot_001"
@@ -638,16 +626,11 @@ def test_r_visualization_template_combines_plots_into_html_report() -> None:
     # each figure feeds its own curated image_preview node instead.
     assert "viz_report_001" not in node_types
     assert "viz_report_preview_001" not in node_types
-    assert node_types["qc_preview_001"] == "image_preview"
-    assert node_types["expr_preview_001"] == "image_preview"
-    assert node_types["heatmap_preview_001"] == "image_preview"
-    assert node_types["volcano_preview_001"] == "image_preview"
-    assert node_types["ma_preview_001"] == "image_preview"
-    assert _has_edge(workflow, "qc_plot_001", "plot_png", "qc_preview_001", "file")
-    assert _has_edge(workflow, "expr_plot_001", "plot_png", "expr_preview_001", "file")
-    assert _has_edge(workflow, "pheatmap_001", "plot_png", "heatmap_preview_001", "file")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "volcano_preview_001", "file")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
+    assert "qc_preview_001" not in node_types
+    assert "expr_preview_001" not in node_types
+    assert "heatmap_preview_001" not in node_types
+    assert "volcano_preview_001" not in node_types
+    assert "ma_preview_001" not in node_types
     assert "report" not in workflow["outputs"]
     assert "report_preview" not in workflow["outputs"]
 
@@ -697,16 +680,15 @@ def test_biopython_template_adds_sequence_stats_chart_report() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["seq_length_chart_001"] == "bar_chart"
-    assert node_types["render_seq_length_chart_ima_2"] == "image_preview"
+    # Charting goes through ggplot2 (r_plot) for proper axes/titles.
+    assert node_types["seq_length_chart_001"] == "r_plot"
+    assert "render_seq_length_chart_ima_2" not in node_types
     assert node_types["table_preview_001"] == "table_preview"
     chart = next(node for node in workflow["nodes"] if node["id"] == "seq_length_chart_001")
-    assert chart["params"]["x_column"] == "id"
-    assert chart["params"]["y_column"] == "length"
-    assert chart["params"]["orientation"] == "horizontal"
-    assert chart["params"]["format"] == "png"
-    assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "seq_length_chart_001", "table")
-    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "render_seq_length_chart_ima_2", "file")
+    assert chart["params"]["x_axis"] == "id"
+    assert chart["params"]["y_axis"] == "length"
+    assert chart["params"]["plot_type"] == "bar"
+    assert _has_edge(workflow, "seq_stats_001", "stats_csv", "seq_length_chart_001", "data_csv")
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "table_preview_001", "file")
     assert workflow["outputs"]["sequence_length_chart"] == "seq_length_chart_001"
 
@@ -805,8 +787,6 @@ def test_differential_expression_template_validates_multiqc_report_before_previe
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -968,8 +948,6 @@ def test_assembly_template_validates_quast_report_before_preview() -> None:
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "quast_001", "report", "validate_quast_001", "input")
-    assert _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "quast_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_quast_report"] == "quast_001"
 
 
@@ -1132,8 +1110,6 @@ def test_chip_seq_template_validates_multiqc_report_before_preview() -> None:
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -1143,22 +1119,20 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
 
     assert node_types["bracken_bar_001"] == "bar_chart"
     assert node_types["bracken_heatmap_001"] == "heatmap"
-    assert node_types["render_bracken_bar_ima_1"] == "image_preview"
-    assert node_types["render_bracken_heatmap_ima_2"] == "image_preview"
+    assert "render_bracken_bar_ima_1" not in node_types
+    assert "render_bracken_heatmap_ima_2" not in node_types
     assert node_types["render_bracken_tab_0"] == "table_preview"
     chart = next(node for node in workflow["nodes"] if node["id"] == "bracken_bar_001")
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
     assert chart["params"]["x_column"] == "name"
     assert chart["params"]["y_column"] == "fraction_total_reads"
     assert chart["params"]["orientation"] == "horizontal"
-    assert chart["params"]["format"] == "png"
+    assert chart["params"]["format"] == "svg"
     assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
     assert heatmap["params"]["scale"] == "column"
-    assert heatmap["params"]["format"] == "png"
+    assert heatmap["params"]["format"] == "html"
     assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
     assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "bracken_bar_001", "chart_image", "render_bracken_bar_ima_1", "file")
-    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "render_bracken_heatmap_ima_2", "file")
     assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")
     assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
     assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
@@ -1263,7 +1237,6 @@ def test_metagenomics_template_validates_humann_pathcoverage_before_reporting() 
     assert not _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
     assert _has_edge(workflow, "humann_001", "pathcoverage", "humann_pathcoverage_bar_001", "table")
     assert _has_edge(workflow, "humann_001", "pathcoverage", "render_humann_tab_1", "file")
-    assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "render_humann_pathcoverage_bar_ima_3", "file")
     assert workflow["outputs"]["validated_humann_pathcoverage"] == "humann_001"
     assert workflow["outputs"]["functional_pathcoverage_chart"] == "humann_pathcoverage_bar_001"
 
@@ -1278,8 +1251,6 @@ def test_metagenomics_template_validates_multiqc_report_before_preview() -> None
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
-    assert _has_edge(workflow, "mqc_001", "report", "html_preview_001", "file")
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
@@ -1324,9 +1295,6 @@ def test_single_cell_template_validates_cellranger_web_summary_before_preview() 
     assert "web_summary" in gate["params"]["error_message"]
     assert not _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
     assert _has_edge(workflow, "cr_count_001", "web_summary", "gate_web_summary_001", "value")
-    assert _has_edge(workflow, "gate_web_summary_001", "output", "html_preview_001", "file")
-    assert not _has_edge(workflow, "cr_count_001", "web_summary", "html_preview_001", "file")
-    assert not _has_edge(workflow, "validate_web_summary_001", "passthrough", "html_preview_001", "file")
     assert workflow["outputs"]["validated_web_summary"] == "cr_count_001"
     assert workflow["outputs"]["web_summary_quality_gate"] == "gate_web_summary_001"
 
@@ -1341,7 +1309,7 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert "single_cell_report_001" not in node_types
     assert "single_cell_report_preview_001" not in node_types
     assert node_types["render_cr_count_tab_0"] == "table_preview"
-    assert node_types["render_metrics_summary_chart_ima_1"] == "image_preview"
+    assert "render_metrics_summary_chart_ima_1" not in node_types
 
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
     assert dashboard["params"]["run_name"] == "Single Cell QC"
@@ -1349,7 +1317,6 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
-    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "render_metrics_summary_chart_ima_1", "file")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"

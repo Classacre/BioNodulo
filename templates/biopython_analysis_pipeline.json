@@ -186,20 +186,21 @@
     },
     {
       "id": "seq_length_chart_001",
-      "type": "bar_chart",
+      "type": "r_plot",
       "position": [
         800,
         552
       ],
       "params": {
+        "plot_type": "bar",
+        "x_axis": "id",
+        "y_axis": "length",
         "title": "Sequence Lengths",
-        "x_column": "id",
-        "y_column": "length",
-        "orientation": "horizontal",
-        "format": "png"
+        "x_label": "Sequence ID",
+        "y_label": "Length (bp)"
       },
       "ui": {
-        "title": "Sequence Length Chart"
+        "title": "Sequence Length Chart (ggplot2)"
       }
     },
     {
@@ -232,15 +233,60 @@
       }
     },
     {
-      "id": "render_seq_length_chart_ima_2",
-      "type": "image_preview",
+      "id": "view_blast_hits_001",
+      "type": "text_preview",
       "position": [
-        1520,
-        520
+        800,
+        740
       ],
-      "params": {},
+      "params": {
+        "max_lines": 120
+      },
       "ui": {
-        "title": "View Figure: seq_length_chart"
+        "title": "View BLAST Hits (XML)"
+      }
+    },
+    {
+      "id": "view_protein_001",
+      "type": "text_preview",
+      "position": [
+        800,
+        856
+      ],
+      "params": {
+        "max_lines": 120
+      },
+      "ui": {
+        "title": "View Protein FASTA"
+      }
+    },
+    {
+      "id": "view_orf_table_001",
+      "type": "table_preview",
+      "position": [
+        800,
+        1092
+      ],
+      "params": {
+        "rows": 25,
+        "delimiter": "auto"
+      },
+      "ui": {
+        "title": "View ORF Table"
+      }
+    },
+    {
+      "id": "view_genbank_001",
+      "type": "text_preview",
+      "position": [
+        1160,
+        80
+      ],
+      "params": {
+        "max_lines": 120
+      },
+      "ui": {
+        "title": "View GenBank Output"
       }
     }
   ],
@@ -348,11 +394,11 @@
       "id": "e9",
       "from": {
         "node": "seq_stats_001",
-        "output": "stats_tsv"
+        "output": "stats_csv"
       },
       "to": {
         "node": "seq_length_chart_001",
-        "input": "table"
+        "input": "data_csv"
       }
     },
     {
@@ -367,11 +413,41 @@
     },
     {
       "from": {
-        "node": "seq_length_chart_001",
-        "output": "chart_image"
+        "node": "blast_001",
+        "output": "blast_xml"
       },
       "to": {
-        "node": "render_seq_length_chart_ima_2",
+        "node": "view_blast_hits_001",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "translate_001",
+        "output": "protein_fasta"
+      },
+      "to": {
+        "node": "view_protein_001",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "biostrings_001",
+        "output": "orf_table_csv"
+      },
+      "to": {
+        "node": "view_orf_table_001",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "seqio_write_001",
+        "output": "output_file"
+      },
+      "to": {
+        "node": "view_genbank_001",
         "input": "file"
       }
     }

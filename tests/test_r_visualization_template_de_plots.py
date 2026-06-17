@@ -35,8 +35,8 @@ def test_r_visualization_template_adds_de_volcano_and_ma_demo_branches() -> None
     assert node_types["de_results_df_001"] == "r_dataframe_builder"
     assert node_types["volcano_001"] == "volcano_plot"
     assert node_types["ma_plot_001"] == "ma_plot"
-    assert node_types["volcano_preview_001"] == "image_preview"
-    assert node_types["ma_preview_001"] == "image_preview"
+    assert "volcano_preview_001" not in node_types
+    assert "ma_preview_001" not in node_types
     assert "volcano_plot" in workflow["tools"]
     assert "ma_plot" in workflow["tools"]
 
@@ -46,20 +46,18 @@ def test_r_visualization_template_adds_de_volcano_and_ma_demo_branches() -> None
     assert de_results["params"]["group_column"] == "padj"
 
     volcano = _node(workflow, "volcano_001")
-    assert volcano["params"]["format"] == "png"
+    assert volcano["params"]["format"] == "html"
     assert volcano["params"]["logfc_column"] == "log2FoldChange"
     assert volcano["params"]["pvalue_column"] == "padj"
 
     ma_plot = _node(workflow, "ma_plot_001")
-    assert ma_plot["params"]["format"] == "png"
+    assert ma_plot["params"]["format"] == "html"
     assert ma_plot["params"]["mean_column"] == "baseMean"
     assert ma_plot["params"]["logfc_column"] == "log2FoldChange"
     assert ma_plot["params"]["pvalue_column"] == "padj"
 
     assert _has_edge(workflow, "de_results_df_001", "csv", "volcano_001", "results_table")
     assert _has_edge(workflow, "de_results_df_001", "csv", "ma_plot_001", "results_table")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "volcano_preview_001", "file")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
 
     assert workflow["outputs"]["volcano_plot"] == "volcano_001"
     assert workflow["outputs"]["ma_plot"] == "ma_plot_001"

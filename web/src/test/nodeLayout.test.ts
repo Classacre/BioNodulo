@@ -6,7 +6,32 @@ import {
   calcRegularNodeHeight,
   getInteractiveWidgetEntries,
   getWidgetBlockTop,
+  isColorParam,
+  toHexColor,
 } from '../utils/nodeLayout';
+
+describe('color param detection', () => {
+  it('treats *color/*colour STRING params and display:color as colour pickers', () => {
+    expect(isColorParam('color', { type: 'STRING' })).toBe(true);
+    expect(isColorParam('up_color', { type: 'STRING' })).toBe(true);
+    expect(isColorParam('border_colour', { type: 'STRING' })).toBe(true);
+    expect(isColorParam('fill', { type: 'STRING', display: 'color' })).toBe(true);
+  });
+
+  it('leaves non-colour and non-string params alone', () => {
+    expect(isColorParam('title', { type: 'STRING' })).toBe(false);
+    expect(isColorParam('count', { type: 'INT' })).toBe(false);
+    expect(isColorParam('color', { type: 'STRING', options: ['a', 'b'] })).toBe(false);
+    expect(isColorParam('color', { type: 'STRING', forceInput: true })).toBe(false);
+  });
+
+  it('coerces named and short-hex colours to #rrggbb', () => {
+    expect(toHexColor('steelblue')).toBe('#4682b4');
+    expect(toHexColor('#FFF')).toBe('#ffffff');
+    expect(toHexColor('#1A2B3C')).toBe('#1a2b3c');
+    expect(toHexColor('not-a-color')).toBe('#4682b4');
+  });
+});
 
 const validatorLikeMeta: NodeMetadata = {
   id: 'data_validator',

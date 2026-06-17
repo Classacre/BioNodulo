@@ -75,13 +75,33 @@ def test_biopython_template_previews_sequence_report() -> None:
     # each feeder now renders into a dedicated preview node.
     assert "sequence_report_001" not in node_types
     assert "sequence_report_preview_001" not in node_types
-    assert node_types["render_seq_length_chart_ima_2"] == "image_preview"
+    assert "render_seq_length_chart_ima_2" not in node_types
     assert node_types["render_sequence_classification_tab_1"] == "table_preview"
     assert node_types["table_preview_001"] == "table_preview"
 
-    assert _has_edge(workflow, "seq_length_chart_001", "chart_image", "render_seq_length_chart_ima_2", "file")
+    # The sequence-length chart is now rendered with ggplot2 (r_plot) for
+    # publication-quality axes/labels, fed the CSV stats and previewed as an image.
+    assert node_types["seq_length_chart_001"] == "r_plot"
+    assert _has_edge(workflow, "seq_stats_001", "stats_csv", "seq_length_chart_001", "data_csv")
     assert _has_edge(workflow, "seq_stats_001", "stats_tsv", "table_preview_001", "file")
     assert "sequence_report_preview" not in workflow["outputs"]
+
+
+def test_biopython_template_wires_dead_end_outputs_to_viewers() -> None:
+    workflow = _load_template("biopython_analysis_pipeline.json")
+    node_types = _node_types(workflow)
+
+    # Previously dangling analysis outputs now each feed a viewer node so the
+    # results are visible instead of the node ending with nothing downstream.
+    assert node_types["view_blast_hits_001"] == "text_preview"
+    assert node_types["view_protein_001"] == "text_preview"
+    assert node_types["view_orf_table_001"] == "table_preview"
+    assert node_types["view_genbank_001"] == "text_preview"
+
+    assert _has_edge(workflow, "blast_001", "blast_xml", "view_blast_hits_001", "file")
+    assert _has_edge(workflow, "translate_001", "protein_fasta", "view_protein_001", "file")
+    assert _has_edge(workflow, "biostrings_001", "orf_table_csv", "view_orf_table_001", "file")
+    assert _has_edge(workflow, "seqio_write_001", "output_file", "view_genbank_001", "file")
 
 
 def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_sequences() -> None:

@@ -439,6 +439,32 @@ class NodeRegistry:
         self._object_info_cache = None
 
 
+# Node types whose primary artifact is a figure/report and so should render
+# their preview inline (a collapsible body on the node) instead of requiring a
+# separate image_preview/html_preview sink. Custom nodes can opt in with a
+# class attribute ``INLINE_PREVIEW = True``.
+INLINE_PREVIEW_NODE_IDS: frozenset[str] = frozenset({
+    # Generic charts (visualization.py)
+    "bar_chart", "line_chart", "scatter_plot", "volcano_plot", "ma_plot",
+    "heatmap", "manhattan_plot", "coverage_plot", "vcf_stats_chart",
+    "forest_plot", "circos_plot", "phylo_tree_viewer",
+    # R / ggplot2
+    "r_plot", "r_pheatmap",
+    # Domain-standard tools that emit a single figure or HTML report.
+    # (Multi-figure producers like ``scanpy_umap`` keep explicit preview nodes,
+    # one per output, since an inline body can only surface one figure.)
+    "quast", "krona", "nanoplot", "multiqc", "fastqc",
+    "deeptools_plot_heatmap", "deeptools_plot_profile", "cnvkit_plot",
+})
+
+
+def _is_inline_preview(node_class: Type[BaseNode]) -> bool:
+    explicit = getattr(node_class, "INLINE_PREVIEW", None)
+    if explicit is not None:
+        return bool(explicit)
+    return node_class.NODE_ID in INLINE_PREVIEW_NODE_IDS
+
+
 def _to_node_info(
     node_class: Type[BaseNode],
     custom_node_package: dict[str, Any] | None = None,
@@ -477,6 +503,7 @@ def _to_node_info(
         "search_aliases": list(node_class.SEARCH_ALIASES),
         "category": node_class.CATEGORY,
         "output_node": node_class.OUTPUT_NODE,
+        "inline_preview": _is_inline_preview(node_class),
         "visual_only": node_class.VISUAL_ONLY,
         "experimental": node_class.EXPERIMENTAL,
         "requires_external_tools": getattr(node_class, "REQUIRES_EXTERNAL_TOOLS", True),

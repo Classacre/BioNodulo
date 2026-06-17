@@ -2,6 +2,7 @@ import { useState, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkflowParameter } from '../../types';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
+import { isColorParam, toHexColor } from '../../utils/nodeLayout';
 import type { GraphNode } from '../canvas/WorkflowCanvas';
 import Icon from '../ui/Icon';
 
@@ -295,6 +296,25 @@ function renderParam(key: string, spec: {
       >
         <FileDropZone value={String(value)} accept={spec.accept} directory={isDirLike} onChange={v => onChange(node.id, key, v)} placeholder={t(isDirLike ? 'nodeDetails.dropDirectoryPlaceholder' : 'nodeDetails.dropFilePlaceholder')} />
       </TextLikeParamControl>
+    );
+  } else if (isColorParam(key, spec)) {
+    control = (
+      <div className="param-color-control">
+        <input
+          type="color"
+          className="param-color-swatch"
+          value={toHexColor(value)}
+          onChange={e => onChange(node.id, key, e.target.value)}
+        />
+        <input
+          type="text"
+          className="text-input param-input"
+          style={{ flex: 1 }}
+          value={String(value)}
+          spellCheck={false}
+          onChange={e => onChange(node.id, key, e.target.value)}
+        />
+      </div>
     );
   } else {
     control = (

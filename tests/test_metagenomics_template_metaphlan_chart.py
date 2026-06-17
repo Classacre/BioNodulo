@@ -49,7 +49,7 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     # the MetaPhlAn chart renders into a dedicated image_preview node.
     assert "taxonomy_report_001" not in node_types
     assert "taxonomy_report_preview_001" not in node_types
-    assert node_types["render_metaphlan_bar_ima_3"] == "image_preview"
+    assert "render_metaphlan_bar_ima_3" not in node_types
 
     validator = _output_validation(workflow, "metaphlan_001", "profile")
     chart = _node_by_id(workflow, "metaphlan_bar_001")
@@ -60,11 +60,10 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert chart["params"]["x_column"] == "clade_name"
     assert chart["params"]["y_column"] == "relative_abundance"
     assert chart["params"]["orientation"] == "horizontal"
-    assert chart["params"]["format"] == "png"
+    assert chart["params"]["format"] == "svg"
 
     assert not _has_edge(workflow, "metaphlan_001", "profile", "validate_metaphlan_profile_001", "input")
     assert _has_edge(workflow, "metaphlan_001", "profile", "metaphlan_bar_001", "table")
-    assert _has_edge(workflow, "metaphlan_bar_001", "chart_image", "render_metaphlan_bar_ima_3", "file")
     assert workflow["outputs"]["validated_metaphlan_profile"] == "metaphlan_001"
     assert workflow["outputs"]["metaphlan_chart"] == "metaphlan_bar_001"
     assert "taxonomy_report_preview" not in workflow["outputs"]

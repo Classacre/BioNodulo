@@ -144,18 +144,6 @@
       "ui": {
         "title": "Render Tree"
       }
-    },
-    {
-      "id": "render_tree_viewer_ima_0",
-      "type": "image_preview",
-      "position": [
-        2240,
-        80
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: tree_viewer"
-      }
     }
   ],
   "edges": [
@@ -234,16 +222,6 @@
       "to": {
         "node": "tree_viewer_001",
         "input": "tree_file"
-      }
-    },
-    {
-      "from": {
-        "node": "tree_viewer_001",
-        "output": "tree_image"
-      },
-      "to": {
-        "node": "render_tree_viewer_ima_0",
-        "input": "file"
       }
     }
   ],

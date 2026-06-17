@@ -32,8 +32,8 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     workflow = _load_template("deseq2_differential_expression.json")
     node_types = _node_types(workflow)
 
-    assert node_types["render_volcano_ima_6"] == "image_preview"
-    assert node_types["render_pca_plot_ima_8"] == "image_preview"
+    assert "render_volcano_ima_6" not in node_types
+    assert "render_pca_plot_ima_8" not in node_types
     assert node_types["render_deseq2_tab_0"] == "table_preview"
     assert node_types["render_deseq2_tab_1"] == "table_preview"
     assert node_types["render_normalized_counts_transpose_tab_2"] == "table_preview"
@@ -54,7 +54,7 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert pca_plot["params"]["x_column"] == "PC1"
     assert pca_plot["params"]["y_column"] == "PC2"
     assert pca_plot["params"]["color_column"] == "condition"
-    assert pca_plot["params"]["format"] == "png"
+    assert pca_plot["params"]["format"] == "html"
     assert pathway_gene_sets["params"]["file"] == "templates/data/deseq2_gene_sets.json"
     assert pathway_enrichment["params"]["input_column"] == "gene"
     assert pathway_enrichment["params"]["database_format"] == "json"
@@ -68,11 +68,7 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert normalized_counts_transpose["params"]["new_header"] == "sample"
     assert normalized_counts_transpose["params"]["output_type"] == "CSV"
 
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "render_volcano_ima_6", "file")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
     assert _has_edge(workflow, "deseq2_001", "pca_scores_csv", "pca_plot_001", "table")
-    assert _has_edge(workflow, "pca_plot_001", "plot_image", "render_pca_plot_ima_8", "file")
-    assert _has_edge(workflow, "heatmap_001", "plot_png", "heatmap_preview_001", "file")
     assert _has_edge(workflow, "deseq2_001", "results_csv", "render_deseq2_tab_0", "file")
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "render_deseq2_tab_1", "file")
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "normalized_counts_transpose_001", "table")

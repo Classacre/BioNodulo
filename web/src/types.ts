@@ -19,7 +19,7 @@ export interface InputSpec {
   forceInput?: boolean;
   advanced?: boolean;
   multiline?: boolean;
-  display?: 'number' | 'slider' | 'default';
+  display?: 'number' | 'slider' | 'default' | 'color';
   accept?: string;
   directory?: boolean;
   displayOptions?: {
@@ -51,6 +51,7 @@ export interface NodeMetadata {
   return_types?: string[];
   return_names?: string[];
   output_node?: boolean;
+  inline_preview?: boolean;
   visual_only?: boolean;
   experimental?: boolean;
   requires_external_tools?: string[];
@@ -104,6 +105,7 @@ export interface WorkflowNode {
     color?: string;
     shape?: 'round' | 'box' | 'card';
     collapsed?: boolean;
+    previewCollapsed?: boolean;
     pinned?: boolean;
     muted?: boolean;
     bypassed?: boolean;

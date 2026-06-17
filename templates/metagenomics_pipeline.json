@@ -168,7 +168,7 @@
         "x_column": "name",
         "y_column": "fraction_total_reads",
         "orientation": "horizontal",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "Taxonomy Chart"
@@ -184,7 +184,7 @@
       "params": {
         "title": "Bracken Abundance Heatmap",
         "scale": "column",
-        "format": "png"
+        "format": "html"
       },
       "ui": {
         "title": "Abundance Heatmap"
@@ -226,7 +226,7 @@
         "x_column": "clade_name",
         "y_column": "relative_abundance",
         "orientation": "horizontal",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "MetaPhlAn Chart"
@@ -291,7 +291,7 @@
         "x_column": "# Pathway",
         "y_column": "trimmed_reads_Coverage",
         "orientation": "horizontal",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "Pathway Coverage Chart"
@@ -335,18 +335,6 @@
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        1160,
-        884
-      ],
-      "params": {},
-      "ui": {
-        "title": "View MultiQC Report"
-      }
-    },
-    {
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
@@ -387,42 +375,6 @@
       }
     },
     {
-      "id": "render_bracken_bar_ima_1",
-      "type": "image_preview",
-      "position": [
-        2960,
-        300
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: bracken_bar"
-      }
-    },
-    {
-      "id": "render_bracken_heatmap_ima_2",
-      "type": "image_preview",
-      "position": [
-        2960,
-        520
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: bracken_heatmap"
-      }
-    },
-    {
-      "id": "render_metaphlan_bar_ima_3",
-      "type": "image_preview",
-      "position": [
-        2960,
-        740
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: metaphlan_bar"
-      }
-    },
-    {
       "id": "render_humann_tab_0",
       "type": "table_preview",
       "position": [
@@ -459,15 +411,18 @@
       }
     },
     {
-      "id": "render_humann_pathcoverage_bar_ima_3",
-      "type": "image_preview",
+      "id": "krona_001",
+      "type": "krona",
       "position": [
-        2600,
-        740
+        1880,
+        340
       ],
-      "params": {},
+      "params": {
+        "query_column": 2,
+        "taxid_column": 3
+      },
       "ui": {
-        "title": "View Figure: humann_pathcoverage_bar"
+        "title": "Krona Taxonomy"
       }
     }
   ],
@@ -638,17 +593,6 @@
       }
     },
     {
-      "id": "e15",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e16",
       "from": {
         "node": "db_001",
@@ -693,36 +637,6 @@
     },
     {
       "from": {
-        "node": "bracken_bar_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "render_bracken_bar_ima_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "bracken_heatmap_001",
-        "output": "heatmap_image"
-      },
-      "to": {
-        "node": "render_bracken_heatmap_ima_2",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "metaphlan_bar_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "render_metaphlan_bar_ima_3",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
         "node": "humann_001",
         "output": "pathabundance"
       },
@@ -753,12 +667,12 @@
     },
     {
       "from": {
-        "node": "humann_pathcoverage_bar_001",
-        "output": "chart_image"
+        "node": "kraken2_001",
+        "output": "output"
       },
       "to": {
-        "node": "render_humann_pathcoverage_bar_ima_3",
-        "input": "file"
+        "node": "krona_001",
+        "input": "classification"
       }
     }
   ],
@@ -782,6 +696,7 @@
     "trimmed_reads_quality_gate": "gate_trimmed_reads_001",
     "validated_multiqc_report": "mqc_001",
     "qc_dashboard": "qc_dashboard_001",
-    "qc_dashboard_preview": "qc_dashboard_preview_001"
+    "qc_dashboard_preview": "qc_dashboard_preview_001",
+    "krona_taxonomy": "krona_001"
   }
 }

@@ -33,8 +33,8 @@ def test_wgs_variant_template_previews_final_variant_reports() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["vep_001"] == "vep"
-    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
-    assert node_types["render_coverage_plot_ima_3"] == "image_preview"
+    assert "render_vcf_stats_ima_2" not in node_types
+    assert "render_coverage_plot_ima_3" not in node_types
     assert node_types["render_gate_prioritized_vcf_tab_0"] == "table_preview"
     assert node_types["render_vep_tab_1"] == "table_preview"
     assert node_types["render_manta_sv_tab_0"] == "table_preview"

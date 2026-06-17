@@ -35,7 +35,7 @@ def test_chip_seq_template_adds_final_html_report_from_validated_peaks() -> None
     assert node_types.get("peak_annotation_001") == "bedtools_closest"
     assert node_types.get("render_macs2_tab_0") == "table_preview"
     assert node_types.get("render_peak_annotation_tab_1") == "table_preview"
-    assert node_types.get("render_chip_signal_plot_ima_2") == "image_preview"
+    assert "render_chip_signal_plot_ima_2" not in node_types
 
     annotator = _node_by_id(workflow, "peak_annotation_001")
     assert annotator["params"]["distance"] is True
@@ -43,6 +43,4 @@ def test_chip_seq_template_adds_final_html_report_from_validated_peaks() -> None
 
     assert _has_edge(workflow, "macs2_001", "peaks", "render_macs2_tab_0", "file")
     assert _has_edge(workflow, "peak_annotation_001", "closest", "render_peak_annotation_tab_1", "file")
-    assert _has_edge(workflow, "chip_signal_plot_001", "coverage_image", "render_chip_signal_plot_ima_2", "file")
-    assert not _has_edge(workflow, "coverage_001", "coverage_bw", "render_chip_signal_plot_ima_2", "file")
     assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"

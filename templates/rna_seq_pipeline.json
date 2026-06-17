@@ -206,7 +206,7 @@
         "method": "cpm",
         "id_columns": "Geneid",
         "axis": "rows",
-        "output_type": "TSV"
+        "output_type": "CSV"
       },
       "ui": {
         "title": "Normalize Counts"
@@ -214,18 +214,20 @@
     },
     {
       "id": "counts_heatmap_001",
-      "type": "heatmap",
+      "type": "r_pheatmap",
       "position": [
         2960,
         80
       ],
       "params": {
-        "title": "Normalized Count Heatmap",
         "scale": "row",
-        "format": "png"
+        "cluster_rows": true,
+        "cluster_cols": true,
+        "show_rownames": false,
+        "show_colnames": true
       },
       "ui": {
-        "title": "Normalized Counts Heatmap"
+        "title": "Normalized Count Heatmap (pheatmap)"
       }
     },
     {
@@ -263,18 +265,6 @@
             }
           }
         }
-      }
-    },
-    {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        2960,
-        1646
-      ],
-      "params": {},
-      "ui": {
-        "title": "View MultiQC Report"
       }
     },
     {
@@ -354,18 +344,6 @@
       "params": {},
       "ui": {
         "title": "View Table: normalize_counts"
-      }
-    },
-    {
-      "id": "render_counts_heatmap_ima_2",
-      "type": "image_preview",
-      "position": [
-        3680,
-        520
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: counts_heatmap"
       }
     },
     {
@@ -490,7 +468,7 @@
       },
       "to": {
         "node": "counts_heatmap_001",
-        "input": "matrix"
+        "input": "data_csv"
       }
     },
     {
@@ -604,17 +582,6 @@
       }
     },
     {
-      "id": "e15d",
-      "from": {
-        "node": "mqc_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e16",
       "from": {
         "node": "annot_001",
@@ -642,16 +609,6 @@
       },
       "to": {
         "node": "render_normalize_counts_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "counts_heatmap_001",
-        "output": "heatmap_image"
-      },
-      "to": {
-        "node": "render_counts_heatmap_ima_2",
         "input": "file"
       }
     },

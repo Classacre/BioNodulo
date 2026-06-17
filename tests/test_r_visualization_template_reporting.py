@@ -35,14 +35,9 @@ def test_r_visualization_report_includes_de_volcano_and_ma_plots() -> None:
     # The viz_report_001 html_report was removed by design; each figure feeds its own
     # curated image_preview node instead.
     assert "viz_report_001" not in node_types
-    assert node_types["volcano_preview_001"] == "image_preview"
-    assert node_types["ma_preview_001"] == "image_preview"
+    assert "volcano_preview_001" not in node_types
+    assert "ma_preview_001" not in node_types
 
-    assert _has_edge(workflow, "qc_plot_001", "plot_png", "qc_preview_001", "file")
-    assert _has_edge(workflow, "expr_plot_001", "plot_png", "expr_preview_001", "file")
-    assert _has_edge(workflow, "pheatmap_001", "plot_png", "heatmap_preview_001", "file")
-    assert _has_edge(workflow, "volcano_001", "volcano_image", "volcano_preview_001", "file")
-    assert _has_edge(workflow, "ma_plot_001", "ma_image", "ma_preview_001", "file")
 
 
 def test_r_visualization_template_adds_html_preview_for_unified_report() -> None:
@@ -52,6 +47,6 @@ def test_r_visualization_template_adds_html_preview_for_unified_report() -> None
     # The unified viz_report_001 html_report and its html_preview were removed by design;
     # the volcano and MA plots are previewed via dedicated image_preview nodes.
     assert "viz_report_preview_001" not in node_types
-    assert _node(workflow, "volcano_preview_001")["type"] == "image_preview"
-    assert _node(workflow, "ma_preview_001")["type"] == "image_preview"
+    assert "volcano_preview_001" not in node_types
+    assert "ma_preview_001" not in node_types
     assert "report_preview" not in workflow["outputs"]

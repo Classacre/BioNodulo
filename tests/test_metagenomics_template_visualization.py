@@ -74,7 +74,7 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     assert node_types["render_humann_tab_0"] == "table_preview"
     assert node_types["render_humann_tab_1"] == "table_preview"
     assert node_types["render_humann_tab_2"] == "table_preview"
-    assert node_types["render_humann_pathcoverage_bar_ima_3"] == "image_preview"
+    assert "render_humann_pathcoverage_bar_ima_3" not in node_types
 
     abundance_validator = _output_validation(workflow, "humann_001", "pathabundance")
     coverage_validator = _output_validation(workflow, "humann_001", "pathcoverage")
@@ -89,14 +89,13 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     assert coverage_chart["params"]["x_column"] == "# Pathway"
     assert coverage_chart["params"]["y_column"] == "trimmed_reads_Coverage"
     assert coverage_chart["params"]["orientation"] == "horizontal"
-    assert coverage_chart["params"]["format"] == "png"
+    assert coverage_chart["params"]["format"] == "svg"
 
     assert not _has_edge(workflow, "humann_001", "pathabundance", "validate_humann_pathways_001", "input")
     assert _has_edge(workflow, "humann_001", "pathabundance", "render_humann_tab_0", "file")
     assert not _has_edge(workflow, "humann_001", "pathcoverage", "validate_humann_pathcoverage_001", "input")
     assert _has_edge(workflow, "humann_001", "pathcoverage", "humann_pathcoverage_bar_001", "table")
     assert _has_edge(workflow, "humann_001", "pathcoverage", "render_humann_tab_1", "file")
-    assert _has_edge(workflow, "humann_pathcoverage_bar_001", "chart_image", "render_humann_pathcoverage_bar_ima_3", "file")
     assert _has_edge(workflow, "humann_001", "genefamilies", "render_humann_tab_2", "file")
     assert workflow["outputs"]["validated_humann_pathways"] == "humann_001"
     assert workflow["outputs"]["validated_humann_pathcoverage"] == "humann_001"
@@ -111,13 +110,12 @@ def test_metagenomics_template_adds_bracken_abundance_heatmap_to_taxonomy_report
     # The taxonomy_report_001 html_report was removed by design; the heatmap renders
     # into a dedicated image_preview node.
     assert "taxonomy_report_001" not in node_types
-    assert node_types["render_bracken_heatmap_ima_2"] == "image_preview"
+    assert "render_bracken_heatmap_ima_2" not in node_types
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
 
     assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
     assert heatmap["params"]["scale"] == "column"
-    assert heatmap["params"]["format"] == "png"
+    assert heatmap["params"]["format"] == "html"
 
     assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert _has_edge(workflow, "bracken_heatmap_001", "heatmap_image", "render_bracken_heatmap_ima_2", "file")
     assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"

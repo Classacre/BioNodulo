@@ -255,6 +255,8 @@ export default function InspectorPanel({
               shape: 'card',
               title: selectedNode.ui?.title || meta?.display_name || selectedNode.type,
               visualOnly: false,
+              inlinePreview: Boolean(meta?.inline_preview),
+              previewCollapsed: selectedNode.ui?.previewCollapsed ?? false,
             };
             return (
               <NodeEditor

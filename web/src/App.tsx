@@ -2727,18 +2727,32 @@ export default function App() {
     setDismissedErrorNodeIds(new Set());
   }, [latestRunId]);
   const latestPreviewsKey = useMemo(() => previewsSignature(runs[0]), [runs]);
+  // A node renders an inline preview when it registered one under its own id
+  // (image_preview, html_preview, table_preview, text_preview, and any
+  // analysis node that self-registers a summary), branching by file extension.
+  // For the wired image_preview/html_preview nodes we also fall back to the
+  // upstream producer's auto-registered output for backward compatibility.
+  const isImagePreviewPath = (p: string) => /\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(p);
+  const isHtmlPreviewPath = (p: string) => /\.html?$/i.test(p);
   const nodePreviewsMap = useMemo(() => {
     const latest = runs[0];
     if (!latest) return undefined;
+    const previews = latest.previews ?? {};
     const map = new Map<string, string>();
+    const toUrl = (nodeId: string, path: string) =>
+      appPath(`/api/previews/${latest.run_id}/${nodeId}?path=${encodeURIComponent(path)}`);
     for (const node of activeWorkflow.nodes) {
-      if (node.type !== 'image_preview') continue;
-      const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
-      if (!incoming) continue;
-      const sourceNodeId = incoming.from.node;
-      const path = latest.previews?.[sourceNodeId];
-      if (path) {
-        map.set(node.id, appPath(`/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`));
+      const own = previews[node.id];
+      if (own && isImagePreviewPath(own)) {
+        map.set(node.id, toUrl(node.id, own));
+        continue;
+      }
+      if (node.type === 'image_preview') {
+        const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
+        const path = incoming ? previews[incoming.from.node] : undefined;
+        if (path && isImagePreviewPath(path)) {
+          map.set(node.id, toUrl(incoming!.from.node, path));
+        }
       }
     }
     return map;
@@ -2746,15 +2760,22 @@ export default function App() {
   const nodeHtmlPreviewsMap = useMemo(() => {
     const latest = runs[0];
     if (!latest) return undefined;
+    const previews = latest.previews ?? {};
     const map = new Map<string, string>();
+    const toUrl = (nodeId: string, path: string) =>
+      appPath(`/api/previews/${latest.run_id}/${nodeId}?path=${encodeURIComponent(path)}`);
     for (const node of activeWorkflow.nodes) {
-      if (node.type !== 'html_preview') continue;
-      const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
-      if (!incoming) continue;
-      const sourceNodeId = incoming.from.node;
-      const path = latest.previews?.[sourceNodeId];
-      if (path && /\.html?$/i.test(path)) {
-        map.set(node.id, appPath(`/api/previews/${latest.run_id}/${sourceNodeId}?path=${encodeURIComponent(path)}`));
+      const own = previews[node.id];
+      if (own && isHtmlPreviewPath(own)) {
+        map.set(node.id, toUrl(node.id, own));
+        continue;
+      }
+      if (node.type === 'html_preview') {
+        const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
+        const path = incoming ? previews[incoming.from.node] : undefined;
+        if (path && isHtmlPreviewPath(path)) {
+          map.set(node.id, toUrl(incoming!.from.node, path));
+        }
       }
     }
     return map;

@@ -182,7 +182,7 @@
         "x_column": "Metric Name",
         "y_column": "Metric Value",
         "orientation": "horizontal",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "Metrics Summary Chart"
@@ -201,15 +201,45 @@
       }
     },
     {
-      "id": "render_metrics_summary_chart_ima_1",
+      "id": "scanpy_umap_001",
+      "type": "scanpy_umap",
+      "position": [
+        1160,
+        300
+      ],
+      "params": {
+        "min_genes": 200,
+        "min_cells": 3,
+        "n_pcs": 30,
+        "n_neighbors": 15,
+        "resolution": 1.0
+      },
+      "ui": {
+        "title": "Scanpy UMAP + QC"
+      }
+    },
+    {
+      "id": "render_umap_ima_1",
       "type": "image_preview",
       "position": [
-        1880,
-        634
+        1520,
+        220
       ],
       "params": {},
       "ui": {
-        "title": "View Figure: metrics_summary_chart"
+        "title": "View UMAP (Leiden)"
+      }
+    },
+    {
+      "id": "render_qc_violin_ima_2",
+      "type": "image_preview",
+      "position": [
+        1520,
+        440
+      ],
+      "params": {},
+      "ui": {
+        "title": "View QC Violins"
       }
     }
   ],
@@ -303,11 +333,31 @@
     },
     {
       "from": {
-        "node": "metrics_summary_chart_001",
-        "output": "chart_image"
+        "node": "cr_count_001",
+        "output": "filtered_feature_bc_matrix_h5"
       },
       "to": {
-        "node": "render_metrics_summary_chart_ima_1",
+        "node": "scanpy_umap_001",
+        "input": "matrix_h5"
+      }
+    },
+    {
+      "from": {
+        "node": "scanpy_umap_001",
+        "output": "umap_png"
+      },
+      "to": {
+        "node": "render_umap_ima_1",
+        "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "scanpy_umap_001",
+        "output": "qc_violin_png"
+      },
+      "to": {
+        "node": "render_qc_violin_ima_2",
         "input": "file"
       }
     }
@@ -325,6 +375,7 @@
     "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
-    "qc_dashboard_preview": "qc_dashboard_preview_001"
+    "qc_dashboard_preview": "qc_dashboard_preview_001",
+    "umap": "scanpy_umap_001"
   }
 }

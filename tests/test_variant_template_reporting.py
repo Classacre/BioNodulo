@@ -33,14 +33,12 @@ def test_variant_template_previews_final_variant_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["vep_001"] == "vep"
-    assert node_types["render_vcf_stats_ima_2"] == "image_preview"
-    assert node_types["render_coverage_plot_ima_3"] == "image_preview"
+    assert "render_vcf_stats_ima_2" not in node_types
+    assert "render_coverage_plot_ima_3" not in node_types
     assert node_types["render_gate_prioritized_vcf_tab_0"] == "table_preview"
     assert node_types["render_vep_tab_1"] == "table_preview"
 
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
-    assert _has_edge(workflow, "vcf_stats_001", "stats_image", "render_vcf_stats_ima_2", "file")
-    assert _has_edge(workflow, "coverage_plot_001", "coverage_image", "render_coverage_plot_ima_3", "file")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
     assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
     assert workflow["outputs"]["vep_annotation"] == "vep_001"

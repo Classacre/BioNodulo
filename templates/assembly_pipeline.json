@@ -255,7 +255,7 @@
         "y_column": "length",
         "title": "Contig Lengths",
         "orientation": "horizontal",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "Contig Length Chart"
@@ -278,18 +278,6 @@
       },
       "ui": {
         "title": "Contig Summary"
-      }
-    },
-    {
-      "id": "html_preview_001",
-      "type": "html_preview",
-      "position": [
-        2960,
-        1196
-      ],
-      "params": {},
-      "ui": {
-        "title": "View QUAST Report"
       }
     },
     {
@@ -326,18 +314,6 @@
       "params": {},
       "ui": {
         "title": "View Table: assembly_contig_summary"
-      }
-    },
-    {
-      "id": "render_assembly_stats_chart_ima_4",
-      "type": "image_preview",
-      "position": [
-        3680,
-        960
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Figure: assembly_stats_chart"
       }
     }
   ],
@@ -486,17 +462,6 @@
       }
     },
     {
-      "id": "e9",
-      "from": {
-        "node": "quast_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "html_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e10",
       "from": {
         "node": "ref_001",
@@ -534,16 +499,6 @@
       },
       "to": {
         "node": "render_assembly_contig_summary_tab_2",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "assembly_stats_chart_001",
-        "output": "chart_image"
-      },
-      "to": {
-        "node": "render_assembly_stats_chart_ima_4",
         "input": "file"
       }
     }

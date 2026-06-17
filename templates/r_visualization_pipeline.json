@@ -79,20 +79,6 @@
       }
     },
     {
-      "id": "qc_preview_001",
-      "type": "image_preview",
-      "position": [
-        800,
-        80
-      ],
-      "params": {
-        "file": ""
-      },
-      "ui": {
-        "title": "QC Plot Preview"
-      }
-    },
-    {
       "id": "expr_df_001",
       "type": "r_dataframe_builder",
       "position": [
@@ -132,20 +118,6 @@
       },
       "ui": {
         "title": "Expression Scatter Plot"
-      }
-    },
-    {
-      "id": "expr_preview_001",
-      "type": "image_preview",
-      "position": [
-        800,
-        351
-      ],
-      "params": {
-        "file": ""
-      },
-      "ui": {
-        "title": "Expr Plot Preview"
       }
     },
     {
@@ -216,20 +188,6 @@
       }
     },
     {
-      "id": "heatmap_preview_001",
-      "type": "image_preview",
-      "position": [
-        800,
-        622
-      ],
-      "params": {
-        "file": ""
-      },
-      "ui": {
-        "title": "Heatmap Preview"
-      }
-    },
-    {
       "id": "volcano_001",
       "type": "volcano_plot",
       "position": [
@@ -238,7 +196,7 @@
       ],
       "params": {
         "title": "Differential Expression Volcano Plot",
-        "format": "png",
+        "format": "html",
         "logfc_column": "log2FoldChange",
         "pvalue_column": "padj"
       },
@@ -255,41 +213,13 @@
       ],
       "params": {
         "title": "Differential Expression MA Plot",
-        "format": "png",
+        "format": "html",
         "mean_column": "baseMean",
         "logfc_column": "log2FoldChange",
         "pvalue_column": "padj"
       },
       "ui": {
         "title": "MA Plot"
-      }
-    },
-    {
-      "id": "volcano_preview_001",
-      "type": "image_preview",
-      "position": [
-        800,
-        893
-      ],
-      "params": {
-        "file": ""
-      },
-      "ui": {
-        "title": "Volcano Preview"
-      }
-    },
-    {
-      "id": "ma_preview_001",
-      "type": "image_preview",
-      "position": [
-        800,
-        1164
-      ],
-      "params": {
-        "file": ""
-      },
-      "ui": {
-        "title": "MA Plot Preview"
       }
     }
   ],
@@ -306,17 +236,6 @@
       }
     },
     {
-      "id": "e2",
-      "from": {
-        "node": "qc_plot_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "qc_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e3",
       "from": {
         "node": "expr_df_001",
@@ -328,17 +247,6 @@
       }
     },
     {
-      "id": "e4",
-      "from": {
-        "node": "expr_plot_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "expr_preview_001",
-        "input": "file"
-      }
-    },
-    {
       "id": "e5b",
       "from": {
         "node": "heatmap_data_001",
@@ -347,17 +255,6 @@
       "to": {
         "node": "pheatmap_001",
         "input": "data_csv"
-      }
-    },
-    {
-      "id": "e6",
-      "from": {
-        "node": "pheatmap_001",
-        "output": "plot_png"
-      },
-      "to": {
-        "node": "heatmap_preview_001",
-        "input": "file"
       }
     },
     {
@@ -380,28 +277,6 @@
       "to": {
         "node": "ma_plot_001",
         "input": "results_table"
-      }
-    },
-    {
-      "id": "e6c",
-      "from": {
-        "node": "volcano_001",
-        "output": "volcano_image"
-      },
-      "to": {
-        "node": "volcano_preview_001",
-        "input": "file"
-      }
-    },
-    {
-      "id": "e6d",
-      "from": {
-        "node": "ma_plot_001",
-        "output": "ma_image"
-      },
-      "to": {
-        "node": "ma_preview_001",
-        "input": "file"
       }
     }
   ],

@@ -81,16 +81,15 @@ def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_
         "x_column": "Metric Name",
         "y_column": "Metric Value",
         "orientation": "horizontal",
-        "format": "png",
+        "format": "svg",
     }
     # The HTML report was replaced by direct render nodes: the metrics table and
     # the chart are each previewed individually.
     assert node_types["render_cr_count_tab_0"] == "table_preview"
-    assert node_types["render_metrics_summary_chart_ima_1"] == "image_preview"
+    assert "render_metrics_summary_chart_ima_1" not in node_types
 
     assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
-    assert _has_edge(workflow, "metrics_summary_chart_001", "chart_image", "render_metrics_summary_chart_ima_1", "file")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["validated_metrics_summary"] == "cr_count_001"
     assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
