@@ -332,6 +332,7 @@ def download_example_data(
         category_dir = data_root / spec.category
         category_dir.mkdir(parents=True, exist_ok=True)
         dest = category_dir / spec.filename
+        dest.parent.mkdir(parents=True, exist_ok=True)  # support nested filenames
 
         progress_msg = f"[{idx}/{total}] {spec.category}/{spec.filename} — {spec.description}"
         _emit(progress_msg, "info")
@@ -393,6 +394,398 @@ def _download_url(url: str, dest: Path, gunzip: bool = False) -> None:
     else:
         tmp_path.rename(dest)
 
+# ---------------------------------------------------------------------------
+# Additional generators for the remaining template categories (crispr, wgbs,
+# proteomics, spatial, synthetic biology, long-read, chip-seq controls). Same
+# philosophy: small, well-formed, never-404. Files whose real public source is
+# stable use a URL instead (see manifest below).
+# ---------------------------------------------------------------------------
+
+_COMPLEMENT = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+
+
+def _revcomp(seq: str) -> str:
+    return seq.translate(_COMPLEMENT)[::-1]
+
+
+def _write_fastq_gz(
+    path: Path,
+    *,
+    reads: list[str] | None = None,
+    num_reads: int = 0,
+    read_len: int = 0,
+    seed: int = 0,
+    prefix: str = "read",
+    mate: int = 1,
+) -> None:
+    """Write a gzip-compressed FASTQ. Either pass explicit *reads* or generate
+    *num_reads* random reads of *read_len*."""
+    import random
+
+    rng = random.Random(seed)
+    if reads is None:
+        reads = ["".join(rng.choice("ACGT") for _ in range(read_len)) for _ in range(num_reads)]
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        for idx, seq in enumerate(reads, start=1):
+            qual = "".join(chr(33 + rng.randint(25, 40)) for _ in range(len(seq)))
+            fh.write(f"@{prefix}_{idx}/{mate}\n{seq}\n+\n{qual}\n")
+
+
+# --- chip-seq input control + gene annotations ----------------------------
+
+def _generate_chip_input_control_read1(path: Path) -> None:
+    _write_fastq(path, num_reads=2000, read_len=50, seed=1324080, prefix="chipseq_input_control_read1")
+
+
+def _generate_chip_input_control_read2(path: Path) -> None:
+    _write_fastq(path, num_reads=2000, read_len=50, seed=1324081, prefix="chipseq_input_control_read2")
+
+
+def _generate_chip_genes_bed(path: Path) -> None:
+    rows = [
+        ("chrX", 5000, 6500, "GeneA", "+"), ("chrX", 12000, 14000, "GeneB", "-"),
+        ("chrX", 21000, 23000, "GeneC", "+"), ("chrX", 35000, 37000, "GeneD", "-"),
+        ("chr1", 1000, 2500, "GeneE", "+"), ("chr2", 8000, 9500, "GeneF", "-"),
+    ]
+    rows.sort(key=lambda r: (r[0], r[1]))
+    path.write_text(
+        "".join(f"{c}\t{s}\t{e}\t{n}\t.\t{strand}\n" for c, s, e, n, strand in rows),
+        encoding="utf-8",
+    )
+
+
+# --- crispr ----------------------------------------------------------------
+
+def _crispr_library() -> list[tuple[str, str, str]]:
+    """Deterministic sgRNA library shared by the .tsv and the screen reads."""
+    import random
+
+    rng = random.Random(7)
+    lib: list[tuple[str, str, str]] = []
+    for gene, n in (("GENEA", 3), ("GENEB", 3), ("GENEC", 2)):
+        for k in range(1, n + 1):
+            seq = "".join(rng.choice("ACGT") for _ in range(20))
+            lib.append((f"sg_{gene}_{k}", seq, gene))
+    return lib
+
+
+def _generate_crispr_genome(path: Path) -> None:
+    import random
+
+    rng = random.Random(424242)
+    seq = "".join(rng.choice("ACGT") for _ in range(1800))  # plenty of NGG PAMs by chance
+    lines = "\n".join(seq[i:i + 70] for i in range(0, len(seq), 70))
+    path.write_text(f">chr1 synthetic CRISPR target locus\n{lines}\n", encoding="utf-8")
+
+
+def _generate_crispr_sgrna_library(path: Path) -> None:
+    lines = ["sgRNA\tsequence\tgene"]
+    lines += [f"{sgid}\t{seq}\t{gene}" for sgid, seq, gene in _crispr_library()]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _generate_crispr_control(path: Path) -> None:
+    reads = [f"ACCG{seq}GTTT" for _, seq, _ in _crispr_library() for _ in range(80)]
+    _write_fastq_gz(path, reads=reads, seed=11, prefix="crispr_control")
+
+
+def _generate_crispr_treated(path: Path) -> None:
+    # Deplete GENEA guides relative to control so mageck_test ranks hits.
+    reads = [
+        f"ACCG{seq}GTTT"
+        for _, seq, gene in _crispr_library()
+        for _ in range(10 if gene == "GENEA" else 80)
+    ]
+    _write_fastq_gz(path, reads=reads, seed=12, prefix="crispr_treated")
+
+
+def _amplicon_reads(n: int, seed: int, revcomp: bool = False) -> list[str]:
+    import random
+
+    rng = random.Random(seed)
+    amp = "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT"  # matches template amplicon_seq
+    out = []
+    for _ in range(n):
+        s = list(amp)
+        if rng.random() < 0.3:  # synthetic edit so editing-quant is non-trivial
+            p = rng.randint(15, 25)
+            s[p] = rng.choice("ACGT")
+        seq = "".join(s)
+        out.append(_revcomp(seq) if revcomp else seq)
+    return out
+
+
+def _generate_crispr_amplicon_r1(path: Path) -> None:
+    _write_fastq_gz(path, reads=_amplicon_reads(400, 21), seed=21, prefix="crispr_amp_R1", mate=1)
+
+
+def _generate_crispr_amplicon_r2(path: Path) -> None:
+    _write_fastq_gz(path, reads=_amplicon_reads(400, 21, revcomp=True), seed=22, prefix="crispr_amp_R2", mate=2)
+
+
+# --- wgbs / epigenomics ----------------------------------------------------
+
+def _epigenomics_reference_seq() -> str:
+    import random
+
+    rng = random.Random(55)
+    return "".join(rng.choice("ACGTCGCG") for _ in range(5000))  # CpG-enriched
+
+
+def _generate_epigenomics_reference(path: Path) -> None:
+    s = _epigenomics_reference_seq()
+    lines = "\n".join(s[i:i + 70] for i in range(0, len(s), 70))
+    path.write_text(f">chr1 synthetic bisulfite reference\n{lines}\n", encoding="utf-8")
+
+
+def _bisulfite_reads(seed: int, convert: str, num: int = 1500, read_len: int = 80) -> list[str]:
+    import random
+
+    rng = random.Random(seed)
+    ref = _epigenomics_reference_seq()
+    table = {"CT": str.maketrans("C", "T"), "GA": str.maketrans("G", "A")}[convert]
+    out = []
+    for _ in range(num):
+        start = rng.randint(0, len(ref) - read_len)
+        out.append(ref[start:start + read_len].translate(table))  # most C unmethylated
+    return out
+
+
+def _generate_epigenomics_r1(path: Path) -> None:
+    _write_fastq_gz(path, reads=_bisulfite_reads(551, "CT"), seed=551, prefix="wgbs_R1", mate=1)
+
+
+def _generate_epigenomics_r2(path: Path) -> None:
+    _write_fastq_gz(path, reads=_bisulfite_reads(552, "GA"), seed=552, prefix="wgbs_R2", mate=2)
+
+
+def _generate_bismark_genome_dir(path: Path) -> None:
+    """Bismark --genome folder: the reference FASTA plus a placeholder
+    Bisulfite_Genome/ (real bisulfite indices need bismark_genome_preparation;
+    this keeps the directory valid and lets a prep step fill it in)."""
+    path.mkdir(parents=True, exist_ok=True)
+    _generate_epigenomics_reference(path / "genome.fa")
+    bg = path / "Bisulfite_Genome"
+    (bg / "CT_conversion").mkdir(parents=True, exist_ok=True)
+    (bg / "GA_conversion").mkdir(parents=True, exist_ok=True)
+    (bg / "README.txt").write_text(
+        "Placeholder. Run `bismark_genome_preparation` on this folder to build "
+        "the bisulfite indices before aligning.\n",
+        encoding="utf-8",
+    )
+
+
+# --- proteomics ------------------------------------------------------------
+
+def _generate_proteomics_fasta(path: Path) -> None:
+    import random
+
+    rng = random.Random(99)
+    aa = "ACDEFGHIKLMNPQRSTVWY"
+    targets = [(f"sp|TEST{i}|TEST{i}_YEAST Synthetic protein {i}",
+                "".join(rng.choice(aa) for _ in range(120))) for i in range(1, 11)]
+    lines: list[str] = []
+    for name, seq in targets:  # target entries
+        lines.append(f">{name}")
+        lines += [seq[j:j + 60] for j in range(0, len(seq), 60)]
+    for name, seq in targets:  # decoy entries (reversed, `decoy` prefix)
+        lines.append(f">decoy_{name}")
+        rseq = seq[::-1]
+        lines += [rseq[j:j + 60] for j in range(0, len(rseq), 60)]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# --- long-read -------------------------------------------------------------
+
+def _generate_long_read_reference(path: Path) -> None:
+    import random
+
+    rng = random.Random(303)
+    s = "".join(rng.choice("ACGT") for _ in range(2000))
+    lines = "\n".join(s[i:i + 70] for i in range(0, len(s), 70))
+    path.write_text(f">chr_test synthetic long-read reference\n{lines}\n", encoding="utf-8")
+
+
+_POD5_URL = "https://media.githubusercontent.com/media/nanoporetech/pod5-file-format/master/test_data/multi_fast5_zip_v4.pod5"
+
+
+def _generate_long_read_pod5_dir(path: Path) -> None:
+    """pod5 input is a directory of raw ONT signal. Download one real tiny pod5
+    (Git-LFS media endpoint serves the binary, not a pointer)."""
+    path.mkdir(parents=True, exist_ok=True)
+    dest = path / "example.pod5"
+    if not dest.exists():
+        _download_url(_POD5_URL, dest)
+
+
+# --- spatial transcriptomics ----------------------------------------------
+
+def _spatial_barcodes() -> list[str]:
+    return [f"spot_{i:03d}" for i in range(40)]
+
+
+def _generate_spatial_counts(path: Path) -> None:
+    import random
+
+    rng = random.Random(808)
+    barcodes = _spatial_barcodes()
+    lines = ["gene," + ",".join(barcodes)]
+    for g in range(400):  # gene-by-spot matrix; node transposes to spots x genes
+        lines.append(f"GENE{g:04d}," + ",".join(str(rng.randint(0, 20)) for _ in barcodes))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _generate_spatial_coordinates(path: Path) -> None:
+    import random
+
+    rng = random.Random(809)
+    lines = ["barcode,x,y"]
+    for b in _spatial_barcodes():
+        lines.append(f"{b},{rng.randint(0, 1000)},{rng.randint(0, 1000)}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# 1x1 PNG so Space Ranger image readers have a valid (if tiny) image.
+_PNG_1x1 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d4944415478da6360000002000001e221bc330000000049454e44ae426082"
+)
+
+
+def _generate_visium_outs_dir(path: Path) -> None:
+    """Minimal Space Ranger `outs/` layout (MTX matrix + spatial/) so the input
+    directory validates and read_visium has the expected files."""
+    import json as _json
+
+    barcodes = _spatial_barcodes()
+    mat = path / "filtered_feature_bc_matrix"
+    sp = path / "spatial"
+    mat.mkdir(parents=True, exist_ok=True)
+    sp.mkdir(parents=True, exist_ok=True)
+
+    genes = [f"GENE{g:04d}" for g in range(50)]
+    with gzip.open(mat / "barcodes.tsv.gz", "wt", encoding="utf-8") as fh:
+        fh.write("\n".join(barcodes) + "\n")
+    with gzip.open(mat / "features.tsv.gz", "wt", encoding="utf-8") as fh:
+        fh.write("\n".join(f"{g}\t{g}\tGene Expression" for g in genes) + "\n")
+    entries = [(gi + 1, bi + 1, (gi + bi) % 7 + 1)
+               for gi in range(len(genes)) for bi in range(len(barcodes)) if (gi + bi) % 3 == 0]
+    with gzip.open(mat / "matrix.mtx.gz", "wt", encoding="utf-8") as fh:
+        fh.write("%%MatrixMarket matrix coordinate integer general\n%\n")
+        fh.write(f"{len(genes)} {len(barcodes)} {len(entries)}\n")
+        for g, b, v in entries:
+            fh.write(f"{g} {b} {v}\n")
+
+    pos = ["barcode,in_tissue,array_row,array_col,pxl_row_in_fullres,pxl_col_in_fullres"]
+    for i, b in enumerate(barcodes):
+        pos.append(f"{b},1,{i // 8},{i % 8},{100 + i * 5},{100 + i * 7}")
+    (sp / "tissue_positions_list.csv").write_text("\n".join(pos) + "\n", encoding="utf-8")
+    (sp / "scalefactors_json.json").write_text(
+        _json.dumps({"spot_diameter_fullres": 89.0, "tissue_hires_scalef": 0.17,
+                     "fiducial_diameter_fullres": 144.0, "tissue_lowres_scalef": 0.05}),
+        encoding="utf-8",
+    )
+    (sp / "tissue_hires_image.png").write_bytes(_PNG_1x1)
+    (sp / "tissue_lowres_image.png").write_bytes(_PNG_1x1)
+
+
+# --- synthetic biology -----------------------------------------------------
+
+def _generate_cello_options(path: Path) -> None:
+    path.write_text(
+        "name,value\n"
+        "Eugene,true\n"
+        "test_verbose,2\n"
+        "print_iss,false\n"
+        "print_part_uri,true\n",
+        encoding="utf-8",
+    )
+
+
+def _generate_cello_netlist(path: Path) -> None:
+    path.write_text(
+        "module toggle (output out, input a, input b);\n"
+        "  wire w1, w2;\n"
+        "  nor (w1, a, w2);\n"
+        "  nor (w2, b, w1);\n"
+        "  assign out = w1;\n"
+        "endmodule\n",
+        encoding="utf-8",
+    )
+
+
+def _generate_copasi_cps(path: Path) -> None:
+    path.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<COPASI xmlns="http://www.copasi.org/static/schema" versionMajor="4" '
+        'versionMinor="40" versionDevel="0">\n'
+        '  <ListOfFunctions/>\n'
+        '  <Model key="Model_0" name="Toggle Switch" timeUnit="s" '
+        'volumeUnit="ml" quantityUnit="mmol" type="deterministic">\n'
+        '    <ListOfMetabolites/>\n'
+        '  </Model>\n'
+        '</COPASI>\n',
+        encoding="utf-8",
+    )
+
+
+def _generate_sbol3_toggle(path: Path) -> None:
+    """Prefer a guaranteed-valid SBOL3 doc via pysbol3 when importable; fall
+    back to a minimal RDF/XML literal otherwise."""
+    try:
+        import sbol3  # type: ignore
+
+        sbol3.set_namespace("https://bionodulo.org/synbio")
+        doc = sbol3.Document()
+        comp = sbol3.Component("toggle_switch", sbol3.SBO_DNA)
+        comp.roles.append("https://identifiers.org/SO:0000804")  # engineered region
+        doc.add(comp)
+        doc.write(str(path), sbol3.RDF_XML)
+        return
+    except Exception:
+        pass
+    path.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" '
+        'xmlns:sbol="http://sbols.org/v3#">\n'
+        '  <sbol:Component rdf:about="https://bionodulo.org/synbio/toggle_switch">\n'
+        '    <sbol:displayId>toggle_switch</sbol:displayId>\n'
+        '    <sbol:type rdf:resource="https://identifiers.org/SBO:0000251"/>\n'
+        '    <sbol:role rdf:resource="https://identifiers.org/SO:0000804"/>\n'
+        '  </sbol:Component>\n'
+        '</rdf:RDF>\n',
+        encoding="utf-8",
+    )
+
+
+def _generate_omex_archive(path: Path) -> None:
+    """Minimal COMBINE archive (.omex): a zip with manifest + SBML + SED-ML."""
+    import zipfile
+
+    sbml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">\n'
+        '  <model id="toggle_switch" name="Toggle Switch"/>\n'
+        '</sbml>\n'
+    )
+    sedml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<sedML xmlns="http://sed-ml.org/sed-ml/level1/version3" level="1" version="3"/>\n'
+    )
+    manifest = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<omexManifest xmlns="http://identifiers.org/combine.specifications/omex-manifest">\n'
+        '  <content location="." format="http://identifiers.org/combine.specifications/omex"/>\n'
+        '  <content location="./model.xml" format="http://identifiers.org/combine.specifications/sbml"/>\n'
+        '  <content location="./simulation.sedml" format="http://identifiers.org/combine.specifications/sed-ml"/>\n'
+        '</omexManifest>\n'
+    )
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.xml", manifest)
+        zf.writestr("model.xml", sbml)
+        zf.writestr("simulation.sedml", sedml)
+
+
 EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     # fastq_qc — OpenGene fastp testdata
     DataFile("fastq_qc", "R1.fq", "https://github.com/OpenGene/fastp/raw/master/testdata/R1.fq", description="fastp testdata R1"),
@@ -451,4 +844,47 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
 
     # pangenomics — generated tiny haplotypes for template smoke runs
     DataFile("pangenomics", "haplotypes.fa", generator=_generate_pangenomics_haplotypes, description="Synthetic two-haplotype FASTA"),
+
+    # chip_seq — input control reads + gene annotations (the H3K4me3 pair is above)
+    DataFile("chip_seq", "input_control_read1.fastq", generator=_generate_chip_input_control_read1, description="Synthetic ChIP-seq input control R1"),
+    DataFile("chip_seq", "input_control_read2.fastq", generator=_generate_chip_input_control_read2, description="Synthetic ChIP-seq input control R2"),
+    DataFile("chip_seq", "genes.bed", generator=_generate_chip_genes_bed, description="Gene annotations for peak annotation"),
+
+    # crispr — synthetic genome, sgRNA library, screen + amplicon reads
+    DataFile("crispr", "genome.fa", generator=_generate_crispr_genome, description="Synthetic CRISPR target locus"),
+    DataFile("crispr", "sgrna_library.tsv", generator=_generate_crispr_sgrna_library, description="Synthetic sgRNA library (sgRNA/sequence/gene)"),
+    DataFile("crispr", "control.fastq.gz", generator=_generate_crispr_control, description="Synthetic CRISPR screen control reads"),
+    DataFile("crispr", "treated.fastq.gz", generator=_generate_crispr_treated, description="Synthetic CRISPR screen treated reads"),
+    DataFile("crispr", "amplicon_R1.fastq.gz", generator=_generate_crispr_amplicon_r1, description="Synthetic CRISPResso2 amplicon R1"),
+    DataFile("crispr", "amplicon_R2.fastq.gz", generator=_generate_crispr_amplicon_r2, description="Synthetic CRISPResso2 amplicon R2"),
+
+    # epigenomics / WGBS — bisulfite reference, reads, and bismark genome folder
+    DataFile("epigenomics", "reference.fasta", generator=_generate_epigenomics_reference, description="Synthetic bisulfite reference"),
+    DataFile("epigenomics", "sample_R1.fastq.gz", generator=_generate_epigenomics_r1, description="Synthetic WGBS reads R1 (C->T)"),
+    DataFile("epigenomics", "sample_R2.fastq.gz", generator=_generate_epigenomics_r2, description="Synthetic WGBS reads R2 (G->A)"),
+    DataFile("epigenomics", "bismark_genome", generator=_generate_bismark_genome_dir, description="Bismark genome folder (reference + index placeholder)"),
+
+    # proteomics — Sage/Percolator: real tiny mzML + synthetic target-decoy FASTA
+    DataFile("proteomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny example mzML (MS1+MS2)"),
+    DataFile("proteomics", "target_decoy.fasta", generator=_generate_proteomics_fasta, description="Synthetic target+decoy protein FASTA"),
+
+    # metabolomics — XCMS: same real tiny mzML
+    DataFile("metabolomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny example mzML"),
+
+    # long_read — synthetic reference + a real tiny ONT pod5 directory
+    DataFile("long_read", "reference.fasta", generator=_generate_long_read_reference, description="Synthetic long-read reference"),
+    DataFile("long_read", "pod5", generator=_generate_long_read_pod5_dir, description="Real tiny ONT pod5 (downloaded into a directory)"),
+
+    # spatial_transcriptomics — synthetic counts/coords + a minimal Visium outs dir
+    DataFile("spatial_transcriptomics", "counts.csv", generator=_generate_spatial_counts, description="Synthetic gene-by-spot count matrix"),
+    DataFile("spatial_transcriptomics", "coordinates.csv", generator=_generate_spatial_coordinates, description="Synthetic spot coordinates"),
+    DataFile("spatial_transcriptomics", "visium_outs", generator=_generate_visium_outs_dir, description="Minimal Space Ranger outs/ layout"),
+
+    # synthetic_biology — Cello UCF (real) + synthetic netlist/options/models
+    DataFile("synthetic_biology", "Eco1C1G1T1.UCF.json", "https://raw.githubusercontent.com/CIDARLAB/Cello-UCF/develop/files/v2/ucf/Eco/Eco1C1G1T1.UCF.json", description="Cello E. coli user-constraints file"),
+    DataFile("synthetic_biology", "cello_options.csv", generator=_generate_cello_options, description="Cello runtime options"),
+    DataFile("synthetic_biology", "toggle_netlist.v", generator=_generate_cello_netlist, description="Synthetic Cello Verilog netlist"),
+    DataFile("synthetic_biology", "toggle_model.cps", generator=_generate_copasi_cps, description="Minimal COPASI model"),
+    DataFile("synthetic_biology", "toggle_switch.xml", generator=_generate_sbol3_toggle, description="Minimal SBOL3 component"),
+    DataFile("synthetic_biology", "toggle_study.omex", generator=_generate_omex_archive, description="Minimal COMBINE archive"),
 ]
