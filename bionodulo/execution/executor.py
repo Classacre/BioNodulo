@@ -29,6 +29,7 @@ from typing import Any, Callable
 
 from bionodulo.core.credentials import merge_api_secrets, redact_tree
 from bionodulo.environments.manifest import get_env_dir, get_env_id, is_env_ready, workflow_to_packages
+from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
@@ -3345,7 +3346,13 @@ class WorkflowExecutor:
         ctx: ExecutionContext,
         result: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """Collect previewable output files (HTML, images, JSON, etc.)."""
+        """Collect previewable output files (HTML, images, JSON, etc.).
+
+        In addition to natively-previewable outputs and any preview a node
+        registered itself, generate a small truncated HEAD preview for the
+        node's primary output when it has no visual preview yet — so every
+        node (FASTA, VCF, GFF, logs, BAM, …) shows something on the canvas.
+        """
         previews: list[dict[str, Any]] = []
 
         for port, path in result.get("outputs", {}).items():
@@ -3363,7 +3370,71 @@ class WorkflowExecutor:
                         }
                     )
 
-        return previews + ctx._previews
+        all_previews = previews + ctx._previews
+        head_preview = self._maybe_head_preview(ctx, result, all_previews)
+        if head_preview is not None:
+            all_previews.append(head_preview)
+        return all_previews
+
+    def _maybe_head_preview(
+        self,
+        ctx: ExecutionContext,
+        result: dict[str, Any],
+        existing_previews: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Generate a truncated HEAD preview for the node's primary output.
+
+        Skips when the node already has a visual preview (an HTML/image/SVG
+        entry, including ones a node registered itself), or when no suitable
+        primary output exists. Never raises.
+        """
+        try:
+            # Already has a visual preview? Don't override charts, reports,
+            # images, table/text previews, etc.
+            for prev in existing_previews:
+                prev_path = Path(str(prev.get("path", "")))
+                if prev_path.suffix.lower() not in head_preview_mod.SKIP_EXTENSIONS:
+                    continue
+                # An HTML/image/svg preview counts as a visual preview.
+                if prev_path.suffix.lower() in {
+                    ".html", ".htm", ".png", ".jpg", ".jpeg",
+                    ".gif", ".svg", ".webp", ".bmp",
+                }:
+                    return None
+
+            # Pick the primary output deterministically: first existing output
+            # file (by output-port order) that isn't already natively previewed.
+            primary: Path | None = None
+            for _port, path in result.get("outputs", {}).items():
+                paths = path if isinstance(path, (list, tuple)) else [path]
+                for p_str in paths:
+                    if not isinstance(p_str, (str, Path)):
+                        continue
+                    p = Path(p_str)
+                    if not self._path_exists(p) or not p.is_file():
+                        continue
+                    if head_preview_mod.should_skip_extension(p):
+                        continue
+                    primary = p
+                    break
+                if primary is not None:
+                    break
+
+            if primary is None:
+                return None
+
+            out_dir = primary.parent / "_head_preview"
+            html_path = head_preview_mod.write_head_preview(primary, out_dir)
+            if html_path is None:
+                return None
+            return {
+                "path": str(html_path),
+                "label": f"{ctx.node_id} (head)",
+                "node_id": ctx.node_id,
+            }
+        except Exception:  # noqa: BLE001 — a preview must never fail a run
+            logger.exception("auto head preview failed for node %s", ctx.node_id)
+            return None
 
     def _collect_artifacts(
         self,

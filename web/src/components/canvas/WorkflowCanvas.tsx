@@ -19,6 +19,7 @@ import {
   isColorParam,
   toHexColor,
 } from '../../utils/nodeLayout';
+import { resolveOverlaps } from '../../utils/autoLayout';
 import { useSettings } from '../../hooks/settings';
 import { hasOpenOverlay } from '../../state/overlays';
 import Icon from '../ui/Icon';
@@ -118,6 +119,9 @@ export interface GraphNode {
   visualOnly: boolean;
   inlinePreview: boolean;
   previewCollapsed: boolean;
+  // Run-reactive: true while this node is showing an inline preview band
+  // (a live preview exists for it and the inlinePreviews setting is on).
+  showingPreview: boolean;
 }
 
 // Inline preview body on terminal-visual tool nodes: a small toggle bar plus a
@@ -291,14 +295,16 @@ function calcNodeHeight(
     return calcNoteHeight(text, width || NODE_NOTE_WIDTH);
   }
   const base = calcRegularNodeHeight(meta, params);
+  // Dedicated preview SINK nodes keep a fixed body. Producer nodes get their
+  // (run-reactive) inline-preview band added separately once a preview exists.
   if (meta?.id === 'image_preview') return base + 120;
   if (meta?.id === 'html_preview') return base + 200;
   if (meta?.id === 'table_preview' || meta?.id === 'text_preview') return base + 180;
-  if (meta?.inline_preview) {
-    return base + INLINE_PREVIEW_TOGGLE_H + (previewCollapsed ? 0 : INLINE_PREVIEW_BAND_H);
-  }
+  void previewCollapsed;
   return base;
 }
+
+const PREVIEW_SINK_TYPES = new Set(['image_preview', 'html_preview', 'table_preview', 'text_preview']);
 
 function formatNodeParamValue(value: unknown, t: TFunction): string {
   if (value === null || value === undefined || value === '') return '-';
@@ -811,6 +817,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           visualOnly,
           inlinePreview,
           previewCollapsed,
+          showingPreview: existing?.showingPreview ?? false,
         };
       });
     });
@@ -830,6 +837,78 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       return changed ? next : prev;
     });
   }, [nodeStatusMap]);
+
+  // Inline previews + auto-arrange settings (both default on).
+  const inlinePreviewsOn = getBool('bionodulo.canvas.inlinePreviews', true);
+  const autoArrangeOn = getBool('bionodulo.canvas.autoArrangePreviews', true);
+
+  // Which nodes currently have a live preview, and which are collapsed — used
+  // to react when previews stream in during a run.
+  const livePreviewSig = useMemo(() => {
+    const ids: string[] = [];
+    nodePreviewsMap?.forEach((_v, k) => ids.push(k));
+    nodeHtmlPreviewsMap?.forEach((_v, k) => ids.push(k));
+    return ids.sort().join('|');
+  }, [nodePreviewsMap, nodeHtmlPreviewsMap]);
+  const baseLayoutSig = useMemo(
+    () => nodes.map(n => `${n.id}:${n.position[0]},${n.position[1]}`).join('|'),
+    [nodes],
+  );
+  const previewCollapseSig = useMemo(
+    () => nodes.filter(n => n.ui?.previewCollapsed).map(n => n.id).sort().join('|'),
+    [nodes],
+  );
+
+  // Run-reactive inline-preview body + anti-overlap auto-layout. When a node
+  // gains a preview it grows by a band; with auto-arrange on, the lower nodes
+  // are nudged down so nothing overlaps. Display positions are derived from the
+  // saved (base) positions so this is non-destructive and self-heals when
+  // previews collapse / the setting turns off.
+  useEffect(() => {
+    setGraphNodes(prev => {
+      const hasLive = (id: string) =>
+        Boolean(nodePreviewsMap?.has(id) || nodeHtmlPreviewsMap?.has(id));
+      let changed = false;
+      const sized = prev.map(n => {
+        const isSink = PREVIEW_SINK_TYPES.has(n.type);
+        const showing = inlinePreviewsOn && !isSink && !n.collapsed && !n.visualOnly && hasLive(n.id);
+        const base = calcNodeHeight(n.meta, n.collapsed, n.params);
+        const band = INLINE_PREVIEW_TOGGLE_H + (n.previewCollapsed ? 0 : INLINE_PREVIEW_BAND_H);
+        // Size to the band while showing; strip it when a preview disappears;
+        // otherwise leave the builder's height (honours user resizes).
+        let height = n.height;
+        if (showing) height = base + band;
+        else if (n.showingPreview) height = base;
+        if (n.showingPreview !== showing || n.height !== height) {
+          changed = true;
+          return { ...n, showingPreview: showing, height };
+        }
+        return n;
+      });
+
+      const basePos = new Map(nodesRef.current.map(n => [n.id, n.position] as const));
+      let out = sized;
+      if (autoArrangeOn && !isDraggingRef.current) {
+        const moves = resolveOverlaps(
+          sized.map(n => {
+            const bp = basePos.get(n.id);
+            return { id: n.id, x: bp ? bp[0] : n.x, y: bp ? bp[1] : n.y, width: n.width, height: n.height, pinned: n.pinned };
+          }),
+          { gap: 22 },
+        );
+        out = sized.map(n => {
+          const bp = basePos.get(n.id);
+          const mv = moves.get(n.id);
+          const nx = mv ? mv.x : (bp ? bp[0] : n.x);
+          const ny = mv ? mv.y : (bp ? bp[1] : n.y);
+          if (n.x !== nx || n.y !== ny) { changed = true; return { ...n, x: nx, y: ny }; }
+          return n;
+        });
+      }
+      return changed ? out : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livePreviewSig, baseLayoutSig, previewCollapseSig, inlinePreviewsOn, autoArrangeOn]);
 
   const toWorld = useCallback((cx: number, cy: number) => ({
     x: (cx - offset.x) / scale,
@@ -3081,11 +3160,14 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   // both the live graph (height) and the persisted ui flag.
   const toggleInlinePreview = useCallback((nodeId: string) => {
     const next = !(nodesRef.current.find(n => n.id === nodeId)?.ui?.previewCollapsed ?? false);
-    setGraphNodes(prev => prev.map(n =>
-      n.id === nodeId
-        ? { ...n, previewCollapsed: next, height: calcNodeHeight(n.meta, n.collapsed, n.params, undefined, next) }
-        : n,
-    ));
+    // Optimistically resize the band; the run-reactive layout effect reconciles
+    // height + neighbour positions on the next tick (previewCollapseSig changes).
+    setGraphNodes(prev => prev.map(n => {
+      if (n.id !== nodeId) return n;
+      const base = calcNodeHeight(n.meta, n.collapsed, n.params);
+      const height = base + INLINE_PREVIEW_TOGGLE_H + (next ? 0 : INLINE_PREVIEW_BAND_H);
+      return { ...n, previewCollapsed: next, height };
+    }));
     onNodesChangeRef.current(nodesRef.current.map(wn =>
       wn.id === nodeId ? { ...wn, ui: { ...wn.ui, previewCollapsed: next } } : wn,
     ));
@@ -3346,21 +3428,25 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         );
       })}
 
-      {/* Image preview DOM overlays */}
-      {nodePreviewsMap && graphNodes.filter(n => nodePreviewsMap.has(n.id) && !n.collapsed && !(n.inlinePreview && n.previewCollapsed)).map(node => {
+      {/* Image preview DOM overlays. Dedicated *_preview sinks fill the body;
+          producer nodes render the figure in their run-reactive bottom band. */}
+      {nodePreviewsMap && graphNodes.filter(n => {
+        if (!nodePreviewsMap.has(n.id) || n.collapsed) return false;
+        const isSink = PREVIEW_SINK_TYPES.has(n.type);
+        return isSink || (n.showingPreview && !n.previewCollapsed);
+      }).map(node => {
         const previewUrl = nodePreviewsMap.get(node.id)!;
+        const isSink = PREVIEW_SINK_TYPES.has(node.type);
         const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
         const pad = 4 * scale;
         const left = node.x * scale + offset.x + pad;
-        // Inline-preview tool nodes render the figure in the bottom band (below
-        // their widgets); dedicated *_preview sinks fill the whole body.
-        const top = node.inlinePreview
-          ? node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale
-          : node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        const top = isSink
+          ? node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale
+          : node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale;
         const width = (node.width - 8) * scale;
-        const height = node.inlinePreview
-          ? INLINE_PREVIEW_BAND_H * scale
-          : (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        const height = isSink
+          ? (node.height - NODE_HEADER_H - ioHeight - 8) * scale
+          : INLINE_PREVIEW_BAND_H * scale;
         if (width <= 0 || height <= 0) return null;
         return (
           <div
@@ -3393,18 +3479,23 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           allow-scripts only because most bioinformatics reports (MultiQC,
           FastQC, etc.) need JS for tabs/plots. pointer-events stay on so users
           can scroll inside the report without dragging the node. */}
-      {nodeHtmlPreviewsMap && graphNodes.filter(n => nodeHtmlPreviewsMap.has(n.id) && !n.collapsed && !(n.inlinePreview && n.previewCollapsed)).map(node => {
+      {nodeHtmlPreviewsMap && graphNodes.filter(n => {
+        if (!nodeHtmlPreviewsMap.has(n.id) || n.collapsed) return false;
+        const isSink = PREVIEW_SINK_TYPES.has(n.type);
+        return isSink || (n.showingPreview && !n.previewCollapsed);
+      }).map(node => {
         const previewUrl = nodeHtmlPreviewsMap.get(node.id)!;
+        const isSink = PREVIEW_SINK_TYPES.has(node.type);
         const ioHeight = Math.max(node.inputs.length, node.outputs.length, 1) * NODE_PIN_H;
         const pad = 4 * scale;
         const left = node.x * scale + offset.x + pad;
-        const top = node.inlinePreview
-          ? node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale
-          : node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale;
+        const top = isSink
+          ? node.y * scale + offset.y + (NODE_HEADER_H + ioHeight + 4) * scale
+          : node.y * scale + offset.y + (node.height - INLINE_PREVIEW_BAND_H) * scale;
         const width = (node.width - 8) * scale;
-        const height = node.inlinePreview
-          ? INLINE_PREVIEW_BAND_H * scale
-          : (node.height - NODE_HEADER_H - ioHeight - 8) * scale;
+        const height = isSink
+          ? (node.height - NODE_HEADER_H - ioHeight - 8) * scale
+          : INLINE_PREVIEW_BAND_H * scale;
         if (width <= 0 || height <= 0) return null;
         return (
           <div
@@ -3433,10 +3524,10 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         );
       })}
 
-      {/* Inline-preview toggle bar: a small clickable strip on terminal-visual
-          nodes that collapses/expands the figure band, so dense graphs and heavy
-          Plotly reports stay manageable. */}
-      {graphNodes.filter(n => n.inlinePreview && !n.collapsed).map(node => {
+      {/* Inline-preview toggle bar: a small clickable strip on a node that is
+          showing a live preview, to collapse/expand the figure band so dense
+          graphs and heavy Plotly reports stay manageable. */}
+      {graphNodes.filter(n => n.showingPreview && !n.collapsed).map(node => {
         const pad = 4 * scale;
         const bandH = node.previewCollapsed ? 0 : INLINE_PREVIEW_BAND_H;
         const left = node.x * scale + offset.x + pad;
@@ -3444,7 +3535,6 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         const width = (node.width - 8) * scale;
         const height = INLINE_PREVIEW_TOGGLE_H * scale;
         if (width <= 0) return null;
-        const hasPreview = Boolean(nodePreviewsMap?.has(node.id) || nodeHtmlPreviewsMap?.has(node.id));
         return (
           <div
             key={`pvtoggle-${node.id}`}
@@ -3456,9 +3546,6 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           >
             <span>{node.previewCollapsed ? '▸' : '▾'}</span>
             <span>{t('canvas.previewLabel', { defaultValue: 'Preview' })}</span>
-            {!hasPreview && !node.previewCollapsed && (
-              <span className="node-inline-preview-hint">{t('canvas.previewAfterRun', { defaultValue: 'runs here' })}</span>
-            )}
           </div>
         );
       })}

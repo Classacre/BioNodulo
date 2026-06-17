@@ -238,6 +238,8 @@ class SettingsManager:
             "bionodulo.showMinimap": True,
             "bionodulo.linksHidden": False,
             "bionodulo.viewportLocked": False,
+            "bionodulo.canvas.inlinePreviews": True,
+            "bionodulo.canvas.autoArrangePreviews": True,
             "bionodulo.cacheEnabled": True,
             "bionodulo.llm.provider": "openai",
             "bionodulo.llm.model": "gpt-4.1-mini",

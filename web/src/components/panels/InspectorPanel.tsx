@@ -257,6 +257,7 @@ export default function InspectorPanel({
               visualOnly: false,
               inlinePreview: Boolean(meta?.inline_preview),
               previewCollapsed: selectedNode.ui?.previewCollapsed ?? false,
+              showingPreview: false,
             };
             return (
               <NodeEditor

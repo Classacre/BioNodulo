@@ -386,6 +386,12 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.smoothLinks')} desc={st('canvas.smoothLinksDescription')} keywords="antialias smoothing links edges enlaces suavizado">
             <div className={`toggle ${getBool('bionodulo.canvas.smoothLinks', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.smoothLinks', !getBool('bionodulo.canvas.smoothLinks', true))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.inlinePreviews')} desc={st('canvas.inlinePreviewsDescription')} keywords="preview output thumbnail inline node vista previa salida">
+            <div className={`toggle ${getBool('bionodulo.canvas.inlinePreviews', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.inlinePreviews', !getBool('bionodulo.canvas.inlinePreviews', true))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.autoArrangePreviews')} desc={st('canvas.autoArrangePreviewsDescription')} keywords="auto arrange layout overlap push preview vista previa reorganizar">
+            <div className={`toggle ${getBool('bionodulo.canvas.autoArrangePreviews', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.autoArrangePreviews', !getBool('bionodulo.canvas.autoArrangePreviews', true))} />
+          </SettingRow>
           <SettingRow query={query} label={st('canvas.colorByStatus')} desc={st('canvas.colorByStatusDescription')} keywords="color status run completed error cached tint estado">
             <div className={`toggle ${getBool('bionodulo.canvas.colorByStatus') ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.colorByStatus', !getBool('bionodulo.canvas.colorByStatus'))} />
           </SettingRow>
