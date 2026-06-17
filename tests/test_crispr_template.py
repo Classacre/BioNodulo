@@ -103,7 +103,8 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert _output_validation(workflow, "amplicon_r2_001", "file")["expected_format"] == "fastq"
     assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
     assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"
-    assert _output_validation(workflow, "library_001", "file")["required_fields"] == "sgRNA,sequence,gene"
+    # No required_fields: the real MAGeCK demo library ships headerless (sgRNA/sequence/gene columns).
+    assert "required_fields" not in _output_validation(workflow, "library_001", "file")
     assert _output_validation(workflow, "guide_design_001", "guides")["expected_format"] == "tsv"
     assert _output_validation(workflow, "mageck_count_001", "count_table")["expected_format"] == "tsv"
     assert _output_validation(workflow, "mageck_test_001", "gene_summary")["expected_format"] == "tsv"

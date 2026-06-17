@@ -140,8 +140,13 @@ def _materialise_example_entry(entry: Any, dest: Path, context: Any) -> bool:
         return True
     if getattr(entry, "url", None):
         try:
-            cached = _download_to_cache(entry.url, context)
-            shutil.copy2(cached, dest)
+            # Use the manifest downloader so the entry's `gunzip` flag is honoured
+            # consistently (the generic cache helper decompresses by extension,
+            # which is wrong for entries we want to keep gzipped, e.g. *.fastq.gz).
+            from bionodulo.manager.example_data import _download_url
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _download_url(entry.url, dest, gunzip=getattr(entry, "gunzip", False))
             return dest.exists()
         except Exception as exc:
             logger.warning(
@@ -213,11 +218,27 @@ def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
         (df for df in EXAMPLE_DATA_MANIFEST if df.category == category and df.filename == filename),
         None,
     )
-    if entry is None:
+    if entry is not None:
+        dest = cache_dir / filename
+        logger.info("Materialising example data: %s/%s -> %s", category, filename, dest)
+        return dest if _materialise_example_entry(entry, dest, context) else None
+
+    # Directory reference (e.g. long_read/pod5, spatial_transcriptomics/visium_outs):
+    # materialise every manifest entry whose filename lives under that directory.
+    prefix = filename + "/"
+    sub_entries = [
+        df for df in EXAMPLE_DATA_MANIFEST
+        if df.category == category and df.filename.startswith(prefix)
+    ]
+    if not sub_entries:
         return None
-    dest = cache_dir / filename
-    logger.info("Materialising example data: %s/%s -> %s", category, filename, dest)
-    return dest if _materialise_example_entry(entry, dest, context) else None
+    ok_any = False
+    for df in sub_entries:
+        dest = cache_dir / df.filename
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if _materialise_example_entry(df, dest, context):
+            ok_any = True
+    return (cache_dir / filename) if ok_any else None
 
 
 class CopyInputNode(CommandNode):

@@ -120,7 +120,7 @@
         80
       ],
       "params": {
-        "decoy_prefix": "decoy",
+        "decoy_prefix": "DECOY_",
         "fdr_psm": 0.01,
         "fdr_protein": 0.01,
         "enzyme": "trypsin"
