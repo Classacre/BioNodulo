@@ -73,10 +73,13 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert not _has_edge(workflow, "reference_001", "reference", "validate_reference_001", "input")
     assert _has_edge(workflow, "r1_001", "file", "bismark_align_001", "r1")
     assert _has_edge(workflow, "r2_001", "file", "bismark_align_001", "r2")
-    assert _has_edge(workflow, "genome_001", "directory", "bismark_align_001", "genome_folder")
+    # Genome folder is now prepared (bisulfite index built) before alignment.
+    assert node_types["bismark_prep_001"] == "bismark_genome_preparation"
+    assert _has_edge(workflow, "genome_001", "directory", "bismark_prep_001", "genome_folder")
+    assert _has_edge(workflow, "bismark_prep_001", "genome_folder", "bismark_align_001", "genome_folder")
     assert _has_edge(workflow, "bismark_align_001", "aligned_bam", "gate_bismark_bam_001", "value")
     assert _has_edge(workflow, "gate_bismark_bam_001", "output", "bismark_methylation_001", "bam")
-    assert _has_edge(workflow, "genome_001", "directory", "bismark_methylation_001", "genome_folder")
+    assert _has_edge(workflow, "bismark_prep_001", "genome_folder", "bismark_methylation_001", "genome_folder")
     assert _has_edge(workflow, "gate_bismark_bam_001", "output", "methyldackel_001", "bam")
     assert _has_edge(workflow, "reference_001", "reference", "methyldackel_001", "reference")
     assert not _has_edge(workflow, "bismark_methylation_001", "methylation_output", "validate_methylation_output_001", "input")

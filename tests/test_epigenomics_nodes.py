@@ -1730,3 +1730,32 @@ def test_cooltools_insulation_rejects_invalid_window_and_resource_settings() -> 
 def test_cooltools_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["cooltools"] == "cooltools"
     assert PACKAGE_MIN_VERSIONS["cooltools"] == ">=0.7.0"
+
+
+def test_bismark_genome_preparation_is_registered() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+    node_info = info["bismark_genome_preparation"]
+    assert node_info["display_name"] == "Bismark Genome Preparation"
+    assert node_info["category"] == "epigenomics"
+    assert node_info["output_name"] == ["genome_folder"]
+    assert "bismark_genome_preparation" in node_info["required_executables"]
+    assert set(node_info["input"]["required"]) == {"genome_folder"}
+
+
+def test_bismark_genome_preparation_builds_index_in_place() -> None:
+    node_class = _node_class("bismark_genome_preparation")
+    cmd = node_class.render_command({
+        "genome_folder": "/data/ref_dir",
+        "output": "/work/node",
+        "aligner": "bowtie2",
+    })
+    from bionodulo.nodes.command_node import _shell_join
+
+    shell = _shell_join(cmd)
+    assert "mkdir -p" in shell
+    assert "cp -rL" in shell
+    assert "bismark_genome_preparation --bowtie2" in shell
+    assert "/work/node/genome" in shell  # prepared, self-contained output dir
+    assert "&&" in shell

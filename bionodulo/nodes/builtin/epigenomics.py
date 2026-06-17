@@ -97,6 +97,60 @@ class BismarkAlignNode(CommandNode):
         }
 
 
+class BismarkGenomePreparationNode(CommandNode):
+    """Build the Bismark bisulfite genome index from a reference folder.
+
+    Bismark alignment needs a genome folder containing the reference FASTA plus a
+    ``Bisulfite_Genome/`` index. This node copies the reference folder so the
+    prepared index is a self-contained output, then builds the index in place.
+    """
+    NODE_ID = "bismark_genome_preparation"
+    DISPLAY_NAME = "Bismark Genome Preparation"
+    CATEGORY = "epigenomics"
+    DESCRIPTION = "Build the Bisulfite_Genome index that a genome folder must contain before Bismark alignment."
+    SEARCH_ALIASES = ["bismark", "bisulfite", "genome preparation", "index", "wgbs", "prepare"]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("genome_folder",)
+    REQUIRED_EXECUTABLES = ["bismark_genome_preparation"]
+    REQUIRED_CONDA_PACKAGES = ["bismark", "bowtie2"]
+    DOCUMENTATION_URL = "https://www.bioinformatics.babraham.ac.uk/projects/bismark/"
+    VERSION = "0.24.2"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out_dir = str(inputs.get("output", "."))
+        genome_folder = str(inputs.get("genome_folder", ""))
+        aligner = str(inputs.get("aligner", "bowtie2") or "bowtie2").strip().lower()
+        flag = "--hisat2" if aligner == "hisat2" else "--bowtie2"
+        prepared = f"{out_dir}/genome"
+        return [
+            "mkdir", "-p", prepared, "&&",
+            "cp", "-rL", f"{genome_folder}/.", prepared, "&&",
+            "bismark_genome_preparation", flag, prepared,
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "genome_folder": ("DIRECTORY", {"description": "Folder containing the reference FASTA"}),
+            },
+            "optional": {
+                "aligner": ("STRING", {"default": "bowtie2", "options": ["bowtie2", "hisat2"], "description": "Index aligner", "advanced": True}),
+            },
+            "hidden": {
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "genome"]
+
+
 class BismarkMethylationExtractorNode(CommandNode):
     """Extract methylation calls from Bismark-aligned BAM files."""
     NODE_ID = "bismark_methylation_extractor"

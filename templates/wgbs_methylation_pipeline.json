@@ -237,6 +237,20 @@
       "ui": {
         "title": "View Table: methyldackel"
       }
+    },
+    {
+      "id": "bismark_prep_001",
+      "type": "bismark_genome_preparation",
+      "position": [
+        300,
+        382
+      ],
+      "params": {
+        "aligner": "bowtie2"
+      },
+      "ui": {
+        "title": "Bismark Genome Preparation"
+      }
     }
   ],
   "edges": [
@@ -265,8 +279,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "genome_001",
-        "output": "directory"
+        "node": "bismark_prep_001",
+        "output": "genome_folder"
       },
       "to": {
         "node": "bismark_align_001",
@@ -298,8 +312,8 @@
     {
       "id": "e10",
       "from": {
-        "node": "genome_001",
-        "output": "directory"
+        "node": "bismark_prep_001",
+        "output": "genome_folder"
       },
       "to": {
         "node": "bismark_methylation_001",
@@ -346,6 +360,16 @@
       "to": {
         "node": "render_methyldackel_tab_1",
         "input": "file"
+      }
+    },
+    {
+      "from": {
+        "node": "genome_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "bismark_prep_001",
+        "input": "genome_folder"
       }
     }
   ],
