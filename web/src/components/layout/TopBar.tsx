@@ -36,6 +36,17 @@ interface TopBarProps {
    * pass `null` so nothing is rendered (instead of a hollow placeholder).
    */
   collabControls?: ReactNode;
+  /**
+   * Cloud-launch account snapshot. When set, the top bar shows the logged-in
+   * user + a credits indicator linking to billing. Null in local/self-host.
+   */
+  cloudAccount?: {
+    userName: string;
+    userEmail: string;
+    plan: string | null;
+    creditsRemaining: number | null;
+    accountUrl: string | null;
+  } | null;
 }
 
 function BrandMark() {
@@ -62,7 +73,7 @@ export default function TopBar({
   queueMode = 'manual', onQueueModeChange,
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
-  onToggleQueue, collabControls,
+  onToggleQueue, collabControls, cloudAccount = null,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
@@ -198,6 +209,31 @@ export default function TopBar({
         <span className={hpcBadgeClass} title={hpcLabel}>
           <Icon name="server" size={14} /> {hpcLabel}
         </span>
+      )}
+
+      {cloudAccount && (
+        <div className="cloud-account" title={cloudAccount.userEmail || cloudAccount.userName}>
+          <span className="cloud-account-user">
+            <Icon name="users" size={14} /> {cloudAccount.userName || cloudAccount.userEmail}
+          </span>
+          {cloudAccount.creditsRemaining != null && (
+            cloudAccount.accountUrl ? (
+              <a
+                className="cloud-account-credits"
+                href={`${cloudAccount.accountUrl}/dashboard/billing`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t('topbar.cloudCredits', { count: cloudAccount.creditsRemaining, defaultValue: '{{count}} credits' })}
+              >
+                <Icon name="star" size={12} /> {t('topbar.cloudCredits', { count: cloudAccount.creditsRemaining, defaultValue: '{{count}} credits' })}
+              </a>
+            ) : (
+              <span className="cloud-account-credits">
+                <Icon name="star" size={12} /> {t('topbar.cloudCredits', { count: cloudAccount.creditsRemaining, defaultValue: '{{count}} credits' })}
+              </span>
+            )
+          )}
+        </div>
       )}
 
       {collabControls}

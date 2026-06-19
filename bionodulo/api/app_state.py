@@ -38,6 +38,21 @@ class AppState:
         return self.state.settings_manager
 
     @property
+    def cloud_settings(self) -> Any:
+        """Cloud-launch identity/account snapshot (CloudSettings).
+
+        Created in ``create_app``; falls back to an empty CloudSettings for
+        contexts (tests) that build app state without it.
+        """
+        cs = getattr(self.state, "cloud_settings", None)
+        if cs is None:
+            from bionodulo.core.config import CloudSettings
+
+            cs = CloudSettings()
+            self.state.cloud_settings = cs
+        return cs
+
+    @property
     def collab_store(self) -> CollabStore:
         store = getattr(self.state, "collab_store", None)
         if store is None:

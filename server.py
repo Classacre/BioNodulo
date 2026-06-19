@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -27,7 +28,7 @@ from bionodulo.api.collab_routes import collab_api_router
 from bionodulo.collab.yjs_native_handler import stop_room_cache_cleanup, yjs_router
 from bionodulo.collab.heartbeat import HeartbeatManager
 from bionodulo.collab.redis_broadcaster import RedisBroadcaster
-from bionodulo.core.config import Settings, SettingsManager
+from bionodulo.core.config import CloudSettings, Settings, SettingsManager
 from bionodulo.core.events import EventHub
 from bionodulo.core.workspace import ensure_examples_link, ensure_workspace_root
 from bionodulo.execution.executor import WorkflowExecutor
@@ -82,6 +83,47 @@ class ProxyPrefixMiddleware:
             if index > 0:
                 return path[index:]
         return path
+
+
+class SessionTokenMiddleware:
+    """Reject requests that don't carry the per-session cloud token.
+
+    When the app is cloud-launched (``BIONODULO_SESSION_TOKEN`` is set), the
+    only legitimate traffic arrives through the cloud reverse proxy, which
+    injects ``X-Bionodulo-Session: <token>`` on every forwarded request
+    (including static assets). Direct hits to the task's public IP carry no such
+    header, so we 401 them. This sits inside ProxyPrefixMiddleware so it reads
+    the normalised path.
+
+    Exemptions:
+      - ``/api/health`` — the ECS container health check calls it locally with
+        no header and MUST stay open.
+
+    When the env var is unset (local / self-host), the gate is a no-op.
+    """
+
+    def __init__(self, app: ASGIApp, token: str) -> None:
+        self.app = app
+        self.token = token
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = str(scope.get("path", ""))
+        if path == "/api/health":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        provided = headers.get(b"x-bionodulo-session", b"").decode("latin-1")
+        if not secrets.compare_digest(provided, self.token):
+            response = PlainTextResponse("Unauthorized", status_code=401)
+            await response(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)
 
 
 @asynccontextmanager
@@ -152,6 +194,18 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+
+    # Cloud-launch identity + per-session token (read from BIONODULO_* env).
+    cloud_settings = CloudSettings.from_env()
+    app.state.cloud_settings = cloud_settings
+    # Token gate: only active when the cloud orchestrator injected a session
+    # token. Added before ProxyPrefixMiddleware so it runs AFTER path
+    # normalisation (last-added middleware is outermost), letting it match the
+    # canonical "/api/health" exemption regardless of any proxy path prefix.
+    if cloud_settings.session_token:
+        app.add_middleware(
+            SessionTokenMiddleware, token=cloud_settings.session_token
+        )
     app.add_middleware(ProxyPrefixMiddleware)
 
     # CORS. A wildcard origin with credentials lets any website drive the API

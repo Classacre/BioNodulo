@@ -14,6 +14,12 @@ import { authReadyAtom, authUserAtom, showAuthDialogAtom } from '../../state/app
 export interface UseAuthArgs {
   collabEnabled: boolean;
   settingsReady: boolean;
+  /**
+   * Cloud-launch mode: the user is auto-logged-in from the injected identity
+   * (handled by useCloudConfig). When true we mark auth ready and never show
+   * the guest AuthDialog.
+   */
+  cloudMode?: boolean;
 }
 
 export interface UseAuthResult {
@@ -25,13 +31,20 @@ export interface UseAuthResult {
   handleAuthClose: () => void;
 }
 
-export function useAuth({ collabEnabled, settingsReady }: UseAuthArgs): UseAuthResult {
+export function useAuth({ collabEnabled, settingsReady, cloudMode = false }: UseAuthArgs): UseAuthResult {
   const [authUser, setAuthUser] = useAtom(authUserAtom);
   const [authReady, setAuthReady] = useAtom(authReadyAtom);
   const [showAuthDialog, setShowAuthDialog] = useAtom(showAuthDialogAtom);
 
   useEffect(() => {
     let cancelled = false;
+    // Cloud mode: identity is injected + set by useCloudConfig. Treat the user
+    // as logged in and never prompt the guest dialog.
+    if (cloudMode) {
+      setAuthReady(true);
+      setShowAuthDialog(false);
+      return;
+    }
     if (!collabEnabled || !settingsReady) {
       setAuthReady(true);
       setShowAuthDialog(false);
@@ -51,7 +64,7 @@ export function useAuth({ collabEnabled, settingsReady }: UseAuthArgs): UseAuthR
       if (!cancelled) setAuthReady(true);
     });
     return () => { cancelled = true; };
-  }, [collabEnabled, settingsReady, setAuthReady, setAuthUser, setShowAuthDialog]);
+  }, [cloudMode, collabEnabled, settingsReady, setAuthReady, setAuthUser, setShowAuthDialog]);
 
   const handleAuthLogin = useCallback((_name: string) => {
     setAuthUser(getAuthUser());

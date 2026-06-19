@@ -36,6 +36,88 @@ class ExecutionSettings:
 
 
 @dataclass
+class CloudSettings:
+    """Cloud-launch identity + account snapshot, read from BIONODULO_* env.
+
+    Populated by the cloud orchestrator (AWS Fargate RunTask) when an editor
+    session is launched. ``session_token`` is the per-session shared secret used
+    to gate requests; everything else is non-secret display data surfaced to the
+    frontend via ``/api/config``. When ``session_token`` is empty the request
+    gate is disabled (local / self-host behaviour).
+    """
+
+    session_token: str = ""
+    cloud_mode: bool = False
+    user_id: str = ""
+    user_name: str = ""
+    user_email: str = ""
+    team_id: str = ""
+    team_name: str = ""
+    account_url: str = ""
+    plan: str = ""
+    credits_remaining: int | None = None
+    credits_total: int | None = None
+    clerk_publishable_key: str = ""
+
+    @classmethod
+    def from_env(cls) -> CloudSettings:
+        def _int(name: str) -> int | None:
+            raw = os.environ.get(name, "").strip()
+            if not raw:
+                return None
+            try:
+                return int(raw)
+            except ValueError:
+                return None
+
+        cloud_mode = os.environ.get("BIONODULO_CLOUD_MODE", "").strip().lower() in (
+            "1", "true", "yes", "on",
+        )
+        return cls(
+            session_token=os.environ.get("BIONODULO_SESSION_TOKEN", "").strip(),
+            cloud_mode=cloud_mode,
+            user_id=os.environ.get("BIONODULO_USER_ID", "").strip(),
+            user_name=os.environ.get("BIONODULO_USER_NAME", "").strip(),
+            user_email=os.environ.get("BIONODULO_USER_EMAIL", "").strip(),
+            team_id=os.environ.get("BIONODULO_TEAM_ID", "").strip(),
+            team_name=os.environ.get("BIONODULO_TEAM_NAME", "").strip(),
+            account_url=os.environ.get("BIONODULO_ACCOUNT_URL", "").strip().rstrip("/"),
+            plan=os.environ.get("BIONODULO_PLAN", "").strip(),
+            credits_remaining=_int("BIONODULO_CREDITS_REMAINING"),
+            credits_total=_int("BIONODULO_CREDITS_TOTAL"),
+            clerk_publishable_key=os.environ.get(
+                "BIONODULO_CLERK_PUBLISHABLE_KEY", ""
+            ).strip(),
+        )
+
+    def public_config(self) -> dict[str, Any]:
+        """Frontend-facing config — everything EXCEPT the secret token."""
+        user = (
+            {"id": self.user_id, "name": self.user_name, "email": self.user_email}
+            if self.user_id
+            else None
+        )
+        team = (
+            {"id": self.team_id, "name": self.team_name} if self.team_id else None
+        )
+        credits = None
+        if self.credits_remaining is not None or self.credits_total is not None:
+            credits = {
+                "remaining": self.credits_remaining,
+                "total": self.credits_total,
+            }
+        return {
+            "cloudMode": self.cloud_mode,
+            "user": user,
+            "team": team,
+            "plan": self.plan or None,
+            "credits": credits,
+            "accountUrl": self.account_url or None,
+            "clerkPublishableKey": self.clerk_publishable_key or None,
+        }
+
+
+@dataclass
 class Settings:
     """BioNodulo core settings loaded from config file and environment."""
 

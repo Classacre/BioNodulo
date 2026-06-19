@@ -13,6 +13,18 @@ from bionodulo.core.credentials import redact_tree
 settings_router = APIRouter()
 
 
+@settings_router.get("/config")
+async def get_runtime_config(request: Request) -> dict[str, Any]:
+    """Frontend boot config: cloud-mode flag + injected identity/account.
+
+    Returns everything the frontend needs to auto-login a cloud user and show
+    their account/credits, EXCEPT the secret session token. Safe to call
+    unauthenticated semantics aside (the cloud proxy gates it like any route);
+    in local/self-host mode it reports ``cloudMode: false`` and null identity.
+    """
+    return app_state(request).cloud_settings.public_config()
+
+
 @settings_router.get("/settings")
 async def get_all_settings(request: Request) -> dict[str, Any]:
     """Get all user settings."""

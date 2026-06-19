@@ -44,6 +44,7 @@ import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages, useDependencyInstall, installProgressMessage } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useAuth, useCollabPolling } from './hooks/collab';
+import { useCloudConfig } from './hooks/cloud';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { logError } from './state/logging';
@@ -293,6 +294,8 @@ export default function App() {
     { type: 'create' } | { type: 'join'; target: CollabLinkTarget } | null
   >(null);
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
+  // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
+  const { cloudConfig, cloudMode } = useCloudConfig();
   const {
     authUser,
     authReady,
@@ -300,7 +303,7 @@ export default function App() {
     setShowAuthDialog,
     handleAuthLogin,
     handleAuthClose,
-  } = useAuth({ collabEnabled, settingsReady });
+  } = useAuth({ collabEnabled, settingsReady, cloudMode });
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
@@ -3074,6 +3077,13 @@ export default function App() {
         resumeCheckpointLabel={resumeCheckpoint?.label ?? null}
         onOpenRuntimeArtifacts={() => setRailTab('runtimeArtifacts')}
         onResumeCheckpointClear={() => setResumeCheckpoint(null)}
+        cloudAccount={cloudMode && cloudConfig ? {
+          userName: cloudConfig.user?.name ?? '',
+          userEmail: cloudConfig.user?.email ?? '',
+          plan: cloudConfig.plan,
+          creditsRemaining: cloudConfig.credits?.remaining ?? null,
+          accountUrl: cloudConfig.accountUrl,
+        } : null}
         collabControls={(
           <CollabBadge
             enabled={collabEnabled}
