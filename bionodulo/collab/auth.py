@@ -110,7 +110,21 @@ def _oidc_jwks_client() -> jwt.PyJWKClient | None:
 
 
 def _validate_oidc_token(token: str) -> dict[str, Any] | None:
-    """Validate a JWT from Keycloak, SuperTokens, or another OIDC provider."""
+    """Validate a JWT from Keycloak, SuperTokens, Clerk, or another OIDC provider.
+
+    Clerk setup (optional self-host sign-in):
+      - ``BIONODULO_OIDC_ISSUER``   = ``https://clerk.<your-domain>`` — the Clerk
+        Frontend API URL (also the ``iss`` claim of Clerk session tokens).
+      - ``BIONODULO_OIDC_JWKS_URL`` = ``<issuer>/.well-known/jwks.json`` —
+        optional; derived from the issuer above when left unset.
+      - ``BIONODULO_OIDC_AUDIENCE`` = the token's ``aud`` claim. Clerk's default
+        session token has NO ``aud``, so create a Clerk JWT template named
+        ``bionodulo`` whose ``aud`` equals this value; the frontend requests that
+        template (see web/src/hooks/cloud/useClerkAuth.ts). If you instead leave
+        the audience at the default ``bionodulo:auth`` and do not use a template,
+        validation will fail on the missing ``aud`` — so the JWT template is the
+        supported path for Clerk.
+    """
     client = _oidc_jwks_client()
     if client is None:
         return None

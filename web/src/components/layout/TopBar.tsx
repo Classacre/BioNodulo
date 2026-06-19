@@ -47,6 +47,17 @@ interface TopBarProps {
     creditsRemaining: number | null;
     accountUrl: string | null;
   } | null;
+  /**
+   * Optional Clerk sign-in control (self-host with a publishable key, not cloud
+   * mode). When null, no sign-in UI is shown and the app stays usable with no
+   * login. `signedIn` flips the button between "Sign in" and the user + sign-out.
+   */
+  clerkAccount?: {
+    signedIn: boolean;
+    userName: string | null;
+    onSignIn: () => void;
+    onSignOut: () => void;
+  } | null;
 }
 
 function BrandMark() {
@@ -73,7 +84,7 @@ export default function TopBar({
   queueMode = 'manual', onQueueModeChange,
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
-  onToggleQueue, collabControls, cloudAccount = null,
+  onToggleQueue, collabControls, cloudAccount = null, clerkAccount = null,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
@@ -234,6 +245,31 @@ export default function TopBar({
             )
           )}
         </div>
+      )}
+
+      {clerkAccount && (
+        clerkAccount.signedIn ? (
+          <div className="cloud-account" title={clerkAccount.userName ?? undefined}>
+            <span className="cloud-account-user">
+              <Icon name="users" size={14} /> {clerkAccount.userName}
+            </span>
+            <button
+              className="btn btn-sm"
+              onClick={clerkAccount.onSignOut}
+              title={t('topbar.signOut')}
+            >
+              {t('topbar.signOut')}
+            </button>
+          </div>
+        ) : (
+          <button
+            className="btn btn-sm"
+            onClick={clerkAccount.onSignIn}
+            title={t('topbar.signIn')}
+          >
+            <Icon name="users" size={14} /> {t('topbar.signIn')}
+          </button>
+        )
       )}
 
       {collabControls}

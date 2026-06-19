@@ -44,7 +44,7 @@ import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages, useDependencyInstall, installProgressMessage } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useAuth, useCollabPolling } from './hooks/collab';
-import { useCloudConfig } from './hooks/cloud';
+import { useCloudConfig, useClerkAuth } from './hooks/cloud';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
 import { logError } from './state/logging';
@@ -296,6 +296,9 @@ export default function App() {
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
   const { cloudConfig, cloudMode } = useCloudConfig();
+  // Optional Clerk sign-in for self-host when a publishable key is configured
+  // and we are not in cloud auto-login mode. No-op otherwise.
+  const clerk = useClerkAuth();
   const {
     authUser,
     authReady,
@@ -3083,6 +3086,12 @@ export default function App() {
           plan: cloudConfig.plan,
           creditsRemaining: cloudConfig.credits?.remaining ?? null,
           accountUrl: cloudConfig.accountUrl,
+        } : null}
+        clerkAccount={clerk.clerkEnabled ? {
+          signedIn: clerk.clerkSignedIn,
+          userName: authUser?.name ?? null,
+          onSignIn: clerk.openSignIn,
+          onSignOut: clerk.signOut,
         } : null}
         collabControls={(
           <CollabBadge
