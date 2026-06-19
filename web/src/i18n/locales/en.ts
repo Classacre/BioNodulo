@@ -1371,6 +1371,8 @@ const en = {
       envIsolationOff: 'Off (system tools)',
       timeoutSeconds: 'Command Timeout (s)',
       timeoutSecondsDescription: 'Maximum seconds a single command may run',
+      promptBeforeInstall: 'Prompt before installing dependencies',
+      promptBeforeInstallDescription: 'Show the missing-dependencies banner and install manually instead of auto-installing on Run',
     },
     files: {
       explorerDepth: 'Explorer Depth',
@@ -1903,6 +1905,7 @@ class MyToolNode(CommandNode):
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Run failed: {{message}}',
       runErrorLog: 'Run error: {{message}}',
+      installFailed: 'Dependency install failed',
       runInterruptedLog: 'Run interrupted',
       selectedRunFailedLog: 'Selected run failed: {{message}}',
       sampleSheetRunsQueued: '{{count}} runs queued from sample sheet',

@@ -2,6 +2,7 @@ export { useAutoSave, type UseAutoSaveArgs, type UseAutoSaveResult } from './use
 export { useHistory, type HistorySnapshot, type UseHistoryOptions, type UseHistoryReturn, type Viewport } from './useHistory';
 export { useQueueMode, type QueueMode, type UseQueueModeArgs, type UseQueueModeResult } from './useQueueMode';
 export { useWorkflow } from './useWorkflow';
+export { useDependencyInstall, installProgressMessage, type UseDependencyInstall } from './useDependencyInstall';
 export { useWorkflowMessages, type UseWorkflowMessagesArgs } from './useWorkflowMessages';
 export {
   useWorkflowRuntimeArtifacts,

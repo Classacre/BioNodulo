@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   'bionodulo.execution.contentHashing': 'fast',
   'bionodulo.execution.envIsolation': 'auto',
   'bionodulo.execution.timeoutSeconds': 3600,
+  'bionodulo.dependencies.promptBeforeInstall': false,
   'bionodulo.llm.provider': 'openai',
   'bionodulo.llm.model': 'gpt-4.1-mini',
   'bionodulo.llm.baseUrl': '',

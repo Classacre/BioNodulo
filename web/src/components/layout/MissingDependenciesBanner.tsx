@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
-import type { ResolveReport, InstallJobStatus, Workflow } from '../../types';
-import { apiGet, apiPost } from '../../api/client';
-import { logError } from '../../state/logging';
+import type { ResolveReport, Workflow } from '../../types';
+import { useDependencyInstall, installProgressMessage } from '../../hooks/workflow';
 
 interface Props {
   report: ResolveReport;
@@ -13,42 +12,10 @@ interface Props {
   onResolve: () => void;
 }
 
-const INSTALL_PROGRESS_MESSAGE_KEYS: Record<string, string> = {
-  'Generating pixi.toml manifest...': 'resolveReport.installMessages.generatingManifest',
-  'Locking dependencies with pixi (this may take a moment)...': 'resolveReport.installMessages.lockingDependencies',
-  'Installing packages into environment...': 'resolveReport.installMessages.installingPackages',
-  'Installation cancelled': 'resolveReport.installMessages.installationCancelled',
-};
-
-function installProgressMessage(message: string, t: (key: string, values?: Record<string, unknown>) => string): string {
-  const trimmed = message.trim();
-  if (!trimmed) return '';
-  const resolvedMatch = /^Resolved (\d+) packages for env (.+)$/.exec(trimmed);
-  if (resolvedMatch) {
-    return t('resolveReport.installMessages.resolvedPackages', {
-      count: Number(resolvedMatch[1]),
-      env: resolvedMatch[2],
-    });
-  }
-  const knownMessageKey = INSTALL_PROGRESS_MESSAGE_KEYS[trimmed];
-  if (knownMessageKey) return t(knownMessageKey);
-  const readyMatch = /^Environment (.+) ready with (\d+) packages$/.exec(trimmed);
-  if (readyMatch) {
-    return t('resolveReport.installMessages.environmentReady', {
-      env: readyMatch[1],
-      count: Number(readyMatch[2]),
-    });
-  }
-  return trimmed;
-}
-
 export default function MissingDependenciesBanner({ report, workflow, onDismiss, onOpenConsole, onResolve }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [jobStatus, setJobStatus] = useState<InstallJobStatus | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const statusPollErrorLoggedRef = useRef(false);
+  const { install, installing, status: jobStatus } = useDependencyInstall();
 
   const totalMissing =
     report.missing_nodes.length +
@@ -57,54 +24,11 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
     report.missing_r_packages.length;
 
   const startInstall = useCallback(async () => {
-    setInstalling(true);
     onOpenConsole();
-    try {
-      let jobId: string | undefined;
-      try {
-        const data = await apiPost<{ job_id?: string }>('/manager/ensure-workflow-env', { workflow });
-        jobId = data.job_id;
-      } catch (err) {
-        logError('dependencies.install.start', err);
-        setInstalling(false);
-        return;
-      }
-      if (!jobId) {
-        setInstalling(false);
-        onResolve();
-        return;
-      }
-      statusPollErrorLoggedRef.current = false;
-      pollRef.current = setInterval(async () => {
-        try {
-          const status = await apiGet<InstallJobStatus>(`/manager/status/${jobId}`);
-          {
-            setJobStatus(status);
-            if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
-              if (pollRef.current) clearInterval(pollRef.current);
-              pollRef.current = null;
-              setInstalling(false);
-              setTimeout(() => onResolve(), 1000);
-            }
-          }
-        } catch (err) {
-          if (!statusPollErrorLoggedRef.current) {
-            logError('dependencies.install.status', err);
-            statusPollErrorLoggedRef.current = true;
-          }
-          /* ignore */
-        }
-      }, 1500);
-    } catch {
-      setInstalling(false);
-    }
-  }, [workflow, onOpenConsole, onResolve]);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    await install(workflow);
+    // Re-resolve shortly after so the banner reflects the new env state.
+    setTimeout(() => onResolve(), 1000);
+  }, [install, workflow, onOpenConsole, onResolve]);
 
   const summary = report.summary || t('resolveReport.missingCount', { count: totalMissing });
 

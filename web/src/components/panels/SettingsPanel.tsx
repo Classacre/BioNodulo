@@ -494,6 +494,9 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('execution.queueHistorySize')} desc={st('execution.queueHistorySizeDescription')} keywords="queue history cola historial">
             <input type="number" className="text-input" style={{ width: 60 }} value={Number(get('bionodulo.queueHistorySize'))} onChange={e => set('bionodulo.queueHistorySize', parseInt(e.target.value))} />
           </SettingRow>
+          <SettingRow query={query} label={st('execution.promptBeforeInstall')} desc={st('execution.promptBeforeInstallDescription')} keywords="dependencies install prompt banner deps instalar dependencias confirmar">
+            <div className={`toggle ${getBool('bionodulo.dependencies.promptBeforeInstall') ? 'on' : ''}`} onClick={() => toggle('bionodulo.dependencies.promptBeforeInstall')} />
+          </SettingRow>
         </SettingsGroup>
 
         {/* Files */}

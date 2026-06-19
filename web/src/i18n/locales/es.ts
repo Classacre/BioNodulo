@@ -1381,6 +1381,8 @@ const es = {
       envIsolationOff: 'Desactivado (herramientas del sistema)',
       timeoutSeconds: 'Tiempo limite de comando (s)',
       timeoutSecondsDescription: 'Segundos maximos que puede ejecutarse un comando',
+      promptBeforeInstall: 'Preguntar antes de instalar dependencias',
+      promptBeforeInstallDescription: 'Mostrar el aviso de dependencias faltantes e instalar manualmente en lugar de instalar automaticamente al ejecutar',
     },
     files: {
       explorerDepth: 'Profundidad del explorador',
@@ -1913,6 +1915,7 @@ class MyToolNode(CommandNode):
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Ejecucion fallida: {{message}}',
       runErrorLog: 'Error de ejecucion: {{message}}',
+      installFailed: 'Fallo la instalacion de dependencias',
       runInterruptedLog: 'Ejecucion interrumpida',
       selectedRunFailedLog: 'Ejecucion seleccionada fallida: {{message}}',
       sampleSheetRunsQueued: '{{count}} ejecuciones en cola desde hoja de muestras',
