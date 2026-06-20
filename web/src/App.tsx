@@ -1516,6 +1516,27 @@ export default function App() {
           setRailTab('console');
           continue;
         }
+        // Cloud editor: the run was submitted to the cloud Batch runner and is
+        // tracked in the dashboard, not as a local in-app run.
+        const cloudResult = result as RunRecord & { cloud?: boolean; dashboard_url?: string };
+        if (cloudResult.cloud) {
+          addLog({
+            run_id: result.run_id || 'cloud',
+            node_id: 'engine',
+            level: 'info',
+            message: t('console.actions.cloudRunSubmitted', {
+              defaultValue: 'Run submitted to the cloud — track its progress in your dashboard.',
+            }),
+            detail: cloudResult.dashboard_url || '',
+            timestamp: new Date().toISOString(),
+          });
+          setConsoleVisible(true);
+          setRailTab('console');
+          if (cloudResult.dashboard_url && typeof window !== 'undefined') {
+            window.open(cloudResult.dashboard_url, '_blank', 'noopener,noreferrer');
+          }
+          continue;
+        }
         addRun({
           run_id: result.run_id,
           status: 'pending',
@@ -3282,7 +3303,7 @@ export default function App() {
             ))}
           </div>
         )}
-        {hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
+        {!cloudMode && hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
             onDismiss={() => setDismissedHostStatus(hostStatus)}
