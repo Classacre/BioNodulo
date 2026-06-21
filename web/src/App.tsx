@@ -1459,7 +1459,9 @@ export default function App() {
       }
       // Auto-install missing dependencies before running unless the user opted
       // into the manual prompt-before-install flow (banner + Install button).
-      if (!getBool('bionodulo.dependencies.promptBeforeInstall')) {
+      // SKIP in the cloud editor: there is no local installer — the AWS Batch
+      // worker installs the workflow's environment as part of the run.
+      if (!editorMode && !getBool('bionodulo.dependencies.promptBeforeInstall')) {
         const ready = await ensureDependenciesInstalled(activeWorkflow);
         if (!ready) {
           setConsoleVisible(true);
@@ -1573,7 +1575,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
