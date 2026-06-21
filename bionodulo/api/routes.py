@@ -607,70 +607,6 @@ def _generate_run_id(workflow_name: str) -> str:
     return f"{safe_name}_{ts}_{short_uuid}"
 
 
-async def _submit_cloud_run(workflow: dict[str, Any], name: str | None) -> dict[str, Any]:
-    """Forward a run to the cloud platform's Batch runner (cloud-mode only).
-
-    The cloud editor doesn't execute workflows in-session; runs go to AWS Batch
-    so they bill credits and use the worker image's full toolchain. We POST the
-    current workflow definition to BIONODULO_CLOUD_RUN_URL, authenticated with
-    the per-session token, and return a "submitted" handle pointing at the
-    dashboard run page.
-    """
-    import os
-
-    import httpx
-
-    url = os.environ.get("BIONODULO_CLOUD_RUN_URL", "").strip()
-    token = os.environ.get("BIONODULO_SESSION_TOKEN", "").strip()
-    if not url or not token:
-        raise HTTPException(
-            status_code=503,
-            detail="Cloud execution is not configured for this session.",
-        )
-
-    display_name = name or workflow.get("name") or "Cloud run"
-    payload = {
-        "name": display_name,
-        "definition": {
-            "nodes": workflow.get("nodes", []),
-            "edges": workflow.get("edges", []),
-        },
-    }
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                url, json=payload, headers={"X-Bionodulo-Session": token}
-            )
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not reach the cloud run service: {exc}"
-        ) from exc
-
-    try:
-        data = resp.json()
-    except ValueError:
-        data = {}
-    if resp.status_code >= 400 or not data.get("success"):
-        detail = (
-            (data.get("error") if isinstance(data, dict) else None)
-            or f"Cloud run submission failed ({resp.status_code})."
-        )
-        raise HTTPException(
-            status_code=resp.status_code if resp.status_code >= 400 else 502,
-            detail=detail,
-        )
-
-    run = data.get("data", {}) if isinstance(data, dict) else {}
-    return {
-        "run_id": run.get("runId"),
-        "status": "submitted",
-        "cloud": True,
-        "dashboard_url": run.get("dashboardUrl"),
-        "name": name,
-        "workflow_name": display_name,
-    }
-
-
 @router.post("/runs")
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
     """Submit a workflow for execution, or preview it when dry_run is true."""
@@ -701,11 +637,6 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         preview.setdefault("workflow_name", wf_name)
         preview.setdefault("name", body.name)
         return preview
-
-    # Cloud editor: don't execute in-session — forward the run to the cloud
-    # platform's Batch runner so it bills credits + uses the full toolchain.
-    if settings.cloud_mode and os.environ.get("BIONODULO_CLOUD_RUN_URL", "").strip():
-        return await _submit_cloud_run(body.workflow, body.name)
 
     event_hub = _get_event_hub(request)
     await event_hub.emit_typed(
