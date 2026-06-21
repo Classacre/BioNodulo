@@ -48,6 +48,11 @@ class CloudSettings:
 
     session_token: str = ""
     cloud_mode: bool = False
+    # Shared-editor mode: the app runs as a STATELESS, multi-tenant editing
+    # backend (builtins-only registry; no run queue / executor / HPC / collab).
+    # Requests are gated by `proxy_secret` instead of a per-session token.
+    editor_mode: bool = False
+    proxy_secret: str = ""
     user_id: str = ""
     user_name: str = ""
     user_email: str = ""
@@ -70,12 +75,18 @@ class CloudSettings:
             except ValueError:
                 return None
 
-        cloud_mode = os.environ.get("BIONODULO_CLOUD_MODE", "").strip().lower() in (
-            "1", "true", "yes", "on",
-        )
+        def _flag(name: str) -> bool:
+            return os.environ.get(name, "").strip().lower() in (
+                "1", "true", "yes", "on",
+            )
+
+        cloud_mode = _flag("BIONODULO_CLOUD_MODE")
+        editor_mode = _flag("BIONODULO_EDITOR_MODE")
         return cls(
             session_token=os.environ.get("BIONODULO_SESSION_TOKEN", "").strip(),
-            cloud_mode=cloud_mode,
+            cloud_mode=cloud_mode or editor_mode,
+            editor_mode=editor_mode,
+            proxy_secret=os.environ.get("BIONODULO_PROXY_SECRET", "").strip(),
             user_id=os.environ.get("BIONODULO_USER_ID", "").strip(),
             user_name=os.environ.get("BIONODULO_USER_NAME", "").strip(),
             user_email=os.environ.get("BIONODULO_USER_EMAIL", "").strip(),
@@ -108,6 +119,7 @@ class CloudSettings:
             }
         return {
             "cloudMode": self.cloud_mode,
+            "editorMode": self.editor_mode,
             "user": user,
             "team": team,
             "plan": self.plan or None,

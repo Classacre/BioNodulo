@@ -126,21 +126,56 @@ class SessionTokenMiddleware:
         await self.app(scope, receive, send)
 
 
+class ProxySecretMiddleware:
+    """Gate the shared editor backend behind a single shared proxy secret.
+
+    In shared-editor mode the app is stateless and multi-tenant: legitimate
+    traffic only arrives through the website's reverse proxy, which injects
+    ``X-Bionodulo-Session: <proxy_secret>``. Direct public hits are 401'd.
+    ``/api/health`` (load-balancer health check) and ``/api/config`` (the SPA
+    reads it before anything else) are exempt.
+    """
+
+    def __init__(self, app: ASGIApp, secret: str) -> None:
+        self.app = app
+        self.secret = secret
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path = str(scope.get("path", ""))
+        if path in ("/api/health", "/api/config"):
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers") or [])
+        provided = headers.get(b"x-bionodulo-session", b"").decode("latin-1")
+        if not secrets.compare_digest(provided, self.secret):
+            response = PlainTextResponse("Unauthorized", status_code=401)
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Pixi installation is surfaced via /api/host_status and handled by the
     # frontend. RunQueue workers still auto-start on first submit.
-    redis_broadcaster = app.state.redis_broadcaster
-    try:
-        await redis_broadcaster.connect()
-    except Exception as exc:
-        logger.warning("Error connecting Redis broadcaster: %s", exc)
+    # In shared-editor mode the run/collab infrastructure is not created, so all
+    # of these are guarded with None checks.
+    redis_broadcaster = getattr(app.state, "redis_broadcaster", None)
+    if redis_broadcaster is not None:
+        try:
+            await redis_broadcaster.connect()
+        except Exception as exc:
+            logger.warning("Error connecting Redis broadcaster: %s", exc)
 
     try:
         yield
     finally:
-        run_queue: RunQueue = app.state.run_queue
-        await run_queue.shutdown()
+        run_queue: RunQueue | None = getattr(app.state, "run_queue", None)
+        if run_queue is not None:
+            await run_queue.shutdown()
 
         dependency_installer = getattr(app.state, "dependency_installer", None)
         if dependency_installer is not None:
@@ -156,15 +191,18 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
             except Exception as exc:
                 logger.warning("Error shutting down HPC backend: %s", exc)
 
-        try:
-            await app.state.heartbeat_manager.shutdown()
-        except Exception as exc:
-            logger.warning("Error shutting down heartbeat manager: %s", exc)
+        heartbeat_manager = getattr(app.state, "heartbeat_manager", None)
+        if heartbeat_manager is not None:
+            try:
+                await heartbeat_manager.shutdown()
+            except Exception as exc:
+                logger.warning("Error shutting down heartbeat manager: %s", exc)
 
-        try:
-            await redis_broadcaster.disconnect()
-        except Exception as exc:
-            logger.warning("Error disconnecting Redis broadcaster: %s", exc)
+        if redis_broadcaster is not None:
+            try:
+                await redis_broadcaster.disconnect()
+            except Exception as exc:
+                logger.warning("Error disconnecting Redis broadcaster: %s", exc)
 
         tunnel_process = getattr(app.state, "collab_tunnel_process", None)
         if tunnel_process is not None and tunnel_process.returncode is None:
@@ -198,11 +236,17 @@ def create_app() -> FastAPI:
     # Cloud-launch identity + per-session token (read from BIONODULO_* env).
     cloud_settings = CloudSettings.from_env()
     app.state.cloud_settings = cloud_settings
-    # Token gate: only active when the cloud orchestrator injected a session
-    # token. Added before ProxyPrefixMiddleware so it runs AFTER path
-    # normalisation (last-added middleware is outermost), letting it match the
-    # canonical "/api/health" exemption regardless of any proxy path prefix.
-    if cloud_settings.session_token:
+    editor_mode = cloud_settings.editor_mode
+    # Request gate (added before ProxyPrefixMiddleware so it runs AFTER path
+    # normalisation — last-added middleware is outermost — and matches the
+    # canonical exempt paths regardless of any proxy prefix):
+    #   - shared-editor mode -> ProxySecretMiddleware (one shared secret)
+    #   - per-session cloud   -> SessionTokenMiddleware (per-user token)
+    if editor_mode and cloud_settings.proxy_secret:
+        app.add_middleware(
+            ProxySecretMiddleware, secret=cloud_settings.proxy_secret
+        )
+    elif cloud_settings.session_token:
         app.add_middleware(
             SessionTokenMiddleware, token=cloud_settings.session_token
         )
@@ -243,121 +287,131 @@ def create_app() -> FastAPI:
     settings = Settings.from_env()
     settings.ensure_directories()
 
-    # Node registry
+    # Node registry. In shared-editor mode we load BUILTINS ONLY — never load
+    # arbitrary custom node code into the shared multi-tenant process.
     registry = NodeRegistry()
     registry.load_builtin_nodes()
-    registry.load_custom_nodes(settings.custom_nodes_dir)
+    if not editor_mode:
+        registry.load_custom_nodes(settings.custom_nodes_dir)
 
     # Event hub (must be created before run_queue for emit callback)
     event_hub = EventHub()
-
-    # Run queue
-    executor = WorkflowExecutor(
-        workspace_dir=settings.project_root,
-        cache_dir=settings.cache_dir,
-        registry=registry,
-        settings=settings,
-    )
-
-    def _emit_to_hub(event_type: str, data: dict[str, Any]) -> None:
-        task = asyncio.create_task(event_hub.emit_typed(event_type, data))
-
-        def _log_emit_error(done: asyncio.Task[None]) -> None:
-            try:
-                done.result()
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                logger.exception("Unhandled event hub emit failure")
-
-        task.add_done_callback(_log_emit_error)
-
-    # Settings manager
+    # Settings manager (both modes)
     settings_manager = SettingsManager(settings.settings_file)
 
-    # Bridge user-facing execution settings (settings_manager) onto the config
-    # ExecutionSettings that the executor + queue actually read. Applied at
-    # startup; in-place mutation so the already-built executor (same settings
-    # object) picks them up. Changing these takes effect on next restart.
-    def _user_setting(key: str) -> Any:
-        try:
-            return settings_manager.get(key)
-        except Exception:
-            return None
-
-    _ex = settings.execution
-    _mw = _user_setting("bionodulo.execution.maxWorkers")
-    if _mw is not None:
-        try:
-            _ex.max_workers = max(1, int(_mw))
-        except (TypeError, ValueError):
-            pass
-    _ch = _user_setting("bionodulo.execution.contentHashing")
-    if _ch in ("fast", "strong", "off"):
-        _ex.content_hashing = _ch
-    _ei = _user_setting("bionodulo.execution.envIsolation")
-    if _ei in ("auto", "always", "off"):
-        _ex.env_isolation = _ei
-    _ts = _user_setting("bionodulo.execution.timeoutSeconds")
-    if _ts is not None:
-        try:
-            _ex.timeout_seconds = max(1, int(_ts))
-        except (TypeError, ValueError):
-            pass
-
-    try:
-        _history_cap = int(settings_manager.get("bionodulo.queueHistorySize") or 100)
-    except (TypeError, ValueError):
-        _history_cap = 100
-
-    # Durable run store so the queue survives restarts: pending/running runs are
-    # persisted and reconciled on startup (orphans marked interrupted).
-    try:
-        run_store: RunStore | None = RunStore(settings.project_root / "runs" / "runs.db")
-    except Exception:
-        logger.exception("Failed to open run store; running without persistence")
-        run_store = None
-
-    run_queue = RunQueue(
-        executor=executor,
-        max_concurrent=settings.execution.max_workers,
-        emit=_emit_to_hub,
-        max_history=_history_cap,
-        store=run_store,
-    )
-    if run_store is not None:
-        try:
-            summary = run_queue.recover()
-            if summary.get("interrupted") or summary.get("restored"):
-                logger.info(
-                    "Run store recovery: %d restored, %d interrupted",
-                    summary.get("restored", 0),
-                    len(summary.get("interrupted", [])),
-                )
-        except Exception:
-            logger.exception("Run store recovery failed")
-
-    # Store on app state
+    # Common app state (both modes)
     app.state.settings = settings
     app.state.node_registry = registry
-    app.state.run_queue = run_queue
     app.state.event_hub = event_hub
     app.state.settings_manager = settings_manager
     app.state.room_manager = None  # lazily created by collab module
-
-    # Collaboration infrastructure
-    app.state.heartbeat_manager = HeartbeatManager()
     app.state.rate_limiter = None  # lazily created by collab module
-    app.state.redis_broadcaster = RedisBroadcaster()
 
-    # Native Yjs room sockets (workflow_id -> list of WebSockets)
-    app.state.yjs_room_sockets = {}
-    # Temporary invite-token rooms. Process-local by design: links expire when
-    # the host app stops, matching the local/Colab collaboration model.
-    app.state.collab_temporary_invites = {}
-    app.state.collab_public_url = None
-    app.state.collab_tunnel_process = None
-    app.state.collab_tunnel_provider = None
+    if editor_mode:
+        # Stateless shared editor backend: serve node schemas + the stateless
+        # editing endpoints only. No run queue / executor / run store / collab /
+        # redis / heartbeat — nothing per-user or that runs user workflows.
+        app.state.run_queue = None
+        app.state.redis_broadcaster = None
+        app.state.heartbeat_manager = None
+        app.state.yjs_room_sockets = {}
+        app.state.collab_temporary_invites = {}
+        app.state.collab_public_url = None
+        app.state.collab_tunnel_process = None
+        app.state.collab_tunnel_provider = None
+    else:
+        # Run queue
+        executor = WorkflowExecutor(
+            workspace_dir=settings.project_root,
+            cache_dir=settings.cache_dir,
+            registry=registry,
+            settings=settings,
+        )
+
+        def _emit_to_hub(event_type: str, data: dict[str, Any]) -> None:
+            task = asyncio.create_task(event_hub.emit_typed(event_type, data))
+
+            def _log_emit_error(done: asyncio.Task[None]) -> None:
+                try:
+                    done.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("Unhandled event hub emit failure")
+
+            task.add_done_callback(_log_emit_error)
+
+        # Bridge user-facing execution settings (settings_manager) onto the
+        # config ExecutionSettings that the executor + queue actually read.
+        def _user_setting(key: str) -> Any:
+            try:
+                return settings_manager.get(key)
+            except Exception:
+                return None
+
+        _ex = settings.execution
+        _mw = _user_setting("bionodulo.execution.maxWorkers")
+        if _mw is not None:
+            try:
+                _ex.max_workers = max(1, int(_mw))
+            except (TypeError, ValueError):
+                pass
+        _ch = _user_setting("bionodulo.execution.contentHashing")
+        if _ch in ("fast", "strong", "off"):
+            _ex.content_hashing = _ch
+        _ei = _user_setting("bionodulo.execution.envIsolation")
+        if _ei in ("auto", "always", "off"):
+            _ex.env_isolation = _ei
+        _ts = _user_setting("bionodulo.execution.timeoutSeconds")
+        if _ts is not None:
+            try:
+                _ex.timeout_seconds = max(1, int(_ts))
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            _history_cap = int(settings_manager.get("bionodulo.queueHistorySize") or 100)
+        except (TypeError, ValueError):
+            _history_cap = 100
+
+        # Durable run store so the queue survives restarts.
+        try:
+            run_store: RunStore | None = RunStore(settings.project_root / "runs" / "runs.db")
+        except Exception:
+            logger.exception("Failed to open run store; running without persistence")
+            run_store = None
+
+        run_queue = RunQueue(
+            executor=executor,
+            max_concurrent=settings.execution.max_workers,
+            emit=_emit_to_hub,
+            max_history=_history_cap,
+            store=run_store,
+        )
+        if run_store is not None:
+            try:
+                summary = run_queue.recover()
+                if summary.get("interrupted") or summary.get("restored"):
+                    logger.info(
+                        "Run store recovery: %d restored, %d interrupted",
+                        summary.get("restored", 0),
+                        len(summary.get("interrupted", [])),
+                    )
+            except Exception:
+                logger.exception("Run store recovery failed")
+
+        app.state.run_queue = run_queue
+
+        # Collaboration infrastructure
+        app.state.heartbeat_manager = HeartbeatManager()
+        app.state.redis_broadcaster = RedisBroadcaster()
+        # Native Yjs room sockets (workflow_id -> list of WebSockets)
+        app.state.yjs_room_sockets = {}
+        # Temporary invite-token rooms. Process-local by design.
+        app.state.collab_temporary_invites = {}
+        app.state.collab_public_url = None
+        app.state.collab_tunnel_process = None
+        app.state.collab_tunnel_provider = None
 
     # Include routers
     app.include_router(router, prefix="/api")

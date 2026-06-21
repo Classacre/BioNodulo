@@ -219,7 +219,15 @@ def _get_settings(request: Request) -> Settings:
 
 
 def _get_queue(request: Request) -> Any:
-    return request.app.state.run_queue
+    queue = request.app.state.run_queue
+    if queue is None:
+        # Shared-editor mode: this backend does not execute workflows. Runs are
+        # submitted to the cloud Batch runner from the client instead.
+        raise HTTPException(
+            status_code=503,
+            detail="This editor does not run workflows; runs execute in the cloud.",
+        )
+    return queue
 
 
 def _get_event_hub(request: Request) -> EventHub:
