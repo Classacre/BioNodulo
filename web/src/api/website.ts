@@ -6,8 +6,40 @@
 // root API with the Clerk session cookie (credentials: 'include') — no bearer
 // token plumbing. Base is configurable for cross-origin builds.
 import type { Workflow } from '../types';
+import { getToken } from '../collab/authStorage';
 
 const WEBSITE_API_BASE = (import.meta.env.VITE_WEBSITE_API_BASE || '/api').replace(/\/+$/, '');
+
+// The cloud editor is same-origin with the website → cookie auth, base '/api'.
+// The LOCALLY-run app is a different origin: it points at the absolute cloud API
+// base (set via configureWebsiteApi from the cloud account URL) and authenticates
+// with a Clerk bearer token instead of the session cookie.
+let absoluteBase: string | null = null;
+export function configureWebsiteApi(baseUrl: string | null): void {
+  absoluteBase = baseUrl ? baseUrl.replace(/\/+$/, '') : null;
+}
+function isCrossOrigin(): boolean {
+  return Boolean(absoluteBase);
+}
+function apiBase(): string {
+  return absoluteBase || WEBSITE_API_BASE;
+}
+/** Headers + credentials for a website call: bearer cross-origin, cookie same-origin. */
+function websiteInit(init: RequestInit = {}): RequestInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((init.headers as Record<string, string>) || {}),
+  };
+  if (isCrossOrigin()) {
+    const token = getToken();
+    if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+  }
+  return {
+    ...init,
+    headers,
+    credentials: isCrossOrigin() ? 'omit' : 'include',
+  };
+}
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -23,11 +55,7 @@ interface WorkflowRow {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${WEBSITE_API_BASE}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
-    ...init,
-  });
+  const res = await fetch(`${apiBase()}${path}`, websiteInit(init));
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!res.ok || !body?.success) {
     throw new Error(body?.error || `Website API ${path} failed (${res.status})`);
@@ -113,15 +141,23 @@ export interface CloudRunSnapshot {
  */
 export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | null> {
   try {
-    const res = await fetch(`${WEBSITE_API_BASE}/runs/${runId}`, {
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await fetch(`${apiBase()}/runs/${runId}`, websiteInit());
     if (!res.ok) return null;
     return (await res.json()) as CloudRunSnapshot;
   } catch {
     return null;
   }
+}
+
+/** Invite a collaborator to the team by email (Clerk sends the email). */
+export function inviteCollaborator(
+  email: string,
+  role: 'admin' | 'member' = 'member',
+): Promise<{ email: string; role: string }> {
+  return call<{ email: string; role: string }>('/team/invite', {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  });
 }
 
 export interface CloudCredits {
@@ -138,10 +174,7 @@ export interface CloudCredits {
  */
 export async function getCloudCredits(): Promise<CloudCredits | null> {
   try {
-    const res = await fetch(`${WEBSITE_API_BASE}/billing/credits`, {
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const res = await fetch(`${apiBase()}/billing/credits`, websiteInit());
     if (!res.ok) return null;
     const j = await res.json();
     if (typeof j?.remaining !== 'number') return null;

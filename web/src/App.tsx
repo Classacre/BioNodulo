@@ -82,6 +82,7 @@ import {
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { getCloudRun, getCloudCredits } from './api/website';
+import InviteDialog from './collab/InviteDialog';
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
@@ -783,16 +784,19 @@ export default function App() {
     return () => clearTimeout(id);
   }, [logs, editorMode]);
 
-  // Cloud editor: the team's remaining credits, shown in the Cloud badge.
+  // Remaining team credits, shown in the Cloud badge. Polled in the cloud editor
+  // (same-origin cookie) AND in the locally-run app when signed into a cloud
+  // account (cross-origin bearer; configureWebsiteApi set the absolute base).
   const [cloudCredits, setCloudCredits] = useState<number | null>(null);
+  const creditsEligible = editorMode || (Boolean(authUser) && Boolean(cloudConfig?.accountUrl));
   useEffect(() => {
-    if (!editorMode) return;
+    if (!creditsEligible) return;
     let cancelled = false;
     const refresh = () => { void getCloudCredits().then(c => { if (!cancelled && c) setCloudCredits(c.remaining); }); };
     refresh();
     const id = setInterval(refresh, 60_000); // keep it fresh; runs burn credits
     return () => { cancelled = true; clearInterval(id); };
-  }, [editorMode]);
+  }, [creditsEligible]);
 
   // Per-node run progress for inline canvas captions. Populated on node_start
   // events ({ current, total } parsed from the payload's "i/N" progress hint)
@@ -3240,6 +3244,7 @@ export default function App() {
             offline={collabOffline}
             editorMode={editorMode}
             credits={cloudCredits}
+            canInvite={Boolean(authUser) && (editorMode || Boolean(cloudConfig?.accountUrl))}
           />
         )}
       />
@@ -3249,6 +3254,8 @@ export default function App() {
         onLogin={handleAuthLogin}
         onClose={handleCollabAuthClose}
       />
+
+      <InviteDialog />
 
       <WorkflowTabs
         tabs={tabNames}

@@ -7,6 +7,7 @@ import UserList from './UserList';
 import {
   showAuditAtom,
   showCommentsAtom,
+  showInviteDialogAtom,
   showShareDialogAtom,
   showVersionsAtom,
 } from '../state/uiAtoms';
@@ -37,6 +38,8 @@ interface CollabBadgeProps {
   editorMode?: boolean;
   /** Remaining team credits, shown beside the badge in cloud mode (null = hide). */
   credits?: number | null;
+  /** Show the "Invite collaborator" action (signed into a BioNodulo account). */
+  canInvite?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -89,8 +92,10 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   offline = false,
   editorMode = false,
   credits = null,
+  canInvite = false,
 }) => {
   const { t } = useTranslation();
+  const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const setShowComments = useSetAtom(showCommentsAtom);
   const setShowVersions = useSetAtom(showVersionsAtom);
@@ -195,7 +200,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
           }}
         />
         <span style={{ fontSize: 11, fontWeight: 600 }}>{status.text}</span>
-        {editorMode && typeof credits === 'number' && (
+        {typeof credits === 'number' && (
           <span
             title={t('collab.badgeCreditsTitle', { defaultValue: 'Remaining cloud credits', count: credits })}
             style={{
@@ -250,6 +255,11 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
           </div>
 
           <div style={{ padding: '8px 0', display: 'grid', gap: 2 }}>
+            {canInvite && (
+              <button style={menuButtonStyle} onClick={() => closeThen(() => setShowInviteDialog(true))}>
+                <Icon name="users" size={14} /> {t('collab.inviteTitle', { defaultValue: 'Invite collaborator' })}
+              </button>
+            )}
             {!enabled && (
               <div style={{ fontSize: 11, color: 'var(--muted)', padding: '4px 6px 8px' }}>
                 {t('collab.badgeOfflineNotice')}

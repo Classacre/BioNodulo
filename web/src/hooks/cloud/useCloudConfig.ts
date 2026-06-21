@@ -12,6 +12,7 @@ import { useAtom, useSetAtom } from 'jotai';
 import { apiGet } from '../../api/client';
 import { getUserColor } from '../../collab';
 import { setAuthUser } from '../../collab/authStorage';
+import { configureWebsiteApi } from '../../api/website';
 import { authUserAtom, cloudConfigAtom, type CloudConfig } from '../../state/appAtoms';
 import { logError } from '../../state/logging';
 
@@ -34,6 +35,12 @@ export function useCloudConfig(): UseCloudConfigResult {
       .then(cfg => {
         if (cancelled || !cfg) return;
         setCloudConfig(cfg);
+        // Local/self-host app talking to the cloud account: point website API
+        // calls (credits, invites) at the absolute cloud API base + bearer auth.
+        // The cloud editor itself is same-origin (editorMode) → keep '/api'.
+        if (!cfg.editorMode && cfg.accountUrl) {
+          configureWebsiteApi(`${cfg.accountUrl.replace(/\/+$/, '')}/api`);
+        }
         // Auto-login: adopt the injected identity as the current user.
         if (cfg.cloudMode && cfg.user?.id) {
           const user = {

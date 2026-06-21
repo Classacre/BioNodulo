@@ -14,6 +14,7 @@ export const showGettingStartedAtom = atom(false);
 export const showShortcutsAtom = atom(false);
 
 // Collab overlay flags
+export const showInviteDialogAtom = atom(false);
 export const showShareDialogAtom = atom(false);
 export const showCommentsAtom = atom(false);
 export const showVersionsAtom = atom(false);
