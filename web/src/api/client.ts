@@ -84,15 +84,17 @@ function buildUrl(path: string, basePath = DEFAULT_BASE): string {
 
   // Shared editor: reroute the default `/api/*` editing calls to the editing
   // backend base (absolute from origin root, NOT prefixed by appBasePath, since
-  // the static SPA's base path is unrelated to where the API lives). WebSocket
-  // paths are excluded (collab is disabled in editor mode anyway).
+  // the static SPA's base path is unrelated to where the API lives). The editing
+  // backend serves its routes UNDER /api, and the proxy forwards
+  // /api/editor/<subpath> -> backend /<subpath>, so we must KEEP the api prefix:
+  //   apiGet('/object_info') -> /api/editor/api/object_info -> backend /api/object_info
+  // WebSocket paths are excluded (collab is disabled in editor mode anyway).
   if (EDITOR_API_BASE && cleanBase === DEFAULT_BASE && !cleanPath.startsWith('ws/')) {
-    const core = cleanPath.startsWith('api/')
-      ? cleanPath.slice('api/'.length)
-      : cleanPath.startsWith(`${cleanBase}/`)
-        ? cleanPath.slice(cleanBase.length + 1)
-        : cleanPath;
-    return `${EDITOR_API_BASE}/${core}`;
+    const apiPrefixed =
+      cleanPath === cleanBase || cleanPath.startsWith(`${cleanBase}/`)
+        ? cleanPath
+        : `${cleanBase}/${cleanPath}`;
+    return `${EDITOR_API_BASE}/${apiPrefixed}`;
   }
 
   if (cleanPath.startsWith(`${cleanBase}/`) || cleanPath === cleanBase || cleanPath.startsWith('ws/')) {
