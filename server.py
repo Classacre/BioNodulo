@@ -219,9 +219,16 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    # In shared-editor mode the process is stateless and may run on a read-only
+    # filesystem (AWS Lambda): skip workspace/examples setup entirely. Writable
+    # scratch (cache/runs) lives under BIONODULO_ROOT (point it at /tmp).
+    editor_mode = os.environ.get("BIONODULO_EDITOR_MODE", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
     project_dir = Path(__file__).resolve().parent
-    workspace_root = ensure_workspace_root(project_dir)
-    ensure_examples_link(workspace_root, project_dir)
+    if not editor_mode:
+        workspace_root = ensure_workspace_root(project_dir)
+        ensure_examples_link(workspace_root, project_dir)
 
     app = FastAPI(
         title="BioNodulo",
