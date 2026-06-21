@@ -78,6 +78,7 @@ import {
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
+import { getCloudRun } from './api/website';
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
@@ -1416,6 +1417,58 @@ export default function App() {
     }
   }, [resolve, installDependencies, t]);
 
+  // Cloud runs execute on AWS Batch; their progress is reported by the worker
+  // to the website DB. Poll the run snapshot and stream newly-appended log lines
+  // into the editor console so the user sees dependency install + node progress
+  // without leaving the editor. (SSE can't bridge the worker callbacks to the
+  // browser without Redis, so we poll the persisted snapshot.)
+  const pollCloudRun = useCallback((runId: string) => {
+    if (!runId) return;
+    const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
+    const lineRe = /^\[.*?\]\s+(\w+):\s+([\s\S]*)$/;
+    let lastLen = 0;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      const snap = await getCloudRun(runId);
+      if (snap) {
+        if (typeof snap.logs === 'string' && snap.logs.length > lastLen) {
+          const fresh = snap.logs.slice(lastLen);
+          lastLen = snap.logs.length;
+          for (const raw of fresh.split('\n')) {
+            const line = raw.trim();
+            if (!line) continue;
+            const m = lineRe.exec(line);
+            const lvl = (m?.[1] || 'INFO').toUpperCase();
+            addLog({
+              run_id: runId,
+              node_id: 'cloud',
+              level: lvl === 'ERROR' ? 'error' : lvl === 'WARN' || lvl === 'WARNING' ? 'warn' : 'info',
+              message: m ? m[2] : line,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+        if (terminal.has(snap.status)) {
+          stopped = true;
+          addLog({
+            run_id: runId,
+            node_id: 'cloud',
+            level: snap.status === 'completed' ? 'info' : 'error',
+            message: snap.status === 'completed'
+              ? t('console.actions.cloudRunCompleted', { defaultValue: 'Cloud run completed.' })
+              : t('console.actions.cloudRunEnded', { defaultValue: `Cloud run ${snap.status}.`, status: snap.status }),
+            detail: snap.errorMessage || undefined,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+      }
+      setTimeout(() => { void tick(); }, 4000);
+    };
+    void tick();
+  }, [addLog, t]);
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
     logTelemetry('workflow.run.start', {
@@ -1527,16 +1580,17 @@ export default function App() {
             node_id: 'engine',
             level: 'info',
             message: t('console.actions.cloudRunSubmitted', {
-              defaultValue: 'Run submitted to the cloud — track its progress in your dashboard.',
+              defaultValue: 'Run submitted to the cloud — streaming progress below.',
             }),
             detail: cloudResult.dashboard_url || '',
             timestamp: new Date().toISOString(),
           });
           setConsoleVisible(true);
           setRailTab('console');
-          if (cloudResult.dashboard_url && typeof window !== 'undefined') {
-            window.open(cloudResult.dashboard_url, '_blank', 'noopener,noreferrer');
-          }
+          // Stream the worker's progress (dependency install + node logs) into
+          // the console by polling the run snapshot until it reaches a terminal
+          // state. The dashboard link is in the log detail for the full view.
+          if (result.run_id) pollCloudRun(result.run_id);
           continue;
         }
         addRun({
@@ -1575,7 +1629,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;

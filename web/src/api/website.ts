@@ -94,6 +94,36 @@ export function submitCloudRun(
   });
 }
 
+export interface CloudRunSnapshot {
+  id: string;
+  status: string;
+  logs: string;
+  errorMessage: string | null;
+  outputLocation: string | null;
+  durationMs: number | null;
+  creditsUsed: number | null;
+  createdAt: string | null;
+  completedAt: string | null;
+}
+
+/**
+ * Poll a single run's snapshot (status + accumulated logs). Returns null on a
+ * transient error so the poller can keep trying. The endpoint returns a plain
+ * object (not the {success,data} envelope), so it bypasses `call`.
+ */
+export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | null> {
+  try {
+    const res = await fetch(`${WEBSITE_API_BASE}/runs/${runId}`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CloudRunSnapshot;
+  } catch {
+    return null;
+  }
+}
+
 function rowToWorkflow(row: WorkflowRow): Workflow {
   const def = row.definition || {};
   return {
