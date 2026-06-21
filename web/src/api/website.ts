@@ -149,6 +149,24 @@ export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | nul
   }
 }
 
+export interface CollabClientToken {
+  room: string;
+  token: string;
+  host: string;
+  expiresAt: number;
+}
+
+/**
+ * Mint a per-room collaboration token for the cloud editor's Yjs WebSocket.
+ * Throws if the user's team doesn't own the workflow (the website enforces it).
+ */
+export function getCollabClientToken(workflowId: string): Promise<CollabClientToken> {
+  return call<CollabClientToken>('/collab/token', {
+    method: 'POST',
+    body: JSON.stringify({ workflowId }),
+  });
+}
+
 /** Invite a collaborator to the team by email (Clerk sends the email). */
 export function inviteCollaborator(
   email: string,

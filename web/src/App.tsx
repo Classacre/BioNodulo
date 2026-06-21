@@ -13,6 +13,11 @@ import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 // localStorage key for persisted cloud-editor console logs (survive refresh).
 const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
 
+// Cloud editor live collaboration (Yjs over the Cloudflare Durable-Objects
+// Worker). When set, collab "rooms" are implicit (team + workflow) — there is no
+// local FastAPI room/share backend to call.
+const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
+
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
@@ -100,6 +105,7 @@ import {
   showGettingStartedAtom,
   showShortcutsAtom,
   showShareDialogAtom,
+  showInviteDialogAtom,
   showCommentsAtom,
   selectedNodeIdAtom,
   consoleVisibleAtom,
@@ -313,6 +319,7 @@ export default function App() {
     handleAuthClose,
   } = useAuth({ collabEnabled, settingsReady, cloudMode });
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
+  const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
 
@@ -553,6 +560,18 @@ export default function App() {
       requestCollabAuth({ type: 'create' });
       return;
     }
+    // Cloud editor: the "room" is the team's workflow (no local FastAPI room /
+    // share-link backend). Turning collaboration on connects to the shared doc;
+    // teammates collaborate by opening the same workflow — prompt to invite one.
+    if (CLOUD_COLLAB) {
+      set('bionodulo.collab.enabled', true);
+      setCollabRoomActive(true);
+      setShowInviteDialog(true);
+      toast.success(appCollabCopy.toast.linkReady, {
+        message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on. Invite teammates to edit together.' }),
+      });
+      return;
+    }
     const workflowForRoom = withWorkflowId(activeWorkflow, activeWorkflowId);
     if (activeWorkflow.id !== activeWorkflowId) {
       updateWorkflow(activeIndex, workflowForRoom);
@@ -605,6 +624,8 @@ export default function App() {
     requestCollabAuth,
     set,
     setShowShareDialog,
+    setShowInviteDialog,
+    t,
     updateWorkflow,
   ]);
 
@@ -625,6 +646,16 @@ export default function App() {
     }
     if (!authUser) {
       requestCollabAuth({ type: 'join', target: joinTarget });
+      return;
+    }
+    // Cloud editor: joining == opening the team's workflow; the room token is
+    // fetched on connect. No local FastAPI join call.
+    if (CLOUD_COLLAB) {
+      set('bionodulo.collab.enabled', true);
+      setCollabRoomActive(true);
+      toast.success(appCollabCopy.toast.joined, {
+        message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on. Invite teammates to edit together.' }),
+      });
       return;
     }
     set('bionodulo.collab.enabled', true);
@@ -651,6 +682,7 @@ export default function App() {
     set,
     setCollabRoomActive,
     setRequestedWorkflowId,
+    t,
     updateWorkflow,
   ]);
 

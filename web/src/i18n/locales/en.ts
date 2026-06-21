@@ -2133,6 +2133,7 @@ class MyToolNode(CommandNode):
     badgeOffline: 'Offline',
     badgeCloud: 'Cloud',
     badgeCloudConnected: 'Connected to BioNodulo Cloud',
+    cloudCollabOn: 'Live collaboration is on. Invite teammates to edit together.',
     badgeCredits: '{{count}} credits',
     badgeCreditsTitle: 'Remaining cloud credits',
     badgeLocal: 'Local',
