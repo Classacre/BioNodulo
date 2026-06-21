@@ -10,6 +10,9 @@ import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
 import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
+// localStorage key for persisted cloud-editor console logs (survive refresh).
+const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
+
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
@@ -78,7 +81,7 @@ import {
 } from './collab';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { getCloudRun } from './api/website';
+import { getCloudRun, getCloudCredits } from './api/website';
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
@@ -753,7 +756,43 @@ export default function App() {
   }, []);
   const clearLogs = useCallback(() => {
     setLogs([]);
-  }, []);
+    if (editorMode) { try { localStorage.removeItem(CLOUD_LOGS_KEY); } catch { /* ignore */ } }
+  }, [editorMode]);
+
+  // Cloud editor: the console logs live in volatile atom state, so a page
+  // refresh wiped them — unhelpful when a run is executing on Batch. Persist a
+  // capped tail to localStorage and restore it once on load.
+  const logs = useAtomValue(logsAtom);
+  const cloudLogsRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!editorMode || cloudLogsRestoredRef.current) return;
+    cloudLogsRestoredRef.current = true;
+    try {
+      const raw = localStorage.getItem(CLOUD_LOGS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw) as LogEntry[];
+        if (Array.isArray(arr) && arr.length > 0) setLogs(arr);
+      }
+    } catch { /* corrupt/unavailable storage */ }
+  }, [editorMode, setLogs]);
+  useEffect(() => {
+    if (!editorMode || !cloudLogsRestoredRef.current) return;
+    const id = setTimeout(() => {
+      try { localStorage.setItem(CLOUD_LOGS_KEY, JSON.stringify(logs.slice(-1000))); } catch { /* quota */ }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [logs, editorMode]);
+
+  // Cloud editor: the team's remaining credits, shown in the Cloud badge.
+  const [cloudCredits, setCloudCredits] = useState<number | null>(null);
+  useEffect(() => {
+    if (!editorMode) return;
+    let cancelled = false;
+    const refresh = () => { void getCloudCredits().then(c => { if (!cancelled && c) setCloudCredits(c.remaining); }); };
+    refresh();
+    const id = setInterval(refresh, 60_000); // keep it fresh; runs burn credits
+    return () => { cancelled = true; clearInterval(id); };
+  }, [editorMode]);
 
   // Per-node run progress for inline canvas captions. Populated on node_start
   // events ({ current, total } parsed from the payload's "i/N" progress hint)
@@ -3199,6 +3238,8 @@ export default function App() {
             reconnectAttempt={collabReconnectAttempt}
             error={collabError}
             offline={collabOffline}
+            editorMode={editorMode}
+            credits={cloudCredits}
           />
         )}
       />

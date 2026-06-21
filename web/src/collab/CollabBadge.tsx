@@ -33,6 +33,10 @@ interface CollabBadgeProps {
   reconnectAttempt?: number;
   error?: string | null;
   offline?: boolean;
+  /** Cloud editor mode: relabel the badge "Cloud" (cyan) instead of "Offline". */
+  editorMode?: boolean;
+  /** Remaining team credits, shown beside the badge in cloud mode (null = hide). */
+  credits?: number | null;
 }
 
 function getInitials(name: string): string {
@@ -83,6 +87,8 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   reconnectAttempt = 0,
   error = null,
   offline = false,
+  editorMode = false,
+  credits = null,
 }) => {
   const { t } = useTranslation();
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
@@ -105,6 +111,12 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
   }, [open]);
 
   const status = useMemo(() => {
+    // Cloud editor: real-time collab is off, but the workflow IS backed by the
+    // cloud (DB persistence + Batch runs), so "Offline" is misleading. Show a
+    // cyan "Cloud" badge instead.
+    if (editorMode) {
+      return { color: '#06b6d4', text: t('collab.badgeCloud', { defaultValue: 'Cloud' }), label: t('collab.badgeCloudConnected', { defaultValue: 'Connected to BioNodulo Cloud' }) };
+    }
     if (!enabled) {
       if (hasJoinLink) {
         return { color: '#0d9488', text: t('collab.badgeJoin'), label: t('collab.badgeLinkReady') };
@@ -129,7 +141,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
       };
     }
     return { color: '#ef4444', text: t('collab.badgeOffline'), label: error || t('collab.badgeDisconnected') };
-  }, [enabled, hasJoinLink, offline, connected, connecting, reconnectAttempt, error, t]);
+  }, [editorMode, enabled, hasJoinLink, offline, connected, connecting, reconnectAttempt, error, t]);
 
   const liveOtherUsers = liveUsers.filter(user => (
     currentSessionId ? user.session_id !== currentSessionId : user.user_id !== currentUserId
@@ -183,6 +195,20 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
           }}
         />
         <span style={{ fontSize: 11, fontWeight: 600 }}>{status.text}</span>
+        {editorMode && typeof credits === 'number' && (
+          <span
+            title={t('collab.badgeCreditsTitle', { defaultValue: 'Remaining cloud credits', count: credits })}
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              background: `${status.color}20`,
+              padding: '1px 6px',
+              borderRadius: 8,
+            }}
+          >
+            {t('collab.badgeCredits', { defaultValue: '{{count}} credits', count: credits })}
+          </span>
+        )}
         {enabled && userCount > 0 && (
           <span style={{
             fontSize: 10,

@@ -124,6 +124,38 @@ export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | nul
   }
 }
 
+export interface CloudCredits {
+  remaining: number;
+  monthlyCredits: number;
+  usedCredits: number;
+  plan: string;
+}
+
+/**
+ * Fetch the team's credit balance for the cloud editor badge. Returns null on
+ * any error (signed-out, no org, network) so the badge degrades gracefully.
+ * The endpoint returns a plain object, not the {success,data} envelope.
+ */
+export async function getCloudCredits(): Promise<CloudCredits | null> {
+  try {
+    const res = await fetch(`${WEBSITE_API_BASE}/billing/credits`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (typeof j?.remaining !== 'number') return null;
+    return {
+      remaining: j.remaining,
+      monthlyCredits: j.monthlyCredits ?? 0,
+      usedCredits: j.usedCredits ?? 0,
+      plan: j.plan ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 function rowToWorkflow(row: WorkflowRow): Workflow {
   const def = row.definition || {};
   return {
