@@ -84,6 +84,10 @@ export function useWorkflow() {
   // editorMode (from /api/config); default off = unchanged local behaviour.
   const cloudConfig = useAtomValue(cloudConfigAtom);
   const editorMode = Boolean(cloudConfig?.editorMode);
+  // started = dedups the load; loaded = true ONLY after the DB workflow is set,
+  // so the debounced save never fires against the stale local placeholder
+  // (which has a client id the DB doesn't know → 404).
+  const cloudLoadStartedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -96,8 +100,8 @@ export function useWorkflow() {
   // Cloud load: on first entry to editor mode, load the team's workflow from
   // the DB (or create one), replacing the local placeholder.
   useEffect(() => {
-    if (!editorMode || cloudLoadedRef.current) return;
-    cloudLoadedRef.current = true;
+    if (!editorMode || cloudLoadStartedRef.current) return;
+    cloudLoadStartedRef.current = true;
     (async () => {
       try {
         // Open a specific workflow when deep-linked (?workflow=<id>), else the
@@ -117,6 +121,7 @@ export function useWorkflow() {
         }
         setWorkflows([normalizeWorkflow(wf)]);
         setActiveIndex(0);
+        cloudLoadedRef.current = true;
       } catch (err) {
         logError('cloud.workflows.load', err);
       }

@@ -295,7 +295,7 @@ export default function App() {
   >(null);
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
-  const { cloudConfig, cloudMode } = useCloudConfig();
+  const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
   // Optional Clerk sign-in for self-host when a publishable key is configured
   // and we are not in cloud auto-login mode. No-op otherwise.
   const clerk = useClerkAuth();
@@ -3303,7 +3303,7 @@ export default function App() {
             ))}
           </div>
         )}
-        {!cloudMode && hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
+        {!cloudMode && !editorMode && hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
             onDismiss={() => setDismissedHostStatus(hostStatus)}
