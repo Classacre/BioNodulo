@@ -100,9 +100,21 @@ export function useWorkflow() {
     cloudLoadedRef.current = true;
     (async () => {
       try {
-        const list = await listCloudWorkflows();
-        const id = list.length > 0 ? list[0].id : await createCloudWorkflow(i18n.t('common.untitled'));
-        const wf = await getCloudWorkflow(id);
+        // Open a specific workflow when deep-linked (?workflow=<id>), else the
+        // team's most recent, else create a fresh one.
+        const requested =
+          typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('workflow')
+            : null;
+        let wf: Workflow | null = null;
+        if (requested) {
+          wf = await getCloudWorkflow(requested).catch(() => null);
+        }
+        if (!wf) {
+          const list = await listCloudWorkflows();
+          const id = list.length > 0 ? list[0].id : await createCloudWorkflow(i18n.t('common.untitled'));
+          wf = await getCloudWorkflow(id);
+        }
         setWorkflows([normalizeWorkflow(wf)]);
         setActiveIndex(0);
       } catch (err) {
