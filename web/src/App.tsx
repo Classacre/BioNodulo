@@ -2058,15 +2058,19 @@ export default function App() {
     if (!wf) {
       return;
     }
-    if (collabSessionActive) {
-      // Keep a shared room on the same workflow id. Opening a new tab here
-      // strands collaborators, presence, and comments in different rooms.
+    if (collabSessionActive || editorMode) {
+      // Keep the SAME workflow id and replace its content. Collab needs this so
+      // a shared room stays on one id; the cloud editor needs it so the template
+      // persists to the DB-backed workflow (a new client-id tab would 404 on
+      // autosave and be lost on reload).
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
       updateWorkflow(activeIndex, sharedWorkflow);
-      if (collabDoc) {
-        workflowToDoc(sharedWorkflow, collabDoc);
+      if (collabSessionActive) {
+        if (collabDoc) {
+          workflowToDoc(sharedWorkflow, collabDoc);
+        }
+        void publishCollabWorkflowSnapshot(sharedWorkflow);
       }
-      void publishCollabWorkflowSnapshot(sharedWorkflow);
     } else {
       addWorkflow(withWorkflowId(wf));
     }
@@ -2083,17 +2087,19 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, t, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, t, updateWorkflow]);
 
   const handleImport = useCallback((wf: Workflow) => {
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
-    if (collabSessionActive) {
+    if (collabSessionActive || editorMode) {
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
       updateWorkflow(activeIndex, sharedWorkflow);
-      if (collabDoc) {
-        workflowToDoc(sharedWorkflow, collabDoc);
+      if (collabSessionActive) {
+        if (collabDoc) {
+          workflowToDoc(sharedWorkflow, collabDoc);
+        }
+        void publishCollabWorkflowSnapshot(sharedWorkflow);
       }
-      void publishCollabWorkflowSnapshot(sharedWorkflow);
     } else {
       addWorkflow(withWorkflowId(wf));
     }
@@ -2109,7 +2115,7 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, publishCollabWorkflowSnapshot, t, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, t, updateWorkflow]);
 
   // Replay any URL-hash workflow that mount stashed before handleImport
   // existed. Runs once handleImport stabilises.
