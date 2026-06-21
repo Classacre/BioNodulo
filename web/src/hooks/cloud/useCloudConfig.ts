@@ -20,6 +20,8 @@ export interface UseCloudConfigResult {
   cloudConfig: CloudConfig | null;
   /** True once cloud mode is confirmed active with an injected identity. */
   cloudMode: boolean;
+  /** True when served by the shared stateless editor backend (DB persistence). */
+  editorMode: boolean;
 }
 
 export function useCloudConfig(): UseCloudConfigResult {
@@ -49,6 +51,7 @@ export function useCloudConfig(): UseCloudConfigResult {
         if (!cancelled) {
           setCloudConfig({
             cloudMode: false,
+            editorMode: false,
             user: null,
             team: null,
             plan: null,
@@ -66,5 +69,6 @@ export function useCloudConfig(): UseCloudConfigResult {
   return {
     cloudConfig,
     cloudMode: Boolean(cloudConfig?.cloudMode && cloudConfig.user?.id),
+    editorMode: Boolean(cloudConfig?.editorMode),
   };
 }

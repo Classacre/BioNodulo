@@ -9,6 +9,9 @@ export const showAuthDialogAtom = atom(false);
 /** Runtime config served by the backend's `/api/config` (cloud-launch info). */
 export interface CloudConfig {
   cloudMode: boolean;
+  /** Shared stateless editor backend: persist workflows to the website DB and
+   *  submit runs to the cloud Batch runner (no in-session execution). */
+  editorMode: boolean;
   user: { id: string; name: string; email: string } | null;
   team: { id: string; name: string } | null;
   plan: string | null;
