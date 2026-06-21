@@ -43,6 +43,15 @@ export class ApiError extends Error {
 
 const DEFAULT_BASE = 'api';
 
+// Shared-editor (serverless) deployment: the static SPA calls a different
+// origin/path for the editing-support API than for its own static assets.
+// VITE_EDITOR_API_BASE (e.g. "/api/editor") reroutes the default `/api/*`
+// editing calls to the shared editing backend. Unset (self-host / per-user
+// container) => empty => calls stay relative to the app's own origin (current
+// behaviour). Persistence/runs use the website root API directly (see
+// api/website.ts), not this client.
+const EDITOR_API_BASE = (import.meta.env.VITE_EDITOR_API_BASE || '').replace(/\/+$/, '');
+
 async function readErrorBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('Content-Type') || '';
   try {
@@ -72,6 +81,20 @@ function buildUrl(path: string, basePath = DEFAULT_BASE): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   const cleanPath = path.replace(/^\/+/, '');
   const cleanBase = basePath.replace(/^\/+|\/+$/g, '');
+
+  // Shared editor: reroute the default `/api/*` editing calls to the editing
+  // backend base (absolute from origin root, NOT prefixed by appBasePath, since
+  // the static SPA's base path is unrelated to where the API lives). WebSocket
+  // paths are excluded (collab is disabled in editor mode anyway).
+  if (EDITOR_API_BASE && cleanBase === DEFAULT_BASE && !cleanPath.startsWith('ws/')) {
+    const core = cleanPath.startsWith('api/')
+      ? cleanPath.slice('api/'.length)
+      : cleanPath.startsWith(`${cleanBase}/`)
+        ? cleanPath.slice(cleanBase.length + 1)
+        : cleanPath;
+    return `${EDITOR_API_BASE}/${core}`;
+  }
+
   if (cleanPath.startsWith(`${cleanBase}/`) || cleanPath === cleanBase || cleanPath.startsWith('ws/')) {
     return appPath(cleanPath);
   }

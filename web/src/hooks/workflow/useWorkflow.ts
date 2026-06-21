@@ -1,6 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useAtomValue } from 'jotai';
 import type { Workflow, RunRecord, ResolveReport } from '../../types';
 import { apiPost, apiRequest } from '../../api/client';
+import {
+  listCloudWorkflows,
+  getCloudWorkflow,
+  createCloudWorkflow,
+  saveCloudWorkflow,
+  submitCloudRun,
+} from '../../api/website';
+import { cloudConfigAtom } from '../../state/appAtoms';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 
@@ -70,9 +79,51 @@ export function useWorkflow() {
   }, []);
   const [runs, setRuns] = useState<RunRecord[]>([]);
 
+  // Shared cloud editor: persist workflows to the website DB instead of
+  // localStorage, and submit runs to the cloud Batch runner. Gated on
+  // editorMode (from /api/config); default off = unchanged local behaviour.
+  const cloudConfig = useAtomValue(cloudConfigAtom);
+  const editorMode = Boolean(cloudConfig?.editorMode);
+  const cloudLoadedRef = useRef(false);
+  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Local persistence (skipped in cloud editor mode).
   useEffect(() => {
+    if (editorMode) return;
     saveLocalWorkflows(workflows, activeIndex);
-  }, [workflows, activeIndex]);
+  }, [workflows, activeIndex, editorMode]);
+
+  // Cloud load: on first entry to editor mode, load the team's workflow from
+  // the DB (or create one), replacing the local placeholder.
+  useEffect(() => {
+    if (!editorMode || cloudLoadedRef.current) return;
+    cloudLoadedRef.current = true;
+    (async () => {
+      try {
+        const list = await listCloudWorkflows();
+        const id = list.length > 0 ? list[0].id : await createCloudWorkflow(i18n.t('common.untitled'));
+        const wf = await getCloudWorkflow(id);
+        setWorkflows([normalizeWorkflow(wf)]);
+        setActiveIndex(0);
+      } catch (err) {
+        logError('cloud.workflows.load', err);
+      }
+    })();
+  }, [editorMode]);
+
+  // Cloud save: debounced PUT of the active workflow's definition.
+  useEffect(() => {
+    if (!editorMode || !cloudLoadedRef.current) return;
+    const wf = workflows[activeIndex];
+    if (!wf?.id) return;
+    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+    cloudSaveTimer.current = setTimeout(() => {
+      saveCloudWorkflow(wf).catch(err => logError('cloud.workflows.save', err));
+    }, 1200);
+    return () => {
+      if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+    };
+  }, [workflows, activeIndex, editorMode]);
 
   const addRun = useCallback((run: RunRecord) => {
     setRuns(prev => [run, ...prev]);
@@ -167,6 +218,29 @@ export function useWorkflow() {
     dry_run?: boolean;
     resume_checkpoint?: Record<string, unknown>;
   }) => {
+    // Cloud editor: persist the current definition, then submit to the cloud
+    // Batch runner. Dry-run previews still use the local editing backend.
+    if (editorMode && !options?.dry_run) {
+      // Ensure the workflow exists in the DB (it normally does after load), then
+      // persist the latest definition and submit to the cloud Batch runner.
+      let id = wf.id;
+      if (!id) id = await createCloudWorkflow(wf.name || i18n.t('common.untitled'));
+      const persisted = { ...wf, id };
+      try {
+        await saveCloudWorkflow(persisted);
+      } catch (err) {
+        logError('cloud.run.save', err);
+      }
+      const res = await submitCloudRun(id, options?.environment);
+      return {
+        run_id: res.runId,
+        status: 'submitted',
+        cloud: true,
+        dashboard_url: res.dashboardUrl,
+        name: options?.name,
+        workflow_name: wf.name,
+      } as unknown as RunRecord;
+    }
     const r = await apiRequest('/runs', {
       method: 'POST',
       json: {
@@ -184,7 +258,7 @@ export function useWorkflow() {
     });
     const data = await r.json();
     return data as RunRecord;
-  }, []);
+  }, [editorMode]);
 
   const exportWorkflow = useCallback(async (wf: Workflow, format: string) => {
     return await apiPost('/workflow/export', { workflow: wf, format });
