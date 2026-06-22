@@ -69,8 +69,10 @@ export interface ModalWorkflowContext {
   handleBatchSheetSubmit: (runs: SampleSheetRun[]) => void;
   handleLoadTemplate: (template: TemplateInfo) => Promise<void>;
   publishCollabWorkflowSnapshot: (wf: Workflow) => Promise<void>;
-  setWorkflowComments: (comments: Comment[]) => void;
-  setWorkflowNames: (names: Record<string, string>) => void;
+  comments: Comment[];
+  onAddComment: (content: string, nodeId: string | null, parentId: string | null) => void;
+  onResolveComment: (id: string) => void;
+  onDeleteComment: (id: string) => void;
 }
 
 export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
@@ -118,8 +120,10 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
     handleBatchSheetSubmit,
     handleLoadTemplate,
     publishCollabWorkflowSnapshot,
-    setWorkflowComments,
-    setWorkflowNames,
+    comments,
+    onAddComment,
+    onResolveComment,
+    onDeleteComment,
   } = ctx;
 
   return (
@@ -135,7 +139,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
       />
 
       <CommentsPanel
-        workflowId={activeWorkflowId}
+        comments={comments}
         currentUser={currentUser}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
@@ -143,8 +147,9 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
           setSelectedNodeId(nodeId);
           canvasRef.current?.focusNode(nodeId);
         }}
-        onCommentsChange={setWorkflowComments}
-        onWorkflowNamesChange={setWorkflowNames}
+        onAddComment={onAddComment}
+        onResolveComment={onResolveComment}
+        onDeleteComment={onDeleteComment}
       />
       <VersionHistory
         workflowId={activeWorkflowId}

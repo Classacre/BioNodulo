@@ -4,43 +4,49 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../components/ui/Icon';
 import { COMMENT_POPOVER_MAX_HEIGHT, COMMENT_POPOVER_WIDTH } from './commentLayout';
 import type { CollabUser, Comment } from './types';
-import { apiPost } from '../api/client';
-import { logError } from '../state/logging';
 
 interface NodeCommentPopoverProps {
-  workflowId: string;
   nodeId: string;
   currentUser: CollabUser;
   comments: Comment[];
   x: number;
   y: number;
   compose: boolean;
-  onChanged: () => void;
+  onAddComment: (content: string, nodeId: string | null, parentId: string | null) => void;
+  onResolveComment: (id: string) => void;
   onClose: () => void;
 }
 
-const API_BASE = 'api/collab';
-
 export default function NodeCommentPopover({
-  workflowId,
   nodeId,
   currentUser,
   comments,
   x,
   y,
   compose,
-  onChanged,
+  onAddComment,
+  onResolveComment,
   onClose,
 }: NodeCommentPopoverProps) {
   const { t } = useTranslation();
   const roots = useMemo(
-    () => comments.filter(comment => comment.node_id === nodeId && !comment.parent_id),
+    () => {
+      const replies = new Map<string, Comment[]>();
+      comments.forEach(c => {
+        if (!c.parent_id) return;
+        const list = replies.get(c.parent_id) ?? [];
+        list.push(c);
+        replies.set(c.parent_id, list);
+      });
+      return comments
+        .filter(comment => comment.node_id === nodeId && !comment.parent_id)
+        .map(root => ({ ...root, replies: replies.get(root.id) ?? [] }));
+    },
     [comments, nodeId],
   );
   const [content, setContent] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   const timeAgo = (timestamp: string): string => {
     const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
@@ -50,34 +56,16 @@ export default function NodeCommentPopover({
     return t('collab.timeDaysAgo', { count: Math.floor(seconds / 86400) });
   };
 
-  const post = async (text: string, parentId: string | null) => {
+  const post = (text: string, parentId: string | null) => {
     if (!text.trim()) return;
-    try {
-      await apiPost(`${API_BASE}/workflows/${workflowId}/comments`, {
-        content: text.trim(),
-        parent_id: parentId,
-        node_id: nodeId,
-      });
-      setContent('');
-      setReply('');
-      setReplyTo(null);
-      setError(null);
-      onChanged();
-    } catch (err) {
-      logError('collab.nodeComment.post', err);
-      setError(t('collab.couldNotPostComment'));
-    }
+    onAddComment(text.trim(), nodeId, parentId);
+    setContent('');
+    setReply('');
+    setReplyTo(null);
   };
 
-  const resolve = async (commentId: string) => {
-    try {
-      await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
-      setError(null);
-      onChanged();
-    } catch (err) {
-      logError('collab.nodeComment.resolve', err);
-      setError(t('collab.couldNotResolveComment'));
-    }
+  const resolve = (commentId: string) => {
+    onResolveComment(commentId);
   };
 
   const submitOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>, action: () => void) => {
@@ -106,7 +94,6 @@ export default function NodeCommentPopover({
         <strong style={{ fontSize: 12 }}>{compose && roots.length === 0 ? t('collab.nodeCommentTitle') : t('collab.nodeCommentsTitle')}</strong>
         <button className="btn btn-icon btn-xs" onClick={onClose} title={t('collab.closeComments')}><Icon name="close" size={12} /></button>
       </div>
-      {error ? <div style={{ color: 'var(--danger)', fontSize: 11, padding: '7px 10px', borderBottom: '1px solid var(--border)' }}>{error}</div> : null}
       {roots.length > 0 ? (
         <div style={{ overflowY: 'auto', display: 'grid', gap: 8, padding: 10 }}>
           {roots.map(comment => (

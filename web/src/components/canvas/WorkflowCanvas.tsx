@@ -80,7 +80,8 @@ interface WorkflowCanvasProps {
   nodeComments?: Comment[];
   collabWorkflowId?: string;
   currentCollabUser?: CollabUser;
-  onNodeCommentsChange?: () => void;
+  onAddComment?: (content: string, nodeId: string | null, parentId: string | null) => void;
+  onResolveComment?: (id: string) => void;
   collabUsers?: AwarenessState[];
   onCollabCursor?: (cursor: AwarenessState['cursor']) => void;
   onCollabSelection?: (selection: AwarenessState['selection']) => void;
@@ -560,9 +561,9 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   missingDependencyNodeIds,
   nodeCommentsMap,
   nodeComments = [],
-  collabWorkflowId,
   currentCollabUser,
-  onNodeCommentsChange,
+  onAddComment,
+  onResolveComment,
   collabUsers = [],
   onCollabCursor,
   onCollabSelection,
@@ -3767,7 +3768,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           />
         );
       })}
-      {nodeCommentTarget && collabWorkflowId && currentCollabUser && (() => {
+      {nodeCommentTarget && currentCollabUser && onAddComment && onResolveComment && (() => {
         const node = graphNodes.find(candidate => candidate.id === nodeCommentTarget.nodeId);
         if (!node) return null;
         const nodeRect = toScreenNodeRect(node);
@@ -3777,14 +3778,14 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
         const point = getNodeCommentPopoverPosition(nodeRect, canvasBounds, pinPoint, pinSize);
         return (
           <NodeCommentPopover
-            workflowId={collabWorkflowId}
             nodeId={node.id}
             currentUser={currentCollabUser}
             comments={nodeComments}
             x={point.x}
             y={point.y}
             compose={nodeCommentTarget.compose}
-            onChanged={() => onNodeCommentsChange?.()}
+            onAddComment={onAddComment}
+            onResolveComment={onResolveComment}
             onClose={() => setNodeCommentTarget(null)}
           />
         );

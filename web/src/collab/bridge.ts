@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import type { WorkflowNode, WorkflowEdge, WorkflowGroup } from '../types';
-import { serializeNode, deserializeNode, serializeEdge, deserializeEdge, serializeGroup, deserializeGroup } from './yjsDoc';
+import type { Comment } from './types';
+import { serializeNode, deserializeNode, serializeEdge, deserializeEdge, serializeGroup, deserializeGroup, serializeComment, deserializeComment } from './yjsDoc';
 
 function serializedValuesEqual(a: unknown, b: unknown): boolean {
   try {
@@ -14,9 +15,11 @@ interface BridgeCallbacks {
   onNodesChange: (nodes: WorkflowNode[]) => void;
   onEdgesChange: (edges: WorkflowEdge[]) => void;
   onGroupsChange: (groups: WorkflowGroup[]) => void;
+  onCommentsChange: (comments: Comment[]) => void;
   getNodes: () => WorkflowNode[];
   getEdges: () => WorkflowEdge[];
   getGroups: () => WorkflowGroup[];
+  getComments: () => Comment[];
   onDragStart?: (nodeId: string) => void;
   onDragEnd?: () => void;
 }
@@ -40,18 +43,23 @@ export class WorkflowYjsBridge {
     const yEdges = this.ydoc.getMap('edges');
     const yGroups = this.ydoc.getMap('groups');
 
+    const yComments = this.ydoc.getMap('comments');
+
     const nodesHandler = (event: Y.YMapEvent<unknown>) => this._onYjsNodesChange(event, yNodes);
     const edgesHandler = (event: Y.YMapEvent<unknown>) => this._onYjsEdgesChange(event, yEdges);
     const groupsHandler = (event: Y.YMapEvent<unknown>) => this._onYjsGroupsChange(event, yGroups);
+    const commentsHandler = (event: Y.YMapEvent<unknown>) => this._onYjsCommentsChange(event, yComments);
 
     yNodes.observe(nodesHandler);
     yEdges.observe(edgesHandler);
     yGroups.observe(groupsHandler);
+    yComments.observe(commentsHandler);
 
     this._unsubscribers.push(
       () => yNodes.unobserve(nodesHandler),
       () => yEdges.unobserve(edgesHandler),
       () => yGroups.unobserve(groupsHandler),
+      () => yComments.unobserve(commentsHandler),
     );
 
   }
@@ -189,6 +197,24 @@ export class WorkflowYjsBridge {
     }, 'local');
   }
 
+  onCommentsChanged(comments: Comment[]) {
+    if (this._isApplyingRemote) return;
+    const yComments = this.ydoc.getMap('comments');
+    const currentIds = new Set(comments.map(c => c.id));
+    this.ydoc.transact(() => {
+      comments.forEach(comment => {
+        if (!comment.id) return;
+        const serialized = serializeComment(comment);
+        if (!serializedValuesEqual(yComments.get(comment.id), serialized)) {
+          yComments.set(comment.id, serialized);
+        }
+      });
+      yComments.forEach((_, key) => {
+        if (!currentIds.has(key)) yComments.delete(key);
+      });
+    }, 'local');
+  }
+
   onDragStart(_nodeId: string) {
     this._isDragging = true;
     this._draggingNodeIds.add(_nodeId);
@@ -315,6 +341,30 @@ export class WorkflowYjsBridge {
       });
 
       this.callbacks.onGroupsChange(Array.from(groupMap.values()));
+    } finally {
+      this._isApplyingRemote = false;
+    }
+  }
+
+  private _onYjsCommentsChange(event: Y.YMapEvent<unknown>, yComments: Y.Map<unknown>) {
+    if (this._isApplyingRemote || event.transaction.origin === 'local') return;
+    this._isApplyingRemote = true;
+    try {
+      const commentMap = new Map(this.callbacks.getComments().map(c => [c.id, c]));
+
+      event.changes.keys.forEach((change, key) => {
+        if (change.action === 'add' || change.action === 'update') {
+          const raw = yComments.get(key);
+          if (raw === undefined) return;
+          try {
+            commentMap.set(key, deserializeComment(raw));
+          } catch { /* skip invalid */ }
+        } else if (change.action === 'delete') {
+          commentMap.delete(key);
+        }
+      });
+
+      this.callbacks.onCommentsChange(Array.from(commentMap.values()));
     } finally {
       this._isApplyingRemote = false;
     }

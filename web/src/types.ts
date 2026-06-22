@@ -1,3 +1,5 @@
+import type { Comment } from './collab/types';
+
 export interface DynamicOutputSpec {
   prefix?: string;
   count_input: string;
@@ -165,6 +167,12 @@ export interface Workflow {
   environment?: Record<string, unknown>;
   dependencies?: Record<string, string>;
   parameters?: WorkflowParameter[];
+  /**
+   * Collaboration comments, stored flat (threads via parent_id). Persisted with
+   * the workflow and synced in real time through the collab Yjs doc when a
+   * session is active. `replies` is always empty in storage (derived for UI).
+   */
+  comments?: Comment[];
 }
 
 export interface NodeStatus {

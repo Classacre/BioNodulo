@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup, WorkflowParameter } from '../types';
+import type { Comment } from './types';
 import i18n from '../i18n';
 
 function fallbackWorkflowName(): string {
@@ -20,6 +21,7 @@ export function createWorkflowDoc(workflowId: string): Y.Doc {
   ydoc.getMap('nodes');
   ydoc.getMap('edges');
   ydoc.getMap('groups');
+  ydoc.getMap('comments');
 
   const viewport = ydoc.getMap('viewport');
   viewport.set('x', 0);
@@ -106,6 +108,34 @@ function serializeParameters(parameters: WorkflowParameter[] | undefined): Recor
   return (parameters ?? []).map(parameter => cleanForYjs({ ...parameter }));
 }
 
+function serializeComment(comment: Comment): Record<string, unknown> {
+  // `replies` is derived for the UI; store only the flat fields.
+  const { replies, ...rest } = comment;
+  return cleanForYjs(rest);
+}
+
+function deserializeComment(data: unknown): Comment {
+  if (typeof data !== 'object' || data === null) {
+    throw new Error('Invalid comment data');
+  }
+  const d = data as Record<string, unknown>;
+  const created = String(d.created_at || new Date().toISOString());
+  return {
+    id: String(d.id || ''),
+    workflow_id: String(d.workflow_id || ''),
+    node_id: typeof d.node_id === 'string' ? d.node_id : null,
+    user_id: String(d.user_id || ''),
+    user_name: String(d.user_name || ''),
+    user_color: String(d.user_color || '#6366f1'),
+    content: String(d.content || ''),
+    parent_id: typeof d.parent_id === 'string' ? d.parent_id : null,
+    resolved: Boolean(d.resolved),
+    created_at: created,
+    updated_at: String(d.updated_at || created),
+    replies: [],
+  };
+}
+
 function deserializeParameters(data: unknown): WorkflowParameter[] | undefined {
   if (!Array.isArray(data)) return undefined;
   return data
@@ -150,6 +180,13 @@ export function docToWorkflow(doc: Y.Doc): Workflow {
     } catch { /* skip invalid */ }
   });
 
+  const comments: Comment[] = [];
+  doc.getMap('comments').forEach((value) => {
+    try {
+      comments.push(deserializeComment(value));
+    } catch { /* skip invalid */ }
+  });
+
   return {
     id: String(meta.get('id') || ''),
     version: String(meta.get('version') || '2.0'),
@@ -161,6 +198,7 @@ export function docToWorkflow(doc: Y.Doc): Workflow {
     groups,
     outputs: {},
     parameters: deserializeParameters(meta.get('parameters')),
+    comments,
   };
 }
 
@@ -208,9 +246,20 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
     yGroups.forEach((_, key) => {
       if (!currentGroupIds.has(key)) yGroups.delete(key);
     });
+
+    const yComments = ydoc.getMap('comments');
+    const currentCommentIds = new Set<string>();
+    for (const comment of workflow.comments ?? []) {
+      if (!validId(comment?.id)) continue;
+      yComments.set(comment.id, serializeComment(comment));
+      currentCommentIds.add(comment.id);
+    }
+    yComments.forEach((_, key) => {
+      if (!currentCommentIds.has(key)) yComments.delete(key);
+    });
   }, 'local');
 
   return ydoc;
 }
 
-export { serializeNode, deserializeNode, serializeEdge, deserializeEdge, serializeGroup, deserializeGroup };
+export { serializeNode, deserializeNode, serializeEdge, deserializeEdge, serializeGroup, deserializeGroup, serializeComment, deserializeComment };

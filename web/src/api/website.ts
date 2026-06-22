@@ -104,6 +104,7 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
         groups: rest.groups ?? [],
         outputs: rest.outputs ?? {},
         parameters: rest.parameters ?? [],
+        comments: rest.comments ?? [],
         version: rest.version,
         app: rest.app,
       },
@@ -232,5 +233,6 @@ function rowToWorkflow(row: WorkflowRow): Workflow {
     groups: (def.groups as Workflow['groups']) ?? [],
     outputs: (def.outputs as Workflow['outputs']) ?? {},
     parameters: (def.parameters as Workflow['parameters']) ?? [],
+    comments: (def.comments as Workflow['comments']) ?? [],
   };
 }

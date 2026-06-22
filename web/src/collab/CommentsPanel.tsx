@@ -1,25 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { getToken } from './auth';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
 import { selectedNodeIdAtom } from '../state/uiAtoms';
-import { apiDelete, apiGet, apiPost } from '../api/client';
-import { logError } from '../state/logging';
-
-const API_BASE = 'api/collab';
 
 interface CommentsPanelProps {
-  workflowId: string;
+  /** Flat comment list for the active workflow (threads via parent_id). */
+  comments: Comment[];
   currentUser: CollabUser;
   isOpen: boolean;
   onClose: () => void;
   onFocusNode?: (nodeId: string) => void;
-  onCommentsChange?: (comments: Comment[]) => void;
-  onWorkflowNamesChange?: (workflowNames: Record<string, string>) => void;
+  onAddComment: (content: string, nodeId: string | null, parentId: string | null) => void;
+  onResolveComment: (id: string) => void;
+  onDeleteComment: (id: string) => void;
 }
 
 function getInitials(name: string): string {
@@ -59,104 +56,61 @@ function renderCommentContent(text: string, resolved: boolean): ReactNode {
   return resolved ? <s>{parts}</s> : parts;
 }
 
-export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose, onFocusNode, onCommentsChange, onWorkflowNamesChange }: CommentsPanelProps) {
+/** Nest a flat comment list into root comments + their replies (by parent_id). */
+function buildThreads(comments: Comment[]): Comment[] {
+  const byParent = new Map<string, Comment[]>();
+  for (const c of comments) {
+    if (!c.parent_id) continue;
+    const list = byParent.get(c.parent_id) ?? [];
+    list.push(c);
+    byParent.set(c.parent_id, list);
+  }
+  const byTime = (a: Comment, b: Comment) => a.created_at.localeCompare(b.created_at);
+  return comments
+    .filter(c => !c.parent_id)
+    .sort(byTime)
+    .map(root => ({ ...root, replies: (byParent.get(root.id) ?? []).sort(byTime) }));
+}
+
+export default function CommentsPanel({ comments, currentUser, isOpen, onClose, onFocusNode, onAddComment, onResolveComment, onDeleteComment }: CommentsPanelProps) {
   const { t } = useTranslation();
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [newContent, setNewContent] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [showAll, setShowAll] = useState(true);
-  const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchComments = useCallback(async () => {
-    if (!workflowId) return;
-    try {
-      const token = getToken();
-      if (!token) {
-        setComments([]);
-        setError(t('collab.commentsJoinRequired'));
-        return;
-      }
-      const url = selectedNodeId && !showAll
-        ? `${API_BASE}/workflows/${workflowId}/comments?node_id=${encodeURIComponent(selectedNodeId)}`
-        : `${API_BASE}/comments`;
-      const data = await apiGet<{ comments: Comment[]; count: number; workflow_names?: Record<string, string> }>(url);
-      setComments(data.comments ?? []);
-      if (selectedNodeId && !showAll) {
-        onCommentsChange?.(data.comments ?? []);
-      }
-      setWorkflowNames(data.workflow_names ?? {});
-      onWorkflowNamesChange?.(data.workflow_names ?? {});
-      setError(null);
-    } catch {
-      setError(t('collab.commentsLoadError'));
-    }
-  }, [workflowId, selectedNodeId, showAll, onCommentsChange, onWorkflowNamesChange, t]);
+  if (!isOpen) return null;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (selectedNodeId) setShowAll(false);
-    setLoading(true);
-    fetchComments().then(() => setLoading(false));
-    intervalRef.current = setInterval(fetchComments, 2500);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isOpen, fetchComments, selectedNodeId]);
+  const scoped = selectedNodeId && !showAll
+    ? comments.filter(c => c.node_id === selectedNodeId || comments.some(p => p.id === c.parent_id && p.node_id === selectedNodeId))
+    : comments;
+  const threads = buildThreads(scoped);
+  const unresolvedCount = comments.filter(c => !c.resolved).length;
 
-  const postComment = async (content: string, parentId: string | null = null, nodeId: string | null = null) => {
-    const token = getToken();
-    if (!token) throw new Error(t('collab.commentsPostJoinRequired'));
-    return apiPost(`${API_BASE}/workflows/${workflowId}/comments`, { content, parent_id: parentId, node_id: nodeId });
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!newContent.trim()) return;
-    try {
-      await postComment(newContent.trim(), null, selectedNodeId);
-      setNewContent('');
-      fetchComments();
-    } catch (err) {
-      logError('collab.commentsPanel.post', err);
-      setError(t('collab.commentsPostError'));
-    }
+    onAddComment(newContent.trim(), selectedNodeId ?? null, null);
+    setNewContent('');
   };
 
   const handleCommentKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
-    void handleSubmit();
+    handleSubmit();
   };
 
-  const handleReply = async (parentId: string) => {
+  const handleReply = (parentId: string) => {
     if (!replyContent.trim()) return;
-    try {
-      await postComment(replyContent.trim(), parentId, selectedNodeId);
-      setReplyContent('');
-      setReplyTo(null);
-      fetchComments();
-    } catch (err) {
-      logError('collab.commentsPanel.reply', err);
-      setError(t('collab.commentsReplyError'));
-    }
+    onAddComment(replyContent.trim(), selectedNodeId ?? null, parentId);
+    setReplyContent('');
+    setReplyTo(null);
   };
 
   const handleReplyKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>, parentId: string) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
-    void handleReply(parentId);
-  };
-
-  const handleResolve = async (commentId: string) => {
-    try {
-      await apiPost(`${API_BASE}/comments/${commentId}/resolve`);
-      fetchComments();
-    } catch (err) {
-      logError('collab.commentsPanel.resolve', err);
-      setError(t('collab.commentsResolveError'));
-    }
+    handleReply(parentId);
   };
 
   const handleDelete = async (commentId: string) => {
@@ -167,19 +121,8 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
       tone: 'danger',
     });
     if (!ok) return;
-    try {
-      await apiDelete(`${API_BASE}/comments/${commentId}`);
-      fetchComments();
-    } catch (err) {
-      logError('collab.commentsPanel.delete', err);
-      setError(t('collab.commentsDeleteError'));
-    }
+    onDeleteComment(commentId);
   };
-
-  const rootComments = comments.filter(c => !c.parent_id);
-  const unresolvedCount = comments.filter(c => !c.resolved).length;
-
-  if (!isOpen) return null;
 
   return (
     <div style={{
@@ -204,18 +147,14 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
         </div>
       </div>
 
-      {/* Error */}
-      {error && <div style={{ padding: '8px 14px', fontSize: 11, color: '#ef4444', background: '#ef444410' }}>{error}</div>}
-
       {/* Comment list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {loading && comments.length === 0 && <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>{t('collab.commentsLoading')}</div>}
-        {rootComments.length === 0 && !loading && (
+        {threads.length === 0 && (
           <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>
             {selectedNodeId && !showAll ? t('collab.commentsEmptyNode', { showAll: t('collab.commentsShowAll') }) : t('collab.commentsEmptyAll')}
           </div>
         )}
-        {rootComments.map(comment => (
+        {threads.map(comment => (
           <div key={comment.id} style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', opacity: comment.resolved ? 0.5 : 1 }}>
             {/* Avatar + name + time */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -228,7 +167,7 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
                 <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>{timeAgo(comment.created_at, t)}</span>
               </div>
               {!comment.resolved && (
-                <button className="btn btn-icon btn-xs" onClick={() => handleResolve(comment.id)} title={t('collab.resolveComment')} style={{ padding: '2px 6px' }}><Icon name="check" size={12} /></button>
+                <button className="btn btn-icon btn-xs" onClick={() => onResolveComment(comment.id)} title={t('collab.resolveComment')} style={{ padding: '2px 6px' }}><Icon name="check" size={12} /></button>
               )}
               {comment.user_id === currentUser.id && (
                 <button className="btn btn-icon btn-xs" onClick={() => handleDelete(comment.id)} title={t('common.delete')} style={{ fontSize: 9 }}><Icon name="trash" size={12} /></button>
@@ -244,9 +183,6 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
                 <Icon name="target" size={10} /> {t('collab.commentsGoToNode')}
               </button>
             )}
-            <div title={comment.workflow_id} style={{ fontSize: 10, color: 'var(--muted)', paddingLeft: 32, marginBottom: 4 }}>
-              {workflowNames[comment.workflow_id] || t('collab.commentsWorkflowFallback', { id: comment.workflow_id.slice(0, 12) })}
-            </div>
             {/* Content */}
             <div style={{ fontSize: 12, lineHeight: 1.5, paddingLeft: 32, whiteSpace: 'pre-wrap' }}>
               {renderCommentContent(comment.content, comment.resolved)}
@@ -281,6 +217,9 @@ export default function CommentsPanel({ workflowId, currentUser, isOpen, onClose
                   }}>{getInitials(reply.user_name)}</div>
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{reply.user_name}</span>
                   <span style={{ fontSize: 9, color: 'var(--muted)' }}>{timeAgo(reply.created_at, t)}</span>
+                  {reply.user_id === currentUser.id && (
+                    <button className="btn btn-icon btn-xs" onClick={() => handleDelete(reply.id)} title={t('common.delete')} style={{ marginLeft: 'auto', fontSize: 9 }}><Icon name="trash" size={11} /></button>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, lineHeight: 1.4, paddingLeft: 24, whiteSpace: 'pre-wrap' }}>
                   {renderCommentContent(reply.content, reply.resolved)}

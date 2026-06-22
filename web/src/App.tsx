@@ -429,7 +429,8 @@ export default function App() {
     const yNodes = collabDoc.getMap('nodes');
     const yEdges = collabDoc.getMap('edges');
     const yGroups = collabDoc.getMap('groups');
-    const remoteHasWorkflow = yNodes.size > 0 || yEdges.size > 0 || yGroups.size > 0;
+    const yComments = collabDoc.getMap('comments');
+    const remoteHasWorkflow = yNodes.size > 0 || yEdges.size > 0 || yGroups.size > 0 || yComments.size > 0;
     if (remoteHasWorkflow) {
       const remoteWorkflow = docToWorkflow(collabDoc);
       updateWorkflowRef.current(activeIndex, {
@@ -439,6 +440,7 @@ export default function App() {
         edges: remoteWorkflow.edges,
         groups: remoteWorkflow.groups,
         parameters: remoteWorkflow.parameters,
+        comments: remoteWorkflow.comments,
       });
     } else if (
       suppressLocalSeedForWorkflowRef.current !== activeWorkflowId
@@ -453,9 +455,11 @@ export default function App() {
       onNodesChange: (nodes) => updateWorkflowRef.current(activeIndex, { nodes }),
       onEdgesChange: (edges) => updateWorkflowRef.current(activeIndex, { edges }),
       onGroupsChange: (groups) => updateWorkflowRef.current(activeIndex, { groups }),
+      onCommentsChange: (comments) => updateWorkflowRef.current(activeIndex, { comments }),
       getNodes: () => activeWorkflowRef.current.nodes,
       getEdges: () => activeWorkflowRef.current.edges,
       getGroups: () => activeWorkflowRef.current.groups,
+      getComments: () => activeWorkflowRef.current.comments ?? [],
       onDragStart: claimCollabDrag,
       onDragEnd: releaseCollabDrag,
     });
@@ -472,16 +476,49 @@ export default function App() {
   const showComments = useAtomValue(showCommentsAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
-  const [workflowComments, setWorkflowComments] = useState<Comment[]>([]);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
-  const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
+  // Cross-workflow display names came from the (removed) comments REST feed; in
+  // single-doc collab there is one workflow, so this stays empty and lookups
+  // fall back to the active tab names.
+  const workflowNames = useMemo<Record<string, string>>(() => ({}), []);
 
-  const { refetchComments: fetchWorkflowComments } = useCollabPolling({
-    collabEnabled: collabSessionActive,
-    activeWorkflowId,
-    setWorkflowComments,
-    setLivePresenceUsers,
-  });
+  // Comments are part of the workflow (persisted with it) and sync in real time
+  // through the collab Yjs doc when a session is active (bridge wiring below).
+  const workflowComments = useMemo<Comment[]>(() => activeWorkflow.comments ?? [], [activeWorkflow.comments]);
+
+  const applyComments = useCallback((next: Comment[]) => {
+    updateWorkflow(activeIndex, { comments: next });
+    bridgeRef.current?.onCommentsChanged(next);
+  }, [activeIndex, updateWorkflow]);
+
+  const handleAddComment = useCallback((content: string, nodeId: string | null, parentId: string | null) => {
+    const now = new Date().toISOString();
+    const comment: Comment = {
+      id: createWorkflowId(),
+      workflow_id: activeWorkflowId,
+      node_id: nodeId,
+      parent_id: parentId,
+      user_id: currentUser.id,
+      user_name: currentUser.name,
+      user_color: currentUser.color,
+      content,
+      resolved: false,
+      created_at: now,
+      updated_at: now,
+      replies: [],
+    };
+    applyComments([...(activeWorkflow.comments ?? []), comment]);
+  }, [activeWorkflow.comments, activeWorkflowId, currentUser, applyComments]);
+
+  const handleResolveComment = useCallback((id: string) => {
+    applyComments((activeWorkflow.comments ?? []).map(c => (c.id === id ? { ...c, resolved: true, updated_at: new Date().toISOString() } : c)));
+  }, [activeWorkflow.comments, applyComments]);
+
+  const handleDeleteComment = useCallback((id: string) => {
+    applyComments((activeWorkflow.comments ?? []).filter(c => c.id !== id && c.parent_id !== id));
+  }, [activeWorkflow.comments, applyComments]);
+
+  useCollabPolling({ collabEnabled: collabSessionActive, setLivePresenceUsers });
 
   useEffect(() => {
     if (!followingUserId) return;
@@ -3497,8 +3534,9 @@ export default function App() {
           nodeCommentsMap={nodeCommentsMap}
           nodeComments={workflowComments}
           collabWorkflowId={collabSessionActive ? activeWorkflowId : undefined}
-          currentCollabUser={collabSessionActive ? currentUser : undefined}
-          onNodeCommentsChange={() => void fetchWorkflowComments()}
+          currentCollabUser={authUser ? currentUser : undefined}
+          onAddComment={handleAddComment}
+          onResolveComment={handleResolveComment}
           collabUsers={canvasCollabUsers}
           nodePreviewsMap={nodePreviewsMap}
           nodeHtmlPreviewsMap={nodeHtmlPreviewsMap}
@@ -3659,8 +3697,10 @@ export default function App() {
         handleBatchSheetSubmit,
         handleLoadTemplate,
         publishCollabWorkflowSnapshot,
-        setWorkflowComments,
-        setWorkflowNames,
+        comments: workflowComments,
+        onAddComment: handleAddComment,
+        onResolveComment: handleResolveComment,
+        onDeleteComment: handleDeleteComment,
       }} />
 
     </div>
