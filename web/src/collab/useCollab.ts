@@ -102,7 +102,9 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   }, []);
 
   useEffect(() => {
+    CDBG('effect:enter workflowId=', workflowId, 'user=', currentUser.id);
     if (!workflowId) {
+      CDBG('effect:no-workflowId (reset)');
       providerRef.current?.disconnect();
       (providerRef.current as (WebsocketProvider & { destroy?: () => void }) | null)?.destroy?.();
       providerRef.current = null;
