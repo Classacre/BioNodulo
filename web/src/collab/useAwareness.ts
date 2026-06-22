@@ -10,16 +10,6 @@ import type { CollabUser, AwarenessState } from './types';
 
 const AWARENESS_TIMEOUT = 30000; // 30s before considering a user offline
 
-// TEMP instrumentation (remove after collab debugging).
-const ADBG = (...a: unknown[]): void => {
-  try {
-    if (typeof window !== 'undefined') {
-      const w = window as unknown as { __CLOG__?: string[] };
-      (w.__CLOG__ = w.__CLOG__ || []).push(`${Date.now() % 100000} aw:${a.map(String).join(' ')}`);
-    }
-  } catch { /* ignore */ }
-};
-
 interface UseAwarenessReturn {
   localState: AwarenessState;
   others: AwarenessState[];
@@ -87,7 +77,7 @@ export function useAwareness(
 
   // Update local awareness state in the y-protocols Awareness instance
   useEffect(() => {
-    if (!awareness) { ADBG('setLocal skipped (no awareness)'); return; }
+    if (!awareness) return;
 
     const state = buildLocalState(
       userRef.current,
@@ -98,7 +88,6 @@ export function useAwareness(
       localStateRef.current.dragOwnership,
     );
     awareness.setLocalState(state);
-    ADBG('setLocal', userRef.current.name, 'cursor=', Boolean(localStateRef.current.cursor));
   }, [awareness, localState.cursor, localState.selection, localState.viewport, localState.activity, localState.dragOwnership, localState.user]);
 
   // Listen for remote awareness changes
@@ -146,7 +135,6 @@ export function useAwareness(
       const list = Array.from(othersRef.current.values())
         .filter(o => now - (o as AwarenessState & { _receivedAt: number })._receivedAt < AWARENESS_TIMEOUT)
         .map(({ _receivedAt, ...rest }) => rest as AwarenessState);
-      ADBG('change added', added.length, 'updated', updated.length, 'removed', removed.length, '-> others', list.length);
       setOthers(list);
     };
 

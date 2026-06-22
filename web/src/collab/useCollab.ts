@@ -20,17 +20,6 @@ const AUTH_CLOSE_CODES = new Set([4401, 4403]);
 const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
 const CLOUD_COLLAB_HOST = (import.meta.env.VITE_COLLAB_HOST || '').trim();
 
-// TEMP instrumentation — collab lifecycle log readable from the page via
-// window.__CLOG__. Remove after debugging cloud collab sync.
-const CDBG = (...a: unknown[]): void => {
-  try {
-    if (typeof window !== 'undefined') {
-      const w = window as unknown as { __CLOG__?: string[] };
-      (w.__CLOG__ = w.__CLOG__ || []).push(`${Date.now() % 100000} ${a.map(String).join(' ')}`);
-    }
-  } catch { /* ignore */ }
-};
-
 interface UseCollabReturn {
   doc: Y.Doc | null;
   localSessionId: string;
@@ -102,9 +91,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   }, []);
 
   useEffect(() => {
-    CDBG('effect:enter workflowId=', workflowId, 'user=', currentUser.id);
     if (!workflowId) {
-      CDBG('effect:no-workflowId (reset)');
       providerRef.current?.disconnect();
       (providerRef.current as (WebsocketProvider & { destroy?: () => void }) | null)?.destroy?.();
       providerRef.current = null;
@@ -140,7 +127,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
     setConnecting(true);
     setError(null);
     setReconnectAttempt(0);
-    CDBG('effect:start', workflowId, 'cloud=', CLOUD_COLLAB);
 
     let cancelled = false;
     let ydoc: Y.Doc | null = null;
@@ -157,7 +143,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
           logError('collab.token', err);
           return null;
         });
-        if (cancelled) { CDBG('cancelled after token'); return; }
+        if (cancelled) return;
         if (!ct) {
           setConnecting(false);
           setError(tRef.current('collab.connectionUnauthorized'));
@@ -190,11 +176,9 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       });
       provider = p;
       providerRef.current = p;
-      CDBG('provider:created', wsUrl.replace(/\/\/.*@/, '//'), 'room', room.slice(0, 16));
 
       p.on('status', ({ status }: { status: 'connected' | 'disconnected' | 'connecting' }) => {
         if (providerRef.current !== p) return;
-        CDBG('status', status);
         setConnected(status === 'connected');
         setConnecting(status === 'connecting');
         setReconnectAttempt(p.wsUnsuccessfulReconnects);
@@ -203,10 +187,8 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
           setReconnectAttempt(0);
         }
       });
-      p.on('sync', (isSynced: boolean) => CDBG('sync', isSynced));
       p.on('connection-close', (event: CloseEvent | null) => {
         if (providerRef.current !== p) return;
-        CDBG('conn-close', event?.code, event?.reason);
         setConnected(false);
         setConnecting(p.shouldConnect);
         setReconnectAttempt(p.wsUnsuccessfulReconnects);
@@ -219,7 +201,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       });
       p.on('connection-error', () => {
         if (providerRef.current !== p) return;
-        CDBG('conn-error');
         setError(tRef.current('collab.connectionError'));
         setReconnectAttempt(p.wsUnsuccessfulReconnects);
       });
@@ -237,7 +218,6 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
 
     return () => {
       cancelled = true;
-      CDBG('cleanup hadProvider=', Boolean(provider));
       if (heartbeat !== undefined) window.clearInterval(heartbeat);
       if (provider) {
         provider.shouldConnect = false;
