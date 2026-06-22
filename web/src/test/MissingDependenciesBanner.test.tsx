@@ -88,15 +88,19 @@ describe('MissingDependenciesBanner i18n', () => {
   });
 
   it('centralizes known installer progress protocol messages', () => {
-    const source = readFileSync(resolve(__dirname, '../components/layout/MissingDependenciesBanner.tsx'), 'utf8');
+    // The installer-progress message keys are centralized in the
+    // useDependencyInstall hook (installProgressMessage); the banner consumes
+    // that helper and must not hardcode the raw protocol strings itself.
+    const hookSource = readFileSync(resolve(__dirname, '../hooks/workflow/useDependencyInstall.ts'), 'utf8');
+    expect(hookSource).toContain('INSTALL_PROGRESS_MESSAGE_KEYS');
 
-    expect(source).toContain('INSTALL_PROGRESS_MESSAGE_KEYS');
+    const bannerSource = readFileSync(resolve(__dirname, '../components/layout/MissingDependenciesBanner.tsx'), 'utf8');
     [
       "trimmed === 'Generating pixi.toml manifest...'",
       "trimmed === 'Locking dependencies with pixi (this may take a moment)...'",
       "trimmed === 'Installing packages into environment...'",
       "trimmed === 'Installation cancelled'",
-    ].forEach(text => expect(source).not.toContain(text));
+    ].forEach(text => expect(bannerSource).not.toContain(text));
   });
 
   it('renders dependency summary and expanded report sections from the active locale', async () => {

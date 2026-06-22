@@ -135,8 +135,6 @@ async def test_ai_chat_uses_litellm_native_tool_calls(monkeypatch):
 
 # --- Autonomous-agent tool tests (no live LLM required) ---------------------
 
-from pathlib import Path  # noqa: E402
-
 from bionodulo.ai.tools import aexecute_tool  # noqa: E402
 from bionodulo.execution.executor import WorkflowExecutor  # noqa: E402
 

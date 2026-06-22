@@ -145,8 +145,10 @@ def test_ncbi_efetch_url_builder() -> None:
 
 
 def test_input_fasta_source_modes_resolve(tmp_path: Path) -> None:
-    src_dir = tmp_path / "src"; src_dir.mkdir()
-    node_dir = tmp_path / "node"; node_dir.mkdir()
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    node_dir = tmp_path / "node"
+    node_dir.mkdir()
     fasta = src_dir / "seq.fasta"
     fasta.write_text(">a\nACGT\n")
     ctx = SimpleNamespace(workspace_dir=str(tmp_path), node_dir=str(node_dir))

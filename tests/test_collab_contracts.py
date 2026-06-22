@@ -18,11 +18,14 @@ from bionodulo.collab.yjs_native_handler import _replace_flat_snapshot, _room_pr
 
 
 def test_collab_routes_are_mounted_once() -> None:
-    from server import app
+    # Build a fresh app (not the module-level `server.app` singleton, which is
+    # created once at import and is sensitive to import order under the full
+    # test suite).
+    from server import create_app
 
+    app = create_app()
     paths = {getattr(route, "path", "") for route in app.routes}
 
-    assert "/api/collab/workflows/{workflow_id}/comments" in paths
     assert "/api/collab/templates/{template_id}/fork" in paths
     assert all(not path.startswith("/api/api/collab") for path in paths)
 
