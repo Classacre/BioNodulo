@@ -20,6 +20,17 @@ const AUTH_CLOSE_CODES = new Set([4401, 4403]);
 const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
 const CLOUD_COLLAB_HOST = (import.meta.env.VITE_COLLAB_HOST || '').trim();
 
+// TEMP instrumentation — collab lifecycle log readable from the page via
+// window.__CLOG__. Remove after debugging cloud collab sync.
+const CDBG = (...a: unknown[]): void => {
+  try {
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as { __CLOG__?: string[] };
+      (w.__CLOG__ = w.__CLOG__ || []).push(`${Date.now() % 100000} ${a.map(String).join(' ')}`);
+    }
+  } catch { /* ignore */ }
+};
+
 interface UseCollabReturn {
   doc: Y.Doc | null;
   localSessionId: string;
@@ -117,116 +128,126 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       return;
     }
 
-    const ydoc = createWorkflowDoc(workflowId);
-    const aw = new Awareness(ydoc);
-    setDoc(ydoc);
-    setAwareness(aw);
+    // Show "connecting" immediately; the doc/awareness/provider are all created
+    // TOGETHER once we have a connection target (after the async token fetch in
+    // cloud mode). Creating them up-front and then awaiting created a window
+    // where the effect cleanup ran and destroyed a half-built awareness that the
+    // pending provider then bound to — breaking sync. Now nothing exists until
+    // start() builds it, so cleanup during the await window is a clean no-op.
     setConnected(false);
     setConnecting(true);
     setError(null);
     setReconnectAttempt(0);
+    CDBG('effect:start', workflowId, 'cloud=', CLOUD_COLLAB);
 
     let cancelled = false;
-    let myProvider: WebsocketProvider | null = null;
+    let ydoc: Y.Doc | null = null;
+    let aw: Awareness | null = null;
+    let provider: WebsocketProvider | null = null;
     let heartbeat: number | undefined;
 
-    const buildProvider = (wsUrl: string, room: string, params: Record<string, string>) => {
-      const provider = new WebsocketProvider(wsUrl, room, ydoc, {
+    const start = async () => {
+      let wsUrl: string;
+      let room: string;
+      let params: Record<string, string>;
+      if (CLOUD_COLLAB) {
+        const ct = await getCollabClientToken(workflowId).catch(err => {
+          logError('collab.token', err);
+          return null;
+        });
+        if (cancelled) { CDBG('cancelled after token'); return; }
+        if (!ct) {
+          setConnecting(false);
+          setError(tRef.current('collab.connectionUnauthorized'));
+          return;
+        }
+        wsUrl = `wss://${ct.host || CLOUD_COLLAB_HOST}/editor`;
+        room = ct.room;
+        params = { token: ct.token, session_id: localSessionIdRef.current };
+      } else {
+        const token = getToken();
+        if (cancelled || !token) { setConnecting(false); return; }
+        wsUrl = wsServerUrl();
+        room = workflowId;
+        params = { client: 'y-websocket', token, session_id: localSessionIdRef.current };
+      }
+      if (cancelled) return;
+
+      ydoc = createWorkflowDoc(workflowId);
+      aw = new Awareness(ydoc);
+      const localAw = aw;
+      setDoc(ydoc);
+      setAwareness(aw);
+
+      const p = new WebsocketProvider(wsUrl, room, ydoc, {
         awareness: aw,
         disableBc: true,
         maxBackoffTime: 30000,
         resyncInterval: 10000,
         params,
       });
-      myProvider = provider;
-      providerRef.current = provider;
+      provider = p;
+      providerRef.current = p;
+      CDBG('provider:created', wsUrl.replace(/\/\/.*@/, '//'), 'room', room.slice(0, 16));
 
-      const handleStatus = ({ status }: { status: 'connected' | 'disconnected' | 'connecting' }) => {
-        if (providerRef.current !== provider) return;
+      p.on('status', ({ status }: { status: 'connected' | 'disconnected' | 'connecting' }) => {
+        if (providerRef.current !== p) return;
+        CDBG('status', status);
         setConnected(status === 'connected');
         setConnecting(status === 'connecting');
-        setReconnectAttempt(provider.wsUnsuccessfulReconnects);
+        setReconnectAttempt(p.wsUnsuccessfulReconnects);
         if (status === 'connected') {
           setError(null);
           setReconnectAttempt(0);
         }
-      };
-
-      const handleClose = (event: CloseEvent | null) => {
-        if (providerRef.current !== provider) return;
+      });
+      p.on('sync', (isSynced: boolean) => CDBG('sync', isSynced));
+      p.on('connection-close', (event: CloseEvent | null) => {
+        if (providerRef.current !== p) return;
+        CDBG('conn-close', event?.code, event?.reason);
         setConnected(false);
-        setConnecting(provider.shouldConnect);
-        setReconnectAttempt(provider.wsUnsuccessfulReconnects);
+        setConnecting(p.shouldConnect);
+        setReconnectAttempt(p.wsUnsuccessfulReconnects);
         if (event && AUTH_CLOSE_CODES.has(event.code)) {
-          provider.shouldConnect = false;
-          provider.disconnect();
+          p.shouldConnect = false;
+          p.disconnect();
           setConnecting(false);
           setError(event.reason || (event.code === 4403 ? tRef.current('collab.connectionForbidden') : tRef.current('collab.connectionUnauthorized')));
         }
-      };
-
-      const handleError = () => {
-        if (providerRef.current !== provider) return;
+      });
+      p.on('connection-error', () => {
+        if (providerRef.current !== p) return;
+        CDBG('conn-error');
         setError(tRef.current('collab.connectionError'));
-        setReconnectAttempt(provider.wsUnsuccessfulReconnects);
-      };
-
-      provider.on('status', handleStatus);
-      provider.on('connection-close', handleClose);
-      provider.on('connection-error', handleError);
+        setReconnectAttempt(p.wsUnsuccessfulReconnects);
+      });
 
       heartbeat = window.setInterval(() => {
-        if (providerRef.current !== provider) return;
-        const state = aw.getLocalState() as AwarenessState | null;
+        if (providerRef.current !== p) return;
+        const state = localAw.getLocalState() as AwarenessState | null;
         if (state) {
-          aw.setLocalState({ ...state, timestamp: Date.now() });
+          localAw.setLocalState({ ...state, timestamp: Date.now() });
         }
       }, 15000);
     };
 
-    void (async () => {
-      if (CLOUD_COLLAB) {
-        // Fetch a room-scoped token (verifies team ownership of the workflow).
-        const ct = await getCollabClientToken(workflowId).catch(err => {
-          logError('collab.token', err);
-          return null;
-        });
-        if (cancelled) return;
-        if (!ct) {
-          setConnecting(false);
-          setError(tRef.current('collab.connectionUnauthorized'));
-          return;
-        }
-        buildProvider(`wss://${ct.host || CLOUD_COLLAB_HOST}/editor`, ct.room, {
-          token: ct.token,
-          session_id: localSessionIdRef.current,
-        });
-      } else {
-        const token = getToken();
-        if (cancelled || !token) {
-          setConnecting(false);
-          return;
-        }
-        buildProvider(wsServerUrl(), workflowId, {
-          client: 'y-websocket',
-          token,
-          session_id: localSessionIdRef.current,
-        });
-      }
-    })();
+    void start();
 
     return () => {
       cancelled = true;
+      CDBG('cleanup hadProvider=', Boolean(provider));
       if (heartbeat !== undefined) window.clearInterval(heartbeat);
-      if (myProvider) {
-        myProvider.shouldConnect = false;
-        myProvider.disconnect();
-        (myProvider as WebsocketProvider & { destroy?: () => void }).destroy?.();
-        if (providerRef.current === myProvider) providerRef.current = null;
+      if (provider) {
+        provider.shouldConnect = false;
+        provider.disconnect();
+        (provider as WebsocketProvider & { destroy?: () => void }).destroy?.();
+        if (providerRef.current === provider) providerRef.current = null;
       }
-      aw.destroy();
-      setDoc(current => (current === ydoc ? null : current));
-      setAwareness(current => (current === aw ? null : current));
+      if (aw) aw.destroy();
+      const localDoc = ydoc;
+      const localAwareness = aw;
+      setDoc(current => (localDoc && current === localDoc ? null : current));
+      setAwareness(current => (localAwareness && current === localAwareness ? null : current));
       setConnected(false);
       setConnecting(false);
     };
