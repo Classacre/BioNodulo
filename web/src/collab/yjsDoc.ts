@@ -29,10 +29,26 @@ export function createWorkflowDoc(workflowId: string): Y.Doc {
   return ydoc;
 }
 
+/**
+ * Make a value safe to store in Yjs: strip `undefined` (and any non-JSON
+ * values) via a JSON round-trip. Yjs's writeAny encodes only JSON-compatible
+ * values; an `undefined` map KEY or a non-encodable value throws deep in the
+ * encoder ("writeString" on undefined), which previously crashed the whole
+ * editor when seeding a DB-loaded workflow into the collab doc.
+ */
+function cleanForYjs<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
+/** A usable Yjs map key: a non-empty string. */
+function validId(id: unknown): id is string {
+  return typeof id === 'string' && id.length > 0;
+}
+
 function serializeNode(node: WorkflowNode): Record<string, unknown> {
   // Strip node_info from Yjs storage (reconstructible from type)
   const { node_info, ...rest } = node;
-  return rest;
+  return cleanForYjs(rest);
 }
 
 function deserializeNode(data: unknown): WorkflowNode {
@@ -50,7 +66,7 @@ function deserializeNode(data: unknown): WorkflowNode {
 }
 
 function serializeEdge(edge: WorkflowEdge): Record<string, unknown> {
-  return { ...edge };
+  return cleanForYjs({ ...edge });
 }
 
 function deserializeEdge(data: unknown): WorkflowEdge {
@@ -66,7 +82,7 @@ function deserializeEdge(data: unknown): WorkflowEdge {
 }
 
 function serializeGroup(group: WorkflowGroup): Record<string, unknown> {
-  return { ...group };
+  return cleanForYjs({ ...group });
 }
 
 function deserializeGroup(data: unknown): WorkflowGroup {
@@ -87,7 +103,7 @@ function deserializeGroup(data: unknown): WorkflowGroup {
 }
 
 function serializeParameters(parameters: WorkflowParameter[] | undefined): Record<string, unknown>[] {
-  return (parameters ?? []).map(parameter => ({ ...parameter }));
+  return (parameters ?? []).map(parameter => cleanForYjs({ ...parameter }));
 }
 
 function deserializeParameters(data: unknown): WorkflowParameter[] | undefined {
@@ -161,7 +177,8 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
 
     const yNodes = ydoc.getMap('nodes');
     const currentNodeIds = new Set<string>();
-    for (const node of workflow.nodes) {
+    for (const node of workflow.nodes ?? []) {
+      if (!validId(node?.id)) continue; // undefined key would crash the Yjs encoder
       yNodes.set(node.id, serializeNode(node));
       currentNodeIds.add(node.id);
     }
@@ -172,7 +189,8 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
 
     const yEdges = ydoc.getMap('edges');
     const currentEdgeIds = new Set<string>();
-    for (const edge of workflow.edges) {
+    for (const edge of workflow.edges ?? []) {
+      if (!validId(edge?.id)) continue;
       yEdges.set(edge.id, serializeEdge(edge));
       currentEdgeIds.add(edge.id);
     }
@@ -182,7 +200,8 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
 
     const yGroups = ydoc.getMap('groups');
     const currentGroupIds = new Set<string>();
-    for (const group of workflow.groups) {
+    for (const group of workflow.groups ?? []) {
+      if (!validId(group?.id)) continue;
       yGroups.set(group.id, serializeGroup(group));
       currentGroupIds.add(group.id);
     }
