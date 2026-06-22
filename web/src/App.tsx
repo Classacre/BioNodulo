@@ -18,6 +18,16 @@ const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
 // local FastAPI room/share backend to call.
 const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
 
+// TEMP instrumentation (remove after collab debugging) — window.__CLOG__.
+const ADBG = (...a: unknown[]): void => {
+  try {
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as { __CLOG__?: string[] };
+      (w.__CLOG__ = w.__CLOG__ || []).push(`${Date.now() % 100000} app:${a.map(String).join(' ')}`);
+    }
+  } catch { /* ignore */ }
+};
+
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
@@ -394,6 +404,12 @@ export default function App() {
     && !requestedWorkflowPending
   ) ? activeWorkflowId : null;
   const collabSessionActive = Boolean(collabWorkflowId);
+
+  useEffect(() => {
+    ADBG('gates wfId=', collabWorkflowId, 'enabled=', collabEnabled, 'room=', collabRoomActive,
+      'settings=', settingsReady, 'authReady=', authReady, 'authUser=', Boolean(authUser),
+      'pending=', requestedWorkflowPending, 'activeId=', activeWorkflowId);
+  }, [collabWorkflowId, collabEnabled, collabRoomActive, settingsReady, authReady, authUser, requestedWorkflowPending, activeWorkflowId]);
 
   const {
     doc: collabDoc,
