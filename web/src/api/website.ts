@@ -149,6 +149,18 @@ export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | nul
   }
 }
 
+export interface CloudUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  team: { id: string; name: string };
+}
+
+/** Current signed-in user identity (cloud editor / local app). */
+export function getCurrentUser(): Promise<CloudUser> {
+  return call<CloudUser>('/me');
+}
+
 export interface CollabClientToken {
   room: string;
   token: string;

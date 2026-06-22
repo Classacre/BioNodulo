@@ -12,7 +12,7 @@ import { useAtom, useSetAtom } from 'jotai';
 import { apiGet } from '../../api/client';
 import { getUserColor } from '../../collab';
 import { setAuthUser } from '../../collab/authStorage';
-import { configureWebsiteApi } from '../../api/website';
+import { configureWebsiteApi, getCurrentUser } from '../../api/website';
 import { authUserAtom, cloudConfigAtom, type CloudConfig } from '../../state/appAtoms';
 import { logError } from '../../state/logging';
 
@@ -50,6 +50,18 @@ export function useCloudConfig(): UseCloudConfigResult {
           };
           setAuthUser(user);
           setAuthUserAtom(user);
+        } else if (cfg.editorMode || cfg.cloudMode) {
+          // The stateless editor backend's /api/config carries no user identity,
+          // so fetch the signed-in user from the website (cookie/bearer) to seed
+          // the collaboration identity. Without this, collab can't start.
+          getCurrentUser()
+            .then(u => {
+              if (cancelled || !u?.id) return;
+              const user = { id: u.id, name: u.name || u.email || u.id, color: getUserColor(u.id) };
+              setAuthUser(user);
+              setAuthUserAtom(user);
+            })
+            .catch(err => logError('cloud.config.me', err));
         }
       })
       .catch(err => {
