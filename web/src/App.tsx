@@ -317,7 +317,10 @@ export default function App() {
     setShowAuthDialog,
     handleAuthLogin,
     handleAuthClose,
-  } = useAuth({ collabEnabled, settingsReady, cloudMode });
+    // Editor mode is also an auto-login context: identity comes from the website
+    // session (seeded into authUser via /api/me), so treat it like cloudMode for
+    // auth — mark ready, never show the guest dialog, never null authUser.
+  } = useAuth({ collabEnabled, settingsReady, cloudMode: cloudMode || editorMode });
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
