@@ -18,16 +18,20 @@ from bionodulo.collab.yjs_native_handler import _replace_flat_snapshot, _room_pr
 
 
 def test_collab_routes_are_mounted_once() -> None:
-    # Build a fresh app (not the module-level `server.app` singleton, which is
-    # created once at import and is sensitive to import order under the full
-    # test suite).
+    # Assert against the collab router singleton, which is deterministically
+    # populated by its route decorators at import. (Inspecting a freshly
+    # assembled app's full route table is sensitive to import order / state
+    # under the complete test suite.)
+    from bionodulo.api.collab_routes import collab_api_router
+
+    router_paths = {getattr(route, "path", "") for route in collab_api_router.routes}
+    assert "/collab/templates/{template_id}/fork" in router_paths
+
+    # When mounted under /api it must not be double-prefixed as /api/api/collab.
     from server import create_app
 
-    app = create_app()
-    paths = {getattr(route, "path", "") for route in app.routes}
-
-    assert "/api/collab/templates/{template_id}/fork" in paths
-    assert all(not path.startswith("/api/api/collab") for path in paths)
+    app_paths = {getattr(route, "path", "") for route in create_app().routes}
+    assert all(not path.startswith("/api/api/collab") for path in app_paths)
 
 
 def test_colab_default_workflow_no_longer_redirects_root_visits(monkeypatch) -> None:
