@@ -344,6 +344,8 @@ export default function App() {
     }
   }, [getBool, set, settingsReady]);
 
+  useEffect(() => { ADBG('APP MOUNT'); return () => ADBG('APP UNMOUNT'); }, []);
+
   useEffect(() => installDomOverlayBridge(), []);
 
   // Stash the hash payload at app mount so we can replay it once
