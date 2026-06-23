@@ -97,29 +97,39 @@ export function useWorkflow() {
     saveLocalWorkflows(workflows, activeIndex);
   }, [workflows, activeIndex, editorMode]);
 
-  // Cloud load: on first entry to editor mode, load the team's workflow from
-  // the DB (or create one), replacing the local placeholder.
+  // Cloud load: on first entry to editor mode, open the team's recent workflows
+  // as tabs (the deep-linked one focused first). Workflows are managed in-app via
+  // tabs now, so we hydrate several rather than a single one.
+  const CLOUD_TAB_LIMIT = 8;
   useEffect(() => {
     if (!editorMode || cloudLoadStartedRef.current) return;
     cloudLoadStartedRef.current = true;
     (async () => {
       try {
-        // Open a specific workflow when deep-linked (?workflow=<id>), else the
-        // team's most recent, else create a fresh one.
         const requested =
           typeof window !== 'undefined'
             ? new URLSearchParams(window.location.search).get('workflow')
             : null;
-        let wf: Workflow | null = null;
-        if (requested) {
-          wf = await getCloudWorkflow(requested).catch(() => null);
+
+        const list = await listCloudWorkflows().catch(() => []);
+        // Build the id set to open: deep-linked first, then most-recent, capped.
+        const ids: string[] = [];
+        if (requested) ids.push(requested);
+        for (const summary of list) {
+          if (ids.length >= CLOUD_TAB_LIMIT) break;
+          if (!ids.includes(summary.id)) ids.push(summary.id);
         }
-        if (!wf) {
-          const list = await listCloudWorkflows();
-          const id = list.length > 0 ? list[0].id : await createCloudWorkflow(i18n.t('common.untitled'));
-          wf = await getCloudWorkflow(id);
+        // Nothing yet — create a fresh workflow so the editor isn't empty.
+        if (ids.length === 0) {
+          ids.push(await createCloudWorkflow(i18n.t('common.untitled')));
         }
-        setWorkflows([normalizeWorkflow(wf)]);
+
+        const loaded = await Promise.all(
+          ids.map(id => getCloudWorkflow(id).then(normalizeWorkflow).catch(() => null)),
+        );
+        const tabs = loaded.filter((w): w is Workflow => w !== null);
+        if (tabs.length === 0) return; // all fetches failed; keep placeholder
+        setWorkflows(tabs);
         setActiveIndex(0);
         cloudLoadedRef.current = true;
       } catch (err) {
@@ -173,6 +183,47 @@ export function useWorkflow() {
       return [...prev, normalizeWorkflow(wf)];
     });
   }, []);
+
+  // Open a DB-backed cloud workflow as a tab. If it's already open, just focus
+  // it; otherwise fetch it and append a tab. No-op outside editor mode.
+  const openCloudWorkflow = useCallback(async (id: string) => {
+    if (!editorMode || !id) return;
+    let already = -1;
+    setWorkflows(prev => {
+      already = prev.findIndex(w => w.id === id);
+      return prev;
+    });
+    if (already >= 0) {
+      setActiveIndex(already);
+      return;
+    }
+    try {
+      const wf = normalizeWorkflow(await getCloudWorkflow(id));
+      setWorkflows(prev => {
+        const existing = prev.findIndex(w => w.id === id);
+        if (existing >= 0) { setActiveIndex(existing); return prev; }
+        setActiveIndex(prev.length);
+        return [...prev, wf];
+      });
+    } catch (err) {
+      logError('cloud.workflows.open', err);
+    }
+  }, [editorMode]);
+
+  // Create a fresh cloud workflow and open it as a new tab.
+  const newCloudWorkflow = useCallback(async () => {
+    if (!editorMode) return;
+    try {
+      const id = await createCloudWorkflow(i18n.t('common.untitled'));
+      const wf = normalizeWorkflow(await getCloudWorkflow(id));
+      setWorkflows(prev => {
+        setActiveIndex(prev.length);
+        return [...prev, wf];
+      });
+    } catch (err) {
+      logError('cloud.workflows.new', err);
+    }
+  }, [editorMode]);
 
   const closeTab = useCallback((index: number) => {
     setWorkflows(prev => {
@@ -298,6 +349,7 @@ export function useWorkflow() {
   return {
     workflows, activeIndex, activeWorkflow, validation, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
+    openCloudWorkflow, newCloudWorkflow,
     validate, resolve, resolveReport, clearResolveReport, submitRun, exportWorkflow, importWorkflow,
     addRun, updateRun, setRuns,
   };

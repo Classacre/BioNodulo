@@ -12,6 +12,8 @@ export const showAIAtom = atom(false);
 export const showBatchSheetAtom = atom(false);
 export const showGettingStartedAtom = atom(false);
 export const showShortcutsAtom = atom(false);
+// Cloud editor: pick a saved workflow to open as a tab (or create a new one).
+export const showOpenWorkflowAtom = atom(false);
 
 // Collab overlay flags
 export const showInviteDialogAtom = atom(false);

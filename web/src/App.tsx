@@ -98,6 +98,7 @@ import {
   stripNodeTag,
 } from './utils/cloudRunStatus';
 import InviteDialog from './collab/InviteDialog';
+const OpenWorkflowModal = lazy(() => import('./components/modals/OpenWorkflowModal'));
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
@@ -119,6 +120,7 @@ import {
   showShareDialogAtom,
   showInviteDialogAtom,
   showCommentsAtom,
+  showOpenWorkflowAtom,
   selectedNodeIdAtom,
   consoleVisibleAtom,
   focusModeAtom,
@@ -276,6 +278,7 @@ export default function App() {
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
+    openCloudWorkflow, newCloudWorkflow,
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
   } = useWorkflow();
   // Theme is fully owned by the palette system (usePaletteTheme + state/palettes),
@@ -347,6 +350,7 @@ export default function App() {
   } = useAuth({ collabEnabled, settingsReady, cloudMode: cloudMode || editorMode });
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
+  const setShowOpenWorkflow = useSetAtom(showOpenWorkflowAtom);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
 
@@ -3398,6 +3402,11 @@ export default function App() {
       />
 
       <InviteDialog />
+      {editorMode && (
+        <Suspense fallback={null}>
+          <OpenWorkflowModal onOpen={(id) => void openCloudWorkflow(id)} onNew={() => void newCloudWorkflow()} />
+        </Suspense>
+      )}
 
       <WorkflowTabs
         tabs={tabNames}
@@ -3419,7 +3428,7 @@ export default function App() {
           }
           closeTab(index);
         }}
-        onAdd={addTab}
+        onAdd={editorMode ? () => setShowOpenWorkflow(true) : addTab}
         onRename={handleRenameTab}
         onDuplicate={handleDuplicateTab}
         onReorder={handleReorderTabs}
