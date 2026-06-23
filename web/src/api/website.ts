@@ -112,14 +112,18 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
   });
 }
 
-/** Submit a run to the cloud Batch runner for an already-persisted workflow. */
+/**
+ * Submit a run to the cloud Batch runner for an already-persisted workflow.
+ * `compute` carries either a named preset (resourceProfile) or an arbitrary
+ * custom CPU/RAM spec; the server validates it against the team's plan.
+ */
 export function submitCloudRun(
   workflowId: string,
-  resourceProfile?: string,
+  compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
   return call('/runs', {
     method: 'POST',
-    body: JSON.stringify({ workflowId, resourceProfile }),
+    body: JSON.stringify({ workflowId, ...(compute ?? {}) }),
   });
 }
 

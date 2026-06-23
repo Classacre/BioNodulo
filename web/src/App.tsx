@@ -27,6 +27,8 @@ const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
 const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
+const UserPanel = lazy(() => import('./components/panels/UserPanel'));
+const ComputePanel = lazy(() => import('./components/panels/ComputePanel'));
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
@@ -102,7 +104,9 @@ import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import {
   requestedWorkflowIdAtom,
+  computeSpecAtom,
 } from './state/appAtoms';
+import { specToRunBody } from './utils/computeSpec';
 import {
   showExportAtom,
   showImportAtom,
@@ -145,6 +149,8 @@ const PANEL_LABEL_KEYS: Partial<Record<OpenPanelTab, string>> = {
   help: 'panels.helpWiki',
   settings: 'panels.settings',
   hpc: 'panels.hpc',
+  user: 'panels.account',
+  compute: 'panels.compute',
 };
 type AppHistorySnapshot = {
   nodes: WorkflowNode[];
@@ -313,6 +319,8 @@ export default function App() {
     { type: 'create' } | { type: 'join'; target: CollabLinkTarget } | null
   >(null);
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
+  // Selected cloud compute spec (Compute panel) sent with the next cloud run.
+  const computeSpec = useAtomValue(computeSpecAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
   const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
   // True once /api/config has resolved (success or fallback). Host-only boot
@@ -1689,6 +1697,7 @@ export default function App() {
           parameters: parameterOverrides,
           dry_run: dryRunPreview,
           resume_checkpoint: resumeCheckpoint?.checkpoint,
+          compute: specToRunBody(computeSpec),
         });
         if (dryRunPreview || result.status === 'dry_run') {
           const preview = result as RunRecord & {
@@ -1798,7 +1807,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun, computeSpec]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -3286,6 +3295,12 @@ export default function App() {
           onImportWorkflow={handleImport}
         />
       ));
+    }
+    if (tab === 'user') {
+      return wrap('user', <UserPanel onClose={() => closePanel(tab)} />);
+    }
+    if (tab === 'compute') {
+      return wrap('compute', <ComputePanel onClose={() => closePanel(tab)} />);
     }
     const registered = registeredPanels.find(panel => panel.id === tab);
     if (registered) {

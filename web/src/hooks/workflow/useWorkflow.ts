@@ -234,6 +234,8 @@ export function useWorkflow() {
     parameters?: Record<string, unknown>;
     dry_run?: boolean;
     resume_checkpoint?: Record<string, unknown>;
+    /** Cloud compute selection (preset or custom CPU/RAM) for the Batch run. */
+    compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } };
   }) => {
     // Cloud editor: persist the current definition, then submit to the cloud
     // Batch runner. Dry-run previews still use the local editing backend.
@@ -248,7 +250,7 @@ export function useWorkflow() {
       } catch (err) {
         logError('cloud.run.save', err);
       }
-      const res = await submitCloudRun(id, options?.environment);
+      const res = await submitCloudRun(id, options?.compute);
       return {
         run_id: res.runId,
         status: 'submitted',
