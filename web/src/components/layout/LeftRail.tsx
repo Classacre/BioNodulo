@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
+import { cloudConfigAtom } from '../../state/appAtoms';
 
 export type RailTab = 'data' | 'nodes' | 'inspector' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | string | null;
 
@@ -71,16 +72,26 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
   };
   const registered = usePanelRegistry();
   const { getBinding } = useKeybindings();
+  // The cloud editor has no local host: workspace files, the conda/pixi
+  // environment manager, runtime artifacts and the HPC/SLURM panel all depend
+  // on machine-local state the Lambda doesn't have. Hide them in editor mode.
+  const editorMode = useAtomValue(cloudConfigAtom)?.editorMode ?? false;
 
   return (
     <nav className="left-rail">
-      <RailButton active={active === 'data'} icon="folder" label={t('panels.workspace')} shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
+      {!editorMode && (
+        <RailButton active={active === 'data'} icon="folder" label={t('panels.workspace')} shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
+      )}
       <RailButton active={active === 'nodes'} icon="nodes" label={t('panels.nodes')} shortcut={getBinding('rail.nodes') ?? undefined} onClick={() => toggle('nodes')} />
       <RailButton active={active === 'templates'} icon="template" label={t('panels.templates')} shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
-      <div className="rail-sep" />
-      <RailButton active={active === 'environments'} icon="dna" label={t('panels.environment')} shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
-      <RailButton active={active === 'runtimeArtifacts'} icon="activity" label={t('panels.runtimeArtifacts')} onClick={() => toggle('runtimeArtifacts')} />
-      <RailButton active={active === 'hpc'} icon="server" label={t('panels.hpc')} shortcut={getBinding('rail.hpc') ?? undefined} onClick={() => toggle('hpc')} />
+      {!editorMode && (
+        <>
+          <div className="rail-sep" />
+          <RailButton active={active === 'environments'} icon="dna" label={t('panels.environment')} shortcut={getBinding('rail.environment') ?? undefined} onClick={() => toggle('environments')} />
+          <RailButton active={active === 'runtimeArtifacts'} icon="activity" label={t('panels.runtimeArtifacts')} onClick={() => toggle('runtimeArtifacts')} />
+          <RailButton active={active === 'hpc'} icon="server" label={t('panels.hpc')} shortcut={getBinding('rail.hpc') ?? undefined} onClick={() => toggle('hpc')} />
+        </>
+      )}
       {registered.length > 0 && <div className="rail-sep" />}
       {registered.map(panel => (
         <RailButton

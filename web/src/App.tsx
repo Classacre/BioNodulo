@@ -809,6 +809,7 @@ export default function App() {
   const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
 
   useEffect(() => {
+    if (editorMode) return; // no host prerequisites in the cloud editor
     apiGet<unknown>('/api/host_status')
       .then(raw => {
         const result = safeValidateHostStatus(raw);
@@ -816,7 +817,7 @@ export default function App() {
         else logError('host_status.validate', result.error);
       })
       .catch(() => { /* offline */ });
-  }, []);
+  }, [editorMode]);
 
   const setLogs = useSetAtom(logsAtom);
   const MAX_LOGS = 5000;
@@ -911,8 +912,11 @@ export default function App() {
     }));
   }, [setRuns]);
 
-  // Load queue and execution history from backend on startup
+  // Load queue and execution history from backend on startup. The cloud editor
+  // has no local run queue/history (runs execute on Batch and are tracked in the
+  // dashboard), so skip these polled endpoints entirely in editor mode.
   useEffect(() => {
+    if (editorMode) return;
     Promise.all([
       apiGet<unknown>('/queue').catch(() => null),
       apiGet<unknown>('/history').catch(() => null),
@@ -972,7 +976,7 @@ export default function App() {
           .catch(() => { /* ignore */ });
       }
     }).catch(() => { /* offline */ });
-  }, [setRuns, addLog, setLogs, t]);
+  }, [setRuns, addLog, setLogs, t, editorMode]);
 
   // History stack for undo/redo
   const canvasRef = useRef<WorkflowCanvasRef>(null);
@@ -1256,12 +1260,15 @@ export default function App() {
     });
   }, []);
 
-  // WebSocket connection for real-time logs
+  // WebSocket connection for real-time logs. The cloud editor (editorMode) has
+  // no such socket — it's served statically and the Lambda can't hold a WS — so
+  // we pass null to avoid an endless failed-reconnect loop against /build/ws.
   const wsUrl = useMemo(() => {
+    if (editorMode) return null;
     const token = getToken();
     const params = token ? `?token=${encodeURIComponent(token)}` : '';
     return appWebSocketUrl('/ws', params);
-  }, [authUser?.id]);
+  }, [authUser?.id, editorMode]);
   const { onMessage } = useWebSocket(wsUrl);
 
   useWorkflowMessages({
@@ -3275,6 +3282,7 @@ export default function App() {
         onToggleQueue={handleToggleQueue}
         dryRunPreview={dryRunPreview}
         onDryRunPreviewChange={setDryRunPreview}
+        editorMode={editorMode}
         resumeCheckpointLabel={resumeCheckpoint?.label ?? null}
         onOpenRuntimeArtifacts={() => setRailTab('runtimeArtifacts')}
         onResumeCheckpointClear={() => setResumeCheckpoint(null)}
@@ -3651,7 +3659,7 @@ export default function App() {
           </Suspense>
         ))}
 
-        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} />
+        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} systemStats={!editorMode} />
         {focusMode && (
           <button
             type="button"
@@ -3670,6 +3678,7 @@ export default function App() {
               onClose={() => { setConsoleVisible(false); if (railTab === 'console') setRailTab(null); }}
               onClearLogs={clearLogs}
               nodeIdToName={nodeIdToNameMap}
+              editorMode={editorMode}
             />
           </ErrorBoundary>
         )}

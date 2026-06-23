@@ -42,6 +42,12 @@ interface WorkflowStatsOverlayProps {
   workflow: Workflow;
   /** Hidden when focus mode is on; the workflow tabs row already shows the name. */
   hidden?: boolean;
+  /**
+   * Whether to poll `/system_stats`. Off in the cloud editor, where the only
+   * machine behind the endpoint is the stateless Lambda — its CPU/RAM numbers
+   * are meaningless and the 2 s poll is pure noise.
+   */
+  systemStats?: boolean;
 }
 
 interface CategoryBucket { label: string; count: number }
@@ -97,7 +103,7 @@ function tempColor(c: number, warn: number, danger: number): string {
   return 'var(--success)';
 }
 
-export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStatsOverlayProps) {
+export default function WorkflowStatsOverlay({ workflow, hidden, systemStats = true }: WorkflowStatsOverlayProps) {
   const { t, i18n } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
@@ -108,6 +114,11 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
   const [systemErrored, setSystemErrored] = useState(false);
 
   useEffect(() => {
+    if (!systemStats) {
+      setSystem(null);
+      setSystemErrored(false);
+      return;
+    }
     let active = true;
     const fetchStats = async () => {
       try {
@@ -126,7 +137,7 @@ export default function WorkflowStatsOverlay({ workflow, hidden }: WorkflowStats
       active = false;
       window.clearInterval(id);
     };
-  }, []);
+  }, [systemStats]);
 
   if (hidden) return null;
 

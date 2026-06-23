@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import useReactWebSocket, { ReadyState } from 'react-use-websocket';
 
-export function useWebSocket(url: string) {
+export function useWebSocket(url: string | null) {
   const handlers = useRef<Set<(data: unknown) => void>>(new Set());
   const {
     sendJsonMessage,

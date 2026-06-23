@@ -55,11 +55,25 @@ function saveLocal(settings: Record<string, unknown>) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
 }
 
+// In the cloud editor there is no persistent backend for user settings: the
+// stateless Lambda writes to ephemeral disk that's gone on the next invocation,
+// and its GET would clobber localStorage with defaults. So editor mode is
+// localStorage-only — no remote GET, no remote POST.
+// Seeded synchronously from the build-time editor flag so the very first
+// useSettings mount already knows not to hit the remote (avoids a boot race
+// where the settings GET fires before /api/config resolves). useCloudConfig
+// confirms it at runtime via setSettingsEditorMode.
+let settingsEditorMode = Boolean(import.meta.env.VITE_EDITOR_API_BASE);
+export function setSettingsEditorMode(value: boolean): void {
+  settingsEditorMode = value;
+}
+
 // Persist changed keys to the backend so settings the server consumes (LLM
 // credentials/model, execution + file options) actually take effect. localStorage
 // alone never reaches the backend. Fire-and-forget: the UI already updated local
 // state, and the app must keep working offline.
 function persistRemote(partial: Record<string, unknown>): void {
+  if (settingsEditorMode) return;
   if (!partial || Object.keys(partial).length === 0) return;
   void apiPost('/api/settings', { settings: partial }).catch(() => { /* offline */ });
 }
@@ -186,6 +200,13 @@ export function useSettings() {
   useEffect(() => {
     if (globalFetchStarted) return;
     globalFetchStarted = true;
+    if (settingsEditorMode) {
+      // Editor mode is localStorage-only; mark hydrated so consumers don't wait
+      // on a fetch that would only return ephemeral Lambda defaults.
+      globalHydrated = true;
+      emit();
+      return;
+    }
     apiGet<Partial<typeof globalSettings>>('/api/settings')
       .then(data => {
         if (data) {

@@ -31,6 +31,12 @@ interface TopBarProps {
   onResumeCheckpointClear?: () => void;
   onToggleQueue: () => void;
   /**
+   * Cloud editor mode. Hides the run-options dropdown (dry-run preview, resume
+   * checkpoint, local queue mode, batch sheet) — all of which are local-host
+   * execution concepts. Cloud runs go straight to AWS Batch.
+   */
+  editorMode?: boolean;
+  /**
    * When defined, rendered to the right of the validation badge — usually the
    * `<CollabBadge />`. When collab is disabled in settings the caller should
    * pass `null` so nothing is rendered (instead of a hollow placeholder).
@@ -85,6 +91,7 @@ export default function TopBar({
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
   onToggleQueue, collabControls, cloudAccount = null, clerkAccount = null,
+  editorMode = false,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
@@ -297,6 +304,7 @@ export default function TopBar({
               ? <><Icon name="stop" size={14} /> {t('topbar.runningEllipsis')}</>
               : <><Icon name="play" size={14} /> {t('topbar.run')}</>}
           </button>
+          {!editorMode && (
           <button
             ref={runToggleRef}
             type="button"
@@ -310,8 +318,9 @@ export default function TopBar({
           >
             <Icon name="chevronDown" size={12} />
           </button>
+          )}
 
-          {runMenuOpen && (
+          {!editorMode && runMenuOpen && (
             <div className="run-split-menu" role="menu" onKeyDown={handleRunMenuKeyDown}>
               <div className="run-split-menu-header">{t('topbar.batchCount')}</div>
               <div className="run-split-menu-batch">
