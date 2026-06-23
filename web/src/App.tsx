@@ -315,6 +315,14 @@ export default function App() {
   const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
   const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
+  // True once /api/config has resolved (success or fallback). Host-only boot
+  // polls wait for this so they don't fire in the sub-second window before
+  // editorMode is known — otherwise the cloud editor briefly hits host-only
+  // endpoints (/host_status, /queue, /history, /system_stats) the Lambda can't
+  // serve. `null` = not yet fetched.
+  const configResolved = cloudConfig !== null;
+  // Host-only features run only in a resolved, non-editor config.
+  const hostFeaturesEnabled = configResolved && !editorMode;
   // Optional Clerk sign-in for self-host when a publishable key is configured
   // and we are not in cloud auto-login mode. No-op otherwise.
   const clerk = useClerkAuth();
@@ -817,7 +825,7 @@ export default function App() {
   const [dismissedHostStatus, setDismissedHostStatus] = useState<HostStatus | null>(null);
 
   useEffect(() => {
-    if (editorMode) return; // no host prerequisites in the cloud editor
+    if (!hostFeaturesEnabled) return; // no host prerequisites in the cloud editor
     apiGet<unknown>('/api/host_status')
       .then(raw => {
         const result = safeValidateHostStatus(raw);
@@ -825,7 +833,7 @@ export default function App() {
         else logError('host_status.validate', result.error);
       })
       .catch(() => { /* offline */ });
-  }, [editorMode]);
+  }, [hostFeaturesEnabled]);
 
   const setLogs = useSetAtom(logsAtom);
   const MAX_LOGS = 5000;
@@ -924,7 +932,7 @@ export default function App() {
   // has no local run queue/history (runs execute on Batch and are tracked in the
   // dashboard), so skip these polled endpoints entirely in editor mode.
   useEffect(() => {
-    if (editorMode) return;
+    if (!hostFeaturesEnabled) return;
     Promise.all([
       apiGet<unknown>('/queue').catch(() => null),
       apiGet<unknown>('/history').catch(() => null),
@@ -984,7 +992,7 @@ export default function App() {
           .catch(() => { /* ignore */ });
       }
     }).catch(() => { /* offline */ });
-  }, [setRuns, addLog, setLogs, t, editorMode]);
+  }, [setRuns, addLog, setLogs, t, hostFeaturesEnabled]);
 
   // History stack for undo/redo
   const canvasRef = useRef<WorkflowCanvasRef>(null);
@@ -1272,11 +1280,11 @@ export default function App() {
   // no such socket — it's served statically and the Lambda can't hold a WS — so
   // we pass null to avoid an endless failed-reconnect loop against /build/ws.
   const wsUrl = useMemo(() => {
-    if (editorMode) return null;
+    if (!hostFeaturesEnabled) return null;
     const token = getToken();
     const params = token ? `?token=${encodeURIComponent(token)}` : '';
     return appWebSocketUrl('/ws', params);
-  }, [authUser?.id, editorMode]);
+  }, [authUser?.id, hostFeaturesEnabled]);
   const { onMessage } = useWebSocket(wsUrl);
 
   useWorkflowMessages({
@@ -3698,7 +3706,7 @@ export default function App() {
           </Suspense>
         ))}
 
-        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} systemStats={!editorMode} />
+        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} systemStats={hostFeaturesEnabled} />
         {focusMode && (
           <button
             type="button"
