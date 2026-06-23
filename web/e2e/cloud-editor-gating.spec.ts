@@ -52,6 +52,40 @@ test('hides host-only rail panels in editor mode', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^HPC/ })).toHaveCount(0);
 });
 
+test('shows User + Cloud-compute rail menus above settings when signed in', async ({ page }) => {
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
+  if (!response || !response.ok()) {
+    test.skip(true, 'dev server unavailable');
+    return;
+  }
+  const rail = page.locator('nav.left-rail');
+  await expect(rail.getByRole('button', { name: /^Cloud compute/ })).toBeVisible();
+  await expect(rail.getByRole('button', { name: /^Account/ })).toBeVisible();
+
+  // Both must sit above the settings cog (later in DOM order = lower in the rail).
+  const labels = await rail.locator('button').evaluateAll(els =>
+    els.map(e => e.getAttribute('aria-label') || ''));
+  const idxCompute = labels.findIndex(l => l.startsWith('Cloud compute'));
+  const idxAccount = labels.findIndex(l => l.startsWith('Account'));
+  const idxSettings = labels.findIndex(l => l.startsWith('Settings'));
+  expect(idxCompute).toBeGreaterThan(-1);
+  expect(idxAccount).toBeGreaterThan(-1);
+  expect(idxSettings).toBeGreaterThan(idxCompute);
+  expect(idxSettings).toBeGreaterThan(idxAccount);
+});
+
+test('Compute panel shows a live credits/hr quote', async ({ page }) => {
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
+  if (!response || !response.ok()) {
+    test.skip(true, 'dev server unavailable');
+    return;
+  }
+  await page.locator('nav.left-rail').getByRole('button', { name: /^Cloud compute/ }).click();
+  await expect(page.getByText('credits / hr')).toBeVisible();
+  // Presets render; Small (a Free-allowed preset) is selectable.
+  await expect(page.getByRole('button', { name: 'Small', exact: true })).toBeVisible();
+});
+
 test('does not poll host-only endpoints in editor mode', async ({ page }) => {
   const hostCalls: string[] = [];
   page.on('request', req => {
