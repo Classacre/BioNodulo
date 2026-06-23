@@ -87,6 +87,14 @@ import {
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { getCloudRun, getCloudCredits } from './api/website';
+import {
+  mapCloudRunStatus,
+  isTerminalCloudStatus,
+  deriveCloudNodeStatuses,
+  buildCloudNodeStatuses,
+  nodeIdFromTag,
+  stripNodeTag,
+} from './utils/cloudRunStatus';
 import InviteDialog from './collab/InviteDialog';
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
@@ -1546,7 +1554,6 @@ export default function App() {
   // browser without Redis, so we poll the persisted snapshot.)
   const pollCloudRun = useCallback((runId: string) => {
     if (!runId) return;
-    const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
     const lineRe = /^\[.*?\]\s+(\w+):\s+([\s\S]*)$/;
     let lastLen = 0;
     let stopped = false;
@@ -1562,16 +1569,33 @@ export default function App() {
             if (!line) continue;
             const m = lineRe.exec(line);
             const lvl = (m?.[1] || 'INFO').toUpperCase();
+            const body = m ? m[2] : line;
+            const taggedNode = nodeIdFromTag(body);
             addLog({
               run_id: runId,
-              node_id: 'cloud',
+              node_id: taggedNode || 'cloud',
               level: lvl === 'ERROR' ? 'error' : lvl === 'WARN' || lvl === 'WARNING' ? 'warn' : 'info',
-              message: m ? m[2] : line,
+              message: stripNodeTag(body),
               timestamp: new Date().toISOString(),
             });
           }
         }
-        if (terminal.has(snap.status)) {
+        // Drive the runs drawer + canvas node coloring from the accumulated log
+        // blob (the only durable per-node record the snapshot carries).
+        const mappedStatus = mapCloudRunStatus(snap.status);
+        const derived = deriveCloudNodeStatuses(typeof snap.logs === 'string' ? snap.logs : '');
+        updateRun(runId, {
+          status: mappedStatus,
+          node_statuses: buildCloudNodeStatuses(
+            workflowExecutionPlan(activeWorkflow),
+            derived,
+            mappedStatus,
+            snap.errorMessage,
+          ),
+          error: snap.errorMessage || undefined,
+          ...(isTerminalCloudStatus(snap.status) ? { end_time: snap.completedAt || new Date().toISOString() } : {}),
+        });
+        if (isTerminalCloudStatus(snap.status)) {
           stopped = true;
           addLog({
             run_id: runId,
@@ -1589,7 +1613,7 @@ export default function App() {
       setTimeout(() => { void tick(); }, 4000);
     };
     void tick();
-  }, [addLog, t]);
+  }, [addLog, updateRun, activeWorkflow, t]);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -1709,10 +1733,25 @@ export default function App() {
           });
           setConsoleVisible(true);
           setRailTab('console');
-          // Stream the worker's progress (dependency install + node logs) into
-          // the console by polling the run snapshot until it reaches a terminal
-          // state. The dashboard link is in the log detail for the full view.
-          if (result.run_id) pollCloudRun(result.run_id);
+          // Register the cloud run in the drawer so it shows status + drives
+          // canvas node coloring, then stream the worker's progress (dependency
+          // install + node logs) into both the console and node statuses by
+          // polling the run snapshot until it reaches a terminal state.
+          if (result.run_id) {
+            addRun({
+              run_id: result.run_id,
+              status: 'pending',
+              workflow_name: result.workflow_name || batchName,
+              node_statuses: [],
+              node_outputs: {},
+              execution_plan: workflowExecutionPlan(activeWorkflow),
+              previews: {},
+              artifacts: {},
+              start_time: new Date().toISOString(),
+              options: { cloud: true, dashboard_url: cloudResult.dashboard_url },
+            });
+            pollCloudRun(result.run_id);
+          }
           continue;
         }
         addRun({
