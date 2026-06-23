@@ -106,40 +106,6 @@ class CollabAuditLogEntry:
 
 
 @dataclass
-class Comment:
-    """Represents a comment or reply on a workflow or node."""
-
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    workflow_id: str = ""
-    node_id: str | None = None
-    user_id: str = ""
-    user_name: str = ""
-    user_color: str = ""
-    content: str = ""
-    parent_id: str | None = None
-    resolved: bool = False
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    replies: list[Comment] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "workflow_id": self.workflow_id,
-            "node_id": self.node_id,
-            "user_id": self.user_id,
-            "user_name": self.user_name,
-            "user_color": self.user_color,
-            "content": self.content,
-            "parent_id": self.parent_id,
-            "resolved": self.resolved,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "replies": [reply.to_dict() for reply in self.replies],
-        }
-
-
-@dataclass
 class WorkflowVersion:
     """Represents a saved snapshot of a workflow document state."""
 
@@ -245,26 +211,6 @@ class CollabAuditLogRow(Base):
     target_id: Mapped[str | None] = mapped_column(String)
     payload: Mapped[str | None] = mapped_column(Text)
     performed_at: Mapped[str] = mapped_column(String, nullable=False)
-
-
-class CommentRow(Base):
-    __tablename__ = "comments"
-    __table_args__ = (
-        Index("idx_comments_workflow", "workflow_id"),
-        Index("idx_comments_node", "node_id"),
-    )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    workflow_id: Mapped[str] = mapped_column(String, nullable=False)
-    node_id: Mapped[str | None] = mapped_column(String)
-    user_id: Mapped[str] = mapped_column(String, nullable=False)
-    user_name: Mapped[str] = mapped_column(String, nullable=False)
-    user_color: Mapped[str | None] = mapped_column(String)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    parent_id: Mapped[str | None] = mapped_column(String)
-    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[str] = mapped_column(String, nullable=False)
-    updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkflowVersionRow(Base):
@@ -483,99 +429,6 @@ class CollabStore:
         """Compatibility no-op; SQLAlchemy creates all metadata tables."""
         Base.metadata.create_all(self.engine)
 
-    # ---- Comments ----
-
-    def add_comment(self, comment: Comment) -> Comment:
-        if not comment.created_at:
-            comment.created_at = datetime.now(timezone.utc).isoformat()
-        if not comment.updated_at:
-            comment.updated_at = comment.created_at
-        with self._session() as session:
-            session.add(
-                CommentRow(
-                    id=comment.id,
-                    workflow_id=comment.workflow_id,
-                    node_id=comment.node_id,
-                    user_id=comment.user_id,
-                    user_name=comment.user_name,
-                    user_color=comment.user_color,
-                    content=comment.content,
-                    parent_id=comment.parent_id,
-                    resolved=comment.resolved,
-                    created_at=comment.created_at,
-                    updated_at=comment.updated_at,
-                )
-            )
-            session.commit()
-        return comment
-
-    def get_comment(self, comment_id: str) -> Comment | None:
-        with self._session() as session:
-            row = session.get(CommentRow, comment_id)
-            return self._row_to_comment(row) if row else None
-
-    def list_comments(self, workflow_id: str, node_id: str | None = None) -> list[Comment]:
-        with self._session() as session:
-            stmt = (
-                select(CommentRow)
-                .where(CommentRow.workflow_id == workflow_id)
-                .order_by(CommentRow.created_at.asc())
-            )
-            if node_id is not None:
-                parent_ids = select(CommentRow.id).where(
-                    CommentRow.workflow_id == workflow_id,
-                    CommentRow.node_id == node_id,
-                )
-                stmt = stmt.where(
-                    or_(
-                        CommentRow.node_id == node_id,
-                        CommentRow.parent_id.in_(parent_ids),
-                    )
-                )
-            rows = session.scalars(stmt).all()
-            return self._nest_comments([self._row_to_comment(row) for row in rows])
-
-    def list_comments_for_workflow(self, workflow_id: str) -> list[Comment]:
-        return self.list_comments(workflow_id)
-
-    def list_comments_for_node(self, workflow_id: str, node_id: str) -> list[Comment]:
-        return self.list_comments(workflow_id, node_id=node_id)
-
-    def update_comment(self, comment_id: str, content: str) -> Comment | None:
-        with self._session() as session:
-            row = session.get(CommentRow, comment_id)
-            if row is None:
-                return None
-            row.content = content
-            row.updated_at = datetime.now(timezone.utc).isoformat()
-            session.commit()
-        return self.get_comment(comment_id)
-
-    def resolve_comment(self, comment_id: str) -> Comment | None:
-        return self._set_comment_resolved(comment_id, True)
-
-    def unresolve_comment(self, comment_id: str) -> Comment | None:
-        return self._set_comment_resolved(comment_id, False)
-
-    def _set_comment_resolved(self, comment_id: str, resolved: bool) -> Comment | None:
-        with self._session() as session:
-            row = session.get(CommentRow, comment_id)
-            if row is None:
-                return None
-            row.resolved = resolved
-            row.updated_at = datetime.now(timezone.utc).isoformat()
-            session.commit()
-        return self.get_comment(comment_id)
-
-    def delete_comment(self, comment_id: str) -> bool:
-        with self._session() as session:
-            child_result = session.execute(
-                delete(CommentRow).where(CommentRow.parent_id == comment_id)
-            )
-            own_result = session.execute(delete(CommentRow).where(CommentRow.id == comment_id))
-            session.commit()
-            return ((child_result.rowcount or 0) + (own_result.rowcount or 0)) > 0
-
     # ---- Versions ----
 
     def add_version(self, version: WorkflowVersion) -> WorkflowVersion:
@@ -738,35 +591,6 @@ class CollabStore:
             payload=payload,
             performed_at=row.performed_at,
         )
-
-    @staticmethod
-    def _row_to_comment(row: CommentRow) -> Comment:
-        return Comment(
-            id=row.id,
-            workflow_id=row.workflow_id,
-            node_id=row.node_id,
-            user_id=row.user_id,
-            user_name=row.user_name or "",
-            user_color=row.user_color or "",
-            content=row.content,
-            parent_id=row.parent_id,
-            resolved=bool(row.resolved),
-            created_at=row.created_at,
-            updated_at=row.updated_at,
-        )
-
-    @staticmethod
-    def _nest_comments(comments: list[Comment]) -> list[Comment]:
-        by_id = {comment.id: comment for comment in comments}
-        roots: list[Comment] = []
-        for comment in comments:
-            comment.replies = []
-        for comment in comments:
-            if comment.parent_id and comment.parent_id in by_id:
-                by_id[comment.parent_id].replies.append(comment)
-            else:
-                roots.append(comment)
-        return roots
 
     @staticmethod
     def _encode_snapshot(snapshot: dict[str, Any] | bytes) -> bytes:

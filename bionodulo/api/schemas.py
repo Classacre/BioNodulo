@@ -470,20 +470,6 @@ class AuthMeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class CreateCommentRequest(BaseModel):
-    """Request body for POST /api/collab/workflows/{id}/comments."""
-
-    node_id: str | None = Field(None, description="Optional node ID to attach the comment to")
-    content: str = Field(..., min_length=1, max_length=5000, description="Comment text")
-    parent_id: str | None = Field(None, description="Parent comment ID for replies")
-
-
-class UpdateCommentRequest(BaseModel):
-    """Request body for PATCH /api/collab/comments/{id}."""
-
-    content: str = Field(..., min_length=1, max_length=5000, description="Updated comment text")
-
-
 class CreateVersionRequest(BaseModel):
     """Request body for POST /api/collab/workflows/{id}/versions."""
 

@@ -12,7 +12,7 @@ from bionodulo.api.collab_dependencies import require_workflow_role
 from bionodulo.api.collab_routes import _diff_snapshots
 from bionodulo.api.routes import _workflow_payload_to_flat_snapshot
 from bionodulo.collab.doc_store import extract_flat_snapshot
-from bionodulo.collab.models import CollabStore, Comment, WorkflowShare, WorkflowTemplate, WorkflowVersion
+from bionodulo.collab.models import CollabStore, WorkflowShare, WorkflowTemplate, WorkflowVersion
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.yjs_native_handler import _replace_flat_snapshot, _room_presence_payload
 
@@ -118,27 +118,6 @@ def test_collab_store_round_trips_phase3_dataclasses(tmp_path) -> None:
         "viewport": {"x": 0, "y": 0, "scale": 1},
     }
 
-    parent = store.add_comment(
-        Comment(
-            id="c1",
-            workflow_id="wf-1",
-            node_id="n1",
-            user_id="u1",
-            user_name="User One",
-            content="Parent",
-        )
-    )
-    store.add_comment(
-        Comment(
-            id="c2",
-            workflow_id="wf-1",
-            node_id="n1",
-            user_id="u2",
-            user_name="User Two",
-            content="Reply",
-            parent_id=parent.id,
-        )
-    )
     version = store.add_version(
         WorkflowVersion(
             id="v1",
@@ -159,10 +138,6 @@ def test_collab_store_round_trips_phase3_dataclasses(tmp_path) -> None:
         )
     )
 
-    comments = store.list_comments("wf-1", node_id="n1")
-
-    assert comments[0].id == "c1"
-    assert comments[0].replies[0].id == "c2"
     assert version.node_count == 1
     assert version.edge_count == 1
     assert store.get_version("v1").snapshot == snapshot
