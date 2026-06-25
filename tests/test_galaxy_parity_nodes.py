@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -3574,3 +3575,220 @@ def test_bcftools_roh_accepts_fractional_gts_only_and_gates_buffer_overlap() -> 
             "output": "/work/bcftools_roh",
         }
     )
+
+
+def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bcftools_plugin_counts": {
+            "display_name": "BCFtools +counts",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#counts",
+            "output": ["TSV"],
+            "search_alias": "variant counts",
+        },
+        "bcftools_plugin_dosage": {
+            "display_name": "BCFtools +dosage",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#dosage",
+            "output": ["TSV"],
+            "search_alias": "genotype dosage",
+        },
+        "bcftools_plugin_missing2ref": {
+            "display_name": "BCFtools +missing2ref",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#missing2ref",
+            "output": ["VCF_GZ"],
+            "search_alias": "set missing genotypes",
+        },
+        "bcftools_plugin_tag2tag": {
+            "display_name": "BCFtools +tag2tag",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#tag2tag",
+            "output": ["VCF_GZ"],
+            "search_alias": "convert genotype tags",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "variant"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
+        assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_plugin_counts_renders_filtered_table_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_counts")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "include": "QUAL>20",
+            "exclude": "TYPE='ref'",
+            "regions": "chr1",
+            "targets": "targets.bed",
+            "output": "/work/bcftools_plugin_counts",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "counts",
+        "--include",
+        "QUAL>20",
+        "--exclude",
+        "TYPE='ref'",
+        "--regions",
+        "chr1",
+        "--targets",
+        "targets.bed",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_plugin_counts/counts.raw.txt",
+        "&&",
+        "python",
+        "-c",
+        node_class.COUNTS_POSTPROCESS_SCRIPT,
+        "/work/bcftools_plugin_counts/counts.raw.txt",
+        "/work/bcftools_plugin_counts/counts.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_counts" / "counts.tsv",
+    ]
+
+
+def test_bcftools_plugin_counts_postprocesses_galaxy_table(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_counts")
+    raw_counts = tmp_path / "counts.raw.txt"
+    output = tmp_path / "counts.tsv"
+    raw_counts.write_text(
+        "Number of samples: 3\n"
+        "Number of SNPs: 11\n"
+        "Number of INDELs: 4\n"
+        "Number of total sites: 15\n",
+        encoding="utf-8",
+    )
+
+    old_argv = sys.argv
+    sys.argv = ["counts-postprocess", str(raw_counts), str(output)]
+    try:
+        exec(node_class.COUNTS_POSTPROCESS_SCRIPT, {"__name__": "__main__"})
+    finally:
+        sys.argv = old_argv
+
+    assert output.read_text(encoding="utf-8") == "#samples\tSNPs\tINDELs\tsites\n3\t11\t4\t15\n"
+
+
+def test_bcftools_plugin_dosage_renders_plugin_options_after_separator(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_dosage")
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.vcf.gz",
+            "regions": "chr2",
+            "targets": "targets.bed",
+            "include": "N_ALT=1",
+            "tags": "PL,GT",
+            "output": "/work/bcftools_plugin_dosage",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "dosage",
+        "--include",
+        "N_ALT=1",
+        "--regions",
+        "chr2",
+        "--targets",
+        "targets.bed",
+        "calls.vcf.gz",
+        "--",
+        "--tags",
+        "PL,GT",
+        ">",
+        "/work/bcftools_plugin_dosage/dosage.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_dosage" / "dosage.tsv",
+    ]
+
+
+def test_bcftools_plugin_missing2ref_renders_vcf_transform_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_missing2ref")
+
+    assert node_class.render_command(
+        {
+            "input_file": "missing.vcf.gz",
+            "phased": True,
+            "major": True,
+            "regions": "chr3",
+            "threads": 6,
+            "output": "/work/bcftools_plugin_missing2ref",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "missing2ref",
+        "--regions",
+        "chr3",
+        "--output-type",
+        "z",
+        "--threads",
+        "6",
+        "missing.vcf.gz",
+        "--",
+        "--phased",
+        "--major",
+        ">",
+        "/work/bcftools_plugin_missing2ref/missing2ref.vcf.gz",
+    ]
+
+    input_types = node_class.INPUT_TYPES()
+    assert "output_type" not in input_types["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_missing2ref" / "missing2ref.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_tag2tag_renders_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_tag2tag")
+
+    assert node_class.render_command(
+        {
+            "input_file": "gp.vcf.gz",
+            "conversion": "--gp-to-gt",
+            "replace": True,
+            "threshold": 0.2,
+            "exclude": "FILTER='LowQual'",
+            "threads": 3,
+            "output": "/work/bcftools_plugin_tag2tag",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "tag2tag",
+        "--exclude",
+        "FILTER='LowQual'",
+        "--output-type",
+        "z",
+        "--threads",
+        "3",
+        "gp.vcf.gz",
+        "--",
+        "--gp-to-gt",
+        "--replace",
+        "--threshold",
+        "0.2",
+        ">",
+        "/work/bcftools_plugin_tag2tag/tag2tag.vcf.gz",
+    ]
+
+    input_types = node_class.INPUT_TYPES()
+    assert "output_type" not in input_types["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_tag2tag" / "tag2tag.vcf.gz",
+    ]

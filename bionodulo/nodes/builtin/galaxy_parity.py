@@ -130,6 +130,20 @@ def _bcftools_add_af_file(cmd: list[str], inputs: dict[str, Any]) -> None:
     _add_if_value(cmd, "--AF-file", inputs.get("AF_file", inputs.get("af_file")))
 
 
+def _bcftools_plugin_base_cmd(plugin: str, inputs: dict[str, Any]) -> list[str]:
+    cmd = ["bcftools", "plugin", plugin]
+    _add_if_value(cmd, "--include", inputs.get("include"))
+    _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+    _bcftools_add_region_targets(cmd, inputs)
+    return cmd
+
+
+def _bcftools_add_plugin_separator(cmd: list[str], plugin_args: list[str]) -> None:
+    if plugin_args:
+        cmd.append("--")
+        cmd.extend(plugin_args)
+
+
 def _bcftools_convert_from_outputs(inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
     out = Path(output_dir) / "bcftools_convert_from_vcf"
     out.mkdir(parents=True, exist_ok=True)
@@ -4670,6 +4684,273 @@ class BCFtoolsROHNode(CommandNode):
                 "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
                 "samples": ("STRING", {"default": "", "description": "Comma-separated samples"}),
                 "output_type": ("STRING", {"default": "r", "options": ["s", "r"], "description": "ROH output type: per-site or regions"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginCountsNode(CommandNode):
+    """Count samples and variant classes with the bcftools +counts plugin."""
+
+    NODE_ID = "bcftools_plugin_counts"
+    DISPLAY_NAME = "BCFtools +counts"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Count samples, SNPs, indels, MNPs, and total sites in a VCF/BCF file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "counts", "variant counts", "sample counts"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("counts_table",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html#counts"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+    COUNTS_POSTPROCESS_SCRIPT = r"""
+from pathlib import Path
+import sys
+
+raw = Path(sys.argv[1])
+out = Path(sys.argv[2])
+values = {
+    "samples": "0",
+    "SNPs": "0",
+    "INDELs": "0",
+    "sites": "0",
+}
+labels = {
+    "Number of samples": "samples",
+    "Number of SNPs": "SNPs",
+    "Number of INDELs": "INDELs",
+    "Number of total sites": "sites",
+}
+for line in raw.read_text(encoding="utf-8").splitlines():
+    label, separator, value = line.partition(":")
+    if separator and label in labels:
+        values[labels[label]] = value.strip()
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(
+    "#samples\tSNPs\tINDELs\tsites\n"
+    f"{values['samples']}\t{values['SNPs']}\t{values['INDELs']}\t{values['sites']}\n",
+    encoding="utf-8",
+)
+""".strip()
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        raw_counts = f"{out}/counts.raw.txt"
+        cmd = _bcftools_plugin_base_cmd("counts", inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, raw_counts)
+        cmd.extend(
+            [
+                "&&",
+                "python",
+                "-c",
+                cls.COUNTS_POSTPROCESS_SCRIPT,
+                raw_counts,
+                f"{out}/counts.tsv",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "counts.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file to count"}),
+            },
+            "optional": {
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginDosageNode(CommandNode):
+    """Calculate genotype dosage with the bcftools +dosage plugin."""
+
+    NODE_ID = "bcftools_plugin_dosage"
+    DISPLAY_NAME = "BCFtools +dosage"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Calculate per-sample genotype dosage from PL, GL, or GT tags in VCF/BCF records."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "dosage", "genotype dosage", "PL GL GT"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("dosage_table",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html#dosage"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("dosage", inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args: list[str] = []
+        _add_if_value(plugin_args, "--tags", inputs.get("tags"))
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/dosage.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "dosage.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with dosage source tags"}),
+            },
+            "optional": {
+                "tags": ("STRING", {"default": "", "description": "Comma-separated dosage source tags such as PL,GL,GT"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginMissing2refNode(CommandNode):
+    """Set missing genotypes to reference or major allele calls."""
+
+    NODE_ID = "bcftools_plugin_missing2ref"
+    DISPLAY_NAME = "BCFtools +missing2ref"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Replace missing genotypes with reference or major-allele calls using the bcftools +missing2ref plugin."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "missing2ref", "set missing genotypes", "missing to reference"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("missing2ref_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html#missing2ref"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("missing2ref", inputs)
+        cmd.extend(["--output-type", "z"])
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args: list[str] = []
+        if inputs.get("phased"):
+            plugin_args.append("--phased")
+        if inputs.get("major"):
+            plugin_args.append("--major")
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/missing2ref.vcf.gz")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "missing2ref.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with missing genotypes"}),
+            },
+            "optional": {
+                "phased": ("BOOLEAN", {"default": False, "description": "Set missing genotypes to phased reference calls"}),
+                "major": ("BOOLEAN", {"default": False, "description": "Set missing genotypes to the major allele"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginTag2tagNode(CommandNode):
+    """Convert between related VCF FORMAT and INFO tags."""
+
+    NODE_ID = "bcftools_plugin_tag2tag"
+    DISPLAY_NAME = "BCFtools +tag2tag"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Convert between related genotype likelihood and probability tags such as GL, PL, GP, and GT."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "tag2tag", "convert genotype tags", "GL PL GP GT"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("tag2tag_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html#tag2tag"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("tag2tag", inputs)
+        cmd.extend(["--output-type", "z"])
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args = [str(inputs.get("conversion", "--gp-to-gl"))]
+        if inputs.get("replace", True):
+            plugin_args.append("--replace")
+        if plugin_args[0] == "--gp-to-gt":
+            _add_if_value(plugin_args, "--threshold", inputs.get("threshold"))
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/tag2tag.vcf.gz")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "tag2tag.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with tags to convert"}),
+            },
+            "optional": {
+                "conversion": (
+                    "STRING",
+                    {
+                        "default": "--gp-to-gl",
+                        "options": ["--gp-to-gl", "--gp-to-gt", "--gl-to-pl", "--pl-to-gl", "--QR-QA-to-QS"],
+                        "description": "Tag conversion mode",
+                    },
+                ),
+                "replace": ("BOOLEAN", {"default": True, "description": "Drop the source tag after conversion"}),
+                "threshold": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "description": "GP-to-GT hard-call threshold"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

@@ -1450,6 +1450,86 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_plugin_counts: {
+    name: 'bcftools_plugin_counts',
+    display_name: 'BCFtools +counts',
+    category: 'variant',
+    description: 'Count samples, SNPs, indels, MNPs, and total sites in a VCF/BCF file.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'counts', 'variant counts', 'sample counts'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['counts_table'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html#counts',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_dosage: {
+    name: 'bcftools_plugin_dosage',
+    display_name: 'BCFtools +dosage',
+    category: 'variant',
+    description: 'Calculate per-sample genotype dosage from PL, GL, or GT tags in VCF/BCF records.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'dosage', 'genotype dosage', 'PL GL GT'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['dosage_table'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html#dosage',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_missing2ref: {
+    name: 'bcftools_plugin_missing2ref',
+    display_name: 'BCFtools +missing2ref',
+    category: 'variant',
+    description: 'Replace missing genotypes with reference or major-allele calls using the bcftools +missing2ref plugin.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'missing2ref', 'set missing genotypes', 'missing to reference'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['missing2ref_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html#missing2ref',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_tag2tag: {
+    name: 'bcftools_plugin_tag2tag',
+    display_name: 'BCFtools +tag2tag',
+    category: 'variant',
+    description: 'Convert between related genotype likelihood and probability tags such as GL, PL, GP, and GT.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'tag2tag', 'convert genotype tags', 'GL PL GP GT'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['tag2tag_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html#tag2tag',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1771,7 +1851,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('88 nodes available')).toBeVisible();
+  await expect(page.getByText('92 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1850,6 +1930,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'copy number variation', name: 'BCFtools CNV', category: 'variant' },
     { query: 'consequence prediction', name: 'BCFtools CSQ', category: 'variant' },
     { query: 'runs of homozygosity', name: 'BCFtools ROH', category: 'variant' },
+    { query: 'variant counts', name: 'BCFtools +counts', category: 'variant' },
+    { query: 'genotype dosage', name: 'BCFtools +dosage', category: 'variant' },
+    { query: 'set missing genotypes', name: 'BCFtools +missing2ref', category: 'variant' },
+    { query: 'convert genotype tags', name: 'BCFtools +tag2tag', category: 'variant' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },
