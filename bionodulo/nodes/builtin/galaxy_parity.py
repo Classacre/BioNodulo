@@ -149,6 +149,13 @@ def _bcftools_add_plugin_vcf_output(cmd: list[str], inputs: dict[str, Any]) -> N
     _add_if_value(cmd, "--threads", inputs.get("threads"))
 
 
+def _bcftools_join_mode(value: Any, default: str = "a") -> str:
+    parts = _as_list(value)
+    if not parts:
+        return default
+    return "".join(str(part).replace(",", "") for part in parts)
+
+
 def _bcftools_convert_from_outputs(inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
     out = Path(output_dir) / "bcftools_convert_from_vcf"
     out.mkdir(parents=True, exist_ok=True)
@@ -5161,6 +5168,194 @@ class BCFtoolsPluginSetgtNode(CommandNode):
                 "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
                 "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
                 "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginFixploidyNode(CommandNode):
+    """Fix genotype ploidy with bcftools +fixploidy."""
+
+    NODE_ID = "bcftools_plugin_fixploidy"
+    DISPLAY_NAME = "BCFtools +fixploidy"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Adjust genotype ploidy from sample sex and ploidy-region tables using the bcftools +fixploidy plugin."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "fixploidy", "fix ploidy", "sample sex ploidy"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("fixploidy_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("fixploidy", inputs)
+        _bcftools_add_plugin_vcf_output(cmd, inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args: list[str] = []
+        _add_if_value(plugin_args, "--ploidy", inputs.get("ploidy_file"))
+        _add_if_value(plugin_args, "--sex", inputs.get("sex"))
+        _add_if_value(plugin_args, "--default-ploidy", inputs.get("default_ploidy"))
+        _add_if_value(plugin_args, "--force-ploidy", inputs.get("force_ploidy"))
+        _add_if_value(plugin_args, "--tags", inputs.get("tags", "GT"))
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/fixploidy.vcf.gz")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "fixploidy.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with genotypes to resize by ploidy"}),
+            },
+            "optional": {
+                "ploidy_file": ("TSV", {"description": "Tabular CHROM,FROM,TO,SEX,PLOIDY ploidy map"}),
+                "sex": ("TSV", {"description": "Sample sex file with NAME SEX columns"}),
+                "default_ploidy": ("INT", {"default": "", "description": "Default ploidy for regions not listed in the ploidy map"}),
+                "force_ploidy": ("INT", {"default": "", "description": "Ignore the ploidy file and force this ploidy for all genotypes"}),
+                "tags": ("STRING", {"default": "GT", "options": ["GT"], "description": "VCF tag to fix; bcftools currently supports GT"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginMendelianNode(CommandNode):
+    """Count and filter Mendelian-consistent or inconsistent genotypes."""
+
+    NODE_ID = "bcftools_plugin_mendelian"
+    DISPLAY_NAME = "BCFtools +mendelian2"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Count, annotate, filter, or repair Mendelian-consistent and inconsistent trio genotypes with bcftools +mendelian2."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "mendelian2", "mendelian consistency", "trio genotypes"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("mendelian_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugin.mendelian.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        stderr_path = f"{out}/mendelian.stderr.txt"
+        cmd = ["bcftools", "plugin", "mendelian2"]
+        _bcftools_add_restrict(cmd, inputs)
+        cmd.extend(["--output-type", "z"])
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args: list[str] = []
+        if str(inputs.get("trios_src", "trio")) == "trio_file":
+            _add_if_value(plugin_args, "--ped", inputs.get("trio_file"))
+        else:
+            child = str(inputs.get("child", ""))
+            father = str(inputs.get("father", ""))
+            mother = str(inputs.get("mother", ""))
+            sex_prefix = str(inputs.get("num_x", inputs.get("sex_pattern", "2X")) or "2X")
+            plugin_args.extend(["--pfm", f"{sex_prefix}:{child},{father},{mother}"])
+        _add_if_value(plugin_args, "--rules", inputs.get("rules"))
+        _add_if_value(plugin_args, "--rules-file", inputs.get("rules_file"))
+        plugin_args.extend(["--mode", _bcftools_join_mode(inputs.get("mode"), "a")])
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        cmd.extend(["2>", stderr_path])
+        _add_shell_redirect(cmd, f"{out}/mendelian.vcf.gz")
+        cmd.extend(["&&", "cat", stderr_path])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "mendelian.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file containing trio samples"}),
+            },
+            "optional": {
+                "trios_src": ("STRING", {"default": "trio", "options": ["trio", "trio_file"], "description": "Provide one inline trio or a PED trio file"}),
+                "child": ("STRING", {"default": "", "description": "Child/proband sample name for inline trio mode"}),
+                "mother": ("STRING", {"default": "", "description": "Mother sample name for inline trio mode"}),
+                "father": ("STRING", {"default": "", "description": "Father sample name for inline trio mode"}),
+                "num_x": ("STRING", {"default": "2X", "options": ["1X", "2X"], "description": "ChrX inheritance pattern for the child"}),
+                "trio_file": ("TSV", {"description": "PED file with family, proband, father, mother, and sex columns"}),
+                "mode": ("STRING_LIST", {"default": ["a"], "options": ["a", "d", "e", "E", "g", "m", "M", "S"], "description": "VCF output modes to combine"}),
+                "rules": ("STRING", {"default": "", "options": ["", "GRCh37", "GRCh38"], "description": "Predefined inheritance rules"}),
+                "rules_file": ("TSV", {"description": "Custom inheritance rules file"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginImputeInfoNode(CommandNode):
+    """Add IMPUTE2 information metrics with bcftools +impute-info."""
+
+    NODE_ID = "bcftools_plugin_impute_info"
+    DISPLAY_NAME = "BCFtools +impute-info"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Add IMPUTE2-style imputation information metrics from FORMAT/GP probabilities using the bcftools +impute-info plugin."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "impute-info", "imputation info", "IMPUTE2 INFO"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("impute_info_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("impute-info", inputs)
+        _bcftools_add_plugin_vcf_output(cmd, inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/impute_info.vcf.gz")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "impute_info.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with FORMAT/GP probabilities"}),
+            },
+            "optional": {
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
             },
             "hidden": {"output": ("STRING", {})},

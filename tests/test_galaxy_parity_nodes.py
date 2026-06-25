@@ -3623,6 +3623,24 @@ def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
             "output": ["VCF_GZ"],
             "search_alias": "set genotype calls",
         },
+        "bcftools_plugin_fixploidy": {
+            "display_name": "BCFtools +fixploidy",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "fix ploidy",
+        },
+        "bcftools_plugin_mendelian": {
+            "display_name": "BCFtools +mendelian2",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.mendelian.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "mendelian consistency",
+        },
+        "bcftools_plugin_impute_info": {
+            "display_name": "BCFtools +impute-info",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "imputation info",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3943,4 +3961,179 @@ def test_bcftools_plugin_setgt_renders_genotype_filter_command_and_output(tmp_pa
     assert "output_type" not in node_class.INPUT_TYPES()["optional"]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bcftools_plugin_setgt" / "setgt.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_fixploidy_renders_ploidy_files_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_fixploidy")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "ploidy_file": "ploidy.tsv",
+            "sex": "sample_sex.tsv",
+            "default_ploidy": 2,
+            "force_ploidy": 4,
+            "regions": "chrX",
+            "include": "TYPE='snp'",
+            "threads": 3,
+            "output": "/work/bcftools_plugin_fixploidy",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "fixploidy",
+        "--include",
+        "TYPE='snp'",
+        "--regions",
+        "chrX",
+        "--output-type",
+        "z",
+        "--threads",
+        "3",
+        "cohort.vcf.gz",
+        "--",
+        "--ploidy",
+        "ploidy.tsv",
+        "--sex",
+        "sample_sex.tsv",
+        "--default-ploidy",
+        "2",
+        "--force-ploidy",
+        "4",
+        "--tags",
+        "GT",
+        ">",
+        "/work/bcftools_plugin_fixploidy/fixploidy.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_fixploidy" / "fixploidy.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_mendelian_renders_inline_trio_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_mendelian")
+
+    assert node_class.render_command(
+        {
+            "input_file": "family.vcf.gz",
+            "trios_src": "trio",
+            "child": "NA00006",
+            "mother": "NA00001",
+            "father": "NA00002",
+            "num_x": "1X",
+            "mode": ["a", "d", "e"],
+            "rules": "GRCh38",
+            "regions": "chr1",
+            "targets": "targets.bed",
+            "exclude": "QUAL<20",
+            "output": "/work/bcftools_plugin_mendelian",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "mendelian2",
+        "--regions",
+        "chr1",
+        "--targets",
+        "targets.bed",
+        "--exclude",
+        "QUAL<20",
+        "--output-type",
+        "z",
+        "family.vcf.gz",
+        "--",
+        "--pfm",
+        "1X:NA00006,NA00002,NA00001",
+        "--rules",
+        "GRCh38",
+        "--mode",
+        "ade",
+        "2>",
+        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
+        ">",
+        "/work/bcftools_plugin_mendelian/mendelian.vcf.gz",
+        "&&",
+        "cat",
+        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_mendelian" / "mendelian.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_mendelian_renders_ped_file_command() -> None:
+    node_class = _node_class("bcftools_plugin_mendelian")
+
+    assert node_class.render_command(
+        {
+            "input_file": "family.vcf.gz",
+            "trios_src": "trio_file",
+            "trio_file": "family.ped",
+            "rules_file": "inheritance.tsv",
+            "mode": "M,S",
+            "output": "/work/bcftools_plugin_mendelian",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "mendelian2",
+        "--output-type",
+        "z",
+        "family.vcf.gz",
+        "--",
+        "--ped",
+        "family.ped",
+        "--rules-file",
+        "inheritance.tsv",
+        "--mode",
+        "MS",
+        "2>",
+        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
+        ">",
+        "/work/bcftools_plugin_mendelian/mendelian.vcf.gz",
+        "&&",
+        "cat",
+        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
+    ]
+
+
+def test_bcftools_plugin_impute_info_renders_vcf_transform_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_impute_info")
+
+    assert node_class.render_command(
+        {
+            "input_file": "imputed.vcf.gz",
+            "include": "N_ALT=1",
+            "regions": "chr20",
+            "targets": "impute_targets.tsv",
+            "threads": 4,
+            "output": "/work/bcftools_plugin_impute_info",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "impute-info",
+        "--include",
+        "N_ALT=1",
+        "--regions",
+        "chr20",
+        "--targets",
+        "impute_targets.tsv",
+        "--output-type",
+        "z",
+        "--threads",
+        "4",
+        "imputed.vcf.gz",
+        ">",
+        "/work/bcftools_plugin_impute_info/impute_info.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_impute_info" / "impute_info.vcf.gz",
     ]
