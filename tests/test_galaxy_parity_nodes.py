@@ -1524,3 +1524,234 @@ def test_bedtools_multiintersectbed_renders_custom_names_command_and_output(tmp_
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_multiintersectbed" / "multiintersect.bed",
     ]
+
+
+def test_galaxy_parity_bedtools_statistics_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_clusterbed": {
+            "display_name": "BEDTools Cluster",
+            "required_executables": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_jaccard": {
+            "display_name": "BEDTools Jaccard",
+            "required_executables": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_fisher": {
+            "display_name": "BEDTools Fisher",
+            "required_executables": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_reldistbed": {
+            "display_name": "BEDTools Relative Distance",
+            "required_executables": ["bedtools"],
+            "doi": "10.1371/journal.pcbi.1002529",
+        },
+        "bedtools_spacingbed": {
+            "display_name": "BEDTools Spacing",
+            "required_executables": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_groupbybed": {
+            "display_name": "BEDTools GroupBy",
+            "required_executables": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == ["bedtools"]
+        assert metadata["doi"] in node_info["citation_dois"]
+        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
+        assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_clusterbed_renders_stranded_cluster_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_clusterbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "sorted.bed",
+            "strand": True,
+            "distance": 500,
+            "output": "/work/bedtools_clusterbed",
+        }
+    ) == [
+        "bedtools",
+        "cluster",
+        "-s",
+        "-d",
+        "500",
+        "-i",
+        "sorted.bed",
+        ">",
+        "/work/bedtools_clusterbed/clustered.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_clusterbed" / "clustered.bed",
+    ]
+
+
+def test_bedtools_jaccard_renders_overlap_statistic_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_jaccard")
+
+    assert node_class.render_command(
+        {
+            "inputA": "a.bed",
+            "inputB": "b.bed",
+            "strand": True,
+            "split": True,
+            "reciprocal": True,
+            "overlap": 0.2,
+            "overlap_b": 0.3,
+            "output": "/work/bedtools_jaccard",
+        }
+    ) == [
+        "bedtools",
+        "jaccard",
+        "-s",
+        "-split",
+        "-r",
+        "-f",
+        "0.2",
+        "-F",
+        "0.3",
+        "-a",
+        "a.bed",
+        "-b",
+        "b.bed",
+        ">",
+        "/work/bedtools_jaccard/jaccard.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_jaccard" / "jaccard.tsv",
+    ]
+
+
+def test_bedtools_fisher_renders_exact_test_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_fisher")
+
+    assert node_class.render_command(
+        {
+            "inputA": "case.bed",
+            "inputB": "background.bed",
+            "genome": "chrom.sizes",
+            "strand": "same",
+            "split": True,
+            "overlap": 0.5,
+            "reciprocal": True,
+            "merge": True,
+            "output": "/work/bedtools_fisher",
+        }
+    ) == [
+        "bedtools",
+        "fisher",
+        "-s",
+        "-split",
+        "-a",
+        "case.bed",
+        "-b",
+        "background.bed",
+        "-f",
+        "0.5",
+        "-g",
+        "chrom.sizes",
+        "-r",
+        "-m",
+        ">",
+        "/work/bedtools_fisher/fisher.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_fisher" / "fisher.txt",
+    ]
+
+
+def test_bedtools_reldistbed_renders_relative_distance_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_reldistbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "enhancers.bed",
+            "inputB": "tss.bed",
+            "detail": True,
+            "output": "/work/bedtools_reldistbed",
+        }
+    ) == [
+        "bedtools",
+        "reldist",
+        "-a",
+        "enhancers.bed",
+        "-b",
+        "tss.bed",
+        "-detail",
+        ">",
+        "/work/bedtools_reldistbed/relative_distance.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_reldistbed" / "relative_distance.tsv",
+    ]
+
+
+def test_bedtools_spacingbed_renders_spacing_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_spacingbed")
+
+    assert node_class.render_command(
+        {
+            "input": "sorted.bed",
+            "output": "/work/bedtools_spacingbed",
+        }
+    ) == [
+        "bedtools",
+        "spacing",
+        "-i",
+        "sorted.bed",
+        ">",
+        "/work/bedtools_spacingbed/spacing.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_spacingbed" / "spacing.bed",
+    ]
+
+
+def test_bedtools_groupbybed_renders_summary_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_groupbybed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "annotated.bed",
+            "group": "1,2,3",
+            "columns": "9",
+            "operation": "median",
+            "output": "/work/bedtools_groupbybed",
+        }
+    ) == [
+        "bedtools",
+        "groupby",
+        "-i",
+        "annotated.bed",
+        "-g",
+        "1,2,3",
+        "-c",
+        "9",
+        "-o",
+        "median",
+        ">",
+        "/work/bedtools_groupbybed/grouped.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_groupbybed" / "grouped.bed",
+    ]

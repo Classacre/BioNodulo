@@ -2076,3 +2076,338 @@ class BEDToolsMultiIntersectNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsClusterNode(CommandNode):
+    """Assign cluster IDs to overlapping or nearby intervals."""
+
+    NODE_ID = "bedtools_clusterbed"
+    DISPLAY_NAME = "BEDTools Cluster"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Cluster overlapping or nearby sorted intervals without flattening them."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "cluster", "clusterbed", "overlap clusters", "nearby intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("clustered",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/cluster.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "cluster"]
+        if inputs.get("strand"):
+            cmd.append("-s")
+        cmd.extend(["-d", str(inputs.get("distance", 0)), "-i", str(inputs.get("inputA", ""))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/clustered.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "clustered.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Sorted interval file to cluster"}),
+            },
+            "optional": {
+                "strand": ("BOOLEAN", {"default": False, "description": "Only cluster features on the same strand"}),
+                "distance": ("INT", {"default": 0, "description": "Maximum distance between features in the same cluster"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsJaccardNode(CommandNode):
+    """Calculate Jaccard similarity between two interval sets."""
+
+    NODE_ID = "bedtools_jaccard"
+    DISPLAY_NAME = "BEDTools Jaccard"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Calculate intersection, union, Jaccard similarity, and intersection counts for two sorted interval sets."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "jaccard", "jaccardbed", "interval similarity", "set overlap"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("jaccard",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/jaccard.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "jaccard"]
+        if inputs.get("strand"):
+            cmd.append("-s")
+        if inputs.get("split"):
+            cmd.append("-split")
+        if inputs.get("reciprocal"):
+            cmd.append("-r")
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        _add_if_value(cmd, "-F", inputs.get("overlap_b", inputs.get("overlapB")))
+        cmd.extend(["-a", str(inputs.get("inputA", "")), "-b", str(inputs.get("inputB", ""))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/jaccard.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "jaccard.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Sorted interval file A"}),
+                "inputB": ("BED", {"description": "Sorted interval file B"}),
+            },
+            "optional": {
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of A"}),
+                "overlap_b": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of B"}),
+                "reciprocal": ("BOOLEAN", {"default": False, "description": "Require reciprocal overlap"}),
+                "strand": ("BOOLEAN", {"default": False, "description": "Require same-strand overlaps"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM entries as distinct intervals"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsFisherNode(CommandNode):
+    """Perform Fisher's exact test on overlap between two interval sets."""
+
+    NODE_ID = "bedtools_fisher"
+    DISPLAY_NAME = "BEDTools Fisher"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Calculate Fisher's exact test statistics for overlaps between two feature files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "fisher", "fisherbed", "overlap significance", "exact test"]
+    RETURN_TYPES = ("STATS_FILE",)
+    RETURN_NAMES = ("fisher",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/fisher.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "fisher"]
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        if inputs.get("split"):
+            cmd.append("-split")
+        cmd.extend(["-a", str(inputs.get("inputA", "")), "-b", str(inputs.get("inputB", ""))])
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        _bedtools_add_genome(cmd, inputs)
+        if inputs.get("reciprocal"):
+            cmd.append("-r")
+        if inputs.get("merge"):
+            cmd.append("-m")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/fisher.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "fisher.txt", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Interval file A"}),
+                "inputB": ("BED", {"description": "Interval file B"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM entries as distinct intervals"}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of A"}),
+                "reciprocal": ("BOOLEAN", {"default": False, "description": "Require reciprocal overlap"}),
+                "merge": ("BOOLEAN", {"default": False, "description": "Merge overlapping intervals before testing"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsRelativeDistanceNode(CommandNode):
+    """Calculate relative distance distribution between two interval sets."""
+
+    NODE_ID = "bedtools_reldistbed"
+    DISPLAY_NAME = "BEDTools Relative Distance"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Calculate the relative distance distribution between intervals in two feature sets."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "reldist", "reldistbed", "relative distance", "spatial correlation"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("relative_distance",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/reldist.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI, "10.1371/journal.pcbi.1002529"]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}", f"{DOI_URL}10.1371/journal.pcbi.1002529"]
+    CITATION_TEXT = (
+        f"{BEDTOOLS_CITATION_TEXT}; Exploring Massive, Genome Scale Datasets with the GenometriCorr Package."
+    )
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "reldist",
+            "-a",
+            str(inputs.get("inputA", "")),
+            "-b",
+            str(inputs.get("inputB", "")),
+        ]
+        if inputs.get("detail"):
+            cmd.append("-detail")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/relative_distance.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "relative_distance.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Interval file A"}),
+                "inputB": ("BED", {"description": "Interval file B"}),
+            },
+            "optional": {
+                "detail": ("BOOLEAN", {"default": False, "description": "Report relative distance for each A interval"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsSpacingNode(CommandNode):
+    """Report distances between adjacent intervals."""
+
+    NODE_ID = "bedtools_spacingbed"
+    DISPLAY_NAME = "BEDTools Spacing"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Report the spacing between adjacent intervals in a sorted interval file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "spacing", "spacingbed", "distance between intervals", "adjacent intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("spacing",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/spacing.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "spacing", "-i", str(inputs.get("input", ""))]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/spacing.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "spacing.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Sorted interval file"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsGroupByNode(CommandNode):
+    """Group rows by columns and summarize values in other columns."""
+
+    NODE_ID = "bedtools_groupbybed"
+    DISPLAY_NAME = "BEDTools GroupBy"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Group intervals by one or more columns and summarize selected columns with bedtools groupby."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "groupby", "groupbybed", "summarize intervals", "aggregate columns"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("grouped",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/groupby.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "groupby",
+            "-i",
+            str(inputs.get("inputA", "")),
+            "-g",
+            str(inputs.get("group", "1,2,3")),
+            "-c",
+            str(inputs.get("columns", inputs.get("cols", ""))),
+            "-o",
+            str(inputs.get("operation", "sum")),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/grouped.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "grouped.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Interval or tabular file to group"}),
+                "columns": ("STRING", {"default": "4", "description": "Comma-separated columns to summarize"}),
+                "group": ("STRING", {"default": "1,2,3", "description": "Columns or ranges to group by"}),
+                "operation": (
+                    "STRING",
+                    {
+                        "default": "sum",
+                        "options": [
+                            "sum",
+                            "min",
+                            "max",
+                            "absmin",
+                            "absmax",
+                            "mean",
+                            "median",
+                            "mode",
+                            "antimode",
+                            "stdev",
+                            "sstdev",
+                            "collapse",
+                            "count",
+                            "distinct",
+                            "first",
+                            "last",
+                            "freqasc",
+                            "freqdesc",
+                        ],
+                    },
+                ),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
