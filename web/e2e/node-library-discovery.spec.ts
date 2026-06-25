@@ -1165,6 +1165,128 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bcftools_concat: {
+    name: 'bcftools_concat',
+    display_name: 'BCFtools Concat',
+    category: 'variant',
+    description: 'Concatenate chromosome shards or combine sorted VCF/BCF files with compatible sample columns.',
+    search_aliases: ['Galaxy', 'bcftools', 'concat', 'concatenate vcf', 'combine vcf', 'ligate phased vcfs'],
+    input: {
+      required: {
+        input_files: { type: 'VCF_LIST' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['concat_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#concat',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_consensus: {
+    name: 'bcftools_consensus',
+    display_name: 'BCFtools Consensus',
+    category: 'variant',
+    description: 'Create a consensus FASTA by applying VCF/BCF variants, masks, and sample or haplotype choices to a reference.',
+    search_aliases: ['Galaxy', 'bcftools', 'consensus', 'consensus fasta', 'apply variants', 'haplotype consensus'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+        reference: { type: 'FASTA' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['consensus_fasta'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#consensus',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_query: {
+    name: 'bcftools_query',
+    display_name: 'BCFtools Query',
+    category: 'variant',
+    description: 'Transform VCF/BCF records into tabular or custom text output using bcftools query format strings.',
+    search_aliases: ['Galaxy', 'bcftools', 'query', 'extract fields', 'format vcf', 'vcf to tsv'],
+    input: {
+      required: {
+        input_files: { type: 'VCF_LIST' },
+        format: { type: 'STRING', default: '%CHROM\\t%POS\\t%REF\\t%ALT\\n' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['query_table'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#query',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_query_list_samples: {
+    name: 'bcftools_query_list_samples',
+    display_name: 'BCFtools List Samples',
+    category: 'variant',
+    description: 'List sample names from a VCF/BCF file using bcftools query --list-samples.',
+    search_aliases: ['Galaxy', 'bcftools', 'query', 'list samples', 'sample names', 'vcf samples'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['samples'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#query',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_reheader: {
+    name: 'bcftools_reheader',
+    display_name: 'BCFtools Reheader',
+    category: 'variant',
+    description: 'Replace a VCF/BCF header and optionally rename samples using a sample mapping file.',
+    search_aliases: ['Galaxy', 'bcftools', 'reheader', 'rename samples', 'change header', 'sample names'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['reheadered_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#reheader',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_view: {
+    name: 'bcftools_view',
+    display_name: 'BCFtools View',
+    category: 'variant',
+    description: 'Subset samples, filter variants, and convert VCF/BCF files with bcftools view.',
+    search_aliases: ['Galaxy', 'bcftools', 'view', 'subset vcf', 'filter vcf', 'vcf conversion'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['view_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#view',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1486,7 +1608,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('74 nodes available')).toBeVisible();
+  await expect(page.getByText('80 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1551,6 +1673,12 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'linksbed ucsc', name: 'BEDTools LinksBed', category: 'genomics' },
     { query: 'overlapbed custom score', name: 'BEDTools OverlapBed', category: 'genomics' },
     { query: 'tagbed bam tags', name: 'BEDTools TagBed', category: 'genomics' },
+    { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
+    { query: 'consensus fasta', name: 'BCFtools Consensus', category: 'variant' },
+    { query: 'extract fields', name: 'BCFtools Query', category: 'variant' },
+    { query: 'list samples', name: 'BCFtools List Samples', category: 'variant' },
+    { query: 'rename samples', name: 'BCFtools Reheader', category: 'variant' },
+    { query: 'subset vcf', name: 'BCFtools View', category: 'variant' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

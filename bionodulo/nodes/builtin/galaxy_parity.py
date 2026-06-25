@@ -49,6 +49,12 @@ def _bedtools_ext(path: Any, default: str = "bed") -> str:
 
 BEDTOOLS_CITATION_DOI = "10.1093/bioinformatics/btq033"
 BEDTOOLS_CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+BCFTOOLS_CITATION_DOIS = ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
+BCFTOOLS_CITATION_URLS = [f"{DOI_URL}{doi}" for doi in BCFTOOLS_CITATION_DOIS]
+BCFTOOLS_CITATION_TEXT = (
+    "Twelve years of SAMtools and BCFtools; "
+    "The Sequence Alignment/Map format and SAMtools."
+)
 
 
 def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
@@ -80,6 +86,33 @@ def _bedtools_strand_flag(value: Any, *, same: str = "-s", opposite: str = "-S")
         same: same,
         opposite: opposite,
     }.get(strand, "")
+
+
+def _bcftools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
+    out = Path(output_dir) / node_id
+    out.mkdir(parents=True, exist_ok=True)
+    return out / filename
+
+
+def _bcftools_add_output_type(cmd: list[str], inputs: dict[str, Any]) -> None:
+    output_type = str(inputs.get("output_type", "z"))
+    if output_type and output_type != "__none__":
+        cmd.extend(["--output-type", output_type])
+
+
+def _bcftools_variant_suffix(inputs: dict[str, Any], default: str = ".vcf.gz") -> str:
+    output_type = str(inputs.get("output_type", "z"))
+    return {"b": ".bcf", "u": ".bcf", "z": ".vcf.gz", "v": ".vcf"}.get(output_type, default)
+
+
+def _bcftools_add_restrict(cmd: list[str], inputs: dict[str, Any]) -> None:
+    _add_if_value(cmd, "--collapse", inputs.get("collapse"))
+    _add_if_value(cmd, "--regions", inputs.get("regions"))
+    if not inputs.get("_skip_samples_restrict"):
+        _add_if_value(cmd, "--samples", inputs.get("samples"))
+    _add_if_value(cmd, "--targets", inputs.get("targets"))
+    _add_if_value(cmd, "--include", inputs.get("include"))
+    _add_if_value(cmd, "--exclude", inputs.get("exclude"))
 
 
 class BUSCONode(CommandNode):
@@ -3536,6 +3569,421 @@ class BEDToolsTagBedNode(CommandNode):
                 "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of each alignment"}),
                 "tag": ("STRING", {"default": "YB", "description": "BAM tag name to populate"}),
                 "field": ("STRING", {"default": "-labels", "options": ["-labels", "-scores", "-names", "-labels -intervals"], "description": "Annotation field used as tag value"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsConcatNode(CommandNode):
+    """Concatenate or combine VCF/BCF files with matching sample columns."""
+
+    NODE_ID = "bcftools_concat"
+    DISPLAY_NAME = "BCFtools Concat"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Concatenate chromosome shards or combine sorted VCF/BCF files with compatible sample columns."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "concat", "concatenate vcf", "combine vcf", "ligate phased vcfs"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("concat_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#concat"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "concat"]
+        if inputs.get("naive"):
+            cmd.append("--naive")
+        else:
+            if inputs.get("allow_overlaps"):
+                cmd.append("--allow-overlaps")
+                _add_if_value(cmd, "--rm-dups", inputs.get("rm_dups"))
+            if inputs.get("ligate"):
+                cmd.append("--ligate")
+            ligate_mode = str(inputs.get("ligate_mode", "")).strip()
+            if ligate_mode:
+                cmd.append(ligate_mode)
+        if inputs.get("compact_ps"):
+            cmd.append("--compact-PS")
+        _add_if_value(cmd, "--min-PQ", inputs.get("min_pq"))
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.extend(_as_list(inputs.get("input_files", inputs.get("inputs"))))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/concat{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"concat{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": ("VCF_LIST", {"description": "Sorted VCF/BCF files with compatible sample columns"}),
+            },
+            "optional": {
+                "naive": ("BOOLEAN", {"default": False, "description": "Concatenate without recompression or header checks"}),
+                "allow_overlaps": ("BOOLEAN", {"default": False, "description": "Allow overlapping positions between adjacent files"}),
+                "rm_dups": ("STRING", {"default": "", "options": ["", "snps", "indels", "both", "all", "none"], "description": "Remove duplicate records when overlaps are allowed"}),
+                "ligate": ("BOOLEAN", {"default": False, "description": "Ligate phased VCF chunks"}),
+                "ligate_mode": ("STRING", {"default": "", "options": ["", "--ligate-warn", "--ligate-force"], "description": "Fine control of ligate behavior"}),
+                "compact_ps": ("BOOLEAN", {"default": False, "description": "Emit phase-set tag only at phase block starts"}),
+                "min_pq": ("INT", {"default": "", "min": 0, "description": "Break phase set below this phasing quality"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict output to regions"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsConsensusNode(CommandNode):
+    """Apply VCF variants to a reference FASTA to build a consensus sequence."""
+
+    NODE_ID = "bcftools_consensus"
+    DISPLAY_NAME = "BCFtools Consensus"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Create a consensus FASTA by applying VCF/BCF variants, masks, and sample or haplotype choices to a reference."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "consensus", "consensus fasta", "apply variants", "haplotype consensus"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("consensus_fasta",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#consensus"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "consensus", "--fasta-ref", str(inputs.get("reference", inputs.get("fasta_ref", "")))]
+        mode = str(inputs.get("mode", "genotype_iupac"))
+        if mode == "first_alt":
+            cmd.extend(["-s", "-"])
+        elif mode == "all_iupac":
+            cmd.extend(["-I", "-s", "-"])
+        elif mode == "haplotype":
+            cmd.extend(["-H", str(inputs.get("haplotype", "1"))])
+            _add_if_value(cmd, "--sample", inputs.get("sample"))
+        else:
+            _add_if_value(cmd, "--samples", inputs.get("samples"))
+
+        masks = _as_list(inputs.get("mask"))
+        mask_with_value = inputs.get("mask_with")
+        if isinstance(mask_with_value, str) and "," in mask_with_value:
+            mask_with = [part.strip() for part in mask_with_value.split(",") if part.strip()]
+        else:
+            mask_with = _as_list(mask_with_value)
+        for index, mask in enumerate(masks):
+            cmd.extend(["--mask", mask])
+            if index < len(mask_with):
+                cmd.extend(["--mask-with", mask_with[index]])
+            elif len(mask_with) == 1:
+                cmd.extend(["--mask-with", mask_with[0]])
+        _add_if_value(cmd, "--absent", inputs.get("absent"))
+        _add_if_value(cmd, "--mark-del", inputs.get("mark_del"))
+        _add_if_value(cmd, "--mark-ins", inputs.get("mark_ins"))
+        _add_if_value(cmd, "--mark-snv", inputs.get("mark_snv"))
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        if inputs.get("chain"):
+            cmd.extend(["--chain", f"{_out(inputs)}/consensus.chain"])
+        cmd.extend(["--output", f"{_out(inputs)}/consensus.fa", str(inputs.get("input_file", ""))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        outputs = [_bcftools_common_output(cls.NODE_ID, "consensus.fa", output_dir)]
+        if inputs.get("chain"):
+            outputs.append(_bcftools_common_output(cls.NODE_ID, "consensus.chain", output_dir))
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF variants to apply"}),
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+            },
+            "optional": {
+                "mode": ("STRING", {"default": "genotype_iupac", "options": ["first_alt", "all_iupac", "genotype_iupac", "haplotype"], "description": "Galaxy consensus building mode"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples for genotype-IUPAC mode"}),
+                "sample": ("STRING", {"default": "", "description": "Single sample for haplotype mode"}),
+                "haplotype": ("STRING", {"default": "1", "description": "Haplotype selector such as 1, 2, 1pIu, R, A, LR, LA, SR, or SA"}),
+                "mask": ("BED_LIST", {"description": "Regions to mask before applying variants"}),
+                "mask_with": ("STRING_LIST", {"description": "Mask replacement values matching mask files"}),
+                "absent": ("STRING", {"default": "", "description": "Character for reference bases absent from VCF"}),
+                "mark_del": ("STRING", {"default": "", "description": "Character for deleted reference bases"}),
+                "mark_ins": ("STRING", {"default": "", "description": "Insertion marking mode or character"}),
+                "mark_snv": ("STRING", {"default": "", "description": "SNV marking mode or character"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "chain": ("BOOLEAN", {"default": False, "description": "Write a liftover chain file"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsQueryNode(CommandNode):
+    """Extract fields from one or more VCF/BCF files in a user-defined format."""
+
+    NODE_ID = "bcftools_query"
+    DISPLAY_NAME = "BCFtools Query"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Transform VCF/BCF records into tabular or custom text output using bcftools query format strings."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "query", "extract fields", "format vcf", "vcf to tsv"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("query_table",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#query"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "query", "--format", str(inputs.get("format", "%CHROM\\t%POS\\t%REF\\t%ALT\\n"))]
+        if inputs.get("allow_undef_tags"):
+            cmd.append("--allow-undef-tags")
+        if inputs.get("print_header"):
+            cmd.append("--print-header")
+        _bcftools_add_restrict(cmd, inputs)
+        cmd.extend(_as_list(inputs.get("input_files", inputs.get("input_file"))))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/query.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "query.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": ("VCF_LIST", {"description": "One or more VCF/BCF files"}),
+                "format": ("STRING", {"default": "%CHROM\\t%POS\\t%REF\\t%ALT\\n", "description": "bcftools query format string"}),
+            },
+            "optional": {
+                "allow_undef_tags": ("BOOLEAN", {"default": False, "description": "Print . for undefined tags"}),
+                "print_header": ("BOOLEAN", {"default": False, "description": "Print a header line"}),
+                "collapse": ("STRING", {"default": "", "description": "Compatibility collapse mode"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsQueryListSamplesNode(CommandNode):
+    """List sample names from a VCF/BCF file."""
+
+    NODE_ID = "bcftools_query_list_samples"
+    DISPLAY_NAME = "BCFtools List Samples"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "List sample names from a VCF/BCF file using bcftools query --list-samples."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "query", "list samples", "sample names", "vcf samples"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("samples",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#query"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "query", "--list-samples", str(inputs.get("input_file", ""))]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/samples.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "samples.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsReheaderNode(CommandNode):
+    """Modify VCF/BCF headers and sample names."""
+
+    NODE_ID = "bcftools_reheader"
+    DISPLAY_NAME = "BCFtools Reheader"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Replace a VCF/BCF header and optionally rename samples using a sample mapping file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "reheader", "rename samples", "change header", "sample names"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("reheadered_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#reheader"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "reheader"]
+        _add_if_value(cmd, "--header", inputs.get("header"))
+        _add_if_value(cmd, "--samples", inputs.get("sample_file", inputs.get("samples_file")))
+        if inputs.get("sample_lines"):
+            cmd.extend(["--samples", str(inputs.get("sample_lines"))])
+        cmd.append(str(inputs.get("input_file", "")))
+        cmd.extend(["|", "bcftools", "view"])
+        _bcftools_add_output_type(cmd, inputs)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/reheadered{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"reheadered{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file"}),
+            },
+            "optional": {
+                "header": ("VCF", {"description": "Replacement VCF header"}),
+                "sample_file": ("TSV", {"description": "Sample names or old/new sample mapping"}),
+                "sample_lines": ("STRING", {"default": "", "description": "Inline sample renaming text"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsViewNode(CommandNode):
+    """Convert, subset, and filter VCF/BCF files."""
+
+    NODE_ID = "bcftools_view"
+    DISPLAY_NAME = "BCFtools View"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Subset samples, filter variants, and convert VCF/BCF files with bcftools view."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "view", "subset vcf", "filter vcf", "vcf conversion"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("view_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#view"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "view"]
+        if inputs.get("trim_alt_alleles"):
+            cmd.append("--trim-alt-alleles")
+        if inputs.get("no_update"):
+            cmd.append("--no-update")
+        _add_if_value(cmd, "--samples", inputs.get("samples"))
+        if inputs.get("force_samples"):
+            cmd.append("--force-samples")
+        _add_if_value(cmd, "--min-ac", inputs.get("min_ac"))
+        _add_if_value(cmd, "--max-ac", inputs.get("max_ac"))
+        _add_if_value(cmd, "--genotype", inputs.get("select_genotype"))
+        known_or_novel = str(inputs.get("known_or_novel", "")).strip()
+        if known_or_novel:
+            cmd.append(known_or_novel)
+        _add_if_value(cmd, "--min-alleles", inputs.get("min_alleles"))
+        _add_if_value(cmd, "--max-alleles", inputs.get("max_alleles"))
+        phased = str(inputs.get("phased", "")).strip()
+        if phased:
+            cmd.append(phased)
+        _add_if_value(cmd, "--min-af", inputs.get("min_af"))
+        _add_if_value(cmd, "--max-af", inputs.get("max_af"))
+        uncalled = str(inputs.get("uncalled", "")).strip()
+        if uncalled:
+            cmd.append(uncalled)
+        types = _as_list(inputs.get("types"))
+        if types:
+            cmd.extend(["--types", ",".join(types)])
+        exclude_types = _as_list(inputs.get("exclude_types"))
+        if exclude_types:
+            cmd.extend(["--exclude-types", ",".join(exclude_types)])
+        private = str(inputs.get("private", "")).strip()
+        if private:
+            cmd.append(private)
+        if inputs.get("drop_genotypes"):
+            cmd.append("--drop-genotypes")
+        header = str(inputs.get("header", "")).strip()
+        if header:
+            cmd.append(header)
+        _add_if_value(cmd, "--compression-level", inputs.get("compression_level"))
+        restrict_inputs = {**inputs, "_skip_samples_restrict": True}
+        _bcftools_add_restrict(cmd, restrict_inputs)
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/view{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"view{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file"}),
+            },
+            "optional": {
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples"}),
+                "force_samples": ("BOOLEAN", {"default": False, "description": "Only warn about unknown subset samples"}),
+                "no_update": ("BOOLEAN", {"default": False, "description": "Do not recalculate INFO AC/AN after subsetting"}),
+                "trim_alt_alleles": ("BOOLEAN", {"default": False, "description": "Trim alternate alleles not seen in subset"}),
+                "min_ac": ("INT", {"default": "", "description": "Minimum allele count"}),
+                "max_ac": ("INT", {"default": "", "description": "Maximum allele count"}),
+                "select_genotype": ("STRING", {"default": "", "options": ["", "hom", "het", "miss", "^hom", "^het", "^miss"], "description": "Genotype filter"}),
+                "types": ("STRING_LIST", {"description": "Variant types to include"}),
+                "exclude_types": ("STRING_LIST", {"description": "Variant types to exclude"}),
+                "known_or_novel": ("STRING", {"default": "", "options": ["", "--novel", "--known"], "description": "Filter known or novel IDs"}),
+                "min_alleles": ("INT", {"default": "", "description": "Minimum number of REF/ALT alleles"}),
+                "max_alleles": ("INT", {"default": "", "description": "Maximum number of REF/ALT alleles"}),
+                "phased": ("STRING", {"default": "", "options": ["", "--phased", "--exclude-phased"], "description": "Phasing filter"}),
+                "min_af": ("FLOAT", {"default": "", "description": "Minimum allele frequency"}),
+                "max_af": ("FLOAT", {"default": "", "description": "Maximum allele frequency"}),
+                "uncalled": ("STRING", {"default": "", "options": ["", "--uncalled", "--exclude-uncalled"], "description": "Uncalled genotype filter"}),
+                "private": ("STRING", {"default": "", "options": ["", "--private", "--exclude-private"], "description": "Private allele filter"}),
+                "drop_genotypes": ("BOOLEAN", {"default": False, "description": "Drop genotype columns"}),
+                "header": ("STRING", {"default": "", "options": ["", "--no-header", "--header-only"], "description": "Header output mode"}),
+                "compression_level": ("INT", {"default": "", "min": 0, "max": 9, "description": "Compression level"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

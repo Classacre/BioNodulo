@@ -2629,3 +2629,355 @@ def test_bedtools_tagbed_renders_annotation_tag_command_and_output(tmp_path: Pat
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_tagbed" / "tagged.bam",
     ]
+
+
+def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bcftools_concat": {
+            "display_name": "BCFtools Concat",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
+            "output": ["VCF_GZ"],
+            "search_alias": "concatenate vcf",
+        },
+        "bcftools_consensus": {
+            "display_name": "BCFtools Consensus",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#consensus",
+            "output": ["FASTA"],
+            "search_alias": "consensus fasta",
+        },
+        "bcftools_query": {
+            "display_name": "BCFtools Query",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#query",
+            "output": ["TSV"],
+            "search_alias": "extract fields",
+        },
+        "bcftools_query_list_samples": {
+            "display_name": "BCFtools List Samples",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#query",
+            "output": ["TSV"],
+            "search_alias": "list samples",
+        },
+        "bcftools_reheader": {
+            "display_name": "BCFtools Reheader",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#reheader",
+            "output": ["VCF_GZ"],
+            "search_alias": "rename samples",
+        },
+        "bcftools_view": {
+            "display_name": "BCFtools View",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#view",
+            "output": ["VCF_GZ"],
+            "search_alias": "subset vcf",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "variant"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
+        assert "https://doi.org/10.1093/bioinformatics/btp352" in node_info["citation_urls"]
+        assert "Galaxy" in node_info["search_aliases"]
+        assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_concat_renders_ligate_overlap_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_concat")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["chr1.vcf.gz", "chr2.vcf.gz"],
+            "allow_overlaps": True,
+            "rm_dups": "all",
+            "ligate": True,
+            "ligate_mode": "--ligate-force",
+            "compact_ps": True,
+            "min_pq": 40,
+            "regions": "chr1,chr2",
+            "output_type": "z",
+            "threads": 8,
+            "output": "/work/bcftools_concat",
+        }
+    ) == [
+        "bcftools",
+        "concat",
+        "--allow-overlaps",
+        "--rm-dups",
+        "all",
+        "--ligate",
+        "--ligate-force",
+        "--compact-PS",
+        "--min-PQ",
+        "40",
+        "--regions",
+        "chr1,chr2",
+        "--output-type",
+        "z",
+        "--threads",
+        "8",
+        "chr1.vcf.gz",
+        "chr2.vcf.gz",
+        ">",
+        "/work/bcftools_concat/concat.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_concat" / "concat.vcf.gz",
+    ]
+
+
+def test_bcftools_consensus_renders_masked_haplotype_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_consensus")
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.vcf.gz",
+            "reference": "ref.fa",
+            "mode": "haplotype",
+            "haplotype": "1pIu",
+            "sample": "tumor",
+            "mask": ["lowcov.bed", "repeats.bed"],
+            "mask_with": "N,lc",
+            "absent": "N",
+            "mark_del": "-",
+            "mark_ins": "uc",
+            "mark_snv": "lc",
+            "include": "QUAL>20",
+            "exclude": "FILTER='LowQual'",
+            "chain": True,
+            "output": "/work/bcftools_consensus",
+        }
+    ) == [
+        "bcftools",
+        "consensus",
+        "--fasta-ref",
+        "ref.fa",
+        "-H",
+        "1pIu",
+        "--sample",
+        "tumor",
+        "--mask",
+        "lowcov.bed",
+        "--mask-with",
+        "N",
+        "--mask",
+        "repeats.bed",
+        "--mask-with",
+        "lc",
+        "--absent",
+        "N",
+        "--mark-del",
+        "-",
+        "--mark-ins",
+        "uc",
+        "--mark-snv",
+        "lc",
+        "--include",
+        "QUAL>20",
+        "--exclude",
+        "FILTER='LowQual'",
+        "--chain",
+        "/work/bcftools_consensus/consensus.chain",
+        "--output",
+        "/work/bcftools_consensus/consensus.fa",
+        "calls.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"chain": True}, tmp_path) == [
+        tmp_path / "bcftools_consensus" / "consensus.fa",
+        tmp_path / "bcftools_consensus" / "consensus.chain",
+    ]
+
+
+def test_bcftools_query_renders_multifile_restricted_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_query")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["case.vcf.gz", "control.vcf.gz"],
+            "format": "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%SAMPLE=%GT]\\n",
+            "allow_undef_tags": True,
+            "print_header": True,
+            "samples": "S1,S2",
+            "regions": "chr1:1-1000",
+            "targets": "targets.bed",
+            "include": "QUAL>30",
+            "exclude": "TYPE='indel'",
+            "collapse": "snps",
+            "output": "/work/bcftools_query",
+        }
+    ) == [
+        "bcftools",
+        "query",
+        "--format",
+        "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%SAMPLE=%GT]\\n",
+        "--allow-undef-tags",
+        "--print-header",
+        "--collapse",
+        "snps",
+        "--regions",
+        "chr1:1-1000",
+        "--samples",
+        "S1,S2",
+        "--targets",
+        "targets.bed",
+        "--include",
+        "QUAL>30",
+        "--exclude",
+        "TYPE='indel'",
+        "case.vcf.gz",
+        "control.vcf.gz",
+        ">",
+        "/work/bcftools_query/query.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_query" / "query.tsv",
+    ]
+
+
+def test_bcftools_list_samples_renders_query_list_samples_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_query_list_samples")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.bcf",
+            "output": "/work/bcftools_query_list_samples",
+        }
+    ) == [
+        "bcftools",
+        "query",
+        "--list-samples",
+        "cohort.bcf",
+        ">",
+        "/work/bcftools_query_list_samples/samples.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_query_list_samples" / "samples.tsv",
+    ]
+
+
+def test_bcftools_reheader_renders_header_and_sample_rename_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_reheader")
+
+    assert node_class.render_command(
+        {
+            "input_file": "old.vcf.gz",
+            "header": "new_header.vcf",
+            "sample_file": "samples.tsv",
+            "output_type": "z",
+            "output": "/work/bcftools_reheader",
+        }
+    ) == [
+        "bcftools",
+        "reheader",
+        "--header",
+        "new_header.vcf",
+        "--samples",
+        "samples.tsv",
+        "old.vcf.gz",
+        "|",
+        "bcftools",
+        "view",
+        "--output-type",
+        "z",
+        ">",
+        "/work/bcftools_reheader/reheadered.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_reheader" / "reheadered.vcf.gz",
+    ]
+
+
+def test_bcftools_view_renders_subset_filter_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_view")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "samples": "S1,S2",
+            "force_samples": True,
+            "trim_alt_alleles": True,
+            "no_update": True,
+            "min_ac": 2,
+            "max_af": 0.9,
+            "select_genotype": "het",
+            "types": ["snps", "indels"],
+            "exclude_types": ["mnps"],
+            "known_or_novel": "--known",
+            "min_alleles": 2,
+            "max_alleles": 4,
+            "phased": "--phased",
+            "uncalled": "--exclude-uncalled",
+            "private": "--private",
+            "drop_genotypes": True,
+            "header": "--no-header",
+            "compression_level": 6,
+            "regions": "chr2",
+            "targets": "targets.bed",
+            "include": "QUAL>50",
+            "exclude": "DP<10",
+            "output_type": "z",
+            "threads": 6,
+            "output": "/work/bcftools_view",
+        }
+    ) == [
+        "bcftools",
+        "view",
+        "--trim-alt-alleles",
+        "--no-update",
+        "--samples",
+        "S1,S2",
+        "--force-samples",
+        "--min-ac",
+        "2",
+        "--genotype",
+        "het",
+        "--known",
+        "--min-alleles",
+        "2",
+        "--max-alleles",
+        "4",
+        "--phased",
+        "--max-af",
+        "0.9",
+        "--exclude-uncalled",
+        "--types",
+        "snps,indels",
+        "--exclude-types",
+        "mnps",
+        "--private",
+        "--drop-genotypes",
+        "--no-header",
+        "--compression-level",
+        "6",
+        "--regions",
+        "chr2",
+        "--targets",
+        "targets.bed",
+        "--include",
+        "QUAL>50",
+        "--exclude",
+        "DP<10",
+        "--output-type",
+        "z",
+        "--threads",
+        "6",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_view/view.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_view" / "view.vcf.gz",
+    ]
