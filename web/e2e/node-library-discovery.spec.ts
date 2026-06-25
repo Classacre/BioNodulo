@@ -980,6 +980,67 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_randombed: {
+    name: 'bedtools_randombed',
+    display_name: 'BEDTools Random',
+    category: 'genomics',
+    description: 'Generate a random set of BED6 intervals across chromosomes defined by a genome file.',
+    search_aliases: ['Galaxy', 'bedtools', 'random', 'randombed', 'random intervals', 'null intervals'],
+    input: {
+      required: {
+        genome: { type: 'TSV' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['random_intervals'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/random.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_shufflebed: {
+    name: 'bedtools_shufflebed',
+    display_name: 'BEDTools Shuffle',
+    category: 'genomics',
+    description: 'Shuffle feature locations across a genome, optionally constraining or excluding target regions.',
+    search_aliases: ['Galaxy', 'bedtools', 'shuffle', 'shufflebed', 'randomize intervals', 'permutation'],
+    input: {
+      required: {
+        inputA: { type: 'BED' },
+        genome: { type: 'TSV' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['shuffled'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/shuffle.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_unionbedgraph: {
+    name: 'bedtools_unionbedgraph',
+    display_name: 'BEDTools Union BedGraph',
+    category: 'genomics',
+    description: 'Merge multiple sorted BedGraph files into a common set of intervals with one value column per input.',
+    search_aliases: ['Galaxy', 'bedtools', 'unionbedg', 'unionbedgraph', 'bedgraph union', 'coverage tracks'],
+    input: {
+      required: {
+        inputs: { type: 'BEDGRAPH_LIST' },
+      },
+    },
+    output: ['BEDGRAPH'],
+    output_name: ['union_bedgraph'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/unionbedg.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1301,7 +1362,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('65 nodes available')).toBeVisible();
+  await expect(page.getByText('68 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1357,6 +1418,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'maskfasta', name: 'BEDTools Mask FASTA', category: 'genomics' },
     { query: 'multicovbed', name: 'BEDTools MultiCov', category: 'genomics' },
     { query: 'gc content', name: 'BEDTools Nucleotide Content', category: 'genomics' },
+    { query: 'randombed', name: 'BEDTools Random', category: 'genomics' },
+    { query: 'shufflebed', name: 'BEDTools Shuffle', category: 'genomics' },
+    { query: 'unionbedgraph', name: 'BEDTools Union BedGraph', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

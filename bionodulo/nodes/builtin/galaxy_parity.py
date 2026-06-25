@@ -2998,3 +2998,178 @@ class BEDToolsNucNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsRandomNode(CommandNode):
+    """Generate random BED intervals across a genome."""
+
+    NODE_ID = "bedtools_randombed"
+    DISPLAY_NAME = "BEDTools Random"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Generate a random set of BED6 intervals across chromosomes defined by a genome file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "random", "randombed", "random intervals", "null intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("random_intervals",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/random.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "random"]
+        _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-l", str(inputs.get("length", 100)), "-n", str(inputs.get("intervals", inputs.get("n", 1000000)))])
+        _add_if_value(cmd, "-seed", inputs.get("seed"))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/random.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "random.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "genome": ("TSV", {"description": "Genome chromosome sizes file"}),
+            },
+            "optional": {
+                "length": ("INT", {"default": 100, "min": 1, "description": "Length of each random interval"}),
+                "intervals": ("INT", {"default": 1000000, "min": 1, "description": "Number of intervals to generate"}),
+                "seed": ("INT", {"default": "", "description": "Optional random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsShuffleNode(CommandNode):
+    """Randomly redistribute interval locations across a genome."""
+
+    NODE_ID = "bedtools_shufflebed"
+    DISPLAY_NAME = "BEDTools Shuffle"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Shuffle feature locations across a genome, optionally constraining or excluding target regions."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "shuffle", "shufflebed", "randomize intervals", "permutation"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("shuffled",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/shuffle.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "shuffle"]
+        _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", str(inputs.get("inputA", inputs.get("input", "")))])
+        if inputs.get("bedpe"):
+            cmd.append("-bedpe")
+        _add_if_value(cmd, "-seed", inputs.get("seed"))
+        if inputs.get("exclude"):
+            cmd.extend(["-excl", str(inputs.get("exclude"))])
+            _add_if_value(cmd, "-f", inputs.get("overlap"))
+        if inputs.get("include"):
+            cmd.extend(["-incl", str(inputs.get("include"))])
+        if inputs.get("chrom"):
+            cmd.append("-chrom")
+        if inputs.get("chromfirst"):
+            cmd.append("-chromFirst")
+        if inputs.get("no_overlap"):
+            cmd.append("-noOverlapping")
+        if inputs.get("allow_beyond"):
+            cmd.append("-allowBeyondChromEnd")
+        cmd.extend(["-maxTries", str(inputs.get("maxtries", inputs.get("max_tries", 1000)))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/shuffled.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "shuffled.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Intervals to randomly redistribute"}),
+                "genome": ("TSV", {"description": "Genome chromosome sizes file"}),
+            },
+            "optional": {
+                "bedpe": ("BOOLEAN", {"default": False, "description": "Input is BEDPE format"}),
+                "seed": ("INT", {"default": "", "description": "Optional random seed"}),
+                "exclude": ("BED", {"description": "Regions where shuffled intervals must not be placed"}),
+                "include": ("BED", {"description": "Regions where shuffled intervals must be placed"}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Maximum tolerated overlap with excluded regions"}),
+                "chrom": ("BOOLEAN", {"default": False, "description": "Keep intervals on their original chromosome"}),
+                "chromfirst": ("BOOLEAN", {"default": False, "description": "Choose chromosome uniformly before choosing position"}),
+                "no_overlap": ("BOOLEAN", {"default": False, "description": "Do not allow shuffled intervals to overlap each other"}),
+                "allow_beyond": ("BOOLEAN", {"default": False, "description": "Allow intervals to extend beyond chromosome end"}),
+                "maxtries": ("INT", {"default": 1000, "min": 1, "description": "Maximum placement attempts per interval"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsUnionBedGraphNode(CommandNode):
+    """Combine intervals from multiple BedGraph files."""
+
+    NODE_ID = "bedtools_unionbedgraph"
+    DISPLAY_NAME = "BEDTools Union BedGraph"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Merge multiple sorted BedGraph files into a common set of intervals with one value column per input."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "unionbedg", "unionbedgraph", "bedgraph union", "coverage tracks"]
+    RETURN_TYPES = ("BEDGRAPH",)
+    RETURN_NAMES = ("union_bedgraph",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/unionbedg.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        files = _as_list(inputs.get("inputs", inputs.get("bedgraphs")))
+        names = _as_list(inputs.get("names"))
+        cmd = ["bedtools", "unionbedg"]
+        if inputs.get("header"):
+            cmd.append("-header")
+        cmd.extend(["-filler", str(inputs.get("filler", "N/A"))])
+        if inputs.get("empty"):
+            cmd.append("-empty")
+            _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", *files])
+        if names:
+            cmd.extend(["-names", *names])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/union.bedgraph")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "union.bedgraph", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputs": ("BEDGRAPH_LIST", {"description": "Sorted non-overlapping BedGraph files"}),
+            },
+            "optional": {
+                "names": ("STRING_LIST", {"description": "Optional column labels matching the input files"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print a header row"}),
+                "filler": ("STRING", {"default": "N/A", "description": "Value for no coverage in a file"}),
+                "empty": ("BOOLEAN", {"default": False, "description": "Report regions with zero coverage across all files"}),
+                "genome": ("TSV", {"description": "Genome chromosome sizes file required when empty is enabled"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }

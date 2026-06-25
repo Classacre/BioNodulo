@@ -2172,3 +2172,148 @@ def test_bedtools_nucbed_renders_sequence_pattern_command_and_output(tmp_path: P
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_nucbed" / "nucleotide_content.tsv",
     ]
+
+
+def test_galaxy_parity_bedtools_randomization_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_randombed": {
+            "display_name": "BEDTools Random",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/random.html",
+        },
+        "bedtools_shufflebed": {
+            "display_name": "BEDTools Shuffle",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/shuffle.html",
+        },
+        "bedtools_unionbedgraph": {
+            "display_name": "BEDTools Union BedGraph",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/unionbedg.html",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == ["bedtools"]
+        assert node_info["required_conda_packages"] == ["bedtools"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_randombed_renders_seeded_interval_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_randombed")
+
+    assert node_class.render_command(
+        {
+            "genome": "chrom.sizes",
+            "length": 250,
+            "intervals": 1000,
+            "seed": 17,
+            "output": "/work/bedtools_randombed",
+        }
+    ) == [
+        "bedtools",
+        "random",
+        "-g",
+        "chrom.sizes",
+        "-l",
+        "250",
+        "-n",
+        "1000",
+        "-seed",
+        "17",
+        ">",
+        "/work/bedtools_randombed/random.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_randombed" / "random.bed",
+    ]
+
+
+def test_bedtools_shufflebed_renders_excluded_same_chromosome_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_shufflebed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "peaks.bed",
+            "genome": "chrom.sizes",
+            "bedpe": True,
+            "seed": 23,
+            "exclude": "gaps.bed",
+            "overlap": 0.2,
+            "chrom": True,
+            "chromfirst": True,
+            "no_overlap": True,
+            "allow_beyond": True,
+            "maxtries": 5000,
+            "output": "/work/bedtools_shufflebed",
+        }
+    ) == [
+        "bedtools",
+        "shuffle",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "peaks.bed",
+        "-bedpe",
+        "-seed",
+        "23",
+        "-excl",
+        "gaps.bed",
+        "-f",
+        "0.2",
+        "-chrom",
+        "-chromFirst",
+        "-noOverlapping",
+        "-allowBeyondChromEnd",
+        "-maxTries",
+        "5000",
+        ">",
+        "/work/bedtools_shufflebed/shuffled.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_shufflebed" / "shuffled.bed",
+    ]
+
+
+def test_bedtools_unionbedgraph_renders_named_empty_union_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_unionbedgraph")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["sample1.bg", "sample2.bg"],
+            "names": ["case", "control"],
+            "header": True,
+            "filler": "0",
+            "empty": True,
+            "genome": "chrom.sizes",
+            "output": "/work/bedtools_unionbedgraph",
+        }
+    ) == [
+        "bedtools",
+        "unionbedg",
+        "-header",
+        "-filler",
+        "0",
+        "-empty",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "sample1.bg",
+        "sample2.bg",
+        "-names",
+        "case",
+        "control",
+        ">",
+        "/work/bedtools_unionbedgraph/union.bedgraph",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_unionbedgraph" / "union.bedgraph",
+    ]
