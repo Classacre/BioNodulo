@@ -47,6 +47,41 @@ def _bedtools_ext(path: Any, default: str = "bed") -> str:
     return {"gff3": "gff", "bg": "bedgraph"}.get(ext, ext or default)
 
 
+BEDTOOLS_CITATION_DOI = "10.1093/bioinformatics/btq033"
+BEDTOOLS_CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+
+
+def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
+    out = Path(output_dir) / node_id
+    out.mkdir(parents=True, exist_ok=True)
+    return out / filename
+
+
+def _bedtools_add_genome(cmd: list[str], inputs: dict[str, Any]) -> None:
+    _add_if_value(cmd, "-g", inputs.get("genome"))
+
+
+def _bedtools_add_lr_or_b(cmd: list[str], inputs: dict[str, Any]) -> None:
+    mode = str(inputs.get("addition_mode", inputs.get("addition_select", "b")))
+    if mode == "lr":
+        cmd.extend(["-l", str(inputs.get("left", inputs.get("l", 0)))])
+        cmd.extend(["-r", str(inputs.get("right", inputs.get("r", 0)))])
+    else:
+        cmd.extend(["-b", str(inputs.get("both", inputs.get("b", 1)))])
+
+
+def _bedtools_strand_flag(value: Any, *, same: str = "-s", opposite: str = "-S") -> str:
+    strand = str(value or "")
+    return {
+        "same": same,
+        "opposite": opposite,
+        "-s": same,
+        "-S": opposite,
+        same: same,
+        opposite: opposite,
+    }.get(strand, "")
+
+
 class BUSCONode(CommandNode):
     """Assess genome, transcriptome, or proteome completeness with BUSCO."""
 
@@ -1674,6 +1709,370 @@ class BEDToolsGetFastaNode(CommandNode):
                 "tab": ("BOOLEAN", {"default": False, "description": "Emit tab-delimited name and sequence output"}),
                 "strand": ("BOOLEAN", {"default": False, "description": "Reverse complement antisense features"}),
                 "split": ("BOOLEAN", {"default": False, "description": "Use BED12 blocks rather than full interval spans"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsComplementNode(CommandNode):
+    """Report genome intervals not covered by the input feature file."""
+
+    NODE_ID = "bedtools_complementbed"
+    DISPLAY_NAME = "BEDTools Complement"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Extract genome intervals not represented by an interval file using bedtools complement."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "complement", "complementbed", "genome gaps", "uncovered intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("complement",)
+    REQUIRED_EXECUTABLES = ["complementBed"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/complement.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["complementBed", "-i", str(inputs.get("input", ""))]
+        _bedtools_add_genome(cmd, inputs)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/complement.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "complement.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Sorted interval file whose uncovered genome intervals are reported"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsFlankNode(CommandNode):
+    """Create flanking intervals around each input feature."""
+
+    NODE_ID = "bedtools_flankbed"
+    DISPLAY_NAME = "BEDTools Flank"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Create new intervals from the flanks of existing intervals with bedtools flank."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "flank", "flankbed", "upstream", "downstream"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("flanks",)
+    REQUIRED_EXECUTABLES = ["flankBed"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/flank.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["flankBed"]
+        if inputs.get("pct"):
+            cmd.append("-pct")
+        if inputs.get("strand"):
+            cmd.append("-s")
+        _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", str(inputs.get("input", ""))])
+        _bedtools_add_lr_or_b(cmd, inputs)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/flanks.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "flanks.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Intervals to flank"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {
+                "addition_mode": ("STRING", {"default": "b", "options": ["b", "lr"]}),
+                "both": ("FLOAT", {"default": 1, "min": 0, "description": "Symmetric flank size"}),
+                "left": ("FLOAT", {"default": 0, "min": 0, "description": "Left/upstream flank size"}),
+                "right": ("FLOAT", {"default": 0, "min": 0, "description": "Right/downstream flank size"}),
+                "pct": ("BOOLEAN", {"default": False, "description": "Interpret sizes as fractions of feature length"}),
+                "strand": ("BOOLEAN", {"default": False, "description": "Interpret left/right relative to feature strand"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsSlopNode(CommandNode):
+    """Expand input intervals while respecting chromosome bounds."""
+
+    NODE_ID = "bedtools_slopbed"
+    DISPLAY_NAME = "BEDTools Slop"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Adjust interval sizes with bedtools slop while clipping to chromosome boundaries."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "slop", "slopbed", "extend intervals", "resize intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("slopped",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/slop.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "slop"]
+        if inputs.get("pct"):
+            cmd.append("-pct")
+        if inputs.get("strand"):
+            cmd.append("-s")
+        _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", str(inputs.get("inputA", ""))])
+        _bedtools_add_lr_or_b(cmd, inputs)
+        if inputs.get("header"):
+            cmd.append("-header")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/slopped.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "slopped.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Intervals to resize"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {
+                "addition_mode": ("STRING", {"default": "b", "options": ["b", "lr"]}),
+                "both": ("FLOAT", {"default": 1, "min": 0, "description": "Symmetric extension size"}),
+                "left": ("FLOAT", {"default": 0, "min": 0, "description": "Left/upstream extension size"}),
+                "right": ("FLOAT", {"default": 0, "min": 0, "description": "Right/downstream extension size"}),
+                "pct": ("BOOLEAN", {"default": False, "description": "Interpret sizes as fractions of feature length"}),
+                "strand": ("BOOLEAN", {"default": False, "description": "Interpret left/right relative to feature strand"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print the input header before results"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsWindowNode(CommandNode):
+    """Find B intervals near A intervals within symmetric or asymmetric windows."""
+
+    NODE_ID = "bedtools_windowbed"
+    DISPLAY_NAME = "BEDTools Window"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Find intervals in B that overlap a window around each interval in A."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "window", "windowbed", "nearby intervals", "proximal features"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("window_matches",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/window.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "window"]
+        input_a = str(inputs.get("inputA", ""))
+        if input_a.lower().endswith(".bam"):
+            cmd.extend(["-abam", input_a])
+            if inputs.get("bed"):
+                cmd.append("-bed")
+        else:
+            cmd.extend(["-a", input_a])
+        cmd.extend(["-b", str(inputs.get("inputB", ""))])
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"), same="-sm", opposite="-Sm")
+        if strand_flag:
+            cmd.append(strand_flag)
+        if str(inputs.get("addition_mode", "window")) == "lr":
+            cmd.extend(["-l", str(inputs.get("left", 1000)), "-r", str(inputs.get("right", 1000))])
+        else:
+            cmd.extend(["-w", str(inputs.get("window", inputs.get("w", 1000)))])
+        if inputs.get("original"):
+            cmd.append("-u")
+        if inputs.get("number"):
+            cmd.append("-c")
+        if inputs.get("nooverlaps"):
+            cmd.append("-v")
+        if inputs.get("header"):
+            cmd.append("-header")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/window.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "window.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("FILE", {"description": "A intervals or BAM alignments"}),
+                "inputB": ("BED", {"description": "B intervals to search near A"}),
+            },
+            "optional": {
+                "addition_mode": ("STRING", {"default": "window", "options": ["window", "lr"]}),
+                "window": ("INT", {"default": 1000, "min": 0, "description": "Symmetric window size"}),
+                "left": ("INT", {"default": 1000, "min": 0, "description": "Left/upstream window size"}),
+                "right": ("INT", {"default": 1000, "min": 0, "description": "Right/downstream window size"}),
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "bed": ("BOOLEAN", {"default": False, "description": "Write BED output for BAM input"}),
+                "original": ("BOOLEAN", {"default": False, "description": "Report each A feature once if any B hit is found"}),
+                "number": ("BOOLEAN", {"default": False, "description": "Report number of B hits for each A feature"}),
+                "nooverlaps": ("BOOLEAN", {"default": False, "description": "Report only A features with no B hits"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print the input header before results"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMapNode(CommandNode):
+    """Map statistics from overlapping B intervals onto A intervals."""
+
+    NODE_ID = "bedtools_map"
+    DISPLAY_NAME = "BEDTools Map"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Apply summary operations to columns from B intervals that overlap each A interval."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "map", "mapbed", "interval statistics", "overlap summary"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("mapped",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/map.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "map",
+            "-a",
+            str(inputs.get("inputA", "")),
+            "-b",
+            str(inputs.get("inputB", "")),
+        ]
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        columns = str(inputs.get("columns", inputs.get("cols", ""))).strip()
+        operations = str(inputs.get("operations", inputs.get("operation", ""))).strip()
+        if columns and operations:
+            cmd.extend(["-c", columns, "-o", operations])
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        _add_if_value(cmd, "-F", inputs.get("overlap_b", inputs.get("overlapB")))
+        if inputs.get("reciprocal"):
+            cmd.append("-r")
+        if inputs.get("split"):
+            cmd.append("-split")
+        if inputs.get("header"):
+            cmd.append("-header")
+        _bedtools_add_genome(cmd, inputs)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/mapped.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "mapped.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Sorted A intervals"}),
+                "inputB": ("BED", {"description": "Sorted B intervals with columns to summarize"}),
+                "columns": ("STRING", {"default": "5", "description": "Comma-separated B columns to summarize"}),
+                "operations": ("STRING", {"default": "mean", "description": "Comma-separated summary operations"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of A"}),
+                "overlap_b": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of B"}),
+                "reciprocal": ("BOOLEAN", {"default": False, "description": "Require reciprocal overlap"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM entries as distinct intervals"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print the input header before results"}),
+                "genome": ("TSV", {"description": "Optional genome chromosome sizes file"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMultiIntersectNode(CommandNode):
+    """Identify shared intervals across multiple interval files."""
+
+    NODE_ID = "bedtools_multiintersectbed"
+    DISPLAY_NAME = "BEDTools Multiple Intersect"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Identify common intervals among multiple sorted interval files with bedtools multiinter."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "multiinter", "multiintersect", "multiple intersect", "shared intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("multiintersect",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/multiinter.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        files = _as_list(inputs.get("inputs"))
+        names = _as_list(inputs.get("names"))
+        cmd = ["bedtools", "multiinter"]
+        if inputs.get("header"):
+            cmd.append("-header")
+        if inputs.get("cluster"):
+            cmd.append("-cluster")
+        cmd.extend(["-filler", str(inputs.get("filler", "N/A"))])
+        if inputs.get("empty"):
+            cmd.append("-empty")
+            _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", *files])
+        if names:
+            cmd.extend(["-names", *names])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/multiintersect.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "multiintersect.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputs": ("BED_LIST", {"description": "Two or more sorted interval files"}),
+            },
+            "optional": {
+                "names": ("STRING_LIST", {"description": "Optional custom labels matching the inputs order"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Add output header"}),
+                "cluster": ("BOOLEAN", {"default": False, "description": "Invoke clustering algorithm"}),
+                "filler": ("STRING", {"default": "N/A", "description": "Text for no-coverage values"}),
+                "empty": ("BOOLEAN", {"default": False, "description": "Report regions with zero coverage across all files"}),
+                "genome": ("TSV", {"description": "Genome chromosome sizes file required when empty is enabled"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

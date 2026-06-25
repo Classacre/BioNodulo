@@ -1265,3 +1265,262 @@ def test_bedtools_getfastabed_renders_sequence_extraction_command_and_outputs(tm
     assert node_class.PLAN_OUTPUTS({"tab": False}, tmp_path) == [
         tmp_path / "bedtools_getfastabed" / "extracted.fasta",
     ]
+
+
+def test_galaxy_parity_bedtools_interval_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_complementbed": {
+            "display_name": "BEDTools Complement",
+            "required_executables": ["complementBed"],
+        },
+        "bedtools_flankbed": {
+            "display_name": "BEDTools Flank",
+            "required_executables": ["flankBed"],
+        },
+        "bedtools_slopbed": {
+            "display_name": "BEDTools Slop",
+            "required_executables": ["bedtools"],
+        },
+        "bedtools_windowbed": {
+            "display_name": "BEDTools Window",
+            "required_executables": ["bedtools"],
+        },
+        "bedtools_map": {
+            "display_name": "BEDTools Map",
+            "required_executables": ["bedtools"],
+        },
+        "bedtools_multiintersectbed": {
+            "display_name": "BEDTools Multiple Intersect",
+            "required_executables": ["bedtools"],
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == ["bedtools"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_complementbed_renders_genome_gap_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_complementbed")
+
+    assert node_class.render_command(
+        {
+            "input": "covered.bed",
+            "genome": "chrom.sizes",
+            "output": "/work/bedtools_complementbed",
+        }
+    ) == [
+        "complementBed",
+        "-i",
+        "covered.bed",
+        "-g",
+        "chrom.sizes",
+        ">",
+        "/work/bedtools_complementbed/complement.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_complementbed" / "complement.bed",
+    ]
+
+
+def test_bedtools_flankbed_renders_fractional_stranded_flank_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_flankbed")
+
+    assert node_class.render_command(
+        {
+            "input": "genes.bed",
+            "genome": "chrom.sizes",
+            "pct": True,
+            "strand": True,
+            "addition_mode": "lr",
+            "left": 0.2,
+            "right": 0.5,
+            "output": "/work/bedtools_flankbed",
+        }
+    ) == [
+        "flankBed",
+        "-pct",
+        "-s",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "genes.bed",
+        "-l",
+        "0.2",
+        "-r",
+        "0.5",
+        ">",
+        "/work/bedtools_flankbed/flanks.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_flankbed" / "flanks.bed",
+    ]
+
+
+def test_bedtools_slopbed_renders_symmetric_extension_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_slopbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "peaks.bed",
+            "genome": "chrom.sizes",
+            "addition_mode": "b",
+            "both": 250,
+            "header": True,
+            "output": "/work/bedtools_slopbed",
+        }
+    ) == [
+        "bedtools",
+        "slop",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "peaks.bed",
+        "-b",
+        "250",
+        "-header",
+        ">",
+        "/work/bedtools_slopbed/slopped.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_slopbed" / "slopped.bed",
+    ]
+
+
+def test_bedtools_windowbed_renders_asymmetric_count_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_windowbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "promoters.bed",
+            "inputB": "enhancers.bed",
+            "addition_mode": "lr",
+            "left": 200,
+            "right": 20000,
+            "strand": "same",
+            "number": True,
+            "header": True,
+            "output": "/work/bedtools_windowbed",
+        }
+    ) == [
+        "bedtools",
+        "window",
+        "-a",
+        "promoters.bed",
+        "-b",
+        "enhancers.bed",
+        "-sm",
+        "-l",
+        "200",
+        "-r",
+        "20000",
+        "-c",
+        "-header",
+        ">",
+        "/work/bedtools_windowbed/window.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_windowbed" / "window.bed",
+    ]
+
+
+def test_bedtools_map_renders_column_operation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_map")
+
+    assert node_class.render_command(
+        {
+            "inputA": "exons.bed",
+            "inputB": "coverage.bedgraph",
+            "columns": "4",
+            "operations": "mean",
+            "strand": "opposite",
+            "overlap": 0.5,
+            "overlap_b": 0.25,
+            "reciprocal": True,
+            "split": True,
+            "header": True,
+            "genome": "chrom.sizes",
+            "output": "/work/bedtools_map",
+        }
+    ) == [
+        "bedtools",
+        "map",
+        "-a",
+        "exons.bed",
+        "-b",
+        "coverage.bedgraph",
+        "-S",
+        "-c",
+        "4",
+        "-o",
+        "mean",
+        "-f",
+        "0.5",
+        "-F",
+        "0.25",
+        "-r",
+        "-split",
+        "-header",
+        "-g",
+        "chrom.sizes",
+        ">",
+        "/work/bedtools_map/mapped.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_map" / "mapped.bed",
+    ]
+
+
+def test_bedtools_multiintersectbed_renders_custom_names_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_multiintersectbed")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["a.bed", "b.bed", "c.bed"],
+            "names": ["sampleA", "sampleB", "sampleC"],
+            "header": True,
+            "cluster": True,
+            "filler": "0",
+            "empty": True,
+            "genome": "chrom.sizes",
+            "output": "/work/bedtools_multiintersectbed",
+        }
+    ) == [
+        "bedtools",
+        "multiinter",
+        "-header",
+        "-cluster",
+        "-filler",
+        "0",
+        "-empty",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "a.bed",
+        "b.bed",
+        "c.bed",
+        "-names",
+        "sampleA",
+        "sampleB",
+        "sampleC",
+        ">",
+        "/work/bedtools_multiintersectbed/multiintersect.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_multiintersectbed" / "multiintersect.bed",
+    ]
