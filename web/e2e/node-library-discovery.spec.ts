@@ -1387,6 +1387,69 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_cnv: {
+    name: 'bcftools_cnv',
+    display_name: 'BCFtools CNV',
+    category: 'variant',
+    description: 'Call copy number variation from VCF B-allele frequency and Log R Ratio intensity annotations.',
+    search_aliases: ['Galaxy', 'bcftools', 'cnv', 'copy number variation', 'BAF', 'LRR'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+        query_sample: { type: 'STRING' },
+      },
+    },
+    output: ['TSV', 'TSV', 'HTML'],
+    output_name: ['cnv_calls', 'summary', 'plots'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib', 'matplotlib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#cnv',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_csq: {
+    name: 'bcftools_csq',
+    display_name: 'BCFtools CSQ',
+    category: 'variant',
+    description: 'Annotate VCF/BCF records with haplotype-aware consequence predictions from a FASTA and GFF3 annotation.',
+    search_aliases: ['Galaxy', 'bcftools', 'csq', 'consequence prediction', 'haplotype aware consequence', 'BCSQ'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+        reference: { type: 'FASTA' },
+        gff_annot: { type: 'GFF3' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['csq_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#csq',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_roh: {
+    name: 'bcftools_roh',
+    display_name: 'BCFtools ROH',
+    category: 'variant',
+    description: 'Detect runs of homozygosity or autozygosity in VCF/BCF genotypes using a hidden Markov model.',
+    search_aliases: ['Galaxy', 'bcftools', 'roh', 'runs of homozygosity', 'autozygosity', 'HMM'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['roh_table'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#roh',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1708,7 +1771,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('85 nodes available')).toBeVisible();
+  await expect(page.getByText('88 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1784,6 +1847,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'sample identity', name: 'BCFtools GTcheck', category: 'variant' },
     { query: 'gvcf to vcf', name: 'BCFtools Convert to VCF', category: 'variant' },
     { query: 'vcf to shapeit', name: 'BCFtools Convert from VCF', category: 'variant' },
+    { query: 'copy number variation', name: 'BCFtools CNV', category: 'variant' },
+    { query: 'consequence prediction', name: 'BCFtools CSQ', category: 'variant' },
+    { query: 'runs of homozygosity', name: 'BCFtools ROH', category: 'variant' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

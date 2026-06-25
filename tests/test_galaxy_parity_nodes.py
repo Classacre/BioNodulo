@@ -3270,3 +3270,307 @@ def test_bcftools_convert_from_vcf_renders_hap_legend_sample_outputs(tmp_path: P
         tmp_path / "bcftools_convert_from_vcf" / "converted.legend",
         tmp_path / "bcftools_convert_from_vcf" / "converted.samples",
     ]
+
+
+def test_galaxy_parity_bcftools_analysis_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bcftools_cnv": {
+            "display_name": "BCFtools CNV",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#cnv",
+            "output": ["TSV", "TSV", "HTML"],
+            "search_alias": "copy number variation",
+            "required_conda_packages": ["bcftools", "htslib", "matplotlib"],
+        },
+        "bcftools_csq": {
+            "display_name": "BCFtools CSQ",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#csq",
+            "output": ["VCF_GZ"],
+            "search_alias": "consequence prediction",
+            "required_conda_packages": ["bcftools", "htslib"],
+        },
+        "bcftools_roh": {
+            "display_name": "BCFtools ROH",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#roh",
+            "output": ["TSV"],
+            "search_alias": "runs of homozygosity",
+            "required_conda_packages": ["bcftools", "htslib"],
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "variant"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
+        assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_cnv_renders_pairwise_hmm_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_cnv")
+
+    assert node_class.render_command(
+        {
+            "input_file": "intensity.vcf.gz",
+            "query_sample": "tumor",
+            "control_sample": "normal",
+            "AF_file": "af.tsv",
+            "plot_threshold": 15,
+            "aberrant_query": 0.7,
+            "aberrant_control": 0.95,
+            "optimize": 0.3,
+            "baf_weight": 0.8,
+            "baf_dev_query": 0.05,
+            "baf_dev_control": 0.04,
+            "lrr_weight": 0.4,
+            "lrr_dev_query": 0.3,
+            "lrr_dev_control": 0.2,
+            "lrr_smooth_win": 20,
+            "same_prob": 0.6,
+            "err_prob": 0.0002,
+            "xy_prob": 1e-8,
+            "regions": "chr10,chr11",
+            "regions_overlap": "1",
+            "targets": "cnv_targets.bed",
+            "output": "/work/bcftools_cnv",
+        }
+    ) == [
+        "bcftools",
+        "cnv",
+        "--output-dir",
+        "/work/bcftools_cnv/cnv_tmp",
+        "-c",
+        "normal",
+        "-s",
+        "tumor",
+        "--AF-file",
+        "af.tsv",
+        "--plot-threshold",
+        "15",
+        "--aberrant",
+        "0.7,0.95",
+        "--optimize",
+        "0.3",
+        "--BAF-weight",
+        "0.8",
+        "--BAF-dev",
+        "0.05,0.04",
+        "--LRR-weight",
+        "0.4",
+        "--LRR-dev",
+        "0.3,0.2",
+        "--LRR-smooth-win",
+        "20",
+        "--same-prob",
+        "0.6",
+        "--err-prob",
+        "0.0002",
+        "--xy-prob",
+        "1e-08",
+        "--regions",
+        "chr10,chr11",
+        "--regions-overlap",
+        "1",
+        "--targets",
+        "cnv_targets.bed",
+        "intensity.vcf.gz",
+        "&&",
+        "python",
+        "-c",
+        node_class.CNV_POSTPROCESS_SCRIPT,
+        "/work/bcftools_cnv/cnv_tmp",
+        "/work/bcftools_cnv/cnv.tab",
+        "/work/bcftools_cnv/summary.tab",
+        "/work/bcftools_cnv/plots.html",
+        "1",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_cnv" / "cnv.tab",
+        tmp_path / "bcftools_cnv" / "summary.tab",
+        tmp_path / "bcftools_cnv" / "plots.html",
+    ]
+    assert node_class.PLAN_OUTPUTS({"generate_plots": True}, tmp_path) == [
+        tmp_path / "bcftools_cnv" / "cnv.tab",
+        tmp_path / "bcftools_cnv" / "summary.tab",
+        tmp_path / "bcftools_cnv" / "plots.html",
+    ]
+
+
+def test_bcftools_csq_renders_haplotype_consequence_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_csq")
+
+    assert node_class.render_command(
+        {
+            "input_file": "phased.vcf.gz",
+            "reference": "ref.fa",
+            "gff_annot": "genes.gff3",
+            "ncsq": 32,
+            "local_csq": True,
+            "phase": "R",
+            "custom_tag": "MYCSQ",
+            "trim_protein_seq": 12,
+            "genetic_code": "1",
+            "samples": "S1,S2",
+            "regions": "chr1",
+            "targets": "coding.bed",
+            "include": "QUAL>30",
+            "exclude": "TYPE='ref'",
+            "output_type": "z",
+            "output": "/work/bcftools_csq",
+        }
+    ) == [
+        "bcftools",
+        "csq",
+        "--fasta-ref",
+        "ref.fa",
+        "--gff-annot",
+        "genes.gff3",
+        "--ncsq",
+        "32",
+        "--local-csq",
+        "--phase",
+        "R",
+        "--custom-tag",
+        "MYCSQ",
+        "--trim-protein-seq",
+        "12",
+        "--genetic-code",
+        "1",
+        "--samples",
+        "S1,S2",
+        "--include",
+        "QUAL>30",
+        "--exclude",
+        "TYPE='ref'",
+        "--regions",
+        "chr1",
+        "--targets",
+        "coding.bed",
+        "--output-type",
+        "z",
+        "phased.vcf.gz",
+        ">",
+        "/work/bcftools_csq/csq.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_csq" / "csq.vcf.gz",
+    ]
+
+
+def test_bcftools_roh_renders_autozygosity_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_roh")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "sample": "S1",
+            "AF_file": "af.tsv",
+            "AF_tag": "AF",
+            "AF_dflt": 0.4,
+            "estimate_AF": "samples.txt",
+            "GTs_only": 30,
+            "skip_indels": True,
+            "genetic_map": "map.txt",
+            "rec_rate": 1e-8,
+            "buffer_size": 10000,
+            "buffer_overlap": 100,
+            "ignore_homref": True,
+            "include_noalt": True,
+            "hw_to_az": 6.7e-8,
+            "az_to_hw": 5e-9,
+            "viterbi_training": True,
+            "regions": "chr1",
+            "targets": "roh_targets.bed",
+            "samples": "S1",
+            "output_type": "r",
+            "output": "/work/bcftools_roh",
+        }
+    ) == [
+        "bcftools",
+        "roh",
+        "--sample",
+        "S1",
+        "--AF-file",
+        "af.tsv",
+        "--AF-tag",
+        "AF",
+        "--AF-dflt",
+        "0.4",
+        "--estimate-AF",
+        "samples.txt",
+        "--GTs-only",
+        "30",
+        "--skip-indels",
+        "--genetic-map",
+        "map.txt",
+        "--rec-rate",
+        "1e-08",
+        "--buffer-size",
+        "10000,100",
+        "--ignore-homref",
+        "--include-noalt",
+        "--hw-to-az",
+        "6.7e-08",
+        "--az-to-hw",
+        "5e-09",
+        "--viterbi-training",
+        "--regions",
+        "chr1",
+        "--targets",
+        "roh_targets.bed",
+        "--samples",
+        "S1",
+        "--output-type",
+        "r",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_roh/roh.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_roh" / "roh.tsv",
+    ]
+
+
+def test_bcftools_roh_accepts_fractional_gts_only_and_gates_buffer_overlap() -> None:
+    node_class = _node_class("bcftools_roh")
+
+    input_types = node_class.INPUT_TYPES()
+    assert input_types["optional"]["GTs_only"][0] == "FLOAT"
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "GTs_only": 30.5,
+            "buffer_size": 10000,
+            "output": "/work/bcftools_roh",
+        }
+    ) == [
+        "bcftools",
+        "roh",
+        "--GTs-only",
+        "30.5",
+        "--buffer-size",
+        "10000",
+        "--output-type",
+        "r",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_roh/roh.tsv",
+    ]
+
+    assert "--buffer-size" not in node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "buffer_overlap": 100,
+            "output": "/work/bcftools_roh",
+        }
+    )

@@ -126,6 +126,10 @@ def _bcftools_add_region_targets(cmd: list[str], inputs: dict[str, Any]) -> None
     _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
 
 
+def _bcftools_add_af_file(cmd: list[str], inputs: dict[str, Any]) -> None:
+    _add_if_value(cmd, "--AF-file", inputs.get("AF_file", inputs.get("af_file")))
+
+
 def _bcftools_convert_from_outputs(inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
     out = Path(output_dir) / "bcftools_convert_from_vcf"
     out.mkdir(parents=True, exist_ok=True)
@@ -4355,6 +4359,317 @@ class BCFtoolsConvertFromVcfNode(CommandNode):
                 "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
                 "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
                 "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsCNVNode(CommandNode):
+    """Call copy number variation from VCF BAF and LRR intensity fields."""
+
+    NODE_ID = "bcftools_cnv"
+    DISPLAY_NAME = "BCFtools CNV"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib", "matplotlib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call copy number variation from VCF B-allele frequency and Log R Ratio intensity annotations."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "cnv", "copy number variation", "BAF", "LRR"]
+    RETURN_TYPES = ("TSV", "TSV", "HTML")
+    RETURN_NAMES = ("cnv_calls", "summary", "plots")
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#cnv"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+    CNV_POSTPROCESS_SCRIPT = """
+from pathlib import Path
+import base64
+import shutil
+import sys
+
+tmp = Path(sys.argv[1])
+cn_out = Path(sys.argv[2])
+summary_out = Path(sys.argv[3])
+plots_out = Path(sys.argv[4])
+include_plots = sys.argv[5] == "1"
+
+def move_first(patterns, destination):
+    for pattern in patterns:
+        matches = sorted(tmp.glob(pattern))
+        if matches:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(matches[0]), destination)
+            return
+    raise FileNotFoundError(f"Missing bcftools cnv output matching {patterns!r}")
+
+move_first(["cn.*.tab"], cn_out)
+move_first(["summary.tab", "summary.*.tab"], summary_out)
+plots_out.parent.mkdir(parents=True, exist_ok=True)
+with plots_out.open("w", encoding="utf-8") as handle:
+    handle.write("<html><body>")
+    if include_plots:
+        for plot in sorted(tmp.glob("*.png")):
+            encoded = base64.b64encode(plot.read_bytes()).decode("ascii")
+            handle.write('<div><img src="data:image/png;base64,')
+            handle.write(encoded)
+            handle.write('" /></div><hr>')
+    handle.write("</body></html>")
+""".strip()
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cnv_tmp = f"{out}/cnv_tmp"
+        cmd = ["bcftools", "cnv", "--output-dir", cnv_tmp]
+        _add_if_value(cmd, "-c", inputs.get("control_sample"))
+        _add_if_value(cmd, "-s", inputs.get("query_sample", inputs.get("sample")))
+        _bcftools_add_af_file(cmd, inputs)
+        plot_threshold = inputs.get("plot_threshold")
+        plot_mode = inputs.get("generate_plots")
+        include_plots = bool(plot_mode)
+        if isinstance(plot_mode, str):
+            include_plots = plot_mode.lower() not in ("", "0", "false", "none", "no")
+        if plot_threshold is not None and str(plot_threshold) != "":
+            include_plots = True
+        if include_plots:
+            cmd.extend(["--plot-threshold", str(plot_threshold if plot_threshold is not None and str(plot_threshold) != "" else 0)])
+        if inputs.get("aberrant_query") is not None or inputs.get("aberrant_control") is not None:
+            cmd.extend(["--aberrant", f"{inputs.get('aberrant_query', '')},{inputs.get('aberrant_control', '')}"])
+        _add_if_value(cmd, "--optimize", inputs.get("optimize"))
+        _add_if_value(cmd, "--BAF-weight", inputs.get("baf_weight"))
+        if inputs.get("baf_dev_query") is not None or inputs.get("baf_dev_control") is not None:
+            cmd.extend(["--BAF-dev", f"{inputs.get('baf_dev_query', '')},{inputs.get('baf_dev_control', '')}"])
+        _add_if_value(cmd, "--LRR-weight", inputs.get("lrr_weight"))
+        if inputs.get("lrr_dev_query") is not None or inputs.get("lrr_dev_control") is not None:
+            cmd.extend(["--LRR-dev", f"{inputs.get('lrr_dev_query', '')},{inputs.get('lrr_dev_control', '')}"])
+        _add_if_value(cmd, "--LRR-smooth-win", inputs.get("lrr_smooth_win"))
+        _add_if_value(cmd, "--same-prob", inputs.get("same_prob"))
+        _add_if_value(cmd, "--err-prob", inputs.get("err_prob"))
+        _add_if_value(cmd, "--xy-prob", inputs.get("xy_prob"))
+        _bcftools_add_region_targets(cmd, inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        cmd.extend(
+            [
+                "&&",
+                "python",
+                "-c",
+                cls.CNV_POSTPROCESS_SCRIPT,
+                cnv_tmp,
+                f"{out}/cnv.tab",
+                f"{out}/summary.tab",
+                f"{out}/plots.html",
+                "1" if include_plots else "0",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [
+            _bcftools_common_output(cls.NODE_ID, "cnv.tab", output_dir),
+            _bcftools_common_output(cls.NODE_ID, "summary.tab", output_dir),
+            _bcftools_common_output(cls.NODE_ID, "plots.html", output_dir),
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF with BAF and LRR intensity annotations"}),
+                "query_sample": ("STRING", {"description": "Sample to call for copy number variation"}),
+            },
+            "optional": {
+                "control_sample": ("STRING", {"default": "", "description": "Optional control sample for pairwise calling"}),
+                "AF_file": ("TSV", {"description": "Allele frequency table with CHR, POS, REF, ALT, and AF columns"}),
+                "plot_threshold": ("FLOAT", {"default": "", "description": "Plot only chromosomes above this CNV quality threshold"}),
+                "generate_plots": ("BOOLEAN", {"default": False, "description": "Plan an HTML plot summary output"}),
+                "aberrant_query": ("FLOAT", {"default": "", "description": "Aberrant copy-number prior for the query sample"}),
+                "aberrant_control": ("FLOAT", {"default": "", "description": "Aberrant copy-number prior for the control sample"}),
+                "optimize": ("FLOAT", {"default": "", "description": "Adjust purity estimates using this step size"}),
+                "baf_weight": ("FLOAT", {"default": "", "description": "Relative weight of BAF evidence"}),
+                "baf_dev_query": ("FLOAT", {"default": "", "description": "Expected query BAF deviation"}),
+                "baf_dev_control": ("FLOAT", {"default": "", "description": "Expected control BAF deviation"}),
+                "lrr_weight": ("FLOAT", {"default": "", "description": "Relative weight of LRR evidence"}),
+                "lrr_dev_query": ("FLOAT", {"default": "", "description": "Expected query LRR deviation"}),
+                "lrr_dev_control": ("FLOAT", {"default": "", "description": "Expected control LRR deviation"}),
+                "lrr_smooth_win": ("INT", {"default": "", "min": 0, "description": "LRR smoothing window"}),
+                "same_prob": ("FLOAT", {"default": "", "description": "Prior probability that query and control share a copy-number state"}),
+                "err_prob": ("FLOAT", {"default": "", "description": "HMM transition probability to another copy-number state"}),
+                "xy_prob": ("FLOAT", {"default": "", "description": "Prior probability for X/Y chromosome copy-number states"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsCSQNode(CommandNode):
+    """Annotate haplotype-aware variant consequences with bcftools csq."""
+
+    NODE_ID = "bcftools_csq"
+    DISPLAY_NAME = "BCFtools CSQ"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Annotate VCF/BCF records with haplotype-aware consequence predictions from a FASTA and GFF3 annotation."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "csq", "consequence prediction", "haplotype aware consequence", "BCSQ"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("csq_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#csq"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bcftools",
+            "csq",
+            "--fasta-ref",
+            str(inputs.get("reference", inputs.get("fasta_ref", ""))),
+            "--gff-annot",
+            str(inputs.get("gff_annot", inputs.get("annotation", ""))),
+        ]
+        _add_if_value(cmd, "--ncsq", inputs.get("ncsq"))
+        if inputs.get("local_csq"):
+            cmd.append("--local-csq")
+        _add_if_value(cmd, "--phase", inputs.get("phase"))
+        _add_if_value(cmd, "--custom-tag", inputs.get("custom_tag"))
+        _add_if_value(cmd, "--trim-protein-seq", inputs.get("trim_protein_seq"))
+        _add_if_value(cmd, "--genetic-code", inputs.get("genetic_code"))
+        _add_if_value(cmd, "--samples", inputs.get("samples"))
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _bcftools_add_region_targets(cmd, inputs)
+        _bcftools_add_output_type(cmd, inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/csq{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"csq{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file to annotate"}),
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "gff_annot": ("GFF3", {"description": "GFF3 annotation formatted for bcftools csq"}),
+            },
+            "optional": {
+                "ncsq": ("INT", {"default": "", "min": 1, "description": "Maximum number of consequences referenced per sample"}),
+                "local_csq": ("BOOLEAN", {"default": False, "description": "Run localized consequence prediction one record at a time"}),
+                "phase": ("STRING", {"default": "", "options": ["", "a", "m", "r", "R", "s"], "description": "How unphased genotypes are handled"}),
+                "custom_tag": ("STRING", {"default": "", "description": "Custom INFO/FORMAT tag name for consequences"}),
+                "trim_protein_seq": ("INT", {"default": "", "min": 0, "description": "Trim protein sequence context to this length"}),
+                "genetic_code": ("STRING", {"default": "", "description": "NCBI genetic code identifier"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples or '-' to ignore samples"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsROHNode(CommandNode):
+    """Detect runs of homozygosity or autozygosity with bcftools roh."""
+
+    NODE_ID = "bcftools_roh"
+    DISPLAY_NAME = "BCFtools ROH"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Detect runs of homozygosity or autozygosity in VCF/BCF genotypes using a hidden Markov model."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "roh", "runs of homozygosity", "autozygosity", "HMM"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("roh_table",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#roh"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "roh"]
+        _add_if_value(cmd, "--sample", inputs.get("sample"))
+        _bcftools_add_af_file(cmd, inputs)
+        _add_if_value(cmd, "--AF-tag", inputs.get("AF_tag", inputs.get("af_tag")))
+        _add_if_value(cmd, "--AF-dflt", inputs.get("AF_dflt", inputs.get("af_dflt")))
+        _add_if_value(cmd, "--estimate-AF", inputs.get("estimate_AF", inputs.get("estimate_af")))
+        _add_if_value(cmd, "--GTs-only", inputs.get("GTs_only", inputs.get("gts_only")))
+        if inputs.get("skip_indels"):
+            cmd.append("--skip-indels")
+        _add_if_value(cmd, "--genetic-map", inputs.get("genetic_map"))
+        _add_if_value(cmd, "--rec-rate", inputs.get("rec_rate"))
+        buffer_size = inputs.get("buffer_size")
+        buffer_overlap = inputs.get("buffer_overlap")
+        if buffer_size is not None and str(buffer_size) != "":
+            if buffer_overlap is not None and str(buffer_overlap) != "":
+                cmd.extend(["--buffer-size", f"{buffer_size},{buffer_overlap}"])
+            else:
+                cmd.extend(["--buffer-size", str(buffer_size)])
+        if inputs.get("ignore_homref"):
+            cmd.append("--ignore-homref")
+        if inputs.get("include_noalt"):
+            cmd.append("--include-noalt")
+        _add_if_value(cmd, "--hw-to-az", inputs.get("hw_to_az"))
+        _add_if_value(cmd, "--az-to-hw", inputs.get("az_to_hw"))
+        if inputs.get("viterbi_training"):
+            cmd.append("--viterbi-training")
+        _bcftools_add_region_targets(cmd, inputs)
+        _add_if_value(cmd, "--samples", inputs.get("samples"))
+        _bcftools_add_output_type(cmd, {**inputs, "output_type": inputs.get("output_type", "r")})
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/roh.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "roh.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file for ROH detection"}),
+            },
+            "optional": {
+                "sample": ("STRING", {"default": "", "description": "Single sample to analyze"}),
+                "AF_file": ("TSV", {"description": "Allele frequency table"}),
+                "AF_tag": ("STRING", {"default": "", "description": "INFO tag containing allele frequencies"}),
+                "AF_dflt": ("FLOAT", {"default": "", "description": "Default allele frequency when unavailable"}),
+                "estimate_AF": ("TSV", {"description": "Samples file used to estimate allele frequencies"}),
+                "GTs_only": ("FLOAT", {"default": "", "min": 0, "description": "Use genotypes only and set quality cap"}),
+                "skip_indels": ("BOOLEAN", {"default": False, "description": "Skip indel records"}),
+                "genetic_map": ("TSV", {"description": "Genetic map file"}),
+                "rec_rate": ("FLOAT", {"default": "", "description": "Constant recombination rate"}),
+                "buffer_size": ("INT", {"default": "", "description": "Number of sites to keep in memory"}),
+                "buffer_overlap": ("INT", {"default": "", "description": "Number of overlapping sites in the sliding buffer"}),
+                "ignore_homref": ("BOOLEAN", {"default": False, "description": "Ignore homozygous reference genotypes"}),
+                "include_noalt": ("BOOLEAN", {"default": False, "description": "Include sites without alternate alleles"}),
+                "hw_to_az": ("FLOAT", {"default": "", "description": "Hardy-Weinberg to autozygous transition probability"}),
+                "az_to_hw": ("FLOAT", {"default": "", "description": "Autozygous to Hardy-Weinberg transition probability"}),
+                "viterbi_training": ("BOOLEAN", {"default": False, "description": "Estimate transition probabilities with Viterbi training"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples"}),
+                "output_type": ("STRING", {"default": "r", "options": ["s", "r"], "description": "ROH output type: per-site or regions"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
