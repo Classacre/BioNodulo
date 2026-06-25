@@ -1382,3 +1382,428 @@ class SamtoolsFastxNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class SamtoolsMpileupNode(CommandNode):
+    """Generate pileup text from one or more BAM files."""
+
+    NODE_ID = "samtools_mpileup"
+    DISPLAY_NAME = "Samtools Mpileup"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Generate pileup format text for one or more BAM files using samtools mpileup."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "mpileup", "pileup", "BAQ", "Base Alignment Quality"]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("pileup",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-mpileup.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools",
+            "mpileup",
+            "-f",
+            str(inputs.get("reference", "")),
+        ]
+        cmd.extend(_as_list(inputs.get("input_bams", inputs.get("input", inputs.get("bam")))))
+        required_flags = _flag_sum(inputs.get("required_flags"))
+        skipped_flags = _flag_sum(inputs.get("skipped_flags"))
+        if required_flags:
+            cmd.extend(["--rf", str(required_flags)])
+        if skipped_flags:
+            cmd.extend(["--ff", str(skipped_flags)])
+        _add_if_value(cmd, "-r", inputs.get("region"))
+        _add_if_value(cmd, "-l", inputs.get("positions_bed"))
+        _add_if_value(cmd, "-G", inputs.get("exclude_read_groups"))
+        if inputs.get("ignore_overlaps"):
+            cmd.append("-x")
+        if inputs.get("count_orphans"):
+            cmd.append("-A")
+        if inputs.get("disable_baq"):
+            cmd.append("-B")
+        if inputs.get("adjust_mq") is not None:
+            cmd.extend(["-C", str(inputs.get("adjust_mq", 0))])
+        if inputs.get("max_depth") is not None:
+            cmd.extend(["-d", str(inputs.get("max_depth", 8000))])
+        if inputs.get("redo_baq"):
+            cmd.append("-E")
+        if inputs.get("min_mq") is not None:
+            cmd.extend(["-q", str(inputs.get("min_mq", 0))])
+        if inputs.get("min_bq") is not None:
+            cmd.extend(["-Q", str(inputs.get("min_bq", 13))])
+        if inputs.get("illumina13"):
+            cmd.append("-6")
+        if inputs.get("output_bp"):
+            cmd.append("-O")
+        if inputs.get("output_mq"):
+            cmd.append("-s")
+        if inputs.get("output_qname"):
+            cmd.append("--output-QNAME")
+        if inputs.get("all_positions"):
+            cmd.append(str(inputs["all_positions"]))
+        _add_if_value(cmd, "--output-extra", inputs.get("output_extra"))
+        cmd.extend(["--output", f"{output}/pileup.pileup"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "pileup.pileup"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bams": ("BAM_LIST", {"description": "One or more indexed BAM files"}),
+                "reference": ("FASTA", {"description": "Reference FASTA"}),
+            },
+            "optional": {
+                "required_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True},
+                ),
+                "skipped_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True},
+                ),
+                "region": ("STRING", {"default": "", "description": "Region such as chr17:100-150"}),
+                "positions_bed": ("BED", {"description": "BED or positions file restricting pileup positions"}),
+                "exclude_read_groups": (
+                    "FILE",
+                    {"description": "Read-group exclusion list", "advanced": True},
+                ),
+                "ignore_overlaps": ("BOOLEAN", {"default": False, "description": "Disable read-pair overlap detection"}),
+                "count_orphans": ("BOOLEAN", {"default": False, "description": "Do not discard anomalous read pairs"}),
+                "disable_baq": ("BOOLEAN", {"default": False, "description": "Disable BAQ computation"}),
+                "adjust_mq": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Coefficient for downgrading mapping qualities"},
+                ),
+                "max_depth": ("INT", {"default": 8000, "min": 0, "description": "Maximum per-file depth"}),
+                "redo_baq": ("BOOLEAN", {"default": False, "description": "Recalculate BAQ on the fly"}),
+                "min_mq": ("INT", {"default": 0, "min": 0, "description": "Minimum mapping quality"}),
+                "min_bq": ("INT", {"default": 13, "min": 0, "description": "Minimum base quality"}),
+                "illumina13": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input quality is Illumina 1.3+ encoded", "advanced": True},
+                ),
+                "output_bp": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Output base positions on reads", "advanced": True},
+                ),
+                "output_mq": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Output mapping qualities", "advanced": True},
+                ),
+                "output_qname": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Output read names", "advanced": True},
+                ),
+                "all_positions": (
+                    "STRING",
+                    {"default": "", "options": ["", "-a", "-aa"], "description": "Emit zero-depth positions"},
+                ),
+                "output_extra": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated extra tags to output", "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsReheaderNode(CommandNode):
+    """Replace the header in a BAM file from a SAM/BAM source."""
+
+    NODE_ID = "samtools_reheader"
+    DISPLAY_NAME = "Samtools Reheader"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Replace the header of a BAM file using a SAM or BAM source header."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "reheader", "SAM header", "BAM header"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("reheadered_bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-reheader.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools",
+            "reheader",
+            str(inputs.get("input_header", "")),
+            str(inputs.get("input_file", inputs.get("bam", ""))),
+        ]
+        if inputs.get("no_pg"):
+            cmd.append("--no-PG")
+        cmd.extend([">", f"{output}/reheadered.bam"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "reheadered.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_header": ("BAM", {"description": "SAM or BAM source header dataset"}),
+                "input_file": ("BAM", {"description": "Target BAM file whose header will be replaced"}),
+            },
+            "optional": {
+                "no_pg": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Keep the replacement header unmodified by omitting @PG edits"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsSplitNode(CommandNode):
+    """Split a BAM file into per-read-group BAM files."""
+
+    NODE_ID = "samtools_split"
+    DISPLAY_NAME = "Samtools Split"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Split a BAM file into separate BAM files by read group."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "split", "read groups", "readgroup", "RG"]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("readgroup_bams",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-split.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        output_dir = f"{output}/readgroup_bams"
+        cmd = [
+            "samtools",
+            "split",
+            "-f",
+            f"{output_dir}/Read_Group_%!.bam",
+            "--output-fmt",
+            "bam",
+        ]
+        if inputs.get("header"):
+            cmd.extend(["-h", str(inputs["header"])])
+        cmd.extend([
+            "-u",
+            f"{output}/unaccounted.bam",
+            "-@",
+            str(_additional_threads(inputs)),
+            str(inputs.get("input_bam", inputs.get("bam", ""))),
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        readgroup_dir = node_out / "readgroup_bams"
+        readgroup_dir.mkdir(parents=True, exist_ok=True)
+        return [readgroup_dir]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "BAM file to split by read group"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "header": ("BAM", {"description": "Optional SAM/BAM header replacement", "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsSliceBamNode(CommandNode):
+    """Restrict a BAM file to BED, contig, or manual regions and sort the result."""
+
+    NODE_ID = "samtools_slice_bam"
+    DISPLAY_NAME = "Samtools Slice BAM"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Slice an indexed BAM to BED intervals, contigs, or manually supplied genomic regions."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "slice", "regions", "BED slice", "BAM subset"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("sliced_bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-view.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        addthreads = str(_additional_threads(inputs))
+        unsorted_output = f"{output}/unsorted_output.bam"
+        cmd = [
+            "samtools",
+            "view",
+            "-@",
+            addthreads,
+            "-b",
+        ]
+        slice_method = str(inputs.get("slice_method", "bed"))
+        if slice_method == "bed":
+            cmd.extend(["-L", str(inputs.get("input_interval", ""))])
+        cmd.extend(["-o", unsorted_output, str(inputs.get("input_bam", inputs.get("bam", "")))])
+        if slice_method in {"chr", "chromosomes"}:
+            cmd.extend(_as_list(inputs.get("refs", inputs.get("regions"))))
+        elif slice_method in {"man", "manual"}:
+            cmd.extend(_as_list(inputs.get("regions")))
+        cmd.extend([
+            "&&",
+            "samtools",
+            "sort",
+            "-O",
+            "bam",
+            "-T",
+            f"{output}/tmp",
+            "-@",
+            addthreads,
+            "-m",
+            _sort_memory(inputs),
+            "-o",
+            f"{output}/sliced.bam",
+            unsorted_output,
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "sliced.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "Indexed BAM file to slice"}),
+                "slice_method": (
+                    "STRING",
+                    {"default": "bed", "options": ["bed", "chromosomes", "manual"], "description": "Region source"},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "input_interval": ("BED", {"description": "BED intervals for slice_method=bed"}),
+                "refs": ("STRING", {"default": "", "description": "Comma-separated contigs for slice_method=chromosomes"}),
+                "regions": (
+                    "STRING",
+                    {"default": "", "description": "Manual regions such as chrM:1-1000", "advanced": True},
+                ),
+                "memory_mb": (
+                    "INT",
+                    {"default": 768, "min": 1, "description": "Memory per sort thread in MB", "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsPhaseNode(CommandNode):
+    """Call and phase heterozygous SNPs from a BAM file."""
+
+    NODE_ID = "samtools_phase"
+    DISPLAY_NAME = "Samtools Phase"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Call and phase heterozygous SNPs, producing phase-set logs and phased BAM outputs."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "phase", "heterozygous SNPs", "phasing"]
+    RETURN_TYPES = ("STATS_FILE", "BAM", "BAM", "BAM")
+    RETURN_NAMES = ("phase_sets", "phase0", "phase1", "chimera")
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-phase.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = [
+            "samtools",
+            "phase",
+            "-b",
+            f"{output}/phase_wrapper",
+        ]
+        if inputs.get("ignore_chimeras"):
+            cmd.append("-F")
+        cmd.extend([
+            "-k",
+            str(inputs.get("block_length", 13)),
+            "-q",
+            str(inputs.get("min_het", 37)),
+            "-Q",
+            str(inputs.get("min_bq", 13)),
+            "-D",
+            str(inputs.get("read_depth", 256)),
+        ])
+        if inputs.get("drop_ambiguous"):
+            cmd.append("-A")
+        cmd.extend([
+            str(inputs.get("input_bam", inputs.get("bam", ""))),
+            ">",
+            f"{output}/phase_sets.txt",
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [
+            node_out / "phase_sets.txt",
+            node_out / "phase_wrapper.0.bam",
+            node_out / "phase_wrapper.1.bam",
+            node_out / "phase_wrapper.chimera.bam",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "BAM file to phase"}),
+            },
+            "optional": {
+                "block_length": ("INT", {"default": 13, "min": 1, "description": "Maximum length for local phasing"}),
+                "min_het": ("INT", {"default": 37, "min": 0, "description": "Minimum heterozygote score"}),
+                "min_bq": ("INT", {"default": 13, "min": 0, "description": "Minimum base quality"}),
+                "read_depth": ("INT", {"default": 256, "min": 0, "description": "Maximum read depth"}),
+                "ignore_chimeras": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not attempt to fix chimeric reads"},
+                ),
+                "drop_ambiguous": ("BOOLEAN", {"default": False, "description": "Drop reads with ambiguous phase"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }

@@ -737,3 +737,299 @@ def test_samtools_fastx_renders_split_fastq_extraction_command_and_outputs(tmp_p
         tmp_path / "samtools_fastx" / "index1.fastq",
         tmp_path / "samtools_fastx" / "index2.fastq",
     ]
+
+
+def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    expected = {
+        "samtools_mpileup": {
+            "display_name": "Samtools Mpileup",
+            "output": ["FILE"],
+            "output_name": ["pileup"],
+            "aliases": ["Galaxy", "mpileup", "pileup", "BAQ"],
+        },
+        "samtools_reheader": {
+            "display_name": "Samtools Reheader",
+            "output": ["BAM"],
+            "output_name": ["reheadered_bam"],
+            "aliases": ["Galaxy", "reheader", "SAM header"],
+        },
+        "samtools_split": {
+            "display_name": "Samtools Split",
+            "output": ["DIRECTORY"],
+            "output_name": ["readgroup_bams"],
+            "aliases": ["Galaxy", "split", "read groups"],
+        },
+        "samtools_slice_bam": {
+            "display_name": "Samtools Slice BAM",
+            "output": ["BAM"],
+            "output_name": ["sliced_bam"],
+            "aliases": ["Galaxy", "slice", "regions"],
+        },
+        "samtools_phase": {
+            "display_name": "Samtools Phase",
+            "output": ["STATS_FILE", "BAM", "BAM", "BAM"],
+            "output_name": ["phase_sets", "phase0", "phase1", "chimera"],
+            "aliases": ["Galaxy", "phase", "heterozygous SNPs"],
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "samtools"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["output_name"] == metadata["output_name"]
+        assert node_info["required_executables"] == ["samtools"]
+        assert node_info["required_conda_packages"] == ["samtools"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btr076" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
+        assert "https://doi.org/10.1093/bioinformatics/btr076" in node_info["citation_urls"]
+        assert "Base Alignment Quality" in node_info["citation_text"]
+        for alias in metadata["aliases"]:
+            assert alias in node_info["search_aliases"]
+
+
+def test_samtools_mpileup_renders_advanced_pileup_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_mpileup")
+
+    assert node_class.render_command(
+        {
+            "input_bams": ["tumor.bam", "normal.bam"],
+            "reference": "reference.fa",
+            "required_flags": [2, 64],
+            "skipped_flags": [4, 256, 512, 1024],
+            "region": "chr17:100-150",
+            "positions_bed": "targets.bed",
+            "exclude_read_groups": "bad_rg.txt",
+            "ignore_overlaps": True,
+            "count_orphans": True,
+            "disable_baq": True,
+            "adjust_mq": 50,
+            "max_depth": 8000,
+            "redo_baq": True,
+            "min_mq": 20,
+            "min_bq": 13,
+            "illumina13": True,
+            "output_bp": True,
+            "output_mq": True,
+            "output_qname": True,
+            "all_positions": "-aa",
+            "output_extra": "NM,AM",
+            "output": "/work/samtools_mpileup",
+        }
+    ) == [
+        "samtools",
+        "mpileup",
+        "-f",
+        "reference.fa",
+        "tumor.bam",
+        "normal.bam",
+        "--rf",
+        "66",
+        "--ff",
+        "1796",
+        "-r",
+        "chr17:100-150",
+        "-l",
+        "targets.bed",
+        "-G",
+        "bad_rg.txt",
+        "-x",
+        "-A",
+        "-B",
+        "-C",
+        "50",
+        "-d",
+        "8000",
+        "-E",
+        "-q",
+        "20",
+        "-Q",
+        "13",
+        "-6",
+        "-O",
+        "-s",
+        "--output-QNAME",
+        "-aa",
+        "--output-extra",
+        "NM,AM",
+        "--output",
+        "/work/samtools_mpileup/pileup.pileup",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_mpileup" / "pileup.pileup"]
+
+
+def test_samtools_reheader_renders_header_replacement_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_reheader")
+
+    assert node_class.render_command(
+        {
+            "input_header": "source_header.bam",
+            "input_file": "target.bam",
+            "no_pg": True,
+            "output": "/work/samtools_reheader",
+        }
+    ) == [
+        "samtools",
+        "reheader",
+        "source_header.bam",
+        "target.bam",
+        "--no-PG",
+        ">",
+        "/work/samtools_reheader/reheadered.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_reheader" / "reheadered.bam"]
+
+
+def test_samtools_split_renders_readgroup_split_command_and_output_dir(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_split")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "sample.bam",
+            "header": "replacement_header.sam",
+            "threads": 6,
+            "output": "/work/samtools_split",
+        }
+    ) == [
+        "samtools",
+        "split",
+        "-f",
+        "/work/samtools_split/readgroup_bams/Read_Group_%!.bam",
+        "--output-fmt",
+        "bam",
+        "-h",
+        "replacement_header.sam",
+        "-u",
+        "/work/samtools_split/unaccounted.bam",
+        "-@",
+        "5",
+        "sample.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_split" / "readgroup_bams"]
+
+
+def test_samtools_slice_bam_renders_bed_and_manual_region_commands(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_slice_bam")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "sample.bam",
+            "threads": 4,
+            "memory_mb": 2048,
+            "slice_method": "bed",
+            "input_interval": "targets.bed",
+            "output": "/work/samtools_slice_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "3",
+        "-b",
+        "-L",
+        "targets.bed",
+        "-o",
+        "/work/samtools_slice_bam/unsorted_output.bam",
+        "sample.bam",
+        "&&",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-T",
+        "/work/samtools_slice_bam/tmp",
+        "-@",
+        "3",
+        "-m",
+        "1536M",
+        "-o",
+        "/work/samtools_slice_bam/sliced.bam",
+        "/work/samtools_slice_bam/unsorted_output.bam",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_bam": "sample.bam",
+            "slice_method": "manual",
+            "regions": ["chrM:1-1000", "chr1:10-20"],
+            "output": "/work/samtools_slice_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "0",
+        "-b",
+        "-o",
+        "/work/samtools_slice_bam/unsorted_output.bam",
+        "sample.bam",
+        "chrM:1-1000",
+        "chr1:10-20",
+        "&&",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-T",
+        "/work/samtools_slice_bam/tmp",
+        "-@",
+        "0",
+        "-m",
+        "576M",
+        "-o",
+        "/work/samtools_slice_bam/sliced.bam",
+        "/work/samtools_slice_bam/unsorted_output.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_slice_bam" / "sliced.bam"]
+
+
+def test_samtools_phase_renders_advanced_phase_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_phase")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "sample.bam",
+            "block_length": 21,
+            "min_het": 40,
+            "min_bq": 18,
+            "read_depth": 512,
+            "ignore_chimeras": True,
+            "drop_ambiguous": True,
+            "output": "/work/samtools_phase",
+        }
+    ) == [
+        "samtools",
+        "phase",
+        "-b",
+        "/work/samtools_phase/phase_wrapper",
+        "-F",
+        "-k",
+        "21",
+        "-q",
+        "40",
+        "-Q",
+        "18",
+        "-D",
+        "512",
+        "-A",
+        "sample.bam",
+        ">",
+        "/work/samtools_phase/phase_sets.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "samtools_phase" / "phase_sets.txt",
+        tmp_path / "samtools_phase" / "phase_wrapper.0.bam",
+        tmp_path / "samtools_phase" / "phase_wrapper.1.bam",
+        tmp_path / "samtools_phase" / "phase_wrapper.chimera.bam",
+    ]

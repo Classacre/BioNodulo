@@ -601,6 +601,111 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
     citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
   },
+  samtools_mpileup: {
+    name: 'samtools_mpileup',
+    display_name: 'Samtools Mpileup',
+    category: 'samtools',
+    description: 'Generate pileup format text for one or more BAM files using samtools mpileup.',
+    search_aliases: ['Galaxy', 'samtools', 'mpileup', 'pileup', 'BAQ'],
+    input: {
+      required: {
+        input_bams: { type: 'BAM_LIST' },
+        reference: { type: 'FASTA' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['pileup'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-mpileup.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_reheader: {
+    name: 'samtools_reheader',
+    display_name: 'Samtools Reheader',
+    category: 'samtools',
+    description: 'Replace the header of a BAM file using a SAM or BAM source header.',
+    search_aliases: ['Galaxy', 'samtools', 'reheader', 'SAM header', 'BAM header'],
+    input: {
+      required: {
+        input_header: { type: 'BAM' },
+        input_file: { type: 'BAM' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['reheadered_bam'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-reheader.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_split: {
+    name: 'samtools_split',
+    display_name: 'Samtools Split',
+    category: 'samtools',
+    description: 'Split a BAM file into separate BAM files by read group.',
+    search_aliases: ['Galaxy', 'samtools', 'split', 'read groups', 'readgroup'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['readgroup_bams'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-split.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_slice_bam: {
+    name: 'samtools_slice_bam',
+    display_name: 'Samtools Slice BAM',
+    category: 'samtools',
+    description: 'Slice an indexed BAM to BED intervals, contigs, or manually supplied genomic regions.',
+    search_aliases: ['Galaxy', 'samtools', 'slice', 'regions', 'BED slice'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        slice_method: { type: 'STRING', default: 'bed', options: ['bed', 'chromosomes', 'manual'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['sliced_bam'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-view.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_phase: {
+    name: 'samtools_phase',
+    display_name: 'Samtools Phase',
+    category: 'samtools',
+    description: 'Call and phase heterozygous SNPs, producing phase-set logs and phased BAM outputs.',
+    search_aliases: ['Galaxy', 'samtools', 'phase', 'heterozygous SNPs', 'phasing'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+      },
+    },
+    output: ['STATS_FILE', 'BAM', 'BAM', 'BAM'],
+    output_name: ['phase_sets', 'phase0', 'phase1', 'chimera'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-phase.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -650,7 +755,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('34 nodes available')).toBeVisible();
+  await expect(page.getByText('39 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -688,6 +793,11 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'calmd', name: 'Samtools Calmd', category: 'samtools' },
     { query: 'ampliconclip', name: 'Samtools Ampliconclip', category: 'samtools' },
     { query: 'fastx', name: 'Samtools Fastx', category: 'samtools' },
+    { query: 'mpileup', name: 'Samtools Mpileup', category: 'samtools' },
+    { query: 'reheader', name: 'Samtools Reheader', category: 'samtools' },
+    { query: 'readgroup', name: 'Samtools Split', category: 'samtools' },
+    { query: 'slice', name: 'Samtools Slice BAM', category: 'samtools' },
+    { query: 'phase', name: 'Samtools Phase', category: 'samtools' },
   ];
 
   for (const node of expectedNodes) {
