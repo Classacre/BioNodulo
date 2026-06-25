@@ -875,6 +875,111 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_annotatebed: {
+    name: 'bedtools_annotatebed',
+    display_name: 'BEDTools Annotate',
+    category: 'genomics',
+    description: 'Annotate one interval file with coverage fractions or counts from multiple BED-like files.',
+    search_aliases: ['Galaxy', 'bedtools', 'annotate', 'annotatebed', 'coverage annotation', 'multiple feature types'],
+    input: {
+      required: {
+        inputA: { type: 'BED' },
+        beds: { type: 'BED_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['annotated'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/annotate.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_expandbed: {
+    name: 'bedtools_expandbed',
+    display_name: 'BEDTools Expand',
+    category: 'genomics',
+    description: 'Replicate BED-like records by expanding comma-separated values in selected columns.',
+    search_aliases: ['Galaxy', 'bedtools', 'expand', 'expandbed', 'split columns', 'comma-separated values'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        columns: { type: 'STRING', default: '4' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['expanded'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/expand.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_maskfastabed: {
+    name: 'bedtools_maskfastabed',
+    display_name: 'BEDTools Mask FASTA',
+    category: 'genomics',
+    description: 'Mask FASTA sequence bases that overlap intervals from a BED-like file.',
+    search_aliases: ['Galaxy', 'bedtools', 'maskfasta', 'maskfastabed', 'soft mask', 'masked genome'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['masked_fasta'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/maskfasta.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_multicovtbed: {
+    name: 'bedtools_multicovtbed',
+    display_name: 'BEDTools MultiCov',
+    category: 'genomics',
+    description: 'Count overlapping alignments from multiple sorted and indexed BAM files for each interval.',
+    search_aliases: ['Galaxy', 'bedtools', 'multicov', 'multicovbed', 'bam counts', 'interval read counts'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        bams: { type: 'BAM_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['multicov'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/multicov.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_nucbed: {
+    name: 'bedtools_nucbed',
+    display_name: 'BEDTools Nucleotide Content',
+    category: 'genomics',
+    description: 'Compute nucleotide content, optional sequence output, and motif counts for FASTA intervals.',
+    search_aliases: ['Galaxy', 'bedtools', 'nuc', 'nucbed', 'nucleotide content', 'gc content'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['nucleotide_content'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/nuc.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1196,7 +1301,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('60 nodes available')).toBeVisible();
+  await expect(page.getByText('65 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1247,6 +1352,11 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bedtobam', name: 'BEDTools BED to BAM', category: 'genomics' },
     { query: 'bedpetobam', name: 'BEDTools BEDPE to BAM', category: 'genomics' },
     { query: 'sliding windows', name: 'BEDTools Make Windows', category: 'genomics' },
+    { query: 'annotatebed', name: 'BEDTools Annotate', category: 'genomics' },
+    { query: 'expandbed', name: 'BEDTools Expand', category: 'genomics' },
+    { query: 'maskfasta', name: 'BEDTools Mask FASTA', category: 'genomics' },
+    { query: 'multicovbed', name: 'BEDTools MultiCov', category: 'genomics' },
+    { query: 'gc content', name: 'BEDTools Nucleotide Content', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

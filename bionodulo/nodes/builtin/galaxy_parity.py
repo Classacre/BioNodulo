@@ -2714,3 +2714,287 @@ class BEDToolsMakeWindowsNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsAnnotateNode(CommandNode):
+    """Annotate intervals with coverage from multiple feature files."""
+
+    NODE_ID = "bedtools_annotatebed"
+    DISPLAY_NAME = "BEDTools Annotate"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Annotate one interval file with coverage fractions or counts from multiple BED-like files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "annotate", "annotatebed", "coverage annotation", "multiple feature types"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("annotated",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/annotate.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        files = _as_list(inputs.get("beds", inputs.get("files")))
+        names = _as_list(inputs.get("names"))
+        cmd = ["bedtools", "annotate", "-i", str(inputs.get("inputA", ""))]
+        cmd.extend(["-files", *files])
+        if names:
+            cmd.extend(["-names", *names])
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        if inputs.get("counts"):
+            cmd.append("-counts")
+        if inputs.get("both"):
+            cmd.append("-both")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/annotated.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "annotated.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Intervals to annotate"}),
+                "beds": ("BED_LIST", {"description": "One or more annotation interval files"}),
+            },
+            "optional": {
+                "names": ("STRING_LIST", {"description": "Optional labels matching the annotation files"}),
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "counts": ("BOOLEAN", {"default": False, "description": "Report counts instead of only coverage fractions"}),
+                "both": ("BOOLEAN", {"default": False, "description": "Report counts followed by coverage fractions"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsExpandNode(CommandNode):
+    """Replicate rows by expanding comma-separated column values."""
+
+    NODE_ID = "bedtools_expandbed"
+    DISPLAY_NAME = "BEDTools Expand"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Replicate BED-like records by expanding comma-separated values in selected columns."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "expand", "expandbed", "split columns", "comma-separated values"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("expanded",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/expand.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "expand",
+            "-c",
+            str(inputs.get("columns", inputs.get("cols", ""))),
+            "-i",
+            str(inputs.get("input", "")),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/expanded.{_bedtools_ext(inputs.get('input'))}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, f"expanded.{_bedtools_ext(inputs.get('input'))}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BED-like file containing comma-separated values"}),
+                "columns": ("STRING", {"default": "4", "description": "Comma-separated columns to expand"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMaskFastaNode(CommandNode):
+    """Mask FASTA sequences over selected intervals."""
+
+    NODE_ID = "bedtools_maskfastabed"
+    DISPLAY_NAME = "BEDTools Mask FASTA"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Mask FASTA sequence bases that overlap intervals from a BED-like file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "maskfasta", "maskfastabed", "soft mask", "masked genome"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("masked_fasta",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/maskfasta.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "maskfasta"]
+        if inputs.get("soft"):
+            cmd.append("-soft")
+        cmd.extend([
+            "-mc",
+            str(inputs.get("mask_character", inputs.get("mc", "N"))),
+            "-fi",
+            str(inputs.get("fasta", "")),
+            "-bed",
+            str(inputs.get("input", "")),
+            "-fo",
+            f"{_out(inputs)}/masked.fasta",
+        ])
+        if inputs.get("full_header", inputs.get("fullheader")):
+            cmd.append("-fullHeader")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "masked.fasta", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Intervals used to mask the FASTA"}),
+                "fasta": ("FASTA", {"description": "FASTA sequences to mask"}),
+            },
+            "optional": {
+                "soft": ("BOOLEAN", {"default": False, "description": "Soft-mask by converting bases to lowercase"}),
+                "mask_character": ("STRING", {"default": "N", "description": "Hard-mask replacement character"}),
+                "full_header": ("BOOLEAN", {"default": False, "description": "Match and emit the full FASTA header"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMultiCovNode(CommandNode):
+    """Count alignments from multiple BAM files over intervals."""
+
+    NODE_ID = "bedtools_multicovtbed"
+    DISPLAY_NAME = "BEDTools MultiCov"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Count overlapping alignments from multiple sorted and indexed BAM files for each interval."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "multicov", "multicovbed", "bam counts", "interval read counts"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("multicov",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/multicov.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "multicov", "-bed", str(inputs.get("input", "")), "-bams", *_as_list(inputs.get("bams"))]
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        if inputs.get("reciprocal"):
+            cmd.append("-r")
+        if inputs.get("split"):
+            cmd.append("-split")
+        cmd.extend(["-q", str(inputs.get("q", 0))])
+        if inputs.get("duplicate"):
+            cmd.append("-D")
+        if inputs.get("failed"):
+            cmd.append("-F")
+        if inputs.get("proper"):
+            cmd.append("-p")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/multicov.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "multicov.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Sorted intervals to count over"}),
+                "bams": ("BAM_LIST", {"description": "Sorted and indexed BAM files"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction"}),
+                "reciprocal": ("BOOLEAN", {"default": False, "description": "Require reciprocal overlap"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split or spliced alignments as separate intervals"}),
+                "q": ("INT", {"default": 0, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "duplicate": ("BOOLEAN", {"default": False, "description": "Include duplicate reads"}),
+                "failed": ("BOOLEAN", {"default": False, "description": "Include failed-QC reads"}),
+                "proper": ("BOOLEAN", {"default": False, "description": "Only count proper pairs"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsNucNode(CommandNode):
+    """Profile nucleotide content for intervals in a FASTA file."""
+
+    NODE_ID = "bedtools_nucbed"
+    DISPLAY_NAME = "BEDTools Nucleotide Content"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Compute nucleotide content, optional sequence output, and motif counts for FASTA intervals."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "nuc", "nucbed", "nucleotide content", "gc content"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("nucleotide_content",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/nuc.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "nuc"]
+        if inputs.get("strand"):
+            cmd.append("-s")
+        if inputs.get("seq"):
+            cmd.append("-seq")
+        pattern = str(inputs.get("pattern", "")).strip()
+        if pattern:
+            cmd.extend(["-pattern", pattern])
+            if inputs.get("ignore_case"):
+                cmd.append("-C")
+        cmd.extend(["-fi", str(inputs.get("fasta", "")), "-bed", str(inputs.get("input", ""))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/nucleotide_content.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "nucleotide_content.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Intervals whose nucleotide content is profiled"}),
+                "fasta": ("FASTA", {"description": "Reference FASTA file"}),
+            },
+            "optional": {
+                "strand": ("BOOLEAN", {"default": False, "description": "Profile sequence according to strand"}),
+                "seq": ("BOOLEAN", {"default": False, "description": "Print the extracted sequence"}),
+                "pattern": ("STRING", {"default": "", "description": "Sequence pattern to count"}),
+                "ignore_case": ("BOOLEAN", {"default": False, "description": "Ignore case when matching pattern"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }

@@ -1958,3 +1958,217 @@ def test_bedtools_makewindowsbed_renders_sliding_windows_command_and_output(tmp_
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_makewindowsbed" / "windows.bed",
     ]
+
+
+def test_galaxy_parity_bedtools_annotation_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_annotatebed": {
+            "display_name": "BEDTools Annotate",
+            "required_executables": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/annotate.html",
+        },
+        "bedtools_expandbed": {
+            "display_name": "BEDTools Expand",
+            "required_executables": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/expand.html",
+        },
+        "bedtools_maskfastabed": {
+            "display_name": "BEDTools Mask FASTA",
+            "required_executables": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/maskfasta.html",
+        },
+        "bedtools_multicovtbed": {
+            "display_name": "BEDTools MultiCov",
+            "required_executables": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/multicov.html",
+        },
+        "bedtools_nucbed": {
+            "display_name": "BEDTools Nucleotide Content",
+            "required_executables": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/nuc.html",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == ["bedtools"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_annotatebed_renders_named_coverage_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_annotatebed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "regions.bed",
+            "beds": ["enhancers.bed", "promoters.bed"],
+            "names": ["enhancer", "promoter"],
+            "strand": "same",
+            "counts": True,
+            "both": True,
+            "output": "/work/bedtools_annotatebed",
+        }
+    ) == [
+        "bedtools",
+        "annotate",
+        "-i",
+        "regions.bed",
+        "-files",
+        "enhancers.bed",
+        "promoters.bed",
+        "-names",
+        "enhancer",
+        "promoter",
+        "-s",
+        "-counts",
+        "-both",
+        ">",
+        "/work/bedtools_annotatebed/annotated.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_annotatebed" / "annotated.bed",
+    ]
+
+
+def test_bedtools_expandbed_renders_column_expansion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_expandbed")
+
+    assert node_class.render_command(
+        {
+            "input": "tagged.bed",
+            "columns": "4,5",
+            "output": "/work/bedtools_expandbed",
+        }
+    ) == [
+        "bedtools",
+        "expand",
+        "-c",
+        "4,5",
+        "-i",
+        "tagged.bed",
+        ">",
+        "/work/bedtools_expandbed/expanded.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"input": "tagged.gff3"}, tmp_path) == [
+        tmp_path / "bedtools_expandbed" / "expanded.gff",
+    ]
+
+
+def test_bedtools_maskfastabed_renders_soft_mask_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_maskfastabed")
+
+    assert node_class.render_command(
+        {
+            "input": "mask_regions.bed",
+            "fasta": "genome.fa",
+            "soft": True,
+            "mask_character": "X",
+            "full_header": True,
+            "output": "/work/bedtools_maskfastabed",
+        }
+    ) == [
+        "bedtools",
+        "maskfasta",
+        "-soft",
+        "-mc",
+        "X",
+        "-fi",
+        "genome.fa",
+        "-bed",
+        "mask_regions.bed",
+        "-fo",
+        "/work/bedtools_maskfastabed/masked.fasta",
+        "-fullHeader",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_maskfastabed" / "masked.fasta",
+    ]
+
+
+def test_bedtools_multicovtbed_renders_bam_count_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_multicovtbed")
+
+    assert node_class.render_command(
+        {
+            "input": "targets.bed",
+            "bams": ["case.bam", "control.bam"],
+            "strand": "opposite",
+            "overlap": 0.5,
+            "reciprocal": True,
+            "split": True,
+            "q": 20,
+            "duplicate": True,
+            "failed": True,
+            "proper": True,
+            "output": "/work/bedtools_multicovtbed",
+        }
+    ) == [
+        "bedtools",
+        "multicov",
+        "-bed",
+        "targets.bed",
+        "-bams",
+        "case.bam",
+        "control.bam",
+        "-S",
+        "-f",
+        "0.5",
+        "-r",
+        "-split",
+        "-q",
+        "20",
+        "-D",
+        "-F",
+        "-p",
+        ">",
+        "/work/bedtools_multicovtbed/multicov.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_multicovtbed" / "multicov.bed",
+    ]
+
+
+def test_bedtools_nucbed_renders_sequence_pattern_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_nucbed")
+
+    assert node_class.render_command(
+        {
+            "input": "regions.bed",
+            "fasta": "genome.fa",
+            "strand": True,
+            "seq": True,
+            "pattern": "TAC",
+            "ignore_case": True,
+            "output": "/work/bedtools_nucbed",
+        }
+    ) == [
+        "bedtools",
+        "nuc",
+        "-s",
+        "-seq",
+        "-pattern",
+        "TAC",
+        "-C",
+        "-fi",
+        "genome.fa",
+        "-bed",
+        "regions.bed",
+        ">",
+        "/work/bedtools_nucbed/nucleotide_content.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_nucbed" / "nucleotide_content.tsv",
+    ]
