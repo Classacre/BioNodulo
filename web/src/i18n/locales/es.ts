@@ -825,6 +825,8 @@ const es = {
     requires: 'Requiere',
     environment: 'Entorno',
     aliases: 'Alias',
+    doi: 'DOI',
+    citation: 'Cita',
     defaultLabel: 'Predeterminado',
     noDefaultValue: 'Sin valor predeterminado',
     optionsLabel: 'Opciones',

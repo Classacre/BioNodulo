@@ -30,6 +30,9 @@ class BaseNode(abc.ABC):
     REQUIRED_CONDA_PACKAGES: ClassVar[list[str]] = []
     REQUIRED_R_PACKAGES: ClassVar[list[str]] = []
     DOCUMENTATION_URL: ClassVar[str] = ""
+    CITATION_DOIS: ClassVar[list[str]] = []
+    CITATION_URLS: ClassVar[list[str]] = []
+    CITATION_TEXT: ClassVar[str] = ""
     VERSION: ClassVar[str] = "1.0.0"
     PREVIOUS_VERSIONS: ClassVar[list[str]] = []
     DEPRECATED: ClassVar[bool] = False
@@ -106,6 +109,9 @@ class BaseNode(abc.ABC):
             "required_conda_packages": cls.REQUIRED_CONDA_PACKAGES,
             "required_r_packages": cls.REQUIRED_R_PACKAGES,
             "documentation_url": cls.DOCUMENTATION_URL,
+            "citation_dois": list(cls.CITATION_DOIS),
+            "citation_urls": list(cls.CITATION_URLS),
+            "citation_text": cls.CITATION_TEXT,
             "version": cls.VERSION,
             "deprecated": cls.DEPRECATED,
             "deprecation_message": cls.DEPRECATION_MESSAGE,

@@ -821,6 +821,8 @@ const en = {
     requires: 'Requires',
     environment: 'Environment',
     aliases: 'Aliases',
+    doi: 'DOI',
+    citation: 'Citation',
     defaultLabel: 'Default',
     noDefaultValue: 'No default value',
     optionsLabel: 'Options',

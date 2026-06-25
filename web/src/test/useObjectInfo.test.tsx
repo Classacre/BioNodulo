@@ -21,6 +21,9 @@ describe('useObjectInfo', () => {
         display_name: 'Versioned Legacy',
         category: 'tests',
         version: '2.1.0',
+        citation_dois: ['10.1093/bioinformatics/btx000'],
+        citation_urls: ['https://doi.org/10.1093/bioinformatics/btx000'],
+        citation_text: 'Example Bioinformatics methods paper.',
         deprecated: true,
         deprecation_message: 'Use versioned_modern for new workflows.',
         replaced_by: 'versioned_modern',
@@ -63,6 +66,9 @@ describe('useObjectInfo', () => {
       from_version: '1.x',
       to_version: '2.0.0',
     });
+    expect(meta.citation_dois).toEqual(['10.1093/bioinformatics/btx000']);
+    expect(meta.citation_urls).toEqual(['https://doi.org/10.1093/bioinformatics/btx000']);
+    expect(meta.citation_text).toBe('Example Bioinformatics methods paper.');
   });
 
   it('preserves custom node source and dependency metadata from object_info', async () => {

@@ -60,6 +60,9 @@ export interface NodeMetadata {
   required_conda_packages?: string[];
   required_r_packages?: string[];
   documentation_url?: string;
+  citation_dois?: string[];
+  citation_urls?: string[];
+  citation_text?: string;
   version?: string;
   deprecation_message?: string;
   replaced_by?: string;

@@ -520,6 +520,10 @@ def _to_node_info(
         "required_executables": getattr(node_class, "REQUIRED_EXECUTABLES", []),
         "required_conda_packages": getattr(node_class, "REQUIRED_CONDA_PACKAGES", []),
         "required_r_packages": getattr(node_class, "REQUIRED_R_PACKAGES", []),
+        "documentation_url": getattr(node_class, "DOCUMENTATION_URL", ""),
+        "citation_dois": list(getattr(node_class, "CITATION_DOIS", [])),
+        "citation_urls": list(getattr(node_class, "CITATION_URLS", [])),
+        "citation_text": getattr(node_class, "CITATION_TEXT", ""),
     }
     if custom_node_package is not None:
         info["custom_node_package"] = dict(custom_node_package)

@@ -15,6 +15,9 @@ class VersionedLegacyNode(BaseNode):
     DISPLAY_NAME = "Versioned Legacy"
     CATEGORY = "tests"
     DESCRIPTION = "Node used to exercise version lifecycle metadata."
+    CITATION_DOIS = ["10.1093/bioinformatics/btx000"]
+    CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btx000"]
+    CITATION_TEXT = "Example Bioinformatics methods paper."
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("value",)
     VERSION = "2.1.0"
@@ -38,6 +41,9 @@ class VersionedLegacyNode(BaseNode):
 def test_base_node_metadata_exposes_version_lifecycle_contract() -> None:
     meta = VersionedLegacyNode.metadata()
 
+    assert meta["citation_dois"] == ["10.1093/bioinformatics/btx000"]
+    assert meta["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btx000"]
+    assert meta["citation_text"] == "Example Bioinformatics methods paper."
     assert meta["version"] == "2.1.0"
     assert meta["deprecated"] is True
     assert meta["deprecation_message"] == "Use versioned_modern for new workflows."
@@ -74,6 +80,9 @@ def test_registry_object_info_exposes_version_lifecycle_contract() -> None:
     assert node_info["lifecycle"]["replaced_by"] == "versioned_modern"
     assert node_info["versioning"]["previous"] == ["1.0.0", "2.0.0"]
     assert node_info["versioning"]["migrations"][0]["from_version"] == "1.x"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btx000"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btx000"]
+    assert node_info["citation_text"] == "Example Bioinformatics methods paper."
 
 
 def test_registry_rejects_malformed_migration_metadata() -> None:

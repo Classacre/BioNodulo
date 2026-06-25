@@ -185,6 +185,102 @@ const objectInfo = {
     output: ['JSON'],
     output_name: ['trigger'],
   },
+  busco: {
+    name: 'busco',
+    display_name: 'BUSCO',
+    category: 'assembly',
+    description: 'Assess assembly or annotation completeness using BUSCO lineage orthologs.',
+    search_aliases: ['Galaxy', 'busco', 'completeness', 'orthologs'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+        mode: { type: 'STRING', default: 'genome', options: ['genome', 'transcriptome', 'proteins'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['STATS_FILE', 'TSV', 'TSV', 'IMAGE'],
+    output_name: ['short_summary', 'full_table', 'missing_buscos', 'summary_image'],
+    required_executables: ['busco'],
+    required_conda_packages: ['busco'],
+    documentation_url: 'https://busco.ezlab.org/',
+    citation_dois: ['10.1093/bioinformatics/btv351'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv351'],
+    citation_text: 'BUSCO completeness citation.',
+  },
+  diamond_align: {
+    name: 'diamond_align',
+    display_name: 'DIAMOND Align',
+    category: 'alignment',
+    description: 'Run DIAMOND blastp or blastx searches against a protein database.',
+    search_aliases: ['Galaxy', 'diamond', 'blastp', 'blastx', 'protein alignment'],
+    input: {
+      required: {
+        query: { type: 'FASTA' },
+        database: { type: 'FILE' },
+        method: { type: 'STRING', default: 'blastp', options: ['blastp', 'blastx'] },
+        threads: { type: 'INT', default: 12 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['matches'],
+    required_executables: ['diamond'],
+    required_conda_packages: ['diamond'],
+    documentation_url: 'https://github.com/bbuchfink/diamond/wiki',
+    citation_dois: ['10.1038/s41592-021-01101-x'],
+    citation_urls: ['https://doi.org/10.1038/s41592-021-01101-x'],
+    citation_text: 'Sensitive protein alignments at tree-of-life scale using DIAMOND.',
+  },
+  htseq_count: {
+    name: 'htseq_count',
+    display_name: 'HTSeq-count',
+    category: 'rna_seq',
+    description: 'Count aligned reads that overlap GFF/GTF features.',
+    search_aliases: ['Galaxy', 'htseq-count', 'gene counts'],
+    input: {
+      required: {
+        samfile: { type: 'BAM' },
+        gfffile: { type: 'GFF_GTF' },
+      },
+    },
+    output: ['COUNTS'],
+    output_name: ['counts'],
+    citation_dois: ['10.1093/bioinformatics/btu638'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btu638'],
+  },
+  hmmer_hmmscan: {
+    name: 'hmmer_hmmscan',
+    display_name: 'HMMER hmmscan',
+    category: 'annotation',
+    description: 'Search protein sequences against a profile HMM database.',
+    search_aliases: ['Galaxy', 'hmmer', 'hmmscan', 'pfam'],
+    input: {
+      required: {
+        seqfile: { type: 'FASTA' },
+        hmmdb: { type: 'FILE' },
+      },
+    },
+    output: ['STATS_FILE', 'TSV', 'TSV', 'TSV'],
+    output_name: ['output', 'tblout', 'domtblout', 'pfamtblout'],
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+  },
+  mmseqs2_easy_search: {
+    name: 'mmseqs2_easy_search',
+    display_name: 'MMseqs2 Easy Search',
+    category: 'alignment',
+    description: 'Run MMseqs2 easy-search for sequence homology searches.',
+    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-search'],
+    input: {
+      required: {
+        query_fasta: { type: 'FASTA' },
+        target_fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['search_results'],
+    citation_dois: ['10.1038/nbt.3988'],
+    citation_urls: ['https://doi.org/10.1038/nbt.3988'],
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -234,7 +330,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('13 nodes available')).toBeVisible();
+  await expect(page.getByText('18 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -251,6 +347,11 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'proteomics workflow', name: 'FragPipe Workflow', category: 'proteomics' },
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
+    { query: 'busco completeness', name: 'BUSCO', category: 'assembly' },
+    { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
+    { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
+    { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
+    { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
   ];
 
   for (const node of expectedNodes) {
@@ -264,4 +365,33 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.getByTitle('Add LLM Prompt').click();
   await expect(page.getByRole('status')).toContainText('1');
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();
+});
+
+test('Galaxy parity nodes render citation metadata in node info', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const canvas = page.locator('canvas').first();
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).not.toBeNull();
+  const nodePoint = {
+    x: canvasBox!.x + Math.min(320, canvasBox!.width / 2),
+    y: canvasBox!.y + Math.min(220, canvasBox!.height / 2),
+  };
+
+  await page.mouse.click(nodePoint.x, nodePoint.y, { button: 'right' });
+  await page.getByText('Add Node').click();
+  const search = page.getByRole('combobox', { name: 'Search nodes' });
+  await search.fill('diamond blastx');
+  await page.getByTitle('Add DIAMOND Align').click();
+
+  await expect(page.getByRole('status')).toContainText('1');
+  await page.mouse.click(nodePoint.x + 80, nodePoint.y + 30, { button: 'right' });
+  await page.getByText('Node Info').click();
+
+  const infoPanel = page.locator('.node-editor').last();
+  await expect(infoPanel.getByText('DIAMOND Align')).toBeVisible();
+  await expect(infoPanel.getByText('DOI', { exact: true })).toBeVisible();
+  await expect(infoPanel.getByText('10.1038/s41592-021-01101-x', { exact: true })).toBeVisible();
+  await expect(infoPanel.getByRole('link', { name: 'https://doi.org/10.1038/s41592-021-01101-x' })).toBeVisible();
+  await expect(infoPanel.getByText('Sensitive protein alignments at tree-of-life scale using DIAMOND.')).toBeVisible();
 });

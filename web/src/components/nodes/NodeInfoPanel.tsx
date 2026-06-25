@@ -95,6 +95,21 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
           {meta?.search_aliases && meta.search_aliases.length > 0 && (
             <MetaRow label={t('nodeDetails.aliases')} value={meta.search_aliases.join(', ')} />
           )}
+          {meta?.citation_dois && meta.citation_dois.length > 0 && (
+            <MetaRow label={t('nodeDetails.doi')} value={meta.citation_dois.join(', ')} />
+          )}
+          {meta?.citation_text && (
+            <MetaRow label={t('nodeDetails.citation')} value={meta.citation_text} />
+          )}
+          {meta?.citation_urls && meta.citation_urls.length > 0 && (
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {meta.citation_urls.map(url => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', overflowWrap: 'anywhere' }}>
+                  {url}
+                </a>
+              ))}
+            </div>
+          )}
           {meta?.documentation_url && (
             <div style={{ marginTop: 6 }}>
               <a href={meta.documentation_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
@@ -123,9 +138,9 @@ function InfoSection({ title, children }: { title: string; children: React.React
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 11 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '80px minmax(0, 1fr)', gap: 8, padding: '3px 0', fontSize: 11 }}>
       <span style={{ color: 'var(--muted)' }}>{label}</span>
-      <span style={{ color: 'var(--text)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>{value}</span>
+      <span style={{ color: 'var(--text)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, overflowWrap: 'anywhere', minWidth: 0 }}>{value}</span>
     </div>
   );
 }

@@ -45,6 +45,9 @@ function graphNode(): GraphNode {
       environment: 'qc-env',
       search_aliases: ['quality', 'reads'],
       documentation_url: 'https://example.test/fastqc',
+      citation_dois: ['10.1093/bioinformatics/btw000'],
+      citation_urls: ['https://doi.org/10.1093/bioinformatics/btw000'],
+      citation_text: 'FastQC methods paper.',
       requires_external_tools: ['fastqc'],
       input_types: {
         required: {
@@ -308,6 +311,26 @@ describe('Node editor and info panel i18n', () => {
     expect(screen.getByText('default')).toBeInTheDocument();
   });
 
+  it('wraps long citation metadata values inside the info panel', async () => {
+    const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
+    const longCitation = 'Sensitive protein alignments at tree-of-life scale using DIAMOND.';
+
+    render(
+      <NodeInfoPanel
+        node={{
+          ...graphNode(),
+          meta: {
+            ...graphNode().meta,
+            citation_text: longCitation,
+          },
+        }}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(longCitation)).toHaveStyle({ overflowWrap: 'anywhere' });
+  });
+
   it('renders read-only node information from the active locale', async () => {
     const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
     const { setLanguage } = await import('../i18n');
@@ -326,6 +349,14 @@ describe('Node editor and info panel i18n', () => {
     expect(screen.getByText('Requiere')).toBeInTheDocument();
     expect(screen.getByText('Entorno')).toBeInTheDocument();
     expect(screen.getByText('Alias')).toBeInTheDocument();
+    expect(screen.getByText('DOI')).toBeInTheDocument();
+    expect(screen.getByText('10.1093/bioinformatics/btw000')).toBeInTheDocument();
+    expect(screen.getByText('Cita')).toBeInTheDocument();
+    expect(screen.getByText('FastQC methods paper.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://doi.org/10.1093/bioinformatics/btw000' })).toHaveAttribute(
+      'href',
+      'https://doi.org/10.1093/bioinformatics/btw000',
+    );
     expect(screen.getAllByText(/Predeterminado:/)).toHaveLength(4);
     expect(screen.getByText('Sin valor predeterminado')).toBeInTheDocument();
     expect(screen.queryByText('—')).not.toBeInTheDocument();

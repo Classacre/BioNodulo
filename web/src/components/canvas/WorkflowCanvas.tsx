@@ -639,7 +639,14 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
   useEffect(() => () => {
     if (actionFeedbackTimer.current) window.clearTimeout(actionFeedbackTimer.current);
   }, []);
-  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number; worldX: number; worldY: number } | null>(null);
+  const [canvasMenu, setCanvasMenu] = useState<{
+    x: number;
+    y: number;
+    canvasX: number;
+    canvasY: number;
+    worldX: number;
+    worldY: number;
+  } | null>(null);
   const [nodeCommentTarget, setNodeCommentTarget] = useState<{ nodeId: string; compose: boolean } | null>(null);
   const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
   const [groupDragging, setGroupDragging] = useState<string | null>(null);
@@ -2791,7 +2798,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
           setContextMenu(null);
           setLinkContextMenu(null);
         } else {
-          setCanvasMenu({ x: e.clientX, y: e.clientY, worldX: world.x, worldY: world.y });
+          setCanvasMenu({ x: e.clientX, y: e.clientY, canvasX: cx, canvasY: cy, worldX: world.x, worldY: world.y });
           setContextMenu(null);
           setGroupContextMenu(null);
           setLinkContextMenu(null);
@@ -3934,7 +3941,7 @@ const WorkflowCanvas = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(functi
       {canvasMenu && (
         <div className="context-menu" style={{ left: canvasMenu.x, top: canvasMenu.y, zIndex: 200 }}>
           <div className="context-menu-body">
-            <div className="context-menu-item" onClick={() => { setPalettePos({ x: canvasMenu.x, y: canvasMenu.y }); setCanvasMenu(null); }}>{t('canvas.addNode')}</div>
+            <div className="context-menu-item" onClick={() => { setPalettePos({ x: canvasMenu.canvasX, y: canvasMenu.canvasY }); setCanvasMenu(null); }}>{t('canvas.addNode')}</div>
             <div className="context-menu-item" onClick={() => {
               const rerouteMeta = objectInfo.reroute;
               if (rerouteMeta) {
