@@ -771,6 +771,110 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_bamtobed: {
+    name: 'bedtools_bamtobed',
+    display_name: 'BEDTools BAM to BED',
+    category: 'genomics',
+    description: 'Convert BAM alignments to BED, BED12, or paired BEDPE records with bedtools bamtobed.',
+    search_aliases: ['Galaxy', 'bedtools', 'bamtobed', 'bam to bed', 'bed12', 'bedpe'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        option: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['converted_bed'],
+    required_executables: ['bedtools', 'samtools'],
+    required_conda_packages: ['bedtools', 'samtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/bamtobed.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_bed12tobed6: {
+    name: 'bedtools_bed12tobed6',
+    display_name: 'BEDTools BED12 to BED6',
+    category: 'genomics',
+    description: 'Convert blocked BED12 features into discrete BED6 features with bed12ToBed6.',
+    search_aliases: ['Galaxy', 'bedtools', 'bed12tobed6', 'bed12 to bed6', 'blocked bed', 'exons'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['bed6'],
+    required_executables: ['bed12ToBed6'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/bed12tobed6.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_bedtobam: {
+    name: 'bedtools_bedtobam',
+    display_name: 'BEDTools BED to BAM',
+    category: 'genomics',
+    description: 'Convert BED annotations to BAM format with optional BED12 spliced alignment handling.',
+    search_aliases: ['Galaxy', 'bedtools', 'bedtobam', 'bed to bam', 'bed12', 'annotation bam'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        genome: { type: 'TSV' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['converted_bam'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/bedtobam.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_bedpetobam: {
+    name: 'bedtools_bedpetobam',
+    display_name: 'BEDTools BEDPE to BAM',
+    category: 'genomics',
+    description: 'Convert BEDPE paired feature records to an unsorted BAM file with bedtools bedpetobam.',
+    search_aliases: ['Galaxy', 'bedtools', 'bedpetobam', 'bedpe to bam', 'paired intervals', 'paired-end'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        genome: { type: 'TSV' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['paired_bam'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/bedpetobam.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_makewindowsbed: {
+    name: 'bedtools_makewindowsbed',
+    display_name: 'BEDTools Make Windows',
+    category: 'genomics',
+    description: 'Create adjacent or sliding windows across a genome file or BED interval file with bedtools makewindows.',
+    search_aliases: ['Galaxy', 'bedtools', 'makewindows', 'makewindowsbed', 'sliding windows', 'genome windows'],
+    input: {
+      required: {
+        type: { type: 'STRING', default: 'bed' },
+        action: { type: 'STRING', default: 'windowsize' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['windows'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/makewindows.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1092,7 +1196,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('55 nodes available')).toBeVisible();
+  await expect(page.getByText('60 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1138,6 +1242,11 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'reldistbed', name: 'BEDTools Relative Distance', category: 'genomics' },
     { query: 'spacingbed', name: 'BEDTools Spacing', category: 'genomics' },
     { query: 'groupbybed', name: 'BEDTools GroupBy', category: 'genomics' },
+    { query: 'bamtobed', name: 'BEDTools BAM to BED', category: 'genomics' },
+    { query: 'bed12 to bed6', name: 'BEDTools BED12 to BED6', category: 'genomics' },
+    { query: 'bedtobam', name: 'BEDTools BED to BAM', category: 'genomics' },
+    { query: 'bedpetobam', name: 'BEDTools BEDPE to BAM', category: 'genomics' },
+    { query: 'sliding windows', name: 'BEDTools Make Windows', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

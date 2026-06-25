@@ -1755,3 +1755,206 @@ def test_bedtools_groupbybed_renders_summary_command_and_output(tmp_path: Path) 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_groupbybed" / "grouped.bed",
     ]
+
+
+def test_galaxy_parity_bedtools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_bamtobed": {
+            "display_name": "BEDTools BAM to BED",
+            "required_executables": ["bedtools", "samtools"],
+            "required_conda_packages": ["bedtools", "samtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bamtobed.html",
+        },
+        "bedtools_bed12tobed6": {
+            "display_name": "BEDTools BED12 to BED6",
+            "required_executables": ["bed12ToBed6"],
+            "required_conda_packages": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bed12tobed6.html",
+        },
+        "bedtools_bedtobam": {
+            "display_name": "BEDTools BED to BAM",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bedtobam.html",
+        },
+        "bedtools_bedpetobam": {
+            "display_name": "BEDTools BEDPE to BAM",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bedpetobam.html",
+        },
+        "bedtools_makewindowsbed": {
+            "display_name": "BEDTools Make Windows",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/makewindows.html",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_bamtobed_renders_bedpe_sort_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_bamtobed")
+
+    assert node_class.render_command(
+        {
+            "input": "alignments.bam",
+            "option": "bedpe",
+            "split": True,
+            "ed_score": True,
+            "tag": "NM",
+            "threads": 6,
+            "output": "/work/bedtools_bamtobed",
+        }
+    ) == [
+        "samtools",
+        "sort",
+        "-n",
+        "-@",
+        "6",
+        "-T",
+        "/work/bedtools_bamtobed/tmp",
+        "alignments.bam",
+        ">",
+        "/work/bedtools_bamtobed/input.bam",
+        "&&",
+        "bedtools",
+        "bamtobed",
+        "-bedpe",
+        "-ed",
+        "-split",
+        "-tag",
+        "NM",
+        "-i",
+        "/work/bedtools_bamtobed/input.bam",
+        ">",
+        "/work/bedtools_bamtobed/converted.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_bamtobed" / "converted.bed",
+    ]
+
+
+def test_bedtools_bed12tobed6_renders_block_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_bed12tobed6")
+
+    assert node_class.render_command(
+        {
+            "input": "transcripts.bed12",
+            "output": "/work/bedtools_bed12tobed6",
+        }
+    ) == [
+        "bed12ToBed6",
+        "-i",
+        "transcripts.bed12",
+        ">",
+        "/work/bedtools_bed12tobed6/bed6.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_bed12tobed6" / "bed6.bed",
+    ]
+
+
+def test_bedtools_bedtobam_renders_bed12_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_bedtobam")
+
+    assert node_class.render_command(
+        {
+            "input": "features.bed",
+            "bed12": True,
+            "genome": "chrom.sizes",
+            "mapq": 42,
+            "output": "/work/bedtools_bedtobam",
+        }
+    ) == [
+        "bedtools",
+        "bedtobam",
+        "-bed12",
+        "-mapq",
+        "42",
+        "-g",
+        "chrom.sizes",
+        "-i",
+        "features.bed",
+        ">",
+        "/work/bedtools_bedtobam/converted.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_bedtobam" / "converted.bam",
+    ]
+
+
+def test_bedtools_bedpetobam_renders_paired_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_bedpetobam")
+
+    assert node_class.render_command(
+        {
+            "input": "pairs.bedpe",
+            "genome": "chrom.sizes",
+            "mapq": 60,
+            "output": "/work/bedtools_bedpetobam",
+        }
+    ) == [
+        "bedtools",
+        "bedpetobam",
+        "-mapq",
+        "60",
+        "-i",
+        "pairs.bedpe",
+        "-g",
+        "chrom.sizes",
+        ">",
+        "/work/bedtools_bedpetobam/paired.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_bedpetobam" / "paired.bam",
+    ]
+
+
+def test_bedtools_makewindowsbed_renders_sliding_windows_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_makewindowsbed")
+
+    assert node_class.render_command(
+        {
+            "type": "bed",
+            "input": "regions.bed",
+            "action": "windowsize",
+            "windowsize": 1000,
+            "step_size": 250,
+            "sourcename": "srcwinnum",
+            "output": "/work/bedtools_makewindowsbed",
+        }
+    ) == [
+        "bedtools",
+        "makewindows",
+        "-b",
+        "regions.bed",
+        "-w",
+        "1000",
+        "-s",
+        "250",
+        "-i",
+        "srcwinnum",
+        ">",
+        "/work/bedtools_makewindowsbed/windows.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_makewindowsbed" / "windows.bed",
+    ]

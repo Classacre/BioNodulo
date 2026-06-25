@@ -2411,3 +2411,306 @@ class BEDToolsGroupByNode(CommandNode):
             "optional": {},
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsBamToBedNode(CommandNode):
+    """Convert BAM alignments to BED, BED12, or BEDPE records."""
+
+    NODE_ID = "bedtools_bamtobed"
+    DISPLAY_NAME = "BEDTools BAM to BED"
+    REQUIRED_CONDA_PACKAGES = ["bedtools", "samtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert BAM alignments to BED, BED12, or paired BEDPE records with bedtools bamtobed."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "bamtobed", "bam to bed", "bed12", "bedpe"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("converted_bed",)
+    REQUIRED_EXECUTABLES = ["bedtools", "samtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/bamtobed.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        option_aliases = {
+            "": "",
+            "bed": "",
+            "bed6": "",
+            "bed12": "-bed12",
+            "-bed12": "-bed12",
+            "bedpe": "-bedpe",
+            "-bedpe": "-bedpe",
+        }
+        option = option_aliases.get(str(inputs.get("option", "")), str(inputs.get("option", "")))
+        out = _out(inputs)
+        bedtools_input = str(inputs.get("input", ""))
+        cmd: list[str] = []
+        if option == "-bedpe":
+            bedtools_input = f"{out}/input.bam"
+            cmd.extend(
+                [
+                    "samtools",
+                    "sort",
+                    "-n",
+                    "-@",
+                    str(inputs.get("threads", 4)),
+                    "-T",
+                    f"{out}/tmp",
+                    str(inputs.get("input", "")),
+                    ">",
+                    bedtools_input,
+                    "&&",
+                ]
+            )
+        cmd.extend(["bedtools", "bamtobed"])
+        if option:
+            cmd.append(option)
+        if inputs.get("ed_score"):
+            cmd.append("-ed")
+        if inputs.get("split"):
+            cmd.append("-split")
+        tag = str(inputs.get("tag", "")).strip()
+        if tag:
+            cmd.extend(["-tag", tag])
+        cmd.extend(["-i", bedtools_input])
+        _add_shell_redirect(cmd, f"{out}/converted.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "converted.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file to convert"}),
+                "option": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "bed12", "bedpe"],
+                        "description": "Output BED flavor: BED6, blocked BED12, or paired BEDPE",
+                    },
+                ),
+            },
+            "optional": {
+                "split": ("BOOLEAN", {"default": False, "description": "Split spliced alignments into distinct BED records"}),
+                "ed_score": ("BOOLEAN", {"default": False, "description": "Use BAM edit distance as the BED score"}),
+                "tag": ("STRING", {"default": "", "description": "Numeric BAM tag to use as the BED score"}),
+                "threads": ("INT", {"default": 4, "min": 1, "description": "Threads for BEDPE name sorting"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsBed12ToBed6Node(CommandNode):
+    """Expand BED12 blocked features into BED6 intervals."""
+
+    NODE_ID = "bedtools_bed12tobed6"
+    DISPLAY_NAME = "BEDTools BED12 to BED6"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert blocked BED12 features into discrete BED6 features with bed12ToBed6."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "bed12tobed6", "bed12 to bed6", "blocked bed", "exons"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("bed6",)
+    REQUIRED_EXECUTABLES = ["bed12ToBed6"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/bed12tobed6.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bed12ToBed6", "-i", str(inputs.get("input", ""))]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/bed6.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "bed6.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BED12 file to expand into BED6 blocks"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsBedToBamNode(CommandNode):
+    """Convert BED features to BAM alignments."""
+
+    NODE_ID = "bedtools_bedtobam"
+    DISPLAY_NAME = "BEDTools BED to BAM"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert BED annotations to BAM format with optional BED12 spliced alignment handling."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "bedtobam", "bed to bam", "bed12", "annotation bam"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("converted_bam",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/bedtobam.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "bedtobam"]
+        if inputs.get("bed12"):
+            cmd.append("-bed12")
+        cmd.extend(["-mapq", str(inputs.get("mapq", 255))])
+        _bedtools_add_genome(cmd, inputs)
+        cmd.extend(["-i", str(inputs.get("input", ""))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/converted.bam")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "converted.bam", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BED feature file to convert"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {
+                "bed12": ("BOOLEAN", {"default": False, "description": "Convert blocked BED12 records into spliced BAM alignments"}),
+                "mapq": ("INT", {"default": 255, "min": 0, "max": 255, "description": "Mapping quality value for output alignments"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsBedpeToBamNode(CommandNode):
+    """Convert BEDPE paired features to BAM alignments."""
+
+    NODE_ID = "bedtools_bedpetobam"
+    DISPLAY_NAME = "BEDTools BEDPE to BAM"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert BEDPE paired feature records to an unsorted BAM file with bedtools bedpetobam."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "bedpetobam", "bedpe to bam", "paired intervals", "paired-end"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("paired_bam",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/bedpetobam.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "bedpetobam",
+            "-mapq",
+            str(inputs.get("mapq", 255)),
+            "-i",
+            str(inputs.get("input", "")),
+        ]
+        _bedtools_add_genome(cmd, inputs)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/paired.bam")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "paired.bam", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BEDPE or BED-like paired feature file"}),
+                "genome": ("TSV", {"description": "Two-column chromosome sizes genome file"}),
+            },
+            "optional": {
+                "mapq": ("INT", {"default": 255, "min": 0, "max": 255, "description": "Mapping quality value for output alignments"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMakeWindowsNode(CommandNode):
+    """Create fixed-size or fixed-count windows over genomes or intervals."""
+
+    NODE_ID = "bedtools_makewindowsbed"
+    DISPLAY_NAME = "BEDTools Make Windows"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Create adjacent or sliding windows across a genome file or BED interval file with bedtools makewindows."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "makewindows", "makewindowsbed", "sliding windows", "genome windows"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("windows",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/makewindows.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        source = str(inputs.get("type", inputs.get("type_select", "bed")))
+        action = str(inputs.get("action", inputs.get("action_select", "windowsize")))
+        cmd = ["bedtools", "makewindows"]
+        if source == "genome":
+            _bedtools_add_genome(cmd, inputs)
+        else:
+            cmd.extend(["-b", str(inputs.get("input", ""))])
+        if action == "number":
+            cmd.extend(["-n", str(inputs.get("number", 1))])
+        else:
+            cmd.extend(["-w", str(inputs.get("windowsize", 1))])
+            _add_if_value(cmd, "-s", inputs.get("step_size"))
+        sourcename = str(inputs.get("sourcename", "")).strip()
+        if sourcename:
+            sourcename = sourcename.replace("-i ", "")
+            cmd.extend(["-i", sourcename])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/windows.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "windows.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "type": ("STRING", {"default": "bed", "options": ["bed", "genome"], "description": "Create windows over BED intervals or a genome file"}),
+                "action": ("STRING", {"default": "windowsize", "options": ["windowsize", "number"], "description": "Window by fixed size or fixed count"}),
+            },
+            "optional": {
+                "input": ("BED", {"description": "BED intervals used when type is bed"}),
+                "genome": ("TSV", {"description": "Genome chromosome sizes file used when type is genome"}),
+                "windowsize": ("INT", {"default": 1, "min": 1, "description": "Window size in bases"}),
+                "step_size": ("INT", {"default": "", "min": 1, "description": "Step size for sliding windows"}),
+                "number": ("INT", {"default": 1, "min": 1, "description": "Number of windows per input interval"}),
+                "sourcename": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "src", "winnum", "srcwinnum"],
+                        "description": "ID naming style for generated windows",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
