@@ -11,6 +11,15 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
+GALAXY_ALIAS = "Galaxy"
+SAMTOOLS_CITATION_DOIS = ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
+SAMTOOLS_CITATION_URLS = [f"https://doi.org/{doi}" for doi in SAMTOOLS_CITATION_DOIS]
+SAMTOOLS_CITATION_TEXT = (
+    "Twelve years of SAMtools and BCFtools; "
+    "The Sequence Alignment/Map format and SAMtools."
+)
+
+
 def _safe_stem(value: str, default: str) -> str:
     stem = "_".join(str(value or "").strip().split())
     stem = "".join(char if char.isalnum() or char in "._-" else "_" for char in stem)
@@ -39,6 +48,28 @@ def _bam_output_stem(inputs: dict[str, Any], default: str) -> str:
                 changed = True
                 break
     return _safe_stem(stem, default)
+
+
+def _as_list(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if str(v) != ""]
+    return [str(value)]
+
+
+def _flag_sum(value: Any) -> int:
+    total = 0
+    for item in _as_list(value):
+        for part in item.split(","):
+            if part.strip():
+                total += int(part.strip())
+    return total
+
+
+def _add_if_value(cmd: list[str], flag: str, value: Any) -> None:
+    if value is not None and str(value) != "":
+        cmd.extend([flag, str(value)])
 
 
 class SamtoolsSortNode(CommandNode):
@@ -550,4 +581,283 @@ class SamtoolsStatsNode(CommandNode):
             "hidden": {
                 "output": ("STRING", {}),
             },
+        }
+
+
+class SamtoolsIdxstatsNode(CommandNode):
+    """Report alignment counts per reference sequence from a BAM/CRAM index."""
+
+    NODE_ID = "samtools_idxstats"
+    DISPLAY_NAME = "Samtools Idxstats"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Report mapped and unmapped read counts per reference sequence from a BAM or CRAM index."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "idxstats", "index stats", "BAM index", "MultiQC"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("idxstats",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-idxstats.html"
+    CITATION_DOIS = SAMTOOLS_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        addthreads = max(int(inputs.get("threads", 1) or 1) - 1, 0)
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        return [
+            "samtools",
+            "idxstats",
+            "-@",
+            str(addthreads),
+            str(inputs.get("input", inputs.get("bam", ""))),
+            ">",
+            f"{output}/idxstats.tsv",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "idxstats.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "Indexed BAM or CRAM alignment file"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsDepthNode(CommandNode):
+    """Compute per-position read depth across one or more BAM files."""
+
+    NODE_ID = "samtools_depth"
+    DISPLAY_NAME = "Samtools Depth"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Compute per-position alignment depth for one or more BAM files, optionally restricted to regions."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "depth", "coverage depth", "per-base coverage", "BAM depth"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("depth",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-depth.html"
+    CITATION_DOIS = SAMTOOLS_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = ["samtools", "depth"]
+        all_positions = str(inputs.get("all", ""))
+        if all_positions:
+            cmd.append(all_positions)
+        if inputs.get("input_bed"):
+            cmd.extend(["-b", str(inputs["input_bed"])])
+        elif inputs.get("region"):
+            cmd.extend(["-r", str(inputs["region"])])
+        _add_if_value(cmd, "-l", inputs.get("minlength"))
+        _add_if_value(cmd, "-m", inputs.get("maxdepth"))
+        _add_if_value(cmd, "-q", inputs.get("basequality"))
+        _add_if_value(cmd, "-Q", inputs.get("mapquality"))
+        required_flags = _flag_sum(inputs.get("required_flags"))
+        skipped_flags = _flag_sum(inputs.get("skipped_flags"))
+        if required_flags:
+            cmd.extend(["-g", str(required_flags)])
+        if skipped_flags:
+            cmd.extend(["-G", str(skipped_flags)])
+        if inputs.get("deletions"):
+            cmd.append("-J")
+        if inputs.get("single_read"):
+            cmd.append("-s")
+        if inputs.get("header"):
+            cmd.append("-H")
+        cmd.extend(_as_list(inputs.get("input_bams", inputs.get("bam"))))
+        cmd.extend([">", f"{output}/depth.tsv"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "depth.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bams": ("BAM_LIST", {"description": "One or more indexed BAM files"}),
+            },
+            "optional": {
+                "all": ("STRING", {"default": "", "options": ["", "-a", "-aa"], "description": "Emit zero-depth positions"}),
+                "region": ("STRING", {"default": "", "description": "Manual region such as chr1:100-200"}),
+                "input_bed": ("BED", {"description": "BED regions to restrict depth calculation"}),
+                "minlength": ("INT", {"default": "", "min": 0, "description": "Ignore reads shorter than this length"}),
+                "maxdepth": ("INT", {"default": "", "min": 0, "description": "Maximum read depth considered"}),
+                "basequality": ("INT", {"default": "", "min": 0, "description": "Minimum base quality"}),
+                "mapquality": ("INT", {"default": "", "min": 0, "description": "Minimum mapping quality"}),
+                "required_flags": ("STRING", {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True}),
+                "skipped_flags": ("STRING", {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True}),
+                "deletions": ("BOOLEAN", {"default": False, "description": "Include deletions in depth calculation"}),
+                "single_read": ("BOOLEAN", {"default": False, "description": "Count only one read in overlapping pairs"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print a file header"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsFaidxNode(CommandNode):
+    """Index FASTA or FASTQ sequences with samtools faidx."""
+
+    NODE_ID = "samtools_faidx"
+    DISPLAY_NAME = "Samtools Faidx"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Create a FASTA/FASTQ fai index, with fallback handling for gzip-compressed inputs."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "faidx", "FASTA index", "FASTQ index", "fai"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("fai_index",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-faidx.html"
+    CITATION_DOIS = SAMTOOLS_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        output_index = f"{output}/fai_index.tsv"
+        input_path = str(inputs.get("input", ""))
+        is_fastq = inputs.get("fastq", "fastq" in input_path.lower())
+        is_compressed = inputs.get("compressed", input_path.lower().endswith((".gz", ".bgz")))
+        if is_compressed:
+            linked_input = f"{output}/input.gz"
+            cmd = ["ln", "-sf", input_path, linked_input, "&&", "samtools", "faidx"]
+            if is_fastq:
+                cmd.append("--fastq")
+            cmd.extend([linked_input, "--fai-idx", output_index, "--gzi-idx", f"{linked_input}.gzi"])
+            cmd.extend([
+                "||",
+                "(",
+                "echo",
+                "Failed to index compressed reference. Trying decompressed ...",
+                "1>&2",
+                "&&",
+                "gzip",
+                "-dc",
+                linked_input,
+                ">",
+                f"{output}/input.plain",
+                "&&",
+                "samtools",
+                "faidx",
+            ])
+            if is_fastq:
+                cmd.append("--fastq")
+            cmd.extend([f"{output}/input.plain", "--fai-idx", output_index, ")"])
+            return cmd
+
+        linked_input = f"{output}/input"
+        cmd = ["ln", "-sf", input_path, linked_input, "&&", "samtools", "faidx"]
+        if is_fastq:
+            cmd.append("--fastq")
+        cmd.extend([linked_input, "--fai-idx", output_index])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "fai_index.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FASTA", {"description": "FASTA or FASTQ sequence file"}),
+            },
+            "optional": {
+                "fastq": ("BOOLEAN", {"default": False, "description": "Pass --fastq for FASTQ input"}),
+                "compressed": ("BOOLEAN", {"default": False, "description": "Treat input as gzip/BGZF compressed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsCoverageNode(CommandNode):
+    """Compute per-reference coverage summaries or ASCII histogram data."""
+
+    NODE_ID = "samtools_coverage"
+    DISPLAY_NAME = "Samtools Coverage"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Compute tabular or histogram coverage summaries per reference sequence using samtools coverage."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "coverage", "histogram", "BAM coverage", "chromosome coverage"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("coverage",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-coverage.html"
+    CITATION_DOIS = SAMTOOLS_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        input_bams = _as_list(inputs.get("input_bams"))
+        if not input_bams:
+            input_bams = _as_list(inputs.get("input", inputs.get("bam")))
+        cmd = ["samtools", "coverage", *input_bams]
+        cmd.extend(["-l", str(inputs.get("min_read_length", 0))])
+        cmd.extend(["-q", str(inputs.get("min_mq", 0))])
+        cmd.extend(["-Q", str(inputs.get("min_bq", 0))])
+        required_flags = _flag_sum(inputs.get("required_flags"))
+        skipped_flags = _flag_sum(inputs.get("skipped_flags"))
+        if required_flags:
+            cmd.extend(["--rf", str(required_flags)])
+        if skipped_flags:
+            cmd.extend(["--ff", str(skipped_flags)])
+        if inputs.get("region"):
+            cmd.extend(["-r", str(inputs["region"])])
+        if inputs.get("histogram"):
+            cmd.extend(["-m", "-w", str(inputs.get("n_bins", 100))])
+        cmd.extend(["-o", f"{output}/coverage.tsv"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "coverage.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "Indexed BAM file"}),
+            },
+            "optional": {
+                "input_bams": ("BAM_LIST", {"description": "Multiple BAM files to pool"}),
+                "min_read_length": ("INT", {"default": 0, "min": 0}),
+                "min_mq": ("INT", {"default": 0, "min": 0, "description": "Minimum mapping quality"}),
+                "min_bq": ("INT", {"default": 0, "min": 0, "description": "Minimum base quality"}),
+                "required_flags": ("STRING", {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True}),
+                "skipped_flags": ("STRING", {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True}),
+                "region": ("STRING", {"default": "", "description": "Region such as chr1:100-200"}),
+                "histogram": ("BOOLEAN", {"default": False, "description": "Emit histogram data"}),
+                "n_bins": ("INT", {"default": 100, "min": 1, "description": "Number of histogram bins"}),
+            },
+            "hidden": {"output": ("STRING", {})},
         }

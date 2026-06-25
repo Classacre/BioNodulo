@@ -434,6 +434,87 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  samtools_idxstats: {
+    name: 'samtools_idxstats',
+    display_name: 'Samtools Idxstats',
+    category: 'samtools',
+    description: 'Report mapped and unmapped read counts per reference sequence from a BAM or CRAM index.',
+    search_aliases: ['Galaxy', 'samtools', 'idxstats', 'index stats', 'BAM index', 'MultiQC'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['idxstats'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-idxstats.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  samtools_depth: {
+    name: 'samtools_depth',
+    display_name: 'Samtools Depth',
+    category: 'samtools',
+    description: 'Compute per-position alignment depth for one or more BAM files, optionally restricted to regions.',
+    search_aliases: ['Galaxy', 'samtools', 'depth', 'coverage depth', 'per-base coverage'],
+    input: {
+      required: {
+        input_bams: { type: 'BAM_LIST' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['depth'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-depth.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  samtools_faidx: {
+    name: 'samtools_faidx',
+    display_name: 'Samtools Faidx',
+    category: 'samtools',
+    description: 'Create a FASTA/FASTQ fai index, with fallback handling for gzip-compressed inputs.',
+    search_aliases: ['Galaxy', 'samtools', 'faidx', 'FASTA index', 'FASTQ index', 'fai'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['fai_index'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-faidx.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  samtools_coverage: {
+    name: 'samtools_coverage',
+    display_name: 'Samtools Coverage',
+    category: 'samtools',
+    description: 'Compute tabular or histogram coverage summaries per reference sequence using samtools coverage.',
+    search_aliases: ['Galaxy', 'samtools', 'coverage', 'histogram', 'BAM coverage'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['coverage'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-coverage.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -483,7 +564,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('26 nodes available')).toBeVisible();
+  await expect(page.getByText('30 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -513,6 +594,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
     { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
+    { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
+    { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
+    { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },
+    { query: 'samtools coverage', name: 'Samtools Coverage', category: 'samtools' },
   ];
 
   for (const node of expectedNodes) {

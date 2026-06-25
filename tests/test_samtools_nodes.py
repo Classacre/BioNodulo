@@ -217,3 +217,246 @@ def test_samtools_markdup_rejects_invalid_numeric_options() -> None:
         node_class.VALIDATE_INPUTS({"bam": "sample.bam", "threads": 2, "optical_distance": -1})
         == "optical_distance must be non-negative"
     )
+
+
+def test_samtools_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    expected = {
+        "samtools_idxstats": {
+            "display_name": "Samtools Idxstats",
+            "output": ["TSV"],
+            "output_name": ["idxstats"],
+            "aliases": ["Galaxy", "idxstats", "MultiQC"],
+        },
+        "samtools_depth": {
+            "display_name": "Samtools Depth",
+            "output": ["TSV"],
+            "output_name": ["depth"],
+            "aliases": ["Galaxy", "depth", "coverage depth"],
+        },
+        "samtools_faidx": {
+            "display_name": "Samtools Faidx",
+            "output": ["TSV"],
+            "output_name": ["fai_index"],
+            "aliases": ["Galaxy", "faidx", "FASTA index"],
+        },
+        "samtools_coverage": {
+            "display_name": "Samtools Coverage",
+            "output": ["TSV"],
+            "output_name": ["coverage"],
+            "aliases": ["Galaxy", "coverage", "histogram"],
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "samtools"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["output_name"] == metadata["output_name"]
+        assert node_info["required_executables"] == ["samtools"]
+        assert node_info["required_conda_packages"] == ["samtools"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
+        assert "SAMtools" in node_info["citation_text"]
+        for alias in metadata["aliases"]:
+            assert alias in node_info["search_aliases"]
+
+
+def test_samtools_idxstats_renders_index_statistics_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_idxstats")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "threads": 5,
+            "output": "/work/samtools_idxstats",
+        }
+    ) == [
+        "samtools",
+        "idxstats",
+        "-@",
+        "4",
+        "sample.bam",
+        ">",
+        "/work/samtools_idxstats/idxstats.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_idxstats" / "idxstats.tsv"]
+
+
+def test_samtools_depth_renders_region_filtered_depth_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_depth")
+
+    assert node_class.render_command(
+        {
+            "input_bams": ["tumor.bam", "normal.bam"],
+            "all": "-a",
+            "input_bed": "targets.bed",
+            "minlength": 75,
+            "maxdepth": 10000,
+            "basequality": 20,
+            "mapquality": 30,
+            "required_flags": [2, 64],
+            "skipped_flags": [4, 256, 512, 1024],
+            "deletions": True,
+            "single_read": True,
+            "header": True,
+            "output": "/work/samtools_depth",
+        }
+    ) == [
+        "samtools",
+        "depth",
+        "-a",
+        "-b",
+        "targets.bed",
+        "-l",
+        "75",
+        "-m",
+        "10000",
+        "-q",
+        "20",
+        "-Q",
+        "30",
+        "-g",
+        "66",
+        "-G",
+        "1796",
+        "-J",
+        "-s",
+        "-H",
+        "tumor.bam",
+        "normal.bam",
+        ">",
+        "/work/samtools_depth/depth.tsv",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_bams": "tumor.bam",
+            "region": "chr7:100-200",
+            "output": "/work/samtools_depth",
+        }
+    ) == [
+        "samtools",
+        "depth",
+        "-r",
+        "chr7:100-200",
+        "tumor.bam",
+        ">",
+        "/work/samtools_depth/depth.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_depth" / "depth.tsv"]
+
+
+def test_samtools_faidx_renders_fastq_and_compressed_index_commands(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_faidx")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "fastq": True,
+            "compressed": True,
+            "output": "/work/samtools_faidx",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "reads.fastq.gz",
+        "/work/samtools_faidx/input.gz",
+        "&&",
+        "samtools",
+        "faidx",
+        "--fastq",
+        "/work/samtools_faidx/input.gz",
+        "--fai-idx",
+        "/work/samtools_faidx/fai_index.tsv",
+        "--gzi-idx",
+        "/work/samtools_faidx/input.gz.gzi",
+        "||",
+        "(",
+        "echo",
+        "Failed to index compressed reference. Trying decompressed ...",
+        "1>&2",
+        "&&",
+        "gzip",
+        "-dc",
+        "/work/samtools_faidx/input.gz",
+        ">",
+        "/work/samtools_faidx/input.plain",
+        "&&",
+        "samtools",
+        "faidx",
+        "--fastq",
+        "/work/samtools_faidx/input.plain",
+        "--fai-idx",
+        "/work/samtools_faidx/fai_index.tsv",
+        ")",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_faidx" / "fai_index.tsv"]
+
+
+def test_samtools_coverage_renders_table_and_histogram_commands(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_coverage")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "min_read_length": 50,
+            "min_mq": 20,
+            "min_bq": 15,
+            "required_flags": [2],
+            "skipped_flags": [4, 256],
+            "region": "chr1:1-1000",
+            "histogram": False,
+            "output": "/work/samtools_coverage",
+        }
+    ) == [
+        "samtools",
+        "coverage",
+        "sample.bam",
+        "-l",
+        "50",
+        "-q",
+        "20",
+        "-Q",
+        "15",
+        "--rf",
+        "2",
+        "--ff",
+        "260",
+        "-r",
+        "chr1:1-1000",
+        "-o",
+        "/work/samtools_coverage/coverage.tsv",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_bams": ["tumor.bam", "normal.bam"],
+            "histogram": True,
+            "n_bins": 50,
+            "output": "/work/samtools_coverage",
+        }
+    ) == [
+        "samtools",
+        "coverage",
+        "tumor.bam",
+        "normal.bam",
+        "-l",
+        "0",
+        "-q",
+        "0",
+        "-Q",
+        "0",
+        "-m",
+        "-w",
+        "50",
+        "-o",
+        "/work/samtools_coverage/coverage.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_coverage" / "coverage.tsv"]
