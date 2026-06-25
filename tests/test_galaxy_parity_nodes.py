@@ -2981,3 +2981,292 @@ def test_bcftools_view_renders_subset_filter_command_and_output(tmp_path: Path) 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bcftools_view" / "view.vcf.gz",
     ]
+
+
+def test_galaxy_parity_bcftools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bcftools_merge": {
+            "display_name": "BCFtools Merge",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#merge",
+            "output": ["VCF_GZ"],
+            "search_alias": "merge samples",
+        },
+        "bcftools_isec": {
+            "display_name": "BCFtools Isec",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#isec",
+            "output": ["VCF_GZ"],
+            "search_alias": "variant intersection",
+        },
+        "bcftools_gtcheck": {
+            "display_name": "BCFtools GTcheck",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#gtcheck",
+            "output": ["TSV"],
+            "search_alias": "sample identity",
+        },
+        "bcftools_convert_to_vcf": {
+            "display_name": "BCFtools Convert to VCF",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#convert",
+            "output": ["VCF_GZ"],
+            "search_alias": "gvcf to vcf",
+        },
+        "bcftools_convert_from_vcf": {
+            "display_name": "BCFtools Convert from VCF",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#convert",
+            "output": ["TSV", "TSV", "TSV"],
+            "search_alias": "vcf to shapeit",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "variant"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
+        assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_merge_renders_multisample_merge_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_merge")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["tumor.vcf.gz", "normal.bcf"],
+            "force_samples": True,
+            "info_rules": "DP:sum,AD:join",
+            "merge": "both",
+            "no_index": True,
+            "print_header": True,
+            "use_header": "merged_header.vcf",
+            "apply_filters": "PASS,.",
+            "regions": "chr1:1-1000",
+            "regions_overlap": "1",
+            "include": "QUAL>20",
+            "exclude": "FILTER='LowQual'",
+            "output_type": "z",
+            "threads": 4,
+            "output": "/work/bcftools_merge",
+        }
+    ) == [
+        "bcftools",
+        "merge",
+        "--print-header",
+        "--use-header",
+        "merged_header.vcf",
+        "--force-samples",
+        "--info-rules",
+        "DP:sum,AD:join",
+        "--merge",
+        "both",
+        "--no-index",
+        "--apply-filters",
+        "PASS,.",
+        "--regions",
+        "chr1:1-1000",
+        "--regions-overlap",
+        "1",
+        "--include",
+        "QUAL>20",
+        "--exclude",
+        "FILTER='LowQual'",
+        "--output-type",
+        "z",
+        "--threads",
+        "4",
+        "tumor.vcf.gz",
+        "normal.bcf",
+        ">",
+        "/work/bcftools_merge/merged.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_merge" / "merged.vcf.gz",
+    ]
+
+
+def test_bcftools_isec_renders_intersection_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_isec")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["case.vcf.gz", "control.vcf.gz", "truth.vcf.gz"],
+            "nfiles": "+2",
+            "complement": True,
+            "collapse": "all",
+            "apply_filters": "PASS",
+            "regions": "chr2",
+            "targets": "targets.bed",
+            "targets_overlap": "0",
+            "include": "AF>0.05",
+            "exclude": "TYPE='ref'",
+            "output_type": "v",
+            "threads": 2,
+            "output": "/work/bcftools_isec",
+        }
+    ) == [
+        "bcftools",
+        "isec",
+        "--complement",
+        "--nfiles",
+        "+2",
+        "--regions",
+        "chr2",
+        "--targets",
+        "targets.bed",
+        "--targets-overlap",
+        "0",
+        "--collapse",
+        "all",
+        "--apply-filters",
+        "PASS",
+        "--include",
+        "AF>0.05",
+        "--exclude",
+        "TYPE='ref'",
+        "--output-type",
+        "v",
+        "--threads",
+        "2",
+        "case.vcf.gz",
+        "control.vcf.gz",
+        "truth.vcf.gz",
+        ">",
+        "/work/bcftools_isec/isec.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_isec" / "isec.vcf",
+    ]
+
+
+def test_bcftools_gtcheck_renders_identity_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_gtcheck")
+
+    assert node_class.render_command(
+        {
+            "input_file": "query.vcf.gz",
+            "genotypes": "reference.bcf",
+            "all_sites": True,
+            "homs_only": True,
+            "query_sample": "QUERY1",
+            "target_sample": "TARGET1",
+            "plot": "discordance",
+            "regions": "chr3",
+            "targets": "sites.bed",
+            "output": "/work/bcftools_gtcheck",
+        }
+    ) == [
+        "bcftools",
+        "gtcheck",
+        "--genotypes",
+        "reference.bcf",
+        "--all-sites",
+        "--homs-only",
+        "--plot",
+        "discordance",
+        "--query-sample",
+        "QUERY1",
+        "--target-sample",
+        "TARGET1",
+        "--regions",
+        "chr3",
+        "--targets",
+        "sites.bed",
+        "query.vcf.gz",
+        ">",
+        "/work/bcftools_gtcheck/gtcheck.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_gtcheck" / "gtcheck.tsv",
+    ]
+
+
+def test_bcftools_convert_to_vcf_renders_tsv_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_convert_to_vcf")
+
+    assert node_class.render_command(
+        {
+            "convert_from": "tsv",
+            "input_file": "variants.tsv",
+            "reference": "ref.fa",
+            "samples": "SAMPLE1,SAMPLE2",
+            "columns": "ID,CHROM,POS,AA",
+            "output_type": "z",
+            "output": "/work/bcftools_convert_to_vcf",
+        }
+    ) == [
+        "bcftools",
+        "convert",
+        "--output-type",
+        "z",
+        "--fasta-ref",
+        "ref.fa",
+        "--samples",
+        "SAMPLE1,SAMPLE2",
+        "--columns",
+        "ID,CHROM,POS,AA",
+        "--tsv2vcf",
+        "variants.tsv",
+        ">",
+        "/work/bcftools_convert_to_vcf/converted.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_convert_to_vcf" / "converted.vcf.gz",
+    ]
+
+
+def test_bcftools_convert_from_vcf_renders_hap_legend_sample_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_convert_from_vcf")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "convert_to": "hap_legend_sample",
+            "vcf_ids": True,
+            "haploid2diploid": True,
+            "sex_file": "sex.tsv",
+            "keep_duplicates": True,
+            "samples": "S1,S2",
+            "regions": "chrX",
+            "targets": "targets.bed",
+            "include": "MAF>0.01",
+            "exclude": "FILTER!='PASS'",
+            "output": "/work/bcftools_convert_from_vcf",
+        }
+    ) == [
+        "bcftools",
+        "convert",
+        "--vcf-ids",
+        "--haploid2diploid",
+        "--haplegendsample",
+        "/work/bcftools_convert_from_vcf/converted.hap,/work/bcftools_convert_from_vcf/converted.legend,/work/bcftools_convert_from_vcf/converted.samples",
+        "--sex",
+        "sex.tsv",
+        "--keep-duplicates",
+        "--include",
+        "MAF>0.01",
+        "--exclude",
+        "FILTER!='PASS'",
+        "--regions",
+        "chrX",
+        "--targets",
+        "targets.bed",
+        "--samples",
+        "S1,S2",
+        "cohort.vcf.gz",
+        ".",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"convert_to": "hap_legend_sample"}, tmp_path) == [
+        tmp_path / "bcftools_convert_from_vcf" / "converted.hap",
+        tmp_path / "bcftools_convert_from_vcf" / "converted.legend",
+        tmp_path / "bcftools_convert_from_vcf" / "converted.samples",
+    ]

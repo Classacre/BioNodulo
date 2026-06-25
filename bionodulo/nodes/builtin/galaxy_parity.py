@@ -115,6 +115,28 @@ def _bcftools_add_restrict(cmd: list[str], inputs: dict[str, Any]) -> None:
     _add_if_value(cmd, "--exclude", inputs.get("exclude"))
 
 
+def _bcftools_add_apply_filters(cmd: list[str], inputs: dict[str, Any]) -> None:
+    _add_if_value(cmd, "--apply-filters", inputs.get("apply_filters"))
+
+
+def _bcftools_add_region_targets(cmd: list[str], inputs: dict[str, Any]) -> None:
+    _add_if_value(cmd, "--regions", inputs.get("regions"))
+    _add_if_value(cmd, "--regions-overlap", inputs.get("regions_overlap"))
+    _add_if_value(cmd, "--targets", inputs.get("targets"))
+    _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
+
+
+def _bcftools_convert_from_outputs(inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+    out = Path(output_dir) / "bcftools_convert_from_vcf"
+    out.mkdir(parents=True, exist_ok=True)
+    mode = str(inputs.get("convert_to", "gen_sample"))
+    if mode == "hap_legend_sample":
+        return [out / "converted.hap", out / "converted.legend", out / "converted.samples"]
+    if mode == "hap_sample":
+        return [out / "converted.hap", out / "converted.samples"]
+    return [out / "converted.gen", out / "converted.samples"]
+
+
 class BUSCONode(CommandNode):
     """Assess genome, transcriptome, or proteome completeness with BUSCO."""
 
@@ -3984,6 +4006,355 @@ class BCFtoolsViewNode(CommandNode):
                 "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
                 "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsMergeNode(CommandNode):
+    """Merge VCF/BCF files from non-overlapping sample sets."""
+
+    NODE_ID = "bcftools_merge"
+    DISPLAY_NAME = "BCFtools Merge"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Merge multiple VCF/BCF files from non-overlapping sample sets into one multi-sample file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "merge", "merge samples", "multi-sample vcf", "combine cohorts"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("merged_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#merge"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "merge"]
+        if inputs.get("print_header"):
+            cmd.append("--print-header")
+        _add_if_value(cmd, "--use-header", inputs.get("use_header"))
+        if inputs.get("force_samples"):
+            cmd.append("--force-samples")
+        _add_if_value(cmd, "--info-rules", inputs.get("info_rules"))
+        _add_if_value(cmd, "--merge", inputs.get("merge"))
+        if inputs.get("no_index"):
+            cmd.append("--no-index")
+        _bcftools_add_apply_filters(cmd, inputs)
+        _bcftools_add_region_targets(cmd, inputs)
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.extend(_as_list(inputs.get("input_files", inputs.get("inputs"))))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/merged{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"merged{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": ("VCF_LIST", {"description": "VCF/BCF files from non-overlapping sample sets"}),
+            },
+            "optional": {
+                "force_samples": ("BOOLEAN", {"default": False, "description": "Resolve duplicate sample names"}),
+                "info_rules": ("STRING", {"default": "", "description": "INFO merge rules such as DP:sum,AD:join"}),
+                "merge": ("STRING", {"default": "", "options": ["", "none", "snps", "indels", "both", "all", "id"], "description": "Allow multiallelic records for the selected class"}),
+                "no_index": ("BOOLEAN", {"default": False, "description": "Allow merging unindexed files"}),
+                "print_header": ("BOOLEAN", {"default": False, "description": "Print only the merged header"}),
+                "use_header": ("VCF", {"description": "Header to use for the merged output"}),
+                "apply_filters": ("STRING", {"default": "", "description": "Skip sites whose FILTER does not match these terms"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsIsecNode(CommandNode):
+    """Create intersections, unions, and complements of VCF/BCF files."""
+
+    NODE_ID = "bcftools_isec"
+    DISPLAY_NAME = "BCFtools Isec"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Create intersections, unions, and complements across multiple VCF/BCF files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "isec", "variant intersection", "vcf union", "vcf complement"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("isec_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#isec"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "isec"]
+        if inputs.get("complement"):
+            cmd.append("--complement")
+        _add_if_value(cmd, "--nfiles", inputs.get("nfiles"))
+        _bcftools_add_region_targets(cmd, inputs)
+        _add_if_value(cmd, "--collapse", inputs.get("collapse"))
+        _bcftools_add_apply_filters(cmd, inputs)
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.extend(_as_list(inputs.get("input_files", inputs.get("inputs"))))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/isec{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"isec{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": ("VCF_LIST", {"description": "VCF/BCF files to intersect or compare"}),
+            },
+            "optional": {
+                "nfiles": ("STRING", {"default": "", "description": "Output positions present in =N, +N, -N, or ~bitmask files"}),
+                "complement": ("BOOLEAN", {"default": False, "description": "Output positions present only in the first file"}),
+                "collapse": ("STRING", {"default": "", "options": ["", "snps", "indels", "both", "all", "some", "none", "id"], "description": "Compatibility mode for records at duplicate positions"}),
+                "apply_filters": ("STRING", {"default": "", "description": "Skip sites whose FILTER does not match these terms"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsGTcheckNode(CommandNode):
+    """Check sample identity and genotype concordance."""
+
+    NODE_ID = "bcftools_gtcheck"
+    DISPLAY_NAME = "BCFtools GTcheck"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Check sample identity by comparing genotypes within or between VCF/BCF files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "gtcheck", "sample identity", "genotype concordance", "discordance"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("gtcheck_table",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#gtcheck"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "gtcheck"]
+        _add_if_value(cmd, "--genotypes", inputs.get("genotypes"))
+        if inputs.get("all_sites"):
+            cmd.append("--all-sites")
+        if inputs.get("homs_only"):
+            cmd.append("--homs-only")
+        _add_if_value(cmd, "--plot", inputs.get("plot"))
+        _add_if_value(cmd, "--query-sample", inputs.get("query_sample"))
+        _add_if_value(cmd, "--target-sample", inputs.get("target_sample"))
+        _bcftools_add_region_targets(cmd, inputs)
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/gtcheck.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "gtcheck.tsv", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "Query VCF/BCF file"}),
+            },
+            "optional": {
+                "genotypes": ("VCF", {"description": "Genotypes to compare against"}),
+                "target_sample": ("STRING", {"default": "", "description": "Target sample in the genotype file"}),
+                "all_sites": ("BOOLEAN", {"default": False, "description": "Output comparison for all sites"}),
+                "homs_only": ("BOOLEAN", {"default": False, "description": "Use homozygous genotypes only"}),
+                "query_sample": ("STRING", {"default": "", "description": "Query sample"}),
+                "plot": ("STRING", {"default": "", "description": "Plot prefix name"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsConvertToVcfNode(CommandNode):
+    """Convert gVCF, TSV, GEN/SAMPLE, or HAP/SAMPLE data to VCF/BCF."""
+
+    NODE_ID = "bcftools_convert_to_vcf"
+    DISPLAY_NAME = "BCFtools Convert to VCF"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Convert gVCF, tabular genotype data, and IMPUTE2/SHAPEIT files into VCF/BCF."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "convert", "gvcf to vcf", "tsv to vcf", "shapeit to vcf"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("converted_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#convert"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "convert"]
+        _bcftools_add_output_type(cmd, inputs)
+        mode = str(inputs.get("convert_from", "tsv"))
+        if mode == "gen_sample":
+            cmd.extend(["--gensample2vcf", f"{inputs.get('input_file', '')},{inputs.get('input_sample', '')}"])
+        elif mode == "hap_sample":
+            cmd.extend(["--hapsample2vcf", f"{inputs.get('input_file', '')},{inputs.get('input_sample', '')}"])
+        elif mode == "hap_legend_sample":
+            cmd.extend(
+                [
+                    "--haplegendsample2vcf",
+                    f"{inputs.get('input_file', '')},{inputs.get('input_legend', '')},{inputs.get('input_sample', '')}",
+                ]
+            )
+        elif mode == "gvcf":
+            _add_if_value(cmd, "--fasta-ref", inputs.get("reference"))
+            cmd.extend(["--gvcf2vcf", str(inputs.get("input_file", ""))])
+        else:
+            _add_if_value(cmd, "--fasta-ref", inputs.get("reference"))
+            _add_if_value(cmd, "--samples", inputs.get("samples"))
+            _add_if_value(cmd, "--columns", inputs.get("columns"))
+            cmd.extend(["--tsv2vcf", str(inputs.get("input_file", ""))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/converted{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"converted{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("FILE", {"description": "Input gVCF, TSV, GEN, HAP, or related file"}),
+            },
+            "optional": {
+                "convert_from": ("STRING", {"default": "tsv", "options": ["tsv", "gvcf", "gen_sample", "hap_sample", "hap_legend_sample"], "description": "Galaxy conversion source mode"}),
+                "input_sample": ("TSV", {"description": "Sample file for GEN/HAP input"}),
+                "input_legend": ("TSV", {"description": "Legend file for HAP/LEGEND/SAMPLE input"}),
+                "reference": ("FASTA", {"description": "Reference FASTA for gVCF or TSV conversion"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated sample names for TSV conversion"}),
+                "columns": ("STRING", {"default": "", "description": "Column mapping for TSV conversion"}),
+                "output_type": ("STRING", {"default": "z", "options": ["z", "v", "b", "u"], "description": "BCFtools output type"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsConvertFromVcfNode(CommandNode):
+    """Convert VCF/BCF to IMPUTE2 or SHAPEIT tabular formats."""
+
+    NODE_ID = "bcftools_convert_from_vcf"
+    DISPLAY_NAME = "BCFtools Convert from VCF"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Convert VCF/BCF records to GEN/SAMPLE, HAP/SAMPLE, or HAP/LEGEND/SAMPLE files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "convert", "vcf to shapeit", "vcf to impute2", "hap legend sample"]
+    RETURN_TYPES = ("TSV", "TSV", "TSV")
+    RETURN_NAMES = ("converted_variants", "converted_legend", "converted_samples")
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#convert"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["bcftools", "convert"]
+        mode = str(inputs.get("convert_to", "gen_sample"))
+        if mode == "gen_sample":
+            _add_if_value(cmd, "--tag", inputs.get("tag", "GT"))
+            if inputs.get("convert_3n6"):
+                cmd.append("--3N6")
+            if inputs.get("vcf_ids"):
+                cmd.append("--vcf-ids")
+            cmd.extend(["--gensample", f"{out}/converted.gen,{out}/converted.samples"])
+        elif mode == "hap_sample":
+            if inputs.get("vcf_ids"):
+                cmd.append("--vcf-ids")
+            if inputs.get("haploid2diploid"):
+                cmd.append("--haploid2diploid")
+            cmd.extend(["--hapsample", f"{out}/converted.hap,{out}/converted.samples"])
+        else:
+            if inputs.get("vcf_ids"):
+                cmd.append("--vcf-ids")
+            if inputs.get("haploid2diploid"):
+                cmd.append("--haploid2diploid")
+            cmd.extend(["--haplegendsample", f"{out}/converted.hap,{out}/converted.legend,{out}/converted.samples"])
+        _add_if_value(cmd, "--sex", inputs.get("sex_file", inputs.get("sex_info_file")))
+        if inputs.get("keep_duplicates"):
+            cmd.append("--keep-duplicates")
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _bcftools_add_region_targets(cmd, inputs)
+        _add_if_value(cmd, "--samples", inputs.get("samples"))
+        cmd.extend([str(inputs.get("input_file", "")), "."])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return _bcftools_convert_from_outputs(inputs, output_dir)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file to convert"}),
+            },
+            "optional": {
+                "convert_to": ("STRING", {"default": "gen_sample", "options": ["gen_sample", "hap_sample", "hap_legend_sample"], "description": "Galaxy conversion target mode"}),
+                "tag": ("STRING", {"default": "GT", "options": ["GT", "PL", "GP"], "description": "Tag to use for GEN/SAMPLE output"}),
+                "convert_3n6": ("BOOLEAN", {"default": False, "description": "Use 3N+6 GEN format"}),
+                "vcf_ids": ("BOOLEAN", {"default": False, "description": "Output VCF IDs instead of CHROM:POS_REF_ALT"}),
+                "haploid2diploid": ("BOOLEAN", {"default": False, "description": "Convert haploid genotypes to diploid homozygotes"}),
+                "sex_file": ("TSV", {"description": "Per-sample sex designation file"}),
+                "keep_duplicates": ("BOOLEAN", {"default": False, "description": "Keep all multiallelic variants"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
