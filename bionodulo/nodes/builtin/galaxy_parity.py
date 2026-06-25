@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from re import sub
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -30,6 +31,10 @@ def _as_list(value: Any) -> list[str]:
     if isinstance(value, (list, tuple)):
         return [str(v) for v in value if str(v) != ""]
     return [str(value)]
+
+
+def _safe_name(value: str) -> str:
+    return sub(r"[^\w\-.]", "_", Path(value).name)
 
 
 class BUSCONode(CommandNode):
@@ -1076,6 +1081,323 @@ class IVarVariantsNode(CommandNode):
             "optional": {
                 "gtf": ("GFF", {"description": "Optional ORF annotations for amino-acid effect columns"}),
                 "pass_only": ("BOOLEAN", {"default": False, "description": "Only include PASS variants in VCF output"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class GTDBTkClassifyWFNode(CommandNode):
+    """Assign bacterial and archaeal taxonomy with GTDB-Tk classify_wf."""
+
+    NODE_ID = "gtdbtk_classify_wf"
+    DISPLAY_NAME = "GTDB-Tk Classify"
+    REQUIRED_CONDA_PACKAGES = ["gtdbtk"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Classify one or more bacterial or archaeal genomes against the GTDB reference taxonomy."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "gtdbtk", "GTDB-Tk", "classify_wf", "taxonomy", "genome taxonomy", "MAG classification"]
+    RETURN_TYPES = ("DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "STATS_FILE")
+    RETURN_NAMES = ("align", "identify", "classify", "summary", "process_log")
+    REQUIRED_EXECUTABLES = ["gtdbtk"]
+    DOCUMENTATION_URL = "https://ecogenomics.github.io/GTDBTk/commands/classify_wf.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btz848"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btz848"]
+    CITATION_TEXT = "GTDB-Tk: a toolkit to classify genomes with the Genome Taxonomy Database."
+    VERSION = "2.7.2"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        input_dir = f"{out}/input_dir"
+        output_dir = f"{out}/output_dir"
+        cmd = ["mkdir", "-p", input_dir, output_dir]
+        genomes = _as_list(inputs.get("input"))
+        extension = str(inputs.get("extension", "")).lstrip(".")
+        for genome in genomes:
+            link_name = _safe_name(genome)
+            if extension and not link_name.endswith(f".{extension}"):
+                link_name = f"{link_name}.{extension}"
+            cmd.extend(["&&", "ln", "-sf", genome, f"{input_dir}/{link_name}"])
+
+        cmd.extend([
+            "&&",
+            "export",
+            f"GTDBTK_DATA_PATH={inputs.get('gtdbtk_data_path', '')}",
+            "&&",
+            "gtdbtk",
+            "classify_wf",
+            "--genome_dir",
+            input_dir,
+            "--extension",
+            extension,
+            "--out_dir",
+            output_dir,
+            "--cpus",
+            str(inputs.get("threads", 4)),
+            "--min_perc_aa",
+            str(inputs.get("min_perc_aa", 10)),
+        ])
+        if inputs.get("force"):
+            cmd.append("--force")
+        cmd.extend(["--min_af", str(inputs.get("min_af", 0.65))])
+        if inputs.get("full_tree"):
+            cmd.append("--full_tree")
+        if inputs.get("skip_ani_screen", True):
+            cmd.append("--skip_ani_screen")
+        if inputs.get("output_process_log"):
+            cmd.extend([
+                "&&",
+                "cat",
+                f"{output_dir}/gtdbtk.warnings.log",
+                f"{output_dir}/gtdbtk.log",
+                ">",
+                f"{out}/process.log",
+            ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        gtdbtk_out = out / "output_dir"
+        outputs = [gtdbtk_out / "align", gtdbtk_out / "identify", gtdbtk_out / "classify", gtdbtk_out]
+        if inputs.get("output_process_log"):
+            outputs.append(out / "process.log")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FASTA_LIST", {"description": "Genome FASTA or FASTA.GZ files to classify"}),
+                "gtdbtk_data_path": ("DIRECTORY", {"description": "Local GTDB-Tk reference database path"}),
+            },
+            "optional": {
+                "extension": ("STRING", {"default": "fna.gz", "description": "Input genome extension visible to GTDB-Tk"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 256, "display": "slider"}),
+                "min_perc_aa": ("INT", {"default": 10, "min": 0, "max": 100}),
+                "force": ("BOOLEAN", {"default": False, "advanced": True}),
+                "min_af": ("FLOAT", {"default": 0.65, "min": 0, "max": 1}),
+                "full_tree": ("BOOLEAN", {"default": False, "advanced": True}),
+                "skip_ani_screen": ("BOOLEAN", {"default": True, "description": "Skip ANI screen when a Mash DB is unavailable", "advanced": True}),
+                "output_process_log": ("BOOLEAN", {"default": False, "description": "Emit combined GTDB-Tk warnings and process log"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class RSeQCInferExperimentNode(CommandNode):
+    """Infer RNA-seq strandedness from alignments and a BED12 gene model."""
+
+    NODE_ID = "rseqc_infer_experiment"
+    DISPLAY_NAME = "RSeQC Infer Experiment"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Estimate RNA-seq strandedness and library configuration from mapped reads."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "rseqc", "infer_experiment", "strandedness", "rna-seq qc", "library orientation"]
+    RETURN_TYPES = ("STATS_FILE",)
+    RETURN_NAMES = ("infer_experiment",)
+    REQUIRED_EXECUTABLES = ["infer_experiment.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#infer-experiment-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "infer_experiment.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-r",
+            str(inputs.get("refgene", "")),
+            "--sample-size",
+            str(inputs.get("sample_size", 200000)),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/infer_experiment.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "infer_experiment.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "sample_size": ("INT", {"default": 200000, "min": 1, "description": "Number of usable reads to sample"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsCoverageNode(CommandNode):
+    """Compute depth and breadth of B features across A intervals."""
+
+    NODE_ID = "bedtools_coveragebed"
+    DISPLAY_NAME = "BEDTools Coverage"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Compute interval coverage depth and breadth using bedtools coverage."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "coverage", "coveragebed", "depth", "breadth", "interval coverage"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("coverage",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/coverage.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "coverage"]
+        if inputs.get("d"):
+            cmd.append("-d")
+        if inputs.get("hist"):
+            cmd.append("-hist")
+        if inputs.get("split"):
+            cmd.append("-split")
+        if inputs.get("strandedness"):
+            cmd.append("-s")
+        if inputs.get("mean"):
+            cmd.append("-mean")
+        _add_if_value(cmd, "-f", inputs.get("overlap_a"))
+        _add_if_value(cmd, "-F", inputs.get("overlap_b"))
+        if inputs.get("reciprocal_overlap"):
+            cmd.append("-r")
+        if inputs.get("a_or_b"):
+            cmd.append("-e")
+        cmd.extend(["-a", str(inputs.get("inputA", "")), "-b", *_as_list(inputs.get("inputB"))])
+        if inputs.get("sorted"):
+            cmd.append("-sorted")
+        if str(inputs.get("inputA", "")).lower().endswith((".gff", ".gff3")):
+            cmd.extend(["|", "sort", "-k1,1", "-k4,2n"])
+        else:
+            cmd.extend(["|", "sort", "-k1,1", "-k2,2n"])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/coverage.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "coverage.bed"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "File A intervals on which coverage is calculated"}),
+                "inputB": ("BED_LIST", {"description": "One or more file B interval or BAM inputs"}),
+            },
+            "optional": {
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM alignments as distinct intervals"}),
+                "strandedness": ("BOOLEAN", {"default": False, "description": "Require same-strand overlaps"}),
+                "d": ("BOOLEAN", {"default": False, "description": "Report depth at each position"}),
+                "hist": ("BOOLEAN", {"default": False, "description": "Report coverage histogram"}),
+                "mean": ("BOOLEAN", {"default": False, "description": "Report mean depth"}),
+                "overlap_a": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of A"}),
+                "overlap_b": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of B"}),
+                "reciprocal_overlap": ("BOOLEAN", {"default": False, "advanced": True}),
+                "a_or_b": ("BOOLEAN", {"default": False, "advanced": True}),
+                "sorted": ("BOOLEAN", {"default": False, "description": "Use sorted input mode"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsGenomeCoverageNode(CommandNode):
+    """Compute genome-wide interval coverage with bedtools genomecov."""
+
+    NODE_ID = "bedtools_genomecoveragebed"
+    DISPLAY_NAME = "BEDTools Genome Coverage"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Compute genome-wide coverage from BAM or interval files with bedtools genomecov."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "genomecov", "genome coverage", "bedgraph", "coverage histogram"]
+    RETURN_TYPES = ("BEDGRAPH", "TSV")
+    RETURN_NAMES = ("genome_coverage_bedgraph", "genome_coverage_histogram")
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/genomecov.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        report = str(inputs.get("report", inputs.get("report_select", "bg")))
+        output_name = "genome_coverage.tsv" if report == "hist" else "genome_coverage.bedgraph"
+        input_type = str(inputs.get("input_type", inputs.get("input_type_select", "bed")))
+        cmd = ["bedtools", "genomecov"]
+        if input_type == "bam":
+            cmd.extend(["-ibam", str(inputs.get("input", ""))])
+        else:
+            cmd.extend(["-i", str(inputs.get("input", ""))])
+            _add_if_value(cmd, "-g", inputs.get("genome"))
+        if inputs.get("split"):
+            cmd.append("-split")
+        strand = str(inputs.get("strand", ""))
+        if strand:
+            cmd.extend(["-strand", strand.replace("-strand ", "")])
+        if report == "bg":
+            cmd.append("-bga" if inputs.get("zero_regions") else "-bg")
+            _add_if_value(cmd, "-scale", inputs.get("scale", 1.0))
+        else:
+            _add_if_value(cmd, "-max", inputs.get("max"))
+        if inputs.get("d"):
+            cmd.append("-d")
+        if inputs.get("dz"):
+            cmd.append("-dz")
+        if inputs.get("five"):
+            cmd.append("-5")
+        if inputs.get("three"):
+            cmd.append("-3")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/{output_name}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        report = str(inputs.get("report", inputs.get("report_select", "bg")))
+        if report == "hist":
+            return [out / "genome_coverage.tsv"]
+        return [out / "genome_coverage.bedgraph"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_type": ("STRING", {"default": "bed", "options": ["bed", "bam"]}),
+                "input": ("FILE", {"description": "Sorted BED/GFF/VCF/BAM input"}),
+                "report": ("STRING", {"default": "bg", "options": ["bg", "hist"], "description": "BedGraph or histogram output"}),
+            },
+            "optional": {
+                "genome": ("TSV", {"description": "Genome chromosome sizes file required for BED-like input"}),
+                "zero_regions": ("BOOLEAN", {"default": False, "description": "Report zero-coverage regions with -bga"}),
+                "scale": ("FLOAT", {"default": 1.0, "min": 0}),
+                "max": ("INT", {"default": "", "min": 0, "description": "Histogram max depth bin"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM alignments as distinct intervals"}),
+                "strand": ("STRING", {"default": "", "options": ["", "+", "-"], "description": "Restrict coverage to one strand"}),
+                "d": ("BOOLEAN", {"default": False, "description": "Report 1-based per-position depth"}),
+                "dz": ("BOOLEAN", {"default": False, "description": "Report 0-based non-zero per-position depth"}),
+                "five": ("BOOLEAN", {"default": False, "description": "Calculate coverage of 5' positions"}),
+                "three": ("BOOLEAN", {"default": False, "description": "Calculate coverage of 3' positions"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

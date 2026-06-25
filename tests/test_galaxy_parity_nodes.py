@@ -848,3 +848,240 @@ def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> N
         tmp_path / "ivar_variants" / "variants.tsv",
         tmp_path / "ivar_variants" / "variants.vcf",
     ]
+
+
+def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "gtdbtk_classify_wf": {
+            "display_name": "GTDB-Tk Classify",
+            "category": "taxonomy",
+            "required_executables": ["gtdbtk"],
+            "required_conda_packages": ["gtdbtk"],
+            "doi": "10.1093/bioinformatics/btz848",
+        },
+        "rseqc_infer_experiment": {
+            "display_name": "RSeQC Infer Experiment",
+            "category": "rna_seq",
+            "required_executables": ["infer_experiment.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
+        "bedtools_coveragebed": {
+            "display_name": "BEDTools Coverage",
+            "category": "genomics",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_genomecoveragebed": {
+            "display_name": "BEDTools Genome Coverage",
+            "category": "genomics",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == metadata["category"]
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert metadata["doi"] in node_info["citation_dois"]
+        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
+        assert node_info["documentation_url"].startswith(("https://", "http://"))
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_gtdbtk_classify_wf_renders_classification_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("gtdbtk_classify_wf")
+
+    assert node_class.render_command(
+        {
+            "input": ["G1.fna.gz", "G2.fna.gz"],
+            "extension": "fna.gz",
+            "gtdbtk_data_path": "/db/gtdbtk",
+            "threads": 8,
+            "min_perc_aa": 15,
+            "force": True,
+            "min_af": 0.7,
+            "full_tree": True,
+            "skip_ani_screen": True,
+            "output_process_log": True,
+            "output": "/work/gtdbtk",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/gtdbtk/input_dir",
+        "/work/gtdbtk/output_dir",
+        "&&",
+        "ln",
+        "-sf",
+        "G1.fna.gz",
+        "/work/gtdbtk/input_dir/G1.fna.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "G2.fna.gz",
+        "/work/gtdbtk/input_dir/G2.fna.gz",
+        "&&",
+        "export",
+        "GTDBTK_DATA_PATH=/db/gtdbtk",
+        "&&",
+        "gtdbtk",
+        "classify_wf",
+        "--genome_dir",
+        "/work/gtdbtk/input_dir",
+        "--extension",
+        "fna.gz",
+        "--out_dir",
+        "/work/gtdbtk/output_dir",
+        "--cpus",
+        "8",
+        "--min_perc_aa",
+        "15",
+        "--force",
+        "--min_af",
+        "0.7",
+        "--full_tree",
+        "--skip_ani_screen",
+        "&&",
+        "cat",
+        "/work/gtdbtk/output_dir/gtdbtk.warnings.log",
+        "/work/gtdbtk/output_dir/gtdbtk.log",
+        ">",
+        "/work/gtdbtk/process.log",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_process_log": True}, tmp_path) == [
+        tmp_path / "gtdbtk_classify_wf" / "output_dir" / "align",
+        tmp_path / "gtdbtk_classify_wf" / "output_dir" / "identify",
+        tmp_path / "gtdbtk_classify_wf" / "output_dir" / "classify",
+        tmp_path / "gtdbtk_classify_wf" / "output_dir",
+        tmp_path / "gtdbtk_classify_wf" / "process.log",
+    ]
+
+
+def test_rseqc_infer_experiment_renders_strandedness_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_infer_experiment")
+
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed",
+            "sample_size": 200000,
+            "mapq": 30,
+            "output": "/work/rseqc_infer_experiment",
+        }
+    ) == [
+        "infer_experiment.py",
+        "-i",
+        "aligned.bam",
+        "-r",
+        "genes.bed",
+        "--sample-size",
+        "200000",
+        "--mapq",
+        "30",
+        ">",
+        "/work/rseqc_infer_experiment/infer_experiment.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_infer_experiment" / "infer_experiment.txt",
+    ]
+
+
+def test_bedtools_coveragebed_renders_depth_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_coveragebed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "windows.bed",
+            "inputB": ["reads.bam", "capture.bed"],
+            "split": True,
+            "strandedness": True,
+            "d": True,
+            "mean": True,
+            "overlap_a": 0.5,
+            "overlap_b": 0.2,
+            "reciprocal_overlap": True,
+            "a_or_b": True,
+            "sorted": True,
+            "output": "/work/bedtools_coveragebed",
+        }
+    ) == [
+        "bedtools",
+        "coverage",
+        "-d",
+        "-split",
+        "-s",
+        "-mean",
+        "-f",
+        "0.5",
+        "-F",
+        "0.2",
+        "-r",
+        "-e",
+        "-a",
+        "windows.bed",
+        "-b",
+        "reads.bam",
+        "capture.bed",
+        "-sorted",
+        "|",
+        "sort",
+        "-k1,1",
+        "-k2,2n",
+        ">",
+        "/work/bedtools_coveragebed/coverage.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_coveragebed" / "coverage.bed",
+    ]
+
+
+def test_bedtools_genomecoveragebed_renders_bam_bedgraph_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_genomecoveragebed")
+
+    assert node_class.render_command(
+        {
+            "input_type": "bam",
+            "input": "reads.bam",
+            "report": "bg",
+            "zero_regions": True,
+            "scale": 0.5,
+            "split": True,
+            "strand": "+",
+            "d": True,
+            "five": True,
+            "output": "/work/bedtools_genomecoveragebed",
+        }
+    ) == [
+        "bedtools",
+        "genomecov",
+        "-ibam",
+        "reads.bam",
+        "-split",
+        "-strand",
+        "+",
+        "-bga",
+        "-scale",
+        "0.5",
+        "-d",
+        "-5",
+        ">",
+        "/work/bedtools_genomecoveragebed/genome_coverage.bedgraph",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"report": "bg"}, tmp_path) == [
+        tmp_path / "bedtools_genomecoveragebed" / "genome_coverage.bedgraph",
+    ]
+    assert node_class.PLAN_OUTPUTS({"report": "hist"}, tmp_path) == [
+        tmp_path / "bedtools_genomecoveragebed" / "genome_coverage.tsv",
+    ]

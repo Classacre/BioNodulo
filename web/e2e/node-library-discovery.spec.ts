@@ -349,6 +349,91 @@ const objectInfo = {
     citation_dois: ['10.1186/s13059-018-1618-7'],
     citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
   },
+  gtdbtk_classify_wf: {
+    name: 'gtdbtk_classify_wf',
+    display_name: 'GTDB-Tk Classify',
+    category: 'taxonomy',
+    description: 'Classify bacterial and archaeal genomes against the GTDB reference taxonomy.',
+    search_aliases: ['Galaxy', 'gtdbtk', 'GTDB-Tk', 'classify_wf', 'taxonomy', 'genome taxonomy'],
+    input: {
+      required: {
+        input: { type: 'FASTA_LIST' },
+        gtdbtk_data_path: { type: 'DIRECTORY' },
+      },
+    },
+    output: ['DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'STATS_FILE'],
+    output_name: ['align', 'identify', 'classify', 'summary', 'process_log'],
+    required_executables: ['gtdbtk'],
+    required_conda_packages: ['gtdbtk'],
+    documentation_url: 'https://ecogenomics.github.io/GTDBTk/commands/classify_wf.html',
+    citation_dois: ['10.1093/bioinformatics/btz848'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btz848'],
+    citation_text: 'GTDB-Tk: a toolkit to classify genomes with the Genome Taxonomy Database.',
+  },
+  rseqc_infer_experiment: {
+    name: 'rseqc_infer_experiment',
+    display_name: 'RSeQC Infer Experiment',
+    category: 'rna_seq',
+    description: 'Estimate RNA-seq strandedness and library configuration from mapped reads.',
+    search_aliases: ['Galaxy', 'rseqc', 'infer_experiment', 'strandedness', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+    },
+    output: ['STATS_FILE'],
+    output_name: ['infer_experiment'],
+    required_executables: ['infer_experiment.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#infer-experiment-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
+  bedtools_coveragebed: {
+    name: 'bedtools_coveragebed',
+    display_name: 'BEDTools Coverage',
+    category: 'genomics',
+    description: 'Compute interval coverage depth and breadth using bedtools coverage.',
+    search_aliases: ['Galaxy', 'bedtools', 'coverage', 'coveragebed', 'depth', 'breadth'],
+    input: {
+      required: {
+        inputA: { type: 'BED' },
+        inputB: { type: 'BED_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['coverage'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/coverage.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_genomecoveragebed: {
+    name: 'bedtools_genomecoveragebed',
+    display_name: 'BEDTools Genome Coverage',
+    category: 'genomics',
+    description: 'Compute genome-wide coverage from BAM or interval files with bedtools genomecov.',
+    search_aliases: ['Galaxy', 'bedtools', 'genomecov', 'genome coverage', 'bedgraph'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'bed', options: ['bed', 'bam'] },
+        input: { type: 'FILE' },
+        report: { type: 'STRING', default: 'bg', options: ['bg', 'hist'] },
+      },
+    },
+    output: ['BEDGRAPH', 'TSV'],
+    output_name: ['genome_coverage_bedgraph', 'genome_coverage_histogram'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/genomecov.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -398,7 +483,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('22 nodes available')).toBeVisible();
+  await expect(page.getByText('26 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -424,6 +509,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
+    { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
+    { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
+    { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
+    { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
   ];
 
   for (const node of expectedNodes) {
