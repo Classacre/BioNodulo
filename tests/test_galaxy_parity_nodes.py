@@ -3605,6 +3605,24 @@ def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
             "output": ["VCF_GZ"],
             "search_alias": "convert genotype tags",
         },
+        "bcftools_plugin_fill_an_ac": {
+            "display_name": "BCFtools +fill-AN-AC",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "fill AN AC",
+        },
+        "bcftools_plugin_fill_tags": {
+            "display_name": "BCFtools +fill-tags",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.fill-tags.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "fill INFO tags",
+        },
+        "bcftools_plugin_setgt": {
+            "display_name": "BCFtools +setGT",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.setGT.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "set genotype calls",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3791,4 +3809,138 @@ def test_bcftools_plugin_tag2tag_renders_conversion_command_and_output(tmp_path:
     assert "output_type" not in input_types["optional"]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bcftools_plugin_tag2tag" / "tag2tag.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_fill_an_ac_renders_vcf_annotation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_fill_an_ac")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "include": "TYPE='snp'",
+            "regions": "chr1:1-100",
+            "targets": "targets.tsv.gz",
+            "threads": 5,
+            "output": "/work/bcftools_plugin_fill_an_ac",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "fill-AN-AC",
+        "--include",
+        "TYPE='snp'",
+        "--regions",
+        "chr1:1-100",
+        "--targets",
+        "targets.tsv.gz",
+        "--output-type",
+        "z",
+        "--threads",
+        "5",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_plugin_fill_an_ac/fill_an_ac.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_fill_an_ac" / "fill_an_ac.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_fill_tags_renders_plugin_tags_samples_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_fill_tags")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.bcf",
+            "tags": ["AN", "AC", "AC_Het"],
+            "samples": "S1,S2",
+            "samples_file": "populations.tsv",
+            "invert_samples_file": True,
+            "drop_missing": True,
+            "regions": "chr2",
+            "exclude": "FILTER='LowQual'",
+            "threads": 8,
+            "output": "/work/bcftools_plugin_fill_tags",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "fill-tags",
+        "--exclude",
+        "FILTER='LowQual'",
+        "--regions",
+        "chr2",
+        "--output-type",
+        "z",
+        "--threads",
+        "8",
+        "cohort.bcf",
+        "--",
+        "--tags",
+        "AN,AC,AC_Het",
+        "--samples",
+        "S1,S2",
+        "--samples-file",
+        "^populations.tsv",
+        "--drop-missing",
+        ">",
+        "/work/bcftools_plugin_fill_tags/fill_tags.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_fill_tags" / "fill_tags.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_setgt_renders_genotype_filter_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_setgt")
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.vcf.gz",
+            "target_gt": "q",
+            "new_gt": "0",
+            "include": 'GT="." && FMT/DP>0',
+            "exclude": "GQ<20",
+            "seed": 13,
+            "regions": "chr7",
+            "targets": "targets.bed",
+            "threads": 2,
+            "output": "/work/bcftools_plugin_setgt",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "setGT",
+        "--regions",
+        "chr7",
+        "--targets",
+        "targets.bed",
+        "--output-type",
+        "z",
+        "--threads",
+        "2",
+        "calls.vcf.gz",
+        "--",
+        "--target-gt",
+        "q",
+        "--new-gt",
+        "0",
+        "--include",
+        'GT="." && FMT/DP>0',
+        "--exclude",
+        "GQ<20",
+        "--seed",
+        "13",
+        ">",
+        "/work/bcftools_plugin_setgt/setgt.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_setgt" / "setgt.vcf.gz",
     ]

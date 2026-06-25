@@ -1530,6 +1530,66 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_plugin_fill_an_ac: {
+    name: 'bcftools_plugin_fill_an_ac',
+    display_name: 'BCFtools +fill-AN-AC',
+    category: 'variant',
+    description: 'Fill INFO/AN and INFO/AC allele count fields in VCF/BCF records with the deprecated bcftools +fill-AN-AC plugin.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'fill-AN-AC', 'fill AN AC', 'allele count tags'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['fill_an_ac_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_fill_tags: {
+    name: 'bcftools_plugin_fill_tags',
+    display_name: 'BCFtools +fill-tags',
+    category: 'variant',
+    description: 'Set INFO tags such as AF, AC, AN, HWE, MAF, NS, and FORMAT/VAF with the bcftools +fill-tags plugin.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'fill-tags', 'fill INFO tags', 'allele frequency tags'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['fill_tags_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugin.fill-tags.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_setgt: {
+    name: 'bcftools_plugin_setgt',
+    display_name: 'BCFtools +setGT',
+    category: 'variant',
+    description: 'Set genotypes to missing, reference, major, minor, phased, unphased, or custom calls using bcftools +setGT.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'setGT', 'set genotype calls', 'replace genotypes'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['setgt_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugin.setGT.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1851,7 +1911,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('92 nodes available')).toBeVisible();
+  await expect(page.getByText('95 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1934,6 +1994,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genotype dosage', name: 'BCFtools +dosage', category: 'variant' },
     { query: 'set missing genotypes', name: 'BCFtools +missing2ref', category: 'variant' },
     { query: 'convert genotype tags', name: 'BCFtools +tag2tag', category: 'variant' },
+    { query: 'fill AN AC', name: 'BCFtools +fill-AN-AC', category: 'variant' },
+    { query: 'fill INFO tags', name: 'BCFtools +fill-tags', category: 'variant' },
+    { query: 'set genotype calls', name: 'BCFtools +setGT', category: 'variant' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },
