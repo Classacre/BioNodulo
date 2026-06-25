@@ -460,3 +460,280 @@ def test_samtools_coverage_renders_table_and_histogram_commands(tmp_path: Path) 
         "/work/samtools_coverage/coverage.tsv",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_coverage" / "coverage.tsv"]
+
+
+def test_samtools_galaxy_parity_followup_nodes_expose_citation_and_dependency_metadata() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    expected = {
+        "samtools_bedcov": {
+            "display_name": "Samtools Bedcov",
+            "output": ["TSV"],
+            "output_name": ["interval_coverage"],
+            "aliases": ["Galaxy", "bedcov", "interval coverage"],
+        },
+        "samtools_calmd": {
+            "display_name": "Samtools Calmd",
+            "output": ["BAM"],
+            "output_name": ["calmd_bam"],
+            "aliases": ["Galaxy", "calmd", "MD tags", "BAQ"],
+        },
+        "samtools_ampliconclip": {
+            "display_name": "Samtools Ampliconclip",
+            "output": ["BAM", "BEDGRAPH"],
+            "output_name": ["clipped_bam", "primer_counts"],
+            "aliases": ["Galaxy", "ampliconclip", "primer trimming"],
+        },
+        "samtools_fastx": {
+            "display_name": "Samtools Fastx",
+            "output": ["FILE", "FILE", "FILE", "FILE", "FILE", "FILE", "FILE"],
+            "output_name": ["reads", "read1", "read2", "singletons", "nonspecific", "index1", "index2"],
+            "aliases": ["Galaxy", "fastx", "bam2fq", "FASTQ extraction"],
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "samtools"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["output_name"] == metadata["output_name"]
+        assert node_info["required_executables"] == ["samtools"]
+        assert node_info["required_conda_packages"] == ["samtools"]
+        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
+        assert "10.1093/bioinformatics/btr076" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
+        assert "https://doi.org/10.1093/bioinformatics/btr076" in node_info["citation_urls"]
+        assert "Base Alignment Quality" in node_info["citation_text"]
+        for alias in metadata["aliases"]:
+            assert alias in node_info["search_aliases"]
+
+
+def test_samtools_bedcov_renders_interval_coverage_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_bedcov")
+
+    assert node_class.render_command(
+        {
+            "input_bed": "targets.bed",
+            "input_bams": ["tumor.bam", "normal.bam"],
+            "mapq": 30,
+            "countdel": True,
+            "required_flags": [2, 64],
+            "skipped_flags": [4, 256, 512, 1024],
+            "depth_thresh": 10,
+            "output": "/work/samtools_bedcov",
+        }
+    ) == [
+        "samtools",
+        "bedcov",
+        "-Q",
+        "30",
+        "-j",
+        "-g",
+        "66",
+        "-G",
+        "1796",
+        "-d",
+        "10",
+        "targets.bed",
+        "tumor.bam",
+        "normal.bam",
+        ">",
+        "/work/samtools_bedcov/interval_coverage.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "samtools_bedcov" / "interval_coverage.tsv"
+    ]
+
+
+def test_samtools_calmd_renders_baq_and_advanced_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_calmd")
+
+    assert node_class.render_command(
+        {
+            "input": "alignments.bam",
+            "reference": "reference.fa",
+            "threads": 6,
+            "calculate_baq": True,
+            "modify_quality": True,
+            "extended_baq": True,
+            "change_identical": True,
+            "adjust_mq": 50,
+            "output": "/work/samtools_calmd",
+        }
+    ) == [
+        "samtools",
+        "calmd",
+        "-r",
+        "-A",
+        "-E",
+        "-e",
+        "-C",
+        "50",
+        "-b",
+        "-@",
+        "5",
+        "alignments.bam",
+        "reference.fa",
+        ">",
+        "/work/samtools_calmd/calmd.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_calmd" / "calmd.bam"]
+
+
+def test_samtools_ampliconclip_renders_primer_clipping_pipeline_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_ampliconclip")
+
+    assert node_class.render_command(
+        {
+            "input_bed": "primers.bed",
+            "input_bam": "amplicons.bam",
+            "threads": 4,
+            "memory_mb": 2048,
+            "hard_clip": True,
+            "strand": True,
+            "both_ends": True,
+            "no_excluded": True,
+            "min_length": 30,
+            "tolerance": 6,
+            "write_primer_counts": True,
+            "output": "/work/samtools_ampliconclip",
+        }
+    ) == [
+        "samtools",
+        "ampliconclip",
+        "--hard-clip",
+        "--fail-len",
+        "30",
+        "--tolerance",
+        "6",
+        "--strand",
+        "-b",
+        "primers.bed",
+        "-u",
+        "--both-ends",
+        "--no-excluded",
+        "--primer-counts",
+        "/work/samtools_ampliconclip/primer_counts.bedgraph",
+        "-@",
+        "3",
+        "amplicons.bam",
+        "|",
+        "samtools",
+        "collate",
+        "-@",
+        "3",
+        "-O",
+        "-u",
+        "-",
+        "|",
+        "samtools",
+        "fixmate",
+        "-@",
+        "3",
+        "-u",
+        "-",
+        "-",
+        "|",
+        "samtools",
+        "sort",
+        "-@",
+        "3",
+        "-m",
+        "1536M",
+        "-T",
+        "/work/samtools_ampliconclip/tmp",
+        "-o",
+        "/work/samtools_ampliconclip/clipped.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "samtools_ampliconclip" / "clipped.bam",
+        tmp_path / "samtools_ampliconclip" / "primer_counts.bedgraph",
+    ]
+
+
+def test_samtools_fastx_renders_split_fastq_extraction_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_fastx")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.name_sorted.bam",
+            "threads": 8,
+            "memory_mb": 1600,
+            "name_sorted": True,
+            "output_format": "fastq",
+            "outputs": ["read1", "read2", "singletons", "other"],
+            "default_quality": 30,
+            "output_quality": True,
+            "illumina_casava": True,
+            "copy_tags": True,
+            "copy_arbitrary_tags": "MD,ia",
+            "read_numbering": "-N",
+            "required_flags": [1],
+            "skipped_flags": [256, 2048],
+            "skipped_flags_all": [4, 8],
+            "write_index_reads": True,
+            "write_i1": True,
+            "write_i2": False,
+            "index_format": "n2i2",
+            "barcode_tag": "BC",
+            "quality_tag": "QT",
+            "output": "/work/samtools_fastx",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "reads.name_sorted.bam",
+        "/work/samtools_fastx/input",
+        "&&",
+        "samtools",
+        "fastq",
+        "-@",
+        "7",
+        "-v",
+        "30",
+        "-O",
+        "-i",
+        "-t",
+        "-T",
+        "MD,ia",
+        "-N",
+        "-1",
+        "/work/samtools_fastx/read1.fastq",
+        "-2",
+        "/work/samtools_fastx/read2.fastq",
+        "-s",
+        "/work/samtools_fastx/singletons.fastq",
+        "-f",
+        "1",
+        "-F",
+        "2304",
+        "-G",
+        "12",
+        "--i1",
+        "/work/samtools_fastx/i1.fastq",
+        "--index-format",
+        "n2i2",
+        "--barcode-tag",
+        "BC",
+        "--quality-tag",
+        "QT",
+        "/work/samtools_fastx/input",
+        ">",
+        "/work/samtools_fastx/reads.fastq",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_format": "fastq"}, tmp_path) == [
+        tmp_path / "samtools_fastx" / "reads.fastq",
+        tmp_path / "samtools_fastx" / "read1.fastq",
+        tmp_path / "samtools_fastx" / "read2.fastq",
+        tmp_path / "samtools_fastx" / "singletons.fastq",
+        tmp_path / "samtools_fastx" / "nonspecific.fastq",
+        tmp_path / "samtools_fastx" / "index1.fastq",
+        tmp_path / "samtools_fastx" / "index2.fastq",
+    ]

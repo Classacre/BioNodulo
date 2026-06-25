@@ -18,6 +18,12 @@ SAMTOOLS_CITATION_TEXT = (
     "Twelve years of SAMtools and BCFtools; "
     "The Sequence Alignment/Map format and SAMtools."
 )
+SAMTOOLS_GALAXY_CITATION_DOIS = ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btr076"]
+SAMTOOLS_GALAXY_CITATION_URLS = [f"https://doi.org/{doi}" for doi in SAMTOOLS_GALAXY_CITATION_DOIS]
+SAMTOOLS_GALAXY_CITATION_TEXT = (
+    "Twelve years of SAMtools and BCFtools; "
+    "Improving SNP discovery by Base Alignment Quality."
+)
 
 
 def _safe_stem(value: str, default: str) -> str:
@@ -70,6 +76,15 @@ def _flag_sum(value: Any) -> int:
 def _add_if_value(cmd: list[str], flag: str, value: Any) -> None:
     if value is not None and str(value) != "":
         cmd.extend([flag, str(value)])
+
+
+def _additional_threads(inputs: dict[str, Any], default: int = 1) -> int:
+    return max(int(inputs.get("threads", default) or default) - 1, 0)
+
+
+def _sort_memory(inputs: dict[str, Any], default_mb: int = 768) -> str:
+    memory_mb = int(inputs.get("memory_mb", default_mb) or default_mb)
+    return f"{max(memory_mb * 75 // 100, 1)}M"
 
 
 class SamtoolsSortNode(CommandNode):
@@ -858,6 +873,512 @@ class SamtoolsCoverageNode(CommandNode):
                 "region": ("STRING", {"default": "", "description": "Region such as chr1:100-200"}),
                 "histogram": ("BOOLEAN", {"default": False, "description": "Emit histogram data"}),
                 "n_bins": ("INT", {"default": 100, "min": 1, "description": "Number of histogram bins"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsBedcovNode(CommandNode):
+    """Calculate read depth summaries for intervals in a BED file."""
+
+    NODE_ID = "samtools_bedcov"
+    DISPLAY_NAME = "Samtools Bedcov"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Calculate read depth totals for BED intervals across one or more BAM files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "bedcov", "interval coverage", "BED coverage", "depth threshold"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("interval_coverage",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-bedcov.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = ["samtools", "bedcov"]
+        _add_if_value(cmd, "-Q", inputs.get("mapq"))
+        if inputs.get("countdel"):
+            cmd.append("-j")
+        required_flags = _flag_sum(inputs.get("required_flags"))
+        skipped_flags = _flag_sum(inputs.get("skipped_flags"))
+        if required_flags:
+            cmd.extend(["-g", str(required_flags)])
+        if skipped_flags:
+            cmd.extend(["-G", str(skipped_flags)])
+        _add_if_value(cmd, "-d", inputs.get("depth_thresh"))
+        cmd.append(str(inputs.get("input_bed", "")))
+        cmd.extend(_as_list(inputs.get("input_bams", inputs.get("bam"))))
+        cmd.extend([">", f"{output}/interval_coverage.tsv"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "interval_coverage.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bed": ("BED", {"description": "BED intervals to summarize"}),
+                "input_bams": ("BAM_LIST", {"description": "One or more indexed BAM files"}),
+            },
+            "optional": {
+                "mapq": ("INT", {"default": "", "min": 0, "description": "Minimum mapping quality"}),
+                "countdel": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Exclude deletions and reference skips from coverage totals"},
+                ),
+                "required_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True},
+                ),
+                "skipped_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True},
+                ),
+                "depth_thresh": (
+                    "INT",
+                    {
+                        "default": "",
+                        "min": 0,
+                        "description": "Add a column counting bases with coverage at or above this threshold",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsCalmdNode(CommandNode):
+    """Recalculate MD/NM tags and optional BAQ values in a BAM file."""
+
+    NODE_ID = "samtools_calmd"
+    DISPLAY_NAME = "Samtools Calmd"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Recalculate MD and NM tags against a reference FASTA, optionally adding BAQ-adjusted qualities."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "calmd", "MD tags", "NM tags", "BAQ", "Base Alignment Quality"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("calmd_bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-calmd.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = ["samtools", "calmd"]
+        if inputs.get("calculate_baq"):
+            cmd.append("-r")
+            if inputs.get("modify_quality"):
+                cmd.append("-A")
+            if inputs.get("extended_baq"):
+                cmd.append("-E")
+        if inputs.get("change_identical"):
+            cmd.append("-e")
+        adjust_mq = int(inputs.get("adjust_mq", 0) or 0)
+        if adjust_mq:
+            cmd.extend(["-C", str(adjust_mq)])
+        cmd.extend([
+            "-b",
+            "-@",
+            str(_additional_threads(inputs)),
+            str(inputs.get("input", inputs.get("bam", ""))),
+            str(inputs.get("reference", "")),
+            ">",
+            f"{output}/calmd.bam",
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "calmd.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM file to recalculate"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used for the alignment"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "calculate_baq": ("BOOLEAN", {"default": False, "description": "Calculate BAQ scores"}),
+                "modify_quality": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use BAQ to cap read base qualities", "advanced": True},
+                ),
+                "extended_baq": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use extended BAQ calculation", "advanced": True},
+                ),
+                "change_identical": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Change reference-identical bases to '='", "advanced": True},
+                ),
+                "adjust_mq": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 255,
+                        "description": "Coefficient for capping mapping quality of poorly mapped reads",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsAmpliconclipNode(CommandNode):
+    """Clip primer regions from amplicon-aligned BAM files."""
+
+    NODE_ID = "samtools_ampliconclip"
+    DISPLAY_NAME = "Samtools Ampliconclip"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Clip primer bases from amplicon BAM files and re-sort alignments for downstream analysis."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "ampliconclip", "primer trimming", "amplicon", "soft clip"]
+    RETURN_TYPES = ("BAM", "BEDGRAPH")
+    RETURN_NAMES = ("clipped_bam", "primer_counts")
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-ampliconclip.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        addthreads = str(_additional_threads(inputs))
+        primer_counts = f"{output}/primer_counts.bedgraph"
+        cmd = [
+            "samtools",
+            "ampliconclip",
+            "--hard-clip" if inputs.get("hard_clip") else "--soft-clip",
+        ]
+        _add_if_value(cmd, "--fail-len", inputs.get("min_length"))
+        cmd.extend(["--tolerance", str(inputs.get("tolerance", 5))])
+        if inputs.get("strand"):
+            cmd.append("--strand")
+        cmd.extend(["-b", str(inputs.get("input_bed", "")), "-u"])
+        if inputs.get("both_ends"):
+            cmd.append("--both-ends")
+        if inputs.get("no_excluded"):
+            cmd.append("--no-excluded")
+        if inputs.get("write_primer_counts"):
+            cmd.extend(["--primer-counts", primer_counts])
+        cmd.extend([
+            "-@",
+            addthreads,
+            str(inputs.get("input_bam", inputs.get("bam", ""))),
+            "|",
+            "samtools",
+            "collate",
+            "-@",
+            addthreads,
+            "-O",
+            "-u",
+            "-",
+            "|",
+            "samtools",
+            "fixmate",
+            "-@",
+            addthreads,
+            "-u",
+            "-",
+            "-",
+            "|",
+            "samtools",
+            "sort",
+            "-@",
+            addthreads,
+            "-m",
+            _sort_memory(inputs),
+            "-T",
+            f"{output}/tmp",
+            "-o",
+            f"{output}/clipped.bam",
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "clipped.bam", node_out / "primer_counts.bedgraph"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bed": ("BED", {"description": "BED file defining primer or amplicon intervals"}),
+                "input_bam": ("BAM", {"description": "BAM file to clip"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "hard_clip": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Hard clip primer bases instead of soft clipping"},
+                ),
+                "strand": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Only clip reads matching BED strand annotation"},
+                ),
+                "both_ends": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Clip both read ends instead of the 5' end only"},
+                ),
+                "no_excluded": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not write excluded reads to output", "advanced": True},
+                ),
+                "min_length": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Mark reads QCFAIL at this length or shorter"},
+                ),
+                "tolerance": ("INT", {"default": 5, "min": 0, "description": "Primer match tolerance in bases"}),
+                "write_primer_counts": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write per-primer clipping counts as bedGraph"},
+                ),
+                "memory_mb": (
+                    "INT",
+                    {"default": 768, "min": 1, "description": "Memory per sort thread in MB", "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SamtoolsFastxNode(CommandNode):
+    """Extract FASTA or FASTQ reads from SAM/BAM/CRAM alignment files."""
+
+    NODE_ID = "samtools_fastx"
+    DISPLAY_NAME = "Samtools Fastx"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Extract FASTA or FASTQ reads from alignment files, with optional read-pair and index-read outputs."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "samtools", "fastx", "bam2fq", "FASTQ extraction", "FASTA extraction"]
+    RETURN_TYPES = ("FILE", "FILE", "FILE", "FILE", "FILE", "FILE", "FILE")
+    RETURN_NAMES = ("reads", "read1", "read2", "singletons", "nonspecific", "index1", "index2")
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-fasta.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        input_path = str(inputs.get("input", ""))
+        output_format = cls._output_format(inputs)
+        extension = cls._output_extension(output_format)
+        command = "fastq" if output_format == "fastq" else "fasta"
+        input_alias = f"{output}/input"
+        addthreads = str(_additional_threads(inputs))
+
+        if inputs.get("name_sorted"):
+            cmd = ["ln", "-sf", input_path, input_alias, "&&"]
+        else:
+            cmd = [
+                "samtools",
+                "sort",
+                "-@",
+                addthreads,
+                "-m",
+                _sort_memory(inputs),
+                "-n",
+                input_path,
+                "-T",
+                f"{output}/tmp",
+                ">",
+                input_alias,
+                "&&",
+            ]
+
+        cmd.extend(["samtools", command, "-@", addthreads])
+        if command == "fastq":
+            _add_if_value(cmd, "-v", inputs.get("default_quality"))
+            if inputs.get("output_quality"):
+                cmd.append("-O")
+            if inputs.get("illumina_casava"):
+                cmd.append("-i")
+        if inputs.get("copy_tags"):
+            cmd.append("-t")
+        _add_if_value(cmd, "-T", inputs.get("copy_arbitrary_tags"))
+        if inputs.get("read_numbering"):
+            cmd.append(str(inputs["read_numbering"]))
+
+        outputs = set(_as_list(inputs.get("outputs", ["other"])))
+        if "nonspecific" in outputs:
+            cmd.extend(["-0", f"{output}/nonspecific.{extension}"])
+        if "read1" in outputs:
+            cmd.extend(["-1", f"{output}/read1.{extension}"])
+        if "read2" in outputs:
+            cmd.extend(["-2", f"{output}/read2.{extension}"])
+        if "singletons" in outputs:
+            cmd.extend(["-s", f"{output}/singletons.{extension}"])
+
+        required_flags = _flag_sum(inputs.get("required_flags"))
+        skipped_flags = _flag_sum(inputs.get("skipped_flags"))
+        skipped_flags_all = _flag_sum(inputs.get("skipped_flags_all"))
+        if required_flags:
+            cmd.extend(["-f", str(required_flags)])
+        if skipped_flags:
+            cmd.extend(["-F", str(skipped_flags)])
+        if skipped_flags_all:
+            cmd.extend(["-G", str(skipped_flags_all)])
+
+        if inputs.get("write_index_reads"):
+            if inputs.get("write_i1", True):
+                cmd.extend(["--i1", f"{output}/i1.{extension}"])
+            if inputs.get("write_i2", True):
+                cmd.extend(["--i2", f"{output}/i2.{extension}"])
+            _add_if_value(cmd, "--index-format", inputs.get("index_format"))
+            _add_if_value(cmd, "--barcode-tag", inputs.get("barcode_tag"))
+            _add_if_value(cmd, "--quality-tag", inputs.get("quality_tag"))
+
+        cmd.extend([input_alias, ">", f"{output}/reads.{extension}"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        extension = cls._output_extension(cls._output_format(inputs))
+        return [
+            node_out / f"reads.{extension}",
+            node_out / f"read1.{extension}",
+            node_out / f"read2.{extension}",
+            node_out / f"singletons.{extension}",
+            node_out / f"nonspecific.{extension}",
+            node_out / f"index1.{extension}",
+            node_out / f"index2.{extension}",
+        ]
+
+    @classmethod
+    def _output_format(cls, inputs: dict[str, Any]) -> str:
+        raw_format = str(inputs.get("output_format", inputs.get("output_fmt_select", "fasta")) or "fasta").lower()
+        if raw_format in {"fastq", "fastqsanger", "fastqsanger.gz", "fastq.gz"}:
+            return "fastq"
+        return "fasta"
+
+    @classmethod
+    def _output_extension(cls, output_format: str) -> str:
+        return "fastq" if output_format == "fastq" else "fasta"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "SAM, BAM, or CRAM alignment file"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "name_sorted": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input is already query-name sorted"},
+                ),
+                "output_format": (
+                    "STRING",
+                    {"default": "fasta", "options": ["fasta", "fastq"], "description": "Extract FASTA or FASTQ"},
+                ),
+                "outputs": (
+                    "STRING",
+                    {
+                        "default": ["other"],
+                        "options": ["other", "read1", "read2", "singletons", "nonspecific"],
+                        "description": "Read subsets to split into dedicated files",
+                    },
+                ),
+                "default_quality": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Default FASTQ quality if none is present"},
+                ),
+                "output_quality": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use OQ tag quality values when available", "advanced": True},
+                ),
+                "illumina_casava": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Add Illumina Casava 1.8 header fields", "advanced": True},
+                ),
+                "copy_tags": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Copy RG, BC, and QT tags to sequence headers"},
+                ),
+                "copy_arbitrary_tags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated tags to copy to FASTA headers", "advanced": True},
+                ),
+                "read_numbering": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "-n", "-N"],
+                        "description": "Control /1 and /2 read-name suffixes",
+                        "advanced": True,
+                    },
+                ),
+                "required_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True},
+                ),
+                "skipped_flags": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True},
+                ),
+                "skipped_flags_all": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SAM flags that must not all be set", "advanced": True},
+                ),
+                "write_index_reads": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write index reads from barcode tags", "advanced": True},
+                ),
+                "write_i1": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Write first index read output", "advanced": True},
+                ),
+                "write_i2": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Write second index read output", "advanced": True},
+                ),
+                "index_format": (
+                    "STRING",
+                    {"default": "", "description": "Index-format string for parsing barcode tags", "advanced": True},
+                ),
+                "barcode_tag": (
+                    "STRING",
+                    {"default": "", "description": "Barcode tag name, default BC in samtools", "advanced": True},
+                ),
+                "quality_tag": (
+                    "STRING",
+                    {"default": "", "description": "Barcode quality tag name, default QT in samtools", "advanced": True},
+                ),
+                "memory_mb": (
+                    "INT",
+                    {"default": 768, "min": 1, "description": "Memory per sort thread in MB", "advanced": True},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }

@@ -515,6 +515,92 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  samtools_bedcov: {
+    name: 'samtools_bedcov',
+    display_name: 'Samtools Bedcov',
+    category: 'samtools',
+    description: 'Calculate read depth totals for BED intervals across one or more BAM files.',
+    search_aliases: ['Galaxy', 'samtools', 'bedcov', 'interval coverage', 'BED coverage'],
+    input: {
+      required: {
+        input_bed: { type: 'BED' },
+        input_bams: { type: 'BAM_LIST' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['interval_coverage'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-bedcov.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_calmd: {
+    name: 'samtools_calmd',
+    display_name: 'Samtools Calmd',
+    category: 'samtools',
+    description: 'Recalculate MD and NM tags against a reference FASTA, optionally adding BAQ-adjusted qualities.',
+    search_aliases: ['Galaxy', 'samtools', 'calmd', 'MD tags', 'NM tags', 'BAQ'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['calmd_bam'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-calmd.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_ampliconclip: {
+    name: 'samtools_ampliconclip',
+    display_name: 'Samtools Ampliconclip',
+    category: 'samtools',
+    description: 'Clip primer bases from amplicon BAM files and re-sort alignments for downstream analysis.',
+    search_aliases: ['Galaxy', 'samtools', 'ampliconclip', 'primer trimming', 'amplicon'],
+    input: {
+      required: {
+        input_bed: { type: 'BED' },
+        input_bam: { type: 'BAM' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM', 'BEDGRAPH'],
+    output_name: ['clipped_bam', 'primer_counts'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-ampliconclip.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
+  samtools_fastx: {
+    name: 'samtools_fastx',
+    display_name: 'Samtools Fastx',
+    category: 'samtools',
+    description: 'Extract FASTA or FASTQ reads from alignment files, with optional read-pair and index-read outputs.',
+    search_aliases: ['Galaxy', 'samtools', 'fastx', 'bam2fq', 'FASTQ extraction'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['FILE', 'FILE', 'FILE', 'FILE', 'FILE', 'FILE', 'FILE'],
+    output_name: ['reads', 'read1', 'read2', 'singletons', 'nonspecific', 'index1', 'index2'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-fasta.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -564,7 +650,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('30 nodes available')).toBeVisible();
+  await expect(page.getByText('34 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -598,6 +684,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },
     { query: 'samtools coverage', name: 'Samtools Coverage', category: 'samtools' },
+    { query: 'bedcov', name: 'Samtools Bedcov', category: 'samtools' },
+    { query: 'calmd', name: 'Samtools Calmd', category: 'samtools' },
+    { query: 'ampliconclip', name: 'Samtools Ampliconclip', category: 'samtools' },
+    { query: 'fastx', name: 'Samtools Fastx', category: 'samtools' },
   ];
 
   for (const node of expectedNodes) {
