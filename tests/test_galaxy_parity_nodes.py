@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Any
 
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -15,6 +17,26 @@ def _node_class(node_id: str) -> type:
     node_class = _registry().get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+class _RecordingCommandContext:
+    def __init__(self, node_dir: Path) -> None:
+        self.node_dir = node_dir
+        self.commands: list[str | list[str]] = []
+
+    async def run_command(self, cmd: str | list[str], **_: Any) -> dict[str, Any]:
+        self.commands.append(cmd)
+        if isinstance(cmd, list):
+            try:
+                output_path = Path(cmd[cmd.index("-o") + 1])
+            except (ValueError, IndexError):
+                output_path = self.node_dir / "fastani.tsv"
+        else:
+            output_path = self.node_dir / "fastani.tsv"
+        output_path.write_text("q1.fna\tr1.fna\t99.9\t1200\t1200\n", encoding="utf-8")
+        output_path.with_suffix(output_path.suffix + ".matrix").write_text("2\nq1\t0\n", encoding="utf-8")
+        output_path.with_suffix(output_path.suffix + ".visual").write_text("q1\tr1\t1\t1200\n", encoding="utf-8")
+        return {"returncode": 0, "stdout": "", "stderr": ""}
 
 
 def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> None:
@@ -523,4 +545,306 @@ def test_mmseqs2_easy_search_renders_sensitive_search_command() -> None:
         "2",
         "--threads",
         "8",
+    ]
+
+
+def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "mash_dist": {
+            "display_name": "Mash Dist",
+            "category": "genomics",
+            "required_executables": ["mash"],
+            "required_conda_packages": ["mash"],
+            "doi": "10.1186/s13059-016-0997-x",
+        },
+        "fastani": {
+            "display_name": "FastANI",
+            "category": "genomics",
+            "required_executables": ["fastANI"],
+            "required_conda_packages": ["fastani"],
+            "doi": "10.1038/s41467-018-07641-9",
+        },
+        "lofreq_call": {
+            "display_name": "LoFreq Call",
+            "category": "variant",
+            "required_executables": ["lofreq"],
+            "required_conda_packages": ["lofreq"],
+            "doi": "10.1093/nar/gks918",
+        },
+        "ivar_variants": {
+            "display_name": "iVar Variants",
+            "category": "variant",
+            "required_executables": ["samtools", "ivar"],
+            "required_conda_packages": ["samtools", "ivar"],
+            "doi": "10.1186/s13059-018-1618-7",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == metadata["category"]
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert metadata["doi"] in node_info["citation_dois"]
+        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
+        assert node_info["documentation_url"].startswith(("https://", "http://"))
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_mash_dist_renders_distance_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("mash_dist")
+
+    assert node_class.render_command(
+        {
+            "reference": "ref.msh",
+            "query": "query.msh",
+            "table_output": True,
+            "threads": 6,
+            "pvalue": 0.05,
+            "distance": 0.25,
+            "output": "/work/mash_dist",
+        }
+    ) == [
+        "mash",
+        "dist",
+        "-t",
+        "-p",
+        "6",
+        "-v",
+        "0.05",
+        "-d",
+        "0.25",
+        "ref.msh",
+        "query.msh",
+        ">",
+        "/work/mash_dist/distances.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_dist" / "distances.tsv"]
+
+
+def test_fastani_renders_many_to_many_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("fastani")
+
+    assert node_class.render_command(
+        {
+            "query": ["q1.fna", "q2.fna"],
+            "reference": ["r1.fna", "r2.fna"],
+            "threads": 12,
+            "frag_len": 3000,
+            "min_fraction": 0.2,
+            "kmer": 16,
+            "matrix": True,
+            "visualize": True,
+            "output": "/work/fastani",
+        }
+    ) == [
+        "fastANI",
+        "--ql",
+        "/work/fastani/query.lst",
+        "--rl",
+        "/work/fastani/ref.lst",
+        "-o",
+        "/work/fastani/fastani.tsv",
+        "-t",
+        "12",
+        "--fragLen",
+        "3000",
+        "--minFraction",
+        "0.2",
+        "-k",
+        "16",
+        "--matrix",
+        "--visualize",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"matrix": True, "visualize": True}, tmp_path) == [
+        tmp_path / "fastani" / "fastani.tsv",
+        tmp_path / "fastani" / "fastani.tsv.matrix",
+        tmp_path / "fastani" / "fastani.tsv.visual",
+    ]
+
+
+def test_fastani_run_writes_many_to_many_list_files(tmp_path: Path) -> None:
+    node_class = _node_class("fastani")
+    context = _RecordingCommandContext(tmp_path / "fastani")
+
+    result = asyncio.run(
+        node_class().run(
+            query=["q1.fna", "q2.fna"],
+            reference=["r1.fna", "r2.fna"],
+            threads=2,
+            matrix=True,
+            visualize=True,
+            context=context,
+            output_dir=tmp_path,
+        )
+    )
+
+    assert result == (
+        str(tmp_path / "fastani" / "fastani.tsv"),
+        str(tmp_path / "fastani" / "fastani.tsv.matrix"),
+        str(tmp_path / "fastani" / "fastani.tsv.visual"),
+    )
+    assert (tmp_path / "fastani" / "query.lst").read_text(encoding="utf-8") == "q1.fna\nq2.fna\n"
+    assert (tmp_path / "fastani" / "ref.lst").read_text(encoding="utf-8") == "r1.fna\nr2.fna\n"
+    assert context.commands
+
+
+def test_fastani_run_writes_single_file_lists_for_planned_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("fastani")
+    context = _RecordingCommandContext(tmp_path / "fastani")
+
+    result = asyncio.run(
+        node_class().run(
+            query="q1.fna",
+            reference="r1.fna",
+            threads=2,
+            context=context,
+            output_dir=tmp_path,
+        )
+    )
+
+    assert result == (
+        str(tmp_path / "fastani" / "fastani.tsv"),
+    )
+    assert (tmp_path / "fastani" / "query.lst").read_text(encoding="utf-8") == "q1.fna\n"
+    assert (tmp_path / "fastani" / "ref.lst").read_text(encoding="utf-8") == "r1.fna\n"
+
+
+def test_lofreq_call_renders_configured_variant_call_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("lofreq_call")
+
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "bed": "targets.bed",
+            "variant_types": "--call-indels",
+            "threads": 4,
+            "min_cov": 5,
+            "max_depth": 100000,
+            "use_orphan": True,
+            "min_bq": 10,
+            "min_alt_bq": 12,
+            "def_alt_bq": 20,
+            "alnquals_to_use": "-A",
+            "extended_baq": "-e",
+            "min_mq": 20,
+            "max_mq": 60,
+            "src_qual": True,
+            "ign_vcf": ["known.vcf.gz", "panel.vcf"],
+            "def_nm_q": -1,
+            "min_jq": 5,
+            "min_alt_jq": 7,
+            "def_alt_jq": 9,
+            "sig": 0.01,
+            "bonf": "dynamic",
+            "no_default_filter": True,
+            "output": "/work/lofreq",
+        }
+    ) == [
+        "lofreq",
+        "call-parallel",
+        "--pp-threads",
+        "4",
+        "--verbose",
+        "--ref",
+        "ref.fa",
+        "--out",
+        "/work/lofreq/variants.vcf",
+        "--call-indels",
+        "--bed",
+        "targets.bed",
+        "--min-cov",
+        "5",
+        "--max-depth",
+        "100000",
+        "--use-orphan",
+        "--min-bq",
+        "10",
+        "--min-alt-bq",
+        "12",
+        "--def-alt-bq",
+        "20",
+        "-A",
+        "-e",
+        "--min-mq",
+        "20",
+        "--max-mq",
+        "60",
+        "--src-qual",
+        "--ign-vcf",
+        "known.vcf.gz,panel.vcf",
+        "--def-nm-q",
+        "-1",
+        "--min-jq",
+        "5",
+        "--min-alt-jq",
+        "7",
+        "--def-alt-jq",
+        "9",
+        "--sig",
+        "0.01",
+        "--bonf",
+        "dynamic",
+        "--no-default-filter",
+        "reads.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_call" / "variants.vcf"]
+
+
+def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("ivar_variants")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "sorted.bam",
+            "ref": "ref.fa",
+            "min_qual": 25,
+            "min_freq": 0.1,
+            "output_format": "tabular_and_vcf",
+            "gtf": "genes.gff",
+            "pass_only": True,
+            "output": "/work/ivar",
+        }
+    ) == [
+        "samtools",
+        "mpileup",
+        "-A",
+        "-d",
+        "0",
+        "--reference",
+        "ref.fa",
+        "-B",
+        "-Q",
+        "0",
+        "sorted.bam",
+        "|",
+        "ivar",
+        "variants",
+        "-p",
+        "/work/ivar/variants",
+        "-q",
+        "25",
+        "-t",
+        "0.1",
+        "-r",
+        "ref.fa",
+        "-g",
+        "genes.gff",
+        "&&",
+        "ivar_variants_to_vcf.py",
+        "--pass_only",
+        "/work/ivar/variants.tsv",
+        "/work/ivar/variants.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_format": "tabular_and_vcf"}, tmp_path) == [
+        tmp_path / "ivar_variants" / "variants.tsv",
+        tmp_path / "ivar_variants" / "variants.vcf",
     ]

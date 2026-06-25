@@ -281,6 +281,74 @@ const objectInfo = {
     citation_dois: ['10.1038/nbt.3988'],
     citation_urls: ['https://doi.org/10.1038/nbt.3988'],
   },
+  mash_dist: {
+    name: 'mash_dist',
+    display_name: 'Mash Dist',
+    category: 'genomics',
+    description: 'Estimate genome or metagenome distances from FASTA/FASTQ files or Mash sketches.',
+    search_aliases: ['Galaxy', 'mash', 'mash dist', 'minhash', 'minhash distance', 'genome distance'],
+    input: {
+      required: {
+        reference: { type: 'FASTA' },
+        query: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['distances'],
+    citation_dois: ['10.1186/s13059-016-0997-x'],
+    citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
+  },
+  fastani: {
+    name: 'fastani',
+    display_name: 'FastANI',
+    category: 'genomics',
+    description: 'Compute alignment-free whole-genome Average Nucleotide Identity for query and reference genomes.',
+    search_aliases: ['Galaxy', 'fastani', 'ANI', 'average nucleotide identity', 'genome comparison'],
+    input: {
+      required: {
+        query: { type: 'FASTA_LIST' },
+        reference: { type: 'FASTA_LIST' },
+      },
+    },
+    output: ['TSV', 'FILE', 'FILE'],
+    output_name: ['ani_table', 'ani_matrix', 'visual_mappings'],
+    citation_dois: ['10.1038/s41467-018-07641-9'],
+    citation_urls: ['https://doi.org/10.1038/s41467-018-07641-9'],
+  },
+  lofreq_call: {
+    name: 'lofreq_call',
+    display_name: 'LoFreq Call',
+    category: 'variant',
+    description: 'Call sequence-quality-aware SNVs and indels from mapped reads using LoFreq.',
+    search_aliases: ['Galaxy', 'lofreq', 'variant caller', 'low frequency variants'],
+    input: {
+      required: {
+        reads: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+      },
+    },
+    output: ['VCF'],
+    output_name: ['variants'],
+    citation_dois: ['10.1093/nar/gks918'],
+    citation_urls: ['https://doi.org/10.1093/nar/gks918'],
+  },
+  ivar_variants: {
+    name: 'ivar_variants',
+    display_name: 'iVar Variants',
+    category: 'variant',
+    description: 'Call iSNVs and indels from aligned viral amplicon reads with iVar variants.',
+    search_aliases: ['Galaxy', 'ivar', 'viral variants', 'amplicon variants', 'iSNV'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        ref: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV', 'VCF'],
+    output_name: ['variants_tsv', 'variants_vcf'],
+    citation_dois: ['10.1186/s13059-018-1618-7'],
+    citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -330,7 +398,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('18 nodes available')).toBeVisible();
+  await expect(page.getByText('22 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -352,6 +420,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
+    { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
+    { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
+    { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
+    { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
   ];
 
   for (const node of expectedNodes) {

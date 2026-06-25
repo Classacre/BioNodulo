@@ -8,6 +8,7 @@ from bionodulo.nodes.command_node import CommandNode
 
 
 GALAXY_ALIAS = "Galaxy"
+DOI_URL = "https://doi.org/"
 
 
 def _out(inputs: dict[str, Any]) -> str:
@@ -21,6 +22,14 @@ def _add_if_value(cmd: list[str], flag: str, value: Any) -> None:
 
 def _add_shell_redirect(cmd: list[str], output_path: str) -> None:
     cmd.extend([">", output_path])
+
+
+def _as_list(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if str(v) != ""]
+    return [str(value)]
 
 
 class BUSCONode(CommandNode):
@@ -728,6 +737,345 @@ class MMseqs2EasySearchNode(CommandNode):
                 "format_output": ("STRING", {"default": "query,target,pident,evalue,bits"}),
                 "num_iterations": ("INT", {"default": 1, "min": 1, "max": 20, "advanced": True}),
                 "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class MashDistNode(CommandNode):
+    """Estimate Mash distances between reference and query sequences."""
+
+    NODE_ID = "mash_dist"
+    DISPLAY_NAME = "Mash Dist"
+    REQUIRED_CONDA_PACKAGES = ["mash"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Estimate genome or metagenome distances from FASTA/FASTQ files or Mash sketches."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "mash", "mash dist", "minhash", "genome distance", "metagenome distance"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("distances",)
+    REQUIRED_EXECUTABLES = ["mash"]
+    DOCUMENTATION_URL = "https://mash.readthedocs.io/en/latest/distances.html"
+    CITATION_DOIS = ["10.1186/s13059-016-0997-x"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-016-0997-x"]
+    CITATION_TEXT = "Mash: fast genome and metagenome distance estimation using MinHash."
+    VERSION = "2.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["mash", "dist"]
+        if inputs.get("table_output", True):
+            cmd.append("-t")
+        cmd.extend(["-p", str(inputs.get("threads", 1))])
+        _add_if_value(cmd, "-v", inputs.get("pvalue", 1.0))
+        _add_if_value(cmd, "-d", inputs.get("distance", 1.0))
+        cmd.extend([str(inputs.get("reference", "")), str(inputs.get("query", ""))])
+        _add_shell_redirect(cmd, f"{out}/distances.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "distances.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA/FASTQ or Mash sketch"}),
+                "query": ("FASTA", {"description": "Query FASTA/FASTQ or Mash sketch"}),
+            },
+            "optional": {
+                "table_output": ("BOOLEAN", {"default": True, "description": "Use Mash table output (-t)"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "pvalue": ("FLOAT", {"default": 1.0, "min": 0, "max": 1}),
+                "distance": ("FLOAT", {"default": 1.0, "min": 0, "max": 1}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class FastANINode(CommandNode):
+    """Compute whole-genome average nucleotide identity with FastANI."""
+
+    NODE_ID = "fastani"
+    DISPLAY_NAME = "FastANI"
+    REQUIRED_CONDA_PACKAGES = ["fastani"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Compute alignment-free whole-genome Average Nucleotide Identity for one or more query/reference genomes."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "fastani", "ANI", "average nucleotide identity", "genome comparison"]
+    RETURN_TYPES = ("TSV", "FILE", "FILE")
+    RETURN_NAMES = ("ani_table", "ani_matrix", "visual_mappings")
+    REQUIRED_EXECUTABLES = ["fastANI"]
+    DOCUMENTATION_URL = "https://github.com/ParBLiSS/FastANI"
+    CITATION_DOIS = ["10.1038/s41467-018-07641-9"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41467-018-07641-9"]
+    CITATION_TEXT = "High throughput ANI analysis of 90K prokaryotic genomes reveals clear species boundaries."
+    VERSION = "1.3"
+
+    async def run(self, **kwargs: Any) -> Any:
+        output_dir = kwargs.get("output_dir")
+        context = kwargs.get("context")
+        if output_dir is None and context is not None:
+            output_dir = getattr(context, "node_dir", ".")
+        node_out = Path(output_dir) / self.__class__.NODE_ID if output_dir else Path(".")
+        node_out.mkdir(parents=True, exist_ok=True)
+        query_files = _as_list(kwargs.get("query"))
+        ref_files = _as_list(kwargs.get("reference"))
+        if query_files:
+            (node_out / "query.lst").write_text("\n".join(query_files) + "\n", encoding="utf-8")
+        if ref_files:
+            (node_out / "ref.lst").write_text("\n".join(ref_files) + "\n", encoding="utf-8")
+        return await super().run(**kwargs)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        query_files = _as_list(inputs.get("query"))
+        ref_files = _as_list(inputs.get("reference"))
+        cmd = ["fastANI"]
+        if len(query_files) == 1:
+            cmd.extend(["-q", query_files[0]])
+        else:
+            cmd.extend(["--ql", f"{out}/query.lst"])
+        if len(ref_files) == 1:
+            cmd.extend(["-r", ref_files[0]])
+        else:
+            cmd.extend(["--rl", f"{out}/ref.lst"])
+        cmd.extend(["-o", f"{out}/fastani.tsv", "-t", str(inputs.get("threads", 1))])
+        _add_if_value(cmd, "--fragLen", inputs.get("frag_len"))
+        _add_if_value(cmd, "--minFraction", inputs.get("min_fraction"))
+        _add_if_value(cmd, "-k", inputs.get("kmer"))
+        if inputs.get("matrix"):
+            cmd.append("--matrix")
+        if inputs.get("visualize"):
+            cmd.append("--visualize")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "fastani.tsv"]
+        if inputs.get("matrix"):
+            outputs.append(out / "fastani.tsv.matrix")
+        if inputs.get("visualize"):
+            outputs.append(out / "fastani.tsv.visual")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "query": ("FASTA_LIST", {"description": "One or more query genome assemblies"}),
+                "reference": ("FASTA_LIST", {"description": "One or more reference genome assemblies"}),
+            },
+            "optional": {
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "frag_len": ("INT", {"default": 3000, "min": 100, "description": "Fragment length used by FastANI"}),
+                "min_fraction": ("FLOAT", {"default": 0.2, "min": 0, "max": 1}),
+                "kmer": ("INT", {"default": 16, "min": 4, "max": 32}),
+                "matrix": ("BOOLEAN", {"default": False, "description": "Also emit PHYLIP-style ANI matrix"}),
+                "visualize": ("BOOLEAN", {"default": False, "description": "Emit reciprocal mapping file for visualization"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class LoFreqCallNode(CommandNode):
+    """Call SNVs and indels from BAM alignments with LoFreq."""
+
+    NODE_ID = "lofreq_call"
+    DISPLAY_NAME = "LoFreq Call"
+    REQUIRED_CONDA_PACKAGES = ["lofreq"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call sequence-quality-aware SNVs and indels from mapped reads using LoFreq."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "lofreq", "lofreq call", "variant caller", "low frequency variants", "SNV"]
+    RETURN_TYPES = ("VCF",)
+    RETURN_NAMES = ("variants")
+    REQUIRED_EXECUTABLES = ["lofreq"]
+    DOCUMENTATION_URL = "http://csb5.github.io/lofreq/"
+    CITATION_DOIS = ["10.1093/nar/gks918"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/nar/gks918"]
+    CITATION_TEXT = "LoFreq: a sequence-quality aware, ultra-sensitive variant caller for high-throughput sequencing datasets."
+    VERSION = "2.1.5"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "lofreq",
+            "call-parallel",
+            "--pp-threads",
+            str(inputs.get("threads", 1)),
+            "--verbose",
+            "--ref",
+            str(inputs.get("reference", "")),
+            "--out",
+            f"{out}/variants.vcf",
+        ]
+        variant_types = str(inputs.get("variant_types", ""))
+        if variant_types:
+            cmd.extend(variant_types.split())
+        _add_if_value(cmd, "--bed", inputs.get("bed"))
+        _add_if_value(cmd, "--min-cov", inputs.get("min_cov"))
+        _add_if_value(cmd, "--max-depth", inputs.get("max_depth"))
+        if inputs.get("use_orphan"):
+            cmd.append("--use-orphan")
+        _add_if_value(cmd, "--min-bq", inputs.get("min_bq"))
+        _add_if_value(cmd, "--min-alt-bq", inputs.get("min_alt_bq"))
+        _add_if_value(cmd, "--def-alt-bq", inputs.get("def_alt_bq"))
+        alnquals_to_use = str(inputs.get("alnquals_to_use", ""))
+        if alnquals_to_use:
+            cmd.extend(alnquals_to_use.split())
+        extended_baq = str(inputs.get("extended_baq", ""))
+        if extended_baq:
+            cmd.extend(extended_baq.split())
+        _add_if_value(cmd, "--min-mq", inputs.get("min_mq"))
+        if inputs.get("no_mq"):
+            cmd.append("--no-mq")
+        else:
+            _add_if_value(cmd, "--max-mq", inputs.get("max_mq"))
+        if inputs.get("src_qual"):
+            cmd.append("--src-qual")
+            ign_vcf = _as_list(inputs.get("ign_vcf"))
+            if ign_vcf:
+                cmd.extend(["--ign-vcf", ",".join(ign_vcf)])
+            _add_if_value(cmd, "--def-nm-q", inputs.get("def_nm_q"))
+        _add_if_value(cmd, "--min-jq", inputs.get("min_jq"))
+        _add_if_value(cmd, "--min-alt-jq", inputs.get("min_alt_jq"))
+        _add_if_value(cmd, "--def-alt-jq", inputs.get("def_alt_jq"))
+        _add_if_value(cmd, "--sig", inputs.get("sig", 0.01))
+        _add_if_value(cmd, "--bonf", inputs.get("bonf", "dynamic"))
+        if inputs.get("no_default_filter"):
+            cmd.append("--no-default-filter")
+        cmd.append(str(inputs.get("reads", "")))
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "variants.vcf"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("BAM", {"description": "Mapped reads in coordinate-sorted BAM format"}),
+                "reference": ("FASTA", {"description": "Reference genome FASTA"}),
+                "variant_types": ("STRING", {"default": "", "options": ["", "--call-indels", "--call-indels --only-indels"]}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "optional": {
+                "bed": ("BED", {"description": "Restrict calls to BED regions"}),
+                "min_cov": ("INT", {"default": 1, "min": 1}),
+                "max_depth": ("INT", {"default": 1000000, "min": 1}),
+                "use_orphan": ("BOOLEAN", {"default": False, "advanced": True}),
+                "min_bq": ("INT", {"default": 6, "min": 0}),
+                "min_alt_bq": ("INT", {"default": 6, "min": 0}),
+                "def_alt_bq": ("INT", {"default": "", "advanced": True}),
+                "alnquals_to_use": ("STRING", {"default": "", "options": ["", "-A", "-B", "-A -B"], "advanced": True}),
+                "extended_baq": ("STRING", {"default": "", "options": ["", "-e"], "advanced": True}),
+                "min_mq": ("INT", {"default": 0, "min": 0}),
+                "max_mq": ("INT", {"default": 255, "min": 0}),
+                "no_mq": ("BOOLEAN", {"default": False, "advanced": True}),
+                "src_qual": ("BOOLEAN", {"default": False, "advanced": True}),
+                "ign_vcf": ("VCF_LIST", {"description": "Known variants to ignore for source quality", "advanced": True}),
+                "def_nm_q": ("INT", {"default": -1, "advanced": True}),
+                "min_jq": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "min_alt_jq": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "def_alt_jq": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "sig": ("FLOAT", {"default": 0.01, "min": 0, "max": 1}),
+                "bonf": ("STRING", {"default": "dynamic"}),
+                "no_default_filter": ("BOOLEAN", {"default": False, "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class IVarVariantsNode(CommandNode):
+    """Call viral amplicon variants from samtools mpileup using iVar."""
+
+    NODE_ID = "ivar_variants"
+    DISPLAY_NAME = "iVar Variants"
+    REQUIRED_CONDA_PACKAGES = ["samtools", "ivar"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call iSNVs and indels from aligned viral amplicon reads with iVar variants."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "ivar", "ivar variants", "viral variants", "amplicon variants", "iSNV"]
+    RETURN_TYPES = ("TSV", "VCF")
+    RETURN_NAMES = ("variants_tsv", "variants_vcf")
+    REQUIRED_EXECUTABLES = ["samtools", "ivar"]
+    DOCUMENTATION_URL = "https://andersen-lab.github.io/ivar/html/"
+    CITATION_DOIS = ["10.1186/s13059-018-1618-7"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-018-1618-7"]
+    CITATION_TEXT = "An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar."
+    VERSION = "1.4.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        output_format = str(inputs.get("output_format", "tabular"))
+        cmd = [
+            "samtools",
+            "mpileup",
+            "-A",
+            "-d",
+            "0",
+            "--reference",
+            str(inputs.get("ref", "")),
+            "-B",
+            "-Q",
+            "0",
+            str(inputs.get("input_bam", "")),
+            "|",
+            "ivar",
+            "variants",
+            "-p",
+            f"{out}/variants",
+            "-q",
+            str(inputs.get("min_qual", 20)),
+            "-t",
+            str(inputs.get("min_freq", 0.03)),
+        ]
+        gtf = str(inputs.get("gtf", ""))
+        if output_format in {"tabular", "tabular_and_vcf"} and gtf:
+            cmd.extend(["-r", str(inputs.get("ref", "")), "-g", gtf])
+        if output_format in {"vcf", "tabular_and_vcf"}:
+            cmd.extend(["&&", "ivar_variants_to_vcf.py"])
+            if inputs.get("pass_only"):
+                cmd.append("--pass_only")
+            cmd.extend([f"{out}/variants.tsv", f"{out}/variants.vcf"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        output_format = str(inputs.get("output_format", "tabular"))
+        outputs: list[Path] = []
+        if output_format in {"tabular", "tabular_and_vcf"}:
+            outputs.append(out / "variants.tsv")
+        if output_format in {"vcf", "tabular_and_vcf"}:
+            outputs.append(out / "variants.vcf")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "Aligned BAM file"}),
+                "ref": ("FASTA", {"description": "Reference FASTA used for alignment"}),
+                "min_qual": ("INT", {"default": 20, "min": 0, "max": 255}),
+                "min_freq": ("FLOAT", {"default": 0.03, "min": 0, "max": 1}),
+                "output_format": ("STRING", {"default": "tabular", "options": ["tabular", "vcf", "tabular_and_vcf"]}),
+            },
+            "optional": {
+                "gtf": ("GFF", {"description": "Optional ORF annotations for amino-acid effect columns"}),
+                "pass_only": ("BOOLEAN", {"default": False, "description": "Only include PASS variants in VCF output"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
