@@ -2454,3 +2454,178 @@ def test_bedtools_intersectbed_renders_reduced_named_overlap_command_and_output(
     assert node_class.PLAN_OUTPUTS({"bed": True}, tmp_path) == [
         tmp_path / "bedtools_intersectbed" / "intersect.bed",
     ]
+
+
+def test_galaxy_parity_bedtools_legacy_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_bedtoigv": {
+            "display_name": "BEDTools BED to IGV",
+            "documentation_url": "https://github.com/galaxyproject/tools-iuc/blob/main/tools/bedtools/bedToIgv.xml",
+            "output": ["TEXT"],
+            "required_executables": ["bedToIgv"],
+            "search_alias": "bedtoigv",
+        },
+        "bedtools_links": {
+            "display_name": "BEDTools LinksBed",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/links.html",
+            "output": ["HTML"],
+            "required_executables": ["bedtools"],
+            "search_alias": "linksbed ucsc",
+        },
+        "bedtools_overlapbed": {
+            "display_name": "BEDTools OverlapBed",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/overlap.html",
+            "output": ["BED"],
+            "required_executables": ["bedtools"],
+            "search_alias": "overlapbed custom score",
+        },
+        "bedtools_tagbed": {
+            "display_name": "BEDTools TagBed",
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/tag.html",
+            "output": ["BAM"],
+            "required_executables": ["bedtools"],
+            "search_alias": "tagbed bam tags",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["output"] == metadata["output"]
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == ["bedtools"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "Galaxy" in node_info["search_aliases"]
+        assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bedtools_bedtoigv_renders_snapshot_batch_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_bedtoigv")
+
+    assert node_class.render_command(
+        {
+            "input": "targets.bed",
+            "sort": "base",
+            "clps": True,
+            "name": True,
+            "slop": 250,
+            "img": "svg",
+            "output": "/work/bedtools_bedtoigv",
+        }
+    ) == [
+        "bedToIgv",
+        "-i",
+        "targets.bed",
+        "-sort",
+        "base",
+        "-clps",
+        "-name",
+        "-slop",
+        "250",
+        "-img",
+        "svg",
+        ">",
+        "/work/bedtools_bedtoigv/igv_batch_script.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_bedtoigv" / "igv_batch_script.txt",
+    ]
+
+
+def test_bedtools_links_renders_browser_links_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_links")
+
+    assert node_class.render_command(
+        {
+            "input": "genes.bed",
+            "basename": "http://mirror.example.edu",
+            "org": "mouse",
+            "db": "mm10",
+            "output": "/work/bedtools_links",
+        }
+    ) == [
+        "bedtools",
+        "links",
+        "-base",
+        "http://mirror.example.edu",
+        "-org",
+        "mouse",
+        "-db",
+        "mm10",
+        "-i",
+        "genes.bed",
+        ">",
+        "/work/bedtools_links/links.html",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_links" / "links.html",
+    ]
+
+
+def test_bedtools_overlapbed_renders_column_overlap_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_overlapbed")
+
+    assert node_class.render_command(
+        {
+            "input": "windowed.bed",
+            "cols": [2, 3, 6, 7],
+            "output": "/work/bedtools_overlapbed",
+        }
+    ) == [
+        "bedtools",
+        "overlap",
+        "-i",
+        "windowed.bed",
+        "-cols",
+        "2,3,6,7",
+        ">",
+        "/work/bedtools_overlapbed/overlap.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_overlapbed" / "overlap.bed",
+    ]
+
+
+def test_bedtools_tagbed_renders_annotation_tag_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_tagbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "alignments.bam",
+            "inputB": ["genes.bed", "enhancers.gff"],
+            "overlap": 0.75,
+            "strand": "opposite",
+            "tag": "ZG",
+            "field": "-labels -intervals",
+            "output": "/work/bedtools_tagbed",
+        }
+    ) == [
+        "bedtools",
+        "tag",
+        "-i",
+        "alignments.bam",
+        "-files",
+        "genes.bed",
+        "enhancers.gff",
+        "-f",
+        "0.75",
+        "-S",
+        "-tag",
+        "ZG",
+        "-labels",
+        "-intervals",
+        ">",
+        "/work/bedtools_tagbed/tagged.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_tagbed" / "tagged.bam",
+    ]

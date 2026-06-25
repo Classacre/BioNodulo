@@ -1083,6 +1083,88 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_bedtoigv: {
+    name: 'bedtools_bedtoigv',
+    display_name: 'BEDTools BED to IGV',
+    category: 'genomics',
+    description: 'Create an IGV batch script that takes snapshots at intervals from a BED-like file.',
+    search_aliases: ['Galaxy', 'bedtools', 'bedtoigv', 'bedToIgv', 'IGV snapshots', 'batch script'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+    },
+    output: ['TEXT'],
+    output_name: ['igv_batch_script'],
+    required_executables: ['bedToIgv'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/blob/main/tools/bedtools/bedToIgv.xml',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_links: {
+    name: 'bedtools_links',
+    display_name: 'BEDTools LinksBed',
+    category: 'genomics',
+    description: 'Create an HTML page with UCSC Genome Browser links for intervals in a BED-like file.',
+    search_aliases: ['Galaxy', 'bedtools', 'links', 'linksbed', 'linksbed ucsc', 'UCSC links', 'genome browser'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+    },
+    output: ['HTML'],
+    output_name: ['links_html'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/links.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_overlapbed: {
+    name: 'bedtools_overlapbed',
+    display_name: 'BEDTools OverlapBed',
+    category: 'genomics',
+    description: 'Compute the amount of overlap or distance between two feature coordinate ranges on each input row.',
+    search_aliases: ['Galaxy', 'bedtools', 'overlap', 'overlapbed', 'overlapbed custom score', 'overlap distance', 'custom overlap score'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+        cols: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['overlap'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/overlap.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_tagbed: {
+    name: 'bedtools_tagbed',
+    display_name: 'BEDTools TagBed',
+    category: 'genomics',
+    description: 'Annotate BAM alignments with tags populated from one or more overlapping interval files.',
+    search_aliases: ['Galaxy', 'bedtools', 'tag', 'tagbed', 'tagbed bam tags', 'BAM tags', 'alignment annotation'],
+    input: {
+      required: {
+        inputA: { type: 'BAM' },
+        inputB: { type: 'FILE_LIST' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['tagged_bam'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/tag.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1404,7 +1486,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('70 nodes available')).toBeVisible();
+  await expect(page.getByText('74 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1465,6 +1547,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'unionbedgraph', name: 'BEDTools Union BedGraph', category: 'genomics' },
     { query: 'closestbed', name: 'BEDTools ClosestBed', category: 'genomics' },
     { query: 'intersectbed', name: 'BEDTools Intersect Intervals', category: 'genomics' },
+    { query: 'bedtoigv snapshots', name: 'BEDTools BED to IGV', category: 'genomics' },
+    { query: 'linksbed ucsc', name: 'BEDTools LinksBed', category: 'genomics' },
+    { query: 'overlapbed custom score', name: 'BEDTools OverlapBed', category: 'genomics' },
+    { query: 'tagbed bam tags', name: 'BEDTools TagBed', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

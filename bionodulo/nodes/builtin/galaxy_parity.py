@@ -3335,3 +3335,207 @@ class BEDToolsIntersectBedNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsBedToIgvNode(CommandNode):
+    """Create IGV batch scripts for interval snapshots."""
+
+    NODE_ID = "bedtools_bedtoigv"
+    DISPLAY_NAME = "BEDTools BED to IGV"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Create an IGV batch script that takes snapshots at intervals from a BED-like file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "bedtoigv", "bedToIgv", "IGV snapshots", "batch script"]
+    RETURN_TYPES = ("TEXT",)
+    RETURN_NAMES = ("igv_batch_script",)
+    REQUIRED_EXECUTABLES = ["bedToIgv"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/blob/main/tools/bedtools/bedToIgv.xml"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedToIgv", "-i", str(inputs.get("input", ""))]
+        _add_if_value(cmd, "-sort", inputs.get("sort"))
+        if inputs.get("clps"):
+            cmd.append("-clps")
+        if inputs.get("name"):
+            cmd.append("-name")
+        cmd.extend(["-slop", str(inputs.get("slop", 0)), "-img", str(inputs.get("img", "png"))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/igv_batch_script.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "igv_batch_script.txt", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "BED-like interval file to convert into IGV snapshot commands"}),
+            },
+            "optional": {
+                "sort": ("STRING", {"default": "", "options": ["", "base", "position", "strand", "quality", "sample", "readGroup"], "description": "BAM sorting mode to apply before snapshots"}),
+                "clps": ("BOOLEAN", {"default": False, "description": "Collapse aligned reads before each snapshot"}),
+                "name": ("BOOLEAN", {"default": False, "description": "Use column 4 interval names as image filenames"}),
+                "slop": ("INT", {"default": 0, "min": 0, "description": "Flanking base pairs on each side of each interval"}),
+                "img": ("STRING", {"default": "png", "options": ["png", "eps", "svg"], "description": "Snapshot image format"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsLinksNode(CommandNode):
+    """Create UCSC Genome Browser links for each interval."""
+
+    NODE_ID = "bedtools_links"
+    DISPLAY_NAME = "BEDTools LinksBed"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Create an HTML page with UCSC Genome Browser links for intervals in a BED-like file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "links", "linksbed", "linksbed ucsc", "UCSC links", "genome browser"]
+    RETURN_TYPES = ("HTML",)
+    RETURN_NAMES = ("links_html",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/links.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bedtools",
+            "links",
+            "-base",
+            str(inputs.get("basename", "http://genome.ucsc.edu")),
+            "-org",
+            str(inputs.get("org", "human")),
+            "-db",
+            str(inputs.get("db", "hg19")),
+            "-i",
+            str(inputs.get("input", "")),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/links.html")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "links.html", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "BED-like interval file to link into a genome browser"}),
+            },
+            "optional": {
+                "basename": ("STRING", {"default": "http://genome.ucsc.edu", "description": "Base URL for the UCSC Genome Browser instance"}),
+                "org": ("STRING", {"default": "human", "description": "UCSC organism name"}),
+                "db": ("STRING", {"default": "hg19", "description": "UCSC genome build"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsOverlapBedNode(CommandNode):
+    """Compute overlap or distance between coordinate pairs on each row."""
+
+    NODE_ID = "bedtools_overlapbed"
+    DISPLAY_NAME = "BEDTools OverlapBed"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Compute the amount of overlap or distance between two feature coordinate ranges on each input row."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "overlap", "overlapbed", "overlapbed custom score", "overlap distance", "custom overlap score"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("overlap",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/overlap.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cols = inputs.get("cols", "")
+        if isinstance(cols, (list, tuple)):
+            cols = ",".join(str(col) for col in cols)
+        cmd = ["bedtools", "overlap", "-i", str(inputs.get("input", "")), "-cols", str(cols)]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/overlap.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "overlap.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "Input rows containing two coordinate ranges"}),
+                "cols": ("STRING", {"default": "", "description": "Comma-separated 1-based columns: start1,end1,start2,end2"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsTagBedNode(CommandNode):
+    """Tag BAM alignments using overlapping interval annotations."""
+
+    NODE_ID = "bedtools_tagbed"
+    DISPLAY_NAME = "BEDTools TagBed"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Annotate BAM alignments with tags populated from one or more overlapping interval files."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "tag", "tagbed", "tagbed bam tags", "BAM tags", "alignment annotation"]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("tagged_bam",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/tag.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "tag", "-i", str(inputs.get("inputA", "")), "-files", *_as_list(inputs.get("inputB"))]
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        cmd.extend(["-tag", str(inputs.get("tag", "YB"))])
+        for field_flag in str(inputs.get("field", "-labels")).split():
+            if field_flag:
+                cmd.append(field_flag)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/tagged.bam")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "tagged.bam", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BAM", {"description": "BAM alignments to annotate"}),
+                "inputB": ("FILE_LIST", {"description": "BED-like annotation files used to populate tags"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of each alignment"}),
+                "tag": ("STRING", {"default": "YB", "description": "BAM tag name to populate"}),
+                "field": ("STRING", {"default": "-labels", "options": ["-labels", "-scores", "-names", "-labels -intervals"], "description": "Annotation field used as tag value"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
