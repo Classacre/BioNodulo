@@ -2317,3 +2317,140 @@ def test_bedtools_unionbedgraph_renders_named_empty_union_command_and_output(tmp
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bedtools_unionbedgraph" / "union.bedgraph",
     ]
+
+
+def test_galaxy_parity_bedtools_overlap_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_closestbed": {
+            "display_name": "BEDTools ClosestBed",
+            "required_executables": ["closestBed"],
+            "required_conda_packages": ["bedtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/closest.html",
+        },
+        "bedtools_intersectbed": {
+            "display_name": "BEDTools Intersect Intervals",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools", "samtools"],
+            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == "genomics"
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
+        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
+        assert node_info["documentation_url"] == metadata["documentation_url"]
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_closestbed_renders_distance_mode_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_closestbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "query.bed",
+            "inputB": ["genes.bed", "enhancers.bed"],
+            "strand": "opposite",
+            "distance": True,
+            "distance_mode": "a",
+            "ignore_upstream": True,
+            "first_upstream": True,
+            "ignore_overlaps": True,
+            "mdb": "all",
+            "ties": "first",
+            "k": 3,
+            "output": "/work/bedtools_closestbed",
+        }
+    ) == [
+        "closestBed",
+        "-S",
+        "-d",
+        "-D",
+        "a",
+        "-iu",
+        "-fu",
+        "-io",
+        "-mdb",
+        "all",
+        "-t",
+        "first",
+        "-k",
+        "3",
+        "-a",
+        "query.bed",
+        "-b",
+        "genes.bed",
+        "enhancers.bed",
+        ">",
+        "/work/bedtools_closestbed/closest.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_closestbed" / "closest.bed",
+    ]
+
+
+def test_bedtools_intersectbed_renders_reduced_named_overlap_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_intersectbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "reads.bam",
+            "inputB": ["promoters.bed", "enhancers.bed"],
+            "names": ["promoters", "enhancers"],
+            "overlap_mode": ["-wa", "-wb"],
+            "split": True,
+            "strand": "same",
+            "overlap": 0.5,
+            "overlap_b": 0.25,
+            "either_fraction": True,
+            "invert": True,
+            "once": True,
+            "header": True,
+            "sorted": True,
+            "genome": "chrom.sizes",
+            "bed": True,
+            "count": True,
+            "output": "/work/bedtools_intersectbed",
+        }
+    ) == [
+        "bedtools",
+        "intersect",
+        "-a",
+        "reads.bam",
+        "-b",
+        "promoters.bed",
+        "enhancers.bed",
+        "-names",
+        "promoters",
+        "enhancers",
+        "-split",
+        "-s",
+        "-f",
+        "0.5",
+        "-F",
+        "0.25",
+        "-e",
+        "-v",
+        "-u",
+        "-header",
+        "-wa",
+        "-wb",
+        "-sorted",
+        "-g",
+        "chrom.sizes",
+        "-bed",
+        "-c",
+        ">",
+        "/work/bedtools_intersectbed/intersect.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"bed": True}, tmp_path) == [
+        tmp_path / "bedtools_intersectbed" / "intersect.bed",
+    ]

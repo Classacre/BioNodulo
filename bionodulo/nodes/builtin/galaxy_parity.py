@@ -3173,3 +3173,165 @@ class BEDToolsUnionBedGraphNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BEDToolsClosestBedNode(CommandNode):
+    """Find closest features, optionally reporting signed distances."""
+
+    NODE_ID = "bedtools_closestbed"
+    DISPLAY_NAME = "BEDTools ClosestBed"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Find closest or overlapping features in one or more B interval files for every interval in A."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "closest", "closestbed", "nearest interval", "nearest feature"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("closest",)
+    REQUIRED_EXECUTABLES = ["closestBed"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/closest.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["closestBed"]
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        if inputs.get("distance"):
+            cmd.append("-d")
+        distance_mode = str(inputs.get("distance_mode", inputs.get("addition2_select", ""))).strip()
+        if distance_mode:
+            cmd.extend(["-D", distance_mode])
+            if inputs.get("ignore_upstream"):
+                cmd.append("-iu")
+            if inputs.get("ignore_downstream"):
+                cmd.append("-id")
+            if inputs.get("first_upstream"):
+                cmd.append("-fu")
+            if inputs.get("first_downstream"):
+                cmd.append("-fd")
+        if inputs.get("ignore_overlaps", inputs.get("io")):
+            cmd.append("-io")
+        cmd.extend(["-mdb", str(inputs.get("mdb", "each")), "-t", str(inputs.get("ties", "all"))])
+        _add_if_value(cmd, "-k", inputs.get("k"))
+        cmd.extend(["-a", str(inputs.get("inputA", "")), "-b", *_as_list(inputs.get("inputB"))])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/closest.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "closest.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Query intervals"}),
+                "inputB": ("BED_LIST", {"description": "One or more databases of intervals to search"}),
+            },
+            "optional": {
+                "ties": ("STRING", {"default": "all", "options": ["all", "first", "last"], "description": "How equally close B records are handled"}),
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "distance": ("BOOLEAN", {"default": False, "description": "Report distance as an extra column"}),
+                "distance_mode": ("STRING", {"default": "", "options": ["", "ref", "a", "b"], "description": "Report signed upstream/downstream distances"}),
+                "ignore_upstream": ("BOOLEAN", {"default": False, "description": "Ignore upstream features when using -D"}),
+                "ignore_downstream": ("BOOLEAN", {"default": False, "description": "Ignore downstream features when using -D"}),
+                "first_upstream": ("BOOLEAN", {"default": False, "description": "Choose first upstream feature when using -D"}),
+                "first_downstream": ("BOOLEAN", {"default": False, "description": "Choose first downstream feature when using -D"}),
+                "ignore_overlaps": ("BOOLEAN", {"default": False, "description": "Ignore B features that overlap A"}),
+                "mdb": ("STRING", {"default": "each", "options": ["each", "all"], "description": "Resolve closest hits per B file or across all B files"}),
+                "k": ("INT", {"default": "", "min": 1, "description": "Report the k closest hits"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsIntersectBedNode(CommandNode):
+    """Find interval intersections with Galaxy wrapper-compatible options."""
+
+    NODE_ID = "bedtools_intersectbed"
+    DISPLAY_NAME = "BEDTools Intersect Intervals"
+    REQUIRED_CONDA_PACKAGES = ["bedtools", "samtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Find overlaps between A and one or more B BED-like or BAM files with configurable reporting modes."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "intersect", "intersectbed", "overlap intervals", "feature intersection"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("intersect",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html"
+    CITATION_DOIS = [BEDTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEDTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BEDTOOLS_CITATION_TEXT
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bedtools", "intersect", "-a", str(inputs.get("inputA", "")), "-b", *_as_list(inputs.get("inputB"))]
+        names = _as_list(inputs.get("names"))
+        if names:
+            cmd.extend(["-names", *names])
+        if inputs.get("split"):
+            cmd.append("-split")
+        strand_flag = _bedtools_strand_flag(inputs.get("strand"))
+        if strand_flag:
+            cmd.append(strand_flag)
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        if inputs.get("reciprocal"):
+            cmd.append("-r")
+        else:
+            _add_if_value(cmd, "-F", inputs.get("overlap_b", inputs.get("overlapB")))
+            if inputs.get("either_fraction", inputs.get("disjoint")):
+                cmd.append("-e")
+        if inputs.get("invert"):
+            cmd.append("-v")
+        if inputs.get("once"):
+            cmd.append("-u")
+        if inputs.get("header"):
+            cmd.append("-header")
+        for mode in _as_list(inputs.get("overlap_mode")):
+            if mode and mode != "None":
+                cmd.append(mode)
+        if inputs.get("sorted"):
+            cmd.append("-sorted")
+            _bedtools_add_genome(cmd, inputs)
+        if inputs.get("bed"):
+            cmd.append("-bed")
+        if inputs.get("count"):
+            cmd.append("-c")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/intersect.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bedtools_common_output(cls.NODE_ID, "intersect.bed", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("FILE", {"description": "A file: BED-like, BAM, VCF, or GFF"}),
+                "inputB": ("FILE_LIST", {"description": "One or more B files to intersect with A"}),
+            },
+            "optional": {
+                "names": ("STRING_LIST", {"description": "Optional labels for B files"}),
+                "overlap_mode": ("STRING_LIST", {"description": "Reporting flags such as -wa, -wb, -wo, -wao, or -loj"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Treat split BED12/BAM alignments as distinct intervals"}),
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of A"}),
+                "overlap_b": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap fraction of B"}),
+                "reciprocal": ("BOOLEAN", {"default": False, "description": "Require reciprocal overlap"}),
+                "either_fraction": ("BOOLEAN", {"default": False, "description": "Allow either A or B overlap fraction to be satisfied"}),
+                "invert": ("BOOLEAN", {"default": False, "description": "Report A records with no overlaps"}),
+                "once": ("BOOLEAN", {"default": False, "description": "Report each A record once if any overlap exists"}),
+                "count": ("BOOLEAN", {"default": False, "description": "Report overlap count for each A record"}),
+                "bed": ("BOOLEAN", {"default": False, "description": "When A is BAM, write BED output"}),
+                "sorted": ("BOOLEAN", {"default": False, "description": "Use sorted input algorithm"}),
+                "genome": ("TSV", {"description": "Genome chromosome sizes file for sorted mode"}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print the A file header before results"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }

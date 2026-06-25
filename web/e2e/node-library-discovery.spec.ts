@@ -1041,6 +1041,48 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_closestbed: {
+    name: 'bedtools_closestbed',
+    display_name: 'BEDTools ClosestBed',
+    category: 'genomics',
+    description: 'Find closest or overlapping features in one or more B interval files for every interval in A.',
+    search_aliases: ['Galaxy', 'bedtools', 'closest', 'closestbed', 'nearest interval', 'nearest feature'],
+    input: {
+      required: {
+        inputA: { type: 'BED' },
+        inputB: { type: 'BED_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['closest'],
+    required_executables: ['closestBed'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/closest.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_intersectbed: {
+    name: 'bedtools_intersectbed',
+    display_name: 'BEDTools Intersect Intervals',
+    category: 'genomics',
+    description: 'Find overlaps between A and one or more B BED-like or BAM files with configurable reporting modes.',
+    search_aliases: ['Galaxy', 'bedtools', 'intersect', 'intersectbed', 'overlap intervals', 'feature intersection'],
+    input: {
+      required: {
+        inputA: { type: 'FILE' },
+        inputB: { type: 'FILE_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['intersect'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools', 'samtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1362,7 +1404,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('68 nodes available')).toBeVisible();
+  await expect(page.getByText('70 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -1421,6 +1463,8 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'randombed', name: 'BEDTools Random', category: 'genomics' },
     { query: 'shufflebed', name: 'BEDTools Shuffle', category: 'genomics' },
     { query: 'unionbedgraph', name: 'BEDTools Union BedGraph', category: 'genomics' },
+    { query: 'closestbed', name: 'BEDTools ClosestBed', category: 'genomics' },
+    { query: 'intersectbed', name: 'BEDTools Intersect Intervals', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },
