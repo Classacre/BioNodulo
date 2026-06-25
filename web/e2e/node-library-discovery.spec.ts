@@ -434,6 +434,89 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedtools_subtractbed: {
+    name: 'bedtools_subtractbed',
+    display_name: 'BEDTools Subtract',
+    category: 'genomics',
+    description: 'Remove intervals or overlapping bases from one feature set using bedtools subtract.',
+    search_aliases: ['Galaxy', 'bedtools', 'subtract', 'subtractbed', 'interval subtraction', 'blacklist'],
+    input: {
+      required: {
+        inputA: { type: 'BED' },
+        inputB: { type: 'BED' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['subtracted'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/subtract.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_mergebed: {
+    name: 'bedtools_mergebed',
+    display_name: 'BEDTools Merge',
+    category: 'genomics',
+    description: 'Combine overlapping or nearby intervals into flattened regions with optional column summaries.',
+    search_aliases: ['Galaxy', 'bedtools', 'merge', 'mergebed', 'combine intervals', 'flatten intervals'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+        distance: { type: 'INT', default: 0 },
+      },
+    },
+    output: ['BED'],
+    output_name: ['merged'],
+    required_executables: ['mergeBed'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/merge.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_sortbed: {
+    name: 'bedtools_sortbed',
+    display_name: 'BEDTools Sort',
+    category: 'genomics',
+    description: 'Order BED, GFF, VCF, or bedGraph intervals by coordinate, size, score, or a genome file.',
+    search_aliases: ['Galaxy', 'bedtools', 'sort', 'sortbed', 'coordinate sort', 'genome order'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['sorted_intervals'],
+    required_executables: ['sortBed'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/sort.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
+  bedtools_getfastabed: {
+    name: 'bedtools_getfastabed',
+    display_name: 'BEDTools getfasta',
+    category: 'genomics',
+    description: 'Extract sequences from a FASTA file using BED, GFF, VCF, or bedGraph intervals.',
+    search_aliases: ['Galaxy', 'bedtools', 'getfasta', 'getfastabed', 'extract sequence', 'fasta intervals'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['FASTA', 'TSV'],
+    output_name: ['extracted_fasta', 'extracted_tsv'],
+    required_executables: ['bedtools'],
+    required_conda_packages: ['bedtools'],
+    documentation_url: 'https://bedtools.readthedocs.io/en/latest/content/tools/getfasta.html',
+    citation_dois: ['10.1093/bioinformatics/btq033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
+    citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -755,7 +838,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('39 nodes available')).toBeVisible();
+  await expect(page.getByText('43 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -785,6 +868,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
     { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
+    { query: 'subtractbed', name: 'BEDTools Subtract', category: 'genomics' },
+    { query: 'mergebed', name: 'BEDTools Merge', category: 'genomics' },
+    { query: 'sortbed', name: 'BEDTools Sort', category: 'genomics' },
+    { query: 'getfasta', name: 'BEDTools getfasta', category: 'genomics' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

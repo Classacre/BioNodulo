@@ -1085,3 +1085,183 @@ def test_bedtools_genomecoveragebed_renders_bam_bedgraph_command_and_outputs(tmp
     assert node_class.PLAN_OUTPUTS({"report": "hist"}, tmp_path) == [
         tmp_path / "bedtools_genomecoveragebed" / "genome_coverage.tsv",
     ]
+
+
+def test_galaxy_parity_bedtools_followup_nodes_expose_citation_and_dependency_metadata() -> None:
+    info = _registry().object_info()
+
+    expected = {
+        "bedtools_subtractbed": {
+            "display_name": "BEDTools Subtract",
+            "category": "genomics",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_mergebed": {
+            "display_name": "BEDTools Merge",
+            "category": "genomics",
+            "required_executables": ["mergeBed"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_sortbed": {
+            "display_name": "BEDTools Sort",
+            "category": "genomics",
+            "required_executables": ["sortBed"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+        "bedtools_getfastabed": {
+            "display_name": "BEDTools getfasta",
+            "category": "genomics",
+            "required_executables": ["bedtools"],
+            "required_conda_packages": ["bedtools"],
+            "doi": "10.1093/bioinformatics/btq033",
+        },
+    }
+
+    for node_id, metadata in expected.items():
+        node_info = info[node_id]
+        assert node_info["display_name"] == metadata["display_name"]
+        assert node_info["category"] == metadata["category"]
+        assert node_info["required_executables"] == metadata["required_executables"]
+        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
+        assert metadata["doi"] in node_info["citation_dois"]
+        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
+        assert node_info["documentation_url"].startswith(("https://", "http://"))
+        assert "Galaxy" in node_info["search_aliases"]
+
+
+def test_bedtools_subtractbed_renders_overlap_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_subtractbed")
+
+    assert node_class.render_command(
+        {
+            "inputA": "targets.bed",
+            "inputB": "blacklist.bed",
+            "strand": "opposite",
+            "overlap": 0.8,
+            "remove_if_overlap": "remove_feature",
+            "output": "/work/bedtools_subtractbed",
+        }
+    ) == [
+        "bedtools",
+        "subtract",
+        "-S",
+        "-a",
+        "targets.bed",
+        "-b",
+        "blacklist.bed",
+        "-f",
+        "0.8",
+        "-A",
+        ">",
+        "/work/bedtools_subtractbed/subtracted.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_subtractbed" / "subtracted.bed",
+    ]
+
+
+def test_bedtools_mergebed_renders_column_operations_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_mergebed")
+
+    assert node_class.render_command(
+        {
+            "input": "sorted_regions.bed",
+            "strand": "forward",
+            "distance": 1000,
+            "header": True,
+            "columns": "4,5",
+            "operations": "collapse,mean",
+            "output": "/work/bedtools_mergebed",
+        }
+    ) == [
+        "mergeBed",
+        "-i",
+        "sorted_regions.bed",
+        "-S",
+        "+",
+        "-d",
+        "1000",
+        "-header",
+        "-c",
+        "4,5",
+        "-o",
+        "collapse,mean",
+        ">",
+        "/work/bedtools_mergebed/merged.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bedtools_mergebed" / "merged.bed",
+    ]
+
+
+def test_bedtools_sortbed_renders_genome_order_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_sortbed")
+
+    assert node_class.render_command(
+        {
+            "input": "regions.gff",
+            "sort_by": "-chrThenScoreD",
+            "genome": "chrom.sizes",
+            "output": "/work/bedtools_sortbed",
+        }
+    ) == [
+        "sortBed",
+        "-i",
+        "regions.gff",
+        "-chrThenScoreD",
+        "-g",
+        "chrom.sizes",
+        ">",
+        "/work/bedtools_sortbed/sorted.gff",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"input": "regions.gff"}, tmp_path) == [
+        tmp_path / "bedtools_sortbed" / "sorted.gff",
+    ]
+
+
+def test_bedtools_getfastabed_renders_sequence_extraction_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bedtools_getfastabed")
+
+    assert node_class.render_command(
+        {
+            "input": "exons.bed12",
+            "fasta": "genome.fa",
+            "name_only": True,
+            "tab": True,
+            "strand": True,
+            "split": True,
+            "output": "/work/bedtools_getfastabed",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "genome.fa",
+        "input.fasta",
+        "&&",
+        "bedtools",
+        "getfasta",
+        "-nameOnly",
+        "-tab",
+        "-s",
+        "-split",
+        "-fi",
+        "input.fasta",
+        "-bed",
+        "exons.bed12",
+        "-fo",
+        "/work/bedtools_getfastabed/extracted.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"tab": True}, tmp_path) == [
+        tmp_path / "bedtools_getfastabed" / "extracted.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"tab": False}, tmp_path) == [
+        tmp_path / "bedtools_getfastabed" / "extracted.fasta",
+    ]

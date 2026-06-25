@@ -37,6 +37,16 @@ def _safe_name(value: str) -> str:
     return sub(r"[^\w\-.]", "_", Path(value).name)
 
 
+def _bedtools_ext(path: Any, default: str = "bed") -> str:
+    suffixes = Path(str(path or "")).suffixes
+    if not suffixes:
+        return default
+    if len(suffixes) >= 2 and suffixes[-2:] == [".gff", ".gz"]:
+        return "gff"
+    ext = suffixes[-1].lstrip(".").lower()
+    return {"gff3": "gff", "bg": "bedgraph"}.get(ext, ext or default)
+
+
 class BUSCONode(CommandNode):
     """Assess genome, transcriptome, or proteome completeness with BUSCO."""
 
@@ -1398,6 +1408,272 @@ class BEDToolsGenomeCoverageNode(CommandNode):
                 "dz": ("BOOLEAN", {"default": False, "description": "Report 0-based non-zero per-position depth"}),
                 "five": ("BOOLEAN", {"default": False, "description": "Calculate coverage of 5' positions"}),
                 "three": ("BOOLEAN", {"default": False, "description": "Calculate coverage of 3' positions"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsSubtractNode(CommandNode):
+    """Remove portions of A intervals that overlap B intervals."""
+
+    NODE_ID = "bedtools_subtractbed"
+    DISPLAY_NAME = "BEDTools Subtract"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Remove intervals or overlapping bases from one feature set using bedtools subtract."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "subtract", "subtractbed", "interval subtraction", "blacklist"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("subtracted",)
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/subtract.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        strand_flags = {"same": "-s", "opposite": "-S", "-s": "-s", "-S": "-S"}
+        remove_flags = {
+            "remove_feature": "-A",
+            "remove_feature_sum": "-N",
+            "-A": "-A",
+            "-N": "-N",
+        }
+        cmd = ["bedtools", "subtract"]
+        strand = str(inputs.get("strand", ""))
+        if strand_flags.get(strand):
+            cmd.append(strand_flags[strand])
+        cmd.extend(["-a", str(inputs.get("inputA", "")), "-b", str(inputs.get("inputB", ""))])
+        _add_if_value(cmd, "-f", inputs.get("overlap"))
+        remove_if_overlap = str(inputs.get("remove_if_overlap", inputs.get("removeIfOverlap", "")))
+        if remove_flags.get(remove_if_overlap):
+            cmd.append(remove_flags[remove_if_overlap])
+        _add_shell_redirect(cmd, f"{_out(inputs)}/subtracted.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "subtracted.bed"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputA": ("BED", {"description": "Intervals to subtract from"}),
+                "inputB": ("BED", {"description": "Intervals used to mask or remove A bases"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "opposite"]}),
+                "overlap": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum overlap required as a fraction of A"}),
+                "remove_if_overlap": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "remove_feature", "remove_feature_sum"],
+                        "description": "Remove entire A feature on any overlap, or on cumulative overlap with -f",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsMergeNode(CommandNode):
+    """Combine overlapping or nearby intervals with bedtools merge."""
+
+    NODE_ID = "bedtools_mergebed"
+    DISPLAY_NAME = "BEDTools Merge"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Combine overlapping or nearby intervals into flattened regions with optional column summaries."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "merge", "mergebed", "combine intervals", "flatten intervals"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("merged",)
+    REQUIRED_EXECUTABLES = ["mergeBed"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/merge.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        strand_flags = {
+            "same": ["-s"],
+            "forward": ["-S", "+"],
+            "reverse": ["-S", "-"],
+            "-s": ["-s"],
+            "-S +": ["-S", "+"],
+            "-S -": ["-S", "-"],
+        }
+        cmd = ["mergeBed", "-i", str(inputs.get("input", ""))]
+        cmd.extend(strand_flags.get(str(inputs.get("strand", "")), []))
+        cmd.extend(["-d", str(inputs.get("distance", 0))])
+        if inputs.get("header"):
+            cmd.append("-header")
+        columns = str(inputs.get("columns", inputs.get("cols", ""))).strip()
+        operations = str(inputs.get("operations", inputs.get("operation", ""))).strip()
+        if columns and operations:
+            cmd.extend(["-c", columns, "-o", operations])
+        if str(inputs.get("input", "")).lower().endswith(".bam"):
+            cmd.append("-bed")
+        _add_shell_redirect(cmd, f"{_out(inputs)}/merged.bed")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "merged.bed"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "Presorted BED/GFF/VCF/BAM intervals to merge"}),
+                "distance": ("INT", {"default": 0, "description": "Maximum distance between intervals to merge"}),
+            },
+            "optional": {
+                "strand": ("STRING", {"default": "", "options": ["", "same", "forward", "reverse"]}),
+                "header": ("BOOLEAN", {"default": False, "description": "Print input header before results"}),
+                "columns": ("STRING", {"default": "", "description": "Comma-separated columns to summarize"}),
+                "operations": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Comma-separated operations such as sum,mean,count,collapse,distinct",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsSortNode(CommandNode):
+    """Sort genomic intervals with bedtools sort."""
+
+    NODE_ID = "bedtools_sortbed"
+    DISPLAY_NAME = "BEDTools Sort"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Order BED, GFF, VCF, or bedGraph intervals by coordinate, size, score, or a genome file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "sort", "sortbed", "coordinate sort", "genome order"]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("sorted_intervals",)
+    REQUIRED_EXECUTABLES = ["sortBed"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/sort.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["sortBed", "-i", str(inputs.get("input", ""))]
+        sort_by = str(inputs.get("sort_by", inputs.get("option", "")))
+        if sort_by:
+            cmd.append(sort_by)
+        _add_if_value(cmd, "-g", inputs.get("genome"))
+        output_ext = _bedtools_ext(inputs.get("input"))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/sorted.{output_ext}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / f"sorted.{_bedtools_ext(inputs.get('input'))}"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "BED, GFF, VCF, bedGraph, or EncodePeak intervals to sort"}),
+            },
+            "optional": {
+                "sort_by": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "-sizeA", "-sizeD", "-chrThenSizeA", "-chrThenSizeD", "-chrThenScoreA", "-chrThenScoreD"],
+                    },
+                ),
+                "genome": ("TSV", {"description": "Optional genome chromosome sizes file for sort order"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BEDToolsGetFastaNode(CommandNode):
+    """Extract FASTA or tabular sequences for genomic intervals."""
+
+    NODE_ID = "bedtools_getfastabed"
+    DISPLAY_NAME = "BEDTools getfasta"
+    REQUIRED_CONDA_PACKAGES = ["bedtools"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Extract sequences from a FASTA file using BED, GFF, VCF, or bedGraph intervals."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bedtools", "getfasta", "getfastabed", "extract sequence", "fasta intervals"]
+    RETURN_TYPES = ("FASTA", "TSV")
+    RETURN_NAMES = ("extracted_fasta", "extracted_tsv")
+    REQUIRED_EXECUTABLES = ["bedtools"]
+    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/getfasta.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btq033"]
+    CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
+    VERSION = "2.31.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output_name = "extracted.tsv" if inputs.get("tab") else "extracted.fasta"
+        cmd = ["ln", "-s", str(inputs.get("fasta", "")), "input.fasta", "&&", "bedtools", "getfasta"]
+        if inputs.get("name"):
+            cmd.append("-name")
+        if inputs.get("name_only", inputs.get("nameOnly")):
+            cmd.append("-nameOnly")
+        if inputs.get("tab"):
+            cmd.append("-tab")
+        if inputs.get("strand"):
+            cmd.append("-s")
+        if inputs.get("split"):
+            cmd.append("-split")
+        cmd.extend([
+            "-fi",
+            "input.fasta",
+            "-bed",
+            str(inputs.get("input", "")),
+            "-fo",
+            f"{_out(inputs)}/{output_name}",
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if inputs.get("tab"):
+            return [out / "extracted.tsv"]
+        return [out / "extracted.fasta"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "Intervals used to extract sequence"}),
+                "fasta": ("FASTA", {"description": "Reference FASTA file"}),
+            },
+            "optional": {
+                "name": ("BOOLEAN", {"default": False, "description": "Use BED name and coordinates in FASTA headers"}),
+                "name_only": ("BOOLEAN", {"default": False, "description": "Use only the BED name in FASTA headers"}),
+                "tab": ("BOOLEAN", {"default": False, "description": "Emit tab-delimited name and sequence output"}),
+                "strand": ("BOOLEAN", {"default": False, "description": "Reverse complement antisense features"}),
+                "split": ("BOOLEAN", {"default": False, "description": "Use BED12 blocks rather than full interval spans"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
