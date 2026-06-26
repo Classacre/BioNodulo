@@ -3881,6 +3881,146 @@ class VSearchSortingNode(CommandNode):
         }
 
 
+class VSearchAlignmentNode(CommandNode):
+    """Compute all-pairs global alignments with VSEARCH."""
+
+    NODE_ID = "vsearch_alignment"
+    DISPLAY_NAME = "VSEARCH Alignment"
+    REQUIRED_CONDA_PACKAGES = ["vsearch"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Compute all-pairs global alignments for FASTA sequences with VSEARCH and optional tabular user fields."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "vsearch",
+        "alignment",
+        "allpairs_global",
+        "pairwise alignment",
+        "alnout",
+        "userfields",
+    ]
+    RETURN_TYPES = ("STATS_FILE", "TSV")
+    RETURN_NAMES = ("alignments", "userfields")
+    REQUIRED_EXECUTABLES = ["vsearch"]
+    DOCUMENTATION_URL = "https://github.com/torognes/vsearch"
+    CITATION_DOIS = ["10.7717/peerj.2584"]
+    CITATION_URLS = ["https://doi.org/10.7717/peerj.2584"]
+    CITATION_TEXT = "VSEARCH: a versatile open source tool for metagenomics."
+    VERSION = "2.8.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "vsearch",
+            "--threads",
+            str(inputs.get("threads", 4)),
+            "--notrunclabels",
+        ]
+        if inputs.get("acceptall"):
+            cmd.append("--acceptall")
+        cmd.extend([
+            "--id",
+            str(inputs.get("id", inputs.get("identity", 0.97))),
+            "--iddef",
+            str(inputs.get("iddef", 2)),
+            "--allpairs_global",
+            str(inputs.get("infile", inputs.get("sequences", ""))),
+            "--alnout",
+            f"{_out(inputs)}/alignments.txt",
+        ])
+        _add_if_value(cmd, "--query_cov", inputs.get("query_cov"))
+
+        if inputs.get("userfields_output_select") == "yes":
+            userfields = _as_list(inputs.get("userfields"))
+            if not userfields:
+                userfields = ["query", "target"]
+            cmd.extend([
+                "--userfields",
+                "+".join(userfields),
+                "--userout",
+                f"{_out(inputs)}/userfields.tsv",
+            ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "alignments.txt"]
+        if inputs.get("userfields_output_select") == "yes":
+            outputs.append(out / "userfields.tsv")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "infile": ("FASTA", {"description": "FASTA sequences for all-pairs global alignment"}),
+            },
+            "optional": {
+                "id": ("FLOAT", {"default": 0.97, "min": 0, "max": 1, "description": "Minimum pairwise identity"}),
+                "iddef": ("STRING", {"default": "2", "options": ["0", "1", "2", "3", "4"], "description": "VSEARCH identity definition"}),
+                "acceptall": ("BOOLEAN", {"default": False, "description": "Output all pairwise alignments"}),
+                "query_cov": ("FLOAT", {"default": "", "min": 0, "max": 1, "description": "Minimum aligned query fraction"}),
+                "userfields_output_select": ("STRING", {"default": "no", "options": ["no", "yes"], "description": "Write tabular user fields"}),
+                "userfields": (
+                    "STRING",
+                    {
+                        "default": ["query", "target"],
+                        "list": True,
+                        "options": [
+                            "aln",
+                            "alnlen",
+                            "bits",
+                            "caln",
+                            "evalue",
+                            "exts",
+                            "gaps",
+                            "id",
+                            "id0",
+                            "id1",
+                            "id2",
+                            "id3",
+                            "id4",
+                            "ids",
+                            "mism",
+                            "opens",
+                            "pairs",
+                            "pctgaps",
+                            "pctpv",
+                            "pv",
+                            "qcov",
+                            "qframe",
+                            "qhi",
+                            "qihi",
+                            "qilo",
+                            "ql",
+                            "qlo",
+                            "qrow",
+                            "qs",
+                            "qstrand",
+                            "query",
+                            "raw",
+                            "target",
+                            "tcov",
+                            "tframe",
+                            "thi",
+                            "tihi",
+                            "tilo",
+                            "tl",
+                            "tlo",
+                            "trow",
+                            "ts",
+                            "tstrand",
+                        ],
+                        "description": "Fields for optional tabular VSEARCH output",
+                    },
+                ),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class DiamondMakeDBNode(CommandNode):
     """Build a DIAMOND protein database from FASTA."""
 

@@ -226,6 +226,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["vsearch"],
             "doi": "10.7717/peerj.2584",
         },
+        "vsearch_alignment": {
+            "display_name": "VSEARCH Alignment",
+            "category": "metagenomics",
+            "required_executables": ["vsearch"],
+            "required_conda_packages": ["vsearch"],
+            "doi": "10.7717/peerj.2584",
+        },
         "diamond_makedb": {
             "display_name": "DIAMOND MakeDB",
             "category": "databases",
@@ -2225,6 +2232,84 @@ def test_vsearch_sorting_renders_length_and_abundance_commands(tmp_path: Path) -
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "vsearch_sorting" / "sorted.fasta",
+    ]
+
+
+def test_vsearch_alignment_renders_allpairs_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("vsearch_alignment")
+    info = _registry().object_info()["vsearch_alignment"]
+
+    assert info["output"] == ["STATS_FILE", "TSV"]
+    assert info["output_name"] == ["alignments", "userfields"]
+    assert node_class.render_command(
+        {
+            "infile": "reads.fasta",
+            "threads": 6,
+            "acceptall": True,
+            "id": 0.97,
+            "iddef": 2,
+            "query_cov": 0.95,
+            "userfields_output_select": "yes",
+            "userfields": ["query", "target"],
+            "output": "/work/vsearch_alignment",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "6",
+        "--notrunclabels",
+        "--acceptall",
+        "--id",
+        "0.97",
+        "--iddef",
+        "2",
+        "--allpairs_global",
+        "reads.fasta",
+        "--alnout",
+        "/work/vsearch_alignment/alignments.txt",
+        "--query_cov",
+        "0.95",
+        "--userfields",
+        "query+target",
+        "--userout",
+        "/work/vsearch_alignment/userfields.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"userfields_output_select": "yes", "userfields": ["query", "target"]},
+        tmp_path,
+    ) == [
+        tmp_path / "vsearch_alignment" / "alignments.txt",
+        tmp_path / "vsearch_alignment" / "userfields.tsv",
+    ]
+    assert node_class.render_command(
+        {
+            "infile": "reads.fasta",
+            "userfields_output_select": "no",
+            "userfields": ["query", "target"],
+            "output": "/work/vsearch_alignment",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "4",
+        "--notrunclabels",
+        "--id",
+        "0.97",
+        "--iddef",
+        "2",
+        "--allpairs_global",
+        "reads.fasta",
+        "--alnout",
+        "/work/vsearch_alignment/alignments.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"userfields_output_select": "no", "userfields": ["query", "target"]},
+        tmp_path,
+    ) == [
+        tmp_path / "vsearch_alignment" / "alignments.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "vsearch_alignment" / "alignments.txt",
     ]
 
 
