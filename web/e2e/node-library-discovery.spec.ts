@@ -528,6 +528,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.2584'],
     citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
   },
+  vsearch_shuffling: {
+    name: 'vsearch_shuffling',
+    display_name: 'VSEARCH Shuffling',
+    category: 'metagenomics',
+    description: 'Shuffle FASTA sequence order pseudo-randomly with VSEARCH, using an explicit random seed and optional top-N limit.',
+    search_aliases: ['Galaxy', 'vsearch', 'shuffling', 'shuffle', 'random sequence order', 'randseed', 'topn'],
+    input: {
+      required: {
+        infile: { type: 'FASTA' },
+      },
+      optional: {
+        randseed: { type: 'INT', default: 0 },
+        topn: { type: 'INT', default: '' },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['shuffled_sequences'],
+    required_executables: ['vsearch'],
+    required_conda_packages: ['vsearch'],
+    documentation_url: 'https://github.com/torognes/vsearch',
+    citation_dois: ['10.7717/peerj.2584'],
+    citation_urls: ['https://doi.org/10.7717/peerj.2584'],
+    citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
+  },
   bandage_info: {
     name: 'bandage_info',
     display_name: 'Bandage Info',
@@ -2806,7 +2831,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('136 nodes available')).toBeVisible();
+  await expect(page.getByText('137 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2839,6 +2864,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
     { query: 'dust masking', name: 'VSEARCH Masking', category: 'metagenomics' },
+    { query: 'random sequence order', name: 'VSEARCH Shuffling', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },

@@ -212,6 +212,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["vsearch"],
             "doi": "10.7717/peerj.2584",
         },
+        "vsearch_shuffling": {
+            "display_name": "VSEARCH Shuffling",
+            "category": "metagenomics",
+            "required_executables": ["vsearch"],
+            "required_conda_packages": ["vsearch"],
+            "doi": "10.7717/peerj.2584",
+        },
         "diamond_makedb": {
             "display_name": "DIAMOND MakeDB",
             "category": "databases",
@@ -2095,6 +2102,60 @@ def test_vsearch_masking_renders_maskfasta_command_and_outputs(tmp_path: Path) -
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "vsearch_masking" / "masked.fasta",
+    ]
+
+
+def test_vsearch_shuffling_renders_shuffle_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("vsearch_shuffling")
+    info = _registry().object_info()["vsearch_shuffling"]
+
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["shuffled_sequences"]
+    assert node_class.render_command(
+        {
+            "infile": "db.fasta",
+            "threads": 6,
+            "randseed": 1,
+            "topn": 5,
+            "output": "/work/vsearch_shuffling",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "6",
+        "--notrunclabels",
+        "--output",
+        "/work/vsearch_shuffling/shuffled.fasta",
+        "--randseed",
+        "1",
+        "--shuffle",
+        "db.fasta",
+        "--topn",
+        "5",
+    ]
+    assert node_class.render_command(
+        {
+            "infile": "db.fasta",
+            "threads": 2,
+            "randseed": 0,
+            "topn": "",
+            "output": "/work/vsearch_shuffling",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "2",
+        "--notrunclabels",
+        "--output",
+        "/work/vsearch_shuffling/shuffled.fasta",
+        "--randseed",
+        "0",
+        "--shuffle",
+        "db.fasta",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "vsearch_shuffling" / "shuffled.fasta",
     ]
 
 
