@@ -442,6 +442,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.322347'],
     citation_text: 'rjchallis/assembly-stats 17.02.',
   },
+  amas_summary: {
+    name: 'amas_summary',
+    display_name: 'AMAS Summary',
+    category: 'phylogeny',
+    description: 'Calculate alignment summary statistics and optional per-taxon summaries with AMAS.',
+    search_aliases: ['Galaxy', 'AMAS', 'amas summary', 'alignment summary', 'alignment manipulation', 'phylogenomics', 'missing data', 'parsimony informative sites'],
+    input: {
+      required: {
+        input_files: { type: 'ALIGNMENT' },
+        data_type: { type: 'STRING', default: 'dna', options: ['dna', 'aa'] },
+      },
+    },
+    output: ['TEXT', 'DIRECTORY'],
+    output_name: ['summary_out', 'taxon_summaries'],
+    required_executables: ['python'],
+    required_conda_packages: ['amas'],
+    documentation_url: 'https://github.com/marekborowiec/AMAS',
+    citation_dois: ['10.7717/peerj.1660'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1660'],
+    citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2492,7 +2513,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('122 nodes available')).toBeVisible();
+  await expect(page.getByText('123 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2521,6 +2542,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
+    { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

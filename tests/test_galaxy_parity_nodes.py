@@ -128,6 +128,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["rjchallis-assembly-stats"],
             "doi": "10.5281/zenodo.322347",
         },
+        "amas_summary": {
+            "display_name": "AMAS Summary",
+            "category": "phylogeny",
+            "required_executables": ["python"],
+            "required_conda_packages": ["amas"],
+            "doi": "10.7717/peerj.1660",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -1115,6 +1122,69 @@ def test_assembly_stats_renders_json_command_and_output(tmp_path: Path) -> None:
 
     assert node_class.PLAN_OUTPUTS({"output_format": "json"}, tmp_path) == [
         tmp_path / "assembly_stats" / "output.json",
+    ]
+
+
+def test_amas_summary_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amas_summary"]
+
+    assert info["output"] == ["TEXT", "DIRECTORY"]
+    assert info["output_name"] == ["summary_out", "taxon_summaries"]
+
+
+def test_amas_summary_renders_checked_multi_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amas_summary")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["alignments/gene one.fas", "gene2.nex"],
+            "input_labels": ["gene one.fas", "gene2.nex"],
+            "input_format": "nex",
+            "data_type": "dna",
+            "by_taxon": True,
+            "check_align": True,
+            "tool_directory": "/iuc/tools/amas",
+            "output": "/work/amas_summary",
+        }
+    ) == (
+        "set -eu && "
+        "IN_FORMAT=$(python /iuc/tools/amas/check_interleaved.py "
+        "'alignments/gene one.fas' gene2.nex --format nexus) && "
+        "ln -sf 'alignments/gene one.fas' gene_one.fas && "
+        "ln -sf gene2.nex gene2.nex && "
+        "python -m amas.AMAS summary --by-taxon --in-files gene_one.fas gene2.nex "
+        '--in-format "${IN_FORMAT}" --data-type dna --cores "${GALAXY_SLOTS:-1}" --check-align && '
+        "mkdir -p /work/amas_summary/taxon_summaries && "
+        "find . -maxdepth 1 -name '*-seq-summary.txt' -exec mv {} /work/amas_summary/taxon_summaries/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"by_taxon": True}, tmp_path) == [
+        tmp_path / "amas_summary" / "summary.txt",
+        tmp_path / "amas_summary" / "taxon_summaries",
+    ]
+
+
+def test_amas_summary_renders_minimal_command_and_summary_output(tmp_path: Path) -> None:
+    node_class = _node_class("amas_summary")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["gene1.fasta"],
+            "data_type": "aa",
+            "input_format": "fasta",
+            "output": "/work/amas_summary",
+        }
+    ) == (
+        "set -eu && "
+        'IN_FORMAT=$(python "${BIONODULO_AMAS_TOOL_DIR:-.}"/check_interleaved.py '
+        "gene1.fasta --format fasta) && "
+        "ln -sf gene1.fasta gene1.fasta && "
+        "python -m amas.AMAS summary --in-files gene1.fasta "
+        '--in-format "${IN_FORMAT}" --data-type aa --cores "${GALAXY_SLOTS:-1}"'
+    )
+
+    assert node_class.PLAN_OUTPUTS({"by_taxon": False}, tmp_path) == [
+        tmp_path / "amas_summary" / "summary.txt",
     ]
 
 
