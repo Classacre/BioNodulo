@@ -3106,6 +3106,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_junction_annotation": {
+            "display_name": "RSeQC Junction Annotation",
+            "category": "rna_seq",
+            "required_executables": ["junction_annotation.py"],
+            "required_conda_packages": ["rseqc", "r-base"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3325,6 +3332,58 @@ def test_rseqc_rna_fragment_size_renders_fragment_size_command_and_output(tmp_pa
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_rna_fragment_size" / "fragment_sizes.tsv",
+    ]
+
+
+def test_rseqc_junction_annotation_renders_splice_junction_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_junction_annotation")
+    info = _registry().object_info()["rseqc_junction_annotation"]
+
+    assert info["output"] == ["IMAGE", "IMAGE", "TSV", "TEXT", "STATS_FILE"]
+    assert info["output_name"] == [
+        "splice_events_plot",
+        "splice_junction_plot",
+        "junctions",
+        "r_script",
+        "stats",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "min_intron": 75,
+            "mapq": 20,
+            "rscript_output": True,
+            "output": "/work/rseqc_junction_annotation",
+        }
+    ) == [
+        "junction_annotation.py",
+        "--input-file",
+        "aligned.bam",
+        "--refgene",
+        "genes.bed12",
+        "--out-prefix",
+        "/work/rseqc_junction_annotation/output",
+        "--min-intron",
+        "75",
+        "--mapq",
+        "20",
+        "2>",
+        "/work/rseqc_junction_annotation/stats.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_junction_annotation" / "output.splice_events.pdf",
+        tmp_path / "rseqc_junction_annotation" / "output.splice_junction.pdf",
+        tmp_path / "rseqc_junction_annotation" / "output.junction.xls",
+        tmp_path / "rseqc_junction_annotation" / "output.junction_plot.r",
+        tmp_path / "rseqc_junction_annotation" / "stats.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_junction_annotation" / "output.splice_events.pdf",
+        tmp_path / "rseqc_junction_annotation" / "output.splice_junction.pdf",
+        tmp_path / "rseqc_junction_annotation" / "output.junction.xls",
+        tmp_path / "rseqc_junction_annotation" / "stats.txt",
     ]
 
 

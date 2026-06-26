@@ -5383,6 +5383,82 @@ class RSeQCRNAFragmentSizeNode(CommandNode):
         }
 
 
+class RSeQCJunctionAnnotationNode(CommandNode):
+    """Compare detected splice junctions with a BED12 gene model."""
+
+    NODE_ID = "rseqc_junction_annotation"
+    DISPLAY_NAME = "RSeQC Junction Annotation"
+    REQUIRED_CONDA_PACKAGES = ["rseqc", "r-base"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Classify detected splice junctions as annotated, complete novel, or partial novel against a BED12 gene model."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "junction_annotation",
+        "splice junction annotation",
+        "splice events",
+        "novel junctions",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "IMAGE", "TSV", "TEXT", "STATS_FILE")
+    RETURN_NAMES = ("splice_events_plot", "splice_junction_plot", "junctions", "r_script", "stats")
+    REQUIRED_EXECUTABLES = ["junction_annotation.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#junction-annotation-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "junction_annotation.py",
+            "--input-file",
+            str(inputs.get("input", "")),
+            "--refgene",
+            str(inputs.get("refgene", "")),
+            "--out-prefix",
+            f"{out}/output",
+            "--min-intron",
+            str(inputs.get("min_intron", 50)),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+            "2>",
+            f"{out}/stats.txt",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.splice_events.pdf",
+            out / "output.splice_junction.pdf",
+            out / "output.junction.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.junction_plot.r")
+        outputs.append(out / "stats.txt")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "min_intron": ("INT", {"default": 50, "min": 1, "description": "Minimum intron length in base pairs"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": ("BOOLEAN", {"default": False, "description": "Expose the R script used to generate junction plots"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 

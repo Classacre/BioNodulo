@@ -1206,6 +1206,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_junction_annotation: {
+    name: 'rseqc_junction_annotation',
+    display_name: 'RSeQC Junction Annotation',
+    category: 'rna_seq',
+    description: 'Classify detected splice junctions as annotated, complete novel, or partial novel against a BED12 gene model.',
+    search_aliases: ['Galaxy', 'rseqc', 'junction_annotation', 'splice junction annotation', 'splice events', 'novel junctions', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        min_intron: { type: 'INT', default: 50 },
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'IMAGE', 'TSV', 'TEXT', 'STATS_FILE'],
+    output_name: ['splice_events_plot', 'splice_junction_plot', 'junctions', 'r_script', 'stats'],
+    required_executables: ['junction_annotation.py'],
+    required_conda_packages: ['rseqc', 'r-base'],
+    documentation_url: 'https://rseqc.sourceforge.net/#junction-annotation-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_bam_stat: {
     name: 'rseqc_bam_stat',
     display_name: 'RSeQC BAM Stat',
@@ -3181,7 +3207,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('148 nodes available')).toBeVisible();
+  await expect(page.getByText('149 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3241,6 +3267,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
+    { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },
