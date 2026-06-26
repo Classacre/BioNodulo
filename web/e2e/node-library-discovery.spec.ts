@@ -556,6 +556,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1660'],
     citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
   },
+  prinseq: {
+    name: 'prinseq',
+    display_name: 'PRINSEQ',
+    category: 'trimming',
+    description: 'Filter and trim single-end or paired-end FASTQ reads with PRINSEQ.',
+    search_aliases: ['Galaxy', 'PRINSEQ', 'prinseq-lite', 'quality control', 'quality filter', 'metagenomic preprocessing', 'read trimming', 'N filtering'],
+    input: {
+      required: {
+        paired: { type: 'BOOLEAN', default: false },
+        input_singles: { type: 'FASTQ', default: '' },
+        input_mate1: { type: 'FASTQ', default: '' },
+        input_mate2: { type: 'FASTQ', default: '' },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ'],
+    output_name: ['good_sequences', 'rejected_sequences', 'good_sequences_1', 'good_sequences_1_singletons', 'good_sequences_2', 'rejected_sequences_2'],
+    required_executables: ['prinseq-lite.pl'],
+    required_conda_packages: ['prinseq'],
+    documentation_url: 'http://prinseq.sourceforge.net/manual.html',
+    citation_dois: ['10.1093/bioinformatics/btr026'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btr026'],
+    citation_text: 'Quality control and preprocessing of metagenomic datasets.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2606,7 +2629,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('127 nodes available')).toBeVisible();
+  await expect(page.getByText('128 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2640,6 +2663,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
     { query: 'remove taxa', name: 'AMAS Remove', category: 'phylogeny' },
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
+    { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

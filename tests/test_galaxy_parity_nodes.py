@@ -1449,6 +1449,99 @@ def test_amas_replicate_renders_minimal_command(tmp_path: Path) -> None:
     ]
 
 
+def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
+    info = _registry().object_info()["prinseq"]
+
+    assert info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
+    assert info["output_name"] == [
+        "good_sequences",
+        "rejected_sequences",
+        "good_sequences_1",
+        "good_sequences_1_singletons",
+        "good_sequences_2",
+        "rejected_sequences_2",
+    ]
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btr026"]
+    assert info["required_executables"] == ["prinseq-lite.pl"]
+    assert info["required_conda_packages"] == ["prinseq"]
+
+
+def test_prinseq_renders_single_end_filter_and_trim_command(tmp_path: Path) -> None:
+    node_class = _node_class("prinseq")
+
+    assert node_class.render_command(
+        {
+            "input_singles": "reads.fastq.gz",
+            "paired": False,
+            "phred64": True,
+            "min_len": 60,
+            "min_qual_mean": 15,
+            "ns_max_p": 2,
+            "trim_qual_right": 20,
+            "trim_qual_type": "min",
+            "trim_qual_rule": "lt",
+            "trim_qual_window": 1,
+            "trim_qual_step": 1,
+            "output": "/work/prinseq",
+        }
+    ) == (
+        "set -eu && mkdir -p /work/prinseq/tmp && "
+        "gunzip -c reads.fastq.gz > fwd.fastq && "
+        "touch /work/prinseq/tmp/good_sequences.fastq /work/prinseq/tmp/rejected_sequences.fastq && "
+        "prinseq-lite.pl -fastq fwd.fastq -phred64 -out_good /work/prinseq/tmp/good_sequences "
+        "-out_bad /work/prinseq/tmp/rejected_sequences -min_len 60 -min_qual_mean 15 -ns_max_p 2 "
+        "-trim_qual_right 20 -trim_qual_type min -trim_qual_rule lt -trim_qual_window 1 -trim_qual_step 1 && "
+        "gzip -c /work/prinseq/tmp/good_sequences.fastq > /work/prinseq/good_sequences.fastq.gz && "
+        "gzip -c /work/prinseq/tmp/rejected_sequences.fastq > /work/prinseq/rejected_sequences.fastq.gz"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"paired": False}, tmp_path) == [
+        tmp_path / "prinseq" / "good_sequences.fastq.gz",
+        tmp_path / "prinseq" / "rejected_sequences.fastq.gz",
+    ]
+
+
+def test_prinseq_renders_paired_end_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("prinseq")
+
+    assert node_class.render_command(
+        {
+            "input_mate1": "r1.fastq",
+            "input_mate2": "r2.fastq",
+            "paired": True,
+            "min_len": 50,
+            "min_qual_mean": 15,
+            "ns_max_p": 2,
+            "trim_qual_right": 20,
+            "output": "/work/prinseq",
+        }
+    ) == (
+        "set -eu && mkdir -p /work/prinseq/tmp && "
+        "ln -sf r1.fastq fwd.fastq && ln -sf r2.fastq rev.fastq && "
+        "touch /work/prinseq/tmp/good_sequences_1.fastq /work/prinseq/tmp/good_sequences_1_singletons.fastq "
+        "/work/prinseq/tmp/rejected_sequences_1.fastq /work/prinseq/tmp/good_sequences_2.fastq "
+        "/work/prinseq/tmp/good_sequences_2_singletons.fastq /work/prinseq/tmp/rejected_sequences_2.fastq && "
+        "prinseq-lite.pl -fastq fwd.fastq -fastq2 rev.fastq -out_good /work/prinseq/tmp/good_sequences "
+        "-out_bad /work/prinseq/tmp/rejected_sequences -min_len 50 -min_qual_mean 15 -ns_max_p 2 "
+        "-trim_qual_right 20 && "
+        "cp /work/prinseq/tmp/good_sequences_1.fastq /work/prinseq/good_sequences_1.fastq && "
+        "cp /work/prinseq/tmp/good_sequences_1_singletons.fastq /work/prinseq/good_sequences_1_singletons.fastq && "
+        "cp /work/prinseq/tmp/rejected_sequences_1.fastq /work/prinseq/rejected_sequences_1.fastq && "
+        "cp /work/prinseq/tmp/good_sequences_2.fastq /work/prinseq/good_sequences_2.fastq && "
+        "cp /work/prinseq/tmp/good_sequences_2_singletons.fastq /work/prinseq/good_sequences_2_singletons.fastq && "
+        "cp /work/prinseq/tmp/rejected_sequences_2.fastq /work/prinseq/rejected_sequences_2.fastq"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"paired": True, "compress_output": False}, tmp_path) == [
+        tmp_path / "prinseq" / "good_sequences_1.fastq",
+        tmp_path / "prinseq" / "good_sequences_1_singletons.fastq",
+        tmp_path / "prinseq" / "rejected_sequences_1.fastq",
+        tmp_path / "prinseq" / "good_sequences_2.fastq",
+        tmp_path / "prinseq" / "good_sequences_2_singletons.fastq",
+        tmp_path / "prinseq" / "rejected_sequences_2.fastq",
+    ]
+
+
 def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) -> None:
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
