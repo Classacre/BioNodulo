@@ -486,6 +486,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1660'],
     citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
   },
+  amas_split: {
+    name: 'amas_split',
+    display_name: 'AMAS Split',
+    category: 'phylogeny',
+    description: 'Split a concatenated sequence alignment into per-partition alignment files with AMAS.',
+    search_aliases: ['Galaxy', 'AMAS', 'amas split', 'alignment splitting', 'partition file', 'concatenated alignment', 'phylogenomics', 'locus extraction'],
+    input: {
+      required: {
+        input_file: { type: 'ALIGNMENT' },
+        split_by: { type: 'TEXT' },
+        out_format: { type: 'STRING', default: 'fasta', options: ['fasta', 'phylip', 'phylip-int', 'nexus', 'nexus-int'] },
+        data_type: { type: 'STRING', default: 'dna', options: ['dna', 'aa'] },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['split_alignments'],
+    required_executables: ['python'],
+    required_conda_packages: ['amas'],
+    documentation_url: 'https://github.com/marekborowiec/AMAS',
+    citation_dois: ['10.7717/peerj.1660'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1660'],
+    citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2536,7 +2559,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('124 nodes available')).toBeVisible();
+  await expect(page.getByText('125 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2567,6 +2590,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
+    { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

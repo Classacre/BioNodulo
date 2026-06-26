@@ -1820,6 +1820,177 @@ class AMASConcatNode(AMASSummaryNode):
         }
 
 
+class AMASSplitNode(AMASSummaryNode):
+    """Split a concatenated alignment into partition alignments with AMAS split."""
+
+    NODE_ID = "amas_split"
+    DISPLAY_NAME = "AMAS Split"
+    DESCRIPTION = "Split a concatenated sequence alignment into per-partition alignment files with AMAS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AMAS",
+        "amas split",
+        "alignment splitting",
+        "partition file",
+        "concatenated alignment",
+        "phylogenomics",
+        "locus extraction",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("split_alignments",)
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "fasta") or "fasta")
+        return out_format if out_format in {"fasta", "phylip", "phylip-int", "nexus", "nexus-int"} else "fasta"
+
+    @classmethod
+    def _input_format(cls, inputs: dict[str, Any]) -> str:
+        input_format = str(inputs.get("input_format", "") or "")
+        if input_format == "nex":
+            return "nexus"
+        if input_format in {"fasta", "phylip", "phylip-int", "nexus", "nexus-int"}:
+            return input_format
+        input_file = str(inputs.get("input_file", "") or "")
+        suffix = Path(input_file).suffix.lower()
+        return {".nex": "nexus", ".nexus": "nexus", ".phy": "phylip", ".phylip": "phylip"}.get(
+            suffix,
+            "fasta",
+        )
+
+    @classmethod
+    def _safe_input_name(cls, inputs: dict[str, Any]) -> str:
+        label = str(inputs.get("input_label", "") or "")
+        if not label:
+            labels = _as_list(inputs.get("input_labels"))
+            label = str(labels[0]) if labels else ""
+        if not label:
+            label = str(inputs.get("element_identifier", "") or "")
+        if not label:
+            label = Path(str(inputs.get("input_file", "") or "input")).name
+        return _safe_identifier(label)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_file = str(inputs.get("input_file", ""))
+        safe_name = cls._safe_input_name(inputs)
+        input_format = cls._input_format(inputs)
+        tool_directory = cls._tool_directory(inputs)
+        split_alignments_dir = f"{_out(inputs)}/split_alignments"
+        parts = [
+            "set -eu",
+            (
+                f"IN_FORMAT=$(python {tool_directory}/check_interleaved.py "
+                f"{shlex.quote(input_file)} --format {shlex.quote(input_format)})"
+            ),
+            f"ln -sf {shlex.quote(input_file)} {shlex.quote(safe_name)}",
+        ]
+
+        amas_parts = [
+            "python",
+            "-m",
+            "amas.AMAS",
+            "split",
+            "--split-by",
+            str(inputs.get("split_by", "")),
+        ]
+        if inputs.get("remove_empty"):
+            amas_parts.append("--remove-empty")
+        amas_parts.extend(
+            [
+                "--out-format",
+                cls._out_format(inputs),
+                "--in-files",
+                safe_name,
+                "--in-format",
+                "${IN_FORMAT}",
+                "--data-type",
+                str(inputs.get("data_type", "dna")),
+                "--cores",
+                "${GALAXY_SLOTS:-1}",
+            ]
+        )
+        if inputs.get("check_align"):
+            amas_parts.append("--check-align")
+        command = " ".join(shlex.quote(part) for part in amas_parts)
+        command = command.replace("'${IN_FORMAT}'", '"${IN_FORMAT}"')
+        command = command.replace("'${GALAXY_SLOTS:-1}'", '"${GALAXY_SLOTS:-1}"')
+        parts.extend(
+            [
+                command,
+                f"mkdir -p {shlex.quote(split_alignments_dir)}",
+                f"find . -maxdepth 1 -name '*-out.*' -exec mv {{}} {shlex.quote(split_alignments_dir)}/ \\;",
+            ]
+        )
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        split_alignments_dir = out / "split_alignments"
+        split_alignments_dir.mkdir(parents=True, exist_ok=True)
+        return [split_alignments_dir]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": (
+                    "ALIGNMENT",
+                    {
+                        "description": "Concatenated pre-aligned FASTA, PHYLIP, or NEXUS alignment file to split",
+                    },
+                ),
+                "split_by": (
+                    "TEXT",
+                    {
+                        "description": "Unspecified-format partitions file defining alignment coordinate ranges",
+                    },
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int"],
+                        "description": "Output format for the split alignment files",
+                    },
+                ),
+                "data_type": (
+                    "STRING",
+                    {"default": "dna", "options": ["dna", "aa"], "description": "Nucleotide or protein alignment"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int", "nex"],
+                        "description": "Input alignment format; NEXUS can be supplied as nex or nexus",
+                    },
+                ),
+                "remove_empty": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Remove taxa that are entirely missing within a partition"},
+                ),
+                "check_align": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Check that input sequences are aligned before splitting"},
+                ),
+                "input_label": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional Galaxy element identifier used for a safe symlink name",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {}), "tool_directory": ("STRING", {})},
+        }
+
+
 ADAPTER_REMOVAL_CITATION_DOI = "10.1186/s13104-016-1900-2"
 ADAPTER_REMOVAL_CITATION_TEXT = "AdapterRemoval v2: rapid adapter trimming, identification, and read merging."
 ADAPTER_REMOVAL_ADAPTER1 = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG"

@@ -1243,6 +1243,74 @@ def test_amas_concat_plans_interleaved_nexus_and_raxml_partitions(tmp_path: Path
     ]
 
 
+def test_amas_split_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amas_split"]
+
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["split_alignments"]
+
+
+def test_amas_split_renders_checked_split_command_and_directory_output(tmp_path: Path) -> None:
+    node_class = _node_class("amas_split")
+
+    assert node_class.render_command(
+        {
+            "input_file": "concat result.phy",
+            "input_label": "concat result.phy",
+            "input_format": "phylip",
+            "split_by": "partitions.txt",
+            "remove_empty": True,
+            "out_format": "fasta",
+            "data_type": "dna",
+            "check_align": True,
+            "tool_directory": "/iuc/tools/amas",
+            "output": "/work/amas_split",
+        }
+    ) == (
+        "set -eu && "
+        "IN_FORMAT=$(python /iuc/tools/amas/check_interleaved.py "
+        "'concat result.phy' --format phylip) && "
+        "ln -sf 'concat result.phy' concat_result.phy && "
+        "python -m amas.AMAS split --split-by partitions.txt --remove-empty "
+        "--out-format fasta --in-files concat_result.phy "
+        '--in-format "${IN_FORMAT}" --data-type dna --cores "${GALAXY_SLOTS:-1}" --check-align && '
+        "mkdir -p /work/amas_split/split_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_split/split_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "fasta"}, tmp_path) == [
+        tmp_path / "amas_split" / "split_alignments",
+    ]
+
+
+def test_amas_split_renders_minimal_nexus_command(tmp_path: Path) -> None:
+    node_class = _node_class("amas_split")
+
+    assert node_class.render_command(
+        {
+            "input_file": "combined.nex",
+            "split_by": "parts.txt",
+            "out_format": "nexus-int",
+            "data_type": "aa",
+            "output": "/work/amas_split",
+        }
+    ) == (
+        "set -eu && "
+        'IN_FORMAT=$(python "${BIONODULO_AMAS_TOOL_DIR:-.}"/check_interleaved.py '
+        "combined.nex --format nexus) && "
+        "ln -sf combined.nex combined.nex && "
+        "python -m amas.AMAS split --split-by parts.txt --out-format nexus-int "
+        "--in-files combined.nex "
+        '--in-format "${IN_FORMAT}" --data-type aa --cores "${GALAXY_SLOTS:-1}" && '
+        "mkdir -p /work/amas_split/split_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_split/split_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "amas_split" / "split_alignments",
+    ]
+
+
 def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) -> None:
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
