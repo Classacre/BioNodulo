@@ -114,6 +114,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["bandage_ng"],
             "doi": "10.1093/bioinformatics/btv383",
         },
+        "adapter_removal": {
+            "display_name": "AdapterRemoval",
+            "category": "trimming",
+            "required_executables": ["AdapterRemoval"],
+            "required_conda_packages": ["adapterremoval"],
+            "doi": "10.1186/s13104-016-1900-2",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -921,6 +928,136 @@ def test_bandage_image_renders_graph_image_command_and_dynamic_output(tmp_path: 
     ]
     assert node_class.PLAN_OUTPUTS({"output_format": "svg"}, tmp_path) == [
         tmp_path / "bandage_image" / "out.svg",
+    ]
+
+
+def test_adapter_removal_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["adapter_removal"]
+
+    assert info["output"] == [
+        "TEXT",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+    ]
+    assert info["output_name"] == [
+        "output_settings",
+        "output_truncated",
+        "output_forward_truncated",
+        "output_reverse_truncated",
+        "output_interleaved_truncated",
+        "output_singleton_truncated",
+        "output_collapsed",
+        "output_collapsed_truncated",
+        "output_discarded",
+    ]
+    assert (
+        info["citation_text"]
+        == "AdapterRemoval v2: rapid adapter trimming, identification, and read merging."
+    )
+
+
+def test_adapter_removal_renders_single_read_defaults_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("adapter_removal")
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "reads1.fastq.gz",
+            "output": "/work/adapter_removal",
+        }
+    ) == (
+        "ln -sf reads1.fastq.gz read1fastqsanger.gz && "
+        "AdapterRemoval --file1 read1fastqsanger.gz --threads ${GALAXY_SLOTS:-8} "
+        "--qualitybase 33 --qualitybase-output 33 --qualitymax 41 "
+        "--adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG "
+        "--adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT "
+        "--minadapteroverlap 0 --mm 3.0 --shift 2 --maxns 1000 --minquality 2 "
+        "--minlength 15 --maxlength 4294967295 --minalignmentlength 11 "
+        "--settings /work/adapter_removal/output_settings.txt "
+        "--output1 /work/adapter_removal/output_truncated.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_type": "single"}, tmp_path) == [
+        tmp_path / "adapter_removal" / "output_settings.txt",
+        tmp_path / "adapter_removal" / "output_truncated.fastq",
+    ]
+
+
+def test_adapter_removal_renders_paired_interleaved_command_and_optional_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("adapter_removal")
+
+    assert node_class.render_command(
+        {
+            "input_type": "pair",
+            "read1": "sample R1.fq.gz",
+            "read2": "sample R2.fq.gz",
+            "interleaved_output": "yes",
+            "identify_adapters": True,
+            "combined_output": True,
+            "convert_uracils": True,
+            "mask_degenerate_bases": True,
+            "adapter_list": "adapters.tsv",
+            "trim5p": True,
+            "trim5p_mate1": 2,
+            "trim5p_mate2": 3,
+            "trim3p": True,
+            "trim3p_mate1": 4,
+            "trim3p_mate2": 5,
+            "trimns": True,
+            "trimqualities": True,
+            "sliding_window": True,
+            "window_size": 8,
+            "preserve5p": True,
+            "collapse": True,
+            "collapse_deterministic": True,
+            "collapse_conservatively": True,
+            "output_select": "output_singleton,output_collapsed,output_collapsed_truncated,output_discarded",
+            "output": "/work/adapter_removal",
+        }
+    ) == (
+        "ln -sf 'sample R1.fq.gz' read1fastqsanger.gz && "
+        "ln -sf 'sample R2.fq.gz' read2fastqsanger.gz && "
+        "AdapterRemoval --file1 read1fastqsanger.gz --file2 read2fastqsanger.gz "
+        "--identify-adapters --interleaved-output --combined-output "
+        "--threads ${GALAXY_SLOTS:-8} --qualitybase 33 --qualitybase-output 33 --qualitymax 41 "
+        "--convert-uracils --mask-degenerate-bases "
+        "--adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG "
+        "--adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT "
+        "--adapter-list adapters.tsv --minadapteroverlap 0 --mm 3.0 --shift 2 "
+        "--trim5p 2 3 --trim3p 4 5 --trimns --maxns 1000 --trimqualities "
+        "--trimwindows 8 --minquality 2 --preserve5p --minlength 15 --maxlength 4294967295 "
+        "--collapse --minalignmentlength 11 --collapse-deterministic --collapse-conservatively "
+        "--settings /work/adapter_removal/output_settings.txt "
+        "--output1 /work/adapter_removal/output_interleaved_truncated.fastq "
+        "--singleton /work/adapter_removal/output_singleton_truncated.fastq "
+        "--outputcollapsed /work/adapter_removal/output_collapsed.fastq "
+        "--outputcollapsedtruncated /work/adapter_removal/output_collapsed_truncated.fastq "
+        "--discarded /work/adapter_removal/output_discarded.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "input_type": "pair",
+            "interleaved_output": "yes",
+            "output_select": [
+                "output_singleton",
+                "output_collapsed",
+                "output_collapsed_truncated",
+                "output_discarded",
+            ],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "adapter_removal" / "output_settings.txt",
+        tmp_path / "adapter_removal" / "output_interleaved_truncated.fastq",
+        tmp_path / "adapter_removal" / "output_singleton_truncated.fastq",
+        tmp_path / "adapter_removal" / "output_collapsed.fastq",
+        tmp_path / "adapter_removal" / "output_collapsed_truncated.fastq",
+        tmp_path / "adapter_removal" / "output_discarded.fastq",
     ]
 
 

@@ -391,6 +391,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btv383'],
     citation_text: 'Bandage: interactive visualization of de novo genome assemblies.',
   },
+  adapter_removal: {
+    name: 'adapter_removal',
+    display_name: 'AdapterRemoval',
+    category: 'trimming',
+    description: 'Remove adapter sequences from high-throughput sequencing FASTQ reads, trim low-quality bases, and optionally merge overlapping pairs.',
+    search_aliases: ['Galaxy', 'AdapterRemoval', 'adapter_removal', 'adapterremoval', 'adapter trimming', 'FASTQ trimming', 'read merging', 'ancient DNA'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired', 'interleaved'] },
+        read1: { type: 'FASTQ' },
+      },
+    },
+    output: ['TEXT', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ'],
+    output_name: [
+      'output_settings',
+      'output_truncated',
+      'output_forward_truncated',
+      'output_reverse_truncated',
+      'output_interleaved_truncated',
+      'output_singleton_truncated',
+      'output_collapsed',
+      'output_collapsed_truncated',
+      'output_discarded',
+    ],
+    required_executables: ['AdapterRemoval'],
+    required_conda_packages: ['adapterremoval'],
+    documentation_url: 'https://adapterremoval.readthedocs.io/',
+    citation_dois: ['10.1186/s13104-016-1900-2'],
+    citation_urls: ['https://doi.org/10.1186/s13104-016-1900-2'],
+    citation_text: 'AdapterRemoval v2: rapid adapter trimming, identification, and read merging.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2441,7 +2472,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('120 nodes available')).toBeVisible();
+  await expect(page.getByText('121 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2468,6 +2499,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
+    { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
