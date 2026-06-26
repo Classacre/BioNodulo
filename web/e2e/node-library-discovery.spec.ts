@@ -2067,6 +2067,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btu314'],
     citation_text: 'SAMBLASTER: fast duplicate marking and structural variant read extraction.',
   },
+  mosdepth: {
+    name: 'mosdepth',
+    display_name: 'mosdepth',
+    category: 'qc',
+    description: 'Calculate BAM or CRAM depth coverage summaries, per-base depth, region means, thresholds, and quantized coverage.',
+    search_aliases: ['Galaxy', 'mosdepth', 'BAM CRAM depth', 'coverage depth', 'per-base coverage', 'genome coverage', 'exome coverage'],
+    input: {
+      required: {
+        input_alignment: { type: 'BAM' },
+      },
+      optional: {
+        per_base_coverage: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'BEDGRAPH', 'BED', 'BED', 'BED'],
+    output_name: [
+      'global_distribution',
+      'summary',
+      'region_distribution',
+      'per_base_depth',
+      'regions_bed',
+      'quantized_bed',
+      'thresholds_bed',
+    ],
+    required_executables: ['mosdepth', 'gunzip'],
+    required_conda_packages: ['mosdepth', 'gzip'],
+    documentation_url: 'https://github.com/brentp/mosdepth',
+    citation_dois: ['10.1093/bioinformatics/btx699'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btx699'],
+    citation_text: 'Mosdepth: quick coverage calculation for genomes and exomes.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -2116,7 +2147,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('105 nodes available')).toBeVisible();
+  await expect(page.getByText('106 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2225,6 +2256,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },
     { query: 'split reads', name: 'samblaster', category: 'alignment' },
+    { query: 'BAM CRAM depth', name: 'mosdepth', category: 'qc' },
   ];
 
   for (const node of expectedNodes) {
