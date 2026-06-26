@@ -100,6 +100,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_translate": {
+            "display_name": "SeqKit Translate",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -625,6 +632,84 @@ def test_seqkit_locate_renders_pattern_file_gtf_command_without_incompatible_fmi
     assert "--use-fmi" not in command
     assert node_class.PLAN_OUTPUTS({"output_mode": "--gtf"}, tmp_path) == [
         tmp_path / "seqkit_locate" / "locate.gtf",
+    ]
+
+
+def test_seqkit_translate_exposes_galaxy_aligned_outputs_and_citation() -> None:
+    info = _registry().object_info()["seqkit_translate"]
+
+    assert info["output"] == ["FASTA", "FASTQ"]
+    assert info["output_name"] == ["translated_fasta", "translated_fastq"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_translate_renders_multiframe_unknown_codon_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_translate")
+
+    assert node_class.render_command(
+        {
+            "input": "cds.fasta.gz",
+            "frame": ["2", "3"],
+            "unknown_action": "translate",
+            "allow_unknown_codon": True,
+            "append_frame": True,
+            "clean": True,
+            "init_codon_as_M": True,
+            "transl_table": "3",
+            "output_ext": "fasta.gz",
+            "output": "/work/seqkit_translate",
+        }
+    ) == [
+        "seqkit",
+        "translate",
+        "cds.fasta.gz",
+        "-o",
+        "/work/seqkit_translate/translated.fasta.gz",
+        "--allow-unknown-codon",
+        "--append-frame",
+        "--clean",
+        "-f",
+        "2,3",
+        "--init-codon-as-M",
+        "-T",
+        "3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_ext": "fasta.gz"}, tmp_path) == [
+        tmp_path / "seqkit_translate" / "translated.fasta.gz",
+    ]
+
+
+def test_seqkit_translate_renders_trim_fastq_command_without_unknown_translation(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_translate")
+
+    command = node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "unknown_action": "trimming",
+            "trim": True,
+            "allow_unknown_codon": True,
+            "output_ext": "fastq.gz",
+            "output": "/work/seqkit_translate",
+        }
+    )
+
+    assert command == [
+        "seqkit",
+        "translate",
+        "reads.fastq.gz",
+        "-o",
+        "/work/seqkit_translate/translated.fastq.gz",
+        "--trim",
+        "-f",
+        "1",
+        "-T",
+        "1",
+    ]
+    assert "--allow-unknown-codon" not in command
+    assert node_class.PLAN_OUTPUTS({"output_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqkit_translate" / "translated.fastq.gz",
     ]
 
 

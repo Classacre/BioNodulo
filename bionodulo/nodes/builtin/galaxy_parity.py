@@ -853,6 +853,145 @@ class SeqKitLocateNode(CommandNode):
         }
 
 
+class SeqKitTranslateNode(CommandNode):
+    """Translate nucleotide FASTA/Q records to protein sequences with SeqKit."""
+
+    NODE_ID = "seqkit_translate"
+    DISPLAY_NAME = "SeqKit Translate"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Translate DNA or RNA FASTA/FASTQ records to protein sequences with frame, codon table, and unknown-codon handling."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqkit",
+        "translate",
+        "SeqKit translate",
+        "DNA to protein",
+        "RNA to protein",
+        "codon table",
+        "six frame translation",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ")
+    RETURN_NAMES = ("translated_fasta", "translated_fastq")
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#translate"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        ext = str(inputs.get("output_ext", "fasta.gz")).strip().lstrip(".") or "fasta.gz"
+        return f"translated.{ext}"
+
+    @classmethod
+    def _frames(cls, value: Any) -> str:
+        frames = _as_list(value)
+        if not frames:
+            return "1"
+        return ",".join(frame.replace(",", "") for frame in frames if frame.replace(",", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "seqkit",
+            "translate",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{_out(inputs)}/{cls._output_name(inputs)}",
+        ]
+        unknown_action = str(inputs.get("unknown_action", inputs.get("selector", "trimming")))
+        if unknown_action == "translate":
+            if inputs.get("allow_unknown_codon"):
+                cmd.append("--allow-unknown-codon")
+        elif inputs.get("trim"):
+            cmd.append("--trim")
+        for key, flag in (
+            ("append_frame", "--append-frame"),
+            ("clean", "--clean"),
+        ):
+            if inputs.get(key):
+                cmd.append(flag)
+        cmd.extend(["-f", cls._frames(inputs.get("frame", "1"))])
+        if inputs.get("init_codon_as_M"):
+            cmd.append("--init-codon-as-M")
+        transl_table = str(inputs.get("transl_table", "1"))
+        if transl_table:
+            cmd.extend(["-T", transl_table])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {"input": ("FASTQ_LIST", {"description": "Input FASTA or FASTQ nucleotide records"})},
+            "optional": {
+                "frame": (
+                    "STRING",
+                    {
+                        "default": "1",
+                        "options": ["1", "2", "3", "-1", "-2", "-3", "6"],
+                        "description": "Frame or comma-separated frames to translate",
+                    },
+                ),
+                "append_frame": ("BOOLEAN", {"default": False, "description": "Append frame information to sequence IDs"}),
+                "transl_table": (
+                    "STRING",
+                    {
+                        "default": "1",
+                        "options": [
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            "5",
+                            "6",
+                            "9",
+                            "10",
+                            "11",
+                            "12",
+                            "13",
+                            "14",
+                            "16",
+                            "21",
+                            "22",
+                            "23",
+                            "24",
+                            "25",
+                            "26",
+                            "27",
+                            "28",
+                            "29",
+                            "30",
+                            "31",
+                        ],
+                        "description": "NCBI genetic code table",
+                    },
+                ),
+                "clean": ("BOOLEAN", {"default": False, "description": "Change STOP codons from * to X"}),
+                "unknown_action": (
+                    "STRING",
+                    {
+                        "default": "trimming",
+                        "options": ["trimming", "translate"],
+                        "description": "Trim terminal unknowns/stops or translate unknown codons to X",
+                    },
+                ),
+                "trim": ("BOOLEAN", {"default": False, "description": "Remove X and * characters from the right end"}),
+                "allow_unknown_codon": ("BOOLEAN", {"default": False, "description": "Translate unknown codons to X"}),
+                "init_codon_as_M": ("BOOLEAN", {"default": False, "description": "Translate initial codon as M"}),
+                "output_ext": ("STRING", {"default": "fasta.gz", "options": ["fasta.gz", "fasta", "fastq.gz", "fastq"]}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 AMRFINDERPLUS_ORGANISMS = [
     "Acinetobacter_baumannii",
     "Burkholderia_cepacia",
