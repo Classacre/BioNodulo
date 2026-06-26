@@ -2122,6 +2122,132 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.21105/joss.03941', 'https://doi.org/10.46471/gigabyte.180'],
     citation_text: 'Rasusa: Randomly subsample sequencing reads to a specified coverage; Efficient downsampling of genome alignments with Rasusa.',
   },
+  mummer4_nucmer: {
+    name: 'mummer4_nucmer',
+    display_name: 'MUMmer4 Nucmer',
+    category: 'genomics',
+    description: 'Align two nucleotide FASTA files with nucmer and optionally generate delta, BAM/CRAM, and dotplot outputs.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'nucmer', 'genome alignment', 'delta alignment', 'dotplot'],
+    input: {
+      required: {
+        reference_sequence: { type: 'FASTA' },
+        query_sequence: { type: 'FASTA' },
+        out_format: { type: 'STRING', default: 'delta', options: ['delta', 'bam-long', 'cram-long'] },
+      },
+    },
+    output: ['FILE', 'BAM', 'CRAM', 'IMAGE'],
+    output_name: ['delta', 'bam_alignment', 'cram_alignment', 'plot'],
+    required_executables: ['nucmer', 'mummerplot', 'gnuplot', 'samtools'],
+    required_conda_packages: ['mummer4', 'gnuplot', 'samtools'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
+  mummer4_dnadiff: {
+    name: 'mummer4_dnadiff',
+    display_name: 'MUMmer4 DNAdiff',
+    category: 'genomics',
+    description: 'Compare two FASTA sequences with dnadiff and return the report plus optional delta, coordinates, SNP, and difference tables.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'dnadiff', 'genome difference', 'assembly comparison'],
+    input: {
+      required: {
+        reference_sequence: { type: 'FASTA' },
+        query_sequence: { type: 'FASTA' },
+      },
+    },
+    output: ['STATS_FILE', 'DIRECTORY'],
+    output_name: ['report', 'all_outputs'],
+    required_executables: ['dnadiff'],
+    required_conda_packages: ['mummer4'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
+  mummer4_delta_filter: {
+    name: 'mummer4_delta_filter',
+    display_name: 'MUMmer4 Delta Filter',
+    category: 'genomics',
+    description: 'Filter nucmer delta alignments by alignment strategy, identity, length, uniqueness, and overlap.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'delta-filter', 'filter delta', 'alignment filter'],
+    input: {
+      required: {
+        delta: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['filtered_delta'],
+    required_executables: ['delta-filter'],
+    required_conda_packages: ['mummer4'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
+  mummer4_show_coords: {
+    name: 'mummer4_show_coords',
+    display_name: 'MUMmer4 Show Coordinates',
+    category: 'genomics',
+    description: 'Parse nucmer delta alignments with show-coords into tabular alignment coordinate summaries.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'show-coords', 'alignment coordinates', 'delta coordinates'],
+    input: {
+      required: {
+        delta: { type: 'FILE' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['coordinates'],
+    required_executables: ['show-coords'],
+    required_conda_packages: ['mummer4'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
+  mummer4_mummer: {
+    name: 'mummer4_mummer',
+    display_name: 'MUMmer4 Mummer',
+    category: 'genomics',
+    description: 'Find maximal matches between FASTA sequences with mummer and optionally generate a 2-D dotplot.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'mummer', 'maximal matches', 'suffix tree', 'dotplot'],
+    input: {
+      required: {
+        reference_sequence: { type: 'FASTA' },
+        query_sequence: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV', 'IMAGE'],
+    output_name: ['alignment', 'plot'],
+    required_executables: ['mummer', 'mummerplot', 'gnuplot'],
+    required_conda_packages: ['mummer4', 'gnuplot'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
+  mummer4_mummerplot: {
+    name: 'mummer4_mummerplot',
+    display_name: 'MUMmer4 Mummerplot',
+    category: 'genomics',
+    description: 'Generate a 2-D dotplot or coverage plot from MUMmer or nucmer alignment output.',
+    search_aliases: ['Galaxy', 'MUMmer4', 'mummerplot', 'mummerplot dotplot', 'dotplot', 'coverage plot', 'gnuplot'],
+    input: {
+      required: {
+        delta: { type: 'FILE' },
+        reference_sequence: { type: 'FASTA' },
+        query_sequence: { type: 'FASTA' },
+      },
+    },
+    output: ['IMAGE', 'FILE', 'FILE', 'FILE', 'FILE'],
+    output_name: ['plot', 'gnuplot', 'forward_plot', 'reverse_plot', 'highlight_plot'],
+    required_executables: ['mummerplot', 'gnuplot'],
+    required_conda_packages: ['mummer4', 'gnuplot'],
+    documentation_url: 'https://mummer4.github.io/manual/manual.html',
+    citation_dois: ['10.1371/journal.pcbi.1005944'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1005944'],
+    citation_text: 'MUMmer4: A fast and versatile genome alignment system.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -2171,7 +2297,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('107 nodes available')).toBeVisible();
+  await expect(page.getByText('113 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2282,6 +2408,12 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'split reads', name: 'samblaster', category: 'alignment' },
     { query: 'BAM CRAM depth', name: 'mosdepth', category: 'qc' },
     { query: 'subsample reads', name: 'Rasusa', category: 'qc' },
+    { query: 'nucmer genome alignment', name: 'MUMmer4 Nucmer', category: 'genomics' },
+    { query: 'dnadiff genome difference', name: 'MUMmer4 DNAdiff', category: 'genomics' },
+    { query: 'filter delta', name: 'MUMmer4 Delta Filter', category: 'genomics' },
+    { query: 'show-coords', name: 'MUMmer4 Show Coordinates', category: 'genomics' },
+    { query: 'maximal matches', name: 'MUMmer4 Mummer', category: 'genomics' },
+    { query: 'mummerplot dotplot', name: 'MUMmer4 Mummerplot', category: 'genomics' },
   ];
 
   for (const node of expectedNodes) {
