@@ -86,6 +86,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_sort": {
+            "display_name": "SeqKit Sort",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -505,6 +512,38 @@ def test_seqkit_fx2tab_renders_rich_conversion_command_and_output(tmp_path: Path
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "seqkit_fx2tab" / "fx2tab.tsv",
+    ]
+
+
+def test_seqkit_sort_exposes_galaxy_aligned_output_and_citation() -> None:
+    info = _registry().object_info()["seqkit_sort"]
+
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["sorted_sequences"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_sort_renders_sort_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_sort")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "input_ext": "fastq.gz",
+            "output_ext": "fastq.gz",
+            "sort_by": "--by-seq",
+            "reverse": True,
+            "threads": 12,
+            "output": "/work/seqkit_sort",
+        }
+    ) == (
+        "ln -sf reads.fastq.gz input.fastq.gz && "
+        "seqkit sort input.fastq.gz --reverse --by-seq -o /work/seqkit_sort/sorted.fastq.gz --threads 12"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_ext": "fasta.gz"}, tmp_path) == [
+        tmp_path / "seqkit_sort" / "sorted.fasta.gz",
     ]
 
 
