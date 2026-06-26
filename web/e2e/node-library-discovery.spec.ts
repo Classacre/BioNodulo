@@ -268,6 +268,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
     citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
   },
+  amrfinderplus: {
+    name: 'amrfinderplus',
+    display_name: 'AMRFinderPlus',
+    category: 'annotation',
+    description: 'Find acquired antimicrobial resistance genes, point mutations, stress response, biocide, and virulence genes in nucleotide and/or protein sequences.',
+    search_aliases: ['Galaxy', 'amrfinder', 'amrfinderplus', 'NCBI AMRFinderPlus', 'antimicrobial resistance', 'AMR genes', 'point mutations', 'virulence genes'],
+    input: {
+      required: {
+        database: { type: 'DIRECTORY' },
+        input_select: { type: 'STRING', default: 'nucleotide', options: ['nucleotide', 'protein', 'nucl_prot'] },
+      },
+    },
+    output: ['TSV', 'TSV', 'FASTA', 'FASTA', 'FASTA'],
+    output_name: ['amrfinderplus_report', 'mutation_all_report', 'protein_output', 'nucleotide_output', 'nucleotide_flank5_output'],
+    required_executables: ['amrfinder'],
+    required_conda_packages: ['ncbi-amrfinderplus'],
+    documentation_url: 'https://github.com/ncbi/amr/wiki',
+    citation_dois: ['10.1038/s41598-021-91456-0'],
+    citation_urls: ['https://doi.org/10.1038/s41598-021-91456-0'],
+    citation_text: 'AMRFinderPlus and the Reference Gene Catalog facilitate examination of the genomic links among antimicrobial resistance, stress response, and virulence.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2318,7 +2339,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('114 nodes available')).toBeVisible();
+  await expect(page.getByText('115 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2339,6 +2360,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
+    { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

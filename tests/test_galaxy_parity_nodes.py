@@ -72,6 +72,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "amrfinderplus": {
+            "display_name": "AMRFinderPlus",
+            "category": "annotation",
+            "required_executables": ["amrfinder"],
+            "required_conda_packages": ["ncbi-amrfinderplus"],
+            "doi": "10.1038/s41598-021-91456-0",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -348,6 +355,168 @@ def test_seqkit_grep_renders_pattern_file_count_command_and_output(tmp_path: Pat
     ]
     assert node_class.PLAN_OUTPUTS({"count": True}, tmp_path) == [
         tmp_path / "seqkit_grep" / "count.txt",
+    ]
+
+
+def test_amrfinderplus_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amrfinderplus"]
+
+    assert info["output"] == ["TSV", "TSV", "FASTA", "FASTA", "FASTA"]
+    assert info["output_name"] == [
+        "amrfinderplus_report",
+        "mutation_all_report",
+        "protein_output",
+        "nucleotide_output",
+        "nucleotide_flank5_output",
+    ]
+
+
+def test_amrfinderplus_renders_nucleotide_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amrfinderplus")
+
+    assert node_class.render_command(
+        {
+            "database": "/db/amrfinderplus/latest",
+            "input_select": "nucleotide",
+            "nucleotide_input": "enterococcus_faecalis.fna",
+            "nucleotide_flank5_size": 150,
+            "organism_select": "add_organism",
+            "organism": "Enterococcus_faecalis",
+            "plus": True,
+            "report_common": True,
+            "ident_min": 0.1,
+            "coverage_min": 0.1,
+            "translation_table": "11",
+            "report_all_equal": True,
+            "print_node": True,
+            "name": "sample_1",
+            "threads": 8,
+            "output": "/work/amrfinderplus",
+        }
+    ) == [
+        "amrfinder",
+        "--threads",
+        "8",
+        "--database",
+        "/db/amrfinderplus/latest",
+        "--nucleotide",
+        "enterococcus_faecalis.fna",
+        "--nucleotide_flank5_size",
+        "150",
+        "--nucleotide_flank5_output",
+        "/work/amrfinderplus/amrfinderplus_flanking_sequence_output.fasta",
+        "--nucleotide_output",
+        "/work/amrfinderplus/amrfinderplus_nucleotide_output.fasta",
+        "--organism",
+        "Enterococcus_faecalis",
+        "--report_common",
+        "--ident_min",
+        "0.1",
+        "--coverage_min",
+        "0.1",
+        "--translation_table",
+        "11",
+        "--name",
+        "sample_1",
+        "--plus",
+        "--report_all_equal",
+        "--print_node",
+        "--output",
+        "/work/amrfinderplus/amrfinderplus_report.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"input_select": "nucleotide", "nucleotide_flank5_size": 150},
+        tmp_path,
+    ) == [
+        tmp_path / "amrfinderplus" / "amrfinderplus_report.tsv",
+        tmp_path / "amrfinderplus" / "amrfinderplus_nucleotide_output.fasta",
+        tmp_path / "amrfinderplus" / "amrfinderplus_flanking_sequence_output.fasta",
+    ]
+
+
+def test_amrfinderplus_renders_combined_mode_with_mutation_and_version_columns(tmp_path: Path) -> None:
+    node_class = _node_class("amrfinderplus")
+
+    assert node_class.render_command(
+        {
+            "database": "/db/amrfinderplus/V4.2-2026-05-15.1",
+            "database_name": "V4.2-2026-05-15.1",
+            "input_select": "nucl_prot",
+            "nucleotide_input": "e_faecalis_rast.fna",
+            "protein_input": "e_faecalis_rast.faa",
+            "gff_annotation": "e_faecalis_rast.gff",
+            "annotation_format": "rast",
+            "organism_select": "add_organism",
+            "organism": "Enterococcus_faecalis",
+            "mutation_all": True,
+            "ident_min": 0.1,
+            "coverage_min": 0.1,
+            "plus": True,
+            "print_node": True,
+            "name": "test_5",
+            "add_version_columns": True,
+            "threads": 4,
+            "output": "/work/amrfinderplus",
+        }
+    ) == [
+        "amrfinder",
+        "--threads",
+        "4",
+        "--database",
+        "/db/amrfinderplus/V4.2-2026-05-15.1",
+        "--nucleotide",
+        "e_faecalis_rast.fna",
+        "--protein",
+        "e_faecalis_rast.faa",
+        "--gff",
+        "e_faecalis_rast.gff",
+        "--annotation_format",
+        "rast",
+        "--nucleotide_output",
+        "/work/amrfinderplus/amrfinderplus_nucleotide_output.fasta",
+        "--protein_output",
+        "/work/amrfinderplus/amrfinderplus_protein_output.fasta",
+        "--organism",
+        "Enterococcus_faecalis",
+        "--mutation_all",
+        "/work/amrfinderplus/mutation_all_report.tsv",
+        "--ident_min",
+        "0.1",
+        "--coverage_min",
+        "0.1",
+        "--name",
+        "test_5",
+        "--plus",
+        "--print_node",
+        "--output",
+        "/work/amrfinderplus/amrfinderplus_report.tsv",
+        "&&",
+        "python",
+        "-c",
+        (
+            "from pathlib import Path\n"
+            "tool_version = '4.2.7'\n"
+            "database = Path('/db/amrfinderplus/V4.2-2026-05-15.1')\n"
+            "database_version = (database / 'version.txt').read_text().strip() if (database / 'version.txt').is_file() else 'V4.2-2026-05-15.1'\n"
+            "for report in [Path('/work/amrfinderplus/amrfinderplus_report.tsv'), Path('/work/amrfinderplus/mutation_all_report.tsv')]:\n"
+            "    if not report.is_file() or report.stat().st_size == 0:\n"
+            "        continue\n"
+            "    lines = report.read_text().splitlines()\n"
+            "    if not lines:\n"
+            "        continue\n"
+            "    updated = [lines[0] + '\\tDatabase version\\tTool version']\n"
+            "    updated.extend(line + '\\t' + database_version + '\\t' + tool_version for line in lines[1:])\n"
+            "    report.write_text('\\n'.join(updated) + '\\n')\n"
+        ),
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"input_select": "nucl_prot", "organism_select": "add_organism", "mutation_all": True},
+        tmp_path,
+    ) == [
+        tmp_path / "amrfinderplus" / "amrfinderplus_report.tsv",
+        tmp_path / "amrfinderplus" / "mutation_all_report.tsv",
+        tmp_path / "amrfinderplus" / "amrfinderplus_protein_output.fasta",
+        tmp_path / "amrfinderplus" / "amrfinderplus_nucleotide_output.fasta",
     ]
 
 
