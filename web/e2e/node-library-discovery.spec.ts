@@ -247,6 +247,27 @@ const objectInfo = {
     citation_dois: ['10.1093/bioinformatics/btu638'],
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btu638'],
   },
+  seqkit_grep: {
+    name: 'seqkit_grep',
+    display_name: 'SeqKit Grep',
+    category: 'sequence',
+    description: 'Filter FASTA or FASTQ records by ID, full name, sequence motif, or a file of patterns using SeqKit grep.',
+    search_aliases: ['Galaxy', 'seqkit', 'grep', 'seqkit grep', 'FASTA grep', 'FASTQ grep', 'motif search', 'sequence filter'],
+    input: {
+      required: {
+        input: { type: 'FASTQ_LIST' },
+        pattern_mode: { type: 'STRING', default: 'expression', options: ['expression', 'file'] },
+      },
+    },
+    output: ['FASTQ', 'FASTA', 'STATS_FILE'],
+    output_name: ['fastq_output', 'fasta_output', 'count'],
+    required_executables: ['seqkit'],
+    required_conda_packages: ['seqkit'],
+    documentation_url: 'https://bioinf.shenwei.me/seqkit/usage/#grep',
+    citation_dois: ['10.1371/journal.pone.0163962'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
+    citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2297,7 +2318,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('113 nodes available')).toBeVisible();
+  await expect(page.getByText('114 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2317,6 +2338,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'busco completeness', name: 'BUSCO', category: 'assembly' },
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
+    { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

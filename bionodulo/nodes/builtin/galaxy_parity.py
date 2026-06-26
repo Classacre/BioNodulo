@@ -397,6 +397,100 @@ class SeqKitStatsNode(CommandNode):
         }
 
 
+class SeqKitGrepNode(CommandNode):
+    """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
+
+    NODE_ID = "seqkit_grep"
+    DISPLAY_NAME = "SeqKit Grep"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Filter FASTA or FASTQ records by ID, full name, sequence motif, or a file of patterns using SeqKit grep."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "seqkit", "grep", "seqkit grep", "FASTA grep", "FASTQ grep", "motif search", "sequence filter"]
+    RETURN_TYPES = ("FASTQ", "FASTA", "STATS_FILE")
+    RETURN_NAMES = ("fastq_output", "fasta_output", "count")
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#grep"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+    SHELL = True
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        if inputs.get("count"):
+            return "count.txt"
+        ext = str(inputs.get("output_ext", "fasta.gz")).strip().lstrip(".") or "fasta.gz"
+        return f"grep.{ext}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["seqkit", "grep", "--threads", str(inputs.get("threads", 4))]
+        pattern_mode = str(inputs.get("pattern_mode", "expression"))
+        if pattern_mode == "file":
+            cmd.extend(["--pattern-file", str(inputs.get("pattern_file", ""))])
+        else:
+            cmd.extend(["--pattern", str(inputs.get("pattern", ""))])
+            if inputs.get("use_regexp"):
+                cmd.append("--use-regexp")
+        for key, flag in (
+            ("allow_duplicated_patterns", "--allow-duplicated-patterns"),
+            ("by_name", "--by-name"),
+            ("by_seq", "--by-seq"),
+            ("circular", "--circular"),
+            ("count", "--count"),
+            ("degenerate", "--degenerate"),
+            ("delete_matched", "--delete-matched"),
+            ("ignore_case", "--ignore-case"),
+            ("invert_match", "--invert-match"),
+        ):
+            if inputs.get(key):
+                cmd.append(flag)
+        if inputs.get("by_seq") and not inputs.get("degenerate"):
+            cmd.extend(["--max-mismatch", str(inputs.get("max_mismatch", 0))])
+        if inputs.get("only_positive_strand"):
+            cmd.append("--only-positive-strand")
+        if inputs.get("region"):
+            cmd.extend(["--region", str(inputs.get("region"))])
+        cmd.extend([str(inputs.get("input", "")), ">", f"{_out(inputs)}/{cls._output_name(inputs)}"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FASTQ_LIST", {"description": "Input FASTA/FASTQ file"}),
+                "pattern_mode": ("STRING", {"default": "expression", "options": ["expression", "file"], "description": "Pattern source"}),
+            },
+            "optional": {
+                "pattern": ("STRING", {"default": "", "description": "Pattern or motif sequence"}),
+                "pattern_file": ("FILE", {"description": "Text file with one pattern per line"}),
+                "use_regexp": ("BOOLEAN", {"default": False, "description": "Interpret expression pattern as a regular expression"}),
+                "allow_duplicated_patterns": ("BOOLEAN", {"default": False, "advanced": True}),
+                "by_name": ("BOOLEAN", {"default": False, "description": "Match against full sequence name/header"}),
+                "by_seq": ("BOOLEAN", {"default": False, "description": "Search sequence content"}),
+                "circular": ("BOOLEAN", {"default": False, "description": "Treat sequences as circular", "advanced": True}),
+                "count": ("BOOLEAN", {"default": False, "description": "Print only the count of matching records"}),
+                "degenerate": ("BOOLEAN", {"default": False, "description": "Pattern contains degenerate bases"}),
+                "delete_matched": ("BOOLEAN", {"default": False, "advanced": True}),
+                "ignore_case": ("BOOLEAN", {"default": False, "description": "Ignore case"}),
+                "invert_match": ("BOOLEAN", {"default": False, "description": "Select non-matching records"}),
+                "max_mismatch": ("INT", {"default": 0, "min": 0, "description": "Allowed mismatches for sequence search"}),
+                "only_positive_strand": ("BOOLEAN", {"default": False, "description": "Search only the positive strand"}),
+                "region": ("STRING", {"default": "", "description": "Sequence region such as 1:30, :100, or -12:-1"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128}),
+                "output_ext": ("STRING", {"default": "fasta.gz", "options": ["fasta.gz", "fasta", "fastq.gz", "fastq"], "description": "Sequence output extension"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class VSearchSearchNode(CommandNode):
     """Search query sequences against a FASTA database with VSEARCH."""
 

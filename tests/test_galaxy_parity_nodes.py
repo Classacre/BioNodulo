@@ -65,6 +65,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_grep": {
+            "display_name": "SeqKit Grep",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -253,6 +260,94 @@ def test_seqkit_stats_renders_statistics_command() -> None:
         "--tabular",
         ">",
         "/work/seqkit_stats/stats.tsv",
+    ]
+
+
+def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
+    info = _registry().object_info()["seqkit_grep"]
+
+    assert info["output"] == ["FASTQ", "FASTA", "STATS_FILE"]
+    assert info["output_name"] == ["fastq_output", "fasta_output", "count"]
+
+
+def test_seqkit_grep_renders_sequence_expression_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_grep")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "pattern_mode": "expression",
+            "pattern": "ATGC",
+            "by_seq": True,
+            "max_mismatch": 2,
+            "ignore_case": True,
+            "only_positive_strand": True,
+            "region": "1:120",
+            "threads": 6,
+            "output_ext": "fastq.gz",
+            "output": "/work/seqkit_grep",
+        }
+    ) == [
+        "seqkit",
+        "grep",
+        "--threads",
+        "6",
+        "--pattern",
+        "ATGC",
+        "--by-seq",
+        "--ignore-case",
+        "--max-mismatch",
+        "2",
+        "--only-positive-strand",
+        "--region",
+        "1:120",
+        "reads.fastq.gz",
+        ">",
+        "/work/seqkit_grep/grep.fastq.gz",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqkit_grep" / "grep.fastq.gz",
+    ]
+
+
+def test_seqkit_grep_renders_pattern_file_count_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_grep")
+
+    assert node_class.render_command(
+        {
+            "input": "records.fasta.gz",
+            "pattern_mode": "file",
+            "pattern_file": "patterns.txt",
+            "allow_duplicated_patterns": True,
+            "by_name": True,
+            "circular": True,
+            "count": True,
+            "degenerate": True,
+            "delete_matched": True,
+            "invert_match": True,
+            "threads": 4,
+            "output": "/work/seqkit_grep",
+        }
+    ) == [
+        "seqkit",
+        "grep",
+        "--threads",
+        "4",
+        "--pattern-file",
+        "patterns.txt",
+        "--allow-duplicated-patterns",
+        "--by-name",
+        "--circular",
+        "--count",
+        "--degenerate",
+        "--delete-matched",
+        "--invert-match",
+        "records.fasta.gz",
+        ">",
+        "/work/seqkit_grep/count.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"count": True}, tmp_path) == [
+        tmp_path / "seqkit_grep" / "count.txt",
     ]
 
 
