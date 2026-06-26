@@ -79,6 +79,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["ncbi-amrfinderplus"],
             "doi": "10.1038/s41598-021-91456-0",
         },
+        "checkm2": {
+            "display_name": "CheckM2",
+            "category": "qc",
+            "required_executables": ["checkm2"],
+            "required_conda_packages": ["checkm2"],
+            "doi": "10.1038/s41592-023-01940-w",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -517,6 +524,110 @@ def test_amrfinderplus_renders_combined_mode_with_mutation_and_version_columns(t
         tmp_path / "amrfinderplus" / "mutation_all_report.tsv",
         tmp_path / "amrfinderplus" / "amrfinderplus_protein_output.fasta",
         tmp_path / "amrfinderplus" / "amrfinderplus_nucleotide_output.fasta",
+    ]
+
+
+def test_checkm2_exposes_quality_and_discovered_output_collections() -> None:
+    info = _registry().object_info()["checkm2"]
+
+    assert info["output"] == ["TSV", "FASTA_LIST", "TSV_LIST"]
+    assert info["output_name"] == ["quality", "protein_files", "diamond_files"]
+
+
+def test_checkm2_renders_protein_all_models_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm2")
+
+    assert node_class.render_command(
+        {
+            "input": ["test1.faa", "test2.faa"],
+            "database_path": "/db/checkm2/uniref100.KO.1.dmnd",
+            "model": "--allmodels",
+            "genes": True,
+            "ttable": "13",
+            "threads": 12,
+            "output": "/work/checkm2",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm2/input_dir",
+        "/work/checkm2/output",
+        "&&",
+        "ln",
+        "-sf",
+        "test1.faa",
+        "/work/checkm2/input_dir/test1.faa.dat",
+        "&&",
+        "ln",
+        "-sf",
+        "test2.faa",
+        "/work/checkm2/input_dir/test2.faa.dat",
+        "&&",
+        "checkm2",
+        "predict",
+        "--input",
+        "/work/checkm2/input_dir",
+        "--allmodels",
+        "--genes",
+        "--ttable",
+        "13",
+        "-x",
+        ".dat",
+        "--threads",
+        "12",
+        "--database_path",
+        "/db/checkm2/uniref100.KO.1.dmnd",
+        "--output-directory",
+        "/work/checkm2/output",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "checkm2" / "output" / "quality_report.tsv",
+        tmp_path / "checkm2" / "output" / "protein_files",
+        tmp_path / "checkm2" / "output" / "diamond_output",
+    ]
+
+
+def test_checkm2_renders_specific_model_command_with_safe_input_names() -> None:
+    node_class = _node_class("checkm2")
+
+    assert node_class.render_command(
+        {
+            "input": ["MAG 01.fna", "bin#2.fa.gz"],
+            "database_path": "/db/checkm2/current.dmnd",
+            "model": "--specific",
+            "genes": False,
+            "threads": 4,
+            "output": "/work/checkm2",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm2/input_dir",
+        "/work/checkm2/output",
+        "&&",
+        "ln",
+        "-sf",
+        "MAG 01.fna",
+        "/work/checkm2/input_dir/MAG_01.fna.dat",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2.fa.gz",
+        "/work/checkm2/input_dir/bin_2.fa.gz.dat",
+        "&&",
+        "checkm2",
+        "predict",
+        "--input",
+        "/work/checkm2/input_dir",
+        "--specific",
+        "-x",
+        ".dat",
+        "--threads",
+        "4",
+        "--database_path",
+        "/db/checkm2/current.dmnd",
+        "--output-directory",
+        "/work/checkm2/output",
     ]
 
 

@@ -289,6 +289,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41598-021-91456-0'],
     citation_text: 'AMRFinderPlus and the Reference Gene Catalog facilitate examination of the genomic links among antimicrobial resistance, stress response, and virulence.',
   },
+  checkm2: {
+    name: 'checkm2',
+    display_name: 'CheckM2',
+    category: 'qc',
+    description: 'Rapidly predict genome bin completeness and contamination for MAGs, SAGs, and isolate genomes using CheckM2 machine-learning models.',
+    search_aliases: ['Galaxy', 'checkm2', 'CheckM2', 'genome quality', 'MAG quality', 'SAG quality', 'completeness contamination', 'bin quality'],
+    input: {
+      required: {
+        input: { type: 'FASTA_LIST' },
+        database_path: { type: 'FILE' },
+      },
+    },
+    output: ['TSV', 'FASTA_LIST', 'TSV_LIST'],
+    output_name: ['quality', 'protein_files', 'diamond_files'],
+    required_executables: ['checkm2'],
+    required_conda_packages: ['checkm2'],
+    documentation_url: 'https://github.com/chklovski/CheckM2',
+    citation_dois: ['10.1038/s41592-023-01940-w'],
+    citation_urls: ['https://doi.org/10.1038/s41592-023-01940-w'],
+    citation_text: 'CheckM2: a rapid, scalable and accurate tool for assessing microbial genome quality using machine learning.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2339,7 +2360,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('115 nodes available')).toBeVisible();
+  await expect(page.getByText('116 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2361,6 +2382,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
+    { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
