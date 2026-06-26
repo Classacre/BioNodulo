@@ -2044,6 +2044,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.176552.114'],
     citation_text: 'GotCloud: a sequence analysis pipeline for high-quality variant calls.',
   },
+  samblaster: {
+    name: 'samblaster',
+    display_name: 'samblaster',
+    category: 'alignment',
+    description: 'Mark duplicates and optionally output split reads, discordant read pairs, and unmapped or clipped reads.',
+    search_aliases: ['Galaxy', 'samblaster', 'duplicate marking', 'split reads', 'discordant read pairs', 'structural variant extraction'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+      optional: {
+        output_bam: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['BAM', 'BAM', 'BAM', 'FASTQ'],
+    output_name: ['alignments', 'discordant_alignments', 'split_alignments', 'unmapped_reads'],
+    required_executables: ['samblaster', 'sambamba'],
+    required_conda_packages: ['samblaster', 'sambamba'],
+    documentation_url: 'https://github.com/GregoryFaust/samblaster',
+    citation_dois: ['10.1093/bioinformatics/btu314'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btu314'],
+    citation_text: 'SAMBLASTER: fast duplicate marking and structural variant read extraction.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -2093,7 +2116,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('104 nodes available')).toBeVisible();
+  await expect(page.getByText('105 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2201,6 +2224,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BAM CRAM QC', name: 'Cramino', category: 'qc' },
     { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },
+    { query: 'split reads', name: 'samblaster', category: 'alignment' },
   ];
 
   for (const node of expectedNodes) {
