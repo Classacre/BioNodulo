@@ -5335,6 +5335,67 @@ class RSeQCReadDistributionNode(CommandNode):
         }
 
 
+class RSeQCReadDuplicationNode(CommandNode):
+    """Estimate read duplication rates with sequence and mapping strategies."""
+
+    NODE_ID = "rseqc_read_duplication"
+    DISPLAY_NAME = "RSeQC Read Duplication"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Determine read duplication rates from mapped read positions and read sequences."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "rseqc", "read_duplication", "read duplication", "duplication rate", "PCR bias", "rna-seq qc"]
+    RETURN_TYPES = ("IMAGE", "TSV", "TSV", "TEXT")
+    RETURN_NAMES = ("duplication_plot", "position_duplication", "sequence_duplication", "r_script")
+    REQUIRED_EXECUTABLES = ["read_duplication.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-duplication-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "read_duplication.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-u",
+            str(inputs.get("up_limit", 500)),
+            "-q",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.DupRate_plot.pdf",
+            out / "output.pos.DupRate.xls",
+            out / "output.seq.DupRate.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.DupRate_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+            },
+            "optional": {
+                "up_limit": ("INT", {"default": 500, "min": 1, "description": "Upper limit of duplicated times used for plotting"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality for uniquely mapped reads"}),
+                "rscript_output": ("BOOLEAN", {"default": False, "description": "Expose the R script used to generate the duplication plot"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BEDToolsCoverageNode(CommandNode):
     """Compute depth and breadth of B features across A intervals."""
 

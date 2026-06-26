@@ -3106,6 +3106,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_duplication": {
+            "display_name": "RSeQC Read Duplication",
+            "category": "rna_seq",
+            "required_executables": ["read_duplication.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "bedtools_coveragebed": {
             "display_name": "BEDTools Coverage",
             "category": "genomics",
@@ -3285,6 +3292,50 @@ def test_rseqc_read_distribution_renders_feature_distribution_command_and_output
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_read_distribution" / "read_distribution.txt",
+    ]
+
+
+def test_rseqc_read_duplication_renders_duplication_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_duplication")
+    info = _registry().object_info()["rseqc_read_duplication"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
+    assert info["output_name"] == [
+        "duplication_plot",
+        "position_duplication",
+        "sequence_duplication",
+        "r_script",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "up_limit": 750,
+            "mapq": 20,
+            "rscript_output": True,
+            "output": "/work/rseqc_read_duplication",
+        }
+    ) == [
+        "read_duplication.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_read_duplication/output",
+        "-u",
+        "750",
+        "-q",
+        "20",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.pdf",
+        tmp_path / "rseqc_read_duplication" / "output.pos.DupRate.xls",
+        tmp_path / "rseqc_read_duplication" / "output.seq.DupRate.xls",
+        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.pdf",
+        tmp_path / "rseqc_read_duplication" / "output.pos.DupRate.xls",
+        tmp_path / "rseqc_read_duplication" / "output.seq.DupRate.xls",
     ]
 
 
