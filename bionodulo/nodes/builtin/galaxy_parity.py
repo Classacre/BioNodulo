@@ -5237,6 +5237,56 @@ class RSeQCInferExperimentNode(CommandNode):
         }
 
 
+class RSeQCBamStatNode(CommandNode):
+    """Summarize BAM or SAM mapping statistics with RSeQC."""
+
+    NODE_ID = "rseqc_bam_stat"
+    DISPLAY_NAME = "RSeQC BAM Stat"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate mapped-read summary statistics from a BAM or SAM alignment file."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "rseqc", "bam_stat", "bam stats", "mapping statistics", "rna-seq qc", "sam stats"]
+    RETURN_TYPES = ("STATS_FILE",)
+    RETURN_NAMES = ("mapping_stats",)
+    REQUIRED_EXECUTABLES = ["bam_stat.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#bam-stat-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "bam_stat.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-q",
+            str(inputs.get("mapq", 30)),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/bam_stat.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "bam_stat.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+            },
+            "optional": {
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality for uniquely mapped reads"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BEDToolsCoverageNode(CommandNode):
     """Compute depth and breadth of B features across A intervals."""
 

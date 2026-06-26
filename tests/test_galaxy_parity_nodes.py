@@ -3092,6 +3092,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_bam_stat": {
+            "display_name": "RSeQC BAM Stat",
+            "category": "rna_seq",
+            "required_executables": ["bam_stat.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "bedtools_coveragebed": {
             "display_name": "BEDTools Coverage",
             "category": "genomics",
@@ -3217,6 +3224,33 @@ def test_rseqc_infer_experiment_renders_strandedness_command_and_output(tmp_path
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_infer_experiment" / "infer_experiment.txt",
+    ]
+
+
+def test_rseqc_bam_stat_renders_mapping_stats_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_bam_stat")
+    info = _registry().object_info()["rseqc_bam_stat"]
+
+    assert info["output"] == ["STATS_FILE"]
+    assert info["output_name"] == ["mapping_stats"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "mapq": 20,
+            "output": "/work/rseqc_bam_stat",
+        }
+    ) == [
+        "bam_stat.py",
+        "-i",
+        "aligned.bam",
+        "-q",
+        "20",
+        ">",
+        "/work/rseqc_bam_stat/bam_stat.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_bam_stat" / "bam_stat.txt",
     ]
 
 
