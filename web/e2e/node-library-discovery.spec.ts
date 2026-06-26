@@ -1983,6 +1983,67 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
     citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
   },
+  cramino: {
+    name: 'cramino',
+    display_name: 'Cramino',
+    category: 'qc',
+    description: 'Extract summary QC metrics, histograms, and optional Arrow output from long-read BAM or CRAM files.',
+    search_aliases: ['Galaxy', 'cramino', 'BAM CRAM QC', 'long read QC', 'NanoPack2'],
+    input: {
+      required: {
+        input_file: { type: 'BAM' },
+      },
+    },
+    output: ['STATS_FILE', 'FILE', 'TSV'],
+    output_name: ['metrics', 'arrow_output', 'histogram'],
+    required_executables: ['cramino'],
+    required_conda_packages: ['cramino'],
+    documentation_url: 'https://github.com/wdecoster/cramino',
+    citation_dois: ['10.1093/bioinformatics/btad311'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btad311'],
+    citation_text: 'NanoPack2: population-scale evaluation of long-read sequencing data.',
+  },
+  bamutil_clip_overlap: {
+    name: 'bamutil_clip_overlap',
+    display_name: 'BamUtil clipOverlap',
+    category: 'alignment',
+    description: 'Clip overlapping paired-end reads in SAM or BAM alignments using BamUtil clipOverlap.',
+    search_aliases: ['Galaxy', 'bamutil', 'clipOverlap', 'clip overlapping read pairs', 'overlap clipping'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+    },
+    output: ['BAM', 'STATS_FILE'],
+    output_name: ['clipped_alignment', 'overlap_stats'],
+    required_executables: ['bam'],
+    required_conda_packages: ['bamutil'],
+    documentation_url: 'https://genome.sph.umich.edu/wiki/BamUtil:_clipOverlap',
+    citation_dois: ['10.1101/gr.176552.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.176552.114'],
+    citation_text: 'GotCloud: a sequence analysis pipeline for high-quality variant calls.',
+  },
+  bamutil_diff: {
+    name: 'bamutil_diff',
+    display_name: 'BamUtil diff',
+    category: 'alignment',
+    description: 'Compare two coordinate-sorted SAM or BAM files and report differing records with BamUtil diff.',
+    search_aliases: ['Galaxy', 'bamutil', 'diff', 'compare SAM BAM files', 'alignment diff'],
+    input: {
+      required: {
+        in1: { type: 'BAM' },
+        in2: { type: 'BAM' },
+      },
+    },
+    output: ['FILE', 'FILE', 'FILE'],
+    output_name: ['diff', 'only_in_first', 'only_in_second'],
+    required_executables: ['bam'],
+    required_conda_packages: ['bamutil'],
+    documentation_url: 'https://genome.sph.umich.edu/wiki/BamUtil:_diff',
+    citation_dois: ['10.1101/gr.176552.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.176552.114'],
+    citation_text: 'GotCloud: a sequence analysis pipeline for high-quality variant calls.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -2032,7 +2093,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('101 nodes available')).toBeVisible();
+  await expect(page.getByText('104 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2137,6 +2198,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'readgroup', name: 'Samtools Split', category: 'samtools' },
     { query: 'slice', name: 'Samtools Slice BAM', category: 'samtools' },
     { query: 'phase', name: 'Samtools Phase', category: 'samtools' },
+    { query: 'BAM CRAM QC', name: 'Cramino', category: 'qc' },
+    { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
+    { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },
   ];
 
   for (const node of expectedNodes) {
