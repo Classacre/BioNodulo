@@ -370,6 +370,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
     citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
   },
+  seqkit_split2: {
+    name: 'seqkit_split2',
+    display_name: 'SeqKit Split2',
+    category: 'sequence',
+    description: 'Split single-end or paired-end FASTA/FASTQ records into multiple files by part count, sequence count, or sequence length.',
+    search_aliases: ['Galaxy', 'seqkit', 'split2', 'SeqKit split2', 'split FASTQ', 'split FASTA', 'paired split', 'split by length', 'split by parts'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'paired_collection'] },
+      },
+    },
+    output: ['DIRECTORY', 'DIRECTORY'],
+    output_name: ['split_files', 'paired_split_files'],
+    required_executables: ['seqkit'],
+    required_conda_packages: ['seqkit'],
+    documentation_url: 'https://bioinf.shenwei.me/seqkit/usage/#split2',
+    citation_dois: ['10.1371/journal.pone.0163962'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
+    citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
+  },
   amrfinderplus: {
     name: 'amrfinderplus',
     display_name: 'AMRFinderPlus',
@@ -2731,7 +2751,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('133 nodes available')).toBeVisible();
+  await expect(page.getByText('134 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2757,6 +2777,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
     { query: 'motif mismatch', name: 'SeqKit Locate', category: 'sequence' },
     { query: 'DNA to protein', name: 'SeqKit Translate', category: 'sequence' },
+    { query: 'split by length', name: 'SeqKit Split2', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },

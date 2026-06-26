@@ -992,6 +992,145 @@ class SeqKitTranslateNode(CommandNode):
         }
 
 
+class SeqKitSplit2Node(CommandNode):
+    """Split FASTA/Q records into files with SeqKit split2."""
+
+    NODE_ID = "seqkit_split2"
+    DISPLAY_NAME = "SeqKit Split2"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Split single-end or paired-end FASTA/FASTQ records into multiple files by part count, sequence count, or sequence length."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqkit",
+        "split2",
+        "SeqKit split2",
+        "split FASTQ",
+        "split FASTA",
+        "paired split",
+        "split by length",
+        "split by parts",
+    ]
+    RETURN_TYPES = ("DIRECTORY", "DIRECTORY")
+    RETURN_NAMES = ("split_files", "paired_split_files")
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#split2"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+    SHELL = True
+
+    @classmethod
+    def _input_name(cls, inputs: dict[str, Any], index: int | None = None) -> str:
+        key = "input_1_ext" if index in {None, 1} else "input_2_ext"
+        default = "fastqsanger.gz" if index == 2 else "fasta.gz"
+        ext = str(inputs.get(key, default)).strip().lstrip(".") or default
+        prefix = "input" if index is None else f"input_{index}"
+        return f"{prefix}.{ext}"
+
+    @classmethod
+    def _is_paired(cls, inputs: dict[str, Any]) -> bool:
+        return str(inputs.get("input_type", inputs.get("type", "single"))) == "paired_collection"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return "paired_split_files" if cls._is_paired(inputs) else "split_files"
+
+    @classmethod
+    def _add_split_selector(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        split_selector = str(inputs.get("split_selector", "by_part"))
+        if split_selector == "by_size":
+            cmd.extend(["-s", str(inputs.get("by_size", ""))])
+            if cls._is_paired(inputs):
+                cmd.extend(["--by-size-prefix", "string", "seqkit_split2_R{read}_"])
+        elif split_selector == "by_length":
+            cmd.extend(["-l", str(inputs.get("by_length", ""))])
+        else:
+            cmd.extend(["-p", str(inputs.get("by_part", ""))])
+            if cls._is_paired(inputs):
+                cmd.extend(["--by-part-prefix", "seqkit_split2_R{read}_"])
+
+    @classmethod
+    def _paired_rename_command(cls, out_dir: str) -> str:
+        quoted_out = shlex.quote(out_dir)
+        return (
+            f"(find {quoted_out}/ -type f -name 'seqkit_split2_*.*' | "
+            "while read -r file; do mv \"$file\" \"$(echo \"$file\" | "
+            "sed -E 's/(seqkit_split2)_(R1|R2)_([0-9]+)(\\..+)/\\1_\\3_\\2\\4/' | "
+            "sed -E 's/_R1/_forward/; s/_R2/_reverse/')\"; done)"
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out_dir = f"{_out(inputs)}/{cls._output_name(inputs)}"
+        parts = ["mkdir", "-p", out_dir]
+        if cls._is_paired(inputs):
+            input_1_name = cls._input_name(inputs, 1)
+            input_2_name = cls._input_name(inputs, 2)
+            cmd = ["seqkit", "split2", "-1", input_1_name, "-2", input_2_name]
+            cls._add_split_selector(cmd, inputs)
+            cmd.extend(["-o", "seqkit_split2", "-O", out_dir, "-j", str(inputs.get("threads", 4))])
+            commands = [
+                " ".join(shlex.quote(part) for part in parts),
+                f"ln -sf {shlex.quote(str(inputs.get('input_1', '')))} {shlex.quote(input_1_name)}",
+                f"ln -sf {shlex.quote(str(inputs.get('input_2', '')))} {shlex.quote(input_2_name)}",
+                " ".join(shlex.quote(part) for part in cmd),
+                cls._paired_rename_command(out_dir),
+            ]
+        else:
+            input_name = cls._input_name(inputs)
+            cmd = ["seqkit", "split2", input_name]
+            cls._add_split_selector(cmd, inputs)
+            cmd.extend(["-o", "seqkit_split2", "-O", out_dir, "-j", str(inputs.get("threads", 4))])
+            commands = [
+                " ".join(shlex.quote(part) for part in parts),
+                f"ln -sf {shlex.quote(str(inputs.get('input_1', inputs.get('input', ''))))} {shlex.quote(input_name)}",
+                " ".join(shlex.quote(part) for part in cmd),
+            ]
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / cls._output_name(inputs)
+        out.mkdir(parents=True, exist_ok=True)
+        return [out]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_type": (
+                    "STRING",
+                    {
+                        "default": "single",
+                        "options": ["single", "paired_collection"],
+                        "description": "Single-end or paired-end reads",
+                    },
+                ),
+            },
+            "optional": {
+                "input_1": ("FASTQ_LIST", {"description": "Single-end input or paired-end forward reads"}),
+                "input_2": ("FASTQ_LIST", {"description": "Paired-end reverse reads"}),
+                "split_selector": (
+                    "STRING",
+                    {
+                        "default": "by_part",
+                        "options": ["by_part", "by_size", "by_length"],
+                        "description": "Split by number of parts, sequences per part, or sequence length",
+                    },
+                ),
+                "by_part": ("INT", {"default": 2, "min": 1, "description": "Number of output parts"}),
+                "by_size": ("INT", {"default": 1000, "min": 1, "description": "Sequences per output part"}),
+                "by_length": ("STRING", {"default": "50K", "description": "Chunk size with optional K/M/G suffix"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128}),
+                "input_1_ext": ("STRING", {"default": "fasta.gz", "options": ["fasta", "fasta.gz", "fastqsanger", "fastqsanger.gz"], "advanced": True}),
+                "input_2_ext": ("STRING", {"default": "fastqsanger.gz", "options": ["fasta", "fasta.gz", "fastqsanger", "fastqsanger.gz"], "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 AMRFINDERPLUS_ORGANISMS = [
     "Acinetobacter_baumannii",
     "Burkholderia_cepacia",

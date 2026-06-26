@@ -107,6 +107,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_split2": {
+            "display_name": "SeqKit Split2",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -710,6 +717,72 @@ def test_seqkit_translate_renders_trim_fastq_command_without_unknown_translation
     assert "--allow-unknown-codon" not in command
     assert node_class.PLAN_OUTPUTS({"output_ext": "fastq.gz"}, tmp_path) == [
         tmp_path / "seqkit_translate" / "translated.fastq.gz",
+    ]
+
+
+def test_seqkit_split2_exposes_galaxy_aligned_directory_outputs_and_citation() -> None:
+    info = _registry().object_info()["seqkit_split2"]
+
+    assert info["output"] == ["DIRECTORY", "DIRECTORY"]
+    assert info["output_name"] == ["split_files", "paired_split_files"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_split2_renders_single_length_split_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_split2")
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "input_1": "hairpin.fa.gz",
+            "input_1_ext": "fasta.gz",
+            "split_selector": "by_length",
+            "by_length": "50K",
+            "threads": 6,
+            "output": "/work/seqkit_split2",
+        }
+    ) == (
+        "mkdir -p /work/seqkit_split2/split_files && "
+        "ln -sf hairpin.fa.gz input.fasta.gz && "
+        "seqkit split2 input.fasta.gz -l 50K -o seqkit_split2 "
+        "-O /work/seqkit_split2/split_files -j 6"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_type": "single"}, tmp_path) == [
+        tmp_path / "seqkit_split2" / "split_files",
+    ]
+
+
+def test_seqkit_split2_renders_paired_part_split_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_split2")
+
+    assert node_class.render_command(
+        {
+            "input_type": "paired_collection",
+            "input_1": "reads_1.fq.gz",
+            "input_2": "reads_2.fq.gz",
+            "input_1_ext": "fastqsanger.gz",
+            "input_2_ext": "fastqsanger.gz",
+            "split_selector": "by_part",
+            "by_part": 2,
+            "threads": 8,
+            "output": "/work/seqkit_split2",
+        }
+    ) == (
+        "mkdir -p /work/seqkit_split2/paired_split_files && "
+        "ln -sf reads_1.fq.gz input_1.fastqsanger.gz && "
+        "ln -sf reads_2.fq.gz input_2.fastqsanger.gz && "
+        "seqkit split2 -1 input_1.fastqsanger.gz -2 input_2.fastqsanger.gz "
+        "-p 2 --by-part-prefix 'seqkit_split2_R{read}_' -o seqkit_split2 "
+        "-O /work/seqkit_split2/paired_split_files -j 8 && "
+        "(find /work/seqkit_split2/paired_split_files/ -type f -name 'seqkit_split2_*.*' | "
+        "while read -r file; do mv \"$file\" \"$(echo \"$file\" | "
+        "sed -E 's/(seqkit_split2)_(R1|R2)_([0-9]+)(\\..+)/\\1_\\3_\\2\\4/' | "
+        "sed -E 's/_R1/_forward/; s/_R2/_reverse/')\"; done)"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_type": "paired_collection"}, tmp_path) == [
+        tmp_path / "seqkit_split2" / "paired_split_files",
     ]
 
 
