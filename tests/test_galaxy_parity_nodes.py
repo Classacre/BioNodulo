@@ -2664,6 +2664,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["mash"],
             "doi": "10.1186/s13059-016-0997-x",
         },
+        "mash_screen": {
+            "display_name": "Mash Screen",
+            "category": "genomics",
+            "required_executables": ["mash"],
+            "required_conda_packages": ["mash"],
+            "doi": "10.1186/s13059-019-1841-x",
+        },
         "fastani": {
             "display_name": "FastANI",
             "category": "genomics",
@@ -2803,6 +2810,44 @@ def test_mash_paste_renders_merge_command_and_output(tmp_path: Path) -> None:
         "mash paste /work/mash_paste/sketch alpha_sketch.msh beta.msh"
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_paste" / "sketch.msh"]
+
+
+def test_mash_screen_renders_single_and_paired_commands_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("mash_screen")
+    info = _registry().object_info()["mash_screen"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["screen"]
+    assert "10.1186/s13059-019-1841-x" in info["citation_dois"]
+    assert "10.1186/s13059-016-0997-x" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "queries": "Ref Seq.msh",
+            "pool_input_selector": "single",
+            "pool": "reads.fastq.gz",
+            "winner_takes_all": True,
+            "minimum_identity_to_report": 0.8,
+            "maximum_p_value_to_report": 0.05,
+            "output": "/work/mash_screen",
+        }
+    ) == (
+        "ln -sf 'Ref Seq.msh' queries.msh && "
+        "mash screen -w -i 0.8 -v 0.05 queries.msh reads.fastq.gz > /work/mash_screen/screen.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "queries": "refs.msh",
+            "pool_input_selector": "paired",
+            "pool_1": "R1.fastq.gz",
+            "pool_2": "R2.fastq.gz",
+            "winner_takes_all": False,
+            "output": "/work/mash_screen",
+        }
+    ) == (
+        "ln -sf refs.msh queries.msh && "
+        "mash screen -i 0.0 -v 1.0 queries.msh R1.fastq.gz R2.fastq.gz > /work/mash_screen/screen.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_screen" / "screen.tsv"]
 
 
 def test_fastani_renders_many_to_many_command_and_outputs(tmp_path: Path) -> None:

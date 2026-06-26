@@ -1029,6 +1029,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
     citation_text: 'Mash: fast genome and metagenome distance estimation using MinHash.',
   },
+  mash_screen: {
+    name: 'mash_screen',
+    display_name: 'Mash Screen',
+    category: 'genomics',
+    description: 'Screen reads against a Mash sketch database to estimate sequence containment.',
+    search_aliases: ['Galaxy', 'mash', 'mash screen', 'containment', 'metagenome screen', 'genome discovery', 'read screening', 'minhash'],
+    input: {
+      required: {
+        queries: { type: 'FILE' },
+        pool_input_selector: { type: 'STRING', default: 'single', options: ['paired', 'single', 'paired_collection'] },
+        pool: { type: 'FASTQ' },
+        pool_1: { type: 'FASTQ' },
+        pool_2: { type: 'FASTQ' },
+      },
+      optional: {
+        winner_takes_all: { type: 'BOOLEAN', default: true },
+        minimum_identity_to_report: { type: 'FLOAT', default: 0.0 },
+        maximum_p_value_to_report: { type: 'FLOAT', default: 1.0 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['screen'],
+    required_executables: ['mash'],
+    required_conda_packages: ['mash'],
+    documentation_url: 'https://mash.readthedocs.io/en/latest/tutorials.html#screening-a-read-set-for-containment-of-refseq-genomes',
+    citation_dois: ['10.1186/s13059-019-1841-x', '10.1186/s13059-016-0997-x'],
+    citation_urls: ['https://doi.org/10.1186/s13059-019-1841-x', 'https://doi.org/10.1186/s13059-016-0997-x'],
+    citation_text: 'Mash Screen: high-throughput sequence containment estimation for genome discovery; Mash: fast genome and metagenome distance estimation using MinHash.',
+  },
   fastani: {
     name: 'fastani',
     display_name: 'FastANI',
@@ -3028,7 +3057,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('142 nodes available')).toBeVisible();
+  await expect(page.getByText('143 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3080,6 +3109,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
+    { query: 'mash screen containment', name: 'Mash Screen', category: 'genomics' },
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
