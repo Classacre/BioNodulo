@@ -1664,6 +1664,162 @@ class AMASSummaryNode(CommandNode):
         }
 
 
+class AMASConcatNode(AMASSummaryNode):
+    """Concatenate multiple sequence alignments with AMAS concat."""
+
+    NODE_ID = "amas_concat"
+    DISPLAY_NAME = "AMAS Concat"
+    DESCRIPTION = "Concatenate multiple pre-aligned sequence files and emit a partition map with AMAS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AMAS",
+        "amas concat",
+        "alignment concatenation",
+        "supermatrix",
+        "partition file",
+        "phylogenomics",
+        "RAxML partitions",
+    ]
+    RETURN_TYPES = ("ALIGNMENT", "TEXT")
+    RETURN_NAMES = ("output", "partitions_out")
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "fasta") or "fasta")
+        return out_format if out_format in {"fasta", "phylip", "phylip-int", "nexus", "nexus-int"} else "fasta"
+
+    @classmethod
+    def _part_format(cls, inputs: dict[str, Any]) -> str:
+        part_format = str(inputs.get("part_format", "unspecified") or "unspecified")
+        return part_format if part_format in {"unspecified", "nexus", "raxml"} else "unspecified"
+
+    @classmethod
+    def _alignment_suffix(cls, inputs: dict[str, Any]) -> str:
+        return {
+            "fasta": ".fasta",
+            "phylip": ".phy",
+            "phylip-int": ".phy",
+            "nexus": ".nex",
+            "nexus-int": ".nex",
+        }[cls._out_format(inputs)]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        files = _as_list(inputs.get("input_files"))
+        safe_names = cls._safe_input_names(inputs)
+        input_format = cls._input_format(inputs)
+        tool_directory = cls._tool_directory(inputs)
+        parts = [
+            "set -eu",
+            (
+                f"IN_FORMAT=$(python {tool_directory}/check_interleaved.py "
+                f"{' '.join(shlex.quote(path) for path in files)} --format {shlex.quote(input_format)})"
+            ),
+        ]
+        parts.extend(
+            f"ln -sf {shlex.quote(path)} {shlex.quote(safe_name)}"
+            for path, safe_name in zip(files, safe_names, strict=False)
+        )
+
+        amas_parts = [
+            "python",
+            "-m",
+            "amas.AMAS",
+            "concat",
+            "--concat-part",
+            "partitions.txt",
+            "--concat-out",
+            "concatenated.out",
+            "--part-format",
+            cls._part_format(inputs),
+            "--out-format",
+            cls._out_format(inputs),
+            "--in-files",
+            *safe_names,
+            "--in-format",
+            "${IN_FORMAT}",
+            "--data-type",
+            str(inputs.get("data_type", "dna")),
+            "--cores",
+            "${GALAXY_SLOTS:-1}",
+        ]
+        if inputs.get("check_align"):
+            amas_parts.append("--check-align")
+        command = " ".join(shlex.quote(part) for part in amas_parts)
+        command = command.replace("'${IN_FORMAT}'", '"${IN_FORMAT}"')
+        command = command.replace("'${GALAXY_SLOTS:-1}'", '"${GALAXY_SLOTS:-1}"')
+        parts.append(command)
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        partition_suffix = ".nex" if cls._part_format(inputs) == "nexus" else ".txt"
+        return [
+            out / f"concatenated{cls._alignment_suffix(inputs)}",
+            out / f"partitions{partition_suffix}",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": (
+                    "ALIGNMENT",
+                    {
+                        "list": True,
+                        "description": "Two or more pre-aligned FASTA, PHYLIP, or NEXUS alignment files",
+                    },
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int"],
+                        "description": "Output format for the concatenated alignment",
+                    },
+                ),
+                "part_format": (
+                    "STRING",
+                    {
+                        "default": "unspecified",
+                        "options": ["unspecified", "nexus", "raxml"],
+                        "description": "Partition file format",
+                    },
+                ),
+                "data_type": (
+                    "STRING",
+                    {"default": "dna", "options": ["dna", "aa"], "description": "Nucleotide or protein alignment"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int", "nex"],
+                        "description": "Input alignment format; NEXUS can be supplied as nex or nexus",
+                    },
+                ),
+                "check_align": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Check that input sequences are aligned before concatenating"},
+                ),
+                "input_labels": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "list": True,
+                        "description": "Optional Galaxy element identifiers used for safe symlink names",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {}), "tool_directory": ("STRING", {})},
+        }
+
+
 ADAPTER_REMOVAL_CITATION_DOI = "10.1186/s13104-016-1900-2"
 ADAPTER_REMOVAL_CITATION_TEXT = "AdapterRemoval v2: rapid adapter trimming, identification, and read merging."
 ADAPTER_REMOVAL_ADAPTER1 = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG"

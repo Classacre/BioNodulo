@@ -135,6 +135,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["amas"],
             "doi": "10.7717/peerj.1660",
         },
+        "amas_concat": {
+            "display_name": "AMAS Concat",
+            "category": "phylogeny",
+            "required_executables": ["python"],
+            "required_conda_packages": ["amas"],
+            "doi": "10.7717/peerj.1660",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -1185,6 +1192,54 @@ def test_amas_summary_renders_minimal_command_and_summary_output(tmp_path: Path)
 
     assert node_class.PLAN_OUTPUTS({"by_taxon": False}, tmp_path) == [
         tmp_path / "amas_summary" / "summary.txt",
+    ]
+
+
+def test_amas_concat_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amas_concat"]
+
+    assert info["output"] == ["ALIGNMENT", "TEXT"]
+    assert info["output_name"] == ["output", "partitions_out"]
+
+
+def test_amas_concat_renders_partitioned_concat_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amas_concat")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["gene A.fasta", "geneB.fasta"],
+            "input_labels": ["gene A.fasta", "geneB.fasta"],
+            "input_format": "fasta",
+            "out_format": "phylip",
+            "part_format": "nexus",
+            "data_type": "dna",
+            "check_align": True,
+            "tool_directory": "/iuc/tools/amas",
+            "output": "/work/amas_concat",
+        }
+    ) == (
+        "set -eu && "
+        "IN_FORMAT=$(python /iuc/tools/amas/check_interleaved.py "
+        "'gene A.fasta' geneB.fasta --format fasta) && "
+        "ln -sf 'gene A.fasta' gene_A.fasta && "
+        "ln -sf geneB.fasta geneB.fasta && "
+        "python -m amas.AMAS concat --concat-part partitions.txt --concat-out concatenated.out "
+        "--part-format nexus --out-format phylip --in-files gene_A.fasta geneB.fasta "
+        '--in-format "${IN_FORMAT}" --data-type dna --cores "${GALAXY_SLOTS:-1}" --check-align'
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "phylip", "part_format": "nexus"}, tmp_path) == [
+        tmp_path / "amas_concat" / "concatenated.phy",
+        tmp_path / "amas_concat" / "partitions.nex",
+    ]
+
+
+def test_amas_concat_plans_interleaved_nexus_and_raxml_partitions(tmp_path: Path) -> None:
+    node_class = _node_class("amas_concat")
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "nexus-int", "part_format": "raxml"}, tmp_path) == [
+        tmp_path / "amas_concat" / "concatenated.nex",
+        tmp_path / "amas_concat" / "partitions.txt",
     ]
 
 
