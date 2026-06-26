@@ -233,6 +233,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["vsearch"],
             "doi": "10.7717/peerj.2584",
         },
+        "vsearch_chimera_detection": {
+            "display_name": "VSEARCH Chimera Detection",
+            "category": "metagenomics",
+            "required_executables": ["vsearch"],
+            "required_conda_packages": ["vsearch"],
+            "doi": "10.7717/peerj.2584",
+        },
         "diamond_makedb": {
             "display_name": "DIAMOND MakeDB",
             "category": "databases",
@@ -2310,6 +2317,107 @@ def test_vsearch_alignment_renders_allpairs_command_and_outputs(tmp_path: Path) 
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "vsearch_alignment" / "alignments.txt",
+    ]
+
+
+def test_vsearch_chimera_detection_renders_uchime_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("vsearch_chimera_detection")
+    info = _registry().object_info()["vsearch_chimera_detection"]
+
+    assert info["output"] == ["FASTA", "FASTA", "STATS_FILE", "TSV"]
+    assert info["output_name"] == ["chimeras", "nonchimeras", "uchime_alignments", "uchimeout"]
+    assert node_class.render_command(
+        {
+            "detection_mode": "denovo",
+            "infile_denovo": "amplicons.fasta",
+            "threads": 6,
+            "abskew": 2.0,
+            "dn": 1.4,
+            "mindiffs": 3,
+            "mindiv": 0.8,
+            "minh": 0.28,
+            "xn": 8.0,
+            "outputs": ["nonchimeras", "uchimealns", "uchimeout"],
+            "output": "/work/vsearch_chimera_detection",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "6",
+        "--notrunclabels",
+        "--abskew",
+        "2.0",
+        "--chimeras",
+        "/work/vsearch_chimera_detection/chimeras.fasta",
+        "--dn",
+        "1.4",
+        "--mindiffs",
+        "3",
+        "--mindiv",
+        "0.8",
+        "--minh",
+        "0.28",
+        "--xn",
+        "8.0",
+        "--uchime_denovo",
+        "amplicons.fasta",
+        "--nonchimeras",
+        "/work/vsearch_chimera_detection/nonchimeras.fasta",
+        "--uchimealns",
+        "/work/vsearch_chimera_detection/uchime_alignments.txt",
+        "--uchimeout",
+        "/work/vsearch_chimera_detection/uchimeout.tsv",
+    ]
+    assert node_class.render_command(
+        {
+            "detection_mode": "reference",
+            "infile_reference": "queries.fasta",
+            "db": "gold.fasta",
+            "self_param": True,
+            "selfid_param": True,
+            "outputs": ["uchimeout"],
+            "output": "/work/vsearch_chimera_detection",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "4",
+        "--notrunclabels",
+        "--abskew",
+        "2.0",
+        "--chimeras",
+        "/work/vsearch_chimera_detection/chimeras.fasta",
+        "--dn",
+        "1.4",
+        "--mindiffs",
+        "3",
+        "--mindiv",
+        "0.8",
+        "--minh",
+        "0.28",
+        "--xn",
+        "8.0",
+        "--self",
+        "--selfid",
+        "--uchime_ref",
+        "queries.fasta",
+        "--db",
+        "gold.fasta",
+        "--uchimeout",
+        "/work/vsearch_chimera_detection/uchimeout.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS(
+        {"outputs": ["nonchimeras", "uchimealns", "uchimeout"]},
+        tmp_path,
+    ) == [
+        tmp_path / "vsearch_chimera_detection" / "chimeras.fasta",
+        tmp_path / "vsearch_chimera_detection" / "nonchimeras.fasta",
+        tmp_path / "vsearch_chimera_detection" / "uchime_alignments.txt",
+        tmp_path / "vsearch_chimera_detection" / "uchimeout.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "vsearch_chimera_detection" / "chimeras.fasta",
     ]
 
 

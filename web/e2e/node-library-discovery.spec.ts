@@ -660,6 +660,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.2584'],
     citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
   },
+  vsearch_chimera_detection: {
+    name: 'vsearch_chimera_detection',
+    display_name: 'VSEARCH Chimera Detection',
+    category: 'metagenomics',
+    description: 'Detect chimeric FASTA sequences with VSEARCH uchime_denovo or uchime_ref and optional UCHIME reports.',
+    search_aliases: ['Galaxy', 'vsearch', 'chimera', 'chimera detection', 'uchime_denovo', 'uchime_ref', 'uchimeout', 'nonchimeras'],
+    input: {
+      required: {
+        detection_mode: { type: 'STRING', default: 'denovo', options: ['denovo', 'reference'] },
+        infile_denovo: { type: 'FASTA' },
+        infile_reference: { type: 'FASTA' },
+        db: { type: 'FASTA' },
+      },
+      optional: {
+        abskew: { type: 'FLOAT', default: 2.0 },
+        dn: { type: 'FLOAT', default: 1.4 },
+        xn: { type: 'FLOAT', default: 8.0 },
+        mindiffs: { type: 'INT', default: 3 },
+        mindiv: { type: 'FLOAT', default: 0.8 },
+        minh: { type: 'FLOAT', default: 0.28 },
+        self_param: { type: 'BOOLEAN', default: false },
+        selfid_param: { type: 'BOOLEAN', default: false },
+        outputs: { type: 'STRING', default: [], list: true, options: ['nonchimeras', 'uchimealns', 'uchimeout'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'STATS_FILE', 'TSV'],
+    output_name: ['chimeras', 'nonchimeras', 'uchime_alignments', 'uchimeout'],
+    required_executables: ['vsearch'],
+    required_conda_packages: ['vsearch'],
+    documentation_url: 'https://github.com/torognes/vsearch',
+    citation_dois: ['10.7717/peerj.2584'],
+    citation_urls: ['https://doi.org/10.7717/peerj.2584'],
+    citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
+  },
   bandage_info: {
     name: 'bandage_info',
     display_name: 'Bandage Info',
@@ -2938,7 +2973,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('139 nodes available')).toBeVisible();
+  await expect(page.getByText('140 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2974,6 +3009,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'random sequence order', name: 'VSEARCH Shuffling', category: 'metagenomics' },
     { query: 'sort by abundance', name: 'VSEARCH Sorting', category: 'metagenomics' },
     { query: 'pairwise alignment', name: 'VSEARCH Alignment', category: 'metagenomics' },
+    { query: 'uchimeout', name: 'VSEARCH Chimera Detection', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
