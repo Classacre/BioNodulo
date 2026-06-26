@@ -532,6 +532,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1660'],
     citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
   },
+  amas_replicate: {
+    name: 'amas_replicate',
+    display_name: 'AMAS Replicate',
+    category: 'phylogeny',
+    description: 'Generate replicate alignment datasets by sampling loci from multiple alignments with AMAS.',
+    search_aliases: ['Galaxy', 'AMAS', 'amas replicate', 'alignment replicate', 'phylogenetic jackknife', 'loci sampling', 'bootstrap loci', 'phylogenomics'],
+    input: {
+      required: {
+        input_files: { type: 'ALIGNMENT' },
+        replicate_replicates: { type: 'INT', default: 10, min: 1 },
+        replicate_loci: { type: 'INT', default: 2, min: 1 },
+        out_format: { type: 'STRING', default: 'fasta', options: ['fasta', 'phylip', 'phylip-int', 'nexus', 'nexus-int'] },
+        data_type: { type: 'STRING', default: 'dna', options: ['dna', 'aa'] },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['replicate_alignments'],
+    required_executables: ['python'],
+    required_conda_packages: ['amas'],
+    documentation_url: 'https://github.com/marekborowiec/AMAS',
+    citation_dois: ['10.7717/peerj.1660'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1660'],
+    citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2582,7 +2606,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('126 nodes available')).toBeVisible();
+  await expect(page.getByText('127 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2615,6 +2639,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
     { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
     { query: 'remove taxa', name: 'AMAS Remove', category: 'phylogeny' },
+    { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

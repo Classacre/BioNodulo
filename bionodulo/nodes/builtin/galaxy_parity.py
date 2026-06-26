@@ -2133,6 +2133,144 @@ class AMASRemoveNode(AMASConcatNode):
         }
 
 
+class AMASReplicateNode(AMASConcatNode):
+    """Generate replicate alignments by sampling loci with AMAS replicate."""
+
+    NODE_ID = "amas_replicate"
+    DISPLAY_NAME = "AMAS Replicate"
+    DESCRIPTION = "Generate replicate alignment datasets by sampling loci from multiple alignments with AMAS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AMAS",
+        "amas replicate",
+        "alignment replicate",
+        "phylogenetic jackknife",
+        "loci sampling",
+        "bootstrap loci",
+        "phylogenomics",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("replicate_alignments",)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        files = _as_list(inputs.get("input_files"))
+        safe_names = cls._safe_input_names(inputs)
+        input_format = cls._input_format(inputs)
+        tool_directory = cls._tool_directory(inputs)
+        replicate_alignments_dir = f"{_out(inputs)}/replicate_alignments"
+        parts = [
+            "set -eu",
+            (
+                f"IN_FORMAT=$(python {tool_directory}/check_interleaved.py "
+                f"{' '.join(shlex.quote(path) for path in files)} --format {shlex.quote(input_format)})"
+            ),
+        ]
+        parts.extend(
+            f"ln -sf {shlex.quote(path)} {shlex.quote(safe_name)}"
+            for path, safe_name in zip(files, safe_names, strict=False)
+        )
+
+        amas_parts = [
+            "python",
+            "-m",
+            "amas.AMAS",
+            "replicate",
+            "--rep-aln",
+            str(inputs.get("replicate_replicates", 10)),
+            str(inputs.get("replicate_loci", 2)),
+            "--out-format",
+            cls._out_format(inputs),
+            "--in-files",
+            *safe_names,
+            "--in-format",
+            "${IN_FORMAT}",
+            "--data-type",
+            str(inputs.get("data_type", "dna")),
+            "--cores",
+            "${GALAXY_SLOTS:-1}",
+        ]
+        if inputs.get("check_align"):
+            amas_parts.append("--check-align")
+        command = " ".join(shlex.quote(part) for part in amas_parts)
+        command = command.replace("'${IN_FORMAT}'", '"${IN_FORMAT}"')
+        command = command.replace("'${GALAXY_SLOTS:-1}'", '"${GALAXY_SLOTS:-1}"')
+        parts.extend(
+            [
+                command,
+                f"mkdir -p {shlex.quote(replicate_alignments_dir)}",
+                f"find . -maxdepth 1 -name '*-out.*' -exec mv {{}} {shlex.quote(replicate_alignments_dir)}/ \\;",
+            ]
+        )
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        replicate_alignments_dir = out / "replicate_alignments"
+        replicate_alignments_dir.mkdir(parents=True, exist_ok=True)
+        return [replicate_alignments_dir]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": (
+                    "ALIGNMENT",
+                    {
+                        "list": True,
+                        "description": "Multiple pre-aligned FASTA, PHYLIP, or NEXUS alignment files, one per locus",
+                    },
+                ),
+                "replicate_replicates": (
+                    "INT",
+                    {"default": 10, "min": 1, "description": "Number of replicate datasets to build"},
+                ),
+                "replicate_loci": (
+                    "INT",
+                    {"default": 2, "min": 1, "description": "Number of loci to sample per replicate"},
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int"],
+                        "description": "Output format for replicated alignments",
+                    },
+                ),
+                "data_type": (
+                    "STRING",
+                    {"default": "dna", "options": ["dna", "aa"], "description": "Nucleotide or protein alignment"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int", "nex"],
+                        "description": "Input alignment format; NEXUS can be supplied as nex or nexus",
+                    },
+                ),
+                "check_align": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Check that input sequences are aligned before sampling loci"},
+                ),
+                "input_labels": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "list": True,
+                        "description": "Optional Galaxy element identifiers used for safe symlink names",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {}), "tool_directory": ("STRING", {})},
+        }
+
+
 ADAPTER_REMOVAL_CITATION_DOI = "10.1186/s13104-016-1900-2"
 ADAPTER_REMOVAL_CITATION_TEXT = "AdapterRemoval v2: rapid adapter trimming, identification, and read merging."
 ADAPTER_REMOVAL_ADAPTER1 = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG"

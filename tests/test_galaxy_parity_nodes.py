@@ -1379,6 +1379,76 @@ def test_amas_remove_renders_minimal_command(tmp_path: Path) -> None:
     ]
 
 
+def test_amas_replicate_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amas_replicate"]
+
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["replicate_alignments"]
+
+
+def test_amas_replicate_renders_checked_multi_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amas_replicate")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["alignments/locus one.fas", "locus2.nex"],
+            "input_labels": ["locus one.fas", "locus2.nex"],
+            "input_format": "nex",
+            "replicate_replicates": 10,
+            "replicate_loci": 2,
+            "out_format": "nexus",
+            "data_type": "dna",
+            "check_align": True,
+            "tool_directory": "/iuc/tools/amas",
+            "output": "/work/amas_replicate",
+        }
+    ) == (
+        "set -eu && "
+        "IN_FORMAT=$(python /iuc/tools/amas/check_interleaved.py "
+        "'alignments/locus one.fas' locus2.nex --format nexus) && "
+        "ln -sf 'alignments/locus one.fas' locus_one.fas && "
+        "ln -sf locus2.nex locus2.nex && "
+        "python -m amas.AMAS replicate --rep-aln 10 2 --out-format nexus "
+        "--in-files locus_one.fas locus2.nex "
+        '--in-format "${IN_FORMAT}" --data-type dna --cores "${GALAXY_SLOTS:-1}" --check-align && '
+        "mkdir -p /work/amas_replicate/replicate_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_replicate/replicate_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "nexus"}, tmp_path) == [
+        tmp_path / "amas_replicate" / "replicate_alignments",
+    ]
+
+
+def test_amas_replicate_renders_minimal_command(tmp_path: Path) -> None:
+    node_class = _node_class("amas_replicate")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["locus1.fasta"],
+            "replicate_replicates": 2,
+            "replicate_loci": 1,
+            "out_format": "fasta",
+            "data_type": "aa",
+            "output": "/work/amas_replicate",
+        }
+    ) == (
+        "set -eu && "
+        'IN_FORMAT=$(python "${BIONODULO_AMAS_TOOL_DIR:-.}"/check_interleaved.py '
+        "locus1.fasta --format fasta) && "
+        "ln -sf locus1.fasta locus1.fasta && "
+        "python -m amas.AMAS replicate --rep-aln 2 1 --out-format fasta "
+        "--in-files locus1.fasta "
+        '--in-format "${IN_FORMAT}" --data-type aa --cores "${GALAXY_SLOTS:-1}" && '
+        "mkdir -p /work/amas_replicate/replicate_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_replicate/replicate_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "amas_replicate" / "replicate_alignments",
+    ]
+
+
 def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) -> None:
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
