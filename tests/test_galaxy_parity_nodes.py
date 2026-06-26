@@ -72,6 +72,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_head": {
+            "display_name": "SeqKit Head",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -418,6 +425,36 @@ def test_seqkit_grep_renders_pattern_file_count_command_and_output(tmp_path: Pat
     ]
     assert node_class.PLAN_OUTPUTS({"count": True}, tmp_path) == [
         tmp_path / "seqkit_grep" / "count.txt",
+    ]
+
+
+def test_seqkit_head_exposes_galaxy_aligned_output_and_citation() -> None:
+    info = _registry().object_info()["seqkit_head"]
+
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["head_output"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_head_renders_head_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_head")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "number": 25,
+            "threads": 8,
+            "output_ext": "fastq.gz",
+            "output": "/work/seqkit_head",
+        }
+    ) == (
+        "ln -sf reads.fastq.gz input.fastq.gz && "
+        "seqkit head input.fastq.gz --number 25 -o /work/seqkit_head/head.fastq.gz --threads 8"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqkit_head" / "head.fastq.gz",
     ]
 
 

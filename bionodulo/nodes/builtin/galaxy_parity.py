@@ -500,6 +500,80 @@ class SeqKitGrepNode(CommandNode):
         }
 
 
+class SeqKitHeadNode(CommandNode):
+    """Return the first N FASTA/Q records with SeqKit head."""
+
+    NODE_ID = "seqkit_head"
+    DISPLAY_NAME = "SeqKit Head"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Return the first N FASTA or FASTQ records with SeqKit head."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "seqkit", "head", "seqkit head", "first records", "FASTA head", "FASTQ head"]
+    RETURN_TYPES = ("FASTQ",)
+    RETURN_NAMES = ("head_output",)
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#head"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+    SHELL = True
+
+    @classmethod
+    def _input_name(cls, inputs: dict[str, Any]) -> str:
+        ext = str(inputs.get("input_ext", inputs.get("output_ext", "fastq.gz"))).strip().lstrip(".") or "fastq.gz"
+        return f"input.{ext}"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        ext = str(inputs.get("output_ext", "fastq.gz")).strip().lstrip(".") or "fastq.gz"
+        return f"head.{ext}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_name = cls._input_name(inputs)
+        output_path = f"{_out(inputs)}/{cls._output_name(inputs)}"
+        return " ".join(
+            [
+                "ln",
+                "-sf",
+                shlex.quote(str(inputs.get("input", ""))),
+                shlex.quote(input_name),
+                "&&",
+                "seqkit",
+                "head",
+                shlex.quote(input_name),
+                "--number",
+                shlex.quote(str(inputs.get("number", 10))),
+                "-o",
+                shlex.quote(output_path),
+                "--threads",
+                shlex.quote(str(inputs.get("threads", 4))),
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FASTQ_LIST", {"description": "Input FASTA or FASTQ file"}),
+                "number": ("INT", {"default": 10, "min": 1, "description": "Number of FASTA/Q records to output"}),
+            },
+            "optional": {
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128}),
+                "input_ext": ("STRING", {"default": "fastq.gz", "options": ["fasta.gz", "fasta", "fastq.gz", "fastq"], "advanced": True}),
+                "output_ext": ("STRING", {"default": "fastq.gz", "options": ["fasta.gz", "fasta", "fastq.gz", "fastq"]}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 AMRFINDERPLUS_ORGANISMS = [
     "Acinetobacter_baumannii",
     "Burkholderia_cepacia",

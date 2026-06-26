@@ -268,6 +268,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
     citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
   },
+  seqkit_head: {
+    name: 'seqkit_head',
+    display_name: 'SeqKit Head',
+    category: 'sequence',
+    description: 'Return the first N FASTA or FASTQ records with SeqKit head.',
+    search_aliases: ['Galaxy', 'seqkit', 'head', 'seqkit head', 'first records', 'FASTA head', 'FASTQ head'],
+    input: {
+      required: {
+        input: { type: 'FASTQ_LIST' },
+        number: { type: 'INT', default: 10 },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['head_output'],
+    required_executables: ['seqkit'],
+    required_conda_packages: ['seqkit'],
+    documentation_url: 'https://bioinf.shenwei.me/seqkit/usage/#head',
+    citation_dois: ['10.1371/journal.pone.0163962'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
+    citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
+  },
   amrfinderplus: {
     name: 'amrfinderplus',
     display_name: 'AMRFinderPlus',
@@ -2629,7 +2650,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('128 nodes available')).toBeVisible();
+  await expect(page.getByText('129 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2650,6 +2671,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
+    { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
