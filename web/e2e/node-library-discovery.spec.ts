@@ -331,6 +331,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41564-018-0171-1'],
     citation_text: 'Recovery of genomes from metagenomes via a dereplication, aggregation and scoring strategy.',
   },
+  fasta_to_contig2bin: {
+    name: 'fasta_to_contig2bin',
+    display_name: 'FASTA to Contig2Bin',
+    category: 'metagenomics',
+    description: 'Convert a list of genome-bin FASTA files into a tabular contig-to-bin assignment table for DAS Tool.',
+    search_aliases: ['Galaxy', 'Fasta_to_Contig2Bin', 'Fasta_to_Contig2Bin.sh', 'DAS Tool helper', 'contig2bin', 'contigs2bin', 'genome bins', 'bin FASTA'],
+    input: {
+      required: {
+        inputs: { type: 'FASTA_LIST' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['contigs2bin'],
+    required_executables: ['Fasta_to_Contig2Bin.sh'],
+    required_conda_packages: ['das_tool'],
+    documentation_url: 'https://github.com/cmks/DAS_Tool#preparation-of-input-files',
+    citation_dois: ['10.1038/s41564-018-0171-1'],
+    citation_urls: ['https://doi.org/10.1038/s41564-018-0171-1'],
+    citation_text: 'Recovery of genomes from metagenomes via a dereplication, aggregation and scoring strategy.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2381,7 +2401,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('117 nodes available')).toBeVisible();
+  await expect(page.getByText('118 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2405,6 +2425,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
+    { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

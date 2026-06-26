@@ -93,6 +93,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["das_tool"],
             "doi": "10.1038/s41564-018-0171-1",
         },
+        "fasta_to_contig2bin": {
+            "display_name": "FASTA to Contig2Bin",
+            "category": "metagenomics",
+            "required_executables": ["Fasta_to_Contig2Bin.sh"],
+            "required_conda_packages": ["das_tool"],
+            "doi": "10.1038/s41564-018-0171-1",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -770,6 +777,50 @@ def test_das_tool_plans_optional_bins_unbinned_and_proteins_outputs(tmp_path: Pa
         tmp_path / "das_tool" / "outputs_DASTool_bins",
         tmp_path / "das_tool" / "outputs_DASTool_bins" / "unbinned.fa",
         tmp_path / "das_tool" / "outputs_proteins.faa",
+    ]
+
+
+def test_fasta_to_contig2bin_exposes_single_tabular_output() -> None:
+    info = _registry().object_info()["fasta_to_contig2bin"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["contigs2bin"]
+
+
+def test_fasta_to_contig2bin_renders_galaxy_helper_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("fasta_to_contig2bin")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["maxbin2.001.fa", "bin set/002.fa"],
+            "element_identifiers": ["001", "bin/set 002"],
+            "output": "/work/fasta_to_contig2bin",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/fasta_to_contig2bin/inputs",
+        "&&",
+        "ln",
+        "-sf",
+        "maxbin2.001.fa",
+        "/work/fasta_to_contig2bin/inputs/001.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "bin set/002.fa",
+        "/work/fasta_to_contig2bin/inputs/bin_set_002.fasta",
+        "&&",
+        "Fasta_to_Contig2Bin.sh",
+        "--extension",
+        "fasta",
+        "--input_folder",
+        "/work/fasta_to_contig2bin/inputs",
+        ">",
+        "/work/fasta_to_contig2bin/contigs2bin.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fasta_to_contig2bin" / "contigs2bin.tsv",
     ]
 
 
