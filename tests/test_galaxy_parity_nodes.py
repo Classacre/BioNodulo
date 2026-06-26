@@ -219,6 +219,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["vsearch"],
             "doi": "10.7717/peerj.2584",
         },
+        "vsearch_sorting": {
+            "display_name": "VSEARCH Sorting",
+            "category": "metagenomics",
+            "required_executables": ["vsearch"],
+            "required_conda_packages": ["vsearch"],
+            "doi": "10.7717/peerj.2584",
+        },
         "diamond_makedb": {
             "display_name": "DIAMOND MakeDB",
             "category": "databases",
@@ -2156,6 +2163,68 @@ def test_vsearch_shuffling_renders_shuffle_command_and_outputs(tmp_path: Path) -
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "vsearch_shuffling" / "shuffled.fasta",
+    ]
+
+
+def test_vsearch_sorting_renders_length_and_abundance_commands(tmp_path: Path) -> None:
+    node_class = _node_class("vsearch_sorting")
+    info = _registry().object_info()["vsearch_sorting"]
+
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["sorted_sequences"]
+    assert node_class.render_command(
+        {
+            "infile": "db.fasta",
+            "threads": 6,
+            "sorting_mode": "sortbylength",
+            "relabel": "With spaces",
+            "sizeout": True,
+            "topn": 5,
+            "output": "/work/vsearch_sorting",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "6",
+        "--notrunclabels",
+        "--sortbylength",
+        "db.fasta",
+        "--output",
+        "/work/vsearch_sorting/sorted.fasta",
+        "--relabel",
+        "With spaces",
+        "--sizeout",
+        "--topn",
+        "5",
+    ]
+    assert node_class.render_command(
+        {
+            "infile": "db.fasta",
+            "threads": 2,
+            "sorting_mode": "sortbyabundance",
+            "minsize": 2,
+            "maxsize": 500,
+            "sizeout": False,
+            "topn": "",
+            "output": "/work/vsearch_sorting",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "2",
+        "--notrunclabels",
+        "--sortbysize",
+        "db.fasta",
+        "--minsize",
+        "2",
+        "--maxsize",
+        "500",
+        "--output",
+        "/work/vsearch_sorting/sorted.fasta",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "vsearch_sorting" / "sorted.fasta",
     ]
 
 

@@ -553,6 +553,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.2584'],
     citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
   },
+  vsearch_sorting: {
+    name: 'vsearch_sorting',
+    display_name: 'VSEARCH Sorting',
+    category: 'metagenomics',
+    description: 'Sort FASTA sequences by length or abundance with VSEARCH, with optional abundance filters, relabeling, size annotations, and top-N output.',
+    search_aliases: ['Galaxy', 'vsearch', 'sorting', 'sortbylength', 'sortbysize', 'sort by abundance', 'sizeout', 'relabel'],
+    input: {
+      required: {
+        infile: { type: 'FASTA' },
+      },
+      optional: {
+        sorting_mode: { type: 'STRING', default: 'sortbylength', options: ['sortbylength', 'sortbyabundance'] },
+        minsize: { type: 'INT', default: '' },
+        maxsize: { type: 'INT', default: '' },
+        relabel: { type: 'STRING', default: '' },
+        sizeout: { type: 'BOOLEAN', default: false },
+        topn: { type: 'INT', default: '' },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['sorted_sequences'],
+    required_executables: ['vsearch'],
+    required_conda_packages: ['vsearch'],
+    documentation_url: 'https://github.com/torognes/vsearch',
+    citation_dois: ['10.7717/peerj.2584'],
+    citation_urls: ['https://doi.org/10.7717/peerj.2584'],
+    citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
+  },
   bandage_info: {
     name: 'bandage_info',
     display_name: 'Bandage Info',
@@ -2831,7 +2860,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('137 nodes available')).toBeVisible();
+  await expect(page.getByText('138 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2865,6 +2894,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
     { query: 'dust masking', name: 'VSEARCH Masking', category: 'metagenomics' },
     { query: 'random sequence order', name: 'VSEARCH Shuffling', category: 'metagenomics' },
+    { query: 'sort by abundance', name: 'VSEARCH Sorting', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
