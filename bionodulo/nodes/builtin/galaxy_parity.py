@@ -5316,6 +5316,73 @@ class RSeQCFPKMCountNode(CommandNode):
         }
 
 
+class RSeQCRNAFragmentSizeNode(CommandNode):
+    """Estimate RNA-seq fragment sizes for each transcript."""
+
+    NODE_ID = "rseqc_rna_fragment_size"
+    DISPLAY_NAME = "RSeQC RNA Fragment Size"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Estimate mean, median, and standard deviation of RNA-seq fragment sizes for each gene or transcript."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "RNA_fragment_size",
+        "rna fragment size",
+        "insert size",
+        "fragment length",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("fragment_sizes",)
+    REQUIRED_EXECUTABLES = ["RNA_fragment_size.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#rna-fragment-size-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "RNA_fragment_size.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "--refgene",
+            str(inputs.get("refgene", "")),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+            "--frag-num",
+            str(inputs.get("frag_num", 3)),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/fragment_sizes.tsv")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "fragment_sizes.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "frag_num": (
+                    "INT",
+                    {"default": 3, "min": 1, "description": "Minimum number of fragments required to report a transcript"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 

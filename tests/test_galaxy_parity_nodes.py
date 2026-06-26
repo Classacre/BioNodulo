@@ -3099,6 +3099,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_rna_fragment_size": {
+            "display_name": "RSeQC RNA Fragment Size",
+            "category": "rna_seq",
+            "required_executables": ["RNA_fragment_size.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3285,6 +3292,39 @@ def test_rseqc_fpkm_count_renders_expression_quantification_command_and_output(t
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_fpkm_count" / "output.FPKM.xls",
+    ]
+
+
+def test_rseqc_rna_fragment_size_renders_fragment_size_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_rna_fragment_size")
+    info = _registry().object_info()["rseqc_rna_fragment_size"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["fragment_sizes"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "mapq": 20,
+            "frag_num": 5,
+            "output": "/work/rseqc_rna_fragment_size",
+        }
+    ) == [
+        "RNA_fragment_size.py",
+        "-i",
+        "aligned.bam",
+        "--refgene",
+        "genes.bed12",
+        "--mapq",
+        "20",
+        "--frag-num",
+        "5",
+        ">",
+        "/work/rseqc_rna_fragment_size/fragment_sizes.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_rna_fragment_size" / "fragment_sizes.tsv",
     ]
 
 

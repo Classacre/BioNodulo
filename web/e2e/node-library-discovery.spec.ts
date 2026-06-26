@@ -1181,6 +1181,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_rna_fragment_size: {
+    name: 'rseqc_rna_fragment_size',
+    display_name: 'RSeQC RNA Fragment Size',
+    category: 'rna_seq',
+    description: 'Estimate mean, median, and standard deviation of RNA-seq fragment sizes for each gene or transcript.',
+    search_aliases: ['Galaxy', 'rseqc', 'RNA_fragment_size', 'rna fragment size', 'insert size', 'fragment length', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        mapq: { type: 'INT', default: 30 },
+        frag_num: { type: 'INT', default: 3 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['fragment_sizes'],
+    required_executables: ['RNA_fragment_size.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#rna-fragment-size-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_bam_stat: {
     name: 'rseqc_bam_stat',
     display_name: 'RSeQC BAM Stat',
@@ -3156,7 +3181,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('147 nodes available')).toBeVisible();
+  await expect(page.getByText('148 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3215,6 +3240,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },
+    { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },
