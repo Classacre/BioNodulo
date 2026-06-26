@@ -86,6 +86,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm2"],
             "doi": "10.1038/s41592-023-01940-w",
         },
+        "das_tool": {
+            "display_name": "DAS Tool",
+            "category": "metagenomics",
+            "required_executables": ["DAS_Tool"],
+            "required_conda_packages": ["das_tool"],
+            "doi": "10.1038/s41564-018-0171-1",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -628,6 +635,141 @@ def test_checkm2_renders_specific_model_command_with_safe_input_names() -> None:
         "/db/checkm2/current.dmnd",
         "--output-directory",
         "/work/checkm2/output",
+    ]
+
+
+def test_das_tool_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["das_tool"]
+
+    assert info["output"] == ["TSV", "TSV", "TEXT", "TSV", "FASTA_LIST", "FASTA", "FASTA"]
+    assert info["output_name"] == [
+        "summary",
+        "contigs2bin",
+        "log",
+        "eval",
+        "bins",
+        "unbinned_contigs",
+        "proteins",
+    ]
+
+
+def test_das_tool_renders_command_with_proteins_and_binning_labels(tmp_path: Path) -> None:
+    node_class = _node_class("das_tool")
+
+    assert node_class.render_command(
+        {
+            "contigs": "assembly.fasta",
+            "bins": ["metabat.tabular", "MaxBin bins.tsv"],
+            "labels": ["", "max bin!"],
+            "proteins": "predicted proteins.faa",
+            "search_engine": "blastp",
+            "score_threshold": 0.6,
+            "duplicate_penalty": 0.7,
+            "megabin_penalty": 0.2,
+            "max_iter_post_threshold": 12,
+            "write_bin_evals": True,
+            "write_bins": "",
+            "write_unbinned": True,
+            "debug": True,
+            "threads": 8,
+            "output": "/work/das_tool",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "predicted proteins.faa",
+        "/work/das_tool/proteins",
+        "&&",
+        "DAS_Tool",
+        "--contigs",
+        "assembly.fasta",
+        "--outputbasename",
+        "/work/das_tool/outputs",
+        "--bins",
+        "metabat.tabular,MaxBin bins.tsv",
+        "--labels",
+        "metabat.tabular,max_bin_",
+        "--search_engine",
+        "blastp",
+        "--proteins",
+        "/work/das_tool/proteins",
+        "--score_threshold",
+        "0.6",
+        "--duplicate_penalty",
+        "0.7",
+        "--megabin_penalty",
+        "0.2",
+        "--max_iter_post_threshold",
+        "12",
+        "--write_bin_evals",
+        "--debug",
+        "--threads",
+        "8",
+    ]
+    assert node_class.PLAN_OUTPUTS({"write_bin_evals": True, "write_bins": ""}, tmp_path) == [
+        tmp_path / "das_tool" / "outputs_DASTool_summary.tsv",
+        tmp_path / "das_tool" / "outputs_DASTool_contig2bin.tsv",
+        tmp_path / "das_tool" / "outputs_DASTool.log",
+        tmp_path / "das_tool" / "outputs_allBins.eval",
+    ]
+
+
+def test_das_tool_plans_optional_bins_unbinned_and_proteins_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("das_tool")
+
+    assert node_class.render_command(
+        {
+            "contigs": "assembly.fasta",
+            "binning": [
+                {"bins": "metabat.tabular", "labels": "metabat"},
+                {"bins": "concoct table.tsv", "labels": "concoct"},
+            ],
+            "search_engine": "diamond",
+            "score_threshold": 0.5,
+            "duplicate_penalty": 0.6,
+            "megabin_penalty": 0.5,
+            "max_iter_post_threshold": 10,
+            "output_proteins": True,
+            "write_bins": "--write_bins",
+            "write_unbinned": True,
+            "threads": 4,
+            "output": "/work/das_tool",
+        }
+    ) == [
+        "DAS_Tool",
+        "--contigs",
+        "assembly.fasta",
+        "--outputbasename",
+        "/work/das_tool/outputs",
+        "--bins",
+        "metabat.tabular,concoct table.tsv",
+        "--labels",
+        "metabat,concoct",
+        "--search_engine",
+        "diamond",
+        "--score_threshold",
+        "0.5",
+        "--duplicate_penalty",
+        "0.6",
+        "--megabin_penalty",
+        "0.5",
+        "--max_iter_post_threshold",
+        "10",
+        "--write_bins",
+        "--write_unbinned",
+        "--threads",
+        "4",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"output_proteins": True, "write_bins": "--write_bins", "write_unbinned": True},
+        tmp_path,
+    ) == [
+        tmp_path / "das_tool" / "outputs_DASTool_summary.tsv",
+        tmp_path / "das_tool" / "outputs_DASTool_contig2bin.tsv",
+        tmp_path / "das_tool" / "outputs_DASTool.log",
+        tmp_path / "das_tool" / "outputs_DASTool_bins",
+        tmp_path / "das_tool" / "outputs_DASTool_bins" / "unbinned.fa",
+        tmp_path / "das_tool" / "outputs_proteins.faa",
     ]
 
 

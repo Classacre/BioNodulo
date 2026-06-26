@@ -310,6 +310,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41592-023-01940-w'],
     citation_text: 'CheckM2: a rapid, scalable and accurate tool for assessing microbial genome quality using machine learning.',
   },
+  das_tool: {
+    name: 'das_tool',
+    display_name: 'DAS Tool',
+    category: 'metagenomics',
+    description: 'Integrate multiple metagenomic binning predictions into an optimized, non-redundant set of genome bins.',
+    search_aliases: ['Galaxy', 'das tool', 'DAS Tool', 'DAS_Tool', 'dastool', 'genome-resolved metagenomics', 'bin dereplication', 'bin aggregation', 'metagenome binning'],
+    input: {
+      required: {
+        contigs: { type: 'FASTA' },
+        bins: { type: 'TSV' },
+      },
+    },
+    output: ['TSV', 'TSV', 'TEXT', 'TSV', 'FASTA_LIST', 'FASTA', 'FASTA'],
+    output_name: ['summary', 'contigs2bin', 'log', 'eval', 'bins', 'unbinned_contigs', 'proteins'],
+    required_executables: ['DAS_Tool'],
+    required_conda_packages: ['das_tool'],
+    documentation_url: 'https://github.com/cmks/DAS_Tool',
+    citation_dois: ['10.1038/s41564-018-0171-1'],
+    citation_urls: ['https://doi.org/10.1038/s41564-018-0171-1'],
+    citation_text: 'Recovery of genomes from metagenomes via a dereplication, aggregation and scoring strategy.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2360,7 +2381,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('116 nodes available')).toBeVisible();
+  await expect(page.getByText('117 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2383,6 +2404,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
+    { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
