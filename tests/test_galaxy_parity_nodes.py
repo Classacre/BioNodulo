@@ -93,6 +93,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_locate": {
+            "display_name": "SeqKit Locate",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -544,6 +551,80 @@ def test_seqkit_sort_renders_sort_command_and_output(tmp_path: Path) -> None:
     )
     assert node_class.PLAN_OUTPUTS({"output_ext": "fasta.gz"}, tmp_path) == [
         tmp_path / "seqkit_sort" / "sorted.fasta.gz",
+    ]
+
+
+def test_seqkit_locate_exposes_galaxy_aligned_outputs_and_citation() -> None:
+    info = _registry().object_info()["seqkit_locate"]
+
+    assert info["output"] == ["TSV", "BED", "GFF_GTF"]
+    assert info["output_name"] == ["tabular", "bed", "gtf"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_locate_renders_expression_bed_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_locate")
+
+    assert node_class.render_command(
+        {
+            "input": "genome.fasta.gz",
+            "input_ext": "fasta.gz",
+            "pattern_mode": "expression",
+            "pattern": "A[TU]G",
+            "use_regexp": True,
+            "output_mode": "--bed",
+            "circular": True,
+            "hide_matched": True,
+            "ignore_case": True,
+            "max_mismatch": 1,
+            "only_positive_strand": True,
+            "id_ncbi": True,
+            "seq_type": "dna",
+            "threads": 8,
+            "output": "/work/seqkit_locate",
+        }
+    ) == (
+        "ln -sf genome.fasta.gz input.fasta.gz && "
+        "seqkit locate --threads 8 --pattern 'A[TU]G' --use-regexp --bed --circular "
+        "--hide-matched --ignore-case --max-mismatch 1 --only-positive-strand --id-ncbi "
+        "--seq-type dna input.fasta.gz > /work/seqkit_locate/locate.bed"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_mode": "--bed"}, tmp_path) == [
+        tmp_path / "seqkit_locate" / "locate.bed",
+    ]
+
+
+def test_seqkit_locate_renders_pattern_file_gtf_command_without_incompatible_fmi(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_locate")
+
+    command = node_class.render_command(
+        {
+            "input": "records.fasta",
+            "input_ext": "fasta",
+            "pattern_mode": "file",
+            "pattern_file": "motifs.fasta",
+            "output_mode": "--gtf",
+            "degenerate": True,
+            "max_mismatch": 2,
+            "use_fmi": True,
+            "non_greedy": True,
+            "seq_type": "protein",
+            "threads": 4,
+            "output": "/work/seqkit_locate",
+        }
+    )
+
+    assert command == (
+        "ln -sf records.fasta input.fasta && "
+        "seqkit locate --threads 4 --pattern-file motifs.fasta --gtf --degenerate "
+        "--non-greedy --seq-type protein input.fasta > /work/seqkit_locate/locate.gtf"
+    )
+    assert "--max-mismatch" not in command
+    assert "--use-fmi" not in command
+    assert node_class.PLAN_OUTPUTS({"output_mode": "--gtf"}, tmp_path) == [
+        tmp_path / "seqkit_locate" / "locate.gtf",
     ]
 
 

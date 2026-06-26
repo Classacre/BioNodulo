@@ -742,6 +742,117 @@ class SeqKitSortNode(CommandNode):
         }
 
 
+class SeqKitLocateNode(CommandNode):
+    """Locate FASTA subsequences or motifs with SeqKit locate."""
+
+    NODE_ID = "seqkit_locate"
+    DISPLAY_NAME = "SeqKit Locate"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Locate FASTA subsequences or motifs with optional mismatches and BED, GTF, or tabular output using SeqKit."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqkit",
+        "locate",
+        "SeqKit locate",
+        "motif search",
+        "subsequence search",
+        "mismatch",
+        "BED motifs",
+        "GTF motifs",
+    ]
+    RETURN_TYPES = ("TSV", "BED", "GFF_GTF")
+    RETURN_NAMES = ("tabular", "bed", "gtf")
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#locate"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+    SHELL = True
+
+    @classmethod
+    def _input_name(cls, inputs: dict[str, Any]) -> str:
+        ext = str(inputs.get("input_ext", "fasta.gz")).strip().lstrip(".") or "fasta.gz"
+        return f"input.{ext}"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        output_mode = str(inputs.get("output_mode", ""))
+        return {"--bed": "locate.bed", "--gtf": "locate.gtf"}.get(output_mode, "locate.tsv")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_name = cls._input_name(inputs)
+        cmd = ["seqkit", "locate", "--threads", str(inputs.get("threads", 4))]
+        if str(inputs.get("pattern_mode", "expression")) == "file":
+            cmd.extend(["--pattern-file", str(inputs.get("pattern_file", ""))])
+        else:
+            cmd.extend(["--pattern", str(inputs.get("pattern", ""))])
+            if inputs.get("use_regexp"):
+                cmd.append("--use-regexp")
+        output_mode = str(inputs.get("output_mode", ""))
+        if output_mode:
+            cmd.append(output_mode)
+        for key, flag in (
+            ("circular", "--circular"),
+            ("degenerate", "--degenerate"),
+            ("hide_matched", "--hide-matched"),
+            ("ignore_case", "--ignore-case"),
+        ):
+            if inputs.get(key):
+                cmd.append(flag)
+        if not inputs.get("degenerate"):
+            cmd.extend(["--max-mismatch", str(inputs.get("max_mismatch", 0))])
+            if inputs.get("use_fmi"):
+                cmd.append("--use-fmi")
+        for key, flag in (
+            ("non_greedy", "--non-greedy"),
+            ("only_positive_strand", "--only-positive-strand"),
+            ("id_ncbi", "--id-ncbi"),
+        ):
+            if inputs.get(key):
+                cmd.append(flag)
+        cmd.extend(["--seq-type", str(inputs.get("seq_type", "auto")), input_name, ">", f"{_out(inputs)}/{cls._output_name(inputs)}"])
+        return f"ln -sf {shlex.quote(str(inputs.get('input', '')))} {shlex.quote(input_name)} && " + " ".join(
+            shlex.quote(part) if part != ">" else part for part in cmd
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FASTQ_LIST", {"description": "Input FASTA file"}),
+                "pattern_mode": ("STRING", {"default": "expression", "options": ["expression", "file"], "description": "Pattern source"}),
+            },
+            "optional": {
+                "pattern": ("STRING", {"default": "", "description": "Pattern or motif sequence"}),
+                "pattern_file": ("FILE", {"description": "FASTA file with motif sequences"}),
+                "use_regexp": ("BOOLEAN", {"default": False, "description": "Interpret expression pattern as a regular expression"}),
+                "seq_type": ("STRING", {"default": "auto", "options": ["auto", "dna", "rna", "protein"], "description": "Sequence type"}),
+                "output_mode": ("STRING", {"default": "", "options": ["", "--gtf", "--bed"], "description": "Output format"}),
+                "circular": ("BOOLEAN", {"default": False, "description": "Treat sequences as circular", "advanced": True}),
+                "degenerate": ("BOOLEAN", {"default": False, "description": "Pattern contains degenerate bases"}),
+                "hide_matched": ("BOOLEAN", {"default": False, "description": "Hide matched sequence column"}),
+                "ignore_case": ("BOOLEAN", {"default": False, "description": "Ignore case"}),
+                "max_mismatch": ("INT", {"default": 0, "min": 0, "description": "Allowed mismatches"}),
+                "use_fmi": ("BOOLEAN", {"default": False, "description": "Use FM-index when degenerate matching is disabled", "advanced": True}),
+                "non_greedy": ("BOOLEAN", {"default": False, "description": "Use non-greedy matching", "advanced": True}),
+                "only_positive_strand": ("BOOLEAN", {"default": False, "description": "Search only the positive strand"}),
+                "id_ncbi": ("BOOLEAN", {"default": False, "description": "Parse NCBI-style FASTA identifiers", "advanced": True}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128}),
+                "input_ext": ("STRING", {"default": "fasta.gz", "options": ["fasta.gz", "fasta"], "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 AMRFINDERPLUS_ORGANISMS = [
     "Acinetobacter_baumannii",
     "Burkholderia_cepacia",
