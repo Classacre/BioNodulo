@@ -2098,6 +2098,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btx699'],
     citation_text: 'Mosdepth: quick coverage calculation for genomes and exomes.',
   },
+  rasusa: {
+    name: 'rasusa',
+    display_name: 'Rasusa',
+    category: 'qc',
+    description: 'Randomly subsample FASTA/FASTQ reads to coverage, bases, read count, or fraction; optionally downsample BAM alignments.',
+    search_aliases: ['Galaxy', 'rasusa', 'subsample reads', 'downsample reads', 'coverage subsampling', 'alignment downsampling', 'FASTQ subsampling'],
+    input: {
+      required: {
+        input_selector: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection', 'aligned'] },
+      },
+      optional: {
+        reads: { type: 'FASTQ_LIST' },
+        aligned_input: { type: 'BAM' },
+      },
+    },
+    output: ['FASTQ_LIST', 'FASTQ', 'BAM'],
+    output_name: ['paired_reads', 'single_reads', 'subsampled_bam'],
+    required_executables: ['rasusa', 'samtools'],
+    required_conda_packages: ['rasusa', 'samtools'],
+    documentation_url: 'https://github.com/mbhall88/rasusa',
+    citation_dois: ['10.21105/joss.03941', '10.46471/gigabyte.180'],
+    citation_urls: ['https://doi.org/10.21105/joss.03941', 'https://doi.org/10.46471/gigabyte.180'],
+    citation_text: 'Rasusa: Randomly subsample sequencing reads to a specified coverage; Efficient downsampling of genome alignments with Rasusa.',
+  },
 };
 
 test.beforeEach(async ({ context, page }) => {
@@ -2147,7 +2171,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('106 nodes available')).toBeVisible();
+  await expect(page.getByText('107 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2257,6 +2281,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },
     { query: 'split reads', name: 'samblaster', category: 'alignment' },
     { query: 'BAM CRAM depth', name: 'mosdepth', category: 'qc' },
+    { query: 'subsample reads', name: 'Rasusa', category: 'qc' },
   ];
 
   for (const node of expectedNodes) {
