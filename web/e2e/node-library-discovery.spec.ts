@@ -422,6 +422,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13104-016-1900-2'],
     citation_text: 'AdapterRemoval v2: rapid adapter trimming, identification, and read merging.',
   },
+  assembly_stats: {
+    name: 'assembly_stats',
+    display_name: 'Assembly Stats',
+    category: 'assembly',
+    description: 'Generate assembly metric visualisations or JSON statistics from a genome FASTA file.',
+    search_aliases: ['Galaxy', 'assembly-stats', 'Assembly stats', 'asm2stats.minmaxgc.pl', 'genome assembly metrics', 'assembly visualisation', 'snail plot', 'N50', 'GC content'],
+    input: {
+      required: {
+        input_fasta: { type: 'FASTA' },
+      },
+    },
+    output: ['HTML_REPORT', 'JSON'],
+    output_name: ['output_html', 'output_json'],
+    required_executables: ['asm2stats.minmaxgc.pl'],
+    required_conda_packages: ['rjchallis-assembly-stats'],
+    documentation_url: 'https://github.com/rjchallis/assembly-stats',
+    citation_dois: ['10.5281/zenodo.322347'],
+    citation_urls: ['https://doi.org/10.5281/zenodo.322347'],
+    citation_text: 'rjchallis/assembly-stats 17.02.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2472,7 +2492,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('121 nodes available')).toBeVisible();
+  await expect(page.getByText('122 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2500,6 +2520,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
+    { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

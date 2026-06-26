@@ -121,6 +121,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["adapterremoval"],
             "doi": "10.1186/s13104-016-1900-2",
         },
+        "assembly_stats": {
+            "display_name": "Assembly Stats",
+            "category": "assembly",
+            "required_executables": ["asm2stats.minmaxgc.pl"],
+            "required_conda_packages": ["rjchallis-assembly-stats"],
+            "doi": "10.5281/zenodo.322347",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -1058,6 +1065,56 @@ def test_adapter_removal_renders_paired_interleaved_command_and_optional_outputs
         tmp_path / "adapter_removal" / "output_collapsed.fastq",
         tmp_path / "adapter_removal" / "output_collapsed_truncated.fastq",
         tmp_path / "adapter_removal" / "output_discarded.fastq",
+    ]
+
+
+def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["assembly_stats"]
+
+    assert info["output"] == ["HTML_REPORT", "JSON"]
+    assert info["output_name"] == ["output_html", "output_json"]
+
+
+def test_assembly_stats_renders_html_visualisation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("assembly_stats")
+
+    assert node_class.render_command(
+        {
+            "input_fasta": "assembly.fasta",
+            "output_format": "html",
+            "output": "/work/assembly_stats",
+            "tool_directory": "/iuc/tools/assembly-stats",
+        }
+    ) == (
+        'SRC="$(dirname $(which asm2stats.pl))/../opt/assembly-stats" && '
+        "mkdir -p /work/assembly_stats/output_files/json && "
+        'cp -r "$SRC/css/" /work/assembly_stats/output_files && '
+        'cp -r "$SRC/js/" /work/assembly_stats/output_files && '
+        "cp /iuc/tools/assembly-stats/d3-tip.js /work/assembly_stats/output_files/js/d3-tip.js && "
+        "cp /iuc/tools/assembly-stats/assembly-stats.html /work/assembly_stats/output.html && "
+        "cp /iuc/tools/assembly-stats/assembly-stats.html /work/assembly_stats/output_files && "
+        "asm2stats.minmaxgc.pl assembly.fasta > "
+        "/work/assembly_stats/output_files/json/output.assembly-stats.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"output_format": "html"}, tmp_path) == [
+        tmp_path / "assembly_stats" / "output.html",
+    ]
+
+
+def test_assembly_stats_renders_json_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("assembly_stats")
+
+    assert node_class.render_command(
+        {
+            "input_fasta": "assembly.fasta",
+            "output_format": "json",
+            "output": "/work/assembly_stats",
+        }
+    ) == "asm2stats.minmaxgc.pl assembly.fasta > /work/assembly_stats/output.json"
+
+    assert node_class.PLAN_OUTPUTS({"output_format": "json"}, tmp_path) == [
+        tmp_path / "assembly_stats" / "output.json",
     ]
 
 
