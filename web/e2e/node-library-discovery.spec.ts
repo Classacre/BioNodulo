@@ -1174,6 +1174,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_read_distribution: {
+    name: 'rseqc_read_distribution',
+    display_name: 'RSeQC Read Distribution',
+    category: 'rna_seq',
+    description: 'Calculate how mapped reads are distributed across genomic features from a BED12 gene model.',
+    search_aliases: ['Galaxy', 'rseqc', 'read_distribution', 'read distribution', 'mapped reads', 'genome features', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+    },
+    output: ['STATS_FILE'],
+    output_name: ['read_distribution'],
+    required_executables: ['read_distribution.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#read-distribution-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   bedtools_coveragebed: {
     name: 'bedtools_coveragebed',
     display_name: 'BEDTools Coverage',
@@ -3080,7 +3101,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('144 nodes available')).toBeVisible();
+  await expect(page.getByText('145 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3139,6 +3160,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
+    { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
     { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
     { query: 'subtractbed', name: 'BEDTools Subtract', category: 'genomics' },

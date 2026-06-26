@@ -3099,6 +3099,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_distribution": {
+            "display_name": "RSeQC Read Distribution",
+            "category": "rna_seq",
+            "required_executables": ["read_distribution.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "bedtools_coveragebed": {
             "display_name": "BEDTools Coverage",
             "category": "genomics",
@@ -3251,6 +3258,33 @@ def test_rseqc_bam_stat_renders_mapping_stats_command_and_output(tmp_path: Path)
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_bam_stat" / "bam_stat.txt",
+    ]
+
+
+def test_rseqc_read_distribution_renders_feature_distribution_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_distribution")
+    info = _registry().object_info()["rseqc_read_distribution"]
+
+    assert info["output"] == ["STATS_FILE"]
+    assert info["output_name"] == ["read_distribution"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "output": "/work/rseqc_read_distribution",
+        }
+    ) == [
+        "read_distribution.py",
+        "-i",
+        "aligned.bam",
+        "-r",
+        "genes.bed12",
+        ">",
+        "/work/rseqc_read_distribution/read_distribution.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_read_distribution" / "read_distribution.txt",
     ]
 
 

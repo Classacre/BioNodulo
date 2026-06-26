@@ -5287,6 +5287,54 @@ class RSeQCBamStatNode(CommandNode):
         }
 
 
+class RSeQCReadDistributionNode(CommandNode):
+    """Calculate mapped-read distribution across gene-model features."""
+
+    NODE_ID = "rseqc_read_distribution"
+    DISPLAY_NAME = "RSeQC Read Distribution"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate how mapped reads are distributed across genomic features from a BED12 gene model."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "rseqc", "read_distribution", "read distribution", "mapped reads", "genome features", "rna-seq qc"]
+    RETURN_TYPES = ("STATS_FILE",)
+    RETURN_NAMES = ("read_distribution",)
+    REQUIRED_EXECUTABLES = ["read_distribution.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-distribution-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "read_distribution.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-r",
+            str(inputs.get("refgene", "")),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/read_distribution.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "read_distribution.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BEDToolsCoverageNode(CommandNode):
     """Compute depth and breadth of B features across A intervals."""
 
