@@ -3641,6 +3641,26 @@ def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
             "output": ["VCF_GZ"],
             "search_alias": "imputation info",
         },
+        "bcftools_plugin_color_chrs": {
+            "display_name": "BCFtools +color-chrs",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
+            "output": ["TSV", "IMAGE"],
+            "required_executables": ["bcftools", "color-chrs.pl"],
+            "search_alias": "color shared chromosomal segments",
+        },
+        "bcftools_plugin_frameshifts": {
+            "display_name": "BCFtools +frameshifts",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
+            "output": ["VCF_GZ"],
+            "required_executables": ["bcftools", "bgzip", "tabix"],
+            "search_alias": "frameshift indels",
+        },
+        "bcftools_plugin_split_vep": {
+            "display_name": "BCFtools +split-vep",
+            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.split-vep.html",
+            "output": ["VCF_GZ"],
+            "search_alias": "split VEP annotations",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3648,7 +3668,7 @@ def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
         assert node_info["display_name"] == metadata["display_name"]
         assert node_info["category"] == "variant"
         assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_executables"] == metadata.get("required_executables", ["bcftools"])
         assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
         assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
@@ -4136,4 +4156,191 @@ def test_bcftools_plugin_impute_info_renders_vcf_transform_command_and_output(tm
     assert "output_type" not in node_class.INPUT_TYPES()["optional"]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bcftools_plugin_impute_info" / "impute_info.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_color_chrs_renders_trio_plot_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_color_chrs")
+
+    assert node_class.render_command(
+        {
+            "input_file": "phased.vcf.gz",
+            "sample_rel_sel": "trio",
+            "mother": "M",
+            "father": "F",
+            "child": "C",
+            "regions": "chr1",
+            "include": "N_ALT=1",
+            "threads": 4,
+            "output": "/work/bcftools_plugin_color_chrs",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "color-chrs",
+        "--include",
+        "N_ALT=1",
+        "--regions",
+        "chr1",
+        "--threads",
+        "4",
+        "phased.vcf.gz",
+        "--",
+        "--trio",
+        "M,F,C",
+        "-p",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
+        "&&",
+        "color-chrs.pl",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
+        "-p",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
+        "&&",
+        "mv",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
+        "/work/bcftools_plugin_color_chrs/color_chrs.tsv",
+        "&&",
+        "mv",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.svg",
+        "/work/bcftools_plugin_color_chrs/color_chrs.svg",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_color_chrs" / "color_chrs.tsv",
+        tmp_path / "bcftools_plugin_color_chrs" / "color_chrs.svg",
+    ]
+
+
+def test_bcftools_plugin_color_chrs_renders_unrelated_pair_command() -> None:
+    node_class = _node_class("bcftools_plugin_color_chrs")
+
+    assert node_class.render_command(
+        {
+            "input_file": "phased.vcf.gz",
+            "sample_rel_sel": "unrelated",
+            "sample_a": "A",
+            "sample_b": "B",
+            "output": "/work/bcftools_plugin_color_chrs",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "color-chrs",
+        "phased.vcf.gz",
+        "--",
+        "--unrelated",
+        "A,B",
+        "-p",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
+        "&&",
+        "color-chrs.pl",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
+        "-p",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
+        "&&",
+        "mv",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
+        "/work/bcftools_plugin_color_chrs/color_chrs.tsv",
+        "&&",
+        "mv",
+        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.svg",
+        "/work/bcftools_plugin_color_chrs/color_chrs.svg",
+    ]
+
+
+def test_bcftools_plugin_frameshifts_renders_indexed_exons_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_frameshifts")
+
+    assert node_class.render_command(
+        {
+            "input_file": "indels.vcf.gz",
+            "exons": "exons.bed",
+            "include": "TYPE='indel'",
+            "regions": "chr12",
+            "targets": "coding.bed",
+            "threads": 7,
+            "output": "/work/bcftools_plugin_frameshifts",
+        }
+    ) == [
+        "bgzip",
+        "-c",
+        "exons.bed",
+        ">",
+        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
+        "&&",
+        "tabix",
+        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
+        "&&",
+        "bcftools",
+        "plugin",
+        "frameshifts",
+        "--include",
+        "TYPE='indel'",
+        "--regions",
+        "chr12",
+        "--targets",
+        "coding.bed",
+        "--output-type",
+        "z",
+        "--threads",
+        "7",
+        "indels.vcf.gz",
+        "--",
+        "--exons",
+        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
+        ">",
+        "/work/bcftools_plugin_frameshifts/frameshifts.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_frameshifts" / "frameshifts.vcf.gz",
+    ]
+
+
+def test_bcftools_plugin_split_vep_renders_annotation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_plugin_split_vep")
+
+    assert node_class.render_command(
+        {
+            "input_file": "annotated.vcf.gz",
+            "a": "ANN",
+            "c": "IMPACT,gnomAD_AF:Float",
+            "d": True,
+            "allow_undef_tags": True,
+            "p": "vep",
+            "s": "worst",
+            "include": "IMPACT='HIGH'",
+            "regions": "chr5",
+            "output": "/work/bcftools_plugin_split_vep",
+        }
+    ) == [
+        "bcftools",
+        "plugin",
+        "split-vep",
+        "--include",
+        "IMPACT='HIGH'",
+        "--regions",
+        "chr5",
+        "--output-type",
+        "z",
+        "annotated.vcf.gz",
+        "--",
+        "-a",
+        "ANN",
+        "-c",
+        "IMPACT,gnomAD_AF:Float",
+        "-d",
+        "--allow-undef-tags",
+        "-p",
+        "vep",
+        "-s",
+        "worst",
+        ">",
+        "/work/bcftools_plugin_split_vep/split_vep.vcf.gz",
+    ]
+
+    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_plugin_split_vep" / "split_vep.vcf.gz",
     ]

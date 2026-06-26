@@ -20,7 +20,11 @@ export default function NodeInfoPanel({ node, onClose }: NodeInfoPanelProps) {
   // const hidden = meta?.input_types?.hidden || {};
 
   return (
-    <div className="node-editor" style={{ maxWidth: 380 }}>
+    <div
+      className="node-editor"
+      data-testid="node-info-panel"
+      style={{ maxWidth: 380, position: 'relative', right: 'auto', top: 'auto' }}
+    >
       <div
         className="node-editor-header"
         style={{

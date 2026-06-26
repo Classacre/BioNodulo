@@ -5360,3 +5360,210 @@ class BCFtoolsPluginImputeInfoNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class BCFtoolsPluginColorChrsNode(CommandNode):
+    """Color shared chromosomal segments with bcftools +color-chrs."""
+
+    NODE_ID = "bcftools_plugin_color_chrs"
+    DISPLAY_NAME = "BCFtools +color-chrs"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Color shared chromosomal segments between trio or unrelated phased genotype samples with the bcftools +color-chrs plugin."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "color-chrs", "color shared chromosomal segments", "phased GTs"]
+    RETURN_TYPES = ("TSV", "IMAGE")
+    RETURN_NAMES = ("segments_table", "segments_svg")
+    REQUIRED_EXECUTABLES = ["bcftools", "color-chrs.pl"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        prefix = f"{out}/color_chrs_tmp"
+        cmd = _bcftools_plugin_base_cmd("color-chrs", inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(str(inputs.get("input_file", "")))
+        if str(inputs.get("sample_rel_sel", "trio")) == "unrelated":
+            relation_args = ["--unrelated", f"{inputs.get('sample_a', '')},{inputs.get('sample_b', '')}"]
+        else:
+            relation_args = ["--trio", f"{inputs.get('mother', '')},{inputs.get('father', '')},{inputs.get('child', '')}"]
+        plugin_args = [*relation_args, "-p", prefix]
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        cmd.extend(
+            [
+                "&&",
+                "color-chrs.pl",
+                f"{prefix}.dat",
+                "-p",
+                prefix,
+                "&&",
+                "mv",
+                f"{prefix}.dat",
+                f"{out}/color_chrs.tsv",
+                "&&",
+                "mv",
+                f"{prefix}.svg",
+                f"{out}/color_chrs.svg",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [
+            _bcftools_common_output(cls.NODE_ID, "color_chrs.tsv", output_dir),
+            _bcftools_common_output(cls.NODE_ID, "color_chrs.svg", output_dir),
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "Phased VCF/BCF file with GT genotypes"}),
+            },
+            "optional": {
+                "sample_rel_sel": ("STRING", {"default": "trio", "options": ["trio", "unrelated"], "description": "Sample relationship mode"}),
+                "mother": ("STRING", {"default": "", "description": "Mother sample name for trio mode"}),
+                "father": ("STRING", {"default": "", "description": "Father sample name for trio mode"}),
+                "child": ("STRING", {"default": "", "description": "Child sample name for trio mode"}),
+                "sample_a": ("STRING", {"default": "", "description": "First sample name for unrelated mode"}),
+                "sample_b": ("STRING", {"default": "", "description": "Second sample name for unrelated mode"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginFrameshiftsNode(CommandNode):
+    """Annotate frameshift indels with bcftools +frameshifts."""
+
+    NODE_ID = "bcftools_plugin_frameshifts"
+    DISPLAY_NAME = "BCFtools +frameshifts"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Annotate indel records with out-of-frame status from exon intervals using the bcftools +frameshifts plugin."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "frameshifts", "frameshift indels", "OOF annotation"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("frameshifts_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools", "bgzip", "tabix"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugins.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        exons_gz = f"{out}/exons.bed.gz"
+        cmd = ["bgzip", "-c", str(inputs.get("exons", "")), ">", exons_gz, "&&", "tabix", exons_gz, "&&"]
+        plugin_cmd = _bcftools_plugin_base_cmd("frameshifts", inputs)
+        _bcftools_add_plugin_vcf_output(plugin_cmd, inputs)
+        plugin_cmd.append(str(inputs.get("input_file", "")))
+        _bcftools_add_plugin_separator(plugin_cmd, ["--exons", exons_gz])
+        _add_shell_redirect(plugin_cmd, f"{out}/frameshifts.vcf.gz")
+        cmd.extend(plugin_cmd)
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "frameshifts.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file containing indels to annotate"}),
+                "exons": ("BED", {"description": "BED file describing reference genome exons"}),
+            },
+            "optional": {
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BCFtoolsPluginSplitVepNode(CommandNode):
+    """Extract structured annotation fields with bcftools +split-vep."""
+
+    NODE_ID = "bcftools_plugin_split_vep"
+    DISPLAY_NAME = "BCFtools +split-vep"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Extract fields from VEP, ANN, EFF, or other structured INFO annotations into new VCF INFO tags."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "bcftools", "plugin", "split-vep", "split VEP annotations", "structured annotations"]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("split_vep_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/howtos/plugin.split-vep.html"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = _bcftools_plugin_base_cmd("split-vep", inputs)
+        cmd.extend(["--output-type", "z"])
+        cmd.append(str(inputs.get("input_file", "")))
+        plugin_args = [
+            "-a",
+            str(inputs.get("a", "CSQ")),
+            "-c",
+            str(inputs.get("c", "")),
+        ]
+        if inputs.get("d"):
+            plugin_args.append("-d")
+        if inputs.get("allow_undef_tags"):
+            plugin_args.append("--allow-undef-tags")
+        _add_if_value(plugin_args, "-p", inputs.get("p"))
+        _add_if_value(plugin_args, "-s", inputs.get("s"))
+        _bcftools_add_plugin_separator(cmd, plugin_args)
+        _add_shell_redirect(cmd, f"{_out(inputs)}/split_vep.vcf.gz")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, "split_vep.vcf.gz", output_dir)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with structured INFO annotations"}),
+            },
+            "optional": {
+                "a": ("STRING", {"default": "CSQ", "description": "INFO annotation tag to parse, such as CSQ, ANN, EFF, or BCSQ"}),
+                "c": ("STRING", {"default": "", "description": "Annotation fields to extract by name or index, optionally with :Integer or :Float types"}),
+                "d": ("BOOLEAN", {"default": False, "description": "Output each transcript or allele consequence on a new line"}),
+                "allow_undef_tags": ("BOOLEAN", {"default": False, "description": "Print missing values for undefined annotation tags"}),
+                "p": ("STRING", {"default": "", "description": "Prefix for newly created INFO annotations"}),
+                "s": ("STRING", {"default": "", "description": "Transcript and consequence selector such as worst or :missense"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }

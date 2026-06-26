@@ -1650,6 +1650,67 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_plugin_color_chrs: {
+    name: 'bcftools_plugin_color_chrs',
+    display_name: 'BCFtools +color-chrs',
+    category: 'variant',
+    description: 'Color shared chromosomal segments between trio or unrelated phased genotype samples with the bcftools +color-chrs plugin.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'color-chrs', 'color shared chromosomal segments', 'phased GTs'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['TSV', 'IMAGE'],
+    output_name: ['segments_table', 'segments_svg'],
+    required_executables: ['bcftools', 'color-chrs.pl'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_frameshifts: {
+    name: 'bcftools_plugin_frameshifts',
+    display_name: 'BCFtools +frameshifts',
+    category: 'variant',
+    description: 'Annotate indel records with out-of-frame status from exon intervals using the bcftools +frameshifts plugin.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'frameshifts', 'frameshift indels', 'OOF annotation'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+        exons: { type: 'BED' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['frameshifts_vcf'],
+    required_executables: ['bcftools', 'bgzip', 'tabix'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugins.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
+  bcftools_plugin_split_vep: {
+    name: 'bcftools_plugin_split_vep',
+    display_name: 'BCFtools +split-vep',
+    category: 'variant',
+    description: 'Extract fields from VEP, ANN, EFF, or other structured INFO annotations into new VCF INFO tags.',
+    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'split-vep', 'split VEP annotations', 'structured annotations'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['split_vep_vcf'],
+    required_executables: ['bcftools'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://samtools.github.io/bcftools/howtos/plugin.split-vep.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   samtools_idxstats: {
     name: 'samtools_idxstats',
     display_name: 'Samtools Idxstats',
@@ -1971,7 +2032,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('98 nodes available')).toBeVisible();
+  await expect(page.getByText('101 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2060,6 +2121,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fix ploidy', name: 'BCFtools +fixploidy', category: 'variant' },
     { query: 'mendelian consistency', name: 'BCFtools +mendelian2', category: 'variant' },
     { query: 'imputation info', name: 'BCFtools +impute-info', category: 'variant' },
+    { query: 'color shared chromosomal segments', name: 'BCFtools +color-chrs', category: 'variant' },
+    { query: 'frameshift indels', name: 'BCFtools +frameshifts', category: 'variant' },
+    { query: 'split VEP annotations', name: 'BCFtools +split-vep', category: 'variant' },
     { query: 'samtools idxstats multiqc', name: 'Samtools Idxstats', category: 'samtools' },
     { query: 'samtools depth', name: 'Samtools Depth', category: 'samtools' },
     { query: 'samtools faidx', name: 'Samtools Faidx', category: 'samtools' },

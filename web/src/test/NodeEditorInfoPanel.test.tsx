@@ -331,6 +331,18 @@ describe('Node editor and info panel i18n', () => {
     expect(screen.getByText(longCitation)).toHaveStyle({ overflowWrap: 'anywhere' });
   });
 
+  it('lets the canvas wrapper control the read-only info panel position', async () => {
+    const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
+
+    render(<NodeInfoPanel node={graphNode()} onClose={() => undefined} />);
+
+    expect(screen.getByTestId('node-info-panel')).toHaveStyle({
+      position: 'relative',
+      right: 'auto',
+      top: 'auto',
+    });
+  });
+
   it('renders read-only node information from the active locale', async () => {
     const { default: NodeInfoPanel } = await import('../components/nodes/NodeInfoPanel');
     const { setLanguage } = await import('../i18n');
