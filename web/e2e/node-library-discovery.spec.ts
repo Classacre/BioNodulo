@@ -1009,6 +1009,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
     citation_text: 'Mash: fast genome and metagenome distance estimation using MinHash.',
   },
+  mash_paste: {
+    name: 'mash_paste',
+    display_name: 'Mash Paste',
+    category: 'genomics',
+    description: 'Create a single Mash sketch file from multiple Mash sketch files.',
+    search_aliases: ['Galaxy', 'mash', 'mash paste', 'minhash', 'sketch merge', 'merge sketches', 'msh'],
+    input: {
+      required: {
+        msh_files: { type: 'FILE', list: true },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['sketch'],
+    required_executables: ['mash'],
+    required_conda_packages: ['mash'],
+    documentation_url: 'https://mash.readthedocs.io/en/latest/sketches.html',
+    citation_dois: ['10.1186/s13059-016-0997-x'],
+    citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
+    citation_text: 'Mash: fast genome and metagenome distance estimation using MinHash.',
+  },
   fastani: {
     name: 'fastani',
     display_name: 'FastANI',
@@ -3008,7 +3028,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('141 nodes available')).toBeVisible();
+  await expect(page.getByText('142 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3059,6 +3079,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
+    { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },

@@ -2657,6 +2657,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["mash"],
             "doi": "10.1186/s13059-016-0997-x",
         },
+        "mash_paste": {
+            "display_name": "Mash Paste",
+            "category": "genomics",
+            "required_executables": ["mash"],
+            "required_conda_packages": ["mash"],
+            "doi": "10.1186/s13059-016-0997-x",
+        },
         "fastani": {
             "display_name": "FastANI",
             "category": "genomics",
@@ -2777,6 +2784,25 @@ def test_mash_sketch_renders_reads_and_assembly_commands(tmp_path: Path) -> None
         "mash sketch -s 1000 -k 21 -w 0.01 -m 2 -r L1_R1.fastq.gz -o /work/mash_sketch/sketch"
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_sketch" / "sketch.msh"]
+
+
+def test_mash_paste_renders_merge_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("mash_paste")
+    info = _registry().object_info()["mash_paste"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["sketch"]
+    assert node_class.render_command(
+        {
+            "msh_files": ["alpha sketch.msh", "beta.msh"],
+            "output": "/work/mash_paste",
+        }
+    ) == (
+        "ln -sf 'alpha sketch.msh' alpha_sketch.msh && "
+        "ln -sf beta.msh beta.msh && "
+        "mash paste /work/mash_paste/sketch alpha_sketch.msh beta.msh"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_paste" / "sketch.msh"]
 
 
 def test_fastani_renders_many_to_many_command_and_outputs(tmp_path: Path) -> None:
