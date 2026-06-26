@@ -503,6 +503,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.2584'],
     citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
   },
+  vsearch_masking: {
+    name: 'vsearch_masking',
+    display_name: 'VSEARCH Masking',
+    category: 'metagenomics',
+    description: 'Mask FASTA sequences with VSEARCH maskfasta using dust, soft, or no qmask modes and optional hard masking.',
+    search_aliases: ['Galaxy', 'vsearch', 'masking', 'maskfasta', 'qmask', 'hardmask', 'soft masking', 'dust masking'],
+    input: {
+      required: {
+        infile: { type: 'FASTA' },
+      },
+      optional: {
+        qmask: { type: 'STRING', default: 'dust', options: ['none', 'dust', 'soft'] },
+        hardmask: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['masked_sequences'],
+    required_executables: ['vsearch'],
+    required_conda_packages: ['vsearch'],
+    documentation_url: 'https://github.com/torognes/vsearch',
+    citation_dois: ['10.7717/peerj.2584'],
+    citation_urls: ['https://doi.org/10.7717/peerj.2584'],
+    citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
+  },
   bandage_info: {
     name: 'bandage_info',
     display_name: 'Bandage Info',
@@ -2781,7 +2806,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('135 nodes available')).toBeVisible();
+  await expect(page.getByText('136 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2813,6 +2838,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
+    { query: 'dust masking', name: 'VSEARCH Masking', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
