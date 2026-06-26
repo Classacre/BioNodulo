@@ -974,6 +974,41 @@ const objectInfo = {
     citation_dois: ['10.1186/s13059-016-0997-x'],
     citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
   },
+  mash_sketch: {
+    name: 'mash_sketch',
+    display_name: 'Mash Sketch',
+    category: 'genomics',
+    description: 'Create reduced MinHash sequence sketches from FASTA/FASTQ reads or assemblies with Mash.',
+    search_aliases: ['Galaxy', 'mash', 'mash sketch', 'minhash', 'sketch', 'msh', 'genome sketch', 'metagenome sketch'],
+    input: {
+      required: {
+        reads_assembly_selector: { type: 'STRING', default: 'reads', options: ['reads', 'assembly'] },
+        reads_input_selector: { type: 'STRING', default: 'single', options: ['paired', 'single', 'paired_collection'] },
+        reads: { type: 'FASTQ' },
+        reads_1: { type: 'FASTQ' },
+        reads_2: { type: 'FASTQ' },
+        assembly: { type: 'FASTA' },
+      },
+      optional: {
+        minimum_kmer_copies: { type: 'INT', default: 1 },
+        target_coverage: { type: 'INT', default: '' },
+        genome_size: { type: 'INT', default: '' },
+        individual_sequences: { type: 'BOOLEAN', default: false },
+        sketch_size: { type: 'INT', default: 1000 },
+        kmer_size: { type: 'INT', default: 21 },
+        prob_threshold: { type: 'FLOAT', default: 0.01 },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['sketch'],
+    required_executables: ['mash'],
+    required_conda_packages: ['mash'],
+    documentation_url: 'https://mash.readthedocs.io/en/latest/sketches.html',
+    citation_dois: ['10.1186/s13059-016-0997-x'],
+    citation_urls: ['https://doi.org/10.1186/s13059-016-0997-x'],
+    citation_text: 'Mash: fast genome and metagenome distance estimation using MinHash.',
+  },
   fastani: {
     name: 'fastani',
     display_name: 'FastANI',
@@ -2973,7 +3008,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('140 nodes available')).toBeVisible();
+  await expect(page.getByText('141 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3023,6 +3058,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
+    { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },

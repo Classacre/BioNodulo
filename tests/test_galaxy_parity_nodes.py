@@ -2650,6 +2650,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["mash"],
             "doi": "10.1186/s13059-016-0997-x",
         },
+        "mash_sketch": {
+            "display_name": "Mash Sketch",
+            "category": "genomics",
+            "required_executables": ["mash"],
+            "required_conda_packages": ["mash"],
+            "doi": "10.1186/s13059-016-0997-x",
+        },
         "fastani": {
             "display_name": "FastANI",
             "category": "genomics",
@@ -2715,6 +2722,61 @@ def test_mash_dist_renders_distance_command_and_output(tmp_path: Path) -> None:
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_dist" / "distances.tsv"]
+
+
+def test_mash_sketch_renders_reads_and_assembly_commands(tmp_path: Path) -> None:
+    node_class = _node_class("mash_sketch")
+    info = _registry().object_info()["mash_sketch"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["sketch"]
+    assert node_class.render_command(
+        {
+            "reads_assembly_selector": "reads",
+            "reads_input_selector": "single",
+            "reads": "reads.fastq.gz",
+            "minimum_kmer_copies": 10,
+            "target_coverage": 30,
+            "genome_size": 5000000,
+            "sketch_size": 5000,
+            "kmer_size": 21,
+            "prob_threshold": 0.01,
+            "output": "/work/mash_sketch",
+        }
+    ) == (
+        "ln -sf reads.fastq.gz reads.fastq.gz && "
+        "mash sketch -s 5000 -k 21 -w 0.01 -m 10 -r -c 30 -g 5000000 "
+        "reads.fastq.gz -o /work/mash_sketch/sketch"
+    )
+    assert node_class.render_command(
+        {
+            "reads_assembly_selector": "assembly",
+            "assembly": "contigs.fasta",
+            "individual_sequences": True,
+            "threads": 8,
+            "sketch_size": 1000,
+            "kmer_size": 17,
+            "prob_threshold": 0.1,
+            "output": "/work/mash_sketch",
+        }
+    ) == (
+        "ln -sf contigs.fasta contigs.fasta && "
+        "mash sketch -s 1000 -k 17 -w 0.1 -p 8 -i contigs.fasta -o /work/mash_sketch/sketch"
+    )
+    assert node_class.render_command(
+        {
+            "reads_assembly_selector": "reads",
+            "reads_input_selector": "paired",
+            "reads_1": "L1 R1.fastq.gz",
+            "reads_2": "L1 R2.fastq.gz",
+            "minimum_kmer_copies": 2,
+            "output": "/work/mash_sketch",
+        }
+    ) == (
+        "cat 'L1 R1.fastq.gz' 'L1 R2.fastq.gz' > L1_R1.fastq.gz && "
+        "mash sketch -s 1000 -k 21 -w 0.01 -m 2 -r L1_R1.fastq.gz -o /work/mash_sketch/sketch"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_sketch" / "sketch.msh"]
 
 
 def test_fastani_renders_many_to_many_command_and_outputs(tmp_path: Path) -> None:
