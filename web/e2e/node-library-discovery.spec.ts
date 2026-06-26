@@ -351,6 +351,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41564-018-0171-1'],
     citation_text: 'Recovery of genomes from metagenomes via a dereplication, aggregation and scoring strategy.',
   },
+  bandage_info: {
+    name: 'bandage_info',
+    display_name: 'Bandage Info',
+    category: 'assembly',
+    description: 'Determine node, edge, length, connectivity, and N50 statistics for de novo assembly graphs.',
+    search_aliases: ['Galaxy', 'Bandage', 'bandage info', 'assembly graph', 'GFA statistics', 'FASTG statistics', 'de novo assembly graph'],
+    input: {
+      required: {
+        input_file: { type: 'GFA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['outfile'],
+    required_executables: ['Bandage'],
+    required_conda_packages: ['bandage_ng'],
+    documentation_url: 'https://github.com/rrwick/Bandage/wiki/Command-line-options#info',
+    citation_dois: ['10.1093/bioinformatics/btv383'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv383'],
+    citation_text: 'Bandage: interactive visualization of de novo genome assemblies.',
+  },
+  bandage_image: {
+    name: 'bandage_image',
+    display_name: 'Bandage Image',
+    category: 'visualization',
+    description: 'Visualize de novo assembly graphs as JPG, PNG, or SVG images using Bandage.',
+    search_aliases: ['Galaxy', 'Bandage', 'bandage image', 'assembly graph image', 'GFA visualization', 'FASTG visualization', 'de novo assembly graph'],
+    input: {
+      required: {
+        input_file: { type: 'GFA' },
+      },
+    },
+    output: ['IMAGE'],
+    output_name: ['outfile'],
+    required_executables: ['Bandage'],
+    required_conda_packages: ['bandage_ng'],
+    documentation_url: 'https://github.com/rrwick/Bandage/wiki/Command-line-options#image',
+    citation_dois: ['10.1093/bioinformatics/btv383'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv383'],
+    citation_text: 'Bandage: interactive visualization of de novo genome assemblies.',
+  },
   hmmer_hmmscan: {
     name: 'hmmer_hmmscan',
     display_name: 'HMMER hmmscan',
@@ -2401,7 +2441,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('118 nodes available')).toBeVisible();
+  await expect(page.getByText('120 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2426,6 +2466,8 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
+    { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
+    { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

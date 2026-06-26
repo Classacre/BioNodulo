@@ -100,6 +100,20 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["das_tool"],
             "doi": "10.1038/s41564-018-0171-1",
         },
+        "bandage_info": {
+            "display_name": "Bandage Info",
+            "category": "assembly",
+            "required_executables": ["Bandage"],
+            "required_conda_packages": ["bandage_ng"],
+            "doi": "10.1093/bioinformatics/btv383",
+        },
+        "bandage_image": {
+            "display_name": "Bandage Image",
+            "category": "visualization",
+            "required_executables": ["Bandage"],
+            "required_conda_packages": ["bandage_ng"],
+            "doi": "10.1093/bioinformatics/btv383",
+        },
         "vsearch_search": {
             "display_name": "VSEARCH Search",
             "category": "metagenomics",
@@ -821,6 +835,92 @@ def test_fasta_to_contig2bin_renders_galaxy_helper_command_and_output(tmp_path: 
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "fasta_to_contig2bin" / "contigs2bin.tsv",
+    ]
+
+
+def test_bandage_nodes_expose_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()
+
+    assert info["bandage_info"]["output"] == ["TSV"]
+    assert info["bandage_info"]["output_name"] == ["outfile"]
+    assert info["bandage_image"]["output"] == ["IMAGE"]
+    assert info["bandage_image"]["output_name"] == ["outfile"]
+
+
+def test_bandage_info_renders_headless_statistics_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bandage_info")
+
+    assert node_class.render_command(
+        {
+            "input_file": "assembly graph.gfa",
+            "tsv": True,
+            "output": "/work/bandage_info",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "assembly graph.gfa",
+        "/work/bandage_info/input.gfa",
+        "&&",
+        "export",
+        "QT_QPA_PLATFORM=offscreen",
+        "&&",
+        "Bandage",
+        "info",
+        "/work/bandage_info/input.gfa",
+        "--tsv",
+        "|",
+        "sed",
+        r"s/:\s\+/:\t/g",
+        ">",
+        "/work/bandage_info/out.tab",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bandage_info" / "out.tab",
+    ]
+
+
+def test_bandage_image_renders_graph_image_command_and_dynamic_output(tmp_path: Path) -> None:
+    node_class = _node_class("bandage_image")
+
+    assert node_class.render_command(
+        {
+            "input_file": "assembly.fastg",
+            "output_format": "svg",
+            "height": 800,
+            "width": 1200,
+            "fontsize": 12,
+            "nodewidth": 8.5,
+            "names": True,
+            "lengths": True,
+            "output": "/work/bandage_image",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "assembly.fastg",
+        "/work/bandage_image/input.gfa",
+        "&&",
+        "export",
+        "QT_QPA_PLATFORM=offscreen",
+        "&&",
+        "Bandage",
+        "image",
+        "/work/bandage_image/input.gfa",
+        "/work/bandage_image/out.svg",
+        "--height",
+        "800",
+        "--width",
+        "1200",
+        "--fontsize",
+        "12",
+        "--nodewidth",
+        "8.5",
+        "--names",
+        "--lengths",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_format": "svg"}, tmp_path) == [
+        tmp_path / "bandage_image" / "out.svg",
     ]
 
 
