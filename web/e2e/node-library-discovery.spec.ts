@@ -473,6 +473,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41564-018-0171-1'],
     citation_text: 'Recovery of genomes from metagenomes via a dereplication, aggregation and scoring strategy.',
   },
+  vsearch_dereplication: {
+    name: 'vsearch_dereplication',
+    display_name: 'VSEARCH Dereplication',
+    category: 'metagenomics',
+    description: 'Dereplicate identical FASTA sequences with VSEARCH derep_fulllength and optional abundance filters.',
+    search_aliases: ['Galaxy', 'vsearch', 'dereplication', 'derep_fulllength', 'amplicon dereplication', 'unique sequences', 'abundance'],
+    input: {
+      required: {
+        infile: { type: 'FASTA' },
+      },
+      optional: {
+        topn: { type: 'INT', default: '' },
+        sizein: { type: 'BOOLEAN', default: false },
+        sizeout: { type: 'BOOLEAN', default: false },
+        strand: { type: 'STRING', default: 'plus', options: ['plus', 'both'] },
+        uc: { type: 'BOOLEAN', default: false },
+        minuniquesize: { type: 'INT', default: '' },
+        maxuniquesize: { type: 'INT', default: '' },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['FASTA', 'TSV'],
+    output_name: ['dereplicated_sequences', 'uclust_output'],
+    required_executables: ['vsearch'],
+    required_conda_packages: ['vsearch'],
+    documentation_url: 'https://github.com/torognes/vsearch',
+    citation_dois: ['10.7717/peerj.2584'],
+    citation_urls: ['https://doi.org/10.7717/peerj.2584'],
+    citation_text: 'VSEARCH: a versatile open source tool for metagenomics.',
+  },
   bandage_info: {
     name: 'bandage_info',
     display_name: 'Bandage Info',
@@ -2751,7 +2781,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('134 nodes available')).toBeVisible();
+  await expect(page.getByText('135 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -2782,6 +2812,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
+    { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },

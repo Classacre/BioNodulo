@@ -198,6 +198,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["vsearch"],
             "doi": "10.7717/peerj.2584",
         },
+        "vsearch_dereplication": {
+            "display_name": "VSEARCH Dereplication",
+            "category": "metagenomics",
+            "required_executables": ["vsearch"],
+            "required_conda_packages": ["vsearch"],
+            "doi": "10.7717/peerj.2584",
+        },
         "diamond_makedb": {
             "display_name": "DIAMOND MakeDB",
             "category": "databases",
@@ -1979,6 +1986,57 @@ def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) 
         "/work/vsearch_cluster/centroids.fasta",
         "--uc",
         "/work/vsearch_cluster/clusters.uc",
+    ]
+
+
+def test_vsearch_dereplication_renders_abundance_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("vsearch_dereplication")
+    info = _registry().object_info()["vsearch_dereplication"]
+
+    assert info["output"] == ["FASTA", "TSV"]
+    assert info["output_name"] == ["dereplicated_sequences", "uclust_output"]
+    assert node_class.render_command(
+        {
+            "infile": "amplicons.fasta",
+            "threads": 6,
+            "minuniquesize": 2,
+            "maxuniquesize": 100000,
+            "sizein": True,
+            "sizeout": True,
+            "strand": "both",
+            "topn": 10000,
+            "uc": True,
+            "output": "/work/vsearch_dereplication",
+        }
+    ) == [
+        "vsearch",
+        "--threads",
+        "6",
+        "--notrunclabels",
+        "--derep_fulllength",
+        "amplicons.fasta",
+        "--maxuniquesize",
+        "100000",
+        "--minuniquesize",
+        "2",
+        "--output",
+        "/work/vsearch_dereplication/dereplicated.fasta",
+        "--sizein",
+        "--sizeout",
+        "--strand",
+        "both",
+        "--topn",
+        "10000",
+        "--uc",
+        "/work/vsearch_dereplication/dereplication.uc",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"uc": True}, tmp_path) == [
+        tmp_path / "vsearch_dereplication" / "dereplicated.fasta",
+        tmp_path / "vsearch_dereplication" / "dereplication.uc",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "vsearch_dereplication" / "dereplicated.fasta",
     ]
 
 
