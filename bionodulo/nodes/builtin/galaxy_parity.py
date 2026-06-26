@@ -1991,6 +1991,148 @@ class AMASSplitNode(AMASSummaryNode):
         }
 
 
+class AMASRemoveNode(AMASConcatNode):
+    """Remove selected taxa from one or more alignments with AMAS remove."""
+
+    NODE_ID = "amas_remove"
+    DISPLAY_NAME = "AMAS Remove"
+    DESCRIPTION = "Remove named taxa from one or more sequence alignments with AMAS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AMAS",
+        "amas remove",
+        "remove taxa",
+        "taxon filtering",
+        "alignment subset",
+        "phylogenomics",
+        "outgroup removal",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("reduced_alignments",)
+
+    @classmethod
+    def _taxa_to_remove(cls, inputs: dict[str, Any]) -> list[str]:
+        taxa = inputs.get("taxa_to_remove", "")
+        if isinstance(taxa, (list, tuple)):
+            return [str(taxon) for taxon in taxa if str(taxon)]
+        return [taxon for taxon in str(taxa).split() if taxon]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        files = _as_list(inputs.get("input_files"))
+        safe_names = cls._safe_input_names(inputs)
+        input_format = cls._input_format(inputs)
+        tool_directory = cls._tool_directory(inputs)
+        reduced_alignments_dir = f"{_out(inputs)}/reduced_alignments"
+        parts = [
+            "set -eu",
+            (
+                f"IN_FORMAT=$(python {tool_directory}/check_interleaved.py "
+                f"{' '.join(shlex.quote(path) for path in files)} --format {shlex.quote(input_format)})"
+            ),
+        ]
+        parts.extend(
+            f"ln -sf {shlex.quote(path)} {shlex.quote(safe_name)}"
+            for path, safe_name in zip(files, safe_names, strict=False)
+        )
+
+        amas_parts = [
+            "python",
+            "-m",
+            "amas.AMAS",
+            "remove",
+            "--taxa-to-remove",
+            *cls._taxa_to_remove(inputs),
+            "--out-format",
+            cls._out_format(inputs),
+            "--in-files",
+            *safe_names,
+            "--in-format",
+            "${IN_FORMAT}",
+            "--data-type",
+            str(inputs.get("data_type", "dna")),
+            "--cores",
+            "${GALAXY_SLOTS:-1}",
+        ]
+        if inputs.get("check_align"):
+            amas_parts.append("--check-align")
+        command = " ".join(shlex.quote(part) for part in amas_parts)
+        command = command.replace("'${IN_FORMAT}'", '"${IN_FORMAT}"')
+        command = command.replace("'${GALAXY_SLOTS:-1}'", '"${GALAXY_SLOTS:-1}"')
+        parts.extend(
+            [
+                command,
+                f"mkdir -p {shlex.quote(reduced_alignments_dir)}",
+                f"find . -maxdepth 1 -name '*-out.*' -exec mv {{}} {shlex.quote(reduced_alignments_dir)}/ \\;",
+            ]
+        )
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        reduced_alignments_dir = out / "reduced_alignments"
+        reduced_alignments_dir.mkdir(parents=True, exist_ok=True)
+        return [reduced_alignments_dir]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_files": (
+                    "ALIGNMENT",
+                    {
+                        "list": True,
+                        "description": "One or more pre-aligned FASTA, PHYLIP, or NEXUS alignment files",
+                    },
+                ),
+                "taxa_to_remove": (
+                    "STRING",
+                    {
+                        "description": "Space-separated taxon names to remove; use underscores for sequence-name spaces",
+                    },
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int"],
+                        "description": "Output format for alignments with taxa removed",
+                    },
+                ),
+                "data_type": (
+                    "STRING",
+                    {"default": "dna", "options": ["dna", "aa"], "description": "Nucleotide or protein alignment"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "phylip", "phylip-int", "nexus", "nexus-int", "nex"],
+                        "description": "Input alignment format; NEXUS can be supplied as nex or nexus",
+                    },
+                ),
+                "check_align": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Check that input sequences are aligned before removing taxa"},
+                ),
+                "input_labels": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "list": True,
+                        "description": "Optional Galaxy element identifiers used for safe symlink names",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {}), "tool_directory": ("STRING", {})},
+        }
+
+
 ADAPTER_REMOVAL_CITATION_DOI = "10.1186/s13104-016-1900-2"
 ADAPTER_REMOVAL_CITATION_TEXT = "AdapterRemoval v2: rapid adapter trimming, identification, and read merging."
 ADAPTER_REMOVAL_ADAPTER1 = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG"

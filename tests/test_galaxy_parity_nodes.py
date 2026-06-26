@@ -1311,6 +1311,74 @@ def test_amas_split_renders_minimal_nexus_command(tmp_path: Path) -> None:
     ]
 
 
+def test_amas_remove_exposes_galaxy_aligned_outputs() -> None:
+    info = _registry().object_info()["amas_remove"]
+
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["reduced_alignments"]
+
+
+def test_amas_remove_renders_checked_multi_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amas_remove")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["alignments/gene one.fas", "gene2.nex"],
+            "input_labels": ["gene one.fas", "gene2.nex"],
+            "input_format": "nex",
+            "taxa_to_remove": "OTU9 OTU10 Sample_A",
+            "out_format": "nexus-int",
+            "data_type": "dna",
+            "check_align": True,
+            "tool_directory": "/iuc/tools/amas",
+            "output": "/work/amas_remove",
+        }
+    ) == (
+        "set -eu && "
+        "IN_FORMAT=$(python /iuc/tools/amas/check_interleaved.py "
+        "'alignments/gene one.fas' gene2.nex --format nexus) && "
+        "ln -sf 'alignments/gene one.fas' gene_one.fas && "
+        "ln -sf gene2.nex gene2.nex && "
+        "python -m amas.AMAS remove --taxa-to-remove OTU9 OTU10 Sample_A "
+        "--out-format nexus-int --in-files gene_one.fas gene2.nex "
+        '--in-format "${IN_FORMAT}" --data-type dna --cores "${GALAXY_SLOTS:-1}" --check-align && '
+        "mkdir -p /work/amas_remove/reduced_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_remove/reduced_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "nexus-int"}, tmp_path) == [
+        tmp_path / "amas_remove" / "reduced_alignments",
+    ]
+
+
+def test_amas_remove_renders_minimal_command(tmp_path: Path) -> None:
+    node_class = _node_class("amas_remove")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["gene1.fasta"],
+            "taxa_to_remove": "BadTaxon",
+            "out_format": "fasta",
+            "data_type": "aa",
+            "output": "/work/amas_remove",
+        }
+    ) == (
+        "set -eu && "
+        'IN_FORMAT=$(python "${BIONODULO_AMAS_TOOL_DIR:-.}"/check_interleaved.py '
+        "gene1.fasta --format fasta) && "
+        "ln -sf gene1.fasta gene1.fasta && "
+        "python -m amas.AMAS remove --taxa-to-remove BadTaxon --out-format fasta "
+        "--in-files gene1.fasta "
+        '--in-format "${IN_FORMAT}" --data-type aa --cores "${GALAXY_SLOTS:-1}" && '
+        "mkdir -p /work/amas_remove/reduced_alignments && "
+        "find . -maxdepth 1 -name '*-out.*' -exec mv {} /work/amas_remove/reduced_alignments/ \\;"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "amas_remove" / "reduced_alignments",
+    ]
+
+
 def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) -> None:
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
