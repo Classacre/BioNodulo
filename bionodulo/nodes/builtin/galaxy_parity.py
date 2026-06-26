@@ -5459,6 +5459,103 @@ class RSeQCJunctionAnnotationNode(CommandNode):
         }
 
 
+class RSeQCJunctionSaturationNode(CommandNode):
+    """Assess whether splice-junction discovery is saturated by sequencing depth."""
+
+    NODE_ID = "rseqc_junction_saturation"
+    DISPLAY_NAME = "RSeQC Junction Saturation"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Resample alignments to evaluate saturation of known and novel splice-junction detection."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "junction_saturation",
+        "splice junction saturation",
+        "alternative splicing",
+        "sequencing depth",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TEXT")
+    RETURN_NAMES = ("junction_saturation_plot", "r_script")
+    REQUIRED_EXECUTABLES = ["junction_saturation.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#junction-saturation-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "junction_saturation.py",
+            "--input-file",
+            str(inputs.get("input", "")),
+            "--refgene",
+            str(inputs.get("refgene", "")),
+            "--out-prefix",
+            f"{out}/output",
+            "--min-intron",
+            str(inputs.get("min_intron", 50)),
+            "--min-coverage",
+            str(inputs.get("min_coverage", 1)),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+        ]
+        if inputs.get("percentiles_mode") == "specify":
+            cmd.extend(
+                [
+                    "--percentile-floor",
+                    str(inputs.get("percentile_floor", 5)),
+                    "--percentile-ceiling",
+                    str(inputs.get("percentile_ceiling", 100)),
+                    "--percentile-step",
+                    str(inputs.get("percentile_step", 5)),
+                ]
+            )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "output.junctionSaturation_plot.pdf"]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.junctionSaturation_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "min_intron": ("INT", {"default": 50, "min": 1, "description": "Minimum intron length in base pairs"}),
+                "min_coverage": (
+                    "INT",
+                    {"default": 1, "min": 1, "description": "Minimum number of supporting reads required to call a junction"},
+                ),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "percentiles_mode": (
+                    "STRING",
+                    {
+                        "default": "default",
+                        "options": ["default", "specify"],
+                        "description": "Use default sampling percentiles or specify sampling bounds and step",
+                    },
+                ),
+                "percentile_floor": ("INT", {"default": 5, "min": 0, "max": 100, "description": "Lower sampling percentile"}),
+                "percentile_ceiling": ("INT", {"default": 100, "min": 0, "max": 100, "description": "Upper sampling percentile"}),
+                "percentile_step": ("INT", {"default": 5, "min": 1, "max": 100, "description": "Sampling percentile increment"}),
+                "rscript_output": ("BOOLEAN", {"default": False, "description": "Expose the R script used to generate the saturation plot"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 

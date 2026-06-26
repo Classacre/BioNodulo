@@ -3113,6 +3113,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc", "r-base"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_junction_saturation": {
+            "display_name": "RSeQC Junction Saturation",
+            "category": "rna_seq",
+            "required_executables": ["junction_saturation.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3384,6 +3391,80 @@ def test_rseqc_junction_annotation_renders_splice_junction_command_and_outputs(t
         tmp_path / "rseqc_junction_annotation" / "output.splice_junction.pdf",
         tmp_path / "rseqc_junction_annotation" / "output.junction.xls",
         tmp_path / "rseqc_junction_annotation" / "stats.txt",
+    ]
+
+
+def test_rseqc_junction_saturation_renders_saturation_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_junction_saturation")
+    info = _registry().object_info()["rseqc_junction_saturation"]
+
+    assert info["output"] == ["IMAGE", "TEXT"]
+    assert info["output_name"] == ["junction_saturation_plot", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "min_intron": 75,
+            "min_coverage": 2,
+            "mapq": 20,
+            "output": "/work/rseqc_junction_saturation",
+        }
+    ) == [
+        "junction_saturation.py",
+        "--input-file",
+        "aligned.bam",
+        "--refgene",
+        "genes.bed12",
+        "--out-prefix",
+        "/work/rseqc_junction_saturation/output",
+        "--min-intron",
+        "75",
+        "--min-coverage",
+        "2",
+        "--mapq",
+        "20",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "min_intron": 75,
+            "min_coverage": 2,
+            "mapq": 20,
+            "percentiles_mode": "specify",
+            "percentile_floor": 10,
+            "percentile_ceiling": 90,
+            "percentile_step": 10,
+            "output": "/work/rseqc_junction_saturation",
+        }
+    ) == [
+        "junction_saturation.py",
+        "--input-file",
+        "aligned.bam",
+        "--refgene",
+        "genes.bed12",
+        "--out-prefix",
+        "/work/rseqc_junction_saturation/output",
+        "--min-intron",
+        "75",
+        "--min-coverage",
+        "2",
+        "--mapq",
+        "20",
+        "--percentile-floor",
+        "10",
+        "--percentile-ceiling",
+        "90",
+        "--percentile-step",
+        "10",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.pdf",
+        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.pdf",
     ]
 
 
