@@ -3092,6 +3092,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_fpkm_count": {
+            "display_name": "RSeQC FPKM Count",
+            "category": "rna_seq",
+            "required_executables": ["FPKM_count.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3238,6 +3245,46 @@ def test_rseqc_infer_experiment_renders_strandedness_command_and_output(tmp_path
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_infer_experiment" / "infer_experiment.txt",
+    ]
+
+
+def test_rseqc_fpkm_count_renders_expression_quantification_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_fpkm_count")
+    info = _registry().object_info()["rseqc_fpkm_count"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["fpkm_counts"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "strand_specific": "pair",
+            "pair_type": "ds",
+            "skip_multi_hits": True,
+            "mapq": 20,
+            "only_exonic": True,
+            "single_read": "0.5",
+            "output": "/work/rseqc_fpkm_count",
+        }
+    ) == [
+        "FPKM_count.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_fpkm_count/output",
+        "-r",
+        "genes.bed12",
+        "-d",
+        "1+-,1-+,2++,2--",
+        "--skip-multi-hits",
+        "--mapq",
+        "20",
+        "--only-exonic",
+        "--single-read=0.5",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_fpkm_count" / "output.FPKM.xls",
     ]
 
 

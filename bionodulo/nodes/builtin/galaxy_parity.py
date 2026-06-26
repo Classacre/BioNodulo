@@ -5237,6 +5237,85 @@ class RSeQCInferExperimentNode(CommandNode):
         }
 
 
+class RSeQCFPKMCountNode(CommandNode):
+    """Calculate raw fragment counts, FPM, and FPKM per gene."""
+
+    NODE_ID = "rseqc_fpkm_count"
+    DISPLAY_NAME = "RSeQC FPKM Count"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate raw read count, FPM, and FPKM for each gene in a BED12 reference gene model."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "rseqc", "FPKM_count", "fpkm", "gene expression", "fragments per kilobase", "rna-seq qc"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("fpkm_counts",)
+    REQUIRED_EXECUTABLES = ["FPKM_count.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#fpkm-count-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "FPKM_count.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-r",
+            str(inputs.get("refgene", "")),
+        ]
+
+        strand_specific = str(inputs.get("strand_specific", "none"))
+        if strand_specific == "pair":
+            strand_rule = {
+                "sd": "1++,1--,2+-,2-+",
+                "ds": "1+-,1-+,2++,2--",
+            }.get(str(inputs.get("pair_type", "sd")), "1++,1--,2+-,2-+")
+            cmd.extend(["-d", strand_rule])
+        elif strand_specific == "single":
+            strand_rule = {
+                "s": "++,--",
+                "d": "+-,-+",
+            }.get(str(inputs.get("single_type", "s")), "++,--")
+            cmd.extend(["-d", strand_rule])
+
+        if inputs.get("skip_multi_hits"):
+            cmd.append("--skip-multi-hits")
+            cmd.extend(["--mapq", str(inputs.get("mapq", 30))])
+        if inputs.get("only_exonic"):
+            cmd.append("--only-exonic")
+        cmd.append(f"--single-read={inputs.get('single_read', '1')}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.FPKM.xls"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "strand_specific": ("STRING", {"default": "none", "options": ["none", "pair", "single"], "description": "Strand-specific library type"}),
+                "pair_type": ("STRING", {"default": "sd", "options": ["sd", "ds"], "description": "Paired-end strand rule"}),
+                "single_type": ("STRING", {"default": "s", "options": ["s", "d"], "description": "Single-end strand rule"}),
+                "skip_multi_hits": ("BOOLEAN", {"default": False, "description": "Use only uniquely mapped reads"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality when skipping multiple-hit reads"}),
+                "only_exonic": ("BOOLEAN", {"default": False, "description": "Count only UTR exon and CDS exon reads"}),
+                "single_read": ("STRING", {"default": "1", "options": ["1", "0.5", "0"], "description": "How to count read pairs with only one mapped end"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 

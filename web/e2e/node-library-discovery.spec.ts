@@ -1151,6 +1151,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_fpkm_count: {
+    name: 'rseqc_fpkm_count',
+    display_name: 'RSeQC FPKM Count',
+    category: 'rna_seq',
+    description: 'Calculate raw read count, FPM, and FPKM for each gene in a BED12 reference gene model.',
+    search_aliases: ['Galaxy', 'rseqc', 'FPKM_count', 'fpkm', 'gene expression', 'fragments per kilobase', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        strand_specific: { type: 'STRING', default: 'none', options: ['none', 'pair', 'single'] },
+        pair_type: { type: 'STRING', default: 'sd', options: ['sd', 'ds'] },
+        single_type: { type: 'STRING', default: 's', options: ['s', 'd'] },
+        skip_multi_hits: { type: 'BOOLEAN', default: false },
+        mapq: { type: 'INT', default: 30 },
+        only_exonic: { type: 'BOOLEAN', default: false },
+        single_read: { type: 'STRING', default: '1', options: ['1', '0.5', '0'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['fpkm_counts'],
+    required_executables: ['FPKM_count.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#fpkm-count-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_bam_stat: {
     name: 'rseqc_bam_stat',
     display_name: 'RSeQC BAM Stat',
@@ -3126,7 +3156,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('146 nodes available')).toBeVisible();
+  await expect(page.getByText('147 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3184,6 +3214,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
+    { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },
