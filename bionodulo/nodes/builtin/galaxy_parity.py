@@ -574,6 +574,102 @@ class SeqKitHeadNode(CommandNode):
         }
 
 
+class SeqKitFx2tabNode(CommandNode):
+    """Convert FASTA/Q records to tabular columns with SeqKit fx2tab."""
+
+    NODE_ID = "seqkit_fx2tab"
+    DISPLAY_NAME = "SeqKit fx2tab"
+    REQUIRED_CONDA_PACKAGES = ["seqkit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Convert FASTA or FASTQ records to tabular columns with SeqKit fx2tab."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "seqkit", "fx2tab", "FASTA to tabular", "FASTQ to TSV", "sequence table", "GC content"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("tabular",)
+    REQUIRED_EXECUTABLES = ["seqkit"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/seqkit/usage/#fx2tab"
+    CITATION_DOIS = ["10.1371/journal.pone.0163962"]
+    CITATION_URLS = ["https://doi.org/10.1371/journal.pone.0163962"]
+    CITATION_TEXT = "SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation."
+    VERSION = "2.13.0"
+    SHELL = True
+
+    @classmethod
+    def _input_name(cls, inputs: dict[str, Any]) -> str:
+        ext = str(inputs.get("input_ext", "fastqsanger.gz")).strip().lstrip(".") or "fastqsanger.gz"
+        return f"input.{ext}"
+
+    @classmethod
+    def _output_name(cls) -> str:
+        return "fx2tab.tsv"
+
+    @classmethod
+    def _joined_bases(cls, value: Any) -> str:
+        return "".join(_as_list(value)).replace(",", "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_name = cls._input_name(inputs)
+        cmd = ["seqkit", "fx2tab", input_name]
+        if inputs.get("alphabet"):
+            cmd.append("--alphabet")
+        if inputs.get("avg_qual"):
+            cmd.append("--avg-qual")
+        base_percentages = cls._joined_bases(inputs.get("base_percentages", inputs.get("B")))
+        if base_percentages:
+            cmd.extend(["-B", base_percentages])
+        base_counts = cls._joined_bases(inputs.get("base_counts", inputs.get("C")))
+        if base_counts:
+            cmd.extend(["-C", base_counts])
+        for key, flag in (
+            ("gc", "--gc"),
+            ("gc_skew", "--gc-skew"),
+            ("header_line", "--header-line"),
+            ("length", "--length"),
+            ("name", "--name"),
+            ("no_qual", "--no-qual"),
+            ("only_id", "--only-id"),
+        ):
+            if inputs.get(key):
+                cmd.append(flag)
+        if str(inputs.get("qual_ascii_base", "")) != "":
+            cmd.extend(["--qual-ascii-base", str(inputs.get("qual_ascii_base"))])
+        if inputs.get("seq_hash"):
+            cmd.append("--seq-hash")
+        cmd.extend([">", f"{_out(inputs)}/{cls._output_name()}"])
+        return f"ln -sf {shlex.quote(str(inputs.get('input', '')))} {shlex.quote(input_name)} && " + " ".join(
+            shlex.quote(part) if part not in {">"} else part for part in cmd
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name()]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {"input": ("FASTQ_LIST", {"description": "Input FASTA or FASTQ file"})},
+            "optional": {
+                "input_ext": ("STRING", {"default": "fastqsanger.gz", "options": ["fasta", "fasta.gz", "fastqsanger", "fastqsanger.gz"], "advanced": True}),
+                "alphabet": ("BOOLEAN", {"default": False, "description": "Output alphabet letters"}),
+                "avg_qual": ("BOOLEAN", {"default": False, "description": "Output average quality"}),
+                "base_percentages": ("STRING", {"default": "", "description": "Bases for percentage columns, e.g. A,T", "advanced": True}),
+                "base_counts": ("STRING", {"default": "", "description": "Bases for count columns, e.g. A,N", "advanced": True}),
+                "gc": ("BOOLEAN", {"default": False, "description": "Output GC content"}),
+                "gc_skew": ("BOOLEAN", {"default": False, "description": "Output GC skew"}),
+                "header_line": ("BOOLEAN", {"default": False, "description": "Output a header line"}),
+                "length": ("BOOLEAN", {"default": False, "description": "Output sequence length"}),
+                "name": ("BOOLEAN", {"default": False, "description": "Output names instead of sequences and qualities"}),
+                "no_qual": ("BOOLEAN", {"default": False, "description": "Suppress quality column"}),
+                "only_id": ("BOOLEAN", {"default": False, "description": "Output sequence ID instead of full header"}),
+                "qual_ascii_base": ("INT", {"default": 33, "min": 0, "advanced": True}),
+                "seq_hash": ("BOOLEAN", {"default": False, "description": "Output md5 hash of sequence"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 AMRFINDERPLUS_ORGANISMS = [
     "Acinetobacter_baumannii",
     "Burkholderia_cepacia",

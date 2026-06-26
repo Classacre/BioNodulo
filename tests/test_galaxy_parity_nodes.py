@@ -79,6 +79,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["seqkit"],
             "doi": "10.1371/journal.pone.0163962",
         },
+        "seqkit_fx2tab": {
+            "display_name": "SeqKit fx2tab",
+            "category": "sequence",
+            "required_executables": ["seqkit"],
+            "required_conda_packages": ["seqkit"],
+            "doi": "10.1371/journal.pone.0163962",
+        },
         "amrfinderplus": {
             "display_name": "AMRFinderPlus",
             "category": "annotation",
@@ -455,6 +462,49 @@ def test_seqkit_head_renders_head_command_and_output(tmp_path: Path) -> None:
     )
     assert node_class.PLAN_OUTPUTS({"output_ext": "fastq.gz"}, tmp_path) == [
         tmp_path / "seqkit_head" / "head.fastq.gz",
+    ]
+
+
+def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
+    info = _registry().object_info()["seqkit_fx2tab"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["tabular"]
+    assert info["citation_dois"] == ["10.1371/journal.pone.0163962"]
+    assert info["required_executables"] == ["seqkit"]
+    assert info["required_conda_packages"] == ["seqkit"]
+
+
+def test_seqkit_fx2tab_renders_rich_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqkit_fx2tab")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "input_ext": "fastqsanger.gz",
+            "alphabet": True,
+            "avg_qual": True,
+            "base_percentages": ["A", "T"],
+            "base_counts": ["A", "N"],
+            "gc": True,
+            "gc_skew": True,
+            "header_line": True,
+            "length": True,
+            "name": True,
+            "no_qual": True,
+            "only_id": True,
+            "seq_hash": True,
+            "qual_ascii_base": 33,
+            "output": "/work/seqkit_fx2tab",
+        }
+    ) == (
+        "ln -sf reads.fastq.gz input.fastqsanger.gz && "
+        "seqkit fx2tab input.fastqsanger.gz --alphabet --avg-qual -B AT -C AN --gc --gc-skew "
+        "--header-line --length --name --no-qual --only-id --qual-ascii-base 33 --seq-hash "
+        "> /work/seqkit_fx2tab/fx2tab.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqkit_fx2tab" / "fx2tab.tsv",
     ]
 
 
