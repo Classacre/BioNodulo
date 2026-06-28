@@ -5904,6 +5904,100 @@ class RSeQCGeneBodyCoverage2Node(CommandNode):
         }
 
 
+class RSeQCInnerDistanceNode(CommandNode):
+    """Estimate inner distance or insert size for paired RNA-seq reads."""
+
+    NODE_ID = "rseqc_inner_distance"
+    DISPLAY_NAME = "RSeQC Inner Distance"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate the mRNA inner distance between paired RNA-seq reads and summarize the insert-size distribution."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "inner_distance",
+        "inner distance",
+        "insert size",
+        "paired reads",
+        "fragment distance",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TSV", "TEXT")
+    RETURN_NAMES = ("inner_distance_plot", "inner_distances", "inner_distance_frequency", "r_script")
+    REQUIRED_EXECUTABLES = ["inner_distance.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#inner-distance-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "inner_distance.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-r",
+            str(inputs.get("refgene", "")),
+            "--sample-size",
+            str(inputs.get("sample_size", 200000)),
+            "--lower-bound",
+            str(inputs.get("lower_bound", -250)),
+            "--upper-bound",
+            str(inputs.get("upper_bound", 250)),
+            "--step",
+            str(inputs.get("step", 5)),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.inner_distance_plot.pdf",
+            out / "output.inner_distance.txt",
+            out / "output.inner_distance_freq.txt",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.inner_distance_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM paired-end alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "sample_size": (
+                    "INT",
+                    {"default": 200000, "min": 1, "description": "Number of read pairs sampled to estimate inner distance"},
+                ),
+                "lower_bound": (
+                    "INT",
+                    {"default": -250, "description": "Lower bound in bp for plotting the inner-distance histogram"},
+                ),
+                "upper_bound": (
+                    "INT",
+                    {"default": 250, "description": "Upper bound in bp for plotting the inner-distance histogram"},
+                ),
+                "step": ("INT", {"default": 5, "min": 1, "description": "Step size in bp for histogram bins"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the inner-distance histogram"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 

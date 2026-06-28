@@ -1343,6 +1343,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_inner_distance: {
+    name: 'rseqc_inner_distance',
+    display_name: 'RSeQC Inner Distance',
+    category: 'rna_seq',
+    description: 'Calculate the mRNA inner distance between paired RNA-seq reads and summarize the insert-size distribution.',
+    search_aliases: ['Galaxy', 'rseqc', 'inner_distance', 'inner distance', 'insert size', 'paired reads', 'fragment distance', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        sample_size: { type: 'INT', default: 200000 },
+        lower_bound: { type: 'INT', default: -250 },
+        upper_bound: { type: 'INT', default: 250 },
+        step: { type: 'INT', default: 5 },
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TSV', 'TEXT'],
+    output_name: ['inner_distance_plot', 'inner_distances', 'inner_distance_frequency', 'r_script'],
+    required_executables: ['inner_distance.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#inner-distance-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3475,7 +3504,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('159 nodes available')).toBeVisible();
+  await expect(page.getByText('160 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3540,6 +3569,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'deleted nucleotides', name: 'RSeQC Deletion Profile', category: 'rna_seq' },
     { query: 'coverage uniformity', name: 'RSeQC Gene Body Coverage', category: 'rna_seq' },
     { query: 'BigWig coverage', name: 'RSeQC Gene Body Coverage BigWig', category: 'rna_seq' },
+    { query: 'insert size', name: 'RSeQC Inner Distance', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },

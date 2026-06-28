@@ -3141,6 +3141,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_inner_distance": {
+            "display_name": "RSeQC Inner Distance",
+            "category": "rna_seq",
+            "required_executables": ["inner_distance.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3739,6 +3746,57 @@ def test_rseqc_gene_body_coverage2_renders_bigwig_command_and_outputs(tmp_path: 
     assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
         tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.pdf",
         tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.txt",
+    ]
+
+
+def test_rseqc_inner_distance_renders_insert_size_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_inner_distance")
+    info = _registry().object_info()["rseqc_inner_distance"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
+    assert info["output_name"] == ["inner_distance_plot", "inner_distances", "inner_distance_frequency", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "paired.bam",
+            "refgene": "genes.bed12",
+            "sample_size": 500000,
+            "lower_bound": -200,
+            "upper_bound": 300,
+            "step": 10,
+            "mapq": 25,
+            "rscript_output": True,
+            "output": "/work/rseqc_inner_distance",
+        }
+    ) == [
+        "inner_distance.py",
+        "-i",
+        "paired.bam",
+        "-o",
+        "/work/rseqc_inner_distance/output",
+        "-r",
+        "genes.bed12",
+        "--sample-size",
+        "500000",
+        "--lower-bound",
+        "-200",
+        "--upper-bound",
+        "300",
+        "--step",
+        "10",
+        "--mapq",
+        "25",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.pdf",
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance.txt",
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance_freq.txt",
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.pdf",
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance.txt",
+        tmp_path / "rseqc_inner_distance" / "output.inner_distance_freq.txt",
     ]
 
 
