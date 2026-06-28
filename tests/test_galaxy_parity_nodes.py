@@ -464,6 +464,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools", "gzip"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "merge_metaphlan_tables": {
+            "display_name": "Merge MetaPhlAn Tables",
+            "category": "metagenomics",
+            "required_executables": ["merge_metaphlan_tables.py"],
+            "required_conda_packages": ["metaphlan"],
+            "doi": "10.1038/s41587-023-01688-w",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5287,6 +5294,50 @@ def test_krakentools_extract_kraken_reads_renders_extraction_commands_and_output
         tmp_path / "krakentools_extract_kraken_reads" / "output_1.fastq.gz",
         tmp_path / "krakentools_extract_kraken_reads" / "output_2.fastq.gz",
         tmp_path / "krakentools_extract_kraken_reads" / "paired_reads",
+    ]
+
+
+def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("merge_metaphlan_tables")
+    info = _registry().object_info()["merge_metaphlan_tables"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["merged_abundance_table"]
+    assert info["citation_dois"] == ["10.1038/s41587-023-01688-w"]
+    assert info["citation_text"] == "Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4."
+    assert info["input"]["required"]["abundance_tables"][0] == "TSV"
+    assert info["input"]["required"]["abundance_tables"][1]["multiple"] is True
+    assert info["input"]["optional"]["element_identifiers"][1]["multiple"] is True
+    assert info["input"]["optional"]["gtdb_profiles"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "abundance_tables": ["Sample A_profile.tsv", "sample-B.txt"],
+            "element_identifiers": ["SRS014464-Anterior_nares", "sample B"],
+            "output": "/work/merge_metaphlan",
+        }
+    ) == (
+        "ln -s 'Sample A_profile.tsv' SRS014464-Anterior_nares && "
+        "ln -s sample-B.txt sample_B && "
+        "merge_metaphlan_tables.py SRS014464-Anterior_nares sample_B "
+        "> /work/merge_metaphlan/merged_metaphlan_tables.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "inputs": ["gtdb1.tsv", "gtdb2.tsv"],
+            "gtdb_profiles": True,
+            "output": "/work/merge_metaphlan",
+        }
+    ) == (
+        "ln -s gtdb1.tsv gtdb1.tsv && "
+        "ln -s gtdb2.tsv gtdb2.tsv && "
+        "merge_metaphlan_tables.py --gtdb_profiles gtdb1.tsv gtdb2.tsv "
+        "> /work/merge_metaphlan/merged_metaphlan_tables.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "merge_metaphlan_tables" / "merged_metaphlan_tables.tsv",
     ]
 
 
