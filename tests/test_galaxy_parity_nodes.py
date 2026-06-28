@@ -2699,6 +2699,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq"],
             "doi": "10.1101/gr.112326.110",
         },
+        "lofreq_filter": {
+            "display_name": "LoFreq Filter",
+            "category": "variant",
+            "required_executables": ["lofreq"],
+            "required_conda_packages": ["lofreq"],
+            "doi": "10.1093/nar/gks918",
+        },
         "ivar_variants": {
             "display_name": "iVar Variants",
             "category": "variant",
@@ -3168,6 +3175,112 @@ def test_lofreq_indelqual_renders_uniform_and_dindel_commands_and_output(tmp_pat
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_indelqual" / "indelqual.bam"]
+
+
+def test_lofreq_filter_renders_quality_coverage_af_and_strand_bias_filters(tmp_path: Path) -> None:
+    node_class = _node_class("lofreq_filter")
+    info = _registry().object_info()["lofreq_filter"]
+
+    assert info["output"] == ["VCF"]
+    assert info["output_name"] == ["filtered_variants"]
+    assert "10.1093/nar/gks918" in info["citation_dois"]
+    assert info["input"]["optional"]["snvqual_thresh"][1]["displayOptions"] == {
+        "show": {"snvqual_filter": ["min-phred"]},
+    }
+    assert info["input"]["optional"]["indelqual_alpha"][1]["displayOptions"] == {
+        "show": {"indelqual_filter": ["mtc"]},
+    }
+    assert node_class.render_command(
+        {
+            "invcf": "calls.vcf",
+            "keep_only": "",
+            "snvqual_filter": "min-phred",
+            "snvqual_thresh": 38,
+            "indelqual_filter": "min-phred",
+            "indelqual_thresh": 20,
+            "cov_min": 12,
+            "cov_max": 300,
+            "af_min": 0.02,
+            "af_max": 0.7,
+            "strand_bias": "mtc",
+            "sb_mtc": "fdr",
+            "sb_alpha": 0.001,
+            "sb_compound": False,
+            "sb_indels": True,
+            "flag_or_drop": "--print-all",
+            "output": "/work/lofreq_filter",
+        }
+    ) == [
+        "lofreq",
+        "filter",
+        "-i",
+        "calls.vcf",
+        "--no-defaults",
+        "--verbose",
+        "--print-all",
+        "-Q",
+        "38",
+        "-K",
+        "20",
+        "-v",
+        "12",
+        "-V",
+        "300",
+        "-a",
+        "0.02",
+        "-A",
+        "0.7",
+        "-b",
+        "fdr",
+        "-c",
+        "0.001",
+        "--sb-no-compound",
+        "--sb-incl-indels",
+        "-o",
+        "/work/lofreq_filter/filtered.vcf",
+    ]
+    assert node_class.render_command(
+        {
+            "invcf": "calls.vcf",
+            "keep_only": "--only-snvs",
+            "snvqual_filter": "mtc",
+            "snvqual_mtc": "bonf",
+            "snvqual_alpha": 0.01,
+            "snvqual_ntests": 66,
+            "cov_min": 0,
+            "cov_max": 0,
+            "af_min": 0.05,
+            "af_max": 1,
+            "strand_bias": "no",
+            "output": "/work/lofreq_filter",
+        }
+    ) == [
+        "lofreq",
+        "filter",
+        "-i",
+        "calls.vcf",
+        "--no-defaults",
+        "--verbose",
+        "--only-snvs",
+        "-q",
+        "bonf",
+        "-r",
+        "0.01",
+        "-s",
+        "66",
+        "-v",
+        "0",
+        "-V",
+        "0",
+        "-a",
+        "0.05",
+        "-A",
+        "1",
+        "-o",
+        "/work/lofreq_filter/filtered.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_filter" / "filtered.vcf"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

@@ -1144,6 +1144,50 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gks918', 'https://doi.org/10.1101/gr.112326.110'],
     citation_text: 'LoFreq indel quality insertion supports Dindel-based estimates for accurate short-read indel calling.',
   },
+  lofreq_filter: {
+    name: 'lofreq_filter',
+    display_name: 'LoFreq Filter',
+    category: 'variant',
+    description: 'Filter LoFreq VCF variants by type, quality, coverage, allele frequency, and strand-bias evidence.',
+    search_aliases: ['Galaxy', 'lofreq', 'lofreq filter', 'lofreq strand bias filter', 'variant filtering', 'posterior filtering', 'strand bias', 'multiple testing correction', 'VCF filter'],
+    input: {
+      required: {
+        invcf: { type: 'VCF' },
+        keep_only: { type: 'STRING', default: '', options: ['', '--only-snvs', '--only-indels'] },
+      },
+      optional: {
+        snvqual_filter: { type: 'STRING', default: 'no', options: ['no', 'min-phred', 'mtc'], displayOptions: { show: { keep_only: ['', '--only-snvs'] } } },
+        snvqual_thresh: { type: 'INT', default: 0, displayOptions: { show: { snvqual_filter: ['min-phred'] } } },
+        snvqual_alpha: { type: 'FLOAT', default: 1, displayOptions: { show: { snvqual_filter: ['mtc'] } } },
+        snvqual_mtc: { type: 'STRING', default: 'bonf', options: ['bonf', 'holm', 'fdr'], displayOptions: { show: { snvqual_filter: ['mtc'] } } },
+        snvqual_ntests: { type: 'INT', default: 1, displayOptions: { show: { snvqual_filter: ['mtc'] } } },
+        indelqual_filter: { type: 'STRING', default: 'no', options: ['no', 'min-phred', 'mtc'], displayOptions: { show: { keep_only: ['', '--only-indels'] } } },
+        indelqual_thresh: { type: 'INT', default: 0, displayOptions: { show: { indelqual_filter: ['min-phred'] } } },
+        indelqual_alpha: { type: 'FLOAT', default: 1, displayOptions: { show: { indelqual_filter: ['mtc'] } } },
+        indelqual_mtc: { type: 'STRING', default: 'bonf', options: ['bonf', 'holm', 'fdr'], displayOptions: { show: { indelqual_filter: ['mtc'] } } },
+        indelqual_ntests: { type: 'INT', default: 1, displayOptions: { show: { indelqual_filter: ['mtc'] } } },
+        cov_min: { type: 'INT', default: 10 },
+        cov_max: { type: 'INT', default: 0 },
+        af_min: { type: 'FLOAT', default: 0 },
+        af_max: { type: 'FLOAT', default: 0 },
+        strand_bias: { type: 'STRING', default: 'mtc', options: ['no', 'max-phred', 'mtc'] },
+        sb_thresh: { type: 'INT', default: 0, displayOptions: { show: { strand_bias: ['max-phred'] } } },
+        sb_alpha: { type: 'FLOAT', default: 0.001, displayOptions: { show: { strand_bias: ['mtc'] } } },
+        sb_mtc: { type: 'STRING', default: 'fdr', options: ['bonf', 'holm', 'fdr'], displayOptions: { show: { strand_bias: ['mtc'] } } },
+        sb_compound: { type: 'BOOLEAN', default: true, displayOptions: { hide: { strand_bias: ['no'] } } },
+        sb_indels: { type: 'BOOLEAN', default: false, displayOptions: { hide: { strand_bias: ['no'] } } },
+        flag_or_drop: { type: 'STRING', default: '', options: ['', '--print-all'] },
+      },
+    },
+    output: ['VCF'],
+    output_name: ['filtered_variants'],
+    required_executables: ['lofreq'],
+    required_conda_packages: ['lofreq'],
+    documentation_url: 'https://csb5.github.io/lofreq/commands/',
+    citation_dois: ['10.1093/nar/gks918'],
+    citation_urls: ['https://doi.org/10.1093/nar/gks918'],
+    citation_text: 'LoFreq filters sequence-quality-aware variant calls using configurable quality, coverage, allele-frequency, and strand-bias criteria.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -3656,7 +3700,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('166 nodes available')).toBeVisible();
+  await expect(page.getByText('167 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3713,6 +3757,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'lofreq alnqual', name: 'LoFreq Alignment Quality', category: 'variant' },
     { query: 'Dindel indel quality', name: 'LoFreq Indel Quality', category: 'variant' },
+    { query: 'lofreq strand bias filter', name: 'LoFreq Filter', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },

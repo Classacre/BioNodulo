@@ -5172,6 +5172,265 @@ class LoFreqIndelQualNode(CommandNode):
         }
 
 
+class LoFreqFilterNode(CommandNode):
+    """Posteriorly filter LoFreq VCF variant calls."""
+
+    NODE_ID = "lofreq_filter"
+    DISPLAY_NAME = "LoFreq Filter"
+    REQUIRED_CONDA_PACKAGES = ["lofreq"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Filter LoFreq VCF variants by type, quality, coverage, allele frequency, and strand-bias evidence."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "lofreq",
+        "lofreq filter",
+        "lofreq strand bias filter",
+        "variant filtering",
+        "posterior filtering",
+        "strand bias",
+        "multiple testing correction",
+        "VCF filter",
+    ]
+    RETURN_TYPES = ("VCF",)
+    RETURN_NAMES = ("filtered_variants",)
+    REQUIRED_EXECUTABLES = ["lofreq"]
+    DOCUMENTATION_URL = "https://csb5.github.io/lofreq/commands/"
+    CITATION_DOIS = ["10.1093/nar/gks918"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/nar/gks918"]
+    CITATION_TEXT = "LoFreq filters sequence-quality-aware variant calls using configurable quality, coverage, allele-frequency, and strand-bias criteria."
+    VERSION = "2.1.5"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "lofreq",
+            "filter",
+            "-i",
+            str(inputs.get("invcf", "")),
+            "--no-defaults",
+            "--verbose",
+        ]
+        flag_or_drop = str(inputs.get("flag_or_drop", "") or "")
+        if flag_or_drop:
+            cmd.append(flag_or_drop)
+        keep_only = str(inputs.get("keep_only", "") or "")
+        if keep_only:
+            cmd.append(keep_only)
+
+        if keep_only in ("", "--only-snvs"):
+            snvqual_filter = str(inputs.get("snvqual_filter", "no"))
+            if snvqual_filter == "min-phred":
+                _add_if_value(cmd, "-Q", inputs.get("snvqual_thresh", 0))
+            elif snvqual_filter == "mtc":
+                _add_if_value(cmd, "-q", inputs.get("snvqual_mtc", "bonf"))
+                _add_if_value(cmd, "-r", inputs.get("snvqual_alpha", 1))
+                _add_if_value(cmd, "-s", inputs.get("snvqual_ntests", 1))
+
+        if keep_only in ("", "--only-indels"):
+            indelqual_filter = str(inputs.get("indelqual_filter", "no"))
+            if indelqual_filter == "min-phred":
+                _add_if_value(cmd, "-K", inputs.get("indelqual_thresh", 0))
+            elif indelqual_filter == "mtc":
+                _add_if_value(cmd, "-k", inputs.get("indelqual_mtc", "bonf"))
+                _add_if_value(cmd, "-l", inputs.get("indelqual_alpha", 1))
+                _add_if_value(cmd, "-m", inputs.get("indelqual_ntests", 1))
+
+        _add_if_value(cmd, "-v", inputs.get("cov_min", 10))
+        _add_if_value(cmd, "-V", inputs.get("cov_max", 0))
+        _add_if_value(cmd, "-a", inputs.get("af_min", 0))
+        _add_if_value(cmd, "-A", inputs.get("af_max", 0))
+
+        strand_bias = str(inputs.get("strand_bias", "mtc"))
+        if strand_bias == "max-phred":
+            _add_if_value(cmd, "-B", inputs.get("sb_thresh", 0))
+        elif strand_bias == "mtc":
+            _add_if_value(cmd, "-b", inputs.get("sb_mtc", "fdr"))
+            _add_if_value(cmd, "-c", inputs.get("sb_alpha", 0.001))
+        if strand_bias != "no":
+            if not inputs.get("sb_compound", True):
+                cmd.append("--sb-no-compound")
+            if inputs.get("sb_indels"):
+                cmd.append("--sb-incl-indels")
+
+        cmd.extend(["-o", f"{out}/filtered.vcf"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "filtered.vcf"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "invcf": ("VCF", {"description": "VCF or bgzipped VCF variants to filter"}),
+                "keep_only": ("STRING", {"default": "", "options": ["", "--only-snvs", "--only-indels"], "description": "Variant types to retain"}),
+            },
+            "optional": {
+                "snvqual_filter": (
+                    "STRING",
+                    {
+                        "default": "no",
+                        "options": ["no", "min-phred", "mtc"],
+                        "description": "SNV quality filter mode",
+                        "displayOptions": {"show": {"keep_only": ["", "--only-snvs"]}},
+                    },
+                ),
+                "snvqual_thresh": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Minimum SNV QUAL value",
+                        "displayOptions": {"show": {"snvqual_filter": ["min-phred"]}},
+                    },
+                ),
+                "snvqual_alpha": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Multiple-testing corrected SNV p-value threshold",
+                        "displayOptions": {"show": {"snvqual_filter": ["mtc"]}},
+                    },
+                ),
+                "snvqual_mtc": (
+                    "STRING",
+                    {
+                        "default": "bonf",
+                        "options": ["bonf", "holm", "fdr"],
+                        "description": "SNV multiple testing correction method",
+                        "displayOptions": {"show": {"snvqual_filter": ["mtc"]}},
+                    },
+                ),
+                "snvqual_ntests": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Estimated number of SNV tests performed",
+                        "displayOptions": {"show": {"snvqual_filter": ["mtc"]}},
+                    },
+                ),
+                "indelqual_filter": (
+                    "STRING",
+                    {
+                        "default": "no",
+                        "options": ["no", "min-phred", "mtc"],
+                        "description": "Indel quality filter mode",
+                        "displayOptions": {"show": {"keep_only": ["", "--only-indels"]}},
+                    },
+                ),
+                "indelqual_thresh": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Minimum indel QUAL value",
+                        "displayOptions": {"show": {"indelqual_filter": ["min-phred"]}},
+                    },
+                ),
+                "indelqual_alpha": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Multiple-testing corrected indel p-value threshold",
+                        "displayOptions": {"show": {"indelqual_filter": ["mtc"]}},
+                    },
+                ),
+                "indelqual_mtc": (
+                    "STRING",
+                    {
+                        "default": "bonf",
+                        "options": ["bonf", "holm", "fdr"],
+                        "description": "Indel multiple testing correction method",
+                        "displayOptions": {"show": {"indelqual_filter": ["mtc"]}},
+                    },
+                ),
+                "indelqual_ntests": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Estimated number of indel tests performed",
+                        "displayOptions": {"show": {"indelqual_filter": ["mtc"]}},
+                    },
+                ),
+                "cov_min": ("INT", {"default": 10, "min": 0, "description": "Minimum depth at variant sites"}),
+                "cov_max": ("INT", {"default": 0, "min": 0, "description": "Maximum depth at variant sites; 0 leaves the upper bound open"}),
+                "af_min": ("FLOAT", {"default": 0, "min": 0, "max": 1, "description": "Minimum allele frequency"}),
+                "af_max": ("FLOAT", {"default": 0, "min": 0, "max": 1, "description": "Maximum allele frequency; 0 leaves the upper bound open"}),
+                "strand_bias": (
+                    "STRING",
+                    {
+                        "default": "mtc",
+                        "options": ["no", "max-phred", "mtc"],
+                        "description": "Strand-bias filter mode",
+                    },
+                ),
+                "sb_thresh": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Maximum strand-bias phred value",
+                        "displayOptions": {"show": {"strand_bias": ["max-phred"]}},
+                    },
+                ),
+                "sb_alpha": (
+                    "FLOAT",
+                    {
+                        "default": 0.001,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Multiple-testing corrected strand-bias p-value threshold",
+                        "displayOptions": {"show": {"strand_bias": ["mtc"]}},
+                    },
+                ),
+                "sb_mtc": (
+                    "STRING",
+                    {
+                        "default": "fdr",
+                        "options": ["bonf", "holm", "fdr"],
+                        "description": "Strand-bias multiple testing correction method",
+                        "displayOptions": {"show": {"strand_bias": ["mtc"]}},
+                    },
+                ),
+                "sb_compound": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "description": "Use compound strand-bias filtering",
+                        "displayOptions": {"hide": {"strand_bias": ["no"]}},
+                    },
+                ),
+                "sb_indels": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Apply strand-bias filtering to indels",
+                        "displayOptions": {"hide": {"strand_bias": ["no"]}},
+                    },
+                ),
+                "flag_or_drop": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "--print-all"],
+                        "description": "Drop failing variants or keep them with FILTER annotations",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 
