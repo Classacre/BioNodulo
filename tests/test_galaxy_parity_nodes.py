@@ -429,6 +429,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "krakentools_alpha_diversity": {
+            "display_name": "Krakentools Alpha Diversity",
+            "category": "taxonomy",
+            "required_executables": ["alpha_diversity.py"],
+            "required_conda_packages": ["krakentools"],
+            "doi": "10.1038/s41596-022-00738-y",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5029,6 +5036,44 @@ def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(t
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "krakentools_combine_kreports" / "combined_kreport.tsv",
+    ]
+
+
+def test_krakentools_alpha_diversity_renders_metric_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("krakentools_alpha_diversity")
+    info = _registry().object_info()["krakentools_alpha_diversity"]
+
+    assert info["output"] == ["TEXT"]
+    assert info["output_name"] == ["alpha_diversity"]
+    assert info["citation_dois"] == ["10.1038/s41596-022-00738-y"]
+    assert info["citation_text"] == "Metagenome analysis using the Kraken software suite."
+    assert info["input"]["required"]["abundance_file"][0] == "TSV"
+    assert info["input"]["optional"]["alpha"][1]["default"] == "Sh"
+    assert info["input"]["optional"]["alpha"][1]["options"] == ["Sh", "BP", "Si", "ISi", "F"]
+
+    assert node_class.render_command(
+        {
+            "abundance_file": "bracken abundance.tsv",
+            "alpha": "ISi",
+            "output": "/work/krakentools_alpha",
+        }
+    ) == (
+        "alpha_diversity.py --filename 'bracken abundance.tsv' --alpha ISi "
+        "> /work/krakentools_alpha/alpha_diversity.txt"
+    )
+
+    assert node_class.render_command(
+        {
+            "filename": "bracken.tabular",
+            "output": "/work/krakentools_alpha",
+        }
+    ) == (
+        "alpha_diversity.py --filename bracken.tabular --alpha Sh "
+        "> /work/krakentools_alpha/alpha_diversity.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "krakentools_alpha_diversity" / "alpha_diversity.txt",
     ]
 
 

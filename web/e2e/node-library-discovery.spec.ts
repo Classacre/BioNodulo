@@ -1671,6 +1671,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  krakentools_alpha_diversity: {
+    name: 'krakentools_alpha_diversity',
+    display_name: 'Krakentools Alpha Diversity',
+    category: 'taxonomy',
+    description: 'Calculate alpha diversity metrics from a Bracken abundance estimation table.',
+    search_aliases: ['Galaxy', 'krakentools', 'alpha_diversity.py', 'alpha diversity', 'Bracken abundance', 'Shannon diversity'],
+    input: {
+      required: {
+        abundance_file: { type: 'TSV' },
+      },
+      optional: {
+        alpha: { type: 'STRING', default: 'Sh', options: ['Sh', 'BP', 'Si', 'ISi', 'F'] },
+      },
+    },
+    output: ['TEXT'],
+    output_name: ['alpha_diversity'],
+    required_executables: ['alpha_diversity.py'],
+    required_conda_packages: ['krakentools'],
+    documentation_url: 'https://github.com/jenniferlu717/KrakenTools',
+    citation_dois: ['10.1038/s41596-022-00738-y'],
+    citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
+    citation_text: 'Metagenome analysis using the Kraken software suite.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4547,7 +4570,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('194 nodes available')).toBeVisible();
+  await expect(page.getByText('195 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4618,6 +4641,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
+    { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

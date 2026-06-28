@@ -8270,6 +8270,75 @@ class KrakentoolsCombineKreportsNode(CommandNode):
         }
 
 
+class KrakentoolsAlphaDiversityNode(CommandNode):
+    """Calculate alpha diversity metrics from Bracken abundance estimates."""
+
+    NODE_ID = "krakentools_alpha_diversity"
+    DISPLAY_NAME = "Krakentools Alpha Diversity"
+    REQUIRED_CONDA_PACKAGES = ["krakentools"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Calculate alpha diversity metrics from a Bracken abundance estimation table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "krakentools",
+        "alpha_diversity.py",
+        "alpha diversity",
+        "Bracken abundance",
+        "Shannon diversity",
+    ]
+    RETURN_TYPES = ("TEXT",)
+    RETURN_NAMES = ("alpha_diversity",)
+    REQUIRED_EXECUTABLES = ["alpha_diversity.py"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/KrakenTools"
+    CITATION_DOIS = [KRAKENTOOLS_DOI]
+    CITATION_URLS = [f"{DOI_URL}{KRAKENTOOLS_DOI}"]
+    CITATION_TEXT = KRAKENTOOLS_CITATION_TEXT
+    VERSION = "1.2.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        abundance_file = inputs.get("abundance_file", inputs.get("filename", ""))
+        cmd = [
+            "alpha_diversity.py",
+            "--filename",
+            str(abundance_file),
+            "--alpha",
+            str(inputs.get("alpha", "Sh")),
+        ]
+        _add_shell_redirect(cmd, f"{out}/alpha_diversity.txt")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "alpha_diversity.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "abundance_file": (
+                    "TSV",
+                    {"description": "Bracken abundance estimation table used to calculate alpha diversity"},
+                ),
+            },
+            "optional": {
+                "alpha": (
+                    "STRING",
+                    {
+                        "default": "Sh",
+                        "options": ["Sh", "BP", "Si", "ISi", "F"],
+                        "description": "Alpha diversity metric: Shannon, Berger-Parker, Simpson, inverse Simpson, or Fisher",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
